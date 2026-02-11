@@ -14,7 +14,19 @@ import {
 } from "ai";
 import type { ChatMessage } from "./types";
 import type { Memory } from "./memory";
-import { HTTPException } from "hono/http-exception";
+
+/**
+ * Split request messages into system and the single request message.
+ * Schema guarantees exactly one non-system message.
+ */
+export function splitRequestMessages(messages: ChatMessage[]): {
+  systemMessages: ChatMessage[];
+  requestMessage: ChatMessage;
+} {
+  const systemMessages = messages.filter((m) => m.role === "system");
+  const requestMessage = messages.find((m) => m.role !== "system")!;
+  return { systemMessages, requestMessage };
+}
 
 export interface ProcessedConversation {
   systemMessages: SystemModelMessage[];
@@ -22,23 +34,20 @@ export interface ProcessedConversation {
   originalMessages: ChatMessage[];
 }
 
-function splitMessages<T extends ChatMessage>(
-  messages: ChatMessage[],
-): { systemMessages: ChatMessage[]; messages: ChatMessage[] };
-function splitMessages<T extends ModelMessage>(
-  messages: ModelMessage[],
-): {
+function splitMessages(messages: ModelMessage[]): {
   systemMessages: Extract<ModelMessage, { role: "system" }>[];
-  messages: Extract<ModelMessage, { role: "user" | "assistant" }>[];
-};
-function splitMessages<T extends { role: string }>(messages: T[]) {
+  messages: Extract<ModelMessage, { role: "user" | "assistant" | "tool" }>[];
+} {
   const [system, nonSystem] = messages.reduce(
     (acc, m) => {
       if (m.role === "system") acc[0].push(m);
       else acc[1].push(m);
       return acc;
     },
-    [[], []] as [T[], T[]],
+    [[], []] as [
+      Extract<ModelMessage, { role: "system" }>[],
+      Extract<ModelMessage, { role: "user" | "assistant" | "tool" }>[],
+    ],
   );
   return {
     systemMessages: system,
@@ -51,36 +60,23 @@ function splitMessages<T extends { role: string }>(messages: T[]) {
  */
 export async function processConversation(
   memory: Memory,
-  messages: ChatMessage[],
-  instruction: ChatMessage | null | undefined,
+  requestMessage: ChatMessage,
+  systemMessages: ChatMessage[],
   config: { windowSize: number; models: ModelsConfig },
 ): Promise<ProcessedConversation> {
-  const {
-    systemMessages,
-    messages: [message],
-  } = splitMessages(messages);
-
-  if (!message) {
-    throw new HTTPException(400, {
-      message: "Expected exactly one non-system message",
-    });
-  }
-
   // Load thread history
   const threadMessages = await memory.loadHistory(config.windowSize);
 
   // ID-based merge: if incoming message matches a thread message, replace it and drop the rest; else append
-  const matchIndex = threadMessages.findIndex((m) => m.id === message.id);
+  const matchIndex = threadMessages.findIndex(
+    (m) => m.id === requestMessage.id,
+  );
   const conversation =
     matchIndex >= 0
-      ? [...threadMessages.slice(0, matchIndex), message]
-      : [...threadMessages, message];
+      ? [...threadMessages.slice(0, matchIndex), requestMessage]
+      : [...threadMessages, requestMessage];
 
-  const allMessages: ChatMessage[] = [
-    ...(instruction ? [instruction] : []),
-    ...systemMessages,
-    ...conversation,
-  ];
+  const allMessages: ChatMessage[] = [...systemMessages, ...conversation];
 
   const validUIMessages = await validateUIMessages<ChatMessage>({
     messages: allMessages,
@@ -103,7 +99,7 @@ export async function processConversation(
     reasoning: "all",
     emptyMessages: "remove",
     toolCalls: "none",
-  }).slice(-config.windowSize);
+  });
 
   return {
     systemMessages: systemModelMessages,

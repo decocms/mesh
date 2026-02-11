@@ -107,8 +107,8 @@ describe("processConversation", () => {
 
       const { originalMessages } = await processConversation(
         memory,
-        configMessages,
-        undefined,
+        configMessages[0]!,
+        [],
         {
           windowSize: 50,
           models: {
@@ -155,8 +155,8 @@ describe("processConversation", () => {
 
       const { originalMessages } = await processConversation(
         memory,
-        configMessages,
-        undefined,
+        configMessages[0]!,
+        [],
         {
           windowSize: 50,
           models: {
@@ -202,8 +202,8 @@ describe("processConversation", () => {
 
       const { originalMessages } = await processConversation(
         memory,
-        configMessages,
-        undefined,
+        configMessages[0]!,
+        [],
         {
           windowSize: 50,
           models: {

@@ -22,7 +22,7 @@ import {
   DEFAULT_WINDOW_SIZE,
   generateMessageId,
 } from "./constants";
-import { processConversation } from "./conversation";
+import { processConversation, splitRequestMessages } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
@@ -51,9 +51,15 @@ async function validateRequest(
     throw new HTTPException(400, { message: parseResult.error.message });
   }
 
+  const { messages: rawMessages, ...rest } = parseResult.data;
+  const msgs = rawMessages as unknown as ChatMessage[];
+  const { systemMessages, requestMessage } = splitRequestMessages(msgs);
+
   return {
     organization,
-    ...parseResult.data,
+    systemMessages,
+    requestMessage,
+    ...rest,
   };
 }
 
@@ -101,12 +107,12 @@ app.post("/:org/decopilot/stream", async (c) => {
       organization,
       models,
       agent,
-      messages: incomingMessages,
+      systemMessages,
+      requestMessage,
       temperature,
       memory: memoryConfig,
       thread_id,
     } = await validateRequest(c);
-    const messages = incomingMessages as unknown as ChatMessage[];
 
     const userId = ctx.auth?.user?.id;
     if (!userId) {
@@ -193,31 +199,42 @@ app.post("/:org/decopilot/stream", async (c) => {
     // Get server instructions if available (for virtual MCP agents)
     const serverInstructions = mcpClient.getInstructions();
 
-    // Build system prompt combining platform instructions with agent-specific instructions
+    // Merge platform instructions with request system messages
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
+    const allSystemMessages: ChatMessage[] = [systemPrompt, ...systemMessages];
 
     // 4. Process conversation
     const {
-      systemMessages,
+      systemMessages: processedSystemMessages,
       messages: processedMessages,
       originalMessages,
-    } = await processConversation(memory, messages, systemPrompt, {
+    } = await processConversation(memory, requestMessage, allSystemMessages, {
       windowSize,
       models,
     });
 
     ensureModelCompatibility(models, originalMessages);
 
-    const requestMessage = messages.find((m) => m.role !== "system")!;
-
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
-    let newTitle: string | null = null;
+
+    const shouldGenerateTitle = memory.thread.title === DEFAULT_THREAD_TITLE;
+    const titlePromise = shouldGenerateTitle
+      ? generateTitleInBackground({
+          abortSignal,
+          model: modelProvider.fastModel ?? modelProvider.thinkingModel,
+          userMessage: JSON.stringify(processedMessages[0]?.content),
+        })
+      : Promise.resolve(null);
+
+    let resolvedTitle: string | null = null;
+    let reasoningStartAt: Date | null = null;
+    let accumulatedUsage: UsageStats = emptyUsageStats();
 
     // 5. Main stream
     const result = streamText({
       model: modelProvider.thinkingModel,
-      system: systemMessages,
+      system: processedSystemMessages,
       messages: processedMessages,
       tools: { ...mcpTools, ...builtInTools },
       temperature,
@@ -225,44 +242,24 @@ app.post("/:org/decopilot/stream", async (c) => {
       abortSignal,
       stopWhen: stepCountIs(30),
       onStepFinish: async () => {
-        const shouldGenerateTitle =
-          memory.thread.title === DEFAULT_THREAD_TITLE;
-        // Title generation runs after first step's TEXT is already streamed.
-        // This blocks the "finish-step" event and subsequent steps (for tool calls),
-        // but the response text has already been sent to the client.
-        if (shouldGenerateTitle && newTitle === null) {
-          const userMessage = JSON.stringify(processedMessages[0]?.content);
-          const modelToUse =
-            modelProvider.fastModel ?? modelProvider.thinkingModel;
+        resolvedTitle = await titlePromise;
 
-          await generateTitleInBackground({
-            abortSignal,
-            model: modelToUse,
-            userMessage,
-            onTitle: (title) => {
-              newTitle = title;
-              ctx.storage.threads
-                .update(memory.thread.id, { title })
-                .catch((error) => {
-                  console.error(
-                    "[decopilot:stream] Error updating thread title",
-                    error,
-                  );
-                });
-            },
-          }).catch((error) => {
-            console.error("[decopilot:stream] Error generating title", error);
+        if (!resolvedTitle) return;
+
+        await ctx.storage.threads
+          .update(memory.thread.id, { title: resolvedTitle })
+          .catch((error) => {
+            console.error(
+              "[decopilot:stream] Error updating thread title",
+              error,
+            );
           });
-        }
       },
       onError: async (error) => {
         console.error("[decopilot:stream] Error", error);
         throw error;
       },
     });
-
-    let reasoningStartAt: Date | null = null;
-    let accumulatedUsage: UsageStats = emptyUsageStats();
 
     // 6. Return the stream response with metadata
     return result.toUIMessageStreamResponse({
@@ -319,7 +316,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
         if (part.type === "finish") {
           return {
-            title: newTitle ?? undefined,
+            title: resolvedTitle ?? undefined,
           };
         }
 
@@ -339,7 +336,7 @@ app.post("/:org/decopilot/stream", async (c) => {
           ).values(),
         ].map((message) => ({
           ...message,
-          metadata: { ...message.metadata, title: newTitle ?? undefined },
+          metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
           threadId: memory.thread.id,
           createdAt: now,
           updatedAt: now,
