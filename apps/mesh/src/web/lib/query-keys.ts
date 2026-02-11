@@ -176,6 +176,10 @@ export const KEYS = {
   // User data
   user: (userId: string) => ["user", userId] as const,
 
+  // Store README fetched from external URL
+  storeReadmeUrl: (readmeUrl: string | null | undefined) =>
+    ["store-readme-url", readmeUrl] as const,
+
   // Remote MCP tools (for store server detail page)
   remoteMcpTools: (remoteUrl: string | null) =>
     ["remote-mcp-tools", remoteUrl] as const,
