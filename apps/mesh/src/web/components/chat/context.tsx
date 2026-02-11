@@ -37,15 +37,17 @@ import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-c
 import { useLocalStorage } from "../../hooks/use-local-storage";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import {
-  type ModelChangePayload,
-  type SelectedModelState,
-  useModels,
-} from "./select-model";
+import { type ModelChangePayload, useModels } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useThreadManager } from "./thread";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
-import type { ChatMessage, Metadata, ParentThread, Thread } from "./types.ts";
+import type {
+  ChatMessage,
+  ChatModelsConfig,
+  Metadata,
+  ParentThread,
+  Thread,
+} from "./types.ts";
 
 // ============================================================================
 // Type Definitions
@@ -116,7 +118,7 @@ interface ChatContextValue extends ChatFromUseChat {
 
   // Model state
   modelsConnections: ReturnType<typeof useModelConnections>;
-  selectedModel: SelectedModelState | null;
+  selectedModel: ChatModelsConfig | null;
   setSelectedModel: (model: ModelChangePayload) => void;
 
   // Mode state
@@ -159,12 +161,12 @@ const createModelsTransport = (
         ? [systemMessage, ...userMessage]
         : userMessage;
 
-      // Fall back to last message metadata when requestMetadata is missing model/agent
+      // Fall back to last message metadata when requestMetadata is missing models/agent
       const lastMsgMeta = (messages.at(-1)?.metadata ?? {}) as Metadata;
       const mergedMetadata = {
         ...metadata,
         agent: metadata.agent ?? lastMsgMeta.agent,
-        model: metadata.model ?? lastMsgMeta.model,
+        models: metadata.models ?? lastMsgMeta.models,
         thread_id: metadata.thread_id ?? lastMsgMeta.thread_id,
       };
 
@@ -193,7 +195,6 @@ const useModelState = (
   const [modelState, setModelState] = useLocalStorage<{
     id: string;
     connectionId: string;
-    fastId?: string | null;
   } | null>(LOCALSTORAGE_KEYS.chatSelectedModel(locator), null);
 
   // Fetch allowed models for current user's role
@@ -228,19 +229,52 @@ const useModelState = (
   // Find the selected model from the filtered models using stored state
   const selectedModel = findOrFirst(models, modelState?.id);
 
-  const selectedModelState =
+  const selectedModelsConfig: ChatModelsConfig | null =
     selectedModel && modelsConnection?.id
       ? {
-          id: selectedModel.id,
-          provider: selectedModel.provider,
-          limits: selectedModel.limits,
-          capabilities: selectedModel.capabilities,
           connectionId: modelsConnection.id,
-          fastId: cheapestModel?.id,
+          thinking: {
+            id: selectedModel.id,
+            provider: selectedModel.provider ?? undefined,
+            limits: selectedModel.limits ?? undefined,
+            capabilities: selectedModel.capabilities
+              ? {
+                  vision: selectedModel.capabilities.includes("vision")
+                    ? true
+                    : undefined,
+                  text: selectedModel.capabilities.includes("text")
+                    ? true
+                    : undefined,
+                  tools: selectedModel.capabilities.includes("tools")
+                    ? true
+                    : undefined,
+                }
+              : undefined,
+          },
+          fast: cheapestModel
+            ? {
+                id: cheapestModel.id,
+                provider: cheapestModel.provider ?? undefined,
+                limits: cheapestModel.limits ?? undefined,
+                capabilities: cheapestModel.capabilities
+                  ? {
+                      vision: cheapestModel.capabilities.includes("vision")
+                        ? true
+                        : undefined,
+                      text: cheapestModel.capabilities.includes("text")
+                        ? true
+                        : undefined,
+                      tools: cheapestModel.capabilities.includes("tools")
+                        ? true
+                        : undefined,
+                    }
+                  : undefined,
+              }
+            : undefined,
         }
       : null;
 
-  return [selectedModelState, setModelState] as const;
+  return [selectedModelsConfig, setModelState] as const;
 };
 
 /**
@@ -703,18 +737,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     const metadata: Metadata = {
       ...messageMetadata,
       system: contextPrompt,
-      model: {
-        id: selectedModel.id,
-        connectionId: selectedModel.connectionId,
-        provider: selectedModel.provider ?? undefined,
-        limits: selectedModel.limits ?? undefined,
-        capabilities: {
-          vision: selectedModel.capabilities?.includes("vision") ?? undefined,
-          text: selectedModel.capabilities?.includes("text") ?? undefined,
-          tools: selectedModel.capabilities?.includes("tools") ?? undefined,
-        },
-        fastId: selectedModel.fastId,
-      },
+      models: selectedModel,
     };
 
     const userMessage: ChatMessage = {

@@ -60,7 +60,7 @@ function ChatMessages() {
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
-      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
+      <div className="flex flex-col min-h-full min-w-0 max-w-2xl mx-auto w-full">
         {messagePairs.map((pair, index) => (
           <MessagePair
             key={`pair-${pair.user.id}`}

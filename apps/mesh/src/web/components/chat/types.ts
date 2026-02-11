@@ -7,20 +7,18 @@ import type { JSONContent } from "@tiptap/core";
 // Chat Config Types
 // ============================================================================
 
-export interface ChatModelConfig {
+export interface ChatModelInfo {
   id: string;
-  connectionId: string;
-  fastId?: string | null;
+  capabilities?: { vision?: boolean; text?: boolean; tools?: boolean };
   provider?: string | null;
-  limits?: {
-    contextWindow?: number;
-    maxOutputTokens?: number;
-  };
-  capabilities?: {
-    vision?: boolean;
-    text?: boolean;
-    tools?: boolean;
-  };
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
+}
+
+export interface ChatModelsConfig {
+  connectionId: string;
+  thinking: ChatModelInfo;
+  coding?: ChatModelInfo;
+  fast?: ChatModelInfo;
 }
 
 export interface ChatAgentConfig {
@@ -55,10 +53,9 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
-  fastId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
-  model?: ChatModelConfig;
+  models?: ChatModelsConfig;
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;

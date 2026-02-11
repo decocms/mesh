@@ -79,14 +79,7 @@ export function MessagePair({ pair, isLastPair, status }: MessagePairProps) {
   return (
     <div
       ref={handlePairRef}
-      className="flex flex-col pb-2"
-      style={
-        isLastPair
-          ? {
-              minHeight: `calc(100vh - 240px - var(--project-topbar-height, 0px))`,
-            }
-          : undefined
-      }
+      className={`flex flex-col pb-2${isLastPair ? " flex-1" : ""}`}
     >
       {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
       <div
