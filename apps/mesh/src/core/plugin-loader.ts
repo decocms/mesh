@@ -156,8 +156,10 @@ export function filterToolsByEnabledPlugins<T extends { name: string }>(
     const pluginId = pluginToolMap.get(tool.name);
     // Core tool (not from a plugin) - always show
     if (!pluginId) return true;
-    // Plugin tool - only show if plugin is enabled
-    return enabledPlugins?.includes(pluginId) ?? false;
+    // If org-level plugin settings are not configured, keep plugin tools visible.
+    if (enabledPlugins == null) return true;
+    // Plugin tool - only show if plugin is explicitly enabled
+    return enabledPlugins.includes(pluginId);
   });
 }
 

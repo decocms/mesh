@@ -9,6 +9,7 @@
  */
 
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
+import { serverPlugin as privateRegistryPlugin } from "mesh-plugin-private-registry/server";
 import { serverPlugin as userSandboxPlugin } from "mesh-plugin-user-sandbox/server";
 import { serverPlugin as workflowsPlugin } from "mesh-plugin-workflows/server";
 
@@ -18,5 +19,6 @@ import { serverPlugin as workflowsPlugin } from "mesh-plugin-workflows/server";
  */
 export const serverPlugins: ServerPlugin[] = [
   userSandboxPlugin,
+  privateRegistryPlugin,
   workflowsPlugin,
 ];
