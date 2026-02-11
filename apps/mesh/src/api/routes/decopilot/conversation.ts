@@ -4,7 +4,7 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
-import { ChatModelConfig } from "@/web/components/chat/types";
+import type { ModelsConfig } from "./types";
 import {
   convertToModelMessages,
   ModelMessage,
@@ -53,7 +53,7 @@ export async function processConversation(
   memory: Memory,
   messages: ChatMessage[],
   instruction: ChatMessage | null | undefined,
-  config: { windowSize: number; model: ChatModelConfig },
+  config: { windowSize: number; models: ModelsConfig },
 ): Promise<ProcessedConversation> {
   const {
     systemMessages,
@@ -67,7 +67,7 @@ export async function processConversation(
   }
 
   // Load thread history
-  const threadMessages = await memory.loadHistory();
+  const threadMessages = await memory.loadHistory(config.windowSize);
 
   // ID-based merge: if incoming message matches a thread message, replace it and drop the rest; else append
   const matchIndex = threadMessages.findIndex((m) => m.id === message.id);

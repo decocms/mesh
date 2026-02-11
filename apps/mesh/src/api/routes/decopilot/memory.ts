@@ -53,20 +53,22 @@ export class Memory {
     this.defaultWindowSize = config.defaultWindowSize ?? 50;
   }
 
-  async loadHistory(): Promise<ThreadMessage[]> {
-    const { messages } = await this.storage.listMessages(this.thread.id);
-    return messages;
+  async loadHistory(windowSize?: number): Promise<ThreadMessage[]> {
+    const limit = windowSize ?? this.defaultWindowSize;
+    const { messages } = await this.storage.listMessages(this.thread.id, {
+      limit,
+      sort: "desc",
+    });
+    // Reverse so chronological (oldest first)
+    const chronological = [...messages].reverse();
+    // Ensure the window starts with a "user" message; trim from the start if needed
+    const startIndex = chronological.findIndex((m) => m.role === "user");
+    return startIndex >= 0 ? chronological.slice(startIndex) : [];
   }
 
   async save(messages: ThreadMessage[]): Promise<void> {
     if (messages.length === 0) return;
     await this.storage.saveMessages(messages);
-  }
-
-  async getPrunedHistory(windowSize?: number): Promise<ThreadMessage[]> {
-    const messages = await this.loadHistory();
-    const size = windowSize ?? this.defaultWindowSize;
-    return messages.slice(-size);
   }
 }
 

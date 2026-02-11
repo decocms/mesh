@@ -203,16 +203,21 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
   async listMessages(
     threadId: string,
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      sort?: "asc" | "desc";
+    },
   ): Promise<{ messages: ThreadMessage[]; total: number }> {
+    const sort = options?.sort ?? "asc";
     // Order by created_at first, then by id as a tiebreaker for stable ordering
     // when messages have identical timestamps (e.g., batched inserts).
     let query = this.db
       .selectFrom("thread_messages")
       .selectAll()
       .where("thread_id", "=", threadId)
-      .orderBy("created_at", "asc")
-      .orderBy("id", "asc");
+      .orderBy("created_at", sort)
+      .orderBy("id", sort);
 
     const countQuery = this.db
       .selectFrom("thread_messages")

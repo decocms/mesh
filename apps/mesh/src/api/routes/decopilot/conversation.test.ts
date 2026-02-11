@@ -30,6 +30,15 @@ const createMockCtx = (listMessagesMock: ReturnType<typeof vi.fn>) =>
     },
   }) as unknown as MeshContext;
 
+/** Mock that returns messages in desc order when sort is "desc" (newest first) */
+const mockListMessages = (threadMessages: ChatMessage[]) => {
+  return vi.fn().mockImplementation((_id: string, opts?: { sort?: string }) => {
+    const msgs = threadMessages.map((m) => toThreadMessage(m, "thrd_1"));
+    const ordered = opts?.sort === "desc" ? [...msgs].reverse() : msgs;
+    return Promise.resolve({ messages: ordered, total: msgs.length });
+  });
+};
+
 const toThreadMessage = (m: ChatMessage, threadId: string) => ({
   ...m,
   threadId,
@@ -86,10 +95,7 @@ describe("processConversation", () => {
         },
       ];
 
-      const listMessagesMock = vi.fn().mockResolvedValue({
-        messages: threadMessages.map((m) => toThreadMessage(m, "thrd_1")),
-        total: threadMessages.length,
-      });
+      const listMessagesMock = mockListMessages(threadMessages);
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
@@ -105,7 +111,10 @@ describe("processConversation", () => {
         undefined,
         {
           windowSize: 50,
-          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+          models: {
+            connectionId: "c1",
+            thinking: { id: "m1", capabilities: { text: true } },
+          },
         },
       );
 
@@ -134,10 +143,7 @@ describe("processConversation", () => {
         },
       ];
 
-      const listMessagesMock = vi.fn().mockResolvedValue({
-        messages: threadMessages.map((m) => toThreadMessage(m, "thrd_1")),
-        total: threadMessages.length,
-      });
+      const listMessagesMock = mockListMessages(threadMessages);
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
@@ -153,7 +159,10 @@ describe("processConversation", () => {
         undefined,
         {
           windowSize: 50,
-          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+          models: {
+            connectionId: "c1",
+            thinking: { id: "m1", capabilities: { text: true } },
+          },
         },
       );
 
@@ -181,10 +190,7 @@ describe("processConversation", () => {
         },
       ];
 
-      const listMessagesMock = vi.fn().mockResolvedValue({
-        messages: threadMessages.map((m) => toThreadMessage(m, "thrd_1")),
-        total: threadMessages.length,
-      });
+      const listMessagesMock = mockListMessages(threadMessages);
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
@@ -200,7 +206,10 @@ describe("processConversation", () => {
         undefined,
         {
           windowSize: 50,
-          model: { id: "m1", connectionId: "c1", capabilities: { text: true } },
+          models: {
+            connectionId: "c1",
+            thinking: { id: "m1", capabilities: { text: true } },
+          },
         },
       );
 

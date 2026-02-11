@@ -36,7 +36,11 @@ export interface ThreadStoragePort {
   saveMessages(data: ThreadMessage[]): Promise<void>;
   listMessages(
     threadId: string,
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      sort?: "asc" | "desc";
+    },
   ): Promise<{ messages: ThreadMessage[]; total: number }>;
 }
 
