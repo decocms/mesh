@@ -242,7 +242,7 @@ const collectionDetailRoute = createRoute({
   ),
 });
 
-// Monitoring
+// Monitoring (org-level, but requires org-admin project context)
 const monitoringRoute = createRoute({
   getParentRoute: () => projectLayout,
   path: "/monitoring",
@@ -265,6 +265,27 @@ const monitoringRoute = createRoute({
     }),
   ),
 });
+
+// Dashboard view (org-admin only)
+const dashboardViewRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/monitoring/dashboards/$dashboardId",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-view.tsx"),
+  ),
+});
+
+// Dashboard edit (org-admin only, full editor page)
+const dashboardEditRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/monitoring/dashboards/$dashboardId/edit",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
+  ),
+});
+
 
 // Store
 const storeRoute = createRoute({
@@ -391,6 +412,8 @@ const projectRoutes = [
   connectionDetailRoute,
   collectionDetailRoute,
   monitoringRoute,
+  dashboardViewRoute,
+  dashboardEditRoute,
   storeRouteWithChildren,
   agentsRoute,
   agentDetailRoute,
