@@ -13,13 +13,7 @@ const confirmResponseSchema = z.object({
   response: z.enum(["yes", "no"]),
 });
 
-export type TextResponse = z.infer<typeof textResponseSchema>;
-export type ChoiceResponse = z.infer<typeof choiceResponseSchema>;
-export type ConfirmResponse = z.infer<typeof confirmResponseSchema>;
-
-export type UserAskResponse = TextResponse | ChoiceResponse | ConfirmResponse;
-
-export function getUserAskSchema(input: UserAskInput) {
+function getUserAskSchema(input: UserAskInput) {
   switch (input.type) {
     case "text":
       return textResponseSchema;
@@ -30,4 +24,18 @@ export function getUserAskSchema(input: UserAskInput) {
     default:
       return textResponseSchema;
   }
+}
+
+/**
+ * Build a combined Zod schema for all pending user-ask parts.
+ * Shape: { [toolCallId]: { response: string }, ... }
+ */
+export function buildCombinedSchema(
+  parts: { toolCallId: string; input: UserAskInput }[],
+) {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const part of parts) {
+    shape[part.toolCallId] = getUserAskSchema(part.input);
+  }
+  return z.object(shape);
 }

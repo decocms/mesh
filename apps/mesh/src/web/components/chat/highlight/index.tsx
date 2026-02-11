@@ -127,19 +127,18 @@ export function ChatHighlight() {
     sendMessage,
   } = useChat();
 
-  const lastAssistantMessage =
-    finishReason === "tool-calls"
-      ? messages.filter((m) => m.role === "assistant").at(-1)
-      : null;
+  const isDisabled = isStreaming || status === "submitted";
+
+  const lastMessage = messages.at(-1);
 
   const userAskParts =
-    lastAssistantMessage?.parts.filter(
-      (part) => part.type === "tool-user_ask" && "state" in part,
-    ) ?? ([] as UserAskToolPart[]);
+    lastMessage?.role === "assistant"
+      ? lastMessage.parts.filter((part) => part.type === "tool-user_ask")
+      : null;
 
-  const isWaitingForUserInput = userAskParts.some(
+  const isWaitingForUserInput = userAskParts?.filter(
     (p) => p.state !== "output-available",
-  );
+  )?.length;
 
   const handleFixInChat = () => {
     if (error) {
@@ -178,7 +177,7 @@ export function ChatHighlight() {
       {isWaitingForUserInput ? (
         <UserAskQuestionHighlight
           userAskParts={userAskParts}
-          status={status}
+          disabled={isDisabled}
           onSubmit={handleUserAskSubmit}
         />
       ) : !isStreaming ? (
