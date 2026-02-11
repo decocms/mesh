@@ -207,6 +207,58 @@ const RegistryAIGenerateTypeSchema = z.enum([
   "readme",
 ]);
 
+// ─── Search (lightweight) ───
+
+export const RegistrySearchInputSchema = z
+  .object({
+    query: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text search across id, title, description, and server name",
+      ),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by tags (AND semantics)"),
+    categories: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by categories (AND semantics)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe("Max results to return (default 20)"),
+    cursor: z.string().optional().describe("Pagination cursor"),
+  })
+  .describe(
+    "Lightweight search returning minimal fields to save tokens. " +
+      "Search by free-text query, tags, or categories. " +
+      "Returns id, title, short_description, tags, categories, is_public, and icon only.",
+  );
+
+const RegistrySearchItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  short_description: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  categories: z.array(z.string()).optional(),
+  is_public: z.boolean().optional(),
+  icon: z.string().nullable().optional(),
+});
+
+export const RegistrySearchOutputSchema = z.object({
+  items: z.array(RegistrySearchItemSchema),
+  totalCount: z.number(),
+  hasMore: z.boolean().optional(),
+  nextCursor: z.string().optional(),
+});
+
+// ─── AI Generate ───
+
 export const RegistryAIGenerateInputSchema = z.object({
   type: RegistryAIGenerateTypeSchema.describe("Which content to generate"),
   llmConnectionId: z
