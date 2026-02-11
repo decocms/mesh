@@ -19,9 +19,8 @@ export async function generateTitleInBackground(config: {
   abortSignal: AbortSignal;
   model: LanguageModelV2;
   userMessage: string;
-  onTitle?: (title: string) => void;
-}): Promise<void> {
-  const { abortSignal, model, userMessage, onTitle } = config;
+}): Promise<string | null> {
+  const { abortSignal, model, userMessage } = config;
 
   // Create a local abort controller for title generation only
   const titleAbortController = new AbortController();
@@ -55,7 +54,7 @@ export async function generateTitleInBackground(config: {
       .slice(0, 60) // Max 60 chars
       .trim();
 
-    onTitle?.(title);
+    return title;
   } catch (error) {
     const err = error as Error;
     if (err.name === "AbortError") {
@@ -68,6 +67,7 @@ export async function generateTitleInBackground(config: {
         err.message,
       );
     }
+    return null;
   } finally {
     clearTimeout(timeoutId);
     abortSignal.removeEventListener("abort", onParentAbort);
