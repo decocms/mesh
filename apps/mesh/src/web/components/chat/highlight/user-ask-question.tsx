@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Edit02,
   MessageQuestionCircle,
-  XClose,
 } from "@untitledui/icons";
 import { useEffect, useRef, useState } from "react";
 import { type Control, type FieldValues, useForm } from "react-hook-form";
@@ -29,7 +28,6 @@ type CombinedFormValues = Record<string, { response: string }>;
 interface FieldInputProps {
   control: Control<FieldValues>;
   name: string;
-  disabled: boolean;
 }
 
 // ============================================================================
@@ -39,7 +37,6 @@ interface FieldInputProps {
 function TextInput({
   control,
   name,
-  disabled,
   placeholder,
 }: FieldInputProps & { placeholder?: string }) {
   return (
@@ -58,7 +55,6 @@ function TextInput({
                   {...field}
                   type="text"
                   placeholder={placeholder || "Type your response..."}
-                  disabled={disabled}
                   autoFocus
                   aria-label="Text response input"
                   className="flex-1 text-sm bg-transparent outline-none placeholder:text-foreground/25 text-foreground min-w-0"
@@ -80,7 +76,6 @@ function TextInput({
 function ChoiceInput({
   control,
   name,
-  disabled,
   options,
 }: FieldInputProps & { options: string[] }) {
   const [isCustom, setIsCustom] = useState(false);
@@ -90,7 +85,6 @@ function ChoiceInput({
   // Global keyboard shortcut: press 1-9 to select option
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (disabled) return;
     const handler = (e: globalThis.KeyboardEvent) => {
       // Skip if user is typing in any input/textarea
       const tag = (e.target as HTMLElement).tagName;
@@ -98,13 +92,13 @@ function ChoiceInput({
       const num = Number.parseInt(e.key, 10);
       if (num >= 1 && num <= options.length && fieldRef.current) {
         e.preventDefault();
-        fieldRef.current.onChange(options[num - 1]);
+        fieldRef.current.onChange(options[num - 1] ?? "");
         setIsCustom(false);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [disabled, options]);
+  }, [options]);
 
   if (options.length === 0) return null;
 
@@ -138,10 +132,8 @@ function ChoiceInput({
                       className={cn(
                         "flex items-center gap-3 px-2 py-3 rounded-lg text-left transition-colors w-full",
                         isSelected && "bg-accent/50",
-                        !disabled && !isSelected && "hover:bg-accent/30",
-                        disabled && "opacity-50 cursor-not-allowed",
+                        !isSelected && "hover:bg-accent/30",
                       )}
-                      disabled={disabled}
                       aria-label={`Select ${option}`}
                     >
                       <span
@@ -166,11 +158,9 @@ function ChoiceInput({
                   className={cn(
                     "flex items-center gap-3 px-2 py-3 rounded-lg transition-colors w-full cursor-text",
                     isCustomValue && "bg-accent/50",
-                    !disabled && !isCustomValue && "hover:bg-accent/30",
-                    disabled && "opacity-50 cursor-not-allowed",
+                    !isCustomValue && "hover:bg-accent/30",
                   )}
                   onClick={() => {
-                    if (disabled) return;
                     setIsCustom(true);
                     // Clear value if it was a predefined option
                     if (options.includes(field.value)) {
@@ -190,7 +180,6 @@ function ChoiceInput({
                       value={field.value}
                       onChange={(e) => field.onChange(e.target.value)}
                       placeholder="Something else..."
-                      disabled={disabled}
                       autoFocus
                       aria-label="Custom choice input"
                       className="flex-1 text-sm bg-transparent outline-none placeholder:text-foreground/25 text-foreground min-w-0"
@@ -215,14 +204,13 @@ function ChoiceInput({
 // ConfirmInput - yes / no buttons
 // ============================================================================
 
-function ConfirmInput({ control, name, disabled }: FieldInputProps) {
+function ConfirmInput({ control, name }: FieldInputProps) {
   const confirmOptions = ["yes", "no"] as const;
   const fieldRef = useRef<{ onChange: (v: string) => void } | null>(null);
 
   // Global keyboard shortcut: 1=yes, 2=no
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (disabled) return;
     const handler = (e: globalThis.KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -236,7 +224,7 @@ function ConfirmInput({ control, name, disabled }: FieldInputProps) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [disabled]);
+  }, []);
 
   return (
     <FormField
@@ -263,10 +251,8 @@ function ConfirmInput({ control, name, disabled }: FieldInputProps) {
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors flex-1",
                         isSelected && "bg-accent/50",
-                        !disabled && !isSelected && "hover:bg-accent/30",
-                        disabled && "opacity-50 cursor-not-allowed",
+                        !isSelected && "hover:bg-accent/30",
                       )}
-                      disabled={disabled}
                       aria-label={`Confirm ${value}`}
                     >
                       <span
@@ -303,31 +289,24 @@ interface QuestionInputProps {
   input: UserAskInput;
   control: Control<FieldValues>;
   name: string;
-  disabled: boolean;
 }
 
-function QuestionInput({ input, control, name, disabled }: QuestionInputProps) {
+function QuestionInput({ input, control, name }: QuestionInputProps) {
   switch (input.type) {
     case "text":
       return (
-        <TextInput
-          control={control}
-          name={name}
-          disabled={disabled}
-          placeholder={input.default}
-        />
+        <TextInput control={control} name={name} placeholder={input.default} />
       );
     case "choice":
       return (
         <ChoiceInput
           control={control}
           name={name}
-          disabled={disabled}
           options={input.options ?? []}
         />
       );
     case "confirm":
-      return <ConfirmInput control={control} name={name} disabled={disabled} />;
+      return <ConfirmInput control={control} name={name} />;
     default:
       return null;
   }
@@ -342,26 +321,19 @@ interface PaginationProps {
   total: number;
   onPrev: () => void;
   onNext: () => void;
-  disabled?: boolean;
 }
 
-function Pagination({
-  current,
-  total,
-  onPrev,
-  onNext,
-  disabled,
-}: PaginationProps) {
+function Pagination({ current, total, onPrev, onNext }: PaginationProps) {
   if (total <= 1) return null;
   return (
     <div className="flex items-center gap-1 text-sm text-muted-foreground">
       <button
         type="button"
         onClick={onPrev}
-        disabled={disabled || current === 0}
+        disabled={current === 0}
         className={cn(
           "p-0.5 rounded transition-colors",
-          current === 0 || disabled
+          current === 0
             ? "opacity-30 cursor-not-allowed"
             : "hover:text-foreground cursor-pointer",
         )}
@@ -375,10 +347,10 @@ function Pagination({
       <button
         type="button"
         onClick={onNext}
-        disabled={disabled || current === total - 1}
+        disabled={current === total - 1}
         className={cn(
           "p-0.5 rounded transition-colors",
-          current === total - 1 || disabled
+          current === total - 1
             ? "opacity-30 cursor-not-allowed"
             : "hover:text-foreground cursor-pointer",
         )}
@@ -414,13 +386,6 @@ function UserAskCard({
         <p className="flex-1 text-base font-medium text-foreground min-w-0">
           {title}
         </p>
-        <button
-          type="button"
-          className="opacity-50 hover:opacity-100 transition-opacity shrink-0"
-          aria-label="Dismiss"
-        >
-          <XClose size={16} />
-        </button>
       </div>
 
       {/* Options / Content */}
@@ -443,11 +408,10 @@ function UserAskCard({
 
 interface UserAskPromptProps {
   parts: UserAskToolPart[];
-  disabled: boolean;
   onSubmit: (part: UserAskToolPart, response: string) => void;
 }
 
-function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
+function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
   const [activeTab, setActiveTab] = useState(parts[0]?.toolCallId ?? "");
 
   const schema = buildCombinedSchema(
@@ -465,18 +429,11 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
   });
 
   const values = form.watch();
-  const allAnswered = parts.every((p) => !!values[p.toolCallId]?.response);
-  const currentAnswered = !!values[activeTab]?.response;
-  const nextUnanswered =
-    parts.find(
-      (p) => !values[p.toolCallId]?.response && p.toolCallId !== activeTab,
-    ) ?? parts.find((p) => !values[p.toolCallId]?.response);
-
-  const showNext = parts.length > 1 && !allAnswered;
-  const buttonLabel = showNext ? "Next" : "Submit";
   const currentIndex = parts.findIndex((p) => p.toolCallId === activeTab);
+  const currentAnswered = !!values[activeTab]?.response;
+  const allAnswered = parts.every((p) => !!values[p.toolCallId]?.response);
 
-  const handleSubmit = (data: CombinedFormValues) => {
+  const submitAll = (data: CombinedFormValues) => {
     for (const part of parts) {
       const response = data[part.toolCallId]?.response;
       if (response) {
@@ -485,21 +442,45 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
     }
   };
 
-  const handleButtonClick = () => {
-    if (showNext && nextUnanswered) {
-      setActiveTab(nextUnanswered.toolCallId);
+  /** Find the first unanswered part (excluding current), or null if all filled. */
+  const findNextUnanswered = (formValues: CombinedFormValues) =>
+    parts.find(
+      (p) => !formValues[p.toolCallId]?.response && p.toolCallId !== activeTab,
+    ) ?? null;
+
+  /**
+   * Shared logic for both Skip and the primary button:
+   * if all questions are answered → submit the form, otherwise go to next unanswered tab.
+   */
+  const advanceOrSubmit = () => {
+    const latest = form.getValues();
+    const everyAnswered = parts.every((p) => !!latest[p.toolCallId]?.response);
+    if (everyAnswered) {
+      submitAll(latest);
+    } else {
+      const next = findNextUnanswered(latest);
+      if (next) setActiveTab(next.toolCallId);
     }
+  };
+
+  const handleSkip = () => {
+    // Fill the current question with the skip sentence
+    form.setValue(`${activeTab}.response`, "user has skip this question");
+    // Then advance or submit
+    advanceOrSubmit();
   };
 
   const goToPrev = () => {
     if (currentIndex > 0) {
-      setActiveTab(parts[currentIndex - 1].toolCallId);
+      const prev = parts[currentIndex - 1];
+      if (prev) setActiveTab(prev.toolCallId);
     }
   };
 
   const goToNext = () => {
     if (currentIndex < parts.length - 1) {
-      setActiveTab(parts[currentIndex + 1].toolCallId);
+      const next = parts[currentIndex + 1];
+      if (next) setActiveTab(next.toolCallId);
     }
   };
 
@@ -509,24 +490,19 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
         type="button"
         variant="outline"
         size="sm"
-        disabled={disabled}
+        onClick={handleSkip}
         className="h-7"
       >
         Skip
       </Button>
       <Button
-        type={showNext ? "button" : "submit"}
+        type="button"
         size="sm"
-        disabled={disabled || (showNext ? !currentAnswered : !allAnswered)}
-        onClick={showNext ? handleButtonClick : undefined}
-        className={cn(
-          "h-7",
-          disabled || (showNext ? !currentAnswered : !allAnswered)
-            ? "opacity-50"
-            : "",
-        )}
+        disabled={!currentAnswered}
+        onClick={advanceOrSubmit}
+        className={cn("h-7", !currentAnswered ? "opacity-50" : "")}
       >
-        {buttonLabel}
+        {allAnswered ? "Submit" : "Next"}
       </Button>
     </>
   );
@@ -537,7 +513,6 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
       total={parts.length}
       onPrev={goToPrev}
       onNext={goToNext}
-      disabled={disabled}
     />
   );
 
@@ -548,13 +523,15 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
 
     return (
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="off">
-          <UserAskCard title={part.input.prompt} footerRight={footerButtons}>
+        <form onSubmit={form.handleSubmit(submitAll)} autoComplete="off">
+          <UserAskCard
+            title={part.input?.prompt ?? "Question"}
+            footerRight={footerButtons}
+          >
             <QuestionInput
               input={part.input as UserAskInput}
               control={form.control}
               name={`${part.toolCallId}.response`}
-              disabled={disabled}
             />
           </UserAskCard>
         </form>
@@ -565,7 +542,7 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
   // Multiple questions — tabbed layout with unified submit
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="off">
+      <form onSubmit={form.handleSubmit(submitAll)} autoComplete="off">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           {parts.map((part) => (
             <TabsContent
@@ -582,7 +559,6 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
                   input={part.input as UserAskInput}
                   control={form.control}
                   name={`${part.toolCallId}.response`}
-                  disabled={disabled}
                 />
               </UserAskCard>
             </TabsContent>
@@ -599,7 +575,7 @@ function UserAskPrompt({ parts, disabled, onSubmit }: UserAskPromptProps) {
 
 function UserAskLoadingUI() {
   return (
-    <div className="flex items-center gap-2 p-4 border border-dashed rounded-lg bg-accent/50 w-full">
+    <div className="flex items-center gap-2 p-4 border border-dashed rounded-lg bg-accent/50 w-[calc(100%-16px)] max-w-[584px] mx-auto mb-2">
       <MessageQuestionCircle className="size-5 text-muted-foreground shimmer" />
       <span className="text-sm text-muted-foreground shimmer">
         Preparing question...
@@ -614,29 +590,20 @@ function UserAskLoadingUI() {
 
 export function UserAskQuestionHighlight({
   userAskParts,
-  disabled,
+  isStreaming,
   onSubmit,
 }: {
   userAskParts: UserAskToolPart[];
-  disabled: boolean;
+  isStreaming: boolean;
   onSubmit: (part: UserAskToolPart, response: string) => void;
 }) {
   const pendingParts = userAskParts.filter(
     (p) => p.state === "input-available",
   );
-  const streamingParts = userAskParts.filter(
-    (p) => p.state === "input-streaming",
-  );
 
-  if (streamingParts.length > 0) {
+  if (isStreaming) {
     return <UserAskLoadingUI />;
   }
 
-  return (
-    <UserAskPrompt
-      parts={pendingParts}
-      disabled={disabled}
-      onSubmit={onSubmit}
-    />
-  );
+  return <UserAskPrompt parts={pendingParts} onSubmit={onSubmit} />;
 }

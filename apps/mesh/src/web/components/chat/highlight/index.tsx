@@ -122,12 +122,9 @@ export function ChatHighlight() {
     clearFinishReason,
     messages,
     isStreaming,
-    status,
     addToolOutput,
     sendMessage,
   } = useChat();
-
-  const isDisabled = isStreaming || status === "submitted";
 
   const lastMessage = messages.at(-1);
 
@@ -177,7 +174,7 @@ export function ChatHighlight() {
       {isWaitingForUserInput ? (
         <UserAskQuestionHighlight
           userAskParts={userAskParts}
-          disabled={isDisabled}
+          isStreaming={isStreaming}
           onSubmit={handleUserAskSubmit}
         />
       ) : !isStreaming ? (
