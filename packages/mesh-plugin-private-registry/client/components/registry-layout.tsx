@@ -1,13 +1,6 @@
 import { useState, type ComponentType } from "react";
-import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  Container,
-  FlipBackward,
-  Loading01,
-  Save01,
-  Settings01,
-} from "@untitledui/icons";
+import { Container, Settings01 } from "@untitledui/icons";
 import { PLUGIN_ID } from "../../shared";
 import { useRegistryConfig } from "../hooks/use-registry";
 import RegistryItemsPage from "./registry-items-page";
@@ -55,22 +48,25 @@ function HeaderTabs({
   );
 }
 
+const NAV_ITEMS: NavItem[] = [
+  { id: "items", label: "Items", icon: Container, tab: "items" },
+  { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
+];
+
 export default function RegistryLayout() {
   const [activeTab, setActiveTab] = useState<NavItem["tab"]>("items");
-  const { registryName, registryIcon } = useRegistryConfig(PLUGIN_ID);
-  const [settingsDirty, setSettingsDirty] = useState(false);
-  const [settingsIsSaving, setSettingsIsSaving] = useState(false);
-  const [settingsOnSave, setSettingsOnSave] = useState<
-    (() => void | Promise<void>) | null
-  >(null);
-  const [settingsOnUndo, setSettingsOnUndo] = useState<(() => void) | null>(
-    null,
-  );
+  const {
+    registryName,
+    registryIcon,
+    registryLLMConnectionId,
+    registryLLMModelId,
+  } = useRegistryConfig(PLUGIN_ID);
 
-  const navItems: NavItem[] = [
-    { id: "items", label: "Items", icon: Container, tab: "items" },
-    { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
-  ];
+  // Build a stable key from server config so SettingsPage re-mounts when
+  // the persisted values change (e.g. after save). This replaces the four
+  // useEffect(setDraft(serverValue), [serverValue]) calls that were
+  // previously needed to sync external state into local draft state.
+  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}`;
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -102,38 +98,8 @@ export default function RegistryLayout() {
           <HeaderTabs
             activeTab={activeTab}
             onChange={setActiveTab}
-            items={navItems}
+            items={NAV_ITEMS}
           />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {activeTab === "settings" && settingsOnSave && settingsOnUndo && (
-            <>
-              {settingsDirty && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={settingsOnUndo}
-                  disabled={settingsIsSaving}
-                >
-                  <FlipBackward size={14} />
-                  Undo
-                </Button>
-              )}
-              <Button
-                variant="default"
-                size="sm"
-                onClick={settingsOnSave}
-                disabled={settingsIsSaving || !settingsDirty}
-              >
-                {settingsIsSaving ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Save01 size={14} />
-                )}
-                Save
-              </Button>
-            </>
-          )}
         </div>
       </header>
 
@@ -141,22 +107,11 @@ export default function RegistryLayout() {
         {activeTab === "items" && <RegistryItemsPage />}
         {activeTab === "settings" && (
           <RegistrySettingsPage
-            onDirtyChange={setSettingsDirty}
-            onSavingChange={setSettingsIsSaving}
-            registerSave={(handler) => {
-              if (!handler) {
-                setSettingsOnSave(null);
-                return;
-              }
-              setSettingsOnSave(() => handler);
-            }}
-            registerUndo={(handler) => {
-              if (!handler) {
-                setSettingsOnUndo(null);
-                return;
-              }
-              setSettingsOnUndo(() => handler);
-            }}
+            key={settingsKey}
+            initialName={registryName}
+            initialIcon={registryIcon}
+            initialLLMConnectionId={registryLLMConnectionId}
+            initialLLMModelId={registryLLMModelId}
           />
         )}
       </main>

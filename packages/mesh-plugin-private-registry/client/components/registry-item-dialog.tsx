@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -565,13 +565,6 @@ export function RegistryItemDialog({
     }
   };
 
-  const handleOpenChange = (next: boolean) => {
-    onOpenChange(next);
-    if (!next) {
-      resetForm();
-    }
-  };
-
   /* ── discover tools from step 1 ── */
   const discoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDiscoveredUrlRef = useRef<string>("");
@@ -579,14 +572,17 @@ export function RegistryItemDialog({
   const remoteTypeRef = useRef(remoteType);
   remoteTypeRef.current = remoteType;
 
-  // Cleanup timer on unmount to avoid firing against stale state
-  useEffect(() => {
-    return () => {
-      if (discoverTimerRef.current) {
-        clearTimeout(discoverTimerRef.current);
-      }
-    };
-  }, []);
+  const handleOpenChange = (next: boolean) => {
+    // Clear any pending discover timer when the dialog closes
+    if (!next && discoverTimerRef.current) {
+      clearTimeout(discoverTimerRef.current);
+      discoverTimerRef.current = null;
+    }
+    onOpenChange(next);
+    if (!next) {
+      resetForm();
+    }
+  };
 
   const handleDiscoverTools = async () => {
     const url = normalizeRemoteUrl(remoteHost);
