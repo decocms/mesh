@@ -80,7 +80,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
   const SEARCH_TOOL = createTool({
     id: "COLLECTION_REGISTRY_APP_SEARCH",
     description:
-      "Search public registry items returning minimal data (id, title, short_description, tags, categories, icon). " +
+      "Search public registry items returning minimal data (id, title, tags, categories, is_public). " +
       "Use this instead of LIST when you need to find items efficiently without loading full details.",
     inputSchema: RegistrySearchInputSchema,
     outputSchema: RegistrySearchOutputSchema,

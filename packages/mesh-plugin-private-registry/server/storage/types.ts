@@ -146,11 +146,9 @@ export interface PrivateRegistryListResult {
 export interface PrivateRegistrySearchItem {
   id: string;
   title: string;
-  short_description?: string | null;
-  tags?: string[];
-  categories?: string[];
-  is_public?: boolean;
-  icon?: string | null;
+  tags: string[];
+  categories: string[];
+  is_public: boolean;
 }
 
 export interface PrivateRegistrySearchQuery {
