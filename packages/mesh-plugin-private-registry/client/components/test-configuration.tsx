@@ -26,7 +26,13 @@ function hasChanges(a: RegistryTestConfig, b: RegistryTestConfig): boolean {
   );
 }
 
-export function TestConfiguration() {
+export function TestConfiguration({
+  hideTestMode = false,
+  borderless = false,
+}: {
+  hideTestMode?: boolean;
+  borderless?: boolean;
+}) {
   const { registryLLMConnectionId, registryLLMModelId } =
     useRegistryConfig(PLUGIN_ID);
   const { settings, saveMutation } = useRegistryTestConfig();
@@ -51,7 +57,9 @@ export function TestConfiguration() {
   };
 
   return (
-    <Card className="p-4 space-y-4">
+    <Card
+      className={`p-4 space-y-4 ${borderless ? "border-0 shadow-none" : "border-dashed"}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">Test Configuration</h3>
@@ -81,20 +89,22 @@ export function TestConfiguration() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>Test mode</Label>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={draft.testMode}
-            onChange={(e) =>
-              setPartial({ testMode: e.target.value as TestMode })
-            }
-          >
-            <option value="health_check">Health check</option>
-            <option value="tool_call">Tool call</option>
-            <option value="full_agent">Full agent (LLM-assisted)</option>
-          </select>
-        </div>
+        {!hideTestMode && (
+          <div className="space-y-1">
+            <Label>Test mode</Label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={draft.testMode}
+              onChange={(e) =>
+                setPartial({ testMode: e.target.value as TestMode })
+              }
+            >
+              <option value="health_check">Health check</option>
+              <option value="tool_call">Tool call</option>
+              <option value="full_agent">Full agent (LLM-assisted)</option>
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
           <Label>On failure</Label>
@@ -106,9 +116,14 @@ export function TestConfiguration() {
             }
           >
             <option value="none">Do nothing</option>
+            <option value="unlisted">
+              Unlist from store (keep in registry)
+            </option>
             <option value="remove_public">Remove from public store</option>
-            <option value="remove_private">Remove from private store</option>
-            <option value="remove_all">Remove from all stores</option>
+            <option value="remove_private">Remove from private registry</option>
+            <option value="remove_all">
+              Remove from all (public + private)
+            </option>
           </select>
         </div>
 

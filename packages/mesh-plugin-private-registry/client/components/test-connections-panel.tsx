@@ -347,6 +347,9 @@ export function TestConnectionsPanel() {
             Click <strong>Authenticate</strong> to auto-detect OAuth or paste a
             Token manually.
           </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Listing tools alone does not imply authenticated status.
+          </p>
         </div>
         <Button
           size="sm"
@@ -362,7 +365,7 @@ export function TestConnectionsPanel() {
           {syncMutation.isPending ? "Syncing..." : "Sync"}
         </Button>
       </div>
-      <div className="space-y-2 max-h-80 overflow-auto">
+      <div className="space-y-2 max-h-[52vh] overflow-auto pr-1">
         {items.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-3">
             No test connections yet. Click &quot;Sync&quot; to create them from

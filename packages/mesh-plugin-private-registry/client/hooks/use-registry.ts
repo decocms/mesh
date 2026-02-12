@@ -114,6 +114,7 @@ export function useRegistryItems(params: {
           tags: params.tags.length ? params.tags : undefined,
           categories: params.categories.length ? params.categories : undefined,
           where,
+          includeUnlisted: true,
         },
       );
     },

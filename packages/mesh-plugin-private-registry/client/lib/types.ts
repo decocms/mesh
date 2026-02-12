@@ -53,6 +53,7 @@ export interface RegistryItem {
   };
   server: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -77,6 +78,7 @@ export interface RegistryCreateInput {
   _meta?: RegistryItem["_meta"];
   server: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
 }
 
 export interface RegistryUpdateInput {
@@ -85,6 +87,7 @@ export interface RegistryUpdateInput {
   _meta?: RegistryItem["_meta"];
   server?: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
 }
 
 export interface RegistryBulkCreateResult {
@@ -117,6 +120,7 @@ export interface PublishRequestListResponse {
 export type TestMode = "health_check" | "tool_call" | "full_agent";
 export type TestFailureAction =
   | "none"
+  | "unlisted"
   | "remove_public"
   | "remove_private"
   | "remove_all";

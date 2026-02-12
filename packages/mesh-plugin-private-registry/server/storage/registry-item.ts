@@ -30,6 +30,7 @@ type RawRow = {
   tags: string | null;
   categories: string | null;
   is_public: number;
+  is_unlisted: number;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -149,6 +150,7 @@ export class RegistryItemStorage {
       tags: toCsv(tags),
       categories: toCsv(categories),
       is_public: input.is_public ? 1 : 0,
+      is_unlisted: input.is_unlisted ? 1 : 0,
       created_at: now,
       updated_at: now,
       created_by: input.created_by ?? null,
@@ -228,6 +230,8 @@ export class RegistryItemStorage {
     }
     if (input.is_public !== undefined)
       update.is_public = input.is_public ? 1 : 0;
+    if (input.is_unlisted !== undefined)
+      update.is_unlisted = input.is_unlisted ? 1 : 0;
 
     await this.db
       .updateTable("private_registry_item")
@@ -262,12 +266,17 @@ export class RegistryItemStorage {
     organizationId: string,
     query: PrivateRegistryListQuery = {},
   ): Promise<PrivateRegistryListResult> {
-    const rows = await this.db
+    let dbQuery = this.db
       .selectFrom("private_registry_item")
       .selectAll()
       .where("organization_id", "=", organizationId)
-      .orderBy("created_at", "desc")
-      .execute();
+      .orderBy("created_at", "desc");
+
+    if (!query.includeUnlisted) {
+      dbQuery = dbQuery.where("is_unlisted", "=", 0);
+    }
+
+    const rows = await dbQuery.execute();
 
     const items = rows.map((row) => this.deserialize(row as RawRow));
     const requestedTags = normalizeStringList(query.tags);
@@ -310,12 +319,13 @@ export class RegistryItemStorage {
     organizationId: string,
     query: PrivateRegistryListQuery = {},
   ): Promise<PrivateRegistryListResult> {
-    // Query only public items from database, with deterministic ordering
+    // Query only public AND non-unlisted items from database
     const rows = await this.db
       .selectFrom("private_registry_item")
       .selectAll()
       .where("organization_id", "=", organizationId)
-      .where("is_public", "=", 1) // Filter for public items at DB level
+      .where("is_public", "=", 1)
+      .where("is_unlisted", "=", 0)
       .orderBy("created_at", "desc")
       .execute();
 
@@ -362,7 +372,7 @@ export class RegistryItemStorage {
 
   async getFilters(
     organizationId: string,
-    options?: { publicOnly?: boolean },
+    options?: { publicOnly?: boolean; includeUnlisted?: boolean },
   ): Promise<{
     tags: Array<{ value: string; count: number }>;
     categories: Array<{ value: string; count: number }>;
@@ -374,6 +384,9 @@ export class RegistryItemStorage {
 
     if (options?.publicOnly) {
       query = query.where("is_public", "=", 1);
+    }
+    if (!options?.includeUnlisted) {
+      query = query.where("is_unlisted", "=", 0);
     }
 
     const rows = await query.execute();
@@ -408,7 +421,7 @@ export class RegistryItemStorage {
   async search(
     organizationId: string,
     query: PrivateRegistrySearchQuery = {},
-    options?: { publicOnly?: boolean },
+    options?: { publicOnly?: boolean; includeUnlisted?: boolean },
   ): Promise<PrivateRegistrySearchResult> {
     let dbQuery = this.db
       .selectFrom("private_registry_item")
@@ -421,12 +434,16 @@ export class RegistryItemStorage {
         "tags",
         "categories",
         "is_public",
+        "is_unlisted",
       ])
       .where("organization_id", "=", organizationId)
       .orderBy("created_at", "desc");
 
     if (options?.publicOnly) {
       dbQuery = dbQuery.where("is_public", "=", 1);
+    }
+    if (!options?.includeUnlisted) {
+      dbQuery = dbQuery.where("is_unlisted", "=", 0);
     }
 
     const rows = await dbQuery.execute();
@@ -490,6 +507,7 @@ export class RegistryItemStorage {
       tags: csvToList(row.tags),
       categories: csvToList(row.categories),
       is_public: row.is_public === 1,
+      is_unlisted: (row as { is_unlisted?: number }).is_unlisted === 1,
     }));
 
     return { items, totalCount: filtered.length, hasMore, nextCursor };
@@ -506,6 +524,7 @@ export class RegistryItemStorage {
       _meta: meta,
       server: server as PrivateRegistryItemEntity["server"],
       is_public: row.is_public === 1,
+      is_unlisted: row.is_unlisted === 1,
       created_at: row.created_at,
       updated_at: row.updated_at,
       ...(row.created_by ? { created_by: row.created_by } : {}),

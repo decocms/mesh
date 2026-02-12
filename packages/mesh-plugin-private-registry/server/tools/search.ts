@@ -17,6 +17,8 @@ export const COLLECTION_REGISTRY_APP_SEARCH: ServerPluginToolDefinition = {
 
   handler: orgHandler(RegistrySearchInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.search(ctx.organization.id, input);
+    return storage.items.search(ctx.organization.id, input, {
+      includeUnlisted: input.includeUnlisted,
+    });
   }),
 };

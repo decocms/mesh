@@ -10,6 +10,7 @@ export interface PrivateRegistryItemTable {
   tags: ColumnType<string | null, string | null, string | null>;
   categories: ColumnType<string | null, string | null, string | null>;
   is_public: ColumnType<number, number, number>;
+  is_unlisted: ColumnType<number, number, number>;
   created_at: ColumnType<string, string, string>;
   updated_at: ColumnType<string, string, string>;
   created_by: ColumnType<string | null, string | null, string | null>;
@@ -161,6 +162,7 @@ export interface PrivateRegistryItemEntity {
   _meta?: RegistryItemMeta;
   server: RegistryServerDefinition;
   is_public: boolean;
+  is_unlisted: boolean;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -174,6 +176,7 @@ export interface PrivateRegistryCreateInput {
   _meta?: RegistryItemMeta;
   server: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
   created_by?: string | null;
 }
 
@@ -183,6 +186,7 @@ export interface PrivateRegistryUpdateInput {
   _meta?: RegistryItemMeta;
   server?: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
 }
 
 export interface RegistryWhereExpression {
@@ -210,6 +214,7 @@ export interface PrivateRegistryListQuery {
   tags?: string[];
   categories?: string[];
   where?: RegistryWhereExpression;
+  includeUnlisted?: boolean;
 }
 
 export interface PrivateRegistryListResult {
@@ -226,6 +231,7 @@ export interface PrivateRegistrySearchItem {
   tags: string[];
   categories: string[];
   is_public: boolean;
+  is_unlisted: boolean;
 }
 
 export interface PrivateRegistrySearchQuery {
@@ -279,7 +285,12 @@ export interface TestToolResult {
 
 export interface TestRunConfigSnapshot {
   testMode: "health_check" | "tool_call" | "full_agent";
-  onFailure: "none" | "remove_public" | "remove_private" | "remove_all";
+  onFailure:
+    | "none"
+    | "unlisted"
+    | "remove_public"
+    | "remove_private"
+    | "remove_all";
   agentPrompt?: string;
   perMcpTimeoutMs?: number;
   perToolTimeoutMs?: number;

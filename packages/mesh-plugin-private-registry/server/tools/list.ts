@@ -10,6 +10,9 @@ export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
 
   handler: orgHandler(RegistryListInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.list(ctx.organization.id, input);
+    return storage.items.list(ctx.organization.id, {
+      ...input,
+      includeUnlisted: input.includeUnlisted,
+    });
   }),
 };

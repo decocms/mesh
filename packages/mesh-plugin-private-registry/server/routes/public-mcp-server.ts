@@ -48,8 +48,8 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
         return { item: null };
       }
       const item = await storage.findByIdOrName(orgId, identifier);
-      // Only return if public
-      if (item && item.is_public) {
+      // Only return if public and not unlisted
+      if (item && item.is_public && !item.is_unlisted) {
         return { item };
       }
       return { item: null };
@@ -69,8 +69,8 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
         return { versions: [] };
       }
       const item = await storage.findByIdOrName(orgId, identifier);
-      // Only return if public
-      if (item && item.is_public) {
+      // Only return if public and not unlisted
+      if (item && item.is_public && !item.is_unlisted) {
         return { versions: [item] };
       }
       return { versions: [] };

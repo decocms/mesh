@@ -3,6 +3,7 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { BrokenMCPList } from "./broken-mcp-list";
+import { TestConfiguration } from "./test-configuration";
 import { TestConnectionsPanel } from "./test-connections-panel";
 import {
   useRegistryTestConfig,
@@ -10,8 +11,9 @@ import {
   useTestRun,
   useTestRunCancel,
   useTestRunStart,
+  useTestRuns,
 } from "../hooks/use-test-runs";
-import type { TestResult, TestToolResult } from "../lib/types";
+import type { TestMode, TestResult, TestToolResult } from "../lib/types";
 
 function pct(run: { total_items: number; tested_items: number }): number {
   if (!run.total_items) return 0;
@@ -130,7 +132,6 @@ function ResultLogEntry({
 
       {expanded && (
         <div className="border-t border-border px-3 py-2 space-y-2 bg-muted/10">
-          {/* Error message */}
           {r.error_message && (
             <div className="space-y-0.5">
               <p className="text-[10px] font-semibold text-red-600">Error</p>
@@ -140,7 +141,6 @@ function ResultLogEntry({
             </div>
           )}
 
-          {/* Connection & listing info */}
           <div className="flex items-center gap-3 text-[10px] flex-wrap">
             <span>
               Connection:{" "}
@@ -167,7 +167,6 @@ function ResultLogEntry({
             )}
           </div>
 
-          {/* Tool results */}
           {hasToolTests ? (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-muted-foreground">
@@ -182,7 +181,7 @@ function ResultLogEntry({
           ) : isHealthCheck && r.tool_results.length > 0 ? (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-muted-foreground">
-                Tools discovered ({r.tool_results.length}) — not individually
+                Tools discovered ({r.tool_results.length}) - not individually
                 tested (health-check mode)
               </p>
               <div className="flex flex-wrap gap-1">
@@ -203,7 +202,6 @@ function ResultLogEntry({
             </p>
           ) : null}
 
-          {/* Agent summary */}
           {r.agent_summary && (
             <p className="text-[11px] bg-muted/50 rounded px-2 py-1.5">
               {r.agent_summary}
@@ -281,15 +279,22 @@ export function TestDashboard({
   onRunChange: (runId: string | undefined) => void;
 }) {
   const { settings } = useRegistryTestConfig();
+  const [modeOverride, setModeOverride] = useState<TestMode | null>(null);
   const runStartMutation = useTestRunStart();
   const runCancelMutation = useTestRunCancel();
   const runQuery = useTestRun(activeRunId);
+  const runsQuery = useTestRuns();
   const run = runQuery.data?.run ?? null;
-  const brokenQuery = useTestResults(activeRunId, "failed");
-  const allResults = useTestResults(activeRunId);
+  const runStatus = run?.status;
+  const brokenQuery = useTestResults(activeRunId, "failed", runStatus);
+  const allResults = useTestResults(activeRunId, undefined, runStatus);
 
   const onStart = async () => {
-    const created = await runStartMutation.mutateAsync(settings);
+    const effectiveMode = modeOverride ?? settings.testMode;
+    const created = await runStartMutation.mutateAsync({
+      ...settings,
+      testMode: effectiveMode,
+    });
     onRunChange(created.run.id);
   };
 
@@ -300,176 +305,195 @@ export function TestDashboard({
 
   const isRunning = run?.status === "running";
   const duration = run ? formatDuration(run.started_at, run.finished_at) : null;
-
-  // Get recently completed results for live log
-  const recentResults = allResults.data?.items ?? [];
+  const resultItems = allResults.data?.items ?? [];
+  const selectedMode = modeOverride ?? settings.testMode;
 
   return (
-    <div className="space-y-4">
-      {/* Current run card */}
-      <Card className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">Current Run</h3>
-            <p className="text-xs text-muted-foreground">
-              Start a full validation run over your MCP registry.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={onStart}
-              disabled={runStartMutation.isPending || isRunning}
-            >
-              {runStartMutation.isPending ? "Starting..." : "Start tests"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onCancel}
-              disabled={!activeRunId || !isRunning}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-
-        {/* Current saved config preview */}
-        {!isRunning && !run && (
-          <div className="flex items-center gap-2 text-[11px] flex-wrap bg-muted/30 rounded-lg px-3 py-2">
-            <span className="text-muted-foreground">Will run as:</span>
-            <Badge variant="outline" className="text-[10px]">
-              {settings.testMode === "full_agent"
-                ? "Full Agent (LLM)"
-                : settings.testMode === "tool_call"
-                  ? "Tool Call"
-                  : "Health Check"}
-            </Badge>
-            {settings.testMode !== "health_check" && (
-              <span className="text-[10px] text-muted-foreground">
-                (will test each tool individually)
-              </span>
-            )}
-            {settings.testMode === "health_check" && (
-              <span className="text-[10px] text-muted-foreground">
-                (connect + list tools only)
-              </span>
-            )}
-            {settings.onFailure !== "none" && (
-              <Badge
-                variant="outline"
-                className="text-[10px] text-red-600 border-red-500/20"
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+      <div className="xl:col-span-8 space-y-4 min-w-0">
+        <Card className="p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-sm font-semibold">Current Run</h3>
+              <p className="text-xs text-muted-foreground">
+                Start a full validation run and track results in real time.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={onStart}
+                disabled={runStartMutation.isPending || isRunning}
               >
-                on fail: {settings.onFailure.replace(/_/g, " ")}
-              </Badge>
-            )}
+                {runStartMutation.isPending ? "Starting..." : "Start tests"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCancel}
+                disabled={!activeRunId || !isRunning}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-        )}
 
-        {run ? (
-          <>
-            {/* Status + progress */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <Badge className={`capitalize ${statusBadgeClass(run.status)}`}>
-                {run.status}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {run.tested_items}/{run.total_items} tested
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-[11px] text-muted-foreground">
+                Test mode
               </span>
-              {duration && (
-                <span className="text-xs text-muted-foreground">
-                  {duration}
-                </span>
-              )}
-              {isRunning && run.current_item_id && (
-                <span className="text-xs text-muted-foreground truncate max-w-48">
-                  Testing:{" "}
-                  <span className="font-mono">{run.current_item_id}</span>
-                </span>
-              )}
-            </div>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedMode}
+                onChange={(e) => setModeOverride(e.target.value as TestMode)}
+                disabled={isRunning}
+              >
+                <option value="health_check">Health check</option>
+                <option value="tool_call">Tool call</option>
+                <option value="full_agent">Full agent (LLM-assisted)</option>
+              </select>
+            </label>
 
-            {/* Progress bar */}
-            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${
-                  run.failed_items > 0 ? "bg-orange-500" : "bg-emerald-500"
-                } ${isRunning ? "animate-pulse" : ""}`}
-                style={{ width: `${pct(run)}%` }}
-              />
-            </div>
+            <label className="space-y-1">
+              <span className="text-[11px] text-muted-foreground">
+                Run history
+              </span>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={activeRunId ?? ""}
+                onChange={(e) => onRunChange(e.target.value || undefined)}
+              >
+                <option value="">Current / none selected</option>
+                {(runsQuery.data?.items ?? []).map((runItem) => (
+                  <option key={runItem.id} value={runItem.id}>
+                    {new Date(runItem.created_at).toLocaleString()} -{" "}
+                    {runItem.status}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-            {/* Stats cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Card className="p-2.5 space-y-0.5">
-                <p className="text-[10px] text-emerald-600">Passed</p>
-                <p className="text-lg font-bold text-emerald-600">
-                  {run.passed_items}
-                </p>
-              </Card>
-              <Card className="p-2.5 space-y-0.5">
-                <p className="text-[10px] text-red-600">Failed</p>
-                <p className="text-lg font-bold text-red-600">
-                  {run.failed_items}
-                </p>
-              </Card>
-              <Card className="p-2.5 space-y-0.5">
-                <p className="text-[10px] text-muted-foreground">Skipped</p>
-                <p className="text-lg font-bold">{run.skipped_items}</p>
-              </Card>
-              <Card className="p-2.5 space-y-0.5">
-                <p className="text-[10px] text-muted-foreground">Total</p>
-                <p className="text-lg font-bold">{run.total_items}</p>
-              </Card>
-            </div>
+          <p className="text-[11px] text-muted-foreground rounded-md bg-muted/30 px-2.5 py-2">
+            {selectedMode === "health_check"
+              ? "Checks connectivity and tool listing only — no tool calls are made."
+              : selectedMode === "tool_call"
+                ? "Calls each tool with empty inputs to verify it responds without errors."
+                : "Uses an LLM to generate realistic inputs for each tool and validates the outputs."}
+          </p>
 
-            {/* Config snapshot */}
-            {run.config_snapshot && (
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
-                <Badge variant="outline" className="text-[10px]">
-                  {run.config_snapshot.testMode.replace("_", " ")}
+          {run ? (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge className={`capitalize ${statusBadgeClass(run.status)}`}>
+                  {run.status}
                 </Badge>
-                <span>
-                  timeout: {run.config_snapshot.perMcpTimeoutMs / 1000}s per MCP
+                <span className="text-xs text-muted-foreground">
+                  {run.tested_items}/{run.total_items} tested
                 </span>
-                {run.config_snapshot.onFailure !== "none" && (
-                  <Badge variant="outline" className="text-[10px] text-red-600">
-                    on fail: {run.config_snapshot.onFailure.replace(/_/g, " ")}
-                  </Badge>
+                {duration && (
+                  <span className="text-xs text-muted-foreground">
+                    {duration}
+                  </span>
+                )}
+                {isRunning && run.current_item_id && (
+                  <span className="text-xs text-muted-foreground truncate max-w-64">
+                    Testing:{" "}
+                    <span className="font-mono">{run.current_item_id}</span>
+                  </span>
                 )}
               </div>
-            )}
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No run selected yet. Start a new run to begin.
-          </p>
-        )}
-      </Card>
 
-      {/* Live results log */}
-      {recentResults.length > 0 && (
-        <Card className="p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">
-              Results Log ({recentResults.length})
-            </h3>
-            {run?.config_snapshot?.testMode && (
-              <Badge variant="outline" className="text-[10px]">
-                mode: {run.config_snapshot.testMode.replace("_", " ")}
-              </Badge>
-            )}
-          </div>
-          <div className="space-y-1 max-h-96 overflow-auto">
-            {recentResults.map((r, idx) => (
-              <ResultLogEntry key={r.id} result={r} index={idx} />
-            ))}
-          </div>
+              <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    run.failed_items > 0 ? "bg-orange-500" : "bg-emerald-500"
+                  } ${isRunning ? "animate-pulse" : ""}`}
+                  style={{ width: `${pct(run)}%` }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Card className="p-2.5 space-y-0.5">
+                  <p className="text-[10px] text-emerald-600">Passed</p>
+                  <p className="text-lg font-bold text-emerald-600">
+                    {run.passed_items}
+                  </p>
+                </Card>
+                <Card className="p-2.5 space-y-0.5">
+                  <p className="text-[10px] text-red-600">Failed</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {run.failed_items}
+                  </p>
+                </Card>
+                <Card className="p-2.5 space-y-0.5">
+                  <p className="text-[10px] text-muted-foreground">Skipped</p>
+                  <p className="text-lg font-bold">{run.skipped_items}</p>
+                </Card>
+                <Card className="p-2.5 space-y-0.5">
+                  <p className="text-[10px] text-muted-foreground">Total</p>
+                  <p className="text-lg font-bold">{run.total_items}</p>
+                </Card>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No run selected yet. Start a new run to begin.
+            </p>
+          )}
         </Card>
-      )}
 
-      {/* Broken + Connections */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        <Card className="p-4 space-y-2 min-h-[360px]">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">
+              Results Log ({resultItems.length})
+            </h3>
+            <div className="flex items-center gap-2">
+              {isRunning && (
+                <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 animate-pulse">
+                  testing in progress
+                </Badge>
+              )}
+              {run?.config_snapshot?.testMode && (
+                <Badge variant="outline" className="text-[10px]">
+                  mode: {run.config_snapshot.testMode.replace("_", " ")}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {resultItems.length === 0 ? (
+            <div className="h-[280px] rounded border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground">
+              No results yet. Start a run to see live logs here.
+            </div>
+          ) : (
+            <div
+              ref={(node) => {
+                if (node && isRunning) {
+                  // Only auto-scroll when the user is near the bottom (within 120px)
+                  const distanceFromBottom =
+                    node.scrollHeight - node.scrollTop - node.clientHeight;
+                  if (distanceFromBottom < 120) {
+                    requestAnimationFrame(() => {
+                      node.scrollTop = node.scrollHeight;
+                    });
+                  }
+                }
+              }}
+              className="space-y-1 max-h-[60vh] overflow-auto pr-1"
+            >
+              {resultItems.map((r, idx) => (
+                <ResultLogEntry key={r.id} result={r} index={idx} />
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="xl:col-span-4 space-y-4 min-w-0">
+        <TestConnectionsPanel />
+
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">
             Broken MCPs{" "}
@@ -481,7 +505,18 @@ export function TestDashboard({
           </h3>
           <BrokenMCPList results={brokenQuery.data?.items ?? []} />
         </div>
-        <TestConnectionsPanel />
+
+        <details className="group rounded-lg border border-border bg-card">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold flex items-center justify-between">
+            Advanced configuration
+            <span className="text-muted-foreground text-xs transition-transform group-open:rotate-180">
+              ▼
+            </span>
+          </summary>
+          <div className="px-4 pb-4">
+            <TestConfiguration hideTestMode borderless />
+          </div>
+        </details>
       </div>
     </div>
   );

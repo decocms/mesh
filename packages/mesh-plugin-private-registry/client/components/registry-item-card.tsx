@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { DotsVertical, Globe01, Trash01 } from "@untitledui/icons";
+import { DotsVertical, EyeOff, Globe01, Trash01 } from "@untitledui/icons";
 import type { RegistryItem } from "../lib/types";
 
 function extractProvider(item: RegistryItem): string {
@@ -67,7 +67,15 @@ export function RegistryItemCard({
               <p className="text-xs text-muted-foreground truncate">
                 {extractProvider(item)}
               </p>
-              {item.is_public ? (
+              {item.is_unlisted ? (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-amber-400 text-amber-600 dark:border-amber-600 dark:text-amber-400"
+                >
+                  <EyeOff size={10} />
+                  Unlisted
+                </Badge>
+              ) : item.is_public ? (
                 <Badge variant="default" className="gap-1">
                   <Globe01 size={10} />
                   Public

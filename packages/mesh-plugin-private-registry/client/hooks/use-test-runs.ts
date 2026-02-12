@@ -128,7 +128,11 @@ export function useTestRun(runId?: string) {
   });
 }
 
-export function useTestResults(runId?: string, status?: TestResultStatus) {
+export function useTestResults(
+  runId?: string,
+  status?: TestResultStatus,
+  runStatus?: TestRunStatus,
+) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -146,6 +150,7 @@ export function useTestResults(runId?: string, status?: TestResultStatus) {
       }),
     enabled: Boolean(runId),
     staleTime: 5_000,
+    refetchInterval: runStatus === "running" ? 3000 : false,
   });
 }
 

@@ -8,6 +8,7 @@ export const TestModeSchema = z.enum([
 ]);
 export const TestFailureActionSchema = z.enum([
   "none",
+  "unlisted",
   "remove_public",
   "remove_private",
   "remove_all",
@@ -98,11 +99,9 @@ export const TestConnectionSchema = z.object({
   updated_at: z.string(),
 });
 
-export const RegistryTestRunStartInputSchema = z
-  .object({
-    config: RegistryTestConfigSchema.optional(),
-  })
-  .default({});
+export const RegistryTestRunStartInputSchema = z.object({
+  config: RegistryTestConfigSchema.optional(),
+});
 
 export const RegistryTestRunStartOutputSchema = z.object({
   run: TestRunSchema,

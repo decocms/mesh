@@ -75,6 +75,7 @@ export const RegistryItemSchema = z.object({
   _meta: RegistryItemMetaSchema.optional(),
   server: RegistryServerSchema,
   is_public: z.boolean().optional(),
+  is_unlisted: z.boolean().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   created_by: z.string().optional(),
@@ -107,6 +108,10 @@ export const RegistryListInputSchema = CollectionListInputSchema.extend({
     .optional()
     .describe("Filter by categories (AND semantics)"),
   cursor: z.string().optional().describe("Pagination cursor"),
+  includeUnlisted: z
+    .boolean()
+    .optional()
+    .describe("Include unlisted items (admin only, default false)"),
 }).describe("List registry items with optional filtering and pagination.");
 
 export const RegistryListOutputSchema = z.object({
@@ -201,9 +206,13 @@ export const RegistrySearchInputSchema = z
       .optional()
       .describe("Max results (default 20)"),
     cursor: z.string().optional().describe("Pagination cursor"),
+    includeUnlisted: z
+      .boolean()
+      .optional()
+      .describe("Include unlisted items (admin only, default false)"),
   })
   .describe(
-    "Lightweight search returning minimal fields (id, title, tags, categories, is_public).",
+    "Lightweight search returning minimal fields (id, title, tags, categories, is_public, is_unlisted).",
   );
 
 const RegistrySearchItemSchema = z.object({
@@ -212,6 +221,7 @@ const RegistrySearchItemSchema = z.object({
   tags: z.array(z.string()),
   categories: z.array(z.string()),
   is_public: z.boolean(),
+  is_unlisted: z.boolean().optional(),
 });
 
 export const RegistrySearchOutputSchema = z.object({

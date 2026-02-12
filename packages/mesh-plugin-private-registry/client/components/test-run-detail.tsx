@@ -307,8 +307,8 @@ export function TestRunDetail({ runId }: { runId?: string }) {
     "all",
   );
   const runQuery = useTestRun(runId);
-  const resultsQuery = useTestResults(runId);
   const run = runQuery.data?.run;
+  const resultsQuery = useTestResults(runId, undefined, run?.status);
   const allResults = resultsQuery.data?.items ?? [];
   const filteredResults =
     statusFilter === "all"

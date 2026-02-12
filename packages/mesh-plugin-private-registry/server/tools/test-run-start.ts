@@ -309,6 +309,12 @@ async function applyFailureAction(args: {
 }): Promise<string> {
   const storage = getPluginStorage();
   switch (args.action) {
+    case "unlisted": {
+      await storage.items.update(args.organizationId, args.item.id, {
+        is_unlisted: true,
+      });
+      return "unlisted";
+    }
     case "remove_public": {
       await storage.items.update(args.organizationId, args.item.id, {
         is_public: false,
@@ -378,12 +384,6 @@ async function testSingleItem(args: {
     toolsListed = true;
     log(
       `  [testSingleItem] ✓ Found ${tools.length} tools: [${tools.map((t) => t.name).join(", ")}]`,
-    );
-
-    await getPluginStorage().testConnections.updateAuthStatus(
-      args.organizationId,
-      args.item.id,
-      "authenticated",
     );
 
     if (args.testConfig.testMode !== "health_check") {
@@ -548,7 +548,9 @@ async function runTestLoop(args: {
   log("═══════════════════════════════════════════════════");
 
   const storage = getPluginStorage();
-  const allItems = await storage.items.list(args.organizationId, {});
+  const allItems = await storage.items.list(args.organizationId, {
+    includeUnlisted: true,
+  });
   log(`Fetched ${allItems.items.length} total registry items`);
 
   const items = allItems.items.filter((item) => {
