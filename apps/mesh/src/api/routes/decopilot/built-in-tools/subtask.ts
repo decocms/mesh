@@ -50,6 +50,28 @@ export interface SubtaskResultMeta {
   usage: UsageStats;
 }
 
+/**
+ * Build metadata for subtask final yield. Explicitly does NOT spread
+ * lastMessage.metadata to prevent usage leakage into parent message.
+ */
+export function buildSubtaskFinalMetadata(
+  lastMessage: UIMessage,
+  accumulatedUsage: UsageStats,
+  agentId: string,
+  models: ModelsConfig,
+): UIMessage {
+  return {
+    ...lastMessage,
+    metadata: {
+      subtaskResult: {
+        usage: accumulatedUsage,
+        agent: agentId,
+        models,
+      },
+    },
+  };
+}
+
 const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
   "and returns results when complete. Use this when a task is better handled by a specialized agent, " +
@@ -164,17 +186,13 @@ export function createSubtaskTool(params: SubtaskParams, ctx: MeshContext) {
         yield message;
       }
 
-      // Final yield: enrich with usage + agent metadata
-      // This re-sends the last message with metadata attached.
-      // The AI SDK treats this final yield as part.output on the frontend.
       if (lastMessage) {
-        yield {
-          ...lastMessage,
-          metadata: {
-            ...(lastMessage.metadata ?? {}),
-            subtaskResult: { usage: accumulatedUsage },
-          },
-        };
+        yield buildSubtaskFinalMetadata(
+          lastMessage,
+          accumulatedUsage,
+          agent_id,
+          models,
+        );
       }
     },
     toModelOutput: ({ output: message }) => {
