@@ -6,13 +6,13 @@ import type { ChatMessage } from "./types";
 
 const mockThread = {
   id: "thrd_1",
-  organizationId: "org_1",
+  organization_id: "org_1",
   title: "Test",
   description: null,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  createdBy: "user_1",
-  updatedBy: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  created_by: "user_1",
+  updated_by: null,
   hidden: false,
 };
 
@@ -41,9 +41,9 @@ const mockListMessages = (threadMessages: ChatMessage[]) => {
 
 const toThreadMessage = (m: ChatMessage, threadId: string) => ({
   ...m,
-  threadId,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  thread_id: threadId,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 });
 
 describe("processConversation", () => {
@@ -99,8 +99,8 @@ describe("processConversation", () => {
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
-        organizationId: "org_1",
-        threadId: "thrd_1",
+        organization_id: "org_1",
+        thread_id: "thrd_1",
         userId: "user_1",
         defaultWindowSize: 50,
       });
@@ -147,8 +147,8 @@ describe("processConversation", () => {
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
-        organizationId: "org_1",
-        threadId: "thrd_1",
+        organization_id: "org_1",
+        thread_id: "thrd_1",
         userId: "user_1",
         defaultWindowSize: 50,
       });
@@ -194,8 +194,8 @@ describe("processConversation", () => {
 
       const ctx = createMockCtx(listMessagesMock);
       const memory = await createMemory(ctx.storage.threads, {
-        organizationId: "org_1",
-        threadId: "thrd_1",
+        organization_id: "org_1",
+        thread_id: "thrd_1",
         userId: "user_1",
         defaultWindowSize: 50,
       });

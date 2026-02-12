@@ -10,6 +10,7 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema } from "./schema";
 
 export const COLLECTION_THREADS_DELETE = defineTool({
@@ -33,7 +34,7 @@ export const COLLECTION_THREADS_DELETE = defineTool({
 
     // Verify it belongs to the current organization
     // Use same error message as "not found" to prevent ID enumeration
-    if (thread.organizationId !== organization.id) {
+    if (thread.organization_id !== organization.id) {
       throw new Error(`Thread not found: ${input.id}`);
     }
 
@@ -41,10 +42,7 @@ export const COLLECTION_THREADS_DELETE = defineTool({
     await ctx.storage.threads.delete(input.id);
 
     return {
-      item: {
-        ...thread,
-        hidden: thread.hidden ?? false,
-      },
+      item: normalizeThreadForResponse(thread),
     };
   },
 });

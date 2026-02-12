@@ -27,7 +27,7 @@ describe("Collection Cache Prefill Logic", () => {
       "THREAD_MESSAGES",
       "org-123",
       {
-        filters: [{ column: "threadId", value: "test-thread" }],
+        filters: [{ column: "thread_id", value: "test-thread" }],
         pageSize: 100,
       },
     );
@@ -92,7 +92,7 @@ describe("Collection Cache Prefill Logic", () => {
       "THREAD_MESSAGES",
       "org-123",
       {
-        filters: [{ column: "threadId", value: "test-thread" }],
+        filters: [{ column: "thread_id", value: "test-thread" }],
       },
     );
 
@@ -126,7 +126,7 @@ describe("Collection Cache Prefill Logic", () => {
       "THREAD_MESSAGES",
       "org-123",
       {
-        filters: [{ column: "threadId", value: "test-thread" }],
+        filters: [{ column: "thread_id", value: "test-thread" }],
       },
     );
 

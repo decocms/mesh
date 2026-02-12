@@ -14,10 +14,10 @@ import { generatePrefixedId } from "@/shared/utils/generate-id";
  */
 export interface MemoryConfig {
   /** Thread ID (creates new if not found) */
-  threadId?: string | null;
+  thread_id?: string | null;
 
   /** Organization scope */
-  organizationId: string;
+  organization_id: string;
 
   /** User who owns/created the thread */
   userId: string;
@@ -37,7 +37,7 @@ export interface MemoryConfig {
  */
 export class Memory {
   readonly thread: Thread;
-  readonly organizationId: string;
+  readonly organization_id: string;
 
   private storage: ThreadStoragePort;
   private defaultWindowSize: number;
@@ -48,7 +48,7 @@ export class Memory {
     defaultWindowSize?: number;
   }) {
     this.thread = config.thread;
-    this.organizationId = config.thread.organizationId;
+    this.organization_id = config.thread.organization_id;
     this.storage = config.storage;
     this.defaultWindowSize = config.defaultWindowSize ?? 50;
   }
@@ -81,28 +81,28 @@ export async function createMemory(
   storage: ThreadStoragePort,
   config: MemoryConfig,
 ): Promise<Memory> {
-  const { threadId, organizationId, userId, defaultWindowSize } = config;
+  const { thread_id, organization_id, userId, defaultWindowSize } = config;
 
   let thread: Thread;
 
-  if (!threadId) {
+  if (!thread_id) {
     // Create new thread
     thread = await storage.create({
       id: generatePrefixedId("thrd"),
-      organizationId,
-      createdBy: userId,
+      organization_id,
+      created_by: userId,
     });
   } else {
     // Try to get existing thread
-    const existing = await storage.get(threadId);
+    const existing = await storage.get(thread_id);
 
-    if (!existing || existing.organizationId !== organizationId) {
+    if (!existing || existing.organization_id !== organization_id) {
       // Thread not found or belongs to different org - create new
       // Use fresh ID if thread exists in different org (avoid conflicts)
       thread = await storage.create({
-        id: existing ? generatePrefixedId("thrd") : threadId,
-        organizationId,
-        createdBy: userId,
+        id: existing ? generatePrefixedId("thrd") : thread_id,
+        organization_id,
+        created_by: userId,
       });
     } else {
       thread = existing;

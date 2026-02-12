@@ -42,8 +42,8 @@ describe("SqlThreadStorage", () => {
   describe("saveMessages (upsert)", () => {
     it("inserts new messages", async () => {
       const thread = await storage.create({
-        organizationId: "org_1",
-        createdBy: "user_1",
+        organization_id: "org_1",
+        created_by: "user_1",
       });
 
       const messages: ThreadMessage[] = [
@@ -51,17 +51,17 @@ describe("SqlThreadStorage", () => {
           id: "msg_1",
           role: "user",
           parts: [{ type: "text", text: "Hello" }],
-          threadId: thread.id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          thread_id: thread.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
         {
           id: "msg_2",
           role: "assistant",
           parts: [{ type: "text", text: "Hi there" }],
-          threadId: thread.id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          thread_id: thread.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       ];
 
@@ -75,8 +75,8 @@ describe("SqlThreadStorage", () => {
 
     it("updates existing message when id conflicts", async () => {
       const thread = await storage.create({
-        organizationId: "org_1",
-        createdBy: "user_1",
+        organization_id: "org_1",
+        created_by: "user_1",
       });
 
       const initial: ThreadMessage[] = [
@@ -84,9 +84,9 @@ describe("SqlThreadStorage", () => {
           id: "msg_upsert",
           role: "assistant",
           parts: [{ type: "text", text: "Original" }],
-          threadId: thread.id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          thread_id: thread.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       ];
 
@@ -106,9 +106,9 @@ describe("SqlThreadStorage", () => {
               output: { response: "Answered" },
             },
           ],
-          threadId: thread.id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          thread_id: thread.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       ];
 
@@ -125,6 +125,36 @@ describe("SqlThreadStorage", () => {
       expect(
         (toolPart as { output?: { response: string } }).output?.response,
       ).toBe("Answered");
+    });
+  });
+
+  describe("status", () => {
+    it("create() without status defaults to completed", async () => {
+      const thread = await storage.create({
+        organization_id: "org_1",
+        created_by: "user_1",
+      });
+      expect(thread.status).toBe("completed");
+    });
+
+    it("create() with explicit status stores it", async () => {
+      const thread = await storage.create({
+        organization_id: "org_1",
+        created_by: "user_1",
+        status: "in_progress",
+      });
+      expect(thread.status).toBe("in_progress");
+    });
+
+    it("update() with status persists it", async () => {
+      const thread = await storage.create({
+        organization_id: "org_1",
+        created_by: "user_1",
+      });
+      const updated = await storage.update(thread.id, { status: "failed" });
+      expect(updated.status).toBe("failed");
+      const loaded = await storage.get(thread.id);
+      expect(loaded?.status).toBe("failed");
     });
   });
 });

@@ -600,12 +600,23 @@ export interface ConnectionAggregationTable {
  * Thread table definition
  * Threads are scopes users in organizations and store messages with Agents.
  */
+
+/** Stored thread statuses (persisted in DB). */
+export const THREAD_STATUSES = [
+  "in_progress",
+  "requires_action",
+  "failed",
+  "completed",
+] as const;
+export type ThreadStatus = (typeof THREAD_STATUSES)[number];
+
 export interface ThreadTable {
   id: string;
   organization_id: string;
   title: string;
   description: string | null;
   hidden: boolean | null;
+  status: ThreadStatus;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -614,14 +625,15 @@ export interface ThreadTable {
 
 export interface Thread {
   id: string;
-  organizationId: string;
+  organization_id: string;
   title: string;
   description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by: string | null;
   hidden: boolean | null;
+  status: ThreadStatus;
 }
 
 export interface ThreadMessageTable {
@@ -634,9 +646,9 @@ export interface ThreadMessageTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 export interface ThreadMessage extends ChatMessage {
-  threadId: string;
-  createdAt: string;
-  updatedAt: string;
+  thread_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================================

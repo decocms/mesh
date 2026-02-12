@@ -153,7 +153,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   // Org admin items in order matching Figma design
   // Note: "Projects" section is also shown via SidebarProjectsSection
   const orgAdminItems: NavigationSidebarItem[] = [
-    tasksItem,
+    ...(preferences.experimental_tasks ? [tasksItem] : []),
     connectionsItem,
     workflowsItem,
     ...(preferences.experimental_projects ? [projectsItem] : []),
@@ -275,7 +275,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   // (Settings is in the footer)
   const projectItems: NavigationSidebarItem[] = [
     homeItem,
-    projectTasksItem,
+    ...(preferences.experimental_tasks ? [projectTasksItem] : []),
     projectWorkflowsItem,
   ];
 

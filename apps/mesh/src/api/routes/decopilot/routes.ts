@@ -24,7 +24,8 @@ import {
 } from "./constants";
 import { processConversation, splitRequestMessages } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
-import { createMemory } from "./memory";
+import { createMemory, Memory } from "./memory";
+import { resolveThreadStatus } from "./status";
 import { ensureModelCompatibility } from "./model-compat";
 import {
   checkModelPermission,
@@ -99,6 +100,7 @@ app.get("/:org/decopilot/allowed-models", async (c) => {
 // ============================================================================
 
 app.post("/:org/decopilot/stream", async (c) => {
+  let memory: Memory | undefined;
   try {
     const ctx = c.get("meshContext");
 
@@ -139,13 +141,20 @@ app.post("/:org/decopilot/stream", async (c) => {
     }
 
     const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
-    const threadId = thread_id ?? memoryConfig?.threadId;
+    const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
 
-    // Get connection entities
-    const [virtualMcp, modelConnection] = await Promise.all([
+    // Get connection entities and create/load memory in parallel
+    const [virtualMcp, modelConnection, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(agent.id, organization.id),
       ctx.storage.connections.findById(models.connectionId, organization.id),
+      createMemory(ctx.storage.threads, {
+        organization_id: organization.id,
+        thread_id: resolvedThreadId,
+        userId,
+        defaultWindowSize: windowSize,
+      }),
     ]);
+    memory = mem;
 
     if (!modelConnection) {
       throw new Error("Model connection not found");
@@ -154,6 +163,11 @@ app.post("/:org/decopilot/stream", async (c) => {
     if (!virtualMcp) {
       throw new Error("Agent not found");
     }
+
+    // Mark thread as in_progress at the start of streaming
+    await ctx.storage.threads.update(mem.thread.id, {
+      status: "in_progress",
+    });
 
     // Create model client for LLM calls
     const modelClient = await clientFromConnection(modelConnection, ctx, false);
@@ -173,16 +187,10 @@ app.post("/:org/decopilot/stream", async (c) => {
       { superUser: false },
     );
 
-    // 2. Extract tools from virtual MCP client, create model provider, and create/load memory
-    const [mcpTools, modelProvider, memory] = await Promise.all([
+    // Extract tools and create model provider
+    const [mcpTools, modelProvider] = await Promise.all([
       toolsFromMCP(mcpClient),
       createModelProviderFromClient(streamableModelClient, models),
-      createMemory(ctx.storage.threads, {
-        organizationId: organization.id,
-        threadId,
-        userId,
-        defaultWindowSize: windowSize,
-      }),
     ]);
 
     // 3. Get built-in tools (client-side tools like user_ask)
@@ -194,6 +202,12 @@ app.post("/:org/decopilot/stream", async (c) => {
     const abortSignal = c.req.raw.signal;
     abortSignal.addEventListener("abort", () => {
       modelClient.close().catch(() => {});
+      // Mark thread as failed on client disconnect
+      if (mem.thread.id) {
+        ctx.storage.threads
+          .update(mem.thread.id, { status: "failed" })
+          .catch(() => {});
+      }
     });
 
     // Get server instructions if available (for virtual MCP agents)
@@ -208,7 +222,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       systemMessages: processedSystemMessages,
       messages: processedMessages,
       originalMessages,
-    } = await processConversation(memory, requestMessage, allSystemMessages, {
+    } = await processConversation(mem, requestMessage, allSystemMessages, {
       windowSize,
       models,
     });
@@ -218,7 +232,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const shouldGenerateTitle = memory.thread.title === DEFAULT_THREAD_TITLE;
+    const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
     const titlePromise = shouldGenerateTitle
       ? generateTitleInBackground({
           abortSignal,
@@ -247,7 +261,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         if (!resolvedTitle) return;
 
         await ctx.storage.threads
-          .update(memory.thread.id, { title: resolvedTitle })
+          .update(mem.thread.id, { title: resolvedTitle })
           .catch((error) => {
             console.error(
               "[decopilot:stream] Error updating thread title",
@@ -276,7 +290,7 @@ app.post("/:org/decopilot/stream", async (c) => {
               thinking: models.thinking,
             },
             created_at: new Date(),
-            thread_id: memory.thread.id,
+            thread_id: mem.thread.id,
           };
         }
         if (part.type === "reasoning-start") {
@@ -337,19 +351,48 @@ app.post("/:org/decopilot/stream", async (c) => {
         ].map((message, i) => ({
           ...message,
           metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
-          threadId: memory.thread.id,
-          createdAt: new Date(now + i).toISOString(),
-          updatedAt: new Date(now + i).toISOString(),
+          thread_id: mem.thread.id,
+          created_at: new Date(now + i).toISOString(),
+          updated_at: new Date(now + i).toISOString(),
         }));
 
         if (messagesToSave.length === 0) return;
 
-        await memory.save(messagesToSave).catch((error) => {
+        await mem.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
         });
+
+        // Determine and persist thread status
+        const finishReason = await result.finishReason;
+        const threadStatus = resolveThreadStatus(
+          finishReason,
+          responseMessage?.parts ?? [],
+        );
+
+        await ctx.storage.threads
+          .update(mem.thread.id, { status: threadStatus })
+          .catch((error) => {
+            console.error(
+              "[decopilot:stream] Error updating thread status",
+              error,
+            );
+          });
       },
     });
   } catch (err) {
+    // If we have a thread, mark it as failed
+    if (memory) {
+      const ctx = c.get("meshContext");
+      await ctx.storage.threads
+        .update(memory.thread.id, { status: "failed" })
+        .catch((statusErr: unknown) => {
+          console.error(
+            "[decopilot:stream] Failed to update thread status",
+            statusErr,
+          );
+        });
+    }
+
     console.error("[decopilot:stream] Error", err);
 
     if (err instanceof HTTPException) {

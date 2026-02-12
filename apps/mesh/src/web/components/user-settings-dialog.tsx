@@ -14,7 +14,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Check, Code01, Copy01, Folder, X } from "@untitledui/icons";
+import {
+  Check,
+  CheckDone01,
+  Code01,
+  Copy01,
+  Folder,
+  X,
+} from "@untitledui/icons";
 import { useState } from "react";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 
@@ -145,6 +152,37 @@ export function UserSettingsDialog({
                       setPreferences((prev) => ({
                         ...prev,
                         experimental_projects: checked,
+                      }))
+                    }
+                  />
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    experimental_tasks: !prev.experimental_tasks,
+                  }))
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <CheckDone01 size={16} className="text-muted-foreground" />
+                    Tasks
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Enable the tasks feature in the sidebar
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={preferences.experimental_tasks}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        experimental_tasks: checked,
                       }))
                     }
                   />

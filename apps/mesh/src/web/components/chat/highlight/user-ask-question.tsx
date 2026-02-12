@@ -456,7 +456,7 @@ function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
     const latest = form.getValues();
     const everyAnswered = parts.every((p) => !!latest[p.toolCallId]?.response);
     if (everyAnswered) {
-      submitAll(latest);
+      form.handleSubmit(submitAll)();
     } else {
       const next = findNextUnanswered(latest);
       if (next) setActiveTab(next.toolCallId);

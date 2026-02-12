@@ -16,7 +16,7 @@ const UIMessageSchema = z.looseObject({
 
 const MemoryConfigSchema = z.object({
   windowSize: z.number().default(DEFAULT_WINDOW_SIZE),
-  threadId: z.string(),
+  thread_id: z.string(),
 });
 
 const ProviderSchema = z

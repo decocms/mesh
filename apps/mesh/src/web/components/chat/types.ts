@@ -83,8 +83,8 @@ export interface Metadata {
 export interface Thread {
   id: string;
   title: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  created_at: string; // ISO string
+  updated_at: string; // ISO string
   hidden?: boolean;
 }
 
@@ -98,7 +98,7 @@ export interface Thread {
  */
 export interface ParentThread {
   /** Thread ID of the parent message */
-  threadId: string;
+  thread_id: string;
   /** ID of the parent message being branched from */
   messageId: string;
 }
