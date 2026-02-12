@@ -4,7 +4,7 @@ import {
   RegistryBulkCreateInputSchema,
   RegistryBulkCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, requireOrgContext } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_BULK_CREATE",
@@ -14,16 +14,7 @@ export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof RegistryBulkCreateInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-      user?: { id?: string };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+    const meshCtx = await requireOrgContext(ctx);
     const storage = getPluginStorage();
     const errors: Array<{ id: string; error: string }> = [];
     let created = 0;
@@ -44,9 +35,6 @@ export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
       }
     }
 
-    return {
-      created,
-      errors,
-    };
+    return { created, errors };
   },
 };

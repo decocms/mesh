@@ -4,7 +4,7 @@ import {
   RegistryDeleteInputSchema,
   RegistryDeleteOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, requireOrgContext } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_DELETE: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_DELETE",
@@ -14,15 +14,7 @@ export const COLLECTION_REGISTRY_APP_DELETE: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof RegistryDeleteInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+    const meshCtx = await requireOrgContext(ctx);
     const storage = getPluginStorage();
     const item = await storage.items.delete(
       meshCtx.organization.id,
