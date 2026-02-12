@@ -140,7 +140,7 @@ export function MeshAccountSwitcher({
             />
             {!isCollapsed && (
               <>
-                <div className={cn("min-w-0 text-left", isDark && "flex-1")}>
+                <div className="min-w-0 flex-1 text-left">
                   {isDark && currentProject ? (
                     <>
                       <p className="text-[10px] text-zinc-500 leading-none truncate">
@@ -151,7 +151,7 @@ export function MeshAccountSwitcher({
                       </p>
                     </>
                   ) : (
-                    <span className="truncate text-[14px] tracking-[-0.00625rem] font-medium text-foreground">
+                    <span className="block truncate text-[14px] tracking-[-0.00625rem] font-medium text-foreground">
                       {currentOrg?.name ?? "Select org"}
                     </span>
                   )}
