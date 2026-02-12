@@ -9,10 +9,10 @@ const mockThread = {
   organizationId: "org_1",
   title: "Test",
   description: null,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  createdBy: "user_1",
-  updatedBy: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  created_by: "user_1",
+  updated_by: null,
   hidden: false,
 };
 
@@ -42,8 +42,8 @@ const mockListMessages = (threadMessages: ChatMessage[]) => {
 const toThreadMessage = (m: ChatMessage, threadId: string) => ({
   ...m,
   threadId,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 });
 
 describe("processConversation", () => {

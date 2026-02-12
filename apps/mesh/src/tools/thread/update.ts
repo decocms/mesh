@@ -61,7 +61,7 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
       title: data.title,
       description: data.description,
       hidden: data.hidden,
-      updatedBy: userId,
+      updated_by: userId,
     });
 
     return {

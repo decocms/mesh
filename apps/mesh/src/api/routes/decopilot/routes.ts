@@ -352,8 +352,8 @@ app.post("/:org/decopilot/stream", async (c) => {
           ...message,
           metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
           threadId: mem.thread.id,
-          createdAt: new Date(now + i).toISOString(),
-          updatedAt: new Date(now + i).toISOString(),
+          created_at: new Date(now + i).toISOString(),
+          updated_at: new Date(now + i).toISOString(),
         }));
 
         if (messagesToSave.length === 0) return;

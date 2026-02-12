@@ -11,10 +11,10 @@ const BASE_THREAD: Thread = {
   organizationId: "org_test",
   title: "Test thread",
   description: null,
-  createdAt: "2025-01-01T00:00:00.000Z",
-  updatedAt: "2025-01-01T00:00:00.000Z",
-  createdBy: "user_test",
-  updatedBy: null,
+  created_at: "2025-01-01T00:00:00.000Z",
+  updated_at: "2025-01-01T00:00:00.000Z",
+  created_by: "user_test",
+  updated_by: null,
   hidden: null,
   status: "completed",
 };
@@ -49,7 +49,7 @@ describe("normalizeThreadForResponse", () => {
   test("in_progress within 30 min stays in_progress", () => {
     const recentUpdate = new Date(NOW - 10 * 60 * 1000).toISOString(); // 10 min ago
     const result = normalizeThreadForResponse(
-      { ...BASE_THREAD, status: "in_progress", updatedAt: recentUpdate },
+      { ...BASE_THREAD, status: "in_progress", updated_at: recentUpdate },
       NOW,
     );
     expect(result.status).toBe("in_progress");
@@ -58,7 +58,7 @@ describe("normalizeThreadForResponse", () => {
   test("in_progress older than 30 min becomes expired", () => {
     const staleUpdate = new Date(NOW - 31 * 60 * 1000).toISOString(); // 31 min ago
     const result = normalizeThreadForResponse(
-      { ...BASE_THREAD, status: "in_progress", updatedAt: staleUpdate },
+      { ...BASE_THREAD, status: "in_progress", updated_at: staleUpdate },
       NOW,
     );
     expect(result.status).toBe("expired");
@@ -67,7 +67,7 @@ describe("normalizeThreadForResponse", () => {
   test("in_progress at exactly 30 min stays in_progress", () => {
     const exactUpdate = new Date(NOW - THREAD_EXPIRY_MS).toISOString();
     const result = normalizeThreadForResponse(
-      { ...BASE_THREAD, status: "in_progress", updatedAt: exactUpdate },
+      { ...BASE_THREAD, status: "in_progress", updated_at: exactUpdate },
       NOW,
     );
     expect(result.status).toBe("in_progress");

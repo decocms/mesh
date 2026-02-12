@@ -57,7 +57,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       organizationId: organization.id,
       title: input.data.title,
       description: input.data.description,
-      createdBy: userId,
+      created_by: userId,
     });
 
     return {

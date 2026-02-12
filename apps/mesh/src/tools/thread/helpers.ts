@@ -35,7 +35,7 @@ export function normalizeThreadForResponse(
   let status: ThreadStatusForResponse = thread.status;
 
   if (status === "in_progress") {
-    const updatedAtMs = new Date(thread.updatedAt).getTime();
+    const updatedAtMs = new Date(thread.updated_at).getTime();
     if (!Number.isFinite(updatedAtMs) || now - updatedAtMs > THREAD_EXPIRY_MS) {
       status = "expired";
     }

@@ -90,7 +90,7 @@ export async function createMemory(
     thread = await storage.create({
       id: generatePrefixedId("thrd"),
       organizationId,
-      createdBy: userId,
+      created_by: userId,
     });
   } else {
     // Try to get existing thread
@@ -102,7 +102,7 @@ export async function createMemory(
       thread = await storage.create({
         id: existing ? generatePrefixedId("thrd") : threadId,
         organizationId,
-        createdBy: userId,
+        created_by: userId,
       });
     } else {
       thread = existing;
