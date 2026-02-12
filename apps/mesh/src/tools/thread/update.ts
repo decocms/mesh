@@ -11,6 +11,7 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
+import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema, ThreadUpdateDataSchema } from "./schema";
 
 /**
@@ -64,10 +65,7 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
     });
 
     return {
-      item: {
-        ...thread,
-        hidden: thread.hidden ?? false,
-      },
+      item: normalizeThreadForResponse(thread),
     };
   },
 });
