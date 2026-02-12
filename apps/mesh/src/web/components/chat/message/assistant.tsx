@@ -1,3 +1,8 @@
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@deco/ui/components/collapsible.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   ChevronRight,
@@ -80,12 +85,11 @@ function ThoughtSummary({
   id,
   isStreaming,
 }: {
-  duration: number;
+  duration: number | null;
   parts: ReasoningPart[];
   id: string;
   isStreaming: boolean;
 }) {
-  const seconds = (duration / 1000).toFixed(1);
   const [isExpanded, setIsExpanded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -100,78 +104,86 @@ function ThoughtSummary({
     }
   }, [parts, isStreaming]);
 
-  // Always expanded while streaming, collapsible when done
-  const shouldShowContent = isStreaming || isExpanded;
-
   return (
     <div className="flex flex-col mb-2">
-      <button
-        type="button"
-        onClick={() => !isStreaming && setIsExpanded(!isExpanded)}
-        className={cn(
-          "group/thought-summary flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
-          !isStreaming && "cursor-pointer hover:opacity-100",
-          isStreaming && "cursor-default",
-        )}
+      <Collapsible
+        open={isStreaming || isExpanded}
+        onOpenChange={!isStreaming ? setIsExpanded : undefined}
       >
-        <span className="flex items-center gap-1.5">
-          {isStreaming ? (
-            <Stars01
-              className="text-muted-foreground shrink-0 shimmer"
-              size={14}
-            />
-          ) : (
-            <span className="relative w-[14px] h-[14px] shrink-0">
-              <ChevronRight
-                className={cn(
-                  "absolute inset-0 text-muted-foreground transition-transform",
-                  isExpanded && "rotate-90",
-                  "opacity-0 group-hover/thought-summary:opacity-100",
-                )}
-                size={14}
-              />
-              <Lightbulb01
-                className="absolute inset-0 text-muted-foreground shrink-0 opacity-100 group-hover/thought-summary:opacity-0 transition-opacity"
-                size={14}
-              />
-            </span>
-          )}
-          <span
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
             className={cn(
-              "text-[15px] text-muted-foreground",
-              isStreaming && "shimmer",
+              "group/thought-summary flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
+              !isStreaming && "cursor-pointer hover:opacity-100",
+              isStreaming && "cursor-default",
             )}
           >
-            {isStreaming ? "Thinking..." : `Thought for ${seconds}s`}
-          </span>
-        </span>
-      </button>
-      {shouldShowContent && (
-        <div className="relative">
-          {/* Gradient overlay - only while streaming */}
-          {isStreaming && (
-            <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
-          )}
-          <div
-            ref={scrollContainerRef}
-            className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
-          >
-            {parts.map((part, index) => {
-              return (
-                <div
-                  key={`${id}-reasoning-${index}`}
-                  className="text-muted-foreground markdown-sm pb-2"
-                >
-                  <MemoizedMarkdown
-                    id={`${id}-reasoning-${index}`}
-                    text={part.text}
+            <span className="flex items-center gap-1.5">
+              {isStreaming ? (
+                <Stars01
+                  className="text-muted-foreground shrink-0 shimmer"
+                  size={14}
+                />
+              ) : (
+                <span className="relative w-[14px] h-[14px] shrink-0">
+                  <ChevronRight
+                    className={cn(
+                      "absolute inset-0 text-muted-foreground transition-transform",
+                      isExpanded && "rotate-90",
+                      "opacity-0 group-hover/thought-summary:opacity-100",
+                    )}
+                    size={14}
                   />
-                </div>
-              );
-            })}
+                  <Lightbulb01
+                    className="absolute inset-0 text-muted-foreground shrink-0 opacity-100 group-hover/thought-summary:opacity-0 transition-opacity"
+                    size={14}
+                  />
+                </span>
+              )}
+              <span
+                className={cn(
+                  "text-[15px] text-muted-foreground",
+                  isStreaming && "shimmer",
+                )}
+              >
+                {isStreaming
+                  ? "Thinking..."
+                  : duration !== null
+                    ? `Thought for ${(duration / 1000).toFixed(1)}s`
+                    : "Thought"}
+              </span>
+            </span>
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
+          <div className="relative">
+            {/* Gradient overlay - only while streaming */}
+            {isStreaming && (
+              <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
+            )}
+            <div
+              ref={scrollContainerRef}
+              className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
+            >
+              {parts.map((part, index) => {
+                return (
+                  <div
+                    key={`${id}-reasoning-${index}`}
+                    className="text-muted-foreground markdown-sm pb-2"
+                  >
+                    <MemoizedMarkdown
+                      id={`${id}-reasoning-${index}`}
+                      text={part.text}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -339,7 +351,7 @@ export function MessageAssistant({
     <Container className={className}>
       {hasContent ? (
         <>
-          {hasReasoning && duration !== null && (
+          {hasReasoning && (
             <ThoughtSummary
               duration={duration}
               parts={reasoningParts}
