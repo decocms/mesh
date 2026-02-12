@@ -4,7 +4,7 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
-import { ENABLE_PROJECTS } from "@/web/lib/feature-flags";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
@@ -22,6 +22,7 @@ import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { useProject } from "./use-project";
 
 export function useProjectSidebarItems(): SidebarSection[] {
+  const [preferences] = usePreferences();
   const { locator, org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
@@ -155,7 +156,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     tasksItem,
     connectionsItem,
     workflowsItem,
-    ...(ENABLE_PROJECTS ? [projectsItem] : []),
+    ...(preferences.experimental_projects ? [projectsItem] : []),
     storeItem,
     agentsItem,
     monitorItem,

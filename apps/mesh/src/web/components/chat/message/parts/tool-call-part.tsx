@@ -4,7 +4,7 @@ import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
 import { useState } from "react";
 import { MonacoCodeEditor } from "../../../details/workflow/components/monaco-editor.tsx";
-import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import {
   Collapsible,
   CollapsibleContent,
@@ -41,7 +41,7 @@ export function ToolCallPart({
     "toolName" in part ? part.toolName : part.type.replace("tool-", "");
   const friendlyName = getFriendlyToolName(toolName);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [developerMode] = useDeveloperMode();
+  const [preferences] = usePreferences();
 
   const showInput =
     (state === "input-streaming" ||
@@ -52,7 +52,7 @@ export function ToolCallPart({
   const showError = state === "output-error";
 
   // Business user mode - simple inline text like Thinking indicator
-  if (!developerMode) {
+  if (!preferences.devMode) {
     const isStreaming =
       state === "input-streaming" || state === "input-available";
     const isComplete = state === "output-available";
