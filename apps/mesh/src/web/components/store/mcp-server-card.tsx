@@ -318,6 +318,11 @@ function extractCardDisplayData(
     }
   }
 
+  // Fallback to item.id when it contains a scope (e.g. "provider/name")
+  if (!scopeName && item.id?.includes("/")) {
+    scopeName = item.id;
+  }
+
   // PRIORITY: Use friendly_name if available, otherwise use displayName
   if (meshMeta?.friendly_name) {
     displayName = meshMeta.friendly_name;

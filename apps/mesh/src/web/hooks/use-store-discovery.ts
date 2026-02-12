@@ -7,7 +7,7 @@
 import { useState } from "react";
 import {
   useInfiniteQuery,
-  useSuspenseQuery,
+  useQuery,
   keepPreviousData,
 } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
@@ -44,6 +44,8 @@ interface UseStoreDiscoveryResult {
   isInitialLoading: boolean;
   /** Whether fetching in background (for subtle loading indicator) */
   isFetching: boolean;
+  /** Error from listing items (e.g. registry unreachable) */
+  error: Error | null;
   /** Function to load more items */
   loadMore: () => void;
   /** Available tags for filtering */
@@ -83,7 +85,9 @@ export function useStoreDiscovery({
   const hasFiltersSupport = Boolean(filtersToolName);
 
   // Fetch available filters (only if supported)
-  const { data: filtersData } = useSuspenseQuery<RegistryFiltersResponse>({
+  // Uses useQuery (not useSuspenseQuery) so that a failing registry
+  // doesn't crash the entire Store UI — filters degrade gracefully to empty.
+  const { data: filtersData } = useQuery<RegistryFiltersResponse>({
     queryKey: KEYS.toolCall(registryId, filtersToolName || "no-filters", "{}"),
     queryFn: async () => {
       if (!filtersToolName) {
@@ -96,6 +100,7 @@ export function useStoreDiscovery({
       return (result.structuredContent ?? result) as RegistryFiltersResponse;
     },
     staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
+    retry: 2,
   });
 
   // Build where clause for server-side search
@@ -130,6 +135,7 @@ export function useStoreDiscovery({
     isFetchingNextPage,
     isFetching,
     isLoading,
+    error: listError,
   } = useInfiniteQuery({
     queryKey: KEYS.toolCall(
       registryId,
@@ -161,6 +167,7 @@ export function useStoreDiscovery({
     },
     staleTime: 60 * 60 * 1000,
     placeholderData: keepPreviousData,
+    retry: 2,
   });
 
   // Extract totalCount from first page if available
@@ -204,6 +211,7 @@ export function useStoreDiscovery({
     isFiltering,
     isInitialLoading: isLoading,
     isFetching,
+    error: listError,
     loadMore,
     availableTags: hasFiltersSupport
       ? (filtersData as RegistryFiltersResponse | undefined)?.tags

@@ -19,9 +19,49 @@ import {
   useProjectContext,
   type ConnectionCreateData,
 } from "@decocms/mesh-sdk";
-import { Loading01 } from "@untitledui/icons";
+import { AlertTriangle, Loading01, RefreshCw01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { Suspense } from "react";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { Button } from "@deco/ui/components/button.tsx";
+
+/**
+ * Error fallback for when a store registry is unreachable or broken.
+ * Shows a friendly message instead of crashing the entire Mesh UI.
+ */
+function StoreErrorFallback({
+  error,
+  onRetry,
+  registryName,
+}: {
+  error: Error | null;
+  onRetry: () => void;
+  registryName: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+      <div className="bg-destructive/10 p-3 rounded-full">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-lg font-medium">Unable to load store</h3>
+        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+          The <strong>{registryName}</strong> registry is currently unreachable.
+          This may be a temporary issue — try again in a moment.
+        </p>
+        {error?.message && (
+          <p className="text-xs text-muted-foreground/60 font-mono max-w-md mx-auto truncate">
+            {error.message}
+          </p>
+        )}
+      </div>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        <RefreshCw01 className="size-4" />
+        Try again
+      </Button>
+    </div>
+  );
+}
 
 export default function StorePage() {
   const { org } = useProjectContext();
@@ -112,33 +152,46 @@ export default function StorePage() {
 
       {/* Content Section */}
       <Page.Content>
-        <Suspense
-          fallback={
-            <div className="flex flex-col items-center justify-center h-full">
-              <Loading01
-                size={32}
-                className="animate-spin text-muted-foreground mb-4"
-              />
-              <p className="text-sm text-muted-foreground">
-                Loading store items...
-              </p>
-            </div>
-          }
-        >
-          {effectiveRegistry ? (
-            <StoreDiscovery registryId={effectiveRegistry} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <StoreRegistryEmptyState
-                registries={availableWellKnownRegistriesForEmptyState}
-                onConnected={(createdRegistryId) => {
-                  // Auto-select the newly created registry
-                  setSelectedRegistryId(createdRegistryId);
-                }}
-              />
-            </div>
+        <ErrorBoundary
+          fallback={({ error, resetError }) => (
+            <StoreErrorFallback
+              error={error}
+              onRetry={resetError}
+              registryName={
+                registryOptions.find((r) => r.id === effectiveRegistry)?.name ??
+                "registry"
+              }
+            />
           )}
-        </Suspense>
+        >
+          <Suspense
+            fallback={
+              <div className="flex flex-col items-center justify-center h-full">
+                <Loading01
+                  size={32}
+                  className="animate-spin text-muted-foreground mb-4"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Loading store items...
+                </p>
+              </div>
+            }
+          >
+            {effectiveRegistry ? (
+              <StoreDiscovery registryId={effectiveRegistry} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full">
+                <StoreRegistryEmptyState
+                  registries={availableWellKnownRegistriesForEmptyState}
+                  onConnected={(createdRegistryId) => {
+                    // Auto-select the newly created registry
+                    setSelectedRegistryId(createdRegistryId);
+                  }}
+                />
+              </div>
+            )}
+          </Suspense>
+        </ErrorBoundary>
       </Page.Content>
     </Page>
   );
