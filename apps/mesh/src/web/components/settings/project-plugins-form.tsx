@@ -184,8 +184,8 @@ function PluginRow({
   const selectedModel: SelectedModelState | undefined =
     llmConnectionDraft && llmModelDraft
       ? {
-          id: llmModelDraft,
           connectionId: llmConnectionDraft,
+          thinking: { id: llmModelDraft },
         }
       : undefined;
 
@@ -298,9 +298,9 @@ function PluginRow({
               <Label>Default AI Model</Label>
               <ModelSelector
                 selectedModel={selectedModel}
-                onModelChange={(model) => {
-                  setLLMConnectionDraft(model.connectionId);
-                  setLLMModelDraft(model.id);
+                onModelChange={(payload) => {
+                  setLLMConnectionDraft(payload.connectionId);
+                  setLLMModelDraft(payload.id);
                 }}
                 variant="bordered"
                 className="w-[220px]"

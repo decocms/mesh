@@ -14,7 +14,7 @@ export const REGISTRY_TEST_CONNECTION_SYNC: ServerPluginToolDefinition = {
   outputSchema: RegistryTestConnectionSyncOutputSchema,
   handler: async (_input, ctx) => {
     RegistryTestConnectionSyncInputSchema.parse(_input);
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       access: { check: () => Promise<void> };
       user?: { id?: string };

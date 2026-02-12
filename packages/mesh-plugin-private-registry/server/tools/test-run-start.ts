@@ -687,7 +687,7 @@ export const REGISTRY_TEST_RUN_START: ServerPluginToolDefinition = {
   outputSchema: RegistryTestRunStartOutputSchema,
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof RegistryTestRunStartInputSchema>;
-    const meshCtx = ctx as MeshToolContext;
+    const meshCtx = ctx as unknown as MeshToolContext;
     if (!meshCtx.organization) {
       throw new Error("Organization context required");
     }
