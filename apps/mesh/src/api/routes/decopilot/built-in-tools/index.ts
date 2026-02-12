@@ -20,7 +20,11 @@ export {
   createSubtaskTool,
   buildSubagentSystemPrompt,
 } from "./subtask";
-export type { SubtaskInput, SubtaskToolDeps } from "./subtask";
+export type {
+  SubtaskInput,
+  SubtaskResultMeta,
+  SubtaskToolDeps,
+} from "./subtask";
 
 /**
  * Get all built-in tools as a ToolSet.

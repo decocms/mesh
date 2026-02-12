@@ -5,6 +5,7 @@
  * agent (Virtual MCP). Uses AI SDK v6 streaming generator pattern.
  */
 
+import type { UIMessage } from "ai";
 import {
   readUIMessageStream,
   stepCountIs,
@@ -46,6 +47,10 @@ export const SubtaskInputSchema = z.object({
 });
 
 export type SubtaskInput = z.infer<typeof SubtaskInputSchema>;
+
+export interface SubtaskResultMeta {
+  usage: UsageStats;
+}
 
 const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
@@ -154,13 +159,26 @@ export function createSubtaskTool(deps: SubtaskToolDeps) {
       });
 
       // ── 6. Stream results via readUIMessageStream ──────────────────
+      let lastMessage: UIMessage | undefined;
       for await (const message of readUIMessageStream({
         stream: result.toUIMessageStream(),
       })) {
+        lastMessage = message;
         yield message;
       }
 
-      // Note: accumulatedUsage is wired to the parent in Plan 2 via onUsage callback
+      // Final yield: enrich with usage + agent metadata
+      // This re-sends the last message with metadata attached.
+      // The AI SDK treats this final yield as part.output on the frontend.
+      if (lastMessage) {
+        yield {
+          ...lastMessage,
+          metadata: {
+            ...(lastMessage.metadata ?? {}),
+            subtaskResult: { usage: accumulatedUsage },
+          },
+        };
+      }
     },
     toModelOutput: ({ output: message }) => {
       if (!message) {
