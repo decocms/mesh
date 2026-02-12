@@ -46,6 +46,7 @@ import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
   mountPluginRoutes,
   initializePluginStorage,
+  runPluginStartupHooks,
 } from "../core/plugin-loader";
 import { CredentialVault } from "../encryption/credential-vault";
 
@@ -507,9 +508,21 @@ export async function createApp(options: CreateAppOptions = {}) {
   ContextFactory.set(factory);
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
-  Promise.resolve(eventBus.start()).then(() => {
-    console.log("[EventBus] Worker started");
-  });
+  // Then run plugin startup hooks (e.g., recover stuck workflow executions)
+  Promise.resolve(eventBus.start())
+    .then(() => {
+      console.log("[EventBus] Worker started");
+      // db is typed as `any` to avoid Kysely version mismatch issues between packages
+      return runPluginStartupHooks({
+        db: database.db as any,
+        publish: async (organizationId, event) => {
+          await eventBus.publish(organizationId, "", event);
+        },
+      });
+    })
+    .catch((error) => {
+      console.error("[EventBus] Error during startup:", error);
+    });
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
