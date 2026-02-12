@@ -621,7 +621,7 @@ function OrgMcpsContent() {
       const agentMatch = message.match(
         /used by the following agent\(s\): (.+)\. Remove/,
       );
-      if (agentMatch) {
+      if (agentMatch?.[1]) {
         dispatch({
           type: "force-delete",
           connection,
