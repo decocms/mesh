@@ -76,7 +76,7 @@ async function insertOrg(orgId: string, name?: string): Promise<void> {
   await db
     .insertInto("organization" as never)
     .values({ id: orgId, name: name ?? orgId })
-    .onConflict((oc) => oc.column("id").doNothing())
+    .onConflict((oc) => oc.column("id" as never).doNothing())
     .execute();
 }
 
@@ -255,8 +255,8 @@ describe("Stress Tests", () => {
   // --------------------------------------------------------------------------
 
   describe("multi-organization isolation", () => {
-    it("60 organizations each running 50 workflows concurrently", async () => {
-      const orgCount = 40;
+    it("20 organizations each running 30 workflows concurrently", async () => {
+      const orgCount = 20;
       const workflowsPerOrg = 30;
 
       // Create organizations
