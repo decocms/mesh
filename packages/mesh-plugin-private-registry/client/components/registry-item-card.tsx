@@ -67,14 +67,13 @@ export function RegistryItemCard({
               <p className="text-xs text-muted-foreground truncate">
                 {extractProvider(item)}
               </p>
-              {item.is_public && (
-                <Badge
-                  variant="secondary"
-                  className="gap-0.5 px-1.5 py-0 border-green-500/30 bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
-                >
+              {item.is_public ? (
+                <Badge variant="default" className="gap-1">
                   <Globe01 size={10} />
                   Public
                 </Badge>
+              ) : (
+                <Badge variant="secondary">Private</Badge>
               )}
             </div>
           </div>
