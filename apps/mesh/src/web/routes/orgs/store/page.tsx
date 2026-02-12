@@ -40,10 +40,22 @@ export default function StorePage() {
     routerState.location.pathname.split("/").length > 3;
 
   // Filter to only show registry connections (those with collections)
-  const registryConnections = useRegistryConnections(allConnections);
+  const allRegistryConnections = useRegistryConnections(allConnections);
 
-  // Read private-registry plugin config to override self MCP branding in the selector
+  // The self MCP caches ALL tools (including plugin tools) in its tools column.
+  // When the private-registry plugin is disabled, the COLLECTION_REGISTRY_APP_*
+  // tools still appear in the cached array, so the self MCP would incorrectly
+  // show up as a registry. Filter it out unless the plugin is actually enabled.
   const selfMcpId = WellKnownOrgMCPId.SELF(org.id);
+  const isPrivateRegistryEnabled = (project.enabledPlugins ?? []).includes(
+    "private-registry",
+  );
+
+  const registryConnections = allRegistryConnections.filter((c) => {
+    if (c.id !== selfMcpId) return true;
+    return isPrivateRegistryEnabled;
+  });
+
   const hasSelfMcpRegistry = registryConnections.some(
     (c) => c.id === selfMcpId,
   );
