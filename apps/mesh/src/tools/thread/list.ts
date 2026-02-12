@@ -11,6 +11,7 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
+import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema } from "./schema";
 import { z } from "zod";
 
@@ -54,11 +55,10 @@ export const COLLECTION_THREADS_LIST = defineTool({
 
     const hasMore = offset + limit < total;
 
+    const now = Date.now();
+
     return {
-      items: threads.map((thread) => ({
-        ...thread,
-        hidden: thread.hidden ?? false,
-      })),
+      items: threads.map((thread) => normalizeThreadForResponse(thread, now)),
       totalCount: total,
       hasMore,
     };

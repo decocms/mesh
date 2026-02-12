@@ -1,24 +1,24 @@
+import type { ChatMessage } from "@/api/routes/decopilot/types";
+export type { ChatMessage };
+import type { UseChatHelpers } from "@ai-sdk/react";
 import type { JSONContent } from "@tiptap/core";
-import type { UIMessage } from "ai";
 
 // ============================================================================
 // Chat Config Types
 // ============================================================================
 
-export interface ChatModelConfig {
+export interface ChatModelInfo {
   id: string;
-  connectionId: string;
-  fastId?: string | null;
+  capabilities?: { vision?: boolean; text?: boolean; tools?: boolean };
   provider?: string | null;
-  limits?: {
-    contextWindow?: number;
-    maxOutputTokens?: number;
-  };
-  capabilities?: {
-    vision?: boolean;
-    text?: boolean;
-    tools?: boolean;
-  };
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
+}
+
+export interface ChatModelsConfig {
+  connectionId: string;
+  thinking: ChatModelInfo;
+  coding?: ChatModelInfo;
+  fast?: ChatModelInfo;
 }
 
 export interface ChatAgentConfig {
@@ -53,10 +53,9 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
-  fastId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
-  model?: ChatModelConfig;
+  models?: ChatModelsConfig;
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;
@@ -84,12 +83,10 @@ export interface Metadata {
 export interface Thread {
   id: string;
   title: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  created_at: string; // ISO string
+  updated_at: string; // ISO string
   hidden?: boolean;
 }
-
-export type Message = UIMessage<Metadata>;
 
 // ============================================================================
 // Parent Thread Types
@@ -101,7 +98,47 @@ export type Message = UIMessage<Metadata>;
  */
 export interface ParentThread {
   /** Thread ID of the parent message */
-  threadId: string;
+  thread_id: string;
   /** ID of the parent message being branched from */
   messageId: string;
 }
+
+// ============================================================================
+// Chat Message Types
+// ============================================================================
+
+export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
+
+// ============================================================================
+// Tool Part Types
+// ============================================================================
+
+/**
+ * Generic helper — DRY extraction for any built-in tool part.
+ * Tool names in getBuiltInTools map to part types as `tool-${name}`.
+ */
+type ToolPart<T extends string> = Extract<
+  ChatMessage["parts"][number],
+  { type: `tool-${T}` }
+>;
+
+export type UserAskToolPart = ToolPart<"user_ask">;
+export type SubtaskToolPart = ToolPart<"subtask">;
+
+// Compile-time guard: fails if SubtaskToolPart resolves to never
+type _AssertSubtaskExists = SubtaskToolPart extends never
+  ? [
+      "ERROR: SubtaskToolPart is never — ensure getBuiltInTools includes subtask",
+    ]
+  : true;
+const _assertSubtaskExists: _AssertSubtaskExists = true;
+void _assertSubtaskExists;
+
+// Compile-time guard: fails if UserAskToolPart resolves to never
+type _AssertUserAskExists = UserAskToolPart extends never
+  ? [
+      "ERROR: UserAskToolPart is never — ensure getBuiltInTools includes user_ask",
+    ]
+  : true;
+const _assertUserAskExists: _AssertUserAskExists = true;
+void _assertUserAskExists;

@@ -5,13 +5,15 @@ import {
   Stars01,
   Target04,
 } from "@untitledui/icons";
-import type { ToolUIPart, UIMessage } from "ai";
+import type { ToolUIPart } from "ai";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MemoizedMarkdown } from "../markdown.tsx";
-import type { Metadata } from "../types.ts";
+import type { ChatMessage } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
+import { SubtaskPart } from "./parts/subtask-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
+import { UserAskQuestionPart } from "./parts/user-ask-part.tsx";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 
 type ThinkingStage = "planning" | "thinking";
@@ -174,7 +176,7 @@ function ThoughtSummary({
   );
 }
 
-type MessagePart = UIMessage<Metadata>["parts"][number];
+type MessagePart = ChatMessage["parts"][number];
 
 type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
 
@@ -182,8 +184,8 @@ function isReasoningPart(part: MessagePart): part is ReasoningPart {
   return part.type === "reasoning";
 }
 
-interface MessageAssistantProps<T extends Metadata> {
-  message: UIMessage<T> | null;
+interface MessageAssistantProps {
+  message: ChatMessage | null;
   status?: "streaming" | "submitted" | "ready" | "error";
   className?: string;
   isLast: boolean;
@@ -225,6 +227,18 @@ function MessagePart({
           hasNextToolCall={hasNextToolCall}
         />
       );
+    case "tool-user_ask":
+      return (
+        <div className="my-2">
+          <UserAskQuestionPart part={part} />
+        </div>
+      );
+    case "tool-subtask":
+      return (
+        <div className="my-2 w-full">
+          <SubtaskPart part={part} />
+        </div>
+      );
     case "text":
       return (
         <MessageTextPart
@@ -244,10 +258,11 @@ function MessagePart({
     case "source-document":
       return null;
     default: {
-      if (part.type.startsWith("tool-")) {
+      const fallback = part as ToolUIPart;
+      if (fallback.type.startsWith("tool-")) {
         return (
           <ToolCallPart
-            part={part as ToolUIPart}
+            part={fallback}
             id={id}
             isFirstInSequence={isFirstToolCallInSequence}
             isLastInSequence={isLastToolCallInSequence}
@@ -255,10 +270,9 @@ function MessagePart({
           />
         );
       }
+      throw new Error(`Unknown part type: ${fallback.type}`);
     }
   }
-
-  throw new Error(`Unknown part type: ${part.type}`);
 }
 
 function EmptyAssistantState() {
@@ -292,12 +306,12 @@ function Container({
   );
 }
 
-export function MessageAssistant<T extends Metadata>({
+export function MessageAssistant({
   message,
   status,
   className,
   isLast = false,
-}: MessageAssistantProps<T>) {
+}: MessageAssistantProps) {
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
   const isLoading = isStreaming || isSubmitted;

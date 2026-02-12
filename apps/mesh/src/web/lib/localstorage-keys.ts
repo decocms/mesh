@@ -22,7 +22,7 @@ export const LOCALSTORAGE_KEYS = {
   selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
-  developerMode: () => `mesh:user:developer-mode`,
+  preferences: () => `mesh:user:preferences`,
   pluginConnection: (org: string, pluginId: string) =>
     `mesh:plugin:connection:${org}:${pluginId}`,
 } as const;

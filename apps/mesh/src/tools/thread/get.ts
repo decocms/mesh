@@ -10,6 +10,7 @@ import {
 } from "@decocms/bindings/collections";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema } from "./schema";
 
 /**
@@ -34,15 +35,12 @@ export const COLLECTION_THREADS_GET = defineTool({
     const thread = await ctx.storage.threads.get(input.id);
 
     // Verify thread exists and belongs to the current organization
-    if (!thread || thread.organizationId !== organization.id) {
+    if (!thread || thread.organization_id !== organization.id) {
       return { item: null };
     }
 
     return {
-      item: {
-        ...thread,
-        hidden: thread.hidden ?? false,
-      },
+      item: normalizeThreadForResponse(thread),
     };
   },
 });

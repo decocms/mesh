@@ -1,13 +1,11 @@
-import type { UIMessage } from "ai";
 import { useRef } from "react";
-import type { ChatStatus } from "../index.tsx";
-import type { Metadata } from "../types.ts";
+import type { ChatMessage, ChatStatus } from "../types.ts";
 import { MessageAssistant } from "./assistant.tsx";
 import { MessageUser } from "./user.tsx";
 
 export interface MessagePair {
-  user: UIMessage<Metadata>;
-  assistant: UIMessage<Metadata> | null;
+  user: ChatMessage;
+  assistant: ChatMessage | null;
 }
 
 /**
@@ -24,9 +22,7 @@ export interface MessagePair {
  * - [user, assistant, user] → [[user, assistant], [user, null]]
  * - [assistant, user, assistant] → [[user, assistant]] (first assistant ignored)
  */
-export function useMessagePairs(
-  messages: UIMessage<Metadata>[],
-): MessagePair[] {
+export function useMessagePairs(messages: ChatMessage[]): MessagePair[] {
   const pairs: MessagePair[] = [];
 
   for (let i = 0; i < messages.length; i++) {
@@ -81,17 +77,7 @@ export function MessagePair({ pair, isLastPair, status }: MessagePairProps) {
   };
 
   return (
-    <div
-      ref={handlePairRef}
-      className="flex flex-col pb-2"
-      style={
-        isLastPair
-          ? {
-              minHeight: `calc(100vh - 240px - var(--project-topbar-height, 0px))`,
-            }
-          : undefined
-      }
-    >
+    <div ref={handlePairRef} className="flex flex-col pb-2">
       {/* Sticky overlay to prevent scrolling content from appearing above the user message */}
       <div
         className="sticky top-0 z-50 w-full h-4"

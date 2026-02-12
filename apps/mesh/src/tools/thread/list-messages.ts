@@ -22,7 +22,7 @@ function extractThreadIdFromWhere(
   if (!where) return null;
   if (
     "field" in where &&
-    where.field[0] === "threadId" &&
+    where.field[0] === "thread_id" &&
     where.operator === "eq"
   ) {
     return String(where.value);
@@ -58,14 +58,14 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
     // Extract threadId from where clause
     const threadId = extractThreadIdFromWhere(input.where);
     if (!threadId) {
-      throw new Error("threadId filter is required in where clause");
+      throw new Error("thread_id filter is required in where clause");
     }
 
     // Verify the thread exists and belongs to the organization
     const thread = await ctx.storage.threads.get(threadId);
 
     // Return empty when thread doesn't exist (e.g. new chat before first message)
-    if (!thread || thread.organizationId !== organization.id) {
+    if (!thread || thread.organization_id !== organization.id) {
       return {
         items: [],
         totalCount: 0,

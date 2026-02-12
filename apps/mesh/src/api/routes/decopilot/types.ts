@@ -1,61 +1,52 @@
 /**
  * Decopilot Core Abstractions
  *
- * Memory-based conversation management for AI assistants.
+ * Conversation management types for AI assistants.
  *
  * Key concepts:
- * - Memory: Thread-based conversation history
  * - ModelProvider: LLM connection abstraction
  */
 
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import type { Thread, ThreadMessage } from "@/storage/types";
+import type { InferUITool, UIMessage } from "ai";
+import type { Metadata } from "@/web/components/chat/types";
+import type { getBuiltInTools } from "./built-in-tools";
 
 // ============================================================================
-// Memory - Thread and message history
+// Stream API Message Types
 // ============================================================================
 
 /**
- * Memory manages conversation history.
- *
- * Provides:
- * - Thread management (get or create)
- * - Message history loading
- * - Message saving
- * - Pruning for context window management
+ * Message type for chat - frontend and backend.
+ * Validated messages from the client with proper Metadata typing.
+ * Includes UITools for built-in tools (e.g. user_ask).
  */
-export interface Memory {
-  /** The current thread */
-  readonly thread: Thread;
+export type ChatMessage = UIMessage<
+  Metadata,
+  {},
+  {
+    [K in keyof ReturnType<typeof getBuiltInTools>]: InferUITool<
+      ReturnType<typeof getBuiltInTools>[K]
+    >;
+  }
+>;
 
-  /** Organization scope */
-  readonly organizationId: string;
+// ============================================================================
+// Model Config Types
+// ============================================================================
 
-  /** Load conversation history */
-  loadHistory(): Promise<ThreadMessage[]>;
-
-  /** Save messages to the thread */
-  save(messages: ThreadMessage[]): Promise<void>;
-
-  /** Get messages pruned to window size */
-  getPrunedHistory(windowSize: number): Promise<ThreadMessage[]>;
+export interface ModelInfo {
+  id: string;
+  capabilities?: { vision?: boolean; text?: boolean; tools?: boolean };
+  provider?: string | null;
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
 }
 
-/**
- * Configuration for Memory
- */
-export interface MemoryConfig {
-  /** Thread ID (creates new if not found) */
-  threadId?: string | null;
-
-  /** Organization scope */
-  organizationId: string;
-
-  /** User who owns/created the thread */
-  userId: string;
-
-  /** Default window size for pruning */
-  defaultWindowSize?: number;
+export interface ModelsConfig {
+  connectionId: string;
+  thinking: ModelInfo;
+  coding?: ModelInfo;
+  fast?: ModelInfo;
 }
 
 // ============================================================================
@@ -66,31 +57,17 @@ export interface MemoryConfig {
  * A ModelProvider creates language models from MCP connections.
  */
 export interface ModelProvider {
-  /** The AI SDK language model */
-  readonly model: LanguageModelV2;
+  /** Thinking model - backbone for the agentic loop */
+  readonly thinkingModel: LanguageModelV2;
 
-  /** Model ID (e.g., "gpt-4", "claude-3-opus") */
-  readonly modelId: string;
+  /** Coding model - good for code generation */
+  readonly codingModel?: LanguageModelV2;
 
-  /** Connection ID that provides this model */
+  /** Fast model - cheap model for simple tasks */
+  readonly fastModel?: LanguageModelV2;
+
+  /** Connection ID that provides these models */
   readonly connectionId: string;
-
-  /** Cheap model */
-  readonly cheapModel?: LanguageModelV2 | undefined;
-}
-
-/**
- * Configuration for creating a ModelProvider
- */
-export interface ModelProviderConfig {
-  /** Model ID to use */
-  modelId: string;
-
-  /** Connection ID that provides the model */
-  connectionId: string;
-
-  /** Organization scope */
-  organizationId: string;
 }
 
 // ============================================================================

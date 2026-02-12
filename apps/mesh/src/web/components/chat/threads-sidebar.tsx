@@ -133,7 +133,7 @@ function ThreadsViewContent({
                       {thread.title || "New chat"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(thread.updatedAt).toLocaleDateString(
+                      {new Date(thread.updated_at).toLocaleDateString(
                         undefined,
                         {
                           month: "short",

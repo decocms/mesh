@@ -63,7 +63,7 @@ function PageHeaderLeft({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 flex-shrink-0 overflow-hidden",
+        "flex items-center gap-2 shrink-0 overflow-hidden",
         className,
       )}
     >
@@ -80,7 +80,7 @@ function PageHeaderRight({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 flex-shrink-0 overflow-hidden border-l border-border pl-3",
+        "flex items-center gap-2 shrink-0 overflow-hidden border-l border-border pl-3",
         className,
       )}
     >

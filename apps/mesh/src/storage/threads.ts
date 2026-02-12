@@ -7,8 +7,13 @@
 
 import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
-import type { Database, Thread, ThreadMessage } from "./types";
+import type { Database, Thread, ThreadMessage, ThreadStatus } from "./types";
+
+function toIsoString(v: Date | string): string {
+  return typeof v === "string" ? v : v.toISOString();
+}
 
 // ============================================================================
 // Thread Storage Implementation
@@ -25,25 +30,26 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const id = data.id ?? generatePrefixedId("thrd");
     const now = new Date().toISOString();
 
-    if (!data.organizationId) {
-      throw new Error("organizationId is required");
+    if (!data.organization_id) {
+      throw new Error("organization_id is required");
     }
-    if (!data.createdBy) {
-      throw new Error("createdBy is required");
+    if (!data.created_by) {
+      throw new Error("created_by is required");
     }
     if (!data.title) {
-      data.title = "New Thread - " + now;
+      data.title = DEFAULT_THREAD_TITLE;
     }
 
     const row = {
       id,
-      organization_id: data.organizationId,
+      organization_id: data.organization_id,
       title: data.title,
       description: data.description ?? null,
+      status: data.status ?? "completed",
       created_at: now,
       updated_at: now,
-      created_by: data.createdBy,
-      updated_by: data.updatedBy ?? null,
+      created_by: data.created_by,
+      updated_by: data.updated_by ?? null,
     };
 
     const result = await this.db
@@ -78,11 +84,14 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (data.description !== undefined) {
       updateData.description = data.description;
     }
-    if (data.updatedBy !== undefined) {
-      updateData.updated_by = data.updatedBy;
+    if (data.updated_by !== undefined) {
+      updateData.updated_by = data.updated_by;
     }
     if (data.hidden !== undefined) {
       updateData.hidden = data.hidden;
+    }
+    if (data.status !== undefined) {
+      updateData.status = data.status;
     }
 
     await this.db
@@ -145,38 +154,63 @@ export class SqlThreadStorage implements ThreadStoragePort {
     };
   }
 
+  /**
+   * Upserts thread messages by id.
+   * Inserts new messages; updates existing rows (by id) with parts, metadata, role, updated_at.
+   * PostgreSQL only.
+   */
   async saveMessages(data: ThreadMessage[]): Promise<void> {
     const now = new Date().toISOString();
-    const threadId = data[0]?.threadId;
+    const threadId = data[0]?.thread_id;
     if (!threadId) {
-      throw new Error("threadId is required when creating multiple messages");
+      throw new Error("thread_id is required when creating multiple messages");
     }
+    // Deduplicate by id - PostgreSQL ON CONFLICT cannot affect same row twice in one INSERT.
+    // Also detect duplicate ids with conflicting thread_ids to reject corrupt batches early.
+    const byId = new Map<string, ThreadMessage>();
+    for (const m of data) {
+      const existing = byId.get(m.id);
+      if (existing && existing.thread_id !== m.thread_id) {
+        throw new Error(
+          `Duplicate message id "${m.id}" with conflicting thread_ids: "${existing.thread_id}" vs "${m.thread_id}"`,
+        );
+      }
+      byId.set(m.id, m);
+    }
+    const unique = [...byId.values()];
     // Validate all messages target the same thread to prevent data corruption.
-    // Each message has its own threadId field, but batch inserts must be homogeneous.
-    const mismatchedMessage = data.find((m) => m.threadId !== threadId);
+    const mismatchedMessage = unique.find((m) => m.thread_id !== threadId);
     if (mismatchedMessage) {
       throw new Error(
-        `All messages must target the same thread. Expected threadId "${threadId}", but message "${mismatchedMessage.id}" has threadId "${mismatchedMessage.threadId}"`,
+        `All messages must target the same thread. Expected thread_id "${threadId}", but message "${mismatchedMessage.id}" has thread_id "${mismatchedMessage.thread_id}"`,
       );
     }
-    // Preserve original createdAt if provided to maintain message ordering.
-    // Messages in a batch may have been created at different times on the client.
-    const rows = data.map((message) => ({
+    const rows = unique.map((message) => ({
       id: message.id,
       thread_id: threadId,
       metadata: message.metadata ? JSON.stringify(message.metadata) : null,
       parts: JSON.stringify(message.parts),
       role: message.role,
-      created_at: message.createdAt ?? now,
+      created_at: message.created_at ?? now,
       updated_at: now,
     }));
+
     await this.db.transaction().execute(async (trx) => {
-      await trx.insertInto("thread_messages").values(rows).execute();
+      await trx
+        .insertInto("thread_messages")
+        .values(rows)
+        .onConflict((oc) =>
+          oc.column("id").doUpdateSet((eb) => ({
+            metadata: eb.ref("excluded.metadata"),
+            parts: eb.ref("excluded.parts"),
+            role: eb.ref("excluded.role"),
+            updated_at: eb.ref("excluded.updated_at"),
+          })),
+        )
+        .execute();
       await trx
         .updateTable("threads")
-        .set({
-          updated_at: now,
-        })
+        .set({ updated_at: now })
         .where("id", "=", threadId)
         .execute();
     });
@@ -184,16 +218,21 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
   async listMessages(
     threadId: string,
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      sort?: "asc" | "desc";
+    },
   ): Promise<{ messages: ThreadMessage[]; total: number }> {
+    const sort = options?.sort ?? "asc";
     // Order by created_at first, then by id as a tiebreaker for stable ordering
     // when messages have identical timestamps (e.g., batched inserts).
     let query = this.db
       .selectFrom("thread_messages")
       .selectAll()
       .where("thread_id", "=", threadId)
-      .orderBy("created_at", "asc")
-      .orderBy("id", "asc");
+      .orderBy("created_at", sort)
+      .orderBy("id", sort);
 
     const countQuery = this.db
       .selectFrom("thread_messages")
@@ -227,6 +266,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     organization_id: string;
     title: string;
     description: string | null;
+    status: string;
     created_at: Date | string;
     updated_at: Date | string;
     created_by: string;
@@ -235,19 +275,14 @@ export class SqlThreadStorage implements ThreadStoragePort {
   }): Thread {
     return {
       id: row.id,
-      organizationId: row.organization_id,
+      organization_id: row.organization_id,
       title: row.title,
       description: row.description,
-      createdAt:
-        typeof row.created_at === "string"
-          ? row.created_at
-          : row.created_at.toISOString(),
-      updatedAt:
-        typeof row.updated_at === "string"
-          ? row.updated_at
-          : row.updated_at.toISOString(),
-      createdBy: row.created_by,
-      updatedBy: row.updated_by,
+      status: row.status as ThreadStatus,
+      created_at: toIsoString(row.created_at),
+      updated_at: toIsoString(row.updated_at),
+      created_by: row.created_by,
+      updated_by: row.updated_by,
       hidden: !!row.hidden,
     };
   }
@@ -289,18 +324,12 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
     return {
       id: row.id,
-      threadId: row.thread_id,
+      thread_id: row.thread_id,
       metadata,
       parts,
       role: row.role,
-      createdAt:
-        typeof row.created_at === "string"
-          ? row.created_at
-          : row.created_at.toISOString(),
-      updatedAt:
-        typeof row.updated_at === "string"
-          ? row.updated_at
-          : row.updated_at.toISOString(),
+      created_at: toIsoString(row.created_at),
+      updated_at: toIsoString(row.updated_at),
     };
   }
 }

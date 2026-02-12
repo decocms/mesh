@@ -12,7 +12,7 @@ import { ChevronDown, ChevronSelectorVertical } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
-import { ENABLE_PROJECTS } from "@/web/lib/feature-flags";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { UserPanel } from "./user-panel";
 import { OrgPanel } from "./org-panel";
 import { ProjectPanel } from "./project-panel";
@@ -32,6 +32,7 @@ export function MeshAccountSwitcher({
   variant = "light",
   onCreateProject,
 }: MeshAccountSwitcherProps) {
+  const [preferences] = usePreferences();
   const { org: orgParam, project: projectParam } = useParams({ strict: false });
   const { data: organizations } = authClient.useListOrganizations();
   const { data: session } = authClient.useSession();
@@ -139,7 +140,7 @@ export function MeshAccountSwitcher({
             />
             {!isCollapsed && (
               <>
-                <div className={cn("min-w-0 text-left", isDark && "flex-1")}>
+                <div className="min-w-0 flex-1 text-left">
                   {isDark && currentProject ? (
                     <>
                       <p className="text-[10px] text-zinc-500 leading-none truncate">
@@ -150,7 +151,7 @@ export function MeshAccountSwitcher({
                       </p>
                     </>
                   ) : (
-                    <span className="truncate text-[14px] tracking-[-0.00625rem] font-medium text-foreground">
+                    <span className="block truncate text-[14px] tracking-[-0.00625rem] font-medium text-foreground">
                       {currentOrg?.name ?? "Select org"}
                     </span>
                   )}
@@ -194,7 +195,7 @@ export function MeshAccountSwitcher({
           />
 
           {/* Project panel - shows projects for hovered org */}
-          {ENABLE_PROJECTS && hoveredOrg && (
+          {preferences.experimental_projects && hoveredOrg && (
             <ProjectPanel
               organizationId={hoveredOrg.id}
               organizationName={hoveredOrg.name}

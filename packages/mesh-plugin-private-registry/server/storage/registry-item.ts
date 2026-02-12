@@ -415,6 +415,7 @@ export class RegistryItemStorage {
       .select([
         "id",
         "title",
+        "description",
         "meta_json",
         "server_json",
         "tags",
@@ -447,6 +448,7 @@ export class RegistryItemStorage {
         const haystack = [
           row.id,
           row.title,
+          row.description ?? "",
           server.name ?? "",
           server.description ?? "",
           shortDesc,
