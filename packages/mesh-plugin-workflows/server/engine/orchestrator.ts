@@ -164,8 +164,6 @@ function buildOrchestrationSets(stepResults: ParsedStepResult[]): {
 // advanceExecution — shared "check completion → dispatch ready" logic
 // ---------------------------------------------------------------------------
 
-const DEFAULT_ON_ERROR: OnError = "continue";
-
 async function advanceExecution(
   ctx: OrchestratorContext,
   executionId: string,
@@ -206,7 +204,7 @@ async function advanceExecution(
     if (!result.error || !result.completed_at_epoch_ms) continue;
     if (result.step_id.includes("[")) continue;
     const step = steps.find((s) => s.name === result.step_id);
-    const onError: OnError = step?.config?.onError ?? DEFAULT_ON_ERROR;
+    const onError: OnError = step?.config?.onError ?? "fail";
     if (onError === "fail") {
       log(eid, `step "${result.step_id}" has unhandled error, failing`);
       await ctx.storage.updateExecution(

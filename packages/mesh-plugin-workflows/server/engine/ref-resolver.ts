@@ -61,7 +61,7 @@ export function parseAtRef(ref: `@${string}`): {
   }
 
   // Input reference: @input.path.to.value
-  if (refStr.startsWith("input")) {
+  if (refStr === "input" || refStr.startsWith("input.")) {
     const path = refStr.length > 5 ? refStr.substring(6) : "";
     return { type: "input", path };
   }
@@ -183,16 +183,18 @@ export interface ResolveResult {
 }
 
 /**
- * Regex to match @refs in strings for interpolation
+ * Regex to match @refs in strings for interpolation.
+ * Path segments can be identifiers (a-z, A-Z, _, 0-9 starting with letter/_)
+ * or numeric indices (e.g. 0, 1, 42) to support array access like @step.items.0.id
  */
 const AT_REF_PATTERN =
-  /@([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)/g;
+  /@([a-zA-Z_][a-zA-Z0-9_]*(?:\.(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+))*)/g;
 
 /**
  * Regex to match a COMPLETE @ref (entire string is one reference)
  */
 const SINGLE_AT_REF_PATTERN =
-  /^@([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)$/;
+  /^@([a-zA-Z_][a-zA-Z0-9_]*(?:\.(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+))*)$/;
 
 /**
  * Check if a value is a COMPLETE @ref string (the entire value is one reference)
@@ -270,7 +272,7 @@ export function extractRefs(input: unknown): string[] {
   const refs: string[] = [];
 
   function extract(value: unknown): void {
-    if (isAtRef(value)) {
+    if (isSingleAtRef(value)) {
       refs.push(value);
       return;
     }

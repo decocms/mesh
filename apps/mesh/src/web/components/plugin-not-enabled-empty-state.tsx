@@ -32,8 +32,12 @@ export function PluginNotEnabledEmptyState({
   const enablePlugin = useEnablePlugin();
 
   const handleEnable = async () => {
-    await enablePlugin.mutateAsync(pluginId);
-    toast.success("Plugin enabled!");
+    try {
+      await enablePlugin.mutateAsync(pluginId);
+      toast.success("Plugin enabled!");
+    } catch {
+      toast.error("Failed to enable plugin. Please try again.");
+    }
   };
 
   return (

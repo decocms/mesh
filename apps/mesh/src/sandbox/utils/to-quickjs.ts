@@ -73,7 +73,6 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
                     deferredPromise.reject(errorHandle);
                     errorHandle.dispose();
                   } finally {
-                    deferredPromise.disposeResolvers();
                     ctx.runtime.executePendingJobs();
                   }
                 })
@@ -84,7 +83,6 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
                   );
                   deferredPromise.reject(errorHandle);
                   errorHandle.dispose();
-                  deferredPromise.disposeResolvers();
                   ctx.runtime.executePendingJobs();
                 });
 

@@ -81,6 +81,39 @@ describe("parseAtRef", () => {
     expect(result.stepName).toBe("myStep");
     expect(result.path).toBe("data.nested.field");
   });
+
+  it("parses path with numeric array index @step.items.0.id", () => {
+    const result = parseAtRef("@myStep.items.0.id");
+    expect(result.type).toBe("step");
+    expect(result.stepName).toBe("myStep");
+    expect(result.path).toBe("items.0.id");
+  });
+
+  it("parses @item with numeric index @item.0.name", () => {
+    const result = parseAtRef("@item.0.name");
+    expect(result.type).toBe("item");
+    expect(result.path).toBe("0.name");
+  });
+
+  it("parses @input with numeric index @input.users.0", () => {
+    const result = parseAtRef("@input.users.0");
+    expect(result.type).toBe("input");
+    expect(result.path).toBe("users.0");
+  });
+
+  it("parses @inputData.field as step type, not input type", () => {
+    const result = parseAtRef("@inputData.field");
+    expect(result.type).toBe("step");
+    expect(result.stepName).toBe("inputData");
+    expect(result.path).toBe("field");
+  });
+
+  it("parses @inputValidator as step type, not input type", () => {
+    const result = parseAtRef("@inputValidator");
+    expect(result.type).toBe("step");
+    expect(result.stepName).toBe("inputValidator");
+    expect(result.path).toBe("");
+  });
 });
 
 // ============================================================================
@@ -130,6 +163,22 @@ describe("getValueByPath", () => {
 
   it("returns undefined for null intermediate", () => {
     expect(getValueByPath(null, "a.b")).toBeUndefined();
+  });
+
+  it("traverses nested arrays with multiple indices", () => {
+    const obj = {
+      matrix: [
+        [1, 2],
+        [3, 4],
+      ],
+    };
+    expect(getValueByPath(obj, "matrix.1.0")).toBe(3);
+  });
+
+  it("traverses array then object property", () => {
+    const obj = { items: [{ id: "a" }, { id: "b" }] };
+    expect(getValueByPath(obj, "items.0.id")).toBe("a");
+    expect(getValueByPath(obj, "items.1.id")).toBe("b");
   });
 });
 
@@ -207,6 +256,23 @@ describe("resolveRef", () => {
 
     const result = resolveRef("@step1.data.nested.field", ctx);
     expect(result.value).toBe("deep");
+  });
+
+  it("resolves array index ref @step.items.0.id", () => {
+    const stepOutputs = new Map<string, unknown>();
+    stepOutputs.set("fetch", { items: [{ id: "first" }, { id: "second" }] });
+    const ctx = makeCtx({ stepOutputs });
+
+    const result = resolveRef("@fetch.items.0.id", ctx);
+    expect(result.value).toBe("first");
+  });
+
+  it("resolves @item with array index @item.0.name", () => {
+    const ctx = makeCtx({
+      item: [{ name: "Alice" }, { name: "Bob" }],
+    });
+    const result = resolveRef("@item.0.name", ctx);
+    expect(result.value).toBe("Alice");
   });
 
   it("returns error for missing input path", () => {
@@ -288,6 +354,31 @@ describe("resolveAllRefs", () => {
     expect(resolved).toEqual({ itemId: "item_1", idx: 0 });
   });
 
+  it("resolves direct @ref with array index", () => {
+    const stepOutputs = new Map<string, unknown>();
+    stepOutputs.set("fetch", { items: [{ id: "a" }, { id: "b" }] });
+    const ctx = makeCtx({ stepOutputs });
+
+    const { resolved, errors } = resolveAllRefs(
+      { firstId: "@fetch.items.0.id" },
+      ctx,
+    );
+    expect(resolved).toEqual({ firstId: "a" });
+    expect(errors).toBeUndefined();
+  });
+
+  it("interpolates @refs with array indices in strings", () => {
+    const stepOutputs = new Map<string, unknown>();
+    stepOutputs.set("fetch", { users: [{ name: "Alice" }, { name: "Bob" }] });
+    const ctx = makeCtx({ stepOutputs });
+
+    const { resolved } = resolveAllRefs(
+      { msg: "First user: @fetch.users.0.name" },
+      ctx,
+    );
+    expect(resolved).toEqual({ msg: "First user: Alice" });
+  });
+
   it("handles object traversal with mixed refs and literals", () => {
     const stepOutputs = new Map<string, unknown>();
     stepOutputs.set("fetch", { users: [{ name: "Bob" }] });
@@ -349,5 +440,36 @@ describe("extractRefs", () => {
     const refs = extractRefs({ id: "@item.id", pos: "@index" });
     expect(refs).toContain("@item.id");
     expect(refs).toContain("@index");
+  });
+
+  it("extracts @refs with array indices", () => {
+    const refs = extractRefs({ first: "@step.items.0.id" });
+    expect(refs).toContain("@step.items.0.id");
+  });
+
+  it("extracts @refs with array indices from interpolated strings", () => {
+    const refs = extractRefs({
+      msg: "User: @fetch.users.0.name, Item: @fetch.items.2.title",
+    });
+    expect(refs).toContain("@fetch.users.0.name");
+    expect(refs).toContain("@fetch.items.2.title");
+  });
+
+  it("extracts real refs from interpolated strings that start with @", () => {
+    const refs = extractRefs({
+      msg: "@input.name is the current user",
+    });
+    expect(refs).toContain("@input.name");
+    expect(refs).not.toContain("@input.name is the current user");
+    expect(refs).toHaveLength(1);
+  });
+
+  it("extracts multiple refs from interpolated strings that start with @", () => {
+    const refs = extractRefs({
+      msg: "@input.first and @input.last are the names",
+    });
+    expect(refs).toContain("@input.first");
+    expect(refs).toContain("@input.last");
+    expect(refs).toHaveLength(2);
   });
 });

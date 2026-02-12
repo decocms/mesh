@@ -233,6 +233,10 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
       steps: z.array(StepSchema).optional(),
     }),
   }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    error: z.string().optional(),
+  }),
 
   handler: async (input, ctx) => {
     const meshCtx = requireWorkflowContext(ctx);
@@ -256,7 +260,19 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
       updateData.description = data.description;
     if (data.virtual_mcp_id !== undefined)
       updateData.virtual_mcp_id = data.virtual_mcp_id;
-    if (data.steps !== undefined) updateData.steps = JSON.stringify(data.steps);
+    if (data.steps !== undefined)
+      updateData.steps = JSON.stringify(
+        data.steps.map((s: unknown) => {
+          const step = s as Record<string, unknown>;
+          return {
+            ...step,
+            name:
+              typeof step.name === "string"
+                ? step.name.trim().replaceAll(/\s+/g, "_")
+                : step.name,
+          };
+        }),
+      );
 
     try {
       await storage.collections.update(
@@ -292,6 +308,7 @@ export const WORKFLOW_COLLECTION_DELETE: ServerPluginToolDefinition = {
   }),
   outputSchema: z.object({
     success: z.boolean(),
+    error: z.string().optional(),
   }),
 
   handler: async (input, ctx) => {

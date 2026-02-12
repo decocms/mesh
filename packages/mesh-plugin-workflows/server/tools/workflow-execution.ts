@@ -338,7 +338,7 @@ export const WORKFLOW_EXECUTION_GET_STEP_RESULT: ServerPluginToolDefinition = {
       error:
         typeof result.error === "string"
           ? result.error
-          : typeof result.error === "object"
+          : result.error != null && typeof result.error === "object"
             ? JSON.stringify(result.error)
             : undefined,
     };

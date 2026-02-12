@@ -497,6 +497,8 @@ export class WorkflowExecutionStorage {
     if (data.completed_at_epoch_ms !== undefined)
       setValues.completed_at_epoch_ms = data.completed_at_epoch_ms;
 
+    if (Object.keys(setValues).length === 0) return null;
+
     const row = await this.db
       .updateTable("workflow_execution_step_result")
       .set(setValues)
