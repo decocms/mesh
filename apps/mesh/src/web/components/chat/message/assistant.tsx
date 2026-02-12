@@ -16,9 +16,11 @@ import { MemoizedMarkdown } from "../markdown.tsx";
 import type { ChatMessage } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
-import { SubtaskPart } from "./parts/subtask-part.tsx";
-import { ToolCallPart } from "./parts/tool-call-part.tsx";
-import { UserAskQuestionPart } from "./parts/user-ask-part.tsx";
+import {
+  GenericToolCallPart,
+  UserAskPart,
+  SubtaskPart,
+} from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 
 type ThinkingStage = "planning" | "thinking";
@@ -231,9 +233,8 @@ function MessagePart({
   switch (part.type) {
     case "dynamic-tool":
       return (
-        <ToolCallPart
+        <GenericToolCallPart
           part={part}
-          id={id}
           isFirstInSequence={isFirstToolCallInSequence}
           isLastInSequence={isLastToolCallInSequence}
           hasNextToolCall={hasNextToolCall}
@@ -241,15 +242,21 @@ function MessagePart({
       );
     case "tool-user_ask":
       return (
-        <div className="my-2">
-          <UserAskQuestionPart part={part} />
-        </div>
+        <UserAskPart
+          part={part}
+          isFirstInSequence={isFirstToolCallInSequence}
+          isLastInSequence={isLastToolCallInSequence}
+          hasNextToolCall={hasNextToolCall}
+        />
       );
     case "tool-subtask":
       return (
-        <div className="my-2 w-full">
-          <SubtaskPart part={part} />
-        </div>
+        <SubtaskPart
+          part={part}
+          isFirstInSequence={isFirstToolCallInSequence}
+          isLastInSequence={isLastToolCallInSequence}
+          hasNextToolCall={hasNextToolCall}
+        />
       );
     case "text":
       return (
@@ -273,9 +280,8 @@ function MessagePart({
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
         return (
-          <ToolCallPart
+          <GenericToolCallPart
             part={fallback}
-            id={id}
             isFirstInSequence={isFirstToolCallInSequence}
             isLastInSequence={isLastToolCallInSequence}
             hasNextToolCall={hasNextToolCall}
