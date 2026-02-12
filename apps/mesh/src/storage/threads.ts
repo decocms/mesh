@@ -11,6 +11,10 @@ import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
 import type { Database, Thread, ThreadMessage, ThreadStatus } from "./types";
 
+function toIsoString(v: Date | string): string {
+  return typeof v === "string" ? v : v.toISOString();
+}
+
 // ============================================================================
 // Thread Storage Implementation
 // ============================================================================
@@ -29,8 +33,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (!data.organizationId) {
       throw new Error("organizationId is required");
     }
-    if (!data.createdBy) {
-      throw new Error("createdBy is required");
+    if (!data.created_by) {
+      throw new Error("created_by is required");
     }
     if (!data.title) {
       data.title = DEFAULT_THREAD_TITLE;
@@ -44,8 +48,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
       status: data.status ?? "completed",
       created_at: now,
       updated_at: now,
-      created_by: data.createdBy,
-      updated_by: data.updatedBy ?? null,
+      created_by: data.created_by,
+      updated_by: data.updated_by ?? null,
     };
 
     const result = await this.db
@@ -80,8 +84,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (data.description !== undefined) {
       updateData.description = data.description;
     }
-    if (data.updatedBy !== undefined) {
-      updateData.updated_by = data.updatedBy;
+    if (data.updated_by !== undefined) {
+      updateData.updated_by = data.updated_by;
     }
     if (data.hidden !== undefined) {
       updateData.hidden = data.hidden;
@@ -180,7 +184,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       metadata: message.metadata ? JSON.stringify(message.metadata) : null,
       parts: JSON.stringify(message.parts),
       role: message.role,
-      created_at: message.createdAt ?? now,
+      created_at: message.created_at ?? now,
       updated_at: now,
     }));
 
@@ -268,16 +272,10 @@ export class SqlThreadStorage implements ThreadStoragePort {
       title: row.title,
       description: row.description,
       status: row.status as ThreadStatus,
-      createdAt:
-        typeof row.created_at === "string"
-          ? row.created_at
-          : row.created_at.toISOString(),
-      updatedAt:
-        typeof row.updated_at === "string"
-          ? row.updated_at
-          : row.updated_at.toISOString(),
-      createdBy: row.created_by,
-      updatedBy: row.updated_by,
+      created_at: toIsoString(row.created_at),
+      updated_at: toIsoString(row.updated_at),
+      created_by: row.created_by,
+      updated_by: row.updated_by,
       hidden: !!row.hidden,
     };
   }
@@ -323,14 +321,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
       metadata,
       parts,
       role: row.role,
-      createdAt:
-        typeof row.created_at === "string"
-          ? row.created_at
-          : row.created_at.toISOString(),
-      updatedAt:
-        typeof row.updated_at === "string"
-          ? row.updated_at
-          : row.updated_at.toISOString(),
+      created_at: toIsoString(row.created_at),
+      updated_at: toIsoString(row.updated_at),
     };
   }
 }
