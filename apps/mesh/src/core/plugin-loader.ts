@@ -73,7 +73,13 @@ async function ensureSubscriptionsForOrg(
   if (syncedOrgs.has(orgId) || !hasPluginEventHandlers()) return;
 
   const selfConnectionId = WellKnownOrgMCPId.SELF(orgId);
-  await ensurePluginEventSubscriptions(ctx.eventBus, orgId, selfConnectionId);
+  const promise = ensurePluginEventSubscriptions(
+    ctx.eventBus,
+    orgId,
+    selfConnectionId,
+  );
+  syncedOrgs.set(orgId, promise);
+  await promise;
 }
 
 function withPluginEnabled<
@@ -298,9 +304,11 @@ export function initializePluginStorage(
 
 /**
  * Track which organizations have had plugin event subscriptions synced.
- * This avoids redundant sync calls on every tool invocation.
+ * Uses a Map of in-flight promises to coalesce concurrent requests for the same org,
+ * avoiding redundant syncSubscriptions calls from parallel tool invocations.
+ * Once resolved, the promise stays cached so subsequent calls are instant no-ops.
  */
-const syncedOrgs = new Set<string>();
+const syncedOrgs = new Map<string, Promise<void>>();
 
 /**
  * Collect all event types that plugins want to handle.
@@ -343,8 +351,6 @@ async function ensurePluginEventSubscriptions(
   organizationId: string,
   selfConnectionId: string,
 ): Promise<void> {
-  if (syncedOrgs.has(organizationId)) return;
-
   const allEventTypes = collectPluginEventTypes();
   if (allEventTypes.length === 0) return;
 
@@ -357,8 +363,9 @@ async function ensurePluginEventSubscriptions(
         publisher: undefined,
       })),
     });
-    syncedOrgs.add(organizationId);
   } catch (error) {
+    // Remove from map so the next call can retry
+    syncedOrgs.delete(organizationId);
     console.error(
       `[PluginLoader] Failed to sync plugin event subscriptions for org ${organizationId}:`,
       error,
