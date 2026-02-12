@@ -5,20 +5,17 @@
  * Also creates (or reuses) a Virtual MCP for this user - one per (template, external_user_id).
  */
 
-import { z } from "zod";
 import type { Kysely } from "kysely";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import {
   UserSandboxCreateSessionInputSchema,
   UserSandboxCreateSessionOutputSchema,
 } from "./schema";
-import { getPluginStorage, getConnectBaseUrl } from "./utils";
+import { getPluginStorage, getConnectBaseUrl, orgHandler } from "./utils";
 import { createAgentMetadata } from "../security";
 
-/** Default session expiration: 7 days */
 const DEFAULT_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
-/** Type for the user_sandbox_agents linking table */
 interface UserSandboxAgentRow {
   id: string;
   user_sandbox_id: string;
@@ -27,7 +24,6 @@ interface UserSandboxAgentRow {
   created_at: string;
 }
 
-/** Type for connection inserts */
 interface ConnectionInsert {
   id: string;
   organization_id: string;
@@ -52,31 +48,16 @@ interface ConnectionInsert {
   updated_at: string;
 }
 
-/** Database type for queries */
 interface AgentDatabase {
   user_sandbox_agents: UserSandboxAgentRow;
   connections: ConnectionInsert;
 }
 
-/** Result of findOrCreateVirtualMCP operation */
 interface FindOrCreateResult {
   connectionId: string;
   created: boolean;
 }
 
-/**
- * Find or create a Virtual MCP for an external user.
- * Each (template_id, external_user_id) pair gets exactly one Virtual MCP.
- *
- * Uses a linking table (user_sandbox_agents) with a UNIQUE constraint to
- * prevent race conditions. The constraint ensures only one agent per
- * (user_sandbox_id, external_user_id) pair at the database level.
- *
- * Algorithm:
- * 1. Check if agent already exists (fast path)
- * 2. If not, create connection + linking row in a transaction
- * 3. Handle race condition by catching unique constraint violation
- */
 async function findOrCreateVirtualMCP(
   db: Kysely<unknown>,
   organizationId: string,
@@ -89,7 +70,6 @@ async function findOrCreateVirtualMCP(
 ): Promise<FindOrCreateResult> {
   const typedDb = db as Kysely<AgentDatabase>;
 
-  // Step 1: Check if agent already exists (fast path for common case)
   const existing = await typedDb
     .selectFrom("user_sandbox_agents")
     .select("connection_id")
@@ -101,14 +81,12 @@ async function findOrCreateVirtualMCP(
     return { connectionId: existing.connection_id, created: false };
   }
 
-  // Step 2: Create new agent in a transaction (connection first, then linking row)
   const now = new Date().toISOString();
   const linkingId = `usa_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
   const connectionId = `vir_${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
 
   try {
     await typedDb.transaction().execute(async (trx) => {
-      // Create the connection first
       await trx
         .insertInto("connections")
         .values({
@@ -140,7 +118,6 @@ async function findOrCreateVirtualMCP(
         })
         .execute();
 
-      // Then create the linking row (unique constraint prevents duplicates)
       await trx
         .insertInto("user_sandbox_agents")
         .values({
@@ -155,14 +132,11 @@ async function findOrCreateVirtualMCP(
 
     return { connectionId, created: true };
   } catch (error) {
-    // Step 3: Handle race condition - another request created the agent
-    // Check for unique constraint violation (SQLite: UNIQUE constraint failed)
     const errorMessage = String(error);
     if (
       errorMessage.includes("UNIQUE constraint") ||
       errorMessage.includes("duplicate key")
     ) {
-      // Another request won the race - fetch and return their agent
       const winner = await typedDb
         .selectFrom("user_sandbox_agents")
         .select("connection_id")
@@ -175,7 +149,6 @@ async function findOrCreateVirtualMCP(
       }
     }
 
-    // Re-throw unexpected errors
     throw error;
   }
 }
@@ -189,110 +162,88 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
   inputSchema: UserSandboxCreateSessionInputSchema,
   outputSchema: UserSandboxCreateSessionOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<
-      typeof UserSandboxCreateSessionInputSchema
-    >;
-    const meshCtx = ctx as unknown as {
-      organization: { id: string } | null;
-      auth: { user: { id: string } | null };
-      access: { check: () => Promise<void> };
-      db: Kysely<unknown>;
-    };
+  handler: orgHandler(
+    UserSandboxCreateSessionInputSchema,
+    async (input, ctx) => {
+      const storage = getPluginStorage();
 
-    // Require organization context
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-
-    // Check access
-    await meshCtx.access.check();
-
-    const storage = getPluginStorage();
-
-    // Verify template exists and belongs to organization
-    const template = await storage.templates.findById(typedInput.templateId);
-    if (!template) {
-      throw new Error(`Template not found: ${typedInput.templateId}`);
-    }
-    if (template.organization_id !== meshCtx.organization.id) {
-      throw new Error(
-        "Access denied: template belongs to another organization",
-      );
-    }
-    if (template.status !== "active") {
-      throw new Error("Template is not active");
-    }
-
-    // Find or create Virtual MCP for this user (always do this first)
-    const agentTitle = template.agent_title_template.replace(
-      "{{externalUserId}}",
-      typedInput.externalUserId,
-    );
-    const createdBy = template.created_by ?? meshCtx.auth.user?.id ?? "system";
-
-    const { connectionId: agentId, created: agentCreated } =
-      await findOrCreateVirtualMCP(
-        meshCtx.db,
-        meshCtx.organization.id,
-        createdBy,
-        template.id,
-        typedInput.externalUserId,
-        agentTitle,
-        template.agent_instructions,
-        template.tool_selection_mode,
-      );
-
-    // Check for existing non-expired session for this user
-    const existingSession = await storage.sessions.findExisting(
-      typedInput.templateId,
-      typedInput.externalUserId,
-    );
-
-    if (existingSession) {
-      // If existing session has no agent ID, update it with the one we just found/created
-      if (!existingSession.created_agent_id) {
-        await storage.sessions.update(existingSession.id, {
-          created_agent_id: agentId,
-        });
+      const template = await storage.templates.findById(input.templateId);
+      if (!template) {
+        throw new Error(`Template not found: ${input.templateId}`);
+      }
+      if (template.organization_id !== ctx.organization.id) {
+        throw new Error(
+          "Access denied: template belongs to another organization",
+        );
+      }
+      if (template.status !== "active") {
+        throw new Error("Template is not active");
       }
 
-      // Return existing session URL
+      const agentTitle = template.agent_title_template.replace(
+        "{{externalUserId}}",
+        input.externalUserId,
+      );
+      const createdBy = template.created_by ?? ctx.auth.user?.id ?? "system";
+
+      const { connectionId: agentId, created: agentCreated } =
+        await findOrCreateVirtualMCP(
+          ctx.db,
+          ctx.organization.id,
+          createdBy,
+          template.id,
+          input.externalUserId,
+          agentTitle,
+          template.agent_instructions,
+          template.tool_selection_mode,
+        );
+
+      const existingSession = await storage.sessions.findExisting(
+        input.templateId,
+        input.externalUserId,
+      );
+
+      if (existingSession) {
+        if (!existingSession.created_agent_id) {
+          await storage.sessions.update(existingSession.id, {
+            created_agent_id: agentId,
+          });
+        }
+
+        const baseUrl = getConnectBaseUrl();
+        return {
+          sessionId: existingSession.id,
+          url: `${baseUrl}/connect/${existingSession.id}`,
+          expiresAt: existingSession.expires_at,
+          agentId: existingSession.created_agent_id ?? agentId,
+          created: agentCreated,
+        };
+      }
+
+      const expiresInSeconds =
+        input.expiresInSeconds ?? DEFAULT_EXPIRES_IN_SECONDS;
+      const expiresAt = new Date(
+        Date.now() + expiresInSeconds * 1000,
+      ).toISOString();
+
+      const session = await storage.sessions.create({
+        template_id: input.templateId,
+        organization_id: ctx.organization.id,
+        external_user_id: input.externalUserId,
+        redirect_url: template.redirect_url,
+        expires_at: expiresAt,
+        created_agent_id: agentId,
+      });
+
       const baseUrl = getConnectBaseUrl();
+
       return {
-        sessionId: existingSession.id,
-        url: `${baseUrl}/connect/${existingSession.id}`,
-        expiresAt: existingSession.expires_at,
-        agentId: existingSession.created_agent_id ?? agentId,
+        sessionId: session.id,
+        url: `${baseUrl}/connect/${session.id}`,
+        expiresAt: session.expires_at,
+        agentId,
         created: agentCreated,
       };
-    }
-
-    // Calculate expiration
-    const expiresInSeconds =
-      typedInput.expiresInSeconds ?? DEFAULT_EXPIRES_IN_SECONDS;
-    const expiresAt = new Date(
-      Date.now() + expiresInSeconds * 1000,
-    ).toISOString();
-
-    // Create new session with the agent ID already set
-    const session = await storage.sessions.create({
-      template_id: typedInput.templateId,
-      organization_id: meshCtx.organization.id,
-      external_user_id: typedInput.externalUserId,
-      redirect_url: template.redirect_url, // Snapshot from template
-      expires_at: expiresAt,
-      created_agent_id: agentId,
-    });
-
-    const baseUrl = getConnectBaseUrl();
-
-    return {
-      sessionId: session.id,
-      url: `${baseUrl}/connect/${session.id}`,
-      expiresAt: session.expires_at,
-      agentId,
-      created: agentCreated,
-    };
-  },
+    },
+  ),
 };

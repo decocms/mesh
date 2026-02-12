@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { UserSandboxDeleteInputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const USER_SANDBOX_DELETE: ServerPluginToolDefinition = {
   name: "USER_SANDBOX_DELETE",
@@ -16,36 +16,20 @@ export const USER_SANDBOX_DELETE: ServerPluginToolDefinition = {
     id: z.string(),
   }),
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof UserSandboxDeleteInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-
-    // Require organization context
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-
-    // Check access
-    await meshCtx.access.check();
-
+  handler: orgHandler(UserSandboxDeleteInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
 
-    // Verify template belongs to organization
-    const existing = await storage.templates.findById(typedInput.id);
+    const existing = await storage.templates.findById(input.id);
     if (!existing) {
-      throw new Error(`Template not found: ${typedInput.id}`);
+      throw new Error(`Template not found: ${input.id}`);
     }
-    if (existing.organization_id !== meshCtx.organization.id) {
+    if (existing.organization_id !== ctx.organization.id) {
       throw new Error(
         "Access denied: template belongs to another organization",
       );
     }
 
-    await storage.templates.delete(typedInput.id);
-
-    return { success: true, id: typedInput.id };
-  },
+    await storage.templates.delete(input.id);
+    return { success: true, id: input.id };
+  }),
 };

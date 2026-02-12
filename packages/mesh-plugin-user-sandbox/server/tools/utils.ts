@@ -2,24 +2,17 @@
  * User Sandbox Plugin - Tool Utilities
  */
 
+import type { ServerPluginToolContext } from "@decocms/bindings/server-plugin";
+import type { z } from "zod";
 import type { UserSandboxPluginStorage } from "../storage";
 import { PLUGIN_ID } from "../../shared";
 
-// This will be set by the plugin loader when storage is initialized
 let pluginStorage: UserSandboxPluginStorage | null = null;
 
-/**
- * Set the plugin storage instance.
- * Called by the main app when plugin storage is initialized.
- */
 export function setPluginStorage(storage: UserSandboxPluginStorage): void {
   pluginStorage = storage;
 }
 
-/**
- * Get the plugin storage instance.
- * Throws if storage hasn't been initialized.
- */
 export function getPluginStorage(): UserSandboxPluginStorage {
   if (!pluginStorage) {
     throw new Error(
@@ -29,10 +22,36 @@ export function getPluginStorage(): UserSandboxPluginStorage {
   return pluginStorage;
 }
 
-/**
- * Get the base URL for connect flow.
- * Uses BASE_URL env var (same as main app) or falls back to localhost.
- */
 export function getConnectBaseUrl(): string {
   return process.env.BASE_URL || "http://localhost:3000";
+}
+
+/** Context returned after requireOrgContext — organization is guaranteed non-null. */
+export type OrgToolContext = ServerPluginToolContext & {
+  organization: { id: string };
+};
+
+async function requireOrgContext(
+  ctx: ServerPluginToolContext,
+): Promise<OrgToolContext> {
+  if (!ctx.organization) {
+    throw new Error("Organization context required");
+  }
+  await ctx.access.check();
+  return ctx as OrgToolContext;
+}
+
+/**
+ * Helper to create a tool handler that requires organization context
+ * and validates input against a Zod schema.
+ */
+export function orgHandler<TInput extends z.ZodType, TOutput>(
+  inputSchema: TInput,
+  handler: (input: z.infer<TInput>, ctx: OrgToolContext) => Promise<TOutput>,
+) {
+  return async (input: unknown, ctx: ServerPluginToolContext) => {
+    const orgCtx = await requireOrgContext(ctx);
+    const typedInput = inputSchema.parse(input);
+    return handler(typedInput, orgCtx);
+  };
 }

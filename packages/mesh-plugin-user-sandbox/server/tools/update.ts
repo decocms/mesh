@@ -5,25 +5,13 @@
  * and the system will automatically fetch connection details from the registry.
  */
 
-import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import {
   UserSandboxUpdateInputSchema,
   UserSandboxEntitySchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 import { lookupAppsFromRegistry } from "../utils/registry-lookup";
-
-/** MCP proxy interface - now returns Client directly */
-interface MCPProxy {
-  callTool: (params: {
-    name: string;
-    arguments?: Record<string, unknown>;
-  }) => Promise<unknown>;
-  listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-  close: () => Promise<void>;
-  [key: string]: unknown; // Allow other Client methods
-}
 
 export const USER_SANDBOX_UPDATE: ServerPluginToolDefinition = {
   name: "USER_SANDBOX_UPDATE",
@@ -32,45 +20,28 @@ export const USER_SANDBOX_UPDATE: ServerPluginToolDefinition = {
   inputSchema: UserSandboxUpdateInputSchema,
   outputSchema: UserSandboxEntitySchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof UserSandboxUpdateInputSchema>;
-    const meshCtx = ctx as unknown as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-      createMCPProxy: (connectionId: string) => Promise<MCPProxy>;
-    };
-
-    // Require organization context
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-
-    // Check access
-    await meshCtx.access.check();
-
+  handler: orgHandler(UserSandboxUpdateInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
 
-    // Verify template belongs to organization
-    const existing = await storage.templates.findById(typedInput.id);
+    const existing = await storage.templates.findById(input.id);
     if (!existing) {
-      throw new Error(`Template not found: ${typedInput.id}`);
+      throw new Error(`Template not found: ${input.id}`);
     }
-    if (existing.organization_id !== meshCtx.organization.id) {
+    if (existing.organization_id !== ctx.organization.id) {
       throw new Error(
         "Access denied: template belongs to another organization",
       );
     }
 
-    // If updating required_apps, lookup from registry
     let requiredApps = undefined;
-    if (typedInput.required_apps && typedInput.required_apps.length > 0) {
-      if (!typedInput.registry_id) {
+    if (input.required_apps && input.required_apps.length > 0) {
+      if (!input.registry_id) {
         throw new Error("registry_id is required when updating required_apps");
       }
       requiredApps = await lookupAppsFromRegistry(
-        meshCtx,
-        typedInput.registry_id,
-        typedInput.required_apps.map((app) => ({
+        ctx,
+        input.registry_id,
+        input.required_apps.map((app) => ({
           app_name: app.app_name,
           selected_tools: app.selected_tools ?? null,
           selected_resources: app.selected_resources ?? null,
@@ -79,20 +50,20 @@ export const USER_SANDBOX_UPDATE: ServerPluginToolDefinition = {
       );
     }
 
-    const template = await storage.templates.update(typedInput.id, {
-      title: typedInput.title,
-      description: typedInput.description,
-      icon: typedInput.icon,
+    const template = await storage.templates.update(input.id, {
+      title: input.title,
+      description: input.description,
+      icon: input.icon,
       required_apps: requiredApps,
-      redirect_url: typedInput.redirect_url,
-      webhook_url: typedInput.webhook_url,
-      event_type: typedInput.event_type,
-      agent_title_template: typedInput.agent_title_template,
-      agent_instructions: typedInput.agent_instructions,
-      tool_selection_mode: typedInput.tool_selection_mode,
-      status: typedInput.status,
+      redirect_url: input.redirect_url,
+      webhook_url: input.webhook_url,
+      event_type: input.event_type,
+      agent_title_template: input.agent_title_template,
+      agent_instructions: input.agent_instructions,
+      tool_selection_mode: input.tool_selection_mode,
+      status: input.status,
     });
 
     return template;
-  },
+  }),
 };
