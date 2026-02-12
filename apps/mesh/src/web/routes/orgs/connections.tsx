@@ -585,11 +585,7 @@ function OrgMcpsContent() {
     queryClient.invalidateQueries({
       predicate: (query) => {
         const key = query.queryKey;
-        if (
-          key[0] !== "mcp" ||
-          key[1] !== "client" ||
-          key[3] !== "tool-call"
-        ) {
+        if (key[0] !== "mcp" || key[1] !== "client" || key[3] !== "tool-call") {
           return false;
         }
         const toolName = key[4];
@@ -615,8 +611,7 @@ function OrgMcpsContent() {
       invalidateConnections();
       toast.success("Connection deleted successfully");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       // Check if this is an "in use by agents" error and offer force-delete
       const agentMatch = message.match(
         /used by the following agent\(s\): (.+)\. Remove/,
@@ -647,8 +642,7 @@ function OrgMcpsContent() {
       invalidateConnections();
       toast.success("Connection deleted successfully");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to delete connection: ${message}`);
     }
   };
