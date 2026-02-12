@@ -4,7 +4,7 @@ import {
   RegistryCreateInputSchema,
   RegistryCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, requireOrgContext } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_CREATE: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_CREATE",
@@ -14,16 +14,7 @@ export const COLLECTION_REGISTRY_APP_CREATE: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof RegistryCreateInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-      user?: { id?: string };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+    const meshCtx = await requireOrgContext(ctx);
     const storage = getPluginStorage();
     const item = await storage.items.create({
       ...typedInput.data,

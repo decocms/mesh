@@ -4,16 +4,11 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { z } from "zod";
 
-/**
- * Reject URLs that target private/internal network ranges to prevent SSRF.
- * Covers IPv4 private ranges, IPv6 private ranges, and common internal hostnames.
- */
 function isPrivateUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
 
-    // Block common private/internal hostnames
     if (
       hostname === "localhost" ||
       hostname === "0.0.0.0" ||
@@ -24,32 +19,26 @@ function isPrivateUrl(url: string): boolean {
       return true;
     }
 
-    // Block private IPv4 ranges
     const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
     if (ipv4Match) {
       const [, a, b] = ipv4Match.map(Number);
-      if (a === 10) return true; // 10.0.0.0/8
-      if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true; // 172.16.0.0/12
-      if (a === 192 && b === 168) return true; // 192.168.0.0/16
-      if (a === 127) return true; // 127.0.0.0/8
-      if (a === 169 && b === 254) return true; // 169.254.0.0/16 (link-local)
-      if (a === 0) return true; // 0.0.0.0/8
+      if (a === 10) return true;
+      if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 127) return true;
+      if (a === 169 && b === 254) return true;
+      if (a === 0) return true;
     }
 
-    // Block private/reserved IPv6 ranges
-    // URL parser wraps IPv6 in brackets: [::1], [::ffff:127.0.0.1], etc.
     if (hostname.startsWith("[") && hostname.endsWith("]")) {
       const ipv6 = hostname.slice(1, -1).toLowerCase();
+      if (ipv6 === "::1" || ipv6 === "::") return true;
+      if (ipv6.startsWith("::ffff:")) return true;
+      if (ipv6.startsWith("fc") || ipv6.startsWith("fd")) return true;
+      if (ipv6.startsWith("fe80")) return true;
+      if (ipv6.startsWith("100:")) return true;
+      if (ipv6.startsWith("::1")) return true;
 
-      if (ipv6 === "::1" || ipv6 === "::") return true; // loopback & unspecified
-      if (ipv6.startsWith("::ffff:")) return true; // IPv4-mapped (::ffff:127.0.0.1)
-      if (ipv6.startsWith("fc") || ipv6.startsWith("fd")) return true; // unique-local fc00::/7
-      if (ipv6.startsWith("fe80")) return true; // link-local fe80::/10
-      if (ipv6.startsWith("100:")) return true; // discard prefix 100::/64
-      if (ipv6.startsWith("::1")) return true; // ::1xxx variants
-
-      // IPv4-compatible addresses (deprecated but still dangerous)
-      // e.g. ::127.0.0.1, ::10.0.0.1
       const v4compat = ipv6.match(/^::(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
       if (v4compat) {
         const [, a] = v4compat.map(Number);
@@ -59,7 +48,7 @@ function isPrivateUrl(url: string): boolean {
 
     return false;
   } catch {
-    return true; // Invalid URL → reject
+    return true;
   }
 }
 
@@ -82,9 +71,6 @@ const DiscoverToolsOutputSchema = z.object({
   error: z.string().nullable().optional(),
 });
 
-/**
- * Build URL variants to try: if the URL is http, also try https, and vice versa.
- */
 function getUrlVariants(url: string): string[] {
   const variants = [url];
   if (url.startsWith("http://")) {
@@ -107,10 +93,6 @@ interface DiscoverTool {
   description?: string | null;
 }
 
-/**
- * Check if an error message indicates the MCP server requires auth
- * for initialize but may still allow tools/list.
- */
 function isAuthRequiredError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -122,11 +104,6 @@ function isAuthRequiredError(message: string): boolean {
   );
 }
 
-/**
- * Try to list tools via raw JSON-RPC POST (bypassing SDK initialize).
- * Some MCP servers (e.g. Google Drive) block initialize without auth
- * but allow tools/list publicly.
- */
 async function tryRawToolsList(
   url: string,
   timeoutMs: number,
@@ -153,9 +130,8 @@ async function tryRawToolsList(
     if (!res.ok) return null;
 
     const text = await res.text();
-
-    // Handle SSE-style response (event: message\ndata: {...})
     let json: Record<string, unknown> | null = null;
+
     if (text.includes("event:") || text.includes("data:")) {
       const dataLine = text.split("\n").find((l) => l.startsWith("data:"));
       if (dataLine) {
@@ -167,7 +143,6 @@ async function tryRawToolsList(
 
     if (!json) return null;
 
-    // Extract tools from either { result: { tools } } or { tools }
     const result = (json.result as Record<string, unknown>) ?? json;
     const tools = result?.tools as DiscoverTool[] | undefined;
     if (!Array.isArray(tools)) return null;
@@ -183,15 +158,6 @@ async function tryRawToolsList(
   }
 }
 
-/**
- * Server-side tool to discover tools from a remote MCP server.
- * Runs on the server so there are no CORS restrictions.
- *
- * Strategy:
- * 1. Try full MCP SDK flow (initialize + listTools) with transport/protocol fallbacks.
- * 2. If initialize fails with auth error, try raw POST tools/list (many servers
- *    expose tool listing publicly even when they require auth for actual usage).
- */
 export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
   name: "REGISTRY_DISCOVER_TOOLS",
   description:
@@ -207,7 +173,6 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
       return { tools: [], error: "URL is required" };
     }
 
-    // Block requests to private/internal networks (SSRF prevention)
     if (isPrivateUrl(url)) {
       return {
         tools: [],
@@ -233,7 +198,6 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
     const transportTypes: TransportType[] =
       type === "sse" ? ["sse", "http"] : ["http", "sse"];
 
-    // Build all combinations: each URL variant × each transport type
     const attempts: ConnectAttempt[] = [];
     for (const u of urlVariants) {
       for (const t of transportTypes) {
@@ -247,10 +211,7 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
     for (const attempt of attempts) {
       let client: Client | null = null;
       try {
-        client = new Client({
-          name: "registry-discover",
-          version: "1.0.0",
-        });
+        client = new Client({ name: "registry-discover", version: "1.0.0" });
 
         const transport =
           attempt.transport === "sse"
@@ -282,7 +243,6 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
         );
         lastError = message;
 
-        // If the server responded with auth error, remember this URL to try raw fallback
         if (isAuthRequiredError(message) && !authErrorUrl) {
           authErrorUrl = attempt.url;
         }
@@ -290,32 +250,26 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
         try {
           await client?.close();
         } catch {
-          // ignore close errors
+          // ignore
         }
       }
     }
 
-    // ── Fallback: try raw POST tools/list on URLs that returned auth errors ──
-    // Some servers block "initialize" without auth but allow "tools/list" publicly.
     if (authErrorUrl) {
       console.log(
-        `[REGISTRY_DISCOVER_TOOLS] Server requires auth for initialize. Trying raw tools/list on ${authErrorUrl}...`,
+        `[REGISTRY_DISCOVER_TOOLS] Auth required, trying raw tools/list on ${authErrorUrl}...`,
       );
 
-      // Try all URL variants for raw fallback
       for (const rawUrl of urlVariants) {
         const rawTools = await tryRawToolsList(rawUrl, timeoutMs);
         if (rawTools && rawTools.length > 0) {
           console.log(
-            `[REGISTRY_DISCOVER_TOOLS] Raw tools/list succeeded on ${rawUrl}: ${rawTools.length} tools`,
+            `[REGISTRY_DISCOVER_TOOLS] Raw tools/list on ${rawUrl}: ${rawTools.length} tools`,
           );
           return { tools: rawTools, error: null };
         }
       }
 
-      console.log(
-        `[REGISTRY_DISCOVER_TOOLS] Raw tools/list also failed. Server requires auth for everything.`,
-      );
       return {
         tools: [],
         error:
