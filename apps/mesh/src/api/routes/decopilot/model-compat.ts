@@ -19,7 +19,7 @@ export function ensureModelCompatibility(
   models: ModelsConfig,
   messages: MessageWithParts[],
 ): void {
-  const modelHasVision = models.thinking.capabilities?.vision ?? true;
+  const modelHasVision = models.thinking.capabilities?.vision ?? false;
 
   if (!modelHasVision) {
     const hasFiles = messages.some((message) =>
