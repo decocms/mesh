@@ -10,29 +10,167 @@ The engine is a **pure DAG** (Directed Acyclic Graph). Steps run once, data flow
 
 ### Step Types
 
-- **Tool call** (`{ toolName }`) — Invoke an MCP tool via proxy. Optional `transformCode` for post-processing.
-- **Code** (`{ code }`) — Run TypeScript in QuickJS sandbox. Format: `export default function(input) { ... }`
-- **Return** (`{ return: true }`) — Exit the workflow early with success. Step's resolved input becomes workflow output. *(planned)*
+- **Tool call** (`{ toolName }`) — Invoke an MCP tool via proxy. Optional `transformCode` for post-processing. Default timeout 60s.
+- **Code** (`{ code }`) — Run TypeScript in QuickJS sandbox. Format: `export default function(input) { ... }`. Default timeout 10s, 64MB memory limit.
 
 ### Data Flow
 
 Steps wire data via `@ref` syntax:
 - `@input.field` — workflow input
 - `@stepName.field` — output from a completed step
-- `@item` / `@index` — forEach iteration context
+- `@item` / `@item.field` — current forEach iteration item
+- `@index` — current forEach iteration index
+- Numeric array access: `@step.items.0.id`
 
-## Conditional Execution (`when`) — Planned
+Two resolution modes:
+- **Complete @ref** (entire value is one reference) → type-preserving (returns the actual value, not stringified)
+- **Interpolated @refs** (string contains multiple refs) → string interpolation: `"Hello @input.name, order @input.id"`
 
-### Problem
+### forEach Loops
 
-No way to skip steps based on runtime conditions or exit a workflow early without error. Every step always runs.
+Steps can iterate over arrays with `forEach: { ref, concurrency? }`:
+- `ref` — `@ref` that resolves to an array (e.g. `@fetch_users.data`)
+- `concurrency` — max parallel iterations (default: 1, sequential)
 
-### Design: Structured `when` condition
+Behavior:
+- Positional output: `output[i]` corresponds to `input[i]`
+- Failed iterations produce `null` at that position
+- Empty arrays → immediate completion with `[]`
+- Parent step collects all iteration results into an output array
+- Crash recovery handles partially-completed iterations
 
-Add an optional `when` field to Step — a **structured condition object**, not code or expression strings. This is critical for three reasons:
-1. **UI-friendly**: renders as form fields (ref picker + operator + value), editable by non-technical users
-2. **LLM-friendly**: structured JSON matches tool-use training, less error-prone than expression strings
-3. **No parser needed**: Zod validates the shape, engine evaluates with simple comparisons
+Error handling defaults differ: regular steps default to `onError: "fail"`, forEach iterations default to `onError: "continue"`.
+
+### Error Handling
+
+Per-step `config.onError`:
+- `"fail"` (default for regular steps) — abort the entire workflow on step failure
+- `"continue"` (default for forEach iterations) — skip the error and continue with remaining steps
+
+### Workflow Output
+
+The workflow output is determined by terminal steps (steps not referenced by any other step):
+- **Single terminal step** → its output becomes the workflow output
+- **Multiple terminal steps** → output is `{ stepName: output, ... }` for all terminal steps
+
+## Tool Step Details
+
+When a tool step has `transformCode`:
+1. Raw tool output is **checkpointed** to DB first (`raw_tool_output` column)
+2. Transform code runs in QuickJS sandbox with the raw output as input
+3. Final output (or transform error) is persisted as the step result
+
+When a tool step has `outputSchema.properties`: output is filtered to only include keys declared in the schema (unless `transformCode` is also present).
+
+## Timeout Strategy
+
+The engine does **not** implement its own step-level or heartbeat-based timeout mechanisms. Instead, it relies on the inherent timeout guarantees of each step type:
+
+- **Tool steps**: The MCP proxy `callTool()` accepts a `timeout` option (default 60s). If the tool call exceeds this, the proxy returns an error which is lifted to the step result.
+- **Code steps**: The QuickJS sandbox uses `interruptAfterMs` (default 10s). Code that exceeds this is interrupted and returns an error.
+- **Workflow-level deadline**: If `timeoutMs` is set on execution creation, a `deadline_at_epoch_ms` is computed. The orchestrator checks this deadline in `handleExecutionCreated` and `handleStepCompleted` — if exceeded, the execution is failed with a deadline error.
+
+## Crash Recovery
+
+- **On startup**: `recoverStuckExecutions()` finds all `running` executions, resolves incomplete step results, resets executions to `enqueued`, and re-publishes `workflow.execution.created` events.
+- **Incomplete step resolution**:
+  - Never-started steps (no `started_at`) → delete result (safe to retry)
+  - Code steps (pure, no side effects) → delete result (safe to retry)
+  - Tool steps (may have side effects) → mark as error with "interrupted by process restart"
+- **Idempotent claims**: Both `claimExecution()` (execution-level) and `createStepResult()` (step-level, via `ON CONFLICT DO NOTHING`) are idempotent, so duplicate events are safely ignored.
+
+## Event Types
+
+Only three event types are used by the engine (via mesh event bus):
+
+| Event | Purpose |
+|-------|---------|
+| `workflow.execution.created` | External trigger to start/resume an execution |
+| `workflow.step.execute` | Dispatched by orchestrator to execute a step |
+| `workflow.step.completed` | Notification that a step result has been persisted |
+
+Note: The bindings schema (`packages/bindings/src/well-known/workflow.ts`) defines additional `EventTypeEnum` values (signal, timer, message, output, step_started, step_completed, workflow_started, workflow_completed) that are **not used** by the engine — they are schema-only for future use.
+
+## MCP Tools (12 total)
+
+### Workflow Collection (5 tools)
+- `COLLECTION_WORKFLOW_LIST` — List templates with pagination
+- `COLLECTION_WORKFLOW_GET` — Get single template with steps
+- `COLLECTION_WORKFLOW_CREATE` — Create new template
+- `COLLECTION_WORKFLOW_UPDATE` — Update existing template
+- `COLLECTION_WORKFLOW_DELETE` — Delete template
+
+### Workflow Execution (7 tools)
+- `COLLECTION_WORKFLOW_EXECUTION_LIST` — List executions with filtering
+- `COLLECTION_WORKFLOW_EXECUTION_GET` — Get execution with step status
+- `COLLECTION_WORKFLOW_EXECUTION_CREATE` — Create execution from template
+- `CANCEL_EXECUTION` — Cancel running execution
+- `RESUME_EXECUTION` — Resume cancelled execution
+- `COLLECTION_WORKFLOW_EXECUTION_GET_STEP_RESULT` — Get step result
+- `WORKFLOW_EXECUTION_GET_WORKFLOW` — Get workflow snapshot for execution
+
+## Database Schema (4 tables)
+
+- **workflow_collection** — Reusable workflow templates (steps as JSON, org-scoped)
+- **workflow** — Immutable snapshot created per execution (steps + input frozen at creation time)
+- **workflow_execution** — Execution state (status, input, output, error, deadline, timestamps)
+- **workflow_execution_step_result** — Per-step results (composite PK: `execution_id` + `step_id`, includes `raw_tool_output` for transform checkpoints)
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `server/index.ts` | Plugin registration + startup recovery |
+| `server/types.ts` | Type definitions, MeshContext interface |
+| `server/engine/orchestrator.ts` | Core orchestration: claim, dispatch, complete, forEach |
+| `server/engine/code-step.ts` | QuickJS sandbox execution (TS transpilation via sucrase) |
+| `server/engine/tool-step.ts` | MCP proxy tool calls + transformCode |
+| `server/engine/ref-resolver.ts` | `@ref` resolution for step inputs |
+| `server/events/handler.ts` | Event routing + fire-and-forget dispatch |
+| `server/storage/index.ts` | Storage factory |
+| `server/storage/types.ts` | Kysely table interfaces |
+| `server/storage/workflow-execution.ts` | DB operations for executions + step results |
+| `server/storage/workflow-collection.ts` | DB operations for workflow templates |
+| `server/tools/index.ts` | Tool exports |
+| `server/tools/workflow-collection.ts` | 5 collection CRUD tools |
+| `server/tools/workflow-execution.ts` | 7 execution management tools |
+| `server/migrations/001-workflows.ts` | Database schema (4 tables) |
+| `shared.ts` | Plugin constants (ID, description) |
+| `client/index.tsx` | Client entry point |
+
+### Schema (in `packages/bindings/src/well-known/workflow.ts`)
+- `StepSchema`, `StepActionSchema`, `StepConfigSchema` — Step definitions
+- `WorkflowSchema`, `WorkflowExecutionSchema` — Workflow and execution schemas
+- DAG utilities: `computeStepLevels`, `groupStepsByLevel`, `buildDagEdges`, `validateNoCycles`, `getAllRefs`, `getStepDependencies`
+- `WaitForSignalActionSchema` — Defined but **commented out** in `StepActionSchema` union
+
+### Tests
+- `server/engine/__tests__/orchestrator.test.ts` — Core orchestration (linear, parallel, forEach, errors, deadline)
+- `server/engine/__tests__/ref-resolver.test.ts` — @ref parsing and resolution
+- `server/engine/__tests__/crash-recovery.test.ts` — Recovery after process crash
+- `server/engine/__tests__/durability.test.ts` — Event replay durability
+- `server/engine/__tests__/stuck-prevention.test.ts` — Preventing stuck executions
+- `server/engine/__tests__/stress.test.ts` — High-load scenarios
+- `server/events/__tests__/handler.test.ts` — Event routing
+- `server/storage/__tests__/workflow-execution.test.ts` — Storage operations
+
+## Loops and Mutable State — Intentionally Not Supported
+
+The workflow engine deliberately avoids full loops, shared mutable state, and cyclic execution (forEach is bounded iteration over a known array, not a general-purpose loop). For use cases that need unbounded iteration (LLM agent loops, polling, iterative refinement), the pattern is **recursive workflow invocation**: a step creates a new execution of the same workflow with updated input.
+
+```
+Execution 1: do_work → evaluate → not done → create Execution 2
+Execution 2: do_work → evaluate → not done → create Execution 3
+Execution 3: do_work → evaluate → done → return result
+```
+
+---
+
+## Planned Features (Not Yet Implemented)
+
+### Conditional Execution (`when`)
+
+Add an optional `when` field to Step — a **structured condition object**, not code or expression strings:
 
 ```typescript
 when?: {
@@ -45,329 +183,33 @@ when?: {
 }
 ```
 
-**Evaluation happens at dispatch time** (before the step is sent to the event bus):
-- Resolve the `ref` using the existing @ref resolver
-- Apply the operator (or truthy check if no operator)
-- If false: mark step as completed with `output: null`, set `skipped` flag, publish `step.completed`
-- If true: dispatch normally
+Evaluation happens at dispatch time: resolve the ref, apply the operator, skip if false (mark completed with `output: null`). The `when` ref is also a DAG dependency. Skipped steps cascade — downstream steps see `null` for skipped outputs.
 
-**The `when` ref is also a DAG dependency** — `when: { ref: "@validate.ok" }` means the step depends on `validate`.
+UI presents this as visual branches (if/else diamond nodes) — users never see `when` JSON directly.
 
-**Skipped steps cascade**: downstream steps that reference a skipped step get `null` for its output. If they also have a `when` that checks truthiness on that output, they'll be skipped too.
+### Early Exit (`return` action)
 
-### UI rendering
+A `{ return: true }` step action that exits the workflow early with success. Step's resolved input becomes workflow output. Combined with `when` for conditional early exit.
 
-```
-┌──────────────────────────────────────────────┐
-│  Step: send_notification                     │
-│  When: [@classify.urgent ▾] [is ▾] [true  ]  │
-│  Action: Tool Call → SEND_EMAIL              │
-└──────────────────────────────────────────────┘
-```
+### Recording Mode
 
-Three form fields: ref picker (dropdown of step outputs), operator (is/is not/>/</exists), value input.
+LLM-driven workflow building: start an empty execution → LLM calls tools naturally through the mesh proxy → each tool call is recorded as a workflow step → save as reusable template. The LLM uses `@ref` syntax in tool inputs, which the proxy resolves before forwarding.
 
-### Examples
+### Implementation Checklist (when + return)
 
-```json
-{ "when": { "ref": "@validate.eligible" } }
-{ "when": { "ref": "@validate.eligible", "eq": true } }
-{ "when": { "ref": "@fetch.count", "gt": 0 } }
-{ "when": { "ref": "@classify.priority", "neq": "low" } }
-```
-
-### Why not other approaches
-
-- **Expression strings** (`"@step.count > 0"`): need a parser, hard to decompose into form fields in UI
-- **Code conditions**: code steps as string blobs in JSON are terrible UX in a visual editor, non-technical users can't read/edit them
-- **AWS Step Functions-style Choice state**: extremely verbose, terrible for LLMs to author
-- **Just truthy checks** (`when: "@step.valid"`): too limiting, forces extra "evaluator" code steps for every non-boolean condition
-
-### UX Layering: `when` is the primitive, the UI presents branches
-
-`when` is a per-step engine primitive. But users think in **if/else branches**, not per-step guards. The UI bridges this gap.
-
-**Engine layer**: each step has an optional `when` condition object. Simple, flat, no special DAG nodes.
-
-**UI layer**: presents visual branches and translates them to `when` conditions automatically.
-
-#### How a noob user adds a conditional branch
-
-1. User clicks "Add branch" on a connection between steps
-2. UI shows a form:
-   ```
-   ┌─────────────────────────────────────┐
-   │  Branch condition                   │
-   │                                     │
-   │  If  [Get Order ▾] . [total ▾]     │
-   │      [is greater than ▾] [100]     │
-   │                                     │
-   │  Then → [Apply Discount]            │
-   │  Else → skip to next step           │
-   │                                     │
-   │         [Add Branch]  [Cancel]      │
-   └─────────────────────────────────────┘
-   ```
-3. UI generates: `apply_discount` gets `when: { ref: "@get_order.total", gt: 100 }`
-4. Visual result:
-   ```
-                    ┌─ total > 100 → [Apply Discount] ─┐
-   [Get Order] ─── ◆                                    ├─→ [Finalize]
-                    └─ otherwise ───────────────────────┘
-   ```
-
-The user never sees `when` JSON. They see a diamond (decision point) and form fields.
-
-#### How a noob user adds if/else (two branches)
-
-Same flow, but UI generates **complementary conditions** automatically:
-- `escalate` gets `when: { ref: "@classify.urgent", eq: true }`
-- `standard_queue` gets `when: { ref: "@classify.urgent", neq: true }`
-
-The user only picks the "if" side. The UI auto-generates the "else" condition.
-
-#### How a noob user adds early exit
-
-Right-click step → "Add early exit":
-```
-┌────────────────────────────────────┐
-│  Exit workflow early               │
-│                                    │
-│  If  [Validate ▾] . [ok ▾]        │
-│      [equals ▾] [false]           │
-│                                    │
-│  Exit with:                        │
-│    error = @validate.message       │
-│                                    │
-│         [Add Exit]  [Cancel]       │
-└────────────────────────────────────┘
-```
-
-UI generates a `return` step with the `when` condition. User just filled in a form.
-
-#### The ref picker is critical
-
-The ref picker dropdown must show available step outputs with their fields and types. Without it, even the form is confusing. Sources for field information:
-- `outputSchema` on the step definition (static, always available)
-- Actual execution results from previous runs (dynamic, richer)
-- In recording mode: real tool outputs captured during the conversation
-
-#### Who touches `when` directly?
-
-| Actor | Interacts with `when`? | How |
-|---|---|---|
-| Engine | Yes — evaluates at dispatch time | Reads `when` from step definition |
-| UI (noob user) | No — sees visual branches and forms | UI translates branches → `when` objects |
-| UI (power user) | Optional — can edit JSON directly | Raw step editor / JSON view |
-| LLM (recording mode) | No — just calls tools | `when` added later during template editing |
-| LLM (template editing) | Yes — generates structured JSON | Via `COLLECTION_WORKFLOW_UPDATE` tool call |
-
-## Early Exit (`return` action) — Planned
-
-### Problem
-
-No way to exit a workflow early with a success result (e.g., "if input is invalid, return error message without running remaining steps").
-
-### Design: `return` as a step action type
-
-```typescript
-{ return: z.literal(true) }
-```
-
-When a `return` step executes:
-1. Step's resolved `input` is set as its output (passthrough — no code to execute)
-2. `handleStepCompleted` detects the `return` action → marks execution as `success` with the step's output
-3. In-flight steps complete harmlessly (execution already in `success` state, `isWorkflowRunning` check stops further orchestration)
-
-Combined with `when` for conditional early exit:
-
-```json
-{
-  "steps": [
-    {
-      "name": "validate",
-      "action": { "code": "export default function(input) { const ok = !!input.email; return { ok, notOk: !ok, error: ok ? null : 'Email required' } }" },
-      "input": { "email": "@input.email" }
-    },
-    {
-      "name": "exit_if_invalid",
-      "when": { "ref": "@validate.notOk", "eq": true },
-      "action": { "return": true },
-      "input": { "error": "@validate.error" }
-    },
-    {
-      "name": "create_user",
-      "when": { "ref": "@validate.ok", "eq": true },
-      "action": { "toolName": "CREATE_USER" },
-      "input": { "email": "@input.email" }
-    }
-  ]
-}
-```
-
-## Recording Mode — Planned
-
-### Concept: The execution IS the workspace
-
-Instead of "define workflow → execute it", recording mode inverts the flow: **start an empty execution → LLM calls tools naturally → each tool call is recorded as a workflow step → save as reusable template when done.**
-
-The LLM doesn't manage workflow structure. It just calls MCP tools. Mesh — already sitting as the proxy between client and server — intercepts each tool call and transparently builds the DAG.
-
-### How it works
-
-```
-LLM → callTool("GET_USER", { id: "@input.user_id" })
-         │
-         ▼
-   Mesh Proxy (recording mode)
-         │
-         ├─→ 1. Append step to execution: { name: "get_user_1", action: { toolName: "GET_USER" }, input: { id: "@input.user_id" } }
-         ├─→ 2. Resolve @refs → literal values
-         ├─→ 3. Forward to real MCP server
-         ├─→ 4. Save result as step output
-         ├─→ 5. Return result to LLM
-         │
-         ▼
-   LLM sees normal tool result (doesn't know a workflow is being built)
-```
-
-The proxy already does step 3. Recording mode wraps it with 1, 2, 4, 5.
-
-### @ref resolution strategy
-
-When the LLM calls `GET_ORDERS({ userId: 42 })`, the literal `42` came from a previous `GET_USER` call. For the template to be reusable, we need `@get_user_1.id` instead of `42`.
-
-**Approach: teach the LLM to use @refs in tool inputs.** The proxy resolves them before forwarding. The LLM calls `GET_ORDERS({ userId: "@get_user_1.id" })`, proxy resolves to `42`, forwards `{ userId: 42 }` to the tool. The step is recorded with the @ref intact.
-
-This is lightweight — the LLM just needs "when referencing outputs from previous tool calls, use `@step_name.field`" in the system prompt. It's essentially variable naming, which is core to tool-use training. The LLM is good at this.
-
-Alternative for cases where the LLM uses literal values: **post-hoc templatization** — after recording, match output values to input values across steps and reconstruct @refs heuristically. Present detected refs in the UI for user confirmation.
-
-### Two execution modes
-
-| | Auto mode (current) | Recording mode (planned) |
-|---|---|---|
-| Steps dispatched | Automatically when deps met | By the LLM via tool calls through the proxy |
-| Workflow definition | Immutable snapshot at creation | Built incrementally as tools are called |
-| @refs resolved by | Engine at dispatch time | Proxy at intercept time |
-| Use case | Production runs, scheduled triggers | LLM conversations, interactive building |
-| Completion | All steps done → success | User/LLM saves as template or ends session |
-
-The **same execution engine** handles both modes. Auto mode = current behavior. Recording mode = proxy intercepts tool calls and appends steps. The orchestrator, storage, step execution, @ref resolution are all unchanged.
-
-### What you end up with after a conversation
-
-1. A **completed execution** with all step results (observable, debuggable)
-2. A **workflow definition** extracted from the recorded steps (saveable as template)
-3. The ability to **replay** the workflow with different `@input` values (auto mode)
-4. The ability to **edit** the template in the UI (add `when` conditions, tweak inputs, rearrange steps)
-
-The LLM authored the workflow by just doing its job. The user polishes it in the UI. No one had to think about DAGs.
-
-### Preset step results
-
-In recording mode, step results can also be set without executing the tool:
-- Inject known data the user already has
-- Resume a paused recording with new input data
-- Mock specific steps during testing
-
-There's no explicit pause/resume mechanism needed. In recording mode, the execution just waits — steps only run when the LLM makes tool calls. The execution sits with its accumulated results, and anyone can come back later.
-
-### Implementation surface
-
-- **Proxy intercept layer**: wrap the Virtual MCP proxy's `callTool` to record steps when in recording mode
-- **Mutable workflow definition**: allow appending steps to a running execution (currently the step list is immutable)
-- **Save-as-template tool**: extract the recorded execution's steps into a `workflow_collection` entry
-- **Preset result tool**: set a step's output without executing it
-
-No new event types, no changes to the DAG model, no changes to step execution logic.
-
-## Loops and Mutable State — Intentionally Not Supported
-
-### Why the engine is a DAG, not a state machine
-
-The workflow engine deliberately avoids loops, shared mutable state, and cyclic execution. These require a fundamentally different execution model (like Temporal.io or XState) with 10x the complexity:
-
-| DAG (current) | State machine |
-|---|---|
-| Steps run once | Steps can re-execute |
-| Data flows forward | State can flow backward |
-| No cycles | Cycles are the point |
-| Completion = all steps done | Completion = condition met |
-| Trivial to visualize | Visualization is hard |
-| Crash recovery = replay from last checkpoint | Crash recovery = restore full state + position |
-
-### Recursive workflows as an escape hatch
-
-For use cases that need iteration (LLM agent loops, polling, iterative refinement), the pattern is **recursive workflow invocation**: a step creates a new execution of the same workflow with updated input.
-
-```
-Execution 1: do_work → evaluate → not done → create Execution 2
-Execution 2: do_work → evaluate → not done → create Execution 3
-Execution 3: do_work → evaluate → done → return result
-```
-
-Each iteration is a separate execution — fully observable, individually debuggable, no cycles in any single DAG. This is modeled with a tool step that calls `COLLECTION_WORKFLOW_EXECUTION_CREATE` with the same `workflow_collection_id` but different input.
-
-## Timeout Strategy
-
-The engine does **not** implement its own step-level or heartbeat-based timeout mechanisms. Instead, it relies on the inherent timeout guarantees of each step type:
-
-- **Tool steps**: The MCP proxy `callTool()` accepts a `timeout` option (default 30s). If the tool call exceeds this, the proxy returns an error which is lifted to the step result.
-- **Code steps**: The QuickJS sandbox uses `interruptAfterMs` (default 10s). Code that exceeds this is interrupted and returns an error.
-- **Workflow-level deadline**: If `timeoutMs` is set on execution creation, a `deadline_at_epoch_ms` is computed. The orchestrator checks this deadline in `handleExecutionCreated` and `handleStepCompleted` — if exceeded, the execution is failed with a deadline error.
-
-### What was removed (and why)
-
-- **`heartbeat_at_epoch_ms` column + sweeper**: The heartbeat only updated *after* a step completed, so a long-running tool call (e.g. 5 minutes) would trigger the 60s staleness threshold, causing false-positive recovery of healthy executions. Removed via migration `004-drop-heartbeat`.
-- **`workflow.step.timeout` event**: Redundant — tool calls and code steps already have their own timeouts that surface errors through the normal step result flow.
-- **`workflow.execution.timeout` scheduled event**: Replaced by a synchronous deadline check in `handleStepCompleted` and `handleExecutionCreated`. No need for a separate scheduled event.
-
-## Crash Recovery
-
-- **On startup**: `recoverStuckExecutions()` finds all `running` executions, clears incomplete step results (stale claims), resets them to `enqueued`, and re-publishes `workflow.execution.created` events.
-- **Idempotent claims**: Both `claimExecution()` (execution-level) and `createStepResult()` (step-level, via `ON CONFLICT DO NOTHING`) are idempotent, so duplicate events are safely ignored.
-
-## Event Types
-
-Only three event types are used:
-
-| Event | Purpose |
-|-------|---------|
-| `workflow.execution.created` | External trigger to start/resume an execution |
-| `workflow.step.execute` | Dispatched by orchestrator to execute a step |
-| `workflow.step.completed` | Notification that a step result has been persisted |
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `server/engine/orchestrator.ts` | Core orchestration: claim, dispatch, complete |
-| `server/engine/code-step.ts` | QuickJS sandbox execution |
-| `server/engine/tool-step.ts` | MCP proxy tool calls |
-| `server/engine/ref-resolver.ts` | `@ref` resolution for step inputs |
-| `server/events/handler.ts` | Event routing + fire-and-forget dispatch |
-| `server/storage/workflow-execution.ts` | DB operations for executions + step results |
-| `server/storage/workflow-collection.ts` | DB operations for workflow templates |
-| `server/storage/types.ts` | Kysely table interfaces |
-| `server/index.ts` | Plugin registration + startup recovery |
-| `server/tools/` | MCP tools (collection CRUD + execution management) |
-
-## Implementation Checklist (when + return)
-
-### Schema changes (`packages/bindings/src/well-known/workflow.ts`)
+#### Schema changes (`packages/bindings/src/well-known/workflow.ts`)
 - [ ] Add `StepConditionSchema` (ref, eq, neq, gt, lt)
 - [ ] Add `when?: StepConditionSchema` to `StepSchema`
 - [ ] Add `ReturnActionSchema` to `StepActionSchema` union
 - [ ] Update `getStepDependencies` / `getAllRefs` to extract refs from `when.ref`
 
-### Engine changes (`server/engine/orchestrator.ts`)
+#### Engine changes (`server/engine/orchestrator.ts`)
 - [ ] In `dispatchStep`: evaluate `when` condition before dispatching (skip if false)
 - [ ] In `getReadySteps`: include `when` ref as a dependency for ordering
 - [ ] In `handleStepExecute`: handle `return` action (passthrough input → output)
 - [ ] In `handleStepCompleted`: detect `return` action → mark execution as `success`
 - [ ] Skipped steps: mark completed with `output: null` + publish `step.completed`
 
-### No migration needed
+#### No migration needed
 - `output: null` already supported in step results
 - `skipped` flag is optional metadata on the step result (no new column required)
