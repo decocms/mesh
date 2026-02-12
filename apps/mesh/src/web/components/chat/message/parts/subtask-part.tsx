@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { AlertCircle, ChevronRight, GitBranch01 } from "@untitledui/icons";
+import {
+  AlertCircle,
+  ChevronRight,
+  Coins01,
+  GitBranch01,
+} from "@untitledui/icons";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
+import type { SubtaskResultMeta } from "@/api/routes/decopilot/built-in-tools/subtask";
+import { IntegrationIcon } from "@/web/components/integration-icon";
+import { useChat } from "../../context";
 import { MemoizedMarkdown } from "../../markdown.tsx";
 import type { SubtaskToolPart } from "../../types.ts";
 import { extractTextFromOutput, getToolPartErrorText } from "./utils.ts";
@@ -22,6 +30,21 @@ export function SubtaskPart({ part }: { part: SubtaskToolPart }) {
   const prompt = part.input?.prompt;
   const agentId = part.input?.agent_id;
   const partId = part.toolCallId ?? agentId ?? "unknown";
+
+  const subtaskMeta =
+    part.state === "output-available"
+      ? (
+          part.output?.metadata as
+            | { subtaskResult?: SubtaskResultMeta }
+            | undefined
+        )?.subtaskResult
+      : undefined;
+  const usage = subtaskMeta?.usage;
+
+  const { virtualMcps } = useChat();
+  const agent = agentId ? virtualMcps.find((v) => v.id === agentId) : null;
+  const agentTitle = agent?.title;
+  const agentIcon = agent?.icon;
 
   // Auto-expand while streaming, collapsible when complete
   const [isExpanded, setIsExpanded] = useState(true);
@@ -42,16 +65,27 @@ export function SubtaskPart({ part }: { part: SubtaskToolPart }) {
             )}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <GitBranch01
-                className={cn(
-                  "size-4 shrink-0",
-                  isError && "text-destructive",
-                  isStreaming && "text-muted-foreground shimmer",
-                  isOutputStreaming && "text-muted-foreground animate-pulse",
-                  isComplete && "text-muted-foreground",
+              <div className="flex items-center gap-1.5 shrink-0">
+                {agentIcon ? (
+                  <IntegrationIcon
+                    icon={agentIcon}
+                    name={agentTitle ?? "Subtask"}
+                    size="2xs"
+                  />
+                ) : (
+                  <GitBranch01
+                    className={cn(
+                      "size-4",
+                      isError && "text-destructive",
+                      isStreaming && "text-muted-foreground shimmer",
+                      isOutputStreaming &&
+                        "text-muted-foreground animate-pulse",
+                      isComplete && "text-muted-foreground",
+                    )}
+                    size={16}
+                  />
                 )}
-                size={16}
-              />
+              </div>
               <div className="flex flex-col min-w-0">
                 <span
                   className={cn(
@@ -62,15 +96,16 @@ export function SubtaskPart({ part }: { part: SubtaskToolPart }) {
                     isComplete && "text-muted-foreground",
                   )}
                 >
-                  {isStreaming && "Starting subtask..."}
-                  {isOutputStreaming && "Subtask running..."}
-                  {isComplete && "Subtask completed"}
-                  {isError && "Subtask failed"}
-                  {!isStreaming &&
-                    !isOutputStreaming &&
-                    !isComplete &&
-                    !isError &&
-                    "Subtask"}
+                  {agentTitle ??
+                    (isStreaming
+                      ? "Starting subtask..."
+                      : isOutputStreaming
+                        ? "Subtask running..."
+                        : isComplete
+                          ? "Subtask completed"
+                          : isError
+                            ? "Subtask failed"
+                            : "Subtask")}
                 </span>
                 {prompt && (
                   <span className="text-xs text-muted-foreground/75 truncate">
@@ -126,7 +161,14 @@ export function SubtaskPart({ part }: { part: SubtaskToolPart }) {
                   </div>
                 )}
 
-                {/* ── Footer slot (Plan 5: usage stats) ── */}
+                {/* Usage badge (when complete) */}
+                {usage && usage.totalTokens > 0 && (
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground tabular-nums mt-2">
+                    <Coins01 size={10} />
+                    <span>{usage.totalTokens.toLocaleString()} tokens</span>
+                    {usage.cost > 0 && <span>· ${usage.cost.toFixed(4)}</span>}
+                  </div>
+                )}
               </div>
             </div>
           </CollapsibleContent>
