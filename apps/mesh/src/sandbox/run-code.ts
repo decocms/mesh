@@ -66,7 +66,7 @@ export async function runCode({
   code,
   timeoutMs,
 }: RunCodeOptions): Promise<RunCodeResult> {
-  const runtime = await createSandboxRuntime({
+  using runtime = await createSandboxRuntime({
     memoryLimitBytes: 32 * 1024 * 1024,
     stackSizeBytes: 512 * 1024,
   });
@@ -106,6 +106,9 @@ export async function runCode({
     const userFnType = ctx.typeof(userFnHandle);
 
     if (userFnType !== "function") {
+      userFnHandle.dispose();
+      exportsHandle.dispose();
+      toolsHandle.dispose();
       return {
         error: `Code must export default a function (tools). Got ${userFnType}. Example: export default async (tools) => { /* ... */ }`,
         consoleLogs: consoleBuiltin.logs,
@@ -113,6 +116,10 @@ export async function runCode({
     }
 
     const callRes = ctx.callFunction(userFnHandle, ctx.undefined, toolsHandle);
+    toolsHandle.dispose();
+    userFnHandle.dispose();
+    exportsHandle.dispose();
+
     const callHandle = ctx.unwrapResult(callRes);
 
     const awaitedRes = await resolvePromiseWithJobPump(
@@ -120,6 +127,7 @@ export async function runCode({
       callHandle,
       timeoutMs,
     );
+    callHandle.dispose();
     const awaited = ctx.unwrapResult(awaitedRes);
 
     // Drain any final microtasks (best-effort)
@@ -128,6 +136,7 @@ export async function runCode({
     }
 
     const value = ctx.dump(awaited);
+    awaited.dispose();
 
     return { returnValue: value, consoleLogs: consoleBuiltin.logs };
   } catch (err) {

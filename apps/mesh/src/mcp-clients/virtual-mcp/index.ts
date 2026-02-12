@@ -37,11 +37,13 @@ function isSelfReferencingVirtual(
  *
  * @param connection - Connection entity with VIRTUAL type
  * @param ctx - Mesh context for creating proxies
+ * @param superUser - Whether to use superuser mode for background processes
  * @returns Client instance with aggregated tools, resources, and prompts
  */
 export async function createVirtualClient(
   connection: ConnectionEntity,
   ctx: MeshContext,
+  superUser = false,
 ): Promise<Client> {
   // Virtual MCP ID is the connection ID
   const virtualMcpId = connection.id;
@@ -53,7 +55,7 @@ export async function createVirtualClient(
   }
 
   // Create client from virtual MCP entity
-  return createVirtualClientFrom(virtualMcp, ctx, "passthrough");
+  return createVirtualClientFrom(virtualMcp, ctx, "passthrough", superUser);
 }
 
 /**
@@ -63,12 +65,14 @@ export async function createVirtualClient(
  * @param virtualMcp - Virtual MCP entity from database
  * @param ctx - Mesh context for creating proxies
  * @param strategy - Tool selection strategy (passthrough, smart_tool_selection, code_execution)
+ * @param superUser - Whether to use superuser mode for background processes
  * @returns Client instance with aggregated tools, resources, and prompts
  */
 export async function createVirtualClientFrom(
   virtualMcp: VirtualMCPEntity,
   ctx: MeshContext,
   strategy: ToolSelectionStrategy,
+  superUser = false,
 ): Promise<Client> {
   // Inclusion mode: use only the connections specified in virtual MCP
   const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
@@ -108,6 +112,7 @@ export async function createVirtualClientFrom(
     connections: loadedConnections,
     virtualMcp,
     virtualTools: virtualTools.length > 0 ? virtualTools : undefined,
+    superUser,
   };
 
   // Create the appropriate client based on strategy

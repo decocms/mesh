@@ -10,9 +10,13 @@
 
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
 import { serverPlugin as userSandboxPlugin } from "mesh-plugin-user-sandbox/server";
+import { serverPlugin as workflowsPlugin } from "mesh-plugin-workflows/server";
 
 /**
  * Registered server plugins.
  * Add new plugins to this array.
  */
-export const serverPlugins: ServerPlugin[] = [userSandboxPlugin];
+export const serverPlugins: ServerPlugin[] = [
+  userSandboxPlugin,
+  workflowsPlugin,
+];

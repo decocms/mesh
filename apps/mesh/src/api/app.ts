@@ -114,6 +114,8 @@ import { MiddlewareHandler } from "hono/types";
 import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 import { Env } from "./env";
 import { devLogger } from "./utils/dev-logger";
+import { streamSSE } from "hono/streaming";
+import { SSEEvent, sseHub } from "@/event-bus/sse-hub";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -639,6 +641,96 @@ export async function createApp(options: CreateAppOptions = {}) {
       },
     );
     return c.json({ success: true });
+  });
+
+  // ============================================================================
+  // SSE Watch Endpoint — stream events for an organization in real time
+  // ============================================================================
+
+  app.get("/org/:organizationId/watch", async (c) => {
+    const meshContext = c.var.meshContext;
+
+    // Require authentication (user session or API key)
+    const userId = meshContext.auth.user?.id ?? meshContext.auth.apiKey?.userId;
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const orgId = c.req.param("organizationId");
+
+    // Optional type filter: ?types=workflow.*,public.* (comma-separated patterns)
+    const typesParam = c.req.query("types");
+    const typePatterns = typesParam
+      ? typesParam
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : null;
+
+    const listenerId = crypto.randomUUID();
+
+    return streamSSE(c, async (stream) => {
+      // Send initial connection event
+      await stream.writeSSE({
+        event: "connected",
+        data: JSON.stringify({
+          listenerId,
+          organizationId: orgId,
+          typePatterns,
+          connectedAt: new Date().toISOString(),
+        }),
+      });
+
+      // Register listener with the SSE hub
+      const registered = sseHub.add({
+        id: listenerId,
+        organizationId: orgId,
+        typePatterns: typePatterns?.length ? typePatterns : null,
+        push: (event: SSEEvent) => {
+          // Write to the SSE stream — fire-and-forget
+          // If the stream is closed, writeSSE will throw and the hub will remove us
+          stream
+            .writeSSE({
+              id: event.id,
+              event: event.type,
+              data: JSON.stringify(event),
+            })
+            .catch(() => {
+              // Stream broken — cleanup happens via onAbort
+            });
+        },
+      });
+
+      if (!registered) {
+        await stream.writeSSE({
+          event: "error",
+          data: JSON.stringify({
+            error: "Too many connections",
+            message: "SSE connection limit reached. Try again later.",
+          }),
+        });
+        return;
+      }
+
+      // Send periodic keepalive comments to detect dead connections
+      const keepaliveInterval = setInterval(() => {
+        stream.writeSSE({ event: "keepalive", data: "" }).catch(() => {
+          clearInterval(keepaliveInterval);
+        });
+      }, 30_000);
+
+      // Cleanup when the client disconnects
+      stream.onAbort(() => {
+        clearInterval(keepaliveInterval);
+        sseHub.remove(orgId, listenerId);
+      });
+
+      // Keep the stream open until the client disconnects
+      // We use a promise that resolves when the request is aborted
+      await new Promise<void>((resolve) => {
+        stream.onAbort(() => resolve());
+      });
+    });
   });
 
   // Downstream token management routes

@@ -61,11 +61,12 @@ interface PromptCache extends Cache<Prompt> {}
 async function createClientMap(
   connections: ConnectionEntity[],
   ctx: MeshContext,
+  superUser = false,
 ): Promise<Map<string, Client>> {
   const clientResults = await Promise.all(
     connections.map(async (connection) => {
       try {
-        const client = await clientFromConnection(connection, ctx, false);
+        const client = await clientFromConnection(connection, ctx, superUser);
         return [connection.id, client] as const;
       } catch (error) {
         console.warn(
@@ -141,7 +142,11 @@ export class PassthroughClient extends Client {
 
     // Initialize client map lazily - shared across all caches
     this._clients = lazy(() =>
-      createClientMap(this.options.connections, this.ctx),
+      createClientMap(
+        this.options.connections,
+        this.ctx,
+        this.options.superUser,
+      ),
     );
 
     // Initialize lazy caches - all share the same ProxyCollection
