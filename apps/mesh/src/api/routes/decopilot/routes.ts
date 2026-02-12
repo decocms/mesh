@@ -14,7 +14,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
-import { getBuiltInTools, type SubtaskToolDeps } from "./built-in-tools";
+import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
@@ -195,13 +195,10 @@ app.post("/:org/decopilot/stream", async (c) => {
     ]);
 
     // 3. Get built-in tools (client-side tools like user_ask, server-side like subtask)
-    const subtaskDeps: SubtaskToolDeps = {
+    const builtInTools = getBuiltInTools(
+      { modelProvider, organization, models },
       ctx,
-      modelProvider,
-      organization,
-      models,
-    };
-    const builtInTools = getBuiltInTools(subtaskDeps);
+    );
 
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called

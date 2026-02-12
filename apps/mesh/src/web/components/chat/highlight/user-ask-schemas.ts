@@ -1,5 +1,8 @@
-import type { UserAskInput } from "@/api/routes/decopilot/built-in-tools/index.ts";
+import type { UserAskToolPart } from "../types";
 import { z } from "zod";
+
+/** Inferred from UserAskToolPart so we don't import the backend module directly. */
+type UserAskInput = NonNullable<UserAskToolPart["input"]>;
 
 const textResponseSchema = z.object({
   response: z.string().min(1, "Response is required"),
