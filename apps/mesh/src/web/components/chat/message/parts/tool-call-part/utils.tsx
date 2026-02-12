@@ -35,22 +35,6 @@ export function formatToolMetrics(metrics: ToolCallMetrics): string | null {
 }
 
 /**
- * Derive effective UI state from part status.
- * Error takes precedence over loading for styling.
- */
-export function getEffectiveState(
-  status: ToolPartStatus,
-): "loading" | "error" | "idle" {
-  return status === "output-error"
-    ? "error"
-    : status === "input-streaming" ||
-        status === "input-available" ||
-        status === "approval-requested"
-      ? "loading"
-      : "idle";
-}
-
-/**
  * Convert a tool name to a friendly display name.
  * Converts SCREAMING_SNAKE_CASE or snake_case to Title Case.
  * Edge cases: empty string returns "", single word returns title-cased word.

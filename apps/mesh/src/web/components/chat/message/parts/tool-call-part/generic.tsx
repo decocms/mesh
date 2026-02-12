@@ -5,7 +5,6 @@ import { Atom02 } from "@untitledui/icons";
 import { ToolCallShell } from "./common.tsx";
 import { getFriendlyToolName } from "./utils.tsx";
 import { getToolPartErrorText } from "../utils.ts";
-import { useChat } from "../../../context.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -54,8 +53,6 @@ function getSummary(state: string): string {
 }
 
 export function GenericToolCallPart({ part }: GenericToolCallPartProps) {
-  const { isStreaming } = useChat();
-
   // Extract tool name with proper dynamic-tool handling
   const toolName =
     "toolName" in part && typeof part.toolName === "string"
@@ -68,6 +65,16 @@ export function GenericToolCallPart({ part }: GenericToolCallPartProps) {
   // Compute state-dependent props
   const title = getTitle(part.state, friendlyName);
   const summary = getSummary(part.state);
+
+  // Derive UI state for ToolCallShell
+  const effectiveState: "loading" | "error" | "idle" =
+    part.state === "output-error"
+      ? "error"
+      : part.state === "input-streaming" ||
+          part.state === "input-available" ||
+          part.state === "approval-requested"
+        ? "loading"
+        : "idle";
 
   // Build expanded content
   let detail = "";
@@ -91,8 +98,7 @@ export function GenericToolCallPart({ part }: GenericToolCallPartProps) {
       usage={undefined}
       latencySeconds={undefined}
       summary={summary}
-      status={part.state}
-      isStreaming={isStreaming}
+      state={effectiveState}
       detail={detail || null}
     />
   );

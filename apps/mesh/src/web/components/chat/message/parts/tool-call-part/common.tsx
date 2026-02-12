@@ -10,11 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
-import {
-  formatToolMetrics,
-  getEffectiveState,
-  type ToolPartStatus,
-} from "./utils.tsx";
+import { formatToolMetrics } from "./utils.tsx";
 import { MemoizedMarkdown } from "../../../markdown.tsx";
 
 export interface ToolCallShellProps {
@@ -28,10 +24,8 @@ export interface ToolCallShellProps {
   latencySeconds?: number;
   /** Second-line summary text shown in collapsed state */
   summary?: string;
-  /** Part state — forward from part.state. Shell derives loading/error/styling from this. */
-  status: ToolPartStatus;
-  /** Whether the overall chat is streaming (forward from useChat().status === "streaming"). Shimmer when true + input-streaming. Distinguishes live streaming from persisted messages with stale state. */
-  isStreaming: boolean;
+  /** Derived UI state computed by caller based on their loading semantics */
+  state: "loading" | "error" | "idle";
   /** Detail shown in expanded view. Rendered as markdown or plain text (copiable). Replaces children/expandedText. */
   detail?: string | null;
 }
@@ -46,19 +40,16 @@ export function ToolCallShell({
   usage,
   latencySeconds,
   summary,
-  status,
-  isStreaming,
+  state,
   detail,
 }: ToolCallShellProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const detailId = useId();
   const { handleCopy, copied } = useCopy();
-  const effectiveState = getEffectiveState(status);
-  const isLoading = effectiveState === "loading";
-  const isError = effectiveState === "error";
+  const isLoading = state === "loading";
+  const isError = state === "error";
   const isExpandable = !!(detail && detail.trim());
   const metricsStr = formatToolMetrics({ usage, latencySeconds });
-  const showShimmer = isLoading && isStreaming;
 
   return (
     <div className="flex flex-col w-full min-w-0">
@@ -71,7 +62,7 @@ export function ToolCallShell({
               !isLoading && isExpandable && "cursor-pointer hover:bg-accent/50",
               (isLoading || !isExpandable) &&
                 "cursor-default pointer-events-none",
-              showShimmer && "shimmer",
+              isLoading && "shimmer",
             )}
             aria-disabled={isLoading || !isExpandable}
           >
@@ -155,4 +146,4 @@ export function ToolCallShell({
   );
 }
 
-export type { ToolCallMetrics, ToolPartStatus } from "./utils.tsx";
+export type { ToolCallMetrics } from "./utils.tsx";

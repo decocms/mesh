@@ -22,7 +22,7 @@ export function SubtaskPart({
   isLastInSequence,
   hasNextToolCall,
 }: SubtaskPartProps) {
-  const { virtualMcps, isStreaming } = useChat();
+  const { virtualMcps } = useChat();
 
   // State computation
   const isInputStreaming =
@@ -31,6 +31,13 @@ export function SubtaskPart({
     part.state === "output-available" && part.preliminary === true;
   const isComplete = part.state === "output-available" && !part.preliminary;
   const isError = part.state === "output-error";
+
+  // Derive UI state for ToolCallShell
+  const effectiveState: "loading" | "error" | "idle" = isError
+    ? "error"
+    : isInputStreaming || isOutputStreaming
+      ? "loading"
+      : "idle";
 
   // Agent lookup
   const agentId = part.input?.agent_id;
@@ -93,8 +100,7 @@ export function SubtaskPart({
         title={title}
         usage={tokens ? { tokens } : undefined}
         summary={summary}
-        status={part.state}
-        isStreaming={isStreaming}
+        state={effectiveState}
         detail={detail}
       />
       {hasNextToolCall && (

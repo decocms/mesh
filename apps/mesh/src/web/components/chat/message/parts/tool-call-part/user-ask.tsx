@@ -2,7 +2,6 @@
 
 import { MessageQuestionCircle } from "@untitledui/icons";
 import type { UserAskToolPart } from "../../../types.ts";
-import { useChat } from "../../../context.tsx";
 import { getToolPartErrorText } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 
@@ -14,8 +13,6 @@ interface UserAskPartProps {
 }
 
 export function UserAskPart({ part }: UserAskPartProps) {
-  const { isStreaming } = useChat();
-
   // Only render if state starts with "output-"
   if (!part.state.startsWith("output-")) {
     return null;
@@ -32,6 +29,12 @@ export function UserAskPart({ part }: UserAskPartProps) {
         ? getToolPartErrorText(part)
         : (part.output?.response ?? "");
 
+  // Derive UI state for ToolCallShell
+  const effectiveState: "loading" | "error" | "idle" =
+    part.state === "output-error" || part.state === "output-denied"
+      ? "error"
+      : "idle";
+
   return (
     <ToolCallShell
       icon={<MessageQuestionCircle className="size-4 text-muted-foreground" />}
@@ -39,8 +42,7 @@ export function UserAskPart({ part }: UserAskPartProps) {
       usage={undefined}
       latencySeconds={undefined}
       summary={summary}
-      status={part.state}
-      isStreaming={isStreaming}
+      state={effectiveState}
       detail={`# Question\n${part.input?.prompt ?? ""}\n\n# Answer\n${summary}`}
     />
   );

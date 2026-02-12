@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  formatToolMetrics,
-  getEffectiveState,
-  getFriendlyToolName,
-} from "./utils.tsx";
+import { formatToolMetrics, getFriendlyToolName } from "./utils.tsx";
 
 describe("getFriendlyToolName", () => {
   test("converts SCREAMING_SNAKE_CASE to Title Case", () => {
@@ -67,27 +63,5 @@ describe("formatToolMetrics", () => {
 
   test("includes cost when cost is optional and not provided", () => {
     expect(formatToolMetrics({ usage: { tokens: 120 } })).toBe("120 tokens");
-  });
-});
-
-describe("getEffectiveState", () => {
-  test("input-streaming returns loading", () => {
-    expect(getEffectiveState("input-streaming")).toBe("loading");
-  });
-
-  test("input-available returns loading", () => {
-    expect(getEffectiveState("input-available")).toBe("loading");
-  });
-
-  test("output-error returns error", () => {
-    expect(getEffectiveState("output-error")).toBe("error");
-  });
-
-  test("output-available returns idle", () => {
-    expect(getEffectiveState("output-available")).toBe("idle");
-  });
-
-  test("output-denied returns idle", () => {
-    expect(getEffectiveState("output-denied")).toBe("idle");
   });
 });
