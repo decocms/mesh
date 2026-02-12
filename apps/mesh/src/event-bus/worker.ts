@@ -437,9 +437,9 @@ export class EventBusWorker {
         nextDeliveryTime,
       );
 
-      // console.log(
-      //   `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
-      // );
+      console.log(
+        `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
+      );
     } catch (error) {
       console.error(
         `[EventBus] Failed to schedule next cron delivery for event ${event.id}:`,
