@@ -109,6 +109,7 @@ export class EventBusWorker {
   private notifySubscriber: NotifySubscriberFn;
   private running = false;
   private processing = false;
+  private pendingNotify = false;
   private config: Required<EventBusConfig>;
 
   constructor(
@@ -163,11 +164,17 @@ export class EventBusWorker {
     if (!this.running) return;
 
     // Prevent concurrent processing
-    if (this.processing) return;
+    if (this.processing) {
+      this.pendingNotify = true;
+      return;
+    }
 
     this.processing = true;
     try {
-      await this.processEvents();
+      do {
+        this.pendingNotify = false;
+        await this.processEvents();
+      } while (this.pendingNotify);
     } catch (error) {
       console.error("[EventBus] Error processing events:", error);
     } finally {
@@ -185,6 +192,16 @@ export class EventBusWorker {
       this.config.batchSize,
     );
     if (pendingDeliveries.length === 0) return;
+
+    const wfEvents = pendingDeliveries.filter((p) =>
+      p.event.type.startsWith("workflow."),
+    );
+    if (wfEvents.length > 0) {
+      console.log(
+        `[WF:bus] processEvents — claimed ${pendingDeliveries.length} deliveries (${wfEvents.length} workflow)`,
+        wfEvents.map((p) => `${p.event.type}:${p.event.subject?.slice(0, 8)}`),
+      );
+    }
 
     // Group by subscription (connection)
     const grouped = groupByConnection(pendingDeliveries);
@@ -420,9 +437,9 @@ export class EventBusWorker {
         nextDeliveryTime,
       );
 
-      console.log(
-        `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
-      );
+      // console.log(
+      //   `[EventBus] Scheduled next cron delivery for event ${event.id} at ${nextDeliveryTime}`,
+      // );
     } catch (error) {
       console.error(
         `[EventBus] Failed to schedule next cron delivery for event ${event.id}:`,
