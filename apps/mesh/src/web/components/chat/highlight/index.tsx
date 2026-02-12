@@ -169,33 +169,41 @@ export function ChatHighlight() {
     });
   };
 
-  return (
-    <div className="flex flex-col w-full">
-      {isWaitingForUserInput ? (
+  if (isWaitingForUserInput) {
+    return (
+      <div className="absolute bottom-full left-0 right-0">
         <UserAskQuestionHighlight
           userAskParts={userAskParts}
           isStreaming={isStreaming}
           onSubmit={handleUserAskSubmit}
         />
-      ) : !isStreaming ? (
-        error ? (
-          <StatusHighlight
-            variant="error"
-            error={error}
-            onDismiss={clearError}
-            onFixInChat={handleFixInChat}
-          />
-        ) : finishReason && finishReason !== "stop" ? (
-          <StatusHighlight
-            variant="warning"
-            finishReason={finishReason}
-            onDismiss={clearFinishReason}
-            onContinue={handleContinue}
-          />
-        ) : null
-      ) : null}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  if (!isStreaming && error) {
+    return (
+      <StatusHighlight
+        variant="error"
+        error={error}
+        onDismiss={clearError}
+        onFixInChat={handleFixInChat}
+      />
+    );
+  }
+
+  if (!isStreaming && finishReason && finishReason !== "stop") {
+    return (
+      <StatusHighlight
+        variant="warning"
+        finishReason={finishReason}
+        onDismiss={clearFinishReason}
+        onContinue={handleContinue}
+      />
+    );
+  }
+
+  return null;
 }
 
 ChatHighlight.Error = function ErrorHighlight(props: {

@@ -306,8 +306,6 @@ export function ChatInput() {
 
   return (
     <div className="flex flex-col w-full min-h-42 justify-end">
-      <ChatHighlight />
-
       {/* Virtual MCP wrapper with badge */}
       <div
         className={cn(
@@ -316,6 +314,9 @@ export function ChatInput() {
           color?.bg,
         )}
       >
+        {/* Highlight floats above the form area */}
+        <ChatHighlight />
+
         {/* Virtual MCP Badge Header */}
         {selectedVirtualMcp?.id && !isDecopilot(selectedVirtualMcp.id) && (
           <VirtualMCPBadge

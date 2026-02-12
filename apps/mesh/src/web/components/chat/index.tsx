@@ -40,7 +40,7 @@ function ChatMain({
   className,
 }: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={cn("flex-1 min-h-0 overflow-y-auto", className)}>
+    <div className={cn("flex-1 min-h-0 overflow-y-auto isolate", className)}>
       {children}
     </div>
   );
@@ -59,6 +59,15 @@ function ChatMessages() {
   const messagePairs = useMessagePairs(messages);
   const lastMessagePair = messagePairs.at(-1);
 
+  const isStreaming = status === "submitted" || status === "streaming";
+  const lastMessage = messages.at(-1);
+  const hasActiveUserAsk =
+    !isStreaming &&
+    lastMessage?.role === "assistant" &&
+    lastMessage.parts
+      .filter((p) => p.type === "tool-user_ask")
+      .some((p) => p.state === "input-available");
+
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
       <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
@@ -72,7 +81,12 @@ function ChatMessages() {
         ))}
       </div>
       {lastMessagePair && (
-        <div className="min-h-full min-w-0 max-w-2xl mx-auto w-full">
+        <div
+          className={cn(
+            "min-h-full min-w-0 max-w-2xl mx-auto w-full",
+            hasActiveUserAsk && "pb-60",
+          )}
+        >
           <MessagePair
             key={`pair-${lastMessagePair?.user.id}`}
             pair={lastMessagePair}
