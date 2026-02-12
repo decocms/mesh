@@ -1,12 +1,3 @@
-/**
- * Workflow Orchestrator
- *
- * Event-driven workflow execution engine.
- * All steps are fire-and-forget via the event bus.
- *
- * Ported from MCP Studio, adapted to use Kysely storage and Mesh event bus.
- */
-
 import { validateNoCycles, type Step } from "@decocms/bindings/workflow";
 import type {
   WorkflowExecutionStorage,
@@ -15,32 +6,6 @@ import type {
 import { extractRefs, parseAtRef, resolveAllRefs } from "./ref-resolver";
 import { executeCode } from "./code-step";
 import { executeToolStep, type ToolStepContext } from "./tool-step";
-
-// ---------------------------------------------------------------------------
-// Debug logger
-// ---------------------------------------------------------------------------
-
-class OrchestratorLog {
-  private t0: number;
-
-  constructor() {
-    this.t0 = performance.now();
-  }
-
-  private ts(): string {
-    return `+${(performance.now() - this.t0).toFixed(1)}ms`;
-  }
-
-  info(msg: string, extra?: Record<string, unknown>): void {
-    const parts = [`[WF:orch] ${this.ts()} ${msg}`];
-    if (extra) parts.push(JSON.stringify(extra));
-    console.log(parts.join(" "));
-  }
-}
-
-// ============================================================================
-// Types
-// ============================================================================
 
 type StepType = "tool" | "code";
 
@@ -52,9 +17,6 @@ function getStepType(step: Step): StepType {
 
 type OnError = "fail" | "continue";
 
-/**
- * Publish function signature (injected by the event handler)
- */
 export type PublishEventFn = (
   type: string,
   subject: string,
@@ -62,22 +24,20 @@ export type PublishEventFn = (
   options?: { deliverAt?: string },
 ) => Promise<void>;
 
-/**
- * Context for orchestrator operations
- */
 export interface OrchestratorContext {
   storage: WorkflowExecutionStorage;
   publish: PublishEventFn;
   createMCPProxy: ToolStepContext["createMCPProxy"];
 }
 
-// ============================================================================
-// Dependency resolution
-// ============================================================================
+function log(eid: string, msg: string) {
+  console.log(`[WF:orch] ${eid} ${msg}`);
+}
 
-/**
- * Extract step dependencies from @refs in step input and forEach config.
- */
+// ---------------------------------------------------------------------------
+// Dependency resolution
+// ---------------------------------------------------------------------------
+
 function getStepDependencies(step: Step): string[] {
   const refs = extractRefs(step.input);
 
@@ -102,20 +62,11 @@ function isForEachStep(step: Step): boolean {
   return !!step.forEach?.ref;
 }
 
-/**
- * Get terminal steps (steps that no other step depends on).
- * These are the "leaf" nodes of the DAG whose outputs form the workflow result.
- */
 function getTerminalSteps(steps: Step[]): Step[] {
   const allDeps = new Set(steps.flatMap(getStepDependencies));
   return steps.filter((s) => !allDeps.has(s.name));
 }
 
-/**
- * Build the workflow output from terminal step outputs.
- * - If there is exactly 1 terminal step, use its output directly.
- * - If there are multiple terminal steps, return a Record keyed by step name.
- */
 function buildWorkflowOutput(
   steps: Step[],
   stepOutputs: Map<string, unknown>,
@@ -131,9 +82,6 @@ function buildWorkflowOutput(
   return output;
 }
 
-/**
- * Get steps that are ready to execute (all dependencies satisfied).
- */
 function getReadySteps(
   steps: Step[],
   completedStepNames: Set<string>,
@@ -148,9 +96,9 @@ function getReadySteps(
   });
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // Orchestration set builders
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 function buildStepOutputsMap(
   stepResults: ParsedStepResult[],
@@ -174,7 +122,6 @@ function buildOrchestrationSets(stepResults: ParsedStepResult[]): {
   const stepOutputs = new Map<string, unknown>();
 
   for (const result of stepResults) {
-    // Skip iteration results (they have [N] suffix)
     if (result.step_id.includes("[")) continue;
 
     if (result.completed_at_epoch_ms) {
@@ -188,36 +135,163 @@ function buildOrchestrationSets(stepResults: ParsedStepResult[]): {
   return { completedStepNames, claimedStepNames, stepOutputs };
 }
 
-// ============================================================================
-// Event handlers
-// ============================================================================
+// ---------------------------------------------------------------------------
+// advanceExecution — shared "check completion → dispatch ready" logic
+// ---------------------------------------------------------------------------
 
-/**
- * Handle workflow.execution.created event
- *
- * Claims the execution and dispatches events for all ready steps.
- */
+async function advanceExecution(
+  ctx: OrchestratorContext,
+  executionId: string,
+  prefetchedContext?: Awaited<
+    ReturnType<WorkflowExecutionStorage["getExecutionContext"]>
+  >,
+): Promise<void> {
+  const eid = executionId.slice(0, 8);
+  const context =
+    prefetchedContext ?? (await ctx.storage.getExecutionContext(executionId));
+  if (!context || context.execution.status !== "running") return;
+
+  const steps = context.workflow.steps;
+  const workflowInput = context.workflow.input ?? {};
+
+  const deadlineAtEpochMs = context.execution.deadline_at_epoch_ms;
+  if (deadlineAtEpochMs && Date.now() >= deadlineAtEpochMs) {
+    log(eid, "deadline exceeded, failing");
+    await ctx.storage.updateExecution(
+      executionId,
+      {
+        status: "error",
+        error: "Workflow execution exceeded its deadline",
+        completed_at_epoch_ms: Date.now(),
+      },
+      { onlyIfStatus: "running" },
+    );
+    return;
+  }
+
+  const { completedStepNames, claimedStepNames, stepOutputs } =
+    buildOrchestrationSets(context.stepResults);
+
+  // Check for unhandled step errors (can occur after crash recovery resolution,
+  // where resolveIncompleteStepResults marks tool steps as errored without
+  // going through the normal handleStepCompleted → handleStepError flow)
+  for (const result of context.stepResults) {
+    if (!result.error || !result.completed_at_epoch_ms) continue;
+    if (result.step_id.includes("[")) continue;
+    const step = steps.find((s) => s.name === result.step_id);
+    const onError: OnError = step?.config?.onError ?? "fail";
+    if (onError === "fail") {
+      log(eid, `step "${result.step_id}" has unhandled error, failing`);
+      await ctx.storage.updateExecution(
+        executionId,
+        {
+          status: "error",
+          error: `Step "${result.step_id}" failed: ${String(result.error)}`,
+          completed_at_epoch_ms: Date.now(),
+        },
+        { onlyIfStatus: "running" },
+      );
+      return;
+    }
+  }
+
+  if (completedStepNames.size === steps.length) {
+    log(eid, "all steps done, marking success");
+    await ctx.storage.updateExecution(
+      executionId,
+      {
+        status: "success",
+        output: buildWorkflowOutput(steps, stepOutputs),
+        completed_at_epoch_ms: Date.now(),
+      },
+      { onlyIfStatus: "running" },
+    );
+    return;
+  }
+
+  const readySteps = getReadySteps(steps, completedStepNames, claimedStepNames);
+  if (readySteps.length === 0) return;
+
+  log(eid, `dispatching ${readySteps.length} ready step(s)`);
+  await Promise.all(
+    readySteps.map((step) =>
+      dispatchStep(ctx, executionId, step, workflowInput, stepOutputs).catch(
+        (error: Error) => {
+          console.error(
+            `[WF:orch] Failed to dispatch step ${executionId}/${step.name}:`,
+            error,
+          );
+        },
+      ),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Recovery resolution — resolve incomplete step results from prior crash
+// ---------------------------------------------------------------------------
+
+async function resolveIncompleteStepResults(
+  ctx: OrchestratorContext,
+  executionId: string,
+  steps: Step[],
+  existingResults: ParsedStepResult[],
+): Promise<void> {
+  const eid = executionId.slice(0, 8);
+  const stepsByName = new Map(steps.map((s) => [s.name, s]));
+
+  for (const result of existingResults) {
+    if (result.completed_at_epoch_ms) continue;
+
+    // Extract base step name (strip [N] suffix for iterations)
+    const baseName = result.step_id.replace(/\[\d+\]$/, "");
+    const step = stepsByName.get(baseName);
+
+    if (result.started_at_epoch_ms === null) {
+      // Never started — safe to retry for any step type
+      log(eid, `recovery: deleting never-started step ${result.step_id}`);
+      await ctx.storage.deleteStepResult(executionId, result.step_id);
+    } else if (step && getStepType(step) === "code") {
+      // Code step was executing — pure, safe to retry
+      log(eid, `recovery: deleting interrupted code step ${result.step_id}`);
+      await ctx.storage.deleteStepResult(executionId, result.step_id);
+    } else {
+      // Tool step was executing — may have had side effects, mark as error
+      log(
+        eid,
+        `recovery: marking interrupted tool step ${result.step_id} as error`,
+      );
+      await ctx.storage.updateStepResult(executionId, result.step_id, {
+        error: "Step interrupted by process restart",
+        completed_at_epoch_ms: Date.now(),
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event handlers
+// ---------------------------------------------------------------------------
+
 export async function handleExecutionCreated(
   ctx: OrchestratorContext,
   executionId: string,
 ): Promise<void> {
-  const log = new OrchestratorLog();
   const eid = executionId.slice(0, 8);
-  log.info(`executionCreated ${eid} — claiming`);
+  log(eid, "executionCreated — claiming");
 
   const claimed = await ctx.storage.claimExecution(executionId);
   if (!claimed) {
-    log.info(`executionCreated ${eid} — already claimed, skipping`);
+    log(eid, "executionCreated — already claimed, skipping");
     return;
   }
 
   const { execution, workflow } = claimed;
   const steps = workflow.steps;
 
-  // Check if deadline already passed (e.g. scheduled execution that was delayed)
   const deadlineAtEpochMs = execution.deadline_at_epoch_ms;
   if (deadlineAtEpochMs && Date.now() >= deadlineAtEpochMs) {
-    log.info(`executionCreated ${eid} — deadline already passed, failing`);
+    log(eid, "executionCreated — deadline already passed, failing");
     await ctx.storage.updateExecution(executionId, {
       status: "error",
       error: "Workflow execution exceeded its deadline",
@@ -235,7 +309,6 @@ export async function handleExecutionCreated(
     return;
   }
 
-  // Validate DAG
   const validation = validateNoCycles(steps);
   if (!validation.isValid) {
     await ctx.storage.updateExecution(executionId, {
@@ -246,64 +319,24 @@ export async function handleExecutionCreated(
     return;
   }
 
-  const workflowInput =
-    typeof workflow.input === "string"
-      ? JSON.parse(workflow.input as string)
-      : (workflow.input ?? {});
-
-  // Check for existing step results (recovery case: some steps may already be completed)
+  // Resolve incomplete step results from a prior crash
   const existingResults = await ctx.storage.getStepResults(executionId);
-  const { completedStepNames, claimedStepNames, stepOutputs } =
-    existingResults.length > 0
-      ? buildOrchestrationSets(existingResults)
-      : {
-          completedStepNames: new Set<string>(),
-          claimedStepNames: new Set<string>(),
-          stepOutputs: new Map<string, unknown>(),
-        };
-
-  // Check if workflow is already complete (all steps done from before crash)
-  if (completedStepNames.size === steps.length) {
-    await ctx.storage.updateExecution(
+  if (existingResults.some((r) => !r.completed_at_epoch_ms)) {
+    await resolveIncompleteStepResults(
+      ctx,
       executionId,
-      {
-        status: "success",
-        output: buildWorkflowOutput(steps, stepOutputs),
-        completed_at_epoch_ms: Date.now(),
-      },
-      { onlyIfStatus: "running" },
+      steps,
+      existingResults,
     );
-    return;
   }
 
-  const readySteps = getReadySteps(steps, completedStepNames, claimedStepNames);
-  log.info(
-    `executionCreated ${eid} — dispatching ${readySteps.length} ready step(s)`,
-    {
-      steps: readySteps.map((s) => s.name),
-    },
-  );
-
-  await Promise.all(
-    readySteps.map((step) =>
-      dispatchStep(ctx, executionId, step, workflowInput, stepOutputs).catch(
-        (error: Error) => {
-          console.error(
-            `[ORCHESTRATOR] Failed to dispatch step ${executionId}/${step.name}:`,
-            error,
-          );
-        },
-      ),
-    ),
-  );
-  log.info(`executionCreated ${eid} — dispatch complete`);
+  await advanceExecution(ctx, executionId);
+  log(eid, "executionCreated — done");
 }
 
 /**
- * Handle workflow.step.execute event
- *
- * Claims the step, executes it, persists the result to DB,
- * and publishes a lightweight step.completed notification.
+ * Handle workflow.step.execute event.
+ * Claims the step, executes it, persists the result, publishes step.completed.
  */
 export async function handleStepExecute(
   ctx: OrchestratorContext,
@@ -311,45 +344,38 @@ export async function handleStepExecute(
   stepName: string,
   iterationIndex?: number,
 ): Promise<void> {
-  const log = new OrchestratorLog();
   const isIteration = iterationIndex !== undefined;
   const stepId = isIteration ? `${stepName}[${iterationIndex}]` : stepName;
   const eid = executionId.slice(0, 8);
 
-  log.info(`stepExecute ${eid}/${stepId} — start`);
-
-  // Get execution context (source of truth for inputs, step definitions, etc.)
   const context = await ctx.storage.getExecutionContext(executionId);
   if (!context || context.execution.status !== "running") {
-    log.info(`stepExecute ${eid}/${stepId} — execution not running, skipping`);
+    log(eid, `stepExecute ${stepId} — execution not running, skipping`);
     return;
   }
 
   const steps = context.workflow.steps;
   const step = steps.find((s) => s.name === stepName);
   if (!step) {
-    log.info(`stepExecute ${eid}/${stepId} — step not found in workflow`);
+    log(eid, `stepExecute ${stepId} — step not found`);
     return;
   }
 
-  // Claim step (creates record, returns null if already claimed)
   const claimed = await ctx.storage.createStepResult({
     execution_id: executionId,
     step_id: stepId,
   });
   if (!claimed) {
-    log.info(`stepExecute ${eid}/${stepId} — already claimed, skipping`);
+    log(eid, `stepExecute ${stepId} — already claimed, skipping`);
     return;
   }
 
-  // Resolve input from DB (workflow input + completed step outputs)
+  // Resolve input
   const workflowInput = context.workflow.input ?? {};
   const stepOutputs = buildStepOutputsMap(context.stepResults);
 
   let resolvedInput: Record<string, unknown>;
   if (isIteration && step.forEach?.ref) {
-    // For forEach iterations, resolve the forEach ref to get the items array,
-    // then pass items[iterationIndex] as the @item context
     const { resolved: forEachResolved } = resolveAllRefs(
       { items: step.forEach.ref },
       { workflowInput, stepOutputs },
@@ -372,12 +398,16 @@ export async function handleStepExecute(
     resolvedInput = resolved as Record<string, unknown>;
   }
 
-  // Execute the step
+  // Mark execution start time (distinguishes "claimed" from "executing" for crash recovery)
   const stepType = getStepType(step);
+  await ctx.storage.updateStepResult(executionId, stepId, {
+    started_at_epoch_ms: Date.now(),
+  });
+
   let output: unknown;
   let error: string | undefined;
 
-  log.info(`stepExecute ${eid}/${stepId} — running (${stepType})`);
+  log(eid, `stepExecute ${stepId} — running (${stepType})`);
 
   try {
     if (stepType === "tool") {
@@ -401,32 +431,23 @@ export async function handleStepExecute(
     error = err instanceof Error ? err.message : String(err);
   }
 
-  log.info(
-    `stepExecute ${eid}/${stepId} — done${error ? " (error)" : ""}, publishing step.completed`,
-  );
-
-  // Persist result to DB (source of truth)
   await ctx.storage.updateStepResult(executionId, stepId, {
     output,
     error,
     completed_at_epoch_ms: Date.now(),
   });
 
-  // Publish lightweight notification (no output/error — handlers read from DB)
   await ctx.publish("workflow.step.completed", executionId, {
     stepName,
     iterationIndex,
   });
 
-  log.info(`stepExecute ${eid}/${stepId} — step.completed published`);
+  log(eid, `stepExecute ${stepId} — done${error ? " (error)" : ""}`);
 }
 
 /**
- * Handle workflow.step.completed event
- *
- * This is a notification-only handler. The step result (output/error) has
- * already been persisted to DB by the producer (handleStepExecute).
- * This handler reads the result from DB and orchestrates the next steps.
+ * Handle workflow.step.completed event.
+ * The step result has already been persisted. This handler orchestrates next steps.
  */
 export async function handleStepCompleted(
   ctx: OrchestratorContext,
@@ -434,29 +455,27 @@ export async function handleStepCompleted(
   stepName: string,
   iterationIndex?: number,
 ): Promise<void> {
-  const log = new OrchestratorLog();
   const isIteration = iterationIndex !== undefined;
   const stepId = isIteration ? `${stepName}[${iterationIndex}]` : stepName;
   const eid = executionId.slice(0, 8);
 
-  // 1. Get execution context (includes the already-persisted step result)
   const context = await ctx.storage.getExecutionContext(executionId);
   if (!context) return;
 
-  // Read the step result from DB (source of truth)
   const stepResult = context.stepResults.find((r) => r.step_id === stepId);
   const error = stepResult?.error ? String(stepResult.error) : undefined;
 
-  log.info(`stepCompleted ${eid}/${stepId}${error ? " (error)" : ""}`);
+  log(eid, `stepCompleted ${stepId}${error ? " (error)" : ""}`);
 
   const isWorkflowRunning = context.execution.status === "running";
   const steps = context.workflow.steps;
   const workflowInput = context.workflow.input ?? {};
 
-  // 2. Handle step error
   if (error && isWorkflowRunning) {
     const step = steps.find((s) => s.name === stepName);
-    const onError: OnError = step?.config?.onError ?? "fail";
+    // forEach iterations default to "continue"; regular steps default to "fail"
+    const onError: OnError =
+      step?.config?.onError ?? (isIteration ? "continue" : "fail");
     const shouldContinue = await handleStepError(
       ctx,
       executionId,
@@ -468,14 +487,10 @@ export async function handleStepCompleted(
     if (!shouldContinue) return;
   }
 
-  // 3. Handle forEach iteration completion
   if (isIteration) {
     const step = steps.find((s) => s.name === stepName);
     if (!step?.forEach) return;
 
-    log.info(
-      `stepCompleted ${eid}/${stepId} — forEach iteration, checking concurrency window`,
-    );
     await handleForEachIterationCompletion(
       ctx,
       executionId,
@@ -488,64 +503,14 @@ export async function handleStepCompleted(
     return;
   }
 
-  // 4. Orchestrate next steps
   if (!isWorkflowRunning) return;
 
-  // 4a. Check workflow-level deadline
-  const deadlineAtEpochMs = context.execution.deadline_at_epoch_ms;
-  if (deadlineAtEpochMs && Date.now() >= deadlineAtEpochMs) {
-    log.info(`stepCompleted ${eid}/${stepId} — deadline exceeded, failing`);
-    await ctx.storage.updateExecution(
-      executionId,
-      {
-        status: "error",
-        error: "Workflow execution exceeded its deadline",
-        completed_at_epoch_ms: Date.now(),
-      },
-      { onlyIfStatus: "running" },
-    );
-    return;
-  }
-
-  const { completedStepNames, claimedStepNames, stepOutputs } =
-    buildOrchestrationSets(context.stepResults);
-
-  // 5. Check workflow completion
-  if (completedStepNames.size === steps.length) {
-    log.info(
-      `stepCompleted ${eid}/${stepId} — all steps done, marking success`,
-    );
-    await ctx.storage.updateExecution(
-      executionId,
-      {
-        status: "success",
-        output: buildWorkflowOutput(steps, stepOutputs),
-        completed_at_epoch_ms: Date.now(),
-      },
-      { onlyIfStatus: "running" },
-    );
-    return;
-  }
-
-  // 6. Dispatch ready steps
-  log.info(`stepCompleted ${eid}/${stepId} — dispatching next ready steps`, {
-    completed: completedStepNames.size,
-    total: steps.length,
-  });
-  await dispatchReadySteps(
-    ctx,
-    executionId,
-    steps,
-    completedStepNames,
-    claimedStepNames,
-    workflowInput,
-    stepOutputs,
-  );
+  await advanceExecution(ctx, executionId, context);
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // Internal helpers
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 async function handleStepError(
   ctx: OrchestratorContext,
@@ -581,12 +546,10 @@ async function handleForEachIterationCompletion(
   workflowInput: Record<string, unknown>,
   isWorkflowRunning: boolean,
 ): Promise<void> {
-  const log = new OrchestratorLog();
   const eid = executionId.slice(0, 8);
   const onError: OnError = step.config?.onError ?? "continue";
   const stepOutputs = buildStepOutputsMap(stepResults);
 
-  // Resolve forEach ref to get total items
   const { resolved } = resolveAllRefs(
     { items: step.forEach!.ref },
     { workflowInput, stepOutputs },
@@ -595,14 +558,13 @@ async function handleForEachIterationCompletion(
 
   if (!Array.isArray(items)) {
     console.error(
-      `[ORCHESTRATOR] forEach ref did not resolve to array: ${step.forEach!.ref}`,
+      `[WF:orch] forEach ref did not resolve to array: ${step.forEach!.ref}`,
     );
     return;
   }
 
   const totalIterations = items.length;
 
-  // Get all iteration results for this step
   const iterationResults = await ctx.storage.getStepResultsByPrefix(
     executionId,
     `${stepName}[`,
@@ -613,11 +575,11 @@ async function handleForEachIterationCompletion(
   const failedIterations = completedIterations.filter((r) => r.error);
   const successfulIterations = completedIterations.filter((r) => !r.error);
 
-  log.info(
-    `forEachCompletion ${eid}/${stepName} — ${completedIterations.length}/${totalIterations} done, ${iterationResults.length - completedIterations.length} in-flight`,
+  log(
+    eid,
+    `forEach ${stepName} — ${completedIterations.length}/${totalIterations} done`,
   );
 
-  // Check if all iterations are complete
   if (completedIterations.length === totalIterations) {
     const success = successfulIterations.map((r) => r.output);
     const errors = failedIterations.map((r) => String(r.error));
@@ -630,43 +592,8 @@ async function handleForEachIterationCompletion(
       completed_at_epoch_ms: Date.now(),
     });
 
-    // Continue with normal completion flow
     if (isWorkflowRunning) {
-      // Re-fetch context after updating step result
-      const freshContext = await ctx.storage.getExecutionContext(executionId);
-      if (!freshContext || freshContext.execution.status !== "running") return;
-
-      const {
-        completedStepNames,
-        claimedStepNames,
-        stepOutputs: freshOutputs,
-      } = buildOrchestrationSets(freshContext.stepResults);
-
-      if (completedStepNames.size === freshContext.workflow.steps.length) {
-        await ctx.storage.updateExecution(
-          executionId,
-          {
-            status: "success",
-            output: buildWorkflowOutput(
-              freshContext.workflow.steps,
-              freshOutputs,
-            ),
-            completed_at_epoch_ms: Date.now(),
-          },
-          { onlyIfStatus: "running" },
-        );
-        return;
-      }
-
-      await dispatchReadySteps(
-        ctx,
-        executionId,
-        freshContext.workflow.steps,
-        completedStepNames,
-        claimedStepNames,
-        workflowInput,
-        freshOutputs,
-      );
+      await advanceExecution(ctx, executionId);
     }
     return;
   }
@@ -679,10 +606,6 @@ async function handleForEachIterationCompletion(
     isWorkflowRunning &&
     (onError === "continue" || failedIterations.length === 0);
 
-  log.info(
-    `forEachCompletion ${eid}/${stepName} — concurrency=${concurrency}, inFlight=${inFlightCount}, nextIndex=${nextIndex}, shouldContinue=${shouldContinue}`,
-  );
-
   if (shouldContinue && inFlightCount < concurrency) {
     const slotsAvailable = concurrency - inFlightCount;
     const nextIndices: number[] = [];
@@ -694,9 +617,9 @@ async function handleForEachIterationCompletion(
       nextIndices.push(i);
     }
     if (nextIndices.length > 0) {
-      log.info(
-        `forEachCompletion ${eid}/${stepName} — refilling: dispatching ${nextIndices.length} more iteration(s)`,
-        { indices: nextIndices },
+      log(
+        eid,
+        `forEach ${stepName} — dispatching ${nextIndices.length} more iteration(s)`,
       );
       await Promise.all(
         nextIndices.map((idx) =>
@@ -706,31 +629,8 @@ async function handleForEachIterationCompletion(
           }),
         ),
       );
-    } else {
-      log.info(
-        `forEachCompletion ${eid}/${stepName} — no more iterations to dispatch`,
-      );
     }
   }
-}
-
-async function dispatchReadySteps(
-  ctx: OrchestratorContext,
-  executionId: string,
-  steps: Step[],
-  completedStepNames: Set<string>,
-  claimedStepNames: Set<string>,
-  workflowInput: Record<string, unknown>,
-  stepOutputs: Map<string, unknown>,
-): Promise<void> {
-  const readySteps = getReadySteps(steps, completedStepNames, claimedStepNames);
-  if (readySteps.length === 0) return;
-
-  await Promise.all(
-    readySteps.map((step) =>
-      dispatchStep(ctx, executionId, step, workflowInput, stepOutputs),
-    ),
-  );
 }
 
 async function dispatchStep(
@@ -740,11 +640,9 @@ async function dispatchStep(
   workflowInput: Record<string, unknown>,
   stepOutputs: Map<string, unknown>,
 ): Promise<void> {
-  const log = new OrchestratorLog();
   const eid = executionId.slice(0, 8);
 
   if (isForEachStep(step)) {
-    // Resolve forEach ref to get items array
     const { resolved } = resolveAllRefs(
       { items: step.forEach!.ref },
       { workflowInput, stepOutputs },
@@ -771,14 +669,13 @@ async function dispatchStep(
       return;
     }
 
-    // Claim parent step
     const parentClaimed = await ctx.storage.createStepResult({
       execution_id: executionId,
       step_id: step.name,
     });
     if (!parentClaimed) return;
 
-    // Check for existing iteration results (recovery case: some iterations may already be done)
+    // Check for existing iteration results (recovery case)
     const existingIterations = await ctx.storage.getStepResultsByPrefix(
       executionId,
       `${step.name}[`,
@@ -791,7 +688,7 @@ async function dispatchStep(
       }
     }
 
-    // If all iterations are already completed (crash between iteration completion and parent finalization)
+    // All iterations already completed (crash between iteration completion and parent finalization)
     if (completedIterationIndices.size === items.length) {
       const successResults = existingIterations
         .filter((r) => r.completed_at_epoch_ms && !r.error)
@@ -808,14 +705,12 @@ async function dispatchStep(
         completed_at_epoch_ms: Date.now(),
       });
 
-      // Publish lightweight notification so the orchestrator can continue
       await ctx.publish("workflow.step.completed", executionId, {
         stepName: step.name,
       });
       return;
     }
 
-    // Dispatch iterations that aren't already completed
     const concurrency = step.forEach!.concurrency ?? items.length;
     const pendingIndices: number[] = [];
     for (let i = 0; i < items.length; i++) {
@@ -825,9 +720,9 @@ async function dispatchStep(
     }
 
     const initialBatch = pendingIndices.slice(0, concurrency);
-    log.info(
-      `dispatchStep ${eid}/${step.name} — forEach: ${items.length} items, concurrency=${concurrency}, dispatching batch of ${initialBatch.length}`,
-      { indices: initialBatch },
+    log(
+      eid,
+      `dispatchStep ${step.name} — forEach: ${items.length} items, concurrency=${concurrency}, batch=${initialBatch.length}`,
     );
 
     await Promise.all(
@@ -838,10 +733,7 @@ async function dispatchStep(
         }),
       ),
     );
-    log.info(`dispatchStep ${eid}/${step.name} — forEach batch published`);
   } else {
-    // Regular step dispatch — notification only, handler resolves input from DB
-    log.info(`dispatchStep ${eid}/${step.name} — regular step`);
     await ctx.publish("workflow.step.execute", executionId, {
       stepName: step.name,
     });

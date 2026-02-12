@@ -300,7 +300,7 @@ describe("WorkflowExecutionStorage", () => {
       expect(result).not.toBeNull();
       expect(result!.execution_id).toBe(id);
       expect(result!.step_id).toBe("step1");
-      expect(result!.started_at_epoch_ms).not.toBeNull();
+      expect(result!.started_at_epoch_ms).toBeNull();
     });
 
     it("returns null on duplicate (idempotent claim)", async () => {

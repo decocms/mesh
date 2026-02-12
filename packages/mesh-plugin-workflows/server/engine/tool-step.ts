@@ -91,7 +91,6 @@ export async function executeToolStep(
     );
 
     result = structuredContent ?? content;
-    console.log({ content, structuredContent, result });
 
     if (isError) {
       const errorMessage =

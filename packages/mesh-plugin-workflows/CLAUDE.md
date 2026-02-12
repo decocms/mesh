@@ -83,6 +83,85 @@ Three form fields: ref picker (dropdown of step outputs), operator (is/is not/>/
 - **AWS Step Functions-style Choice state**: extremely verbose, terrible for LLMs to author
 - **Just truthy checks** (`when: "@step.valid"`): too limiting, forces extra "evaluator" code steps for every non-boolean condition
 
+### UX Layering: `when` is the primitive, the UI presents branches
+
+`when` is a per-step engine primitive. But users think in **if/else branches**, not per-step guards. The UI bridges this gap.
+
+**Engine layer**: each step has an optional `when` condition object. Simple, flat, no special DAG nodes.
+
+**UI layer**: presents visual branches and translates them to `when` conditions automatically.
+
+#### How a noob user adds a conditional branch
+
+1. User clicks "Add branch" on a connection between steps
+2. UI shows a form:
+   ```
+   ┌─────────────────────────────────────┐
+   │  Branch condition                   │
+   │                                     │
+   │  If  [Get Order ▾] . [total ▾]     │
+   │      [is greater than ▾] [100]     │
+   │                                     │
+   │  Then → [Apply Discount]            │
+   │  Else → skip to next step           │
+   │                                     │
+   │         [Add Branch]  [Cancel]      │
+   └─────────────────────────────────────┘
+   ```
+3. UI generates: `apply_discount` gets `when: { ref: "@get_order.total", gt: 100 }`
+4. Visual result:
+   ```
+                    ┌─ total > 100 → [Apply Discount] ─┐
+   [Get Order] ─── ◆                                    ├─→ [Finalize]
+                    └─ otherwise ───────────────────────┘
+   ```
+
+The user never sees `when` JSON. They see a diamond (decision point) and form fields.
+
+#### How a noob user adds if/else (two branches)
+
+Same flow, but UI generates **complementary conditions** automatically:
+- `escalate` gets `when: { ref: "@classify.urgent", eq: true }`
+- `standard_queue` gets `when: { ref: "@classify.urgent", neq: true }`
+
+The user only picks the "if" side. The UI auto-generates the "else" condition.
+
+#### How a noob user adds early exit
+
+Right-click step → "Add early exit":
+```
+┌────────────────────────────────────┐
+│  Exit workflow early               │
+│                                    │
+│  If  [Validate ▾] . [ok ▾]        │
+│      [equals ▾] [false]           │
+│                                    │
+│  Exit with:                        │
+│    error = @validate.message       │
+│                                    │
+│         [Add Exit]  [Cancel]       │
+└────────────────────────────────────┘
+```
+
+UI generates a `return` step with the `when` condition. User just filled in a form.
+
+#### The ref picker is critical
+
+The ref picker dropdown must show available step outputs with their fields and types. Without it, even the form is confusing. Sources for field information:
+- `outputSchema` on the step definition (static, always available)
+- Actual execution results from previous runs (dynamic, richer)
+- In recording mode: real tool outputs captured during the conversation
+
+#### Who touches `when` directly?
+
+| Actor | Interacts with `when`? | How |
+|---|---|---|
+| Engine | Yes — evaluates at dispatch time | Reads `when` from step definition |
+| UI (noob user) | No — sees visual branches and forms | UI translates branches → `when` objects |
+| UI (power user) | Optional — can edit JSON directly | Raw step editor / JSON view |
+| LLM (recording mode) | No — just calls tools | `when` added later during template editing |
+| LLM (template editing) | Yes — generates structured JSON | Via `COLLECTION_WORKFLOW_UPDATE` tool call |
+
 ## Early Exit (`return` action) — Planned
 
 ### Problem

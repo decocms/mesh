@@ -1,14 +1,3 @@
-/**
- * Code Step Executor
- *
- * Executes TypeScript code in a QuickJS sandbox.
- * Used for:
- * - Standalone code steps (step.action.code)
- * - transformCode on tool steps (post-processing tool output)
- *
- * Ported from MCP Studio, aligned with apps/mesh/src/sandbox/ implementation.
- */
-
 import { transform } from "sucrase";
 import variant from "@jitl/quickjs-wasmfile-release-sync";
 import {
@@ -22,20 +11,12 @@ import {
 
 import type { StepResult } from "./tool-step";
 
-// ============================================================================
-// QuickJS singleton
-// ============================================================================
-
 let quickJSSingleton: Promise<QuickJSWASMModule> | undefined;
 
 function getQuickJS(): Promise<QuickJSWASMModule> {
   quickJSSingleton ??= newQuickJSWASMModuleFromVariant(variant);
   return quickJSSingleton;
 }
-
-// ============================================================================
-// Value conversion: JS -> QuickJS
-// ============================================================================
 
 function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   switch (typeof value) {
@@ -81,10 +62,6 @@ function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
   }
 }
 
-// ============================================================================
-// Console builtin
-// ============================================================================
-
 function installConsole(ctx: QuickJSContext): { dispose: () => void } {
   const handles: QuickJSHandle[] = [];
 
@@ -120,10 +97,6 @@ function installConsole(ctx: QuickJSContext): { dispose: () => void } {
     },
   };
 }
-
-// ============================================================================
-// Pending jobs helper
-// ============================================================================
 
 function executePendingJobs(ctx: {
   runtime: { executePendingJobs: Function };
@@ -168,10 +141,6 @@ async function resolvePromiseWithJobPump(
   }
 }
 
-// ============================================================================
-// Sandbox runtime
-// ============================================================================
-
 interface SandboxContextOptions extends Intrinsics {
   interruptAfterMs?: number;
 }
@@ -209,10 +178,6 @@ async function createSandboxContext(
   };
 }
 
-// ============================================================================
-// TypeScript transpilation
-// ============================================================================
-
 export function transpileTypeScript(code: string): string {
   const result = transform(code, {
     transforms: ["typescript"],
@@ -221,20 +186,6 @@ export function transpileTypeScript(code: string): string {
   return result.code;
 }
 
-// ============================================================================
-// Public API
-// ============================================================================
-
-/**
- * Execute TypeScript code in a sandboxed QuickJS environment.
- *
- * The code must export a default function:
- *   export default function(input: Input): Output { ... }
- *
- * @param code - TypeScript source code
- * @param input - Input data passed to the default function
- * @param stepName - Step name for logging/identification
- */
 export async function executeCode(
   code: string,
   input: unknown,

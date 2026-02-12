@@ -1,10 +1,3 @@
-/**
- * Crash Recovery Tests
- *
- * Tests the recoverStuckExecutions() flow that runs on server startup
- * to resume workflows that were interrupted by a crash/restart.
- */
-
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import type { Kysely } from "kysely";
 import type { WorkflowDatabase } from "../../storage/types";
@@ -13,13 +6,10 @@ import {
   createTestDb,
   createMockOrchestratorContext,
   makeCodeStep,
+  makeToolStep,
   TEST_ORG_ID,
   TEST_VIRTUAL_MCP_ID,
 } from "../../__tests__/test-helpers";
-
-// ============================================================================
-// Setup
-// ============================================================================
 
 let db: Kysely<WorkflowDatabase>;
 let storage: WorkflowExecutionStorage;
@@ -32,10 +22,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await db.destroy();
 });
-
-// ============================================================================
-// Helpers
-// ============================================================================
 
 const IDENTITY_CODE = "export default function(input) { return input; }";
 
@@ -52,33 +38,22 @@ async function startWorkflow(
   return id;
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
 describe("Crash Recovery (recoverStuckExecutions)", () => {
-  // --------------------------------------------------------------------------
-  // Basic recovery
-  // --------------------------------------------------------------------------
-
   describe("basic recovery", () => {
     it("recovers a running execution with no step results", async () => {
       const executionId = await startWorkflow([
         makeCodeStep("A", IDENTITY_CODE, {}),
       ]);
 
-      // Simulate: execution was claimed (running) but crashed before any steps
       await storage.claimExecution(executionId);
       const execution = await storage.getExecution(executionId, TEST_ORG_ID);
       expect(execution!.status).toBe("running");
 
-      // Recover
       const recovered = await storage.recoverStuckExecutions();
       expect(recovered).toHaveLength(1);
       expect(recovered[0].id).toBe(executionId);
       expect(recovered[0].organization_id).toBe(TEST_ORG_ID);
 
-      // Execution should be back to enqueued
       const afterRecovery = await storage.getExecution(
         executionId,
         TEST_ORG_ID,
@@ -94,13 +69,10 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
         makeCodeStep("B", IDENTITY_CODE, { fromA: "@A" }),
       ]);
 
-      // Simulate crash: claimed but no steps completed
       await storage.claimExecution(executionId);
 
-      // Recover
       await storage.recoverStuckExecutions();
 
-      // Re-publish and drain to completion
       await ctx.publish("workflow.execution.created", executionId);
       await ctx.drainEvents();
 
@@ -128,22 +100,16 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       const recovered = await storage.recoverStuckExecutions();
       expect(recovered).toHaveLength(0);
 
-      // Enqueued stays enqueued
       const enqueued = await storage.getExecution(enqueuedId, TEST_ORG_ID);
       expect(enqueued!.status).toBe("enqueued");
 
-      // Completed stays completed
       const completed = await storage.getExecution(completedId, TEST_ORG_ID);
       expect(completed!.status).toBe("success");
     });
   });
 
-  // --------------------------------------------------------------------------
-  // Recovery with partial progress
-  // --------------------------------------------------------------------------
-
   describe("recovery with partial progress", () => {
-    it("preserves completed steps and clears stale claims", async () => {
+    it("preserves completed steps and resolves stale claims (code steps retried)", async () => {
       const ctx = createMockOrchestratorContext(storage);
 
       const executionId = await startWorkflow([
@@ -152,7 +118,7 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
         makeCodeStep("C", IDENTITY_CODE, { fromB: "@B" }),
       ]);
 
-      // Simulate: A completed, B claimed but crashed
+      // Simulate: A completed, B claimed but never started (started_at_epoch_ms is null)
       await storage.claimExecution(executionId);
       await storage.createStepResult({
         execution_id: executionId,
@@ -163,10 +129,10 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "B",
-        // No completed_at_epoch_ms -- stale claim
+        // No completed_at_epoch_ms — stale claim, started_at_epoch_ms is null
       });
 
-      // Recover
+      // Recover (just resets execution to enqueued, leaves step results intact)
       const recovered = await storage.recoverStuckExecutions();
       expect(recovered).toHaveLength(1);
 
@@ -175,11 +141,14 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       expect(stepA).not.toBeNull();
       expect(stepA!.completed_at_epoch_ms).not.toBeNull();
 
-      // Step B should be cleared (stale claim)
+      // Step B still exists in DB (recovery doesn't delete it anymore)
+      // The orchestrator will resolve it when re-claiming
       const stepB = await storage.getStepResult(executionId, "B");
-      expect(stepB).toBeNull();
+      expect(stepB).not.toBeNull();
+      expect(stepB!.started_at_epoch_ms).toBeNull();
 
       // Re-publish and drain to completion
+      // The orchestrator's resolveIncompleteStepResults will delete B (never started)
       await ctx.publish("workflow.execution.created", executionId);
       await ctx.drainEvents();
 
@@ -194,11 +163,87 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       const completedSteps = stepResults.filter((r) => r.completed_at_epoch_ms);
       expect(completedSteps).toHaveLength(3);
     });
-  });
 
-  // --------------------------------------------------------------------------
-  // ForEach crash recovery
-  // --------------------------------------------------------------------------
+    it("tool step interrupted during execution is marked as error", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      const executionId = await startWorkflow([
+        makeToolStep("send_email", "SEND_EMAIL", { to: "test@example.com" }),
+        makeCodeStep("B", IDENTITY_CODE, { fromA: "@send_email" }),
+      ]);
+
+      // Simulate: execution claimed, tool step claimed AND started executing
+      await storage.claimExecution(executionId);
+      await storage.createStepResult({
+        execution_id: executionId,
+        step_id: "send_email",
+      });
+      // Mark as started (simulates the updateStepResult that happens before tool call)
+      await storage.updateStepResult(executionId, "send_email", {
+        started_at_epoch_ms: Date.now(),
+      });
+
+      // Recover
+      await storage.recoverStuckExecutions();
+
+      // Re-publish — orchestrator should mark the tool step as error (not retry it)
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      const stepResult = await storage.getStepResult(executionId, "send_email");
+      expect(stepResult).not.toBeNull();
+      expect(stepResult!.completed_at_epoch_ms).not.toBeNull();
+      expect(stepResult!.error).toContain("interrupted by process restart");
+
+      // Workflow should fail because the tool step errored
+      const finalExecution = await storage.getExecution(
+        executionId,
+        TEST_ORG_ID,
+      );
+      expect(finalExecution!.status).toBe("error");
+    });
+
+    it("code step interrupted during execution is safely retried", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      const executionId = await startWorkflow([
+        makeCodeStep(
+          "compute",
+          "export default function(input) { return { doubled: 42 }; }",
+          {},
+        ),
+      ]);
+
+      // Simulate: execution claimed, code step claimed AND started executing
+      await storage.claimExecution(executionId);
+      await storage.createStepResult({
+        execution_id: executionId,
+        step_id: "compute",
+      });
+      await storage.updateStepResult(executionId, "compute", {
+        started_at_epoch_ms: Date.now(),
+      });
+
+      // Recover
+      await storage.recoverStuckExecutions();
+
+      // Re-publish — orchestrator should delete the code step result and retry
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      const stepResult = await storage.getStepResult(executionId, "compute");
+      expect(stepResult).not.toBeNull();
+      expect(stepResult!.completed_at_epoch_ms).not.toBeNull();
+      expect(stepResult!.error).toBeNull();
+      expect(stepResult!.output).toEqual({ doubled: 42 });
+
+      const finalExecution = await storage.getExecution(
+        executionId,
+        TEST_ORG_ID,
+      );
+      expect(finalExecution!.status).toBe("success");
+    });
+  });
 
   describe("forEach crash recovery", () => {
     it("recovers a forEach workflow that crashed mid-iteration", async () => {
@@ -225,24 +270,20 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
         output: [1, 2, 3],
         completed_at_epoch_ms: Date.now(),
       });
-      // Parent forEach step claimed
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "process",
-        // No completed_at_epoch_ms -- stale claim
       });
-      // First iteration completed
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "process[0]",
         output: { doubled: 2 },
         completed_at_epoch_ms: Date.now(),
       });
-      // Second iteration claimed but crashed
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "process[1]",
-        // No completed_at_epoch_ms -- stale claim
+        // Stale claim
       });
 
       // Recover
@@ -258,14 +299,17 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       expect(iteration0).not.toBeNull();
       expect(iteration0!.completed_at_epoch_ms).not.toBeNull();
 
-      // Stale claims should be cleared
+      // Stale claims still exist in DB (recovery doesn't delete them anymore)
       const parentStep = await storage.getStepResult(executionId, "process");
-      expect(parentStep).toBeNull();
+      expect(parentStep).not.toBeNull();
+      expect(parentStep!.completed_at_epoch_ms).toBeNull();
 
       const iteration1 = await storage.getStepResult(executionId, "process[1]");
-      expect(iteration1).toBeNull();
+      expect(iteration1).not.toBeNull();
+      expect(iteration1!.completed_at_epoch_ms).toBeNull();
 
       // Re-publish and drain to completion
+      // The orchestrator's resolveIncompleteStepResults will handle the stale claims
       await ctx.publish("workflow.execution.created", executionId);
       await ctx.drainEvents();
 
@@ -289,7 +333,7 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
         ),
       ]);
 
-      // Simulate: produce completed, all iterations completed, but parent step not finalized (crash)
+      // Simulate: produce completed, all iterations completed, but parent step not finalized
       await storage.claimExecution(executionId);
       await storage.createStepResult({
         execution_id: executionId,
@@ -297,12 +341,10 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
         output: [1, 2],
         completed_at_epoch_ms: Date.now(),
       });
-      // Parent forEach step claimed but not completed
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "process",
       });
-      // Both iterations completed
       await storage.createStepResult({
         execution_id: executionId,
         step_id: "process[0]",
@@ -319,9 +361,9 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       // Recover
       await storage.recoverStuckExecutions();
 
-      // Parent claim should be cleared, iterations preserved
+      // Parent claim still exists (recovery doesn't delete step results)
       const parentStep = await storage.getStepResult(executionId, "process");
-      expect(parentStep).toBeNull();
+      expect(parentStep).not.toBeNull();
 
       // Re-publish and drain to completion
       await ctx.publish("workflow.execution.created", executionId);
@@ -335,10 +377,6 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
     });
   });
 
-  // --------------------------------------------------------------------------
-  // Multiple stuck executions
-  // --------------------------------------------------------------------------
-
   describe("multiple stuck executions", () => {
     it("recovers all running executions at once", async () => {
       const ctx = createMockOrchestratorContext(storage);
@@ -346,7 +384,6 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       const id1 = await startWorkflow([makeCodeStep("A", IDENTITY_CODE, {})]);
       const id2 = await startWorkflow([makeCodeStep("B", IDENTITY_CODE, {})]);
 
-      // Both claimed (running)
       await storage.claimExecution(id1);
       await storage.claimExecution(id2);
 
@@ -356,13 +393,11 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       const recoveredIds = recovered.map((r) => r.id).sort();
       expect(recoveredIds).toEqual([id1, id2].sort());
 
-      // Both should be enqueued
       const exec1 = await storage.getExecution(id1, TEST_ORG_ID);
       const exec2 = await storage.getExecution(id2, TEST_ORG_ID);
       expect(exec1!.status).toBe("enqueued");
       expect(exec2!.status).toBe("enqueued");
 
-      // Both can complete
       await ctx.publish("workflow.execution.created", id1);
       await ctx.publish("workflow.execution.created", id2);
       await ctx.drainEvents();
@@ -373,10 +408,6 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       expect(final2!.status).toBe("success");
     });
   });
-
-  // --------------------------------------------------------------------------
-  // No-op when nothing to recover
-  // --------------------------------------------------------------------------
 
   describe("no-op when nothing to recover", () => {
     it("returns empty array when no running executions exist", async () => {

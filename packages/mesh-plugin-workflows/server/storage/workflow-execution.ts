@@ -1,9 +1,3 @@
-/**
- * Workflows Plugin - Workflow Execution Storage
- *
- * Operations for workflow snapshots, executions, and step results.
- */
-
 import type { Kysely, Transaction } from "kysely";
 import type {
   WorkflowDatabase,
@@ -13,10 +7,6 @@ import type {
   ExecutionStatus,
 } from "./types";
 import type { Step } from "@decocms/bindings/workflow";
-
-// ============================================================================
-// Parsed types (JSON fields deserialized)
-// ============================================================================
 
 export interface ParsedWorkflow {
   id: string;
@@ -54,10 +44,6 @@ export interface ExecutionContext {
   stepResults: ParsedStepResult[];
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
 function parseJson(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value === "object") return value;
@@ -89,16 +75,8 @@ function parseStepResult(row: StepResultRow): ParsedStepResult {
   };
 }
 
-// ============================================================================
-// Storage class
-// ============================================================================
-
 export class WorkflowExecutionStorage {
   constructor(private db: Kysely<WorkflowDatabase>) {}
-
-  // --------------------------------------------------------------------------
-  // Workflow snapshots
-  // --------------------------------------------------------------------------
 
   private async _createWorkflow(
     trx: Kysely<WorkflowDatabase> | Transaction<WorkflowDatabase>,
@@ -151,10 +129,6 @@ export class WorkflowExecutionStorage {
 
     return row ? parseWorkflow(row) : null;
   }
-
-  // --------------------------------------------------------------------------
-  // Executions
-  // --------------------------------------------------------------------------
 
   async createExecution(data: {
     organizationId: string;
@@ -485,13 +459,10 @@ export class WorkflowExecutionStorage {
     };
   }
 
-  // --------------------------------------------------------------------------
-  // Step results
-  // --------------------------------------------------------------------------
-
   /**
-   * Create a step result. Uses INSERT ... ON CONFLICT DO NOTHING for idempotency.
+   * Claim a step. Uses INSERT ... ON CONFLICT DO NOTHING for idempotency.
    * Returns the row if we won the race, null if another worker claimed it.
+   * `started_at_epoch_ms` is null — set it right before actual execution.
    */
   async createStepResult(data: {
     execution_id: string;
@@ -505,7 +476,7 @@ export class WorkflowExecutionStorage {
       .values({
         execution_id: data.execution_id,
         step_id: data.step_id,
-        started_at_epoch_ms: Date.now(),
+        started_at_epoch_ms: data.completed_at_epoch_ms ? Date.now() : null,
         completed_at_epoch_ms: data.completed_at_epoch_ms ?? null,
         output: data.output !== undefined ? JSON.stringify(data.output) : null,
         error: data.error !== undefined ? JSON.stringify(data.error) : null,
@@ -634,9 +605,14 @@ export class WorkflowExecutionStorage {
     return rows.map(parseStepResult);
   }
 
-  /**
-   * Get step results by prefix (for forEach iterations).
-   */
+  async deleteStepResult(executionId: string, stepId: string): Promise<void> {
+    await this.db
+      .deleteFrom("workflow_execution_step_result")
+      .where("execution_id", "=", executionId)
+      .where("step_id", "=", stepId)
+      .execute();
+  }
+
   async getStepResultsByPrefix(
     executionId: string,
     prefix: string,
@@ -655,11 +631,10 @@ export class WorkflowExecutionStorage {
   /**
    * Recover stuck executions after a crash/restart.
    *
-   * Finds all executions in "running" status, clears their incomplete
-   * (claimed but not completed) step results, and resets them to "enqueued"
-   * so they can be re-claimed and re-processed.
-   *
-   * Returns the list of recovered execution IDs with their organization IDs.
+   * Resets all "running" executions back to "enqueued". Does NOT touch
+   * step results — the orchestrator resolves incomplete results when it
+   * re-claims the execution (using started_at_epoch_ms to distinguish
+   * "never started" from "started executing").
    */
   async recoverStuckExecutions(): Promise<
     { id: string; organization_id: string }[]
@@ -675,14 +650,6 @@ export class WorkflowExecutionStorage {
 
       const runningIds = running.map((r) => r.id);
 
-      // Bulk delete incomplete step results
-      await trx
-        .deleteFrom("workflow_execution_step_result")
-        .where("execution_id", "in", runningIds)
-        .where("completed_at_epoch_ms", "is", null)
-        .execute();
-
-      // Bulk reset to enqueued
       await trx
         .updateTable("workflow_execution")
         .set({ status: "enqueued", updated_at: Date.now() })

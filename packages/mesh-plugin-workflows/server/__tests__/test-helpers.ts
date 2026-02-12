@@ -1,12 +1,3 @@
-/**
- * Shared Test Utilities for Workflow Plugin Tests
- *
- * Provides:
- * - createTestDb() -- in-memory Kysely instance with migrations
- * - createMockOrchestratorContext() -- mock OrchestratorContext with event capture
- * - makeCodeStep() / makeToolStep() -- helpers to build step definitions
- */
-
 import { Kysely } from "kysely";
 import { BunWorkerDialect } from "kysely-bun-worker";
 import type { WorkflowDatabase } from "../../server/storage/types";
@@ -17,14 +8,6 @@ import { handleWorkflowEvents } from "../../server/events/handler";
 import type { OrchestratorContext } from "../../server/engine/orchestrator";
 import type { Step } from "@decocms/bindings/workflow";
 
-// ============================================================================
-// Database setup
-// ============================================================================
-
-/**
- * Create an in-memory SQLite database with workflow migrations applied.
- * Includes the `organization` table stub for FK constraints.
- */
 export async function createTestDb(): Promise<Kysely<WorkflowDatabase>> {
   const db = new Kysely<WorkflowDatabase>({
     dialect: new BunWorkerDialect({
@@ -61,10 +44,6 @@ export async function createTestDb(): Promise<Kysely<WorkflowDatabase>> {
 
   return db;
 }
-
-// ============================================================================
-// Mock orchestrator context
-// ============================================================================
 
 interface CapturedEvent {
   type: string;
@@ -186,14 +165,6 @@ export function createMockOrchestratorContext(
   return ctx;
 }
 
-// ============================================================================
-// Step builders
-// ============================================================================
-
-/**
- * Build a code step definition.
- * Code steps execute in the QuickJS sandbox without external dependencies.
- */
 export function makeCodeStep(
   name: string,
   code: string,
@@ -208,10 +179,6 @@ export function makeCodeStep(
   } as Step;
 }
 
-/**
- * Build a tool step definition.
- * Tool steps require MCP proxy connections (use mock in tests).
- */
 export function makeToolStep(
   name: string,
   toolName: string,
@@ -235,10 +202,6 @@ export function makeToolStep(
     ...(options?.forEach ? { forEach: options.forEach } : {}),
   } as Step;
 }
-
-// ============================================================================
-// Constants
-// ============================================================================
 
 export const TEST_ORG_ID = "org_test";
 export const TEST_VIRTUAL_MCP_ID = "vmcp_test";
