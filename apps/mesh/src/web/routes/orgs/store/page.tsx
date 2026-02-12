@@ -22,6 +22,7 @@ import {
   WellKnownOrgMCPId,
   type ConnectionCreateData,
 } from "@decocms/mesh-sdk";
+import { PLUGIN_ID as PRIVATE_REGISTRY_PLUGIN_ID } from "mesh-plugin-private-registry/shared";
 import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -47,9 +48,13 @@ export default function StorePage() {
   // tools still appear in the cached array, so the self MCP would incorrectly
   // show up as a registry. Filter it out unless the plugin is actually enabled.
   const selfMcpId = WellKnownOrgMCPId.SELF(org.id);
-  const isPrivateRegistryEnabled = (project.enabledPlugins ?? []).includes(
-    "private-registry",
-  );
+  // When enabledPlugins is null (no explicit config), the server treats all
+  // plugins as visible, so we mirror that by not filtering the self MCP.
+  const enabledPlugins = project.enabledPlugins;
+  const isPrivateRegistryEnabled =
+    enabledPlugins === null ||
+    enabledPlugins === undefined ||
+    enabledPlugins.includes(PRIVATE_REGISTRY_PLUGIN_ID);
 
   const registryConnections = allRegistryConnections.filter((c) => {
     if (c.id !== selfMcpId) return true;
@@ -64,13 +69,16 @@ export default function StorePage() {
     orgId: org.id,
   });
   const { data: registryPluginConfig } = useQuery({
-    queryKey: KEYS.projectPluginConfig(project.id ?? "", "private-registry"),
+    queryKey: KEYS.projectPluginConfig(
+      project.id ?? "",
+      PRIVATE_REGISTRY_PLUGIN_ID,
+    ),
     queryFn: async () => {
       const result = (await selfClient.callTool({
         name: "PROJECT_PLUGIN_CONFIG_GET",
         arguments: {
           projectId: project.id,
-          pluginId: "private-registry",
+          pluginId: PRIVATE_REGISTRY_PLUGIN_ID,
         },
       })) as { structuredContent?: Record<string, unknown> };
       return (result.structuredContent ?? result) as {
