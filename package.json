@@ -6,7 +6,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.0.4",
     "deco-cli": "workspace:*",
-    "knip": "^5.73.4",
+    "knip": "^5.83.1",
     "oxlint": "1.23.0",
     "react": "^19.2.0",
     "typescript": "^5.9.3"
