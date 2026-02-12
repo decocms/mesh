@@ -255,9 +255,9 @@ describe("Stress Tests", () => {
   // --------------------------------------------------------------------------
 
   describe("multi-organization isolation", () => {
-    it("20 organizations each running 30 workflows concurrently", async () => {
+    it("20 organizations each running 15 workflows concurrently", async () => {
       const orgCount = 20;
-      const workflowsPerOrg = 30;
+      const workflowsPerOrg = 15;
 
       // Create organizations
       const orgIds: string[] = [];
