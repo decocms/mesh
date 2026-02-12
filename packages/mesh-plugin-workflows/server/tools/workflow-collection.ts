@@ -99,20 +99,13 @@ export const WORKFLOW_COLLECTION_GET: ServerPluginToolDefinition = {
       return { item: null };
     }
 
-    let steps: unknown[] = [];
-    try {
-      steps = typeof row.steps === "string" ? JSON.parse(row.steps) : row.steps;
-    } catch {
-      steps = [];
-    }
-
     return {
       item: {
         id: row.id,
         title: row.title,
         description: row.description,
         virtual_mcp_id: row.virtual_mcp_id,
-        steps,
+        steps: row.steps,
         created_at: row.created_at,
         updated_at: row.updated_at,
       },
@@ -210,20 +203,13 @@ Example workflow with a step that references the output of another step:
       updated_by: meshCtx.auth.user?.id ?? null,
     });
 
-    let steps: unknown[] = [];
-    try {
-      steps = typeof row.steps === "string" ? JSON.parse(row.steps) : row.steps;
-    } catch {
-      steps = [];
-    }
-
     return {
       item: {
         id: row.id,
         title: row.title,
         description: row.description,
         virtual_mcp_id: row.virtual_mcp_id,
-        steps,
+        steps: row.steps,
         created_at: row.created_at,
         updated_at: row.updated_at,
       },

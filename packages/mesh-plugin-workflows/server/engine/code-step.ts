@@ -178,7 +178,7 @@ async function createSandboxContext(
   };
 }
 
-export function transpileTypeScript(code: string): string {
+function transpileTypeScript(code: string): string {
   const result = transform(code, {
     transforms: ["typescript"],
     disableESTransforms: true,

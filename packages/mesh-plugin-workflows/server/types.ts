@@ -69,6 +69,24 @@ export function requireWorkflowContext(ctx: unknown): WorkflowMeshContext {
 }
 
 // ============================================================================
+// Shared utilities
+// ============================================================================
+
+/**
+ * Safely parse a JSON value that may be a string (from DB) or already parsed.
+ */
+export function parseJson(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+// ============================================================================
 // Plugin storage singleton (set during plugin initialization)
 // ============================================================================
 

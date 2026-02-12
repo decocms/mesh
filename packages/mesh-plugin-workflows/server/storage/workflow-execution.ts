@@ -7,6 +7,7 @@ import type {
   ExecutionStatus,
 } from "./types";
 import type { Step } from "@decocms/bindings/workflow";
+import { parseJson } from "../types";
 
 export interface ParsedWorkflow {
   id: string;
@@ -42,20 +43,6 @@ export interface ExecutionContext {
     virtual_mcp_id: string;
   };
   stepResults: ParsedStepResult[];
-}
-
-function parseJson(value: unknown): unknown {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "object") return value;
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value);
-  } catch (err) {
-    console.warn(
-      `[WorkflowStorage] Failed to parse JSON value: ${String(err)}`,
-    );
-    return value;
-  }
 }
 
 function parseWorkflow(row: WorkflowRow): ParsedWorkflow {

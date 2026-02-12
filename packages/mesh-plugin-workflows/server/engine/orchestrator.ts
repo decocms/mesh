@@ -600,7 +600,6 @@ async function handleForEachIterationCompletion(
     (r) => r.completed_at_epoch_ms,
   );
   const failedIterations = completedIterations.filter((r) => r.error);
-  const successfulIterations = completedIterations.filter((r) => !r.error);
 
   log(
     eid,

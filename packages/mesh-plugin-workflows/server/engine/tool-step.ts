@@ -11,6 +11,7 @@
 
 import { ToolCallActionSchema, type Step } from "@decocms/bindings/workflow";
 import type { WorkflowExecutionStorage } from "../storage/workflow-execution";
+import type { MCPProxy } from "../types";
 import { executeCode } from "./code-step";
 
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -24,22 +25,6 @@ export interface StepResult {
   completedAt?: number;
   output?: unknown;
   error?: string;
-}
-
-/**
- * Minimal MCP proxy interface (subset of Client from @modelcontextprotocol/sdk)
- */
-interface MCPProxy {
-  callTool: (
-    params: { name: string; arguments?: Record<string, unknown> },
-    resultSchema?: unknown,
-    options?: { timeout?: number },
-  ) => Promise<{
-    content?: unknown;
-    structuredContent?: unknown;
-    isError?: boolean;
-  }>;
-  close: () => Promise<void>;
 }
 
 /**

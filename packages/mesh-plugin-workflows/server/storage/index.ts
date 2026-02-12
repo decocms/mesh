@@ -11,9 +11,8 @@ import { WorkflowExecutionStorage } from "./workflow-execution";
 import type { WorkflowDatabase } from "./types";
 
 export * from "./types";
-export { WorkflowCollectionStorage } from "./workflow-collection";
+export { type ParsedWorkflowCollection } from "./workflow-collection";
 export {
-  WorkflowExecutionStorage,
   type ParsedWorkflow,
   type ParsedStepResult,
   type ExecutionContext,

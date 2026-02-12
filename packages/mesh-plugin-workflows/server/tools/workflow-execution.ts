@@ -7,24 +7,11 @@
 import { z } from "zod";
 import { StepSchema } from "@decocms/bindings/workflow";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { requireWorkflowContext, getPluginStorage } from "../types";
+import { requireWorkflowContext, getPluginStorage, parseJson } from "../types";
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-function parseJson(value: string | null | unknown): unknown {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "object") return value;
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-  return value;
-}
 
 function toNumberOrNull(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -208,21 +195,12 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       );
     }
 
-    let steps: unknown[];
-    try {
-      steps =
-        typeof workflowCollection.steps === "string"
-          ? JSON.parse(workflowCollection.steps)
-          : workflowCollection.steps;
-    } catch {
-      steps = [];
-    }
-
     const { id: executionId } = await storage.executions.createExecution({
       organizationId: meshCtx.organization.id,
       virtualMcpId: typedInput.virtual_mcp_id,
       input: typedInput.input,
-      steps: steps as import("@decocms/bindings/workflow").Step[],
+      steps:
+        workflowCollection.steps as import("@decocms/bindings/workflow").Step[],
       startAtEpochMs: typedInput.start_at_epoch_ms,
       workflowCollectionId: typedInput.workflow_collection_id,
       createdBy: meshCtx.auth.user?.id,

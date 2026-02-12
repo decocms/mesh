@@ -10,6 +10,19 @@ import type {
   WorkflowCollectionRow,
   NewWorkflowCollection,
 } from "./types";
+import { parseJson } from "../types";
+
+export interface ParsedWorkflowCollection
+  extends Omit<WorkflowCollectionRow, "steps"> {
+  steps: unknown[];
+}
+
+function parseCollection(row: WorkflowCollectionRow): ParsedWorkflowCollection {
+  return {
+    ...row,
+    steps: (parseJson(row.steps) as unknown[]) ?? [],
+  };
+}
 
 export class WorkflowCollectionStorage {
   constructor(private db: Kysely<WorkflowDatabase>) {}
@@ -41,7 +54,7 @@ export class WorkflowCollectionStorage {
   async getById(
     id: string,
     organizationId: string,
-  ): Promise<WorkflowCollectionRow | null> {
+  ): Promise<ParsedWorkflowCollection | null> {
     const row = await this.db
       .selectFrom("workflow_collection")
       .selectAll()
@@ -49,15 +62,17 @@ export class WorkflowCollectionStorage {
       .where("organization_id", "=", organizationId)
       .executeTakeFirst();
 
-    return row ?? null;
+    return row ? parseCollection(row) : null;
   }
 
-  async create(data: NewWorkflowCollection): Promise<WorkflowCollectionRow> {
-    return await this.db
+  async create(data: NewWorkflowCollection): Promise<ParsedWorkflowCollection> {
+    const row = await this.db
       .insertInto("workflow_collection")
       .values(data)
       .returningAll()
       .executeTakeFirstOrThrow();
+
+    return parseCollection(row);
   }
 
   async update(

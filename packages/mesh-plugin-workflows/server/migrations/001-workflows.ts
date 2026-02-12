@@ -59,7 +59,7 @@ export const migration: ServerPluginMigration = {
       .addColumn("steps", "text", (col) => col.notNull().defaultTo("[]"))
       .addColumn("input", "text")
       .addColumn("virtual_mcp_id", "text", (col) => col.notNull())
-      .addColumn("created_at_epoch_ms", "integer", (col) => col.notNull())
+      .addColumn("created_at_epoch_ms", "bigint", (col) => col.notNull())
       .addColumn("created_by", "text")
       .execute();
 
@@ -89,13 +89,13 @@ export const migration: ServerPluginMigration = {
       .addColumn("input", "text")
       .addColumn("output", "text")
       .addColumn("error", "text")
-      .addColumn("created_at", "integer", (col) => col.notNull())
-      .addColumn("updated_at", "integer", (col) => col.notNull())
-      .addColumn("start_at_epoch_ms", "integer")
-      .addColumn("started_at_epoch_ms", "integer")
-      .addColumn("completed_at_epoch_ms", "integer")
-      .addColumn("timeout_ms", "integer")
-      .addColumn("deadline_at_epoch_ms", "integer")
+      .addColumn("created_at", "bigint", (col) => col.notNull())
+      .addColumn("updated_at", "bigint", (col) => col.notNull())
+      .addColumn("start_at_epoch_ms", "bigint")
+      .addColumn("started_at_epoch_ms", "bigint")
+      .addColumn("completed_at_epoch_ms", "bigint")
+      .addColumn("timeout_ms", "bigint")
+      .addColumn("deadline_at_epoch_ms", "bigint")
       .addColumn("created_by", "text")
       .execute();
 
@@ -130,10 +130,11 @@ export const migration: ServerPluginMigration = {
         col.notNull().references("workflow_execution.id").onDelete("cascade"),
       )
       .addColumn("step_id", "text", (col) => col.notNull())
-      .addColumn("started_at_epoch_ms", "integer")
-      .addColumn("completed_at_epoch_ms", "integer")
+      .addColumn("started_at_epoch_ms", "bigint")
+      .addColumn("completed_at_epoch_ms", "bigint")
       .addColumn("output", "text")
       .addColumn("error", "text")
+      .addColumn("raw_tool_output", "text")
       .execute();
 
     // Composite primary key via unique index
