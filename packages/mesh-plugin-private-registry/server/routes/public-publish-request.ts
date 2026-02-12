@@ -43,7 +43,7 @@ async function acceptsPublishRequests(
     .where("project_plugin_configs.plugin_id", "=", PLUGIN_ID)
     .execute();
 
-  return rows.some((row) => {
+  return rows.some((row: { settings: string | null }) => {
     const rawSettings = row.settings;
     const settings =
       typeof rawSettings === "string"

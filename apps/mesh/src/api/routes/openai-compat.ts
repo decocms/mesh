@@ -10,6 +10,7 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
+import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { toServerClient } from "./proxy";
 import {
   generateText,
@@ -574,13 +575,22 @@ app.post("/:org/v1/chat/completions", async (c) => {
     const created = Math.floor(Date.now() / 1000);
 
     // 9. Handle streaming vs non-streaming
-    // NOTE: Proxy must be created INSIDE each branch to keep it alive for the duration of the operation
+    // NOTE: Client must be created INSIDE each branch to keep it alive for the duration of the operation
     if (request.stream) {
       return streamSSE(c, async (stream) => {
-        // Create proxy inside the streaming callback so it stays alive
-        await using proxy = await ctx.createMCPProxy(connection);
+        // Create client inside the streaming callback so it stays alive
+        // Add streaming support since this branch needs it
+        // Note: No need for await using - client pool manages lifecycle
+        const client = await clientFromConnection(connection, ctx, false);
+        const streamableClient = withStreamingSupport(
+          client,
+          connectionId,
+          connection,
+          ctx,
+          { superUser: false },
+        );
         const llmBinding = LanguageModelBinding.forClient(
-          toServerClient(proxy),
+          toServerClient(streamableClient),
         );
         const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
@@ -713,8 +723,9 @@ app.post("/:org/v1/chat/completions", async (c) => {
       });
     } else {
       // Non-streaming response
-      await using proxy = await ctx.createMCPProxy(connection);
-      const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
+      // Note: No need for await using - client pool manages lifecycle
+      const client = await clientFromConnection(connection, ctx, false);
+      const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
       const provider = createLLMProvider(llmBinding).languageModel(modelId);
 
       const options = buildGenerateOptions(

@@ -14,9 +14,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { Check, Code01, Copy01, X } from "@untitledui/icons";
+import {
+  Check,
+  CheckDone01,
+  Code01,
+  Copy01,
+  Folder,
+  X,
+} from "@untitledui/icons";
 import { useState } from "react";
-import { useDeveloperMode } from "@/web/hooks/use-developer-mode.ts";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 
 interface UserSettingsDialogProps {
   open: boolean;
@@ -31,7 +38,7 @@ export function UserSettingsDialog({
   user,
   userImage,
 }: UserSettingsDialogProps) {
-  const [developerMode, setDeveloperMode] = useDeveloperMode();
+  const [preferences, setPreferences] = usePreferences();
   const [copied, setCopied] = useState(false);
 
   const handleCopyUserId = () => {
@@ -75,32 +82,117 @@ export function UserSettingsDialog({
               </div>
             </div>
 
-            {/* Developer Mode */}
-            <button
-              type="button"
-              onClick={() => setDeveloperMode(!developerMode)}
-              className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
-            >
-              <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
-                  <Code01 size={16} className="text-muted-foreground" />
-                  Developer Mode
-                </Label>
-                <p className="text-xs text-muted-foreground pointer-events-none">
-                  Show technical details like JSON input/output for tool calls
-                </p>
-              </div>
-              <div onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={developerMode}
-                  onCheckedChange={setDeveloperMode}
-                />
-              </div>
-            </button>
+            {/* Preferences */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-foreground">
+                Preferences
+              </h3>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    devMode: !prev.devMode,
+                  }))
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <Code01 size={16} className="text-muted-foreground" />
+                    Developer Mode
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Show technical details like JSON input/output for tool calls
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={preferences.devMode}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({ ...prev, devMode: checked }))
+                    }
+                  />
+                </div>
+              </button>
+            </div>
+
+            {/* Experimental */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-foreground">
+                Experimental
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Experimental features are unstable and may change or stop
+                working at any time.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    experimental_projects: !prev.experimental_projects,
+                  }))
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <Folder size={16} className="text-muted-foreground" />
+                    Projects
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Enable the projects feature in the sidebar
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={preferences.experimental_projects}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        experimental_projects: checked,
+                      }))
+                    }
+                  />
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    experimental_tasks: !prev.experimental_tasks,
+                  }))
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <CheckDone01 size={16} className="text-muted-foreground" />
+                    Tasks
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Enable the tasks feature in the sidebar
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={preferences.experimental_tasks}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        experimental_tasks: checked,
+                      }))
+                    }
+                  />
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border px-5 py-4 flex items-center shrink-0">
+          <div className="border-t border-border px-5 py-4 flex items-center justify-between shrink-0">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -125,6 +217,9 @@ export function UserSettingsDialog({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <span className="text-xs text-muted-foreground/75">
+              v{__MESH_VERSION__}
+            </span>
           </div>
         </div>
       </DialogContent>

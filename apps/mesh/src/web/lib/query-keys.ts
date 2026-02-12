@@ -17,6 +17,7 @@ export const KEYS = {
 
   // Chat store (IndexedDB) queries
   threads: (locator: string) => ["threads", locator] as const,
+  taskThreads: (locator: string) => ["task-threads", locator] as const,
   virtualMcpThreads: (locator: string, virtualMcpId: string) =>
     ["threads", locator, "virtual-mcp", virtualMcpId] as const,
   thread: (locator: string, threadId: string) =>
@@ -175,6 +176,10 @@ export const KEYS = {
 
   // User data
   user: (userId: string) => ["user", userId] as const,
+
+  // Store README fetched from external URL
+  storeReadmeUrl: (readmeUrl: string | null | undefined) =>
+    ["store-readme-url", readmeUrl] as const,
 
   // Remote MCP tools (for store server detail page)
   remoteMcpTools: (remoteUrl: string | null) =>

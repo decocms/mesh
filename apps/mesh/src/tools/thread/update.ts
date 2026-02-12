@@ -11,6 +11,7 @@ import {
   requireAuth,
   requireOrganization,
 } from "../../core/mesh-context";
+import { normalizeThreadForResponse } from "./helpers";
 import { ThreadEntitySchema, ThreadUpdateDataSchema } from "./schema";
 
 /**
@@ -52,7 +53,7 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
     const existing = await ctx.storage.threads.get(id);
 
     // Verify it exists and belongs to the current organization
-    if (!existing || existing.organizationId !== organization.id) {
+    if (!existing || existing.organization_id !== organization.id) {
       throw new Error("Thread not found in organization");
     }
 
@@ -60,14 +61,11 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
       title: data.title,
       description: data.description,
       hidden: data.hidden,
-      updatedBy: userId,
+      updated_by: userId,
     });
 
     return {
-      item: {
-        ...thread,
-        hidden: thread.hidden ?? false,
-      },
+      item: normalizeThreadForResponse(thread),
     };
   },
 });

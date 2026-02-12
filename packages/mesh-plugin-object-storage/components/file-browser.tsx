@@ -8,7 +8,7 @@
 
 import { useState, useRef, lazy, Suspense } from "react";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings";
-import { usePluginContext } from "@decocms/bindings/plugins";
+import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useObjects } from "../hooks/use-objects";
 import {
   getFileName,

@@ -6,6 +6,7 @@
  * - API routes (authenticated and public)
  * - Database migrations
  * - Storage factories
+ * - Event handlers (via the event bus)
  *
  * Server plugins are separate from client plugins to avoid bundling
  * server code into the client bundle.
@@ -52,6 +53,63 @@ export interface ServerPluginContext {
 }
 
 /**
+ * Event handler context provided to plugin event handlers.
+ * Contains the organization ID and a publish function for emitting follow-up events.
+ */
+export interface ServerPluginEventContext {
+  /** Organization ID the events belong to */
+  organizationId: string;
+  /** Connection ID of the SELF MCP for this organization */
+  connectionId: string;
+  /** Publish a follow-up event to the event bus */
+  publish: (
+    type: string,
+    subject: string,
+    data?: Record<string, unknown>,
+    options?: { deliverAt?: string },
+  ) => Promise<void>;
+  /** Create an MCP proxy client for calling tools on a connection */
+  createMCPProxy: (connectionId: string) => Promise<{
+    callTool: (
+      params: { name: string; arguments?: Record<string, unknown> },
+      resultSchema?: unknown,
+      options?: { timeout?: number },
+    ) => Promise<{
+      content?: unknown;
+      structuredContent?: unknown;
+      isError?: boolean;
+    }>;
+    close: () => Promise<void>;
+  }>;
+}
+
+/**
+ * Startup context provided to plugin onStartup hooks.
+ * Contains the database and a publish function for emitting recovery events.
+ */
+export interface ServerPluginStartupContext {
+  /** Database instance */
+  db: Kysely<unknown>;
+  /** Publish an event to the event bus for a given organization */
+  publish: (
+    organizationId: string,
+    event: { type: string; subject: string; data?: Record<string, unknown> },
+  ) => Promise<void>;
+}
+
+/**
+ * Event definition for a CloudEvent received by a plugin.
+ */
+export interface ServerPluginEvent {
+  id: string;
+  type: string;
+  source: string;
+  subject?: string;
+  data?: unknown;
+  time?: string;
+}
+
+/**
  * Server Plugin interface.
  *
  * Plugins export this interface from their server entry point.
@@ -95,6 +153,35 @@ export interface ServerPlugin {
    * Called during context initialization.
    */
   createStorage?: (ctx: ServerPluginContext) => unknown;
+
+  /**
+   * Event handler for this plugin.
+   *
+   * When defined, the system will:
+   * 1. Auto-subscribe the SELF connection to the specified event types per-organization
+   * 2. Route matching events from the event bus to this handler
+   *
+   * Events are durable (persisted in the event bus) with at-least-once delivery.
+   * The handler receives batches of events and a context for publishing follow-up events.
+   */
+  onEvents?: {
+    /** Event type patterns this plugin handles (e.g., "workflow.execution.created") */
+    types: string[];
+    /** Handle a batch of events. Errors are logged but don't affect other plugins. */
+    handler: (
+      events: ServerPluginEvent[],
+      ctx: ServerPluginEventContext,
+    ) => Promise<void> | void;
+  };
+
+  /**
+   * Startup hook called once after the event bus is ready.
+   *
+   * Use this to recover from crashes (e.g., resume stuck workflow executions).
+   * Called after storage is initialized and the event bus worker has started.
+   * Errors are logged but don't prevent other plugins from starting.
+   */
+  onStartup?: (ctx: ServerPluginStartupContext) => Promise<void>;
 }
 
 /**

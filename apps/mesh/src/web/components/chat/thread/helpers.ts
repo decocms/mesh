@@ -34,8 +34,8 @@ export function buildOptimisticThread(id: string): Thread {
   return {
     id,
     title: "New chat", // Empty title until first message generates one
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   };
 }
 

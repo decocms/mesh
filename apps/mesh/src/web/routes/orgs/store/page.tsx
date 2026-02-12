@@ -11,72 +11,27 @@ import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-e
 import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { KEYS } from "@/web/lib/query-keys";
 import {
-  SELF_MCP_ALIAS_ID,
   getWellKnownCommunityRegistryConnection,
   getWellKnownRegistryConnection,
-  useMCPClient,
+  SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnections,
+  useMCPClient,
   useProjectContext,
+  WellKnownOrgMCPId,
   type ConnectionCreateData,
 } from "@decocms/mesh-sdk";
-import { useQuery } from "@tanstack/react-query";
 import { Loading01 } from "@untitledui/icons";
 import { Outlet, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 import { Suspense } from "react";
 
-interface PluginConfigResponse {
-  config: {
-    settings: Record<string, unknown> | null;
-  } | null;
-}
-
-function usePrivateRegistryDisplayConfig() {
-  const { org, project } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const query = useQuery({
-    queryKey: KEYS.projectPluginConfig(project.id ?? "", "private-registry"),
-    queryFn: async () => {
-      const response = (await client.callTool({
-        name: "PROJECT_PLUGIN_CONFIG_GET",
-        arguments: {
-          projectId: project.id,
-          pluginId: "private-registry",
-        },
-      })) as unknown as {
-        structuredContent?: PluginConfigResponse;
-      } & PluginConfigResponse;
-      return (response.structuredContent ?? response) as PluginConfigResponse;
-    },
-    enabled: Boolean(project.id),
-    staleTime: 10_000,
-  });
-
-  const settings = query.data?.config?.settings as Record<
-    string,
-    unknown
-  > | null;
-
-  return {
-    registryName: (settings?.registryName as string | undefined) ?? undefined,
-    registryIcon: (settings?.registryIcon as string | undefined) ?? undefined,
-  };
-}
-
 export default function StorePage() {
-  const { org } = useProjectContext();
+  const { org, project } = useProjectContext();
   const allConnections = useConnections();
   const connectionActions = useConnectionActions();
-  const {
-    registryName: privateRegistryName,
-    registryIcon: privateRegistryIcon,
-  } = usePrivateRegistryDisplayConfig();
 
   // Check if we're viewing a child route (server detail)
   const routerState = useRouterState();
@@ -86,48 +41,51 @@ export default function StorePage() {
 
   // Filter to only show registry connections (those with collections)
   const registryConnections = useRegistryConnections(allConnections);
-  const isPrivateRegistryConnection = (connection: {
-    id: string;
-    metadata?: unknown;
-    tools?: Array<{ name: string }> | null;
-  }) => {
-    const metadata = connection.metadata as Record<string, unknown> | null;
-    return (
-      metadata?.type === "self" &&
-      (connection.tools?.some(
-        (tool) => tool.name === "COLLECTION_REGISTRY_APP_LIST",
-      ) ??
-        false)
-    );
-  };
 
-  // Keep private registry first to avoid defaulting to external registries.
-  const registryConnectionsSorted = [...registryConnections].sort((a, b) => {
-    const aPrivate = isPrivateRegistryConnection(a) ? 1 : 0;
-    const bPrivate = isPrivateRegistryConnection(b) ? 1 : 0;
-    return bPrivate - aPrivate;
+  // Read private-registry plugin config to override self MCP branding in the selector
+  const selfMcpId = WellKnownOrgMCPId.SELF(org.id);
+  const hasSelfMcpRegistry = registryConnections.some(
+    (c) => c.id === selfMcpId,
+  );
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const { data: registryPluginConfig } = useQuery({
+    queryKey: KEYS.projectPluginConfig(project.id ?? "", "private-registry"),
+    queryFn: async () => {
+      const result = (await selfClient.callTool({
+        name: "PROJECT_PLUGIN_CONFIG_GET",
+        arguments: {
+          projectId: project.id,
+          pluginId: "private-registry",
+        },
+      })) as { structuredContent?: Record<string, unknown> };
+      return (result.structuredContent ?? result) as {
+        config?: {
+          settings?: { registryName?: string; registryIcon?: string };
+        };
+      };
+    },
+    enabled: hasSelfMcpRegistry && !!project.id,
+    staleTime: 60_000,
   });
 
-  const registryOptions = registryConnectionsSorted.map((c) => {
-    const metadata = c.metadata as Record<string, unknown> | null | undefined;
-    const connectionType = metadata?.type;
-    const hasRegistryListTool =
-      c.tools?.some((tool) => tool.name === "COLLECTION_REGISTRY_APP_LIST") ??
-      false;
+  const registryBranding = registryPluginConfig?.config?.settings;
 
-    // The self connection powers org private registry, but "Mesh MCP" is confusing in Store selector.
-    const displayName =
-      connectionType === "self" && hasRegistryListTool
-        ? (privateRegistryName ?? "Private Registry")
-        : c.title;
-
+  const registryOptions = registryConnections.map((c) => {
+    // Override branding for the self MCP when private-registry plugin has custom name/icon
+    if (c.id === selfMcpId && registryBranding) {
+      return {
+        id: c.id,
+        name: registryBranding.registryName || c.title,
+        icon: registryBranding.registryIcon || c.icon || undefined,
+      };
+    }
     return {
       id: c.id,
-      name: displayName,
-      icon:
-        connectionType === "self" && hasRegistryListTool
-          ? (privateRegistryIcon ?? c.icon ?? undefined)
-          : (c.icon ?? undefined),
+      name: c.title,
+      icon: c.icon || undefined,
     };
   });
 
@@ -137,20 +95,14 @@ export default function StorePage() {
     (existing) => existing ?? "",
   );
 
-  const selectedRegistry = registryConnectionsSorted.find(
+  const selectedRegistry = registryConnections.find(
     (c) => c.id === selectedRegistryId,
-  );
-  const privateRegistryConnection = registryConnectionsSorted.find(
-    (connection) => isPrivateRegistryConnection(connection),
   );
 
   // If there's only one registry, use it; otherwise use the selected one if it still exists.
   // If not found, that's fine: the connection may have been deleted/changed.
   const effectiveRegistry =
-    selectedRegistry?.id ||
-    privateRegistryConnection?.id ||
-    registryConnectionsSorted[0]?.id ||
-    "";
+    selectedRegistry?.id || registryConnections[0]?.id || "";
 
   // Well-known registries to show in select (hidden/less prominent)
   const wellKnownRegistriesForSelect = [getWellKnownRegistryConnection(org.id)];
@@ -166,7 +118,7 @@ export default function StorePage() {
   };
 
   // Filter out well-known registries that are already added
-  const addedRegistryIds = new Set(registryConnectionsSorted.map((c) => c.id));
+  const addedRegistryIds = new Set(registryConnections.map((c) => c.id));
   const availableWellKnownRegistries = wellKnownRegistriesForSelect.filter(
     (r) => r.id && !addedRegistryIds.has(r.id),
   );

@@ -16,48 +16,58 @@ const UIMessageSchema = z.looseObject({
 
 const MemoryConfigSchema = z.object({
   windowSize: z.number().default(DEFAULT_WINDOW_SIZE),
-  threadId: z.string(),
+  thread_id: z.string(),
 });
 
-export const StreamRequestSchema = z.object({
-  messages: z.array(UIMessageSchema),
-  memory: MemoryConfigSchema.optional(),
-  model: z
+const ProviderSchema = z
+  .enum([
+    "openai",
+    "anthropic",
+    "google",
+    "xai",
+    "deepseek",
+    "openrouter",
+    "openai-compatible",
+  ])
+  .optional()
+  .nullable();
+
+const ModelInfoSchema = z.object({
+  id: z.string(),
+  capabilities: z
     .object({
-      id: z.string(),
-      connectionId: z.string(),
-      fastId: z
-        .string()
-        .optional()
-        .nullable()
-        .describe("ID of a fast/cheap model for background operations"),
-      capabilities: z
-        .object({
-          vision: z.boolean().optional(),
-          text: z.boolean().optional(),
-          tools: z.boolean().optional(),
-        })
-        .optional(),
-      provider: z
-        .enum([
-          "openai",
-          "anthropic",
-          "google",
-          "xai",
-          "deepseek",
-          "openrouter",
-          "openai-compatible",
-        ])
-        .optional()
-        .nullable(),
-      limits: z
-        .object({
-          contextWindow: z.number().optional(),
-          maxOutputTokens: z.number().optional(),
-        })
-        .optional(),
+      vision: z.boolean().optional(),
+      text: z.boolean().optional(),
+      tools: z.boolean().optional(),
     })
-    .loose(),
+    .optional(),
+  provider: ProviderSchema,
+  limits: z
+    .object({
+      contextWindow: z.number().optional(),
+      maxOutputTokens: z.number().optional(),
+    })
+    .optional(),
+});
+
+const ModelsSchema = z
+  .object({
+    connectionId: z.string(),
+    thinking: ModelInfoSchema.describe("Backbone model for the agentic loop"),
+    coding: ModelInfoSchema.optional().describe("Good coding model"),
+    fast: ModelInfoSchema.optional().describe("Cheap model for simple tasks"),
+  })
+  .loose();
+
+export const StreamRequestSchema = z.object({
+  messages: z
+    .array(UIMessageSchema)
+    .min(1)
+    .refine((msgs) => msgs.filter((m) => m.role !== "system").length === 1, {
+      message: "Expected exactly one non-system message",
+    }),
+  memory: MemoryConfigSchema.optional(),
+  models: ModelsSchema,
   agent: z
     .object({
       id: z.string(),

@@ -1,5 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
+  ErrorCode,
+  McpError,
+  type ListResourcesResult,
+  type ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
   useQuery,
   useSuspenseQuery,
   type UseQueryOptions,
@@ -7,10 +13,6 @@ import {
   type UseSuspenseQueryOptions,
   type UseSuspenseQueryResult,
 } from "@tanstack/react-query";
-import type {
-  ListResourcesResult,
-  ReadResourceResult,
-} from "@modelcontextprotocol/sdk/types.js";
 import { KEYS } from "../lib/query-keys";
 
 /**
@@ -24,7 +26,15 @@ export async function listResources(
   if (!capabilities?.resources) {
     return { resources: [] };
   }
-  return await client.listResources();
+
+  try {
+    return await client.listResources();
+  } catch (error) {
+    if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
+      return { resources: [] };
+    }
+    throw error;
+  }
 }
 
 /**

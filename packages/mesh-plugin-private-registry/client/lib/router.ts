@@ -19,22 +19,6 @@ export const privateRegistryRouter = createPluginRouter((ctx) => {
     ),
   });
 
-  const settingsRoute = createRoute({
-    getParentRoute: () => pluginRootRoute,
-    path: "/settings",
-    component: lazyRouteComponent(
-      () => import("../components/registry-settings-page"),
-    ),
-  });
-
-  const testRoute = createRoute({
-    getParentRoute: () => pluginRootRoute,
-    path: "/test",
-    component: lazyRouteComponent(
-      () => import("../components/registry-test-page"),
-    ),
-  });
-
   const detailsRoute = createRoute({
     getParentRoute: () => pluginRootRoute,
     path: "/$itemId",
@@ -43,12 +27,7 @@ export const privateRegistryRouter = createPluginRouter((ctx) => {
     ),
   });
 
-  return [
-    pluginRootRoute.addChildren([
-      itemsRoute,
-      settingsRoute,
-      testRoute,
-      detailsRoute,
-    ]),
-  ];
+  // Settings, Requests and Test pages are rendered as tabs inside
+  // registry-layout.tsx, not as separate routes.
+  return [pluginRootRoute.addChildren([itemsRoute, detailsRoute])];
 });

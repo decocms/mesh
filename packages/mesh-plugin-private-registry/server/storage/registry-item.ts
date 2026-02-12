@@ -6,6 +6,9 @@ import type {
   PrivateRegistryItemEntity,
   PrivateRegistryListQuery,
   PrivateRegistryListResult,
+  PrivateRegistrySearchItem,
+  PrivateRegistrySearchQuery,
+  PrivateRegistrySearchResult,
   PrivateRegistryUpdateInput,
   RegistryItemMeta,
   RegistryWhereExpression,
@@ -172,6 +175,28 @@ export class RegistryItemStorage {
     return row ? this.deserialize(row as RawRow) : null;
   }
 
+  /**
+   * Find a registry item by ID first, then fall back to matching the title.
+   * This allows callers to pass either an exact ID or a human-readable name.
+   */
+  async findByIdOrName(
+    organizationId: string,
+    identifier: string,
+  ): Promise<PrivateRegistryItemEntity | null> {
+    // Try exact ID match first
+    const byId = await this.findById(organizationId, identifier);
+    if (byId) return byId;
+
+    // Fall back to title match
+    const row = await this.db
+      .selectFrom("private_registry_item")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("title", "=", identifier)
+      .executeTakeFirst();
+    return row ? this.deserialize(row as RawRow) : null;
+  }
+
   async update(
     organizationId: string,
     id: string,
@@ -285,38 +310,39 @@ export class RegistryItemStorage {
     organizationId: string,
     query: PrivateRegistryListQuery = {},
   ): Promise<PrivateRegistryListResult> {
-    // Query only public items from database
+    // Query only public items from database, with deterministic ordering
     const rows = await this.db
       .selectFrom("private_registry_item")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("is_public", "=", 1) // Filter for public items at DB level
+      .orderBy("created_at", "desc")
       .execute();
 
     const items = rows.map((row) => this.deserialize(row as RawRow));
 
-    // Apply in-memory filtering (tags, categories, where clause)
-    let filtered = items;
+    // Normalize requested tags/categories (same semantics as `list`)
+    const requestedTags = normalizeStringList(query.tags);
+    const requestedCategories = normalizeStringList(query.categories);
 
-    if (query.tags?.length) {
-      filtered = filtered.filter((item) =>
-        query.tags!.some((tag) =>
-          item._meta?.["mcp.mesh"]?.tags?.includes(tag),
-        ),
-      );
-    }
+    // Apply in-memory filtering (AND semantics, consistent with `list`)
+    const filtered = items.filter((item) => {
+      const meshMeta = getMeshMeta(item._meta);
+      const itemTags = normalizeStringList(meshMeta.tags);
+      const itemCategories = normalizeStringList(meshMeta.categories);
 
-    if (query.categories?.length) {
-      filtered = filtered.filter((item) =>
-        query.categories!.some((cat) =>
-          item._meta?.["mcp.mesh"]?.categories?.includes(cat),
-        ),
-      );
-    }
+      const matchesTags =
+        requestedTags.length === 0 ||
+        requestedTags.every((tag) => itemTags.includes(tag));
+      const matchesCategories =
+        requestedCategories.length === 0 ||
+        requestedCategories.every((category) =>
+          itemCategories.includes(category),
+        );
+      const matchesWhere = evaluateWhere(item, query.where);
 
-    if (query.where) {
-      filtered = filtered.filter((item) => evaluateWhere(item, query.where));
-    }
+      return matchesTags && matchesCategories && matchesWhere;
+    });
 
     // Apply pagination
     const cursorOffset = decodeCursor(query.cursor);
@@ -334,15 +360,23 @@ export class RegistryItemStorage {
     };
   }
 
-  async getFilters(organizationId: string): Promise<{
+  async getFilters(
+    organizationId: string,
+    options?: { publicOnly?: boolean },
+  ): Promise<{
     tags: Array<{ value: string; count: number }>;
     categories: Array<{ value: string; count: number }>;
   }> {
-    const rows = await this.db
+    let query = this.db
       .selectFrom("private_registry_item")
       .select(["tags", "categories"])
-      .where("organization_id", "=", organizationId)
-      .execute();
+      .where("organization_id", "=", organizationId);
+
+    if (options?.publicOnly) {
+      query = query.where("is_public", "=", 1);
+    }
+
+    const rows = await query.execute();
 
     const tagsCount = new Map<string, number>();
     const categoriesCount = new Map<string, number>();
@@ -365,6 +399,100 @@ export class RegistryItemStorage {
       tags: toSortedList(tagsCount),
       categories: toSortedList(categoriesCount),
     };
+  }
+
+  /**
+   * Lightweight search returning minimal fields to save tokens.
+   * Searches across id, title, description, and server name.
+   */
+  async search(
+    organizationId: string,
+    query: PrivateRegistrySearchQuery = {},
+    options?: { publicOnly?: boolean },
+  ): Promise<PrivateRegistrySearchResult> {
+    let dbQuery = this.db
+      .selectFrom("private_registry_item")
+      .select([
+        "id",
+        "title",
+        "description",
+        "meta_json",
+        "server_json",
+        "tags",
+        "categories",
+        "is_public",
+      ])
+      .where("organization_id", "=", organizationId)
+      .orderBy("created_at", "desc");
+
+    if (options?.publicOnly) {
+      dbQuery = dbQuery.where("is_public", "=", 1);
+    }
+
+    const rows = await dbQuery.execute();
+
+    // Text search
+    const searchText = query.query?.trim().toLowerCase();
+    const requestedTags = normalizeStringList(query.tags);
+    const requestedCategories = normalizeStringList(query.categories);
+
+    const filtered = rows.filter((row) => {
+      // Free-text search across id, title, description, server name
+      if (searchText) {
+        const server = safeJsonParse<{ name?: string; description?: string }>(
+          row.server_json,
+          {},
+        );
+        const meta = safeJsonParse<RegistryItemMeta>(row.meta_json, {});
+        const shortDesc = meta?.["mcp.mesh"]?.short_description ?? "";
+        const haystack = [
+          row.id,
+          row.title,
+          row.description ?? "",
+          server.name ?? "",
+          server.description ?? "",
+          shortDesc,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(searchText)) return false;
+      }
+
+      // Tag filter (AND)
+      if (requestedTags.length > 0) {
+        const itemTags = normalizeStringList(csvToList(row.tags));
+        if (!requestedTags.every((tag) => itemTags.includes(tag))) return false;
+      }
+
+      // Category filter (AND)
+      if (requestedCategories.length > 0) {
+        const itemCategories = normalizeStringList(csvToList(row.categories));
+        if (!requestedCategories.every((cat) => itemCategories.includes(cat)))
+          return false;
+      }
+
+      return true;
+    });
+
+    // Pagination
+    const cursorOffset = decodeCursor(query.cursor);
+    const offset = cursorOffset ?? 0;
+    const limit = query.limit ?? 20;
+    const page = filtered.slice(offset, offset + limit);
+    const hasMore = offset + limit < filtered.length;
+    const nextCursor = hasMore ? encodeCursor(offset + limit) : undefined;
+
+    // Project to slim shape
+    const items: PrivateRegistrySearchItem[] = page.map((row) => ({
+      id: row.id,
+      title: row.title,
+      tags: csvToList(row.tags),
+      categories: csvToList(row.categories),
+      is_public: row.is_public === 1,
+    }));
+
+    return { items, totalCount: filtered.length, hasMore, nextCursor };
   }
 
   private deserialize(row: RawRow): PrivateRegistryItemEntity {

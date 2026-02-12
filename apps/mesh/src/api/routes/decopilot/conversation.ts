@@ -4,103 +4,106 @@
  * Handles message processing, memory loading, and conversation state management.
  */
 
-import type { MeshContext } from "@/core/mesh-context";
-import { ChatModelConfig, Metadata } from "@/web/components/chat/types";
+import type { ModelsConfig } from "./types";
 import {
   convertToModelMessages,
+  ModelMessage,
   pruneMessages,
   SystemModelMessage,
-  UIMessage,
   validateUIMessages,
 } from "ai";
-import { HTTPException } from "hono/http-exception";
-import { ensureUser } from "./helpers";
-import { createMemory } from "./memory";
-import type { Memory } from "./types";
+import type { ChatMessage } from "./types";
+import type { Memory } from "./memory";
+
+/**
+ * Split request messages into system and the single request message.
+ * Schema guarantees exactly one non-system message.
+ */
+export function splitRequestMessages(messages: ChatMessage[]): {
+  systemMessages: ChatMessage[];
+  requestMessage: ChatMessage;
+} {
+  const systemMessages = messages.filter((m) => m.role === "system");
+  const requestMessage = messages.find((m) => m.role !== "system")!;
+  return { systemMessages, requestMessage };
+}
 
 export interface ProcessedConversation {
-  memory: Memory;
   systemMessages: SystemModelMessage[];
-  prunedMessages: ReturnType<typeof pruneMessages>;
-  originalMessages: UIMessage<Metadata>[];
+  messages: ReturnType<typeof pruneMessages>;
+  originalMessages: ChatMessage[];
+}
+
+function splitMessages(messages: ModelMessage[]): {
+  systemMessages: Extract<ModelMessage, { role: "system" }>[];
+  messages: Extract<ModelMessage, { role: "user" | "assistant" | "tool" }>[];
+} {
+  const [system, nonSystem] = messages.reduce(
+    (acc, m) => {
+      if (m.role === "system") acc[0].push(m);
+      else acc[1].push(m);
+      return acc;
+    },
+    [[], []] as [
+      Extract<ModelMessage, { role: "system" }>[],
+      Extract<ModelMessage, { role: "user" | "assistant" | "tool" }>[],
+    ],
+  );
+  return {
+    systemMessages: system,
+    messages: nonSystem,
+  };
 }
 
 /**
- * Process messages and create/load memory for the conversation
+ * Process messages for the conversation (memory is created externally)
  */
 export async function processConversation(
-  ctx: MeshContext,
-  config: {
-    organizationId: string;
-    threadId: string | null | undefined;
-    windowSize: number;
-    messages: UIMessage<Metadata>[];
-    systemPrompts: string[];
-    model: ChatModelConfig;
-  },
+  memory: Memory,
+  requestMessage: ChatMessage,
+  systemMessages: ChatMessage[],
+  config: { windowSize: number; models: ModelsConfig },
 ): Promise<ProcessedConversation> {
-  const userId = ensureUser(ctx);
+  // Load thread history
+  const threadMessages = await memory.loadHistory(config.windowSize);
 
-  const modelHasVision = config.model.capabilities?.vision ?? true;
+  // ID-based merge: if incoming message matches a thread message, replace it and drop the rest; else append
+  const matchIndex = threadMessages.findIndex(
+    (m) => m.id === requestMessage.id,
+  );
+  const conversation =
+    matchIndex >= 0
+      ? [...threadMessages.slice(0, matchIndex), requestMessage]
+      : [...threadMessages, requestMessage];
 
-  // Create or load memory
-  const memory = await createMemory(ctx.storage.threads, {
-    organizationId: config.organizationId,
-    threadId: config.threadId,
-    userId,
-    defaultWindowSize: config.windowSize,
+  const allMessages: ChatMessage[] = [...systemMessages, ...conversation];
+
+  const validUIMessages = await validateUIMessages<ChatMessage>({
+    messages: allMessages,
   });
 
-  // Load thread history
-  const threadMessages = await memory.loadHistory();
-
-  const allMessages = [...threadMessages, ...config.messages];
-
-  // Check if messages contain files when model doesn't support vision
-  if (!modelHasVision) {
-    const hasFiles = allMessages.some((message) =>
-      message.parts?.some((part) => part.type === "file"),
-    );
-    if (hasFiles) {
-      throw new HTTPException(400, {
-        message:
-          "This model does not support file uploads. Please change the model and try again.",
-      });
-    }
-  }
-
-  const validatedMessages = await validateUIMessages({ messages: allMessages });
-  const mappedMessages = validatedMessages;
-
   // Convert to model messages
-  const modelMessages = await convertToModelMessages(mappedMessages, {
+  const modelMessages = await convertToModelMessages(validUIMessages, {
     ignoreIncompleteToolCalls: true,
   });
 
-  // Build system messages from prompts + incoming system messages
-  const systemMessages: SystemModelMessage[] = [
-    ...config.systemPrompts.map((content) => ({
-      role: "system" as const,
-      content,
-    })),
-    ...(modelMessages.filter(
-      (m) => m.role === "system",
-    ) as SystemModelMessage[]),
-  ];
+  const {
+    systemMessages: systemModelMessages,
+    messages: nonSystemModelMessages,
+  } = splitMessages(modelMessages);
 
-  // Filter and prune non-system messages
-  const nonSystemMessages = modelMessages.filter((m) => m.role !== "system");
-  const prunedMessages = pruneMessages({
-    messages: nonSystemMessages,
-    reasoning: "before-last-message",
+  // Build system messages from input systemMessages + system from model (thread history)
+  // Filter and prune non-system messages (system messages are SystemModelMessage by construction)
+  const prunedModelMessages = pruneMessages({
+    messages: nonSystemModelMessages,
+    reasoning: "all",
     emptyMessages: "remove",
-    toolCalls: "all",
-  }).slice(-config.windowSize);
+    toolCalls: "none",
+  });
 
   return {
-    memory,
-    systemMessages,
-    prunedMessages,
-    originalMessages: validatedMessages as unknown as UIMessage<Metadata>[],
+    systemMessages: systemModelMessages,
+    messages: prunedModelMessages,
+    originalMessages: validUIMessages,
   };
 }

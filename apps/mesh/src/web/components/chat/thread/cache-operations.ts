@@ -11,7 +11,7 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { KEYS } from "../../../lib/query-keys";
-import type { Message, Thread, ThreadsInfiniteQueryData } from "./types.ts";
+import type { ChatMessage, Thread, ThreadsInfiniteQueryData } from "./types.ts";
 import { THREAD_CONSTANTS } from "./types.ts";
 
 /**
@@ -51,8 +51,8 @@ export function updateThreadInCache(
     const updatedThread: Thread = {
       id: currentThread.id,
       title: updates.title ?? currentThread.title,
-      createdAt: currentThread.createdAt,
-      updatedAt: updates.updatedAt ?? currentThread.updatedAt,
+      created_at: currentThread.created_at,
+      updated_at: updates.updated_at ?? currentThread.updated_at,
       hidden: updates.hidden ?? currentThread.hidden,
     };
     updatedItems[threadIndex] = updatedThread;
@@ -160,7 +160,7 @@ export async function prefetchThreadMessages(
   }
 
   const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
-    filters: [{ column: "threadId", value: threadId }],
+    filters: [{ column: "thread_id", value: threadId }],
     pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
   });
 
@@ -178,13 +178,13 @@ export async function prefetchThreadMessages(
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
   const where = buildWhereExpression(
     undefined,
-    [{ column: "threadId", value: threadId }],
+    [{ column: "thread_id", value: threadId }],
     [],
   );
   const orderBy = buildOrderByExpression(
     undefined,
     undefined,
-    "updated_at" as keyof (CollectionEntity & Message),
+    "updated_at" as keyof (CollectionEntity & ChatMessage),
   );
 
   const toolArguments: CollectionListInput = {
@@ -217,14 +217,14 @@ export function updateMessagesCache(
   client: Client | null,
   orgId: string,
   threadId: string,
-  messages: Message[],
+  messages: ChatMessage[],
 ): void {
   if (!client) {
     return;
   }
 
   const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
-    filters: [{ column: "threadId", value: threadId }],
+    filters: [{ column: "thread_id", value: threadId }],
     pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
   });
 
@@ -237,8 +237,8 @@ export function updateMessagesCache(
   // Use type assertion similar to useThreadMessages since runtime structure works correctly
   queryClient.setQueryData(queryKey, {
     structuredContent: {
-      items: messages as (CollectionEntity & Message)[],
-    } satisfies CollectionListOutput<CollectionEntity & Message>,
+      items: messages as (CollectionEntity & ChatMessage)[],
+    } satisfies CollectionListOutput<CollectionEntity & ChatMessage>,
     isError: false,
   });
 }

@@ -104,67 +104,56 @@ export interface LLMProvider extends ProviderV2 {
 }
 
 /**
- * Convert AI SDK v6 callOptions to LLM binding format.
- * Main differences:
- * - AI SDK v6 tool-call uses `input: object`, binding expects `input: string` (JSON)
- * - AI SDK v6 tool-result uses `output: { type, value }`, binding expects same format
+ * Convert AI SDK callOptions to LLM binding format.
+ *
+ * Strips `providerOptions` from all prompt content parts AND messages.
+ *
+ * Why: the AI SDK multi-step tool loop copies `providerOptions` (including
+ * OpenRouter's encrypted `reasoning_details`) onto every content part AND
+ * onto messages. The downstream OpenRouter provider reads these from both
+ * part-level and message-level providerOptions, accumulates them, and
+ * includes them as `reasoning_details` in the assistant message sent to
+ * the LLM API. Providers like xAI reject these with 422 because their
+ * chat completions endpoint can't deserialize the encrypted reasoning
+ * blobs back.
+ *
+ * The reasoning TEXT content (in `reasoning` type parts) is preserved —
+ * only the provider-specific metadata blobs are stripped. This is a
+ * workaround for the OpenRouter AI SDK provider not properly handling
+ * xAI encrypted reasoning round-trips.
+ *
+ * See: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
  */
 function convertCallOptionsForBinding(
   options: LanguageModelV2CallOptions,
 ): Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"] {
-  const { prompt, ...rest } = options;
+  // Extract prompt and filter out non-serializable fields (abortSignal is used client-side only)
+  const { prompt, abortSignal: _abortSignal, ...rest } = options;
+  // abortSignal is used for cancellation but shouldn't be sent over HTTP/network
 
-  const convertedPrompt = prompt.map((msg) => {
-    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+  const cleanedPrompt = prompt.map((msg) => {
+    if (
+      (msg.role === "assistant" || msg.role === "tool") &&
+      Array.isArray(msg.content)
+    ) {
+      const { providerOptions: _msgOpts, ...msgRest } =
+        msg as unknown as Record<string, unknown>;
       return {
-        ...msg,
-        content: msg.content.map((part) => {
-          if (part.type === "tool-call" && typeof part.input !== "string") {
-            // AI SDK v6 passes input as object, binding expects string
-            return {
-              ...part,
-              input: JSON.stringify(part.input),
-            };
-          }
-          return part;
-        }),
-      };
-    }
-    if (msg.role === "tool" && Array.isArray(msg.content)) {
-      return {
-        ...msg,
-        content: msg.content.map((part) => {
-          if (part.type === "tool-result") {
-            // Ensure output is in the correct format { type: "text", value: string }
-            const output = (part as { output?: unknown }).output;
-            let formattedOutput = output;
-            if (!output || typeof output !== "object") {
-              // If no output or not an object, wrap in text format
-              formattedOutput = {
-                type: "text",
-                value:
-                  typeof output === "string"
-                    ? output
-                    : JSON.stringify(output ?? ""),
-              };
-            }
-            return {
-              ...part,
-              output: formattedOutput,
-              result: (part as { result?: unknown }).result,
-            };
-          }
-          return part;
-        }),
+        ...msgRest,
+        content: (msg.content as unknown as Record<string, unknown>[]).map(
+          ({ providerOptions: _partOpts, ...part }) => part,
+        ),
       };
     }
     return msg;
   });
 
-  return {
+  const result = {
     ...rest,
-    prompt: convertedPrompt,
+    prompt: cleanedPrompt,
   } as Parameters<LLMBindingClient["LLM_DO_GENERATE"]>[0]["callOptions"];
+
+  return result;
 }
 
 /**
@@ -220,16 +209,19 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
           };
         },
         doStream: async (options: LanguageModelV2CallOptions) => {
+          const convertedOptions = convertCallOptionsForBinding(
+            options,
+          ) as Parameters<LLMBindingClient["LLM_DO_STREAM"]>[0]["callOptions"];
+
           const response = await binding.LLM_DO_STREAM({
-            callOptions: convertCallOptionsForBinding(options) as Parameters<
-              LLMBindingClient["LLM_DO_STREAM"]
-            >[0]["callOptions"],
+            callOptions: convertedOptions,
             modelId,
           });
 
           if (!response.ok) {
+            const errorText = await response.text();
             throw new Error(
-              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${await response.text()}`,
+              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${errorText}`,
             );
           }
 

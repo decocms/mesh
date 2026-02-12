@@ -23,11 +23,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp";
-import {
-  ModelChangePayload,
-  ModelSelector,
-  SelectedModelState,
-} from "@/web/components/chat";
+import type { ChatModelsConfig } from "@/web/components/chat/types";
+import { ModelChangePayload, ModelSelector } from "@/web/components/chat";
 
 interface McpConfigurationFormProps {
   formState: Record<string, unknown>;
@@ -392,6 +389,19 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
     }
 
     if (bindingType === "@deco/language-model") {
+      const fieldData = formContextFieldData ?? formData;
+      const valueObj = (fieldData as { value?: unknown })?.value;
+      const selectedModel =
+        valueObj &&
+        typeof valueObj === "object" &&
+        "connectionId" in valueObj &&
+        "id" in valueObj
+          ? ({
+              connectionId: (valueObj as { connectionId: string }).connectionId,
+              thinking: { id: (valueObj as { id: string }).id },
+            } satisfies ChatModelsConfig)
+          : undefined;
+
       return (
         <div className="flex items-center gap-3 justify-between">
           <div className="flex-1 min-w-0">
@@ -405,9 +415,7 @@ function CustomObjectFieldTemplate(props: ObjectFieldTemplateProps) {
             )}
           </div>
           <ModelSelector
-            selectedModel={
-              currentValue as unknown as SelectedModelState | undefined
-            }
+            selectedModel={selectedModel}
             onModelChange={handleModelChange}
             variant="bordered"
             placeholder="Select Language Model"

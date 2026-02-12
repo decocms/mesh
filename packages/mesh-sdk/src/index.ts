@@ -138,6 +138,16 @@ export {
   type OAuthWindowMode,
 } from "./lib/mcp-oauth";
 
+// Usage utilities
+export {
+  getCostFromUsage,
+  emptyUsageStats,
+  addUsage,
+  calculateUsageStats,
+  type UsageData,
+  type UsageStats,
+} from "./lib/usage";
+
 // Constants and well-known MCP definitions
 export {
   // Frontend self MCP ID

@@ -48,7 +48,7 @@ function groupThreadsByDate(threads: Thread[]): ThreadSection[] {
   const olderThreads: Thread[] = [];
 
   for (const thread of threads) {
-    const date = new Date(thread.updatedAt);
+    const date = new Date(thread.updated_at);
     if (date >= today) {
       todayThreads.push(thread);
     } else if (date >= yesterday) {
@@ -238,7 +238,7 @@ export function ThreadHistoryPopover({
                                 {isActive
                                   ? "current"
                                   : section.showRelativeTime
-                                    ? formatRelativeTime(thread.updatedAt)
+                                    ? formatRelativeTime(thread.updated_at)
                                     : null}
                               </span>
                             </div>

@@ -1,16 +1,17 @@
 import { Hono } from "hono";
 import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
-import type { Kysely } from "kysely";
-import { withRuntime, createTool } from "@decocms/runtime";
+import { withRuntime } from "@decocms/runtime";
+import { createTool } from "@decocms/runtime/tools";
 import { z } from "zod";
 import { RegistryItemStorage } from "../storage/registry-item";
-import type { PrivateRegistryDatabase } from "../storage/types";
 import {
   RegistryListInputSchema,
   RegistryListOutputSchema,
   RegistryGetInputSchema,
   RegistryGetOutputSchema,
   RegistryFiltersOutputSchema,
+  RegistrySearchInputSchema,
+  RegistrySearchOutputSchema,
 } from "../tools/schema";
 
 /**
@@ -46,7 +47,7 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
       if (!identifier) {
         return { item: null };
       }
-      const item = await storage.findById(orgId, identifier);
+      const item = await storage.findByIdOrName(orgId, identifier);
       // Only return if public
       if (item && item.is_public) {
         return { item };
@@ -67,12 +68,24 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
       if (!identifier) {
         return { versions: [] };
       }
-      const item = await storage.findById(orgId, identifier);
+      const item = await storage.findByIdOrName(orgId, identifier);
       // Only return if public
       if (item && item.is_public) {
         return { versions: [item] };
       }
       return { versions: [] };
+    },
+  });
+
+  const SEARCH_TOOL = createTool({
+    id: "COLLECTION_REGISTRY_APP_SEARCH",
+    description:
+      "Search public registry items returning minimal data (id, title, tags, categories, is_public). " +
+      "Use this instead of LIST when you need to find items efficiently without loading full details.",
+    inputSchema: RegistrySearchInputSchema,
+    outputSchema: RegistrySearchOutputSchema,
+    execute: async ({ context }) => {
+      return await storage.search(orgId, context, { publicOnly: true });
     },
   });
 
@@ -82,11 +95,11 @@ function createPublicMCPTools(storage: RegistryItemStorage, orgId: string) {
     inputSchema: z.object({}),
     outputSchema: RegistryFiltersOutputSchema,
     execute: async () => {
-      return await storage.getFilters(orgId);
+      return await storage.getFilters(orgId, { publicOnly: true });
     },
   });
 
-  return [LIST_TOOL, GET_TOOL, VERSIONS_TOOL, FILTERS_TOOL];
+  return [LIST_TOOL, SEARCH_TOOL, GET_TOOL, VERSIONS_TOOL, FILTERS_TOOL];
 }
 
 /**
@@ -154,7 +167,16 @@ export function publicMCPServerRoutes(
           : undefined,
     });
 
-    // Forward request to MCP server
-    return await mcpServer.fetch(newRequest, { organizationId: org.id, db }, c);
+    // Forward request to MCP server with a minimal env that satisfies DefaultEnv.
+    // This is a public endpoint (no Mesh proxy), so we provide stub values for
+    // the required fields that are only used by authenticated/internal flows.
+    const env = {
+      organizationId: org.id,
+      db,
+      MESH_REQUEST_CONTEXT: {} as never,
+      MESH_APP_DEPLOYMENT_ID: "public-registry",
+      IS_LOCAL: false,
+    };
+    return await mcpServer.fetch(newRequest, env, c);
   });
 }

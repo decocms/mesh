@@ -2,6 +2,7 @@ import { useDeferredValue, useRef, useState } from "react";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -140,11 +141,9 @@ export default function RegistryItemsPage() {
     try {
       if ("data" in payload) {
         await updateMutation.mutateAsync(payload);
-        await Promise.all([itemsQuery.refetch(), filtersQuery.refetch()]);
         toast.success("Registry item updated");
       } else {
         await createMutation.mutateAsync(payload);
-        await Promise.all([itemsQuery.refetch(), filtersQuery.refetch()]);
         toast.success("Registry item created");
       }
     } catch (error) {
@@ -184,7 +183,7 @@ export default function RegistryItemsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`${toolbarButtonClass} gap-1.5`}
+                  className={cn(toolbarButtonClass, "gap-1.5")}
                 >
                   <FilterLines size={14} />
                   Filters

@@ -4,6 +4,22 @@ import { Loading01 } from "@untitledui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
+import { KEYS } from "@/web/lib/query-keys";
+
+import DOMPurify from "dompurify";
+
+/**
+ * Sanitize HTML generated from markdown to prevent XSS.
+ * Uses DOMPurify which handles all known bypass vectors including
+ * unquoted event handlers, SVG/MathML payloads, and style injection.
+ */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["style", "form"],
+    FORBID_ATTR: ["style"],
+  });
+}
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
 import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
@@ -46,11 +62,13 @@ export function MCPServerTabsContent({
   const hasEmbeddedReadme = Boolean(data.readmeMarkdown?.trim());
   const hasReadmeUrl = Boolean(data.readmeUrl?.trim());
   const embeddedReadmeHtml = hasEmbeddedReadme
-    ? (marked.parse(data.readmeMarkdown ?? "", { async: false }) as string)
+    ? sanitizeHtml(
+        marked.parse(data.readmeMarkdown ?? "", { async: false }) as string,
+      )
     : null;
 
   const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
-    queryKey: ["store-readme-url", data.readmeUrl],
+    queryKey: KEYS.storeReadmeUrl(data.readmeUrl),
     queryFn: async () => {
       if (!data.readmeUrl) return null;
       const response = await fetch(data.readmeUrl);
@@ -58,7 +76,7 @@ export function MCPServerTabsContent({
         throw new Error(`Failed to fetch README (${response.status})`);
       }
       const markdown = await response.text();
-      return marked.parse(markdown, { async: false }) as string;
+      return sanitizeHtml(marked.parse(markdown, { async: false }) as string);
     },
     enabled: hasReadmeUrl && !hasEmbeddedReadme,
     staleTime: 60 * 60 * 1000,

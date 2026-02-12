@@ -391,8 +391,8 @@ async function testSingleItem(args: {
         `  [testSingleItem] Testing ${tools.length} tools (mode=${args.testConfig.testMode})...`,
       );
       for (let i = 0; i < tools.length; i++) {
-        const tool = tools[i];
-        if (args.signal.aborted) throw new Error("Run cancelled");
+        const tool = tools[i]!;
+        if (!tool || args.signal.aborted) throw new Error("Run cancelled");
         log(
           `  [testSingleItem]   Tool ${i + 1}/${tools.length}: "${tool.name}"`,
         );
@@ -588,8 +588,8 @@ async function runTestLoop(args: {
   let skipped = 0;
 
   for (let idx = 0; idx < items.length; idx++) {
-    const item = items[idx];
-    if (args.signal.aborted) {
+    const item = items[idx]!;
+    if (!item || args.signal.aborted) {
       logWarn("Run cancelled by user");
       await storage.testRuns.update(args.organizationId, args.runId, {
         status: "cancelled",

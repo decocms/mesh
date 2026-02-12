@@ -9,7 +9,7 @@
   "exports": {
     "./shared": "./shared.ts",
     "./server": "./server/index.ts",
-    "./client": "./client/index.ts"
+    "./client": "./client/index.tsx"
   },
   "dependencies": {
     "@decocms/bindings": "workspace:*",
@@ -18,7 +18,7 @@
     "@deco/ui": "workspace:*",
     "@modelcontextprotocol/sdk": "1.25.3",
     "@tanstack/react-query": "5.90.11",
-    "ai": "^6.0.1",
+    "@untitledui/icons": "^0.0.19",
     "hono": "^4.7.10",
     "kysely": "^0.27.5",
     "sonner": "^2.0.7",
@@ -26,7 +26,6 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "kysely-bun-worker": "^0.6.0",
     "typescript": "^5.8.3"
   },
   "peerDependencies": {

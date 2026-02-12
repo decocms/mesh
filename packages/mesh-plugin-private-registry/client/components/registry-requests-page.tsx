@@ -132,7 +132,7 @@ export default function RegistryRequestsPage() {
       await reviewMutation.mutateAsync({
         id: approvingRequest.id,
         status: "approved",
-        reviewerNotes: null,
+        reviewerNotes: undefined,
       });
       toast.success("Request approved and saved to registry");
       setApproveOpen(false);
@@ -151,7 +151,7 @@ export default function RegistryRequestsPage() {
       await reviewMutation.mutateAsync({
         id: rejectingRequest.id,
         status: "rejected",
-        reviewerNotes: rejectNotes.trim() || null,
+        reviewerNotes: rejectNotes.trim() || undefined,
       });
       toast.success("Request rejected");
       setRejectingRequest(null);

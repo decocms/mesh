@@ -32,11 +32,15 @@ export interface ThreadStoragePort {
     createdBy?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }>;
-  // Message operations
+  // Message operations - upserts by id (updates existing rows)
   saveMessages(data: ThreadMessage[]): Promise<void>;
   listMessages(
     threadId: string,
-    options?: { limit?: number; offset?: number },
+    options?: {
+      limit?: number;
+      offset?: number;
+      sort?: "asc" | "desc";
+    },
   ): Promise<{ messages: ThreadMessage[]; total: number }>;
 }
 
@@ -142,6 +146,7 @@ export interface MonitoringStorage {
   query(filters: {
     organizationId?: string;
     connectionId?: string;
+    excludeConnectionIds?: string[];
     virtualMcpId?: string;
     toolName?: string;
     isError?: boolean;

@@ -47,7 +47,7 @@ export interface ServerClient {
     callTool: Client["callTool"];
     listTools: () => Promise<ListToolsResult>;
   };
-  callStreamableTool: (
+  callStreamableTool?: (
     tool: string,
     args: Record<string, unknown>,
     signal?: AbortSignal,

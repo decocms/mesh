@@ -219,6 +219,30 @@ export interface PrivateRegistryListResult {
   nextCursor?: string;
 }
 
+/** Slim projection returned by the search tool to save tokens. */
+export interface PrivateRegistrySearchItem {
+  id: string;
+  title: string;
+  tags: string[];
+  categories: string[];
+  is_public: boolean;
+}
+
+export interface PrivateRegistrySearchQuery {
+  query?: string;
+  tags?: string[];
+  categories?: string[];
+  limit?: number;
+  cursor?: string;
+}
+
+export interface PrivateRegistrySearchResult {
+  items: PrivateRegistrySearchItem[];
+  totalCount: number;
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
 export interface PublishRequestEntity {
   id: string;
   organization_id: string;

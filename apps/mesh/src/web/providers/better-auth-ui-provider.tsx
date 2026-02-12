@@ -10,6 +10,7 @@ export function BetterAuthUIProvider({ children }: PropsWithChildren) {
   return (
     <AuthUIProvider
       authClient={authClient}
+      redirectTo="/"
       organization={{
         basePath: "/",
         pathMode: "slug",

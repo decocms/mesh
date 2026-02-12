@@ -8,20 +8,28 @@ interface UseImageUploadResult {
 }
 
 /**
- * Hook for uploading images to object storage
+ * Hook for uploading images to object storage.
  *
- * @param connectionId - Optional connection ID for object storage (defaults to dev-assets)
+ * In development the hook falls back to the dev-assets MCP when no
+ * connectionId is supplied. In production an explicit connectionId is
+ * required — uploads will fail gracefully with a toast when it is missing.
+ *
+ * @param connectionId - Connection ID for the object-storage MCP
  * @returns Upload function and loading state
  */
 export function useImageUpload(connectionId?: string): UseImageUploadResult {
   const { org } = useProjectContext();
   const [isUploading, setIsUploading] = useState(false);
 
-  // Use dev-assets in development, or provided connection ID
-  const storageConnectionId = connectionId || `${org.id}_dev-assets`;
+  // dev-assets is only available when the server runs in development mode.
+  // In production the caller must supply an explicit connectionId.
+  const isDev =
+    typeof window !== "undefined" && window.location.hostname === "localhost";
+  const storageConnectionId =
+    connectionId || (isDev ? `${org.id}_dev-assets` : null);
 
   const client = useMCPClient({
-    connectionId: storageConnectionId,
+    connectionId: storageConnectionId ?? "noop",
     orgId: org.id,
   });
 
@@ -29,6 +37,13 @@ export function useImageUpload(connectionId?: string): UseImageUploadResult {
     file: File,
     path: string,
   ): Promise<string | null> => {
+    if (!storageConnectionId) {
+      toast.error(
+        "Image upload requires an object-storage connection. Configure one in plugin settings.",
+      );
+      return null;
+    }
+
     if (!file.type.startsWith("image/")) {
       toast.error("Only image files are supported");
       return null;

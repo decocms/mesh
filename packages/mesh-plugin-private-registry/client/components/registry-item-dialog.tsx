@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,6 @@ import {
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import {
   AlertCircle,
   ArrowLeft,
@@ -565,22 +565,30 @@ export function RegistryItemDialog({
     }
   };
 
+  /* ── discover tools from step 1 ── */
+  const discoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDiscoveredUrlRef = useRef<string>("");
+  // Keep a ref to remoteType so the debounced callback always reads the latest value
+  const remoteTypeRef = useRef(remoteType);
+  remoteTypeRef.current = remoteType;
+
   const handleOpenChange = (next: boolean) => {
+    // Clear any pending discover timer when the dialog closes
+    if (!next && discoverTimerRef.current) {
+      clearTimeout(discoverTimerRef.current);
+      discoverTimerRef.current = null;
+    }
     onOpenChange(next);
     if (!next) {
       resetForm();
     }
   };
 
-  /* ── discover tools from step 1 ── */
-  const discoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastDiscoveredUrlRef = useRef<string>("");
-
   const handleDiscoverTools = async () => {
     const url = normalizeRemoteUrl(remoteHost);
     if (!url) return;
     lastDiscoveredUrlRef.current = url;
-    const discovered = await discover(url, remoteType);
+    const discovered = await discover(url, remoteTypeRef.current);
     if (discovered) {
       setTools(discovered);
     }
@@ -596,7 +604,7 @@ export function RegistryItemDialog({
     if (!host.includes(".")) return;
     discoverTimerRef.current = setTimeout(async () => {
       lastDiscoveredUrlRef.current = url;
-      const discovered = await discover(url, remoteType);
+      const discovered = await discover(url, remoteTypeRef.current);
       if (discovered) {
         setTools(discovered);
       }
@@ -1221,11 +1229,12 @@ export function RegistryItemDialog({
             <button
               key={mode}
               type="button"
-              className={`px-2.5 py-1 text-xs rounded-md ${
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md",
                 readmeMode === mode
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground"
-              }`}
+                  : "text-muted-foreground",
+              )}
               onClick={() => setReadmeMode(mode)}
             >
               {mode === "link"

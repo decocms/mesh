@@ -16,7 +16,6 @@
     "apps/mesh": {
       "entry": [
         "src/cli.ts",
-        "src/web/index.tsx!",
         "migrations/**/*.ts",
         "scripts/**/*.ts",
         // Dev-only module loaded via require() - needs explicit entry
@@ -26,6 +25,13 @@
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
+    },
+    "packages/mesh-plugin-private-registry": {
+      "entry": ["client/index.tsx", "server/index.ts", "shared.ts"],
+      "ignore": [
+        // Plugin router is loaded dynamically by the Mesh plugin system
+        "client/lib/router.ts"
+      ]
     }
   },
   "ignoreDependencies": ["@types/*"],

@@ -62,3 +62,7 @@ deploy/test*
 
 # Data Test files
 apps/benchmark/data
+
+# AI planning files
+plans
+.cursor/plans

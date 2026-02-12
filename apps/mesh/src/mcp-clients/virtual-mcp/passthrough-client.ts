@@ -6,7 +6,9 @@
  * Also supports virtual tools (JavaScript code defined on the Virtual MCP).
  */
 
-import { MCPProxyClient } from "@/api/routes/proxy";
+import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
+import { clientFromConnection } from "@/mcp-clients";
+import { fallbackOnMethodNotFoundError } from "@/mcp-clients/utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   type CallToolRequest,
@@ -27,11 +29,11 @@ import type { MeshContext } from "../../core/mesh-context";
 import { runCode, type ToolHandler } from "../../sandbox/index";
 import type { ToolWithConnection } from "../../tools/code-execution/utils";
 import type { ConnectionEntity } from "../../tools/connection/schema";
-import type { VirtualMCPConnection } from "../../tools/virtual/schema";
 import {
   getVirtualToolCode,
   type VirtualToolDefinition,
 } from "../../tools/virtual-tool/schema";
+import type { VirtualMCPConnection } from "../../tools/virtual/schema";
 import type { VirtualClientOptions } from "./types";
 
 interface Cache<T> {
@@ -52,22 +54,22 @@ interface ResourceCache extends Cache<Resource> {}
 interface PromptCache extends Cache<Prompt> {}
 
 /**
- * Create a map of connection ID to proxy entry
+ * Create a map of connection ID to client entry
  *
- * Creates proxies for all connections in parallel, filtering out failures
+ * Creates clients for all connections in parallel, filtering out failures
  */
-async function createProxyMap(
+async function createClientMap(
   connections: ConnectionEntity[],
   ctx: MeshContext,
-): Promise<Map<string, MCPProxyClient>> {
-  const proxyResults = await Promise.all(
+): Promise<Map<string, Client>> {
+  const clientResults = await Promise.all(
     connections.map(async (connection) => {
       try {
-        const proxy = await ctx.createMCPProxy(connection);
-        return [connection.id, proxy] as const;
+        const client = await clientFromConnection(connection, ctx, false);
+        return [connection.id, client] as const;
       } catch (error) {
         console.warn(
-          `[aggregator] Failed to create proxy for connection ${connection.id}:`,
+          `[aggregator] Failed to create client for connection ${connection.id}:`,
           error,
         );
         return null;
@@ -75,18 +77,16 @@ async function createProxyMap(
     }),
   );
 
-  return new Map(proxyResults.filter((result) => !!result));
+  return new Map(clientResults.filter((result) => !!result));
 }
 
 /**
- * Dispose of all proxies in a map
- * Closes all proxies in parallel, ignoring errors
+ * Dispose of all clients in a map
+ * Closes all clients in parallel, ignoring errors
  */
-async function disposeProxyMap(
-  proxyMap: Map<string, MCPProxyClient>,
-): Promise<void> {
+async function disposeClientMap(clientMap: Map<string, Client>): Promise<void> {
   const closePromises: Promise<void>[] = [];
-  for (const [, entry] of proxyMap) {
+  for (const [, entry] of clientMap) {
     closePromises.push(entry.close().catch(() => {}));
   }
   await Promise.all(closePromises);
@@ -100,7 +100,7 @@ export class PassthroughClient extends Client {
   protected _cachedTools: Promise<ToolCache>;
   protected _cachedResources: Promise<ResourceCache>;
   protected _cachedPrompts: Promise<PromptCache>;
-  protected _clients: Promise<Map<string, MCPProxyClient>>;
+  protected _clients: Promise<Map<string, Client>>;
   protected _connections: Map<string, ConnectionEntity>;
   protected _selectionMap: Map<string, VirtualMCPConnection>;
 
@@ -139,9 +139,9 @@ export class PassthroughClient extends Client {
       this._connections.set(connection.id, connection);
     }
 
-    // Initialize proxy map lazily - shared across all caches
+    // Initialize client map lazily - shared across all caches
     this._clients = lazy(() =>
-      createProxyMap(this.options.connections, this.ctx),
+      createClientMap(this.options.connections, this.ctx),
     );
 
     // Initialize lazy caches - all share the same ProxyCollection
@@ -245,8 +245,14 @@ export class PassthroughClient extends Client {
         try {
           const data =
             target === "resources"
-              ? await client.listResources().then((r) => r.resources)
-              : await client.listPrompts().then((r) => r.prompts);
+              ? await client
+                  .listResources()
+                  .catch(fallbackOnMethodNotFoundError({ resources: [] }))
+                  .then((r) => r.resources)
+              : await client
+                  .listPrompts()
+                  .catch(fallbackOnMethodNotFoundError({ prompts: [] }))
+                  .then((r) => r.prompts);
 
           const selected = this._selectionMap.get(connectionId);
           const selectedKey =
@@ -369,7 +375,7 @@ export class PassthroughClient extends Client {
     toolName: string,
     args: Record<string, unknown>,
     cache: ToolCache,
-    clients: Map<string, MCPProxyClient>,
+    clients: Map<string, Client>,
   ): Promise<CallToolResult> {
     const virtualTool = cache.virtualTools.get(toolName);
     if (!virtualTool) {
@@ -546,8 +552,10 @@ export class PassthroughClient extends Client {
     const connectionId = cache.mappings.get(name);
     if (connectionId) {
       const client = clients.get(connectionId);
-      if (client) {
-        return client.callStreamableTool(name, args);
+      if (client && "callStreamableTool" in client) {
+        // Type guard: client has streaming support
+        const streamableClient = client as StreamableMCPProxyClient;
+        return streamableClient.callStreamableTool(name, args);
       }
     }
 
@@ -559,22 +567,22 @@ export class PassthroughClient extends Client {
   }
 
   /**
-   * Dispose of all proxies in the collection
+   * Dispose of all clients in the collection
    */
   async [Symbol.asyncDispose](): Promise<void> {
     const clients = await this._clients;
     if (clients) {
-      await disposeProxyMap(clients);
+      await disposeClientMap(clients);
     }
   }
 
   /**
-   * Close the client and dispose of all proxies
+   * Close the client and dispose of all clients
    */
   override async close(): Promise<void> {
     const clients = await this._clients;
     if (clients) {
-      await disposeProxyMap(clients);
+      await disposeClientMap(clients);
     }
     await super.close();
   }

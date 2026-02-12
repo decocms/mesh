@@ -5,8 +5,8 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import type { Resource } from "@modelcontextprotocol/sdk/types.js";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { ListResourcesResult } from "@modelcontextprotocol/sdk/types.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
 import { toast } from "sonner";
@@ -72,7 +72,8 @@ export const ResourcesMention = ({
     if (!client) return [];
 
     // Try to get from cache first (even if stale)
-    let virtualMcpResources = queryClient.getQueryData<Resource[]>(queryKey);
+    let virtualMcpResources =
+      queryClient.getQueryData<ListResourcesResult>(queryKey);
 
     // If not in cache or we want fresh data, fetch from network
     // fetchQuery will use cache if fresh, otherwise fetch
@@ -82,7 +83,7 @@ export const ResourcesMention = ({
         queryFn: () => listResources(client),
         staleTime: 60000, // 1 minute
       });
-      virtualMcpResources = result.resources;
+      virtualMcpResources = result;
     } else {
       // Prefetch in background to ensure fresh data
       queryClient
@@ -97,15 +98,15 @@ export const ResourcesMention = ({
     }
 
     // Ensure we have resources (fallback to empty array)
-    if (!virtualMcpResources) {
+    if (!virtualMcpResources.resources) {
       return [];
     }
 
     // Filter resources based on query
-    let filteredResources = virtualMcpResources;
+    let filteredResources = virtualMcpResources.resources;
     if (query.trim()) {
       const lowerQuery = query.toLowerCase();
-      filteredResources = virtualMcpResources.filter(
+      filteredResources = virtualMcpResources.resources.filter(
         (r) =>
           r.uri.toLowerCase().includes(lowerQuery) ||
           r.name?.toLowerCase().includes(lowerQuery) ||

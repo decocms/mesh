@@ -74,7 +74,7 @@ export function useRegistryItems(params: {
   const limit = params.limit ?? DEFAULT_LIMIT;
 
   return useInfiniteQuery({
-    queryKey: KEYS.itemsList(search, params.tags, params.categories),
+    queryKey: KEYS.itemsList(search, params.tags, params.categories, limit),
     queryFn: async ({ pageParam }) => {
       const where =
         search.length > 0
@@ -151,8 +151,6 @@ export function useRegistryMutations() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: KEYS.items() }),
       queryClient.invalidateQueries({ queryKey: KEYS.filters() }),
-      queryClient.refetchQueries({ queryKey: KEYS.items(), type: "active" }),
-      queryClient.refetchQueries({ queryKey: KEYS.filters(), type: "active" }),
     ]);
   };
 
@@ -253,8 +251,6 @@ export function useRegistryConfig(pluginId: string) {
 
   const saveRegistryConfigMutation = useMutation({
     mutationFn: async (settingsPatch: RegistryConfigSettings) => {
-      // Always fetch the latest settings before saving to avoid
-      // overwriting test config or other concurrent changes
       const latestData = await callTool<PluginConfigResponse>(
         client,
         "PROJECT_PLUGIN_CONFIG_GET",
@@ -299,6 +295,7 @@ export function useRegistryConfig(pluginId: string) {
   const registryLLMModelId =
     (configQuery.data?.config?.settings?.llmModelId as string | undefined) ??
     "";
+
   const acceptPublishRequests =
     (configQuery.data?.config?.settings?.acceptPublishRequests as
       | boolean
@@ -366,42 +363,35 @@ export function usePublishRequestMutations() {
   const invalidateAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: KEYS.publishRequests() }),
-      queryClient.refetchQueries({
-        queryKey: KEYS.publishRequests(),
-        type: "active",
-      }),
     ]);
   };
 
   const reviewMutation = useMutation({
-    mutationFn: async ({
-      id,
-      status,
-      reviewerNotes,
-    }: {
+    mutationFn: async (data: {
       id: string;
       status: "approved" | "rejected";
-      reviewerNotes?: string | null;
-    }) =>
-      callTool<{ item: PublishRequest }>(
+      reviewerNotes?: string;
+    }) => {
+      return callTool<{ item: PublishRequest }>(
         client,
         "REGISTRY_PUBLISH_REQUEST_REVIEW",
-        {
-          id,
-          status,
-          reviewerNotes,
-        },
-      ),
-    onSuccess: invalidateAll,
+        data,
+      );
+    },
+    onSuccess: async () => {
+      await invalidateAll();
+      await queryClient.invalidateQueries({ queryKey: KEYS.items() });
+    },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) =>
-      callTool<{ item: PublishRequest | null }>(
+    mutationFn: async (id: string) => {
+      return callTool<{ item: PublishRequest | null }>(
         client,
         "REGISTRY_PUBLISH_REQUEST_DELETE",
         { id },
-      ),
+      );
+    },
     onSuccess: invalidateAll,
   });
 

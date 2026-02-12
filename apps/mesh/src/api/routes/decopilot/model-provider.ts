@@ -8,32 +8,28 @@ import { LanguageModelBinding } from "@decocms/bindings/llm";
 
 import { createLLMProvider } from "../../llm-provider";
 import { toServerClient } from "../proxy";
-import type { MeshContext } from "@/core/mesh-context";
-import type { ModelProvider } from "./types";
+import type { ClientWithOptionalStreamingSupport } from "@/mcp-clients";
+import type { ModelProvider, ModelsConfig } from "./types";
 
 /**
- * Create a ModelProvider from a proxy client
+ * Create a ModelProvider from an MCP client
+ * Accepts both regular and streamable clients
  */
-export async function createModelProviderFromProxy(
-  proxy: Awaited<ReturnType<MeshContext["createMCPProxy"]>>,
-  config: {
-    modelId: string;
-    connectionId: string;
-    fastId?: string | null;
-  },
+export async function createModelProviderFromClient(
+  client: ClientWithOptionalStreamingSupport,
+  config: ModelsConfig,
 ): Promise<ModelProvider> {
-  const llmBinding = LanguageModelBinding.forClient(toServerClient(proxy));
-
+  const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
   const llmProvider = createLLMProvider(llmBinding);
-  const model = llmProvider.languageModel(config.modelId);
-  const cheapModel = config.fastId
-    ? llmProvider.languageModel(config.fastId)
-    : undefined;
 
   return {
-    model,
-    modelId: config.modelId,
+    thinkingModel: llmProvider.languageModel(config.thinking.id),
+    codingModel: config.coding
+      ? llmProvider.languageModel(config.coding.id)
+      : undefined,
+    fastModel: config.fast
+      ? llmProvider.languageModel(config.fast.id)
+      : undefined,
     connectionId: config.connectionId,
-    cheapModel,
   };
 }

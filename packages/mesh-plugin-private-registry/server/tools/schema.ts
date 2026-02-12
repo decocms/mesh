@@ -1,7 +1,7 @@
 import { CollectionListInputSchema } from "@decocms/bindings/collections";
 import { z } from "zod";
 
-export const RegistryServerSchema = z.object({
+const RegistryServerSchema = z.object({
   name: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
@@ -42,12 +42,12 @@ export const RegistryServerSchema = z.object({
     .optional(),
 });
 
-export const RegistryToolSchema = z.object({
+const RegistryToolSchema = z.object({
   name: z.string(),
   description: z.string().nullable().optional(),
 });
 
-export const RegistryItemMetaSchema = z
+const RegistryItemMetaSchema = z
   .object({
     "mcp.mesh": z
       .object({
@@ -80,7 +80,7 @@ export const RegistryItemSchema = z.object({
   created_by: z.string().optional(),
 });
 
-export const RegistryCreateSchema = z.object({
+const RegistryCreateSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable().optional(),
@@ -89,7 +89,7 @@ export const RegistryCreateSchema = z.object({
   is_public: z.boolean().optional(),
 });
 
-export const RegistryUpdateSchema = z.object({
+const RegistryUpdateSchema = z.object({
   title: z.string().optional(),
   description: z.string().nullable().optional(),
   _meta: RegistryItemMetaSchema.optional(),
@@ -133,6 +133,9 @@ export const RegistryGetInputSchema = z
       .string()
       .optional()
       .describe("Name of the registry item (alias for id)"),
+  })
+  .refine((data) => data.id || data.name, {
+    message: "At least one of 'id' or 'name' is required",
   })
   .describe(
     "Get a registry item by ID or name. At least one parameter is required.",
@@ -196,13 +199,63 @@ export const RegistryFiltersOutputSchema = z.object({
   ),
 });
 
-export const RegistryAIGenerateTypeSchema = z.enum([
+const RegistryAIGenerateTypeSchema = z.enum([
   "description",
   "short_description",
   "tags",
   "categories",
   "readme",
 ]);
+
+// ─── Search (lightweight) ───
+
+export const RegistrySearchInputSchema = z
+  .object({
+    query: z
+      .string()
+      .optional()
+      .describe(
+        "Free-text search across id, title, description, and server name",
+      ),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by tags (AND semantics)"),
+    categories: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by categories (AND semantics)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe("Max results to return (default 20)"),
+    cursor: z.string().optional().describe("Pagination cursor"),
+  })
+  .describe(
+    "Lightweight search returning minimal fields to save tokens. " +
+      "Search by free-text query, tags, or categories. " +
+      "Returns id, title, short_description, tags, categories, is_public, and icon only.",
+  );
+
+const RegistrySearchItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  tags: z.array(z.string()),
+  categories: z.array(z.string()),
+  is_public: z.boolean(),
+});
+
+export const RegistrySearchOutputSchema = z.object({
+  items: z.array(RegistrySearchItemSchema),
+  totalCount: z.number(),
+  hasMore: z.boolean().optional(),
+  nextCursor: z.string().optional(),
+});
+
+// ─── AI Generate ───
 
 export const RegistryAIGenerateInputSchema = z.object({
   type: RegistryAIGenerateTypeSchema.describe("Which content to generate"),
@@ -237,6 +290,8 @@ export const RegistryAIGenerateOutputSchema = z.object({
   result: z.string().optional(),
   items: z.array(z.string()).optional(),
 });
+
+// ─── Publish Requests ───
 
 export const PublishRequestStatusSchema = z.enum([
   "pending",

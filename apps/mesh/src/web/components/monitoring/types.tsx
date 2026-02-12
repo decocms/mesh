@@ -106,6 +106,8 @@ export interface MonitoringSearchParams {
   // Property filters (serialized as "key:operator:value,key2:operator2:value2")
   // Operators: eq (equals), contains, exists
   propertyFilters?: string;
+  // Hide system/management tool calls (e.g. from the self MCP)
+  hideSystem?: boolean;
 }
 
 // ============================================================================

@@ -28,6 +28,7 @@ import {
   Stars01,
 } from "@untitledui/icons";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import type { ChatModelsConfig } from "./types";
 import {
   useLLMsFromConnection,
   useModelConnections,
@@ -201,7 +202,7 @@ function ModelDetailsPanel({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Input cost</span>
             <span className="text-foreground font-medium">
-              ${model.costs.input.toFixed(2)} / 1M
+              ${(model.costs.input * 1_000_000).toFixed(2)} / 1M
             </span>
           </div>
         )}
@@ -210,7 +211,7 @@ function ModelDetailsPanel({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Output cost</span>
             <span className="text-foreground font-medium">
-              ${model.costs.output.toFixed(2)} / 1M
+              ${(model.costs.output * 1_000_000).toFixed(2)} / 1M
             </span>
           </div>
         )}
@@ -275,13 +276,15 @@ function ModelDetailsPanel({
               {model.costs?.input !== null &&
                 model.costs?.input !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${model.costs.input.toFixed(2)} / 1M tokens (input)
+                    ${(model.costs.input * 1_000_000).toFixed(2)} / 1M tokens
+                    (input)
                   </p>
                 )}
               {model.costs?.output !== null &&
                 model.costs?.output !== undefined && (
                   <p className="text-sm text-muted-foreground">
-                    ${model.costs.output.toFixed(2)} / 1M tokens (output)
+                    ${(model.costs.output * 1_000_000).toFixed(2)} / 1M tokens
+                    (output)
                   </p>
                 )}
             </div>
@@ -442,7 +445,7 @@ function ConnectionModelList({
   return (
     <div className="flex-1 overflow-y-auto px-0.5 pt-2">
       {filteredModels.map((m) => {
-        const isSelected = m.id === selectedModel?.id;
+        const isSelected = m.id === selectedModel?.thinking.id;
         return (
           <div
             key={m.id}
@@ -498,12 +501,9 @@ function SelectedModelDisplay({
 
 /**
  * Selected model state shape for controlled components
+ * Alias for ChatModelsConfig for backwards compatibility.
  */
-export interface SelectedModelState {
-  id: string;
-  connectionId: string;
-  capabilities?: string[];
-}
+export type SelectedModelState = ChatModelsConfig;
 
 /**
  * Check if a model supports file uploads (vision capability)
@@ -511,7 +511,7 @@ export interface SelectedModelState {
 export function modelSupportsFiles(
   selectedModel: SelectedModelState | null | undefined,
 ): boolean {
-  return selectedModel?.capabilities?.includes("vision") === true;
+  return selectedModel?.thinking?.capabilities?.vision === true;
 }
 
 /**
@@ -758,7 +758,7 @@ function ResolvedModelDisplay({
   const connectionId = selectedModel?.connectionId ?? undefined;
   const models = useModels(connectionId);
   const currentModel = selectedModel
-    ? models.find((m) => m.id === selectedModel.id)
+    ? models.find((m) => m.id === selectedModel.thinking.id)
     : undefined;
   return (
     <SelectedModelDisplay model={currentModel} placeholder={placeholder} />
@@ -781,7 +781,8 @@ function FallbackModelDisplay({
   }
 
   // Show short model name from the ID (e.g. "claude-sonnet-4.5" from "anthropic/claude-sonnet-4.5")
-  const shortName = selectedModel.id.split("/").pop() ?? selectedModel.id;
+  const id = selectedModel.thinking.id;
+  const shortName = id.split("/").pop() ?? id;
   return (
     <div className="flex items-center gap-0 group-hover:gap-2 group-data-[state=open]:gap-2 min-w-0 overflow-hidden transition-all duration-200">
       <span className="text-sm text-muted-foreground group-hover:text-foreground group-data-[state=open]:text-foreground truncate whitespace-nowrap max-w-0 opacity-0 group-hover:max-w-[150px] group-hover:opacity-100 group-data-[state=open]:max-w-[150px] group-data-[state=open]:opacity-100 transition-all duration-200 ease-in-out overflow-hidden">

@@ -2,6 +2,11 @@
  * Client Pool
  *
  * Manages a pool of MCP clients using a Map for connection reuse.
+ * Scoped per-request — reuses connections within the same request cycle
+ * (e.g., virtual MCP calling multiple tools on the same downstream connection).
+ *
+ * Must NOT be used as a singleton across requests — HTTP transports bake
+ * auth headers (x-mesh-token JWT) at creation time, which go stale.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -40,6 +45,8 @@ export function createClientPool(): (<T extends Transport>(
       console.log(`[ClientPool] Reusing cached client for ${key}`);
       return cachedPromise;
     }
+
+    console.log(`[ClientPool] Creating new client for ${key}`);
 
     // Create the connection promise immediately and store it
     // This ensures concurrent requests for the same key get the same promise

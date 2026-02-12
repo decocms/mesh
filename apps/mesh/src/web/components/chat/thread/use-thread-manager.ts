@@ -17,14 +17,14 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import {
-  useSuspenseInfiniteQuery,
   useQueryClient,
+  useSuspenseInfiniteQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KEYS } from "../../../lib/query-keys";
 import { useCollectionCachePrefill } from "../../../hooks/use-collection-cache-prefill";
 import { useLocalStorage } from "../../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../../lib/localstorage-keys";
+import { KEYS } from "../../../lib/query-keys";
 import {
   addThreadToCache,
   prefetchThreadMessages,
@@ -36,7 +36,7 @@ import {
   callUpdateThreadTool,
   findNextAvailableThread,
 } from "./helpers.ts";
-import type { Message, Thread } from "./types.ts";
+import type { ChatMessage, Thread } from "./types.ts";
 import { THREAD_CONSTANTS } from "./types.ts";
 
 /**
@@ -113,15 +113,15 @@ function useThreadMessages(threadId: string | null) {
 
   // Use type assertion since ThreadMessageEntity doesn't extend CollectionEntity
   // but the runtime behavior works correctly
-  const data = useCollectionList<CollectionEntity & Message>(
+  const data = useCollectionList<CollectionEntity & ChatMessage>(
     org.id,
     "THREAD_MESSAGES",
     client,
     {
-      filters: threadId ? [{ column: "threadId", value: threadId }] : [],
+      filters: threadId ? [{ column: "thread_id", value: threadId }] : [],
       pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
     },
-  ) as Message[] | undefined;
+  ) as ChatMessage[] | undefined;
 
   return data ?? [];
 }
@@ -170,7 +170,7 @@ export function useThreadManager() {
     // Prefill message cache
     if (client) {
       prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
-        filters: [{ column: "threadId", value: newThreadId }],
+        filters: [{ column: "thread_id", value: newThreadId }],
         pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
       });
     }
@@ -221,7 +221,7 @@ export function useThreadManager() {
         // Update thread hidden status in cache
         updateThreadInCache(queryClient, locator, threadId, {
           hidden: true,
-          updatedAt: updatedThread.updatedAt ?? new Date().toISOString(),
+          updated_at: updatedThread.updated_at ?? new Date().toISOString(),
         });
       }
     } catch (error) {
@@ -235,7 +235,10 @@ export function useThreadManager() {
    * Update messages cache for a thread with new messages
    * Populates the cache directly without refetching from backend
    */
-  const updateMessagesInCache = (threadId: string, newMessages: Message[]) => {
+  const updateMessagesInCache = (
+    threadId: string,
+    newMessages: ChatMessage[],
+  ) => {
     updateMessagesCache(queryClient, client, org.id, threadId, newMessages);
   };
 

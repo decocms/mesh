@@ -4,6 +4,65 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { z } from "zod";
 
+/**
+ * Reject URLs that target private/internal network ranges to prevent SSRF.
+ * Covers IPv4 private ranges, IPv6 private ranges, and common internal hostnames.
+ */
+function isPrivateUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Block common private/internal hostnames
+    if (
+      hostname === "localhost" ||
+      hostname === "0.0.0.0" ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      hostname.endsWith(".localhost")
+    ) {
+      return true;
+    }
+
+    // Block private IPv4 ranges
+    const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      if (a === 10) return true; // 10.0.0.0/8
+      if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+      if (a === 192 && b === 168) return true; // 192.168.0.0/16
+      if (a === 127) return true; // 127.0.0.0/8
+      if (a === 169 && b === 254) return true; // 169.254.0.0/16 (link-local)
+      if (a === 0) return true; // 0.0.0.0/8
+    }
+
+    // Block private/reserved IPv6 ranges
+    // URL parser wraps IPv6 in brackets: [::1], [::ffff:127.0.0.1], etc.
+    if (hostname.startsWith("[") && hostname.endsWith("]")) {
+      const ipv6 = hostname.slice(1, -1).toLowerCase();
+
+      if (ipv6 === "::1" || ipv6 === "::") return true; // loopback & unspecified
+      if (ipv6.startsWith("::ffff:")) return true; // IPv4-mapped (::ffff:127.0.0.1)
+      if (ipv6.startsWith("fc") || ipv6.startsWith("fd")) return true; // unique-local fc00::/7
+      if (ipv6.startsWith("fe80")) return true; // link-local fe80::/10
+      if (ipv6.startsWith("100:")) return true; // discard prefix 100::/64
+      if (ipv6.startsWith("::1")) return true; // ::1xxx variants
+
+      // IPv4-compatible addresses (deprecated but still dangerous)
+      // e.g. ::127.0.0.1, ::10.0.0.1
+      const v4compat = ipv6.match(/^::(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+      if (v4compat) {
+        const [, a] = v4compat.map(Number);
+        if (a === 127 || a === 10 || a === 0) return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return true; // Invalid URL → reject
+  }
+}
+
 const DiscoverToolsInputSchema = z.object({
   url: z.string().describe("Remote MCP server URL"),
   type: z
@@ -146,6 +205,14 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
 
     if (!url) {
       return { tools: [], error: "URL is required" };
+    }
+
+    // Block requests to private/internal networks (SSRF prevention)
+    if (isPrivateUrl(url)) {
+      return {
+        tools: [],
+        error: "URLs targeting private networks are not allowed",
+      };
     }
 
     const headers: Record<string, string> = {

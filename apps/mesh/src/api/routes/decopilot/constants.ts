@@ -1,53 +1,29 @@
-/**
- * Decopilot Constants
- *
- * Default values and system prompts for the Decopilot AI assistant.
- */
+import { generatePrefixedId } from "@/shared/utils/generate-id";
+import type { ChatMessage } from "./types";
+
+/** Message ID generator. Use as closure where a () => string is expected (e.g. toUIMessageStreamResponse). */
+export const generateMessageId = () => generatePrefixedId("msg");
 
 export const DEFAULT_MAX_TOKENS = 32768;
 export const DEFAULT_WINDOW_SIZE = 50;
+export const DEFAULT_THREAD_TITLE = "New chat";
+
+export const PARENT_STEP_LIMIT = 30;
+export const SUBAGENT_STEP_LIMIT = 15;
+export const SUBAGENT_EXCLUDED_TOOLS = ["user_ask", "subtask"];
 
 /**
  * Base system prompt for Decopilot
  *
  * @param agentInstructions - Optional instructions specific to the selected agent/virtual MCP
- * @returns The complete system prompt combining platform instructions with agent-specific instructions
+ * @returns ChatMessage with the base system prompt
  */
-export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): string {
-  const platformPrompt = `You are an AI assistant running in an MCP Mesh environment.
+export function DECOPILOT_BASE_PROMPT(agentInstructions?: string): ChatMessage {
+  const platformPrompt = `You are decopilot, an AI assistant running inside decocms (deco context management system).`;
 
-## About MCP Mesh
-
-The Model Context Protocol (MCP) Mesh allows users to connect external services and expose their capabilities through a unified interface.
-
-### Terminology
-- **Agents** (also called **Virtual MCPs**): Entry points that provide access to a curated set of tools from connected services
-- **Connections** (also called **MCP Servers**): External services integrated into the mesh that expose tools, resources, and prompts
-
-The user is currently interacting with one of these agents and may ask questions about these entities or the resources they expose.
-
-## Interaction Guidelines
-
-Follow this state machine when handling user requests:
-
-1. **Understand Intent**: If the user asks something trivial (greetings, simple questions), respond directly without tool exploration.
-
-2. **Tool Discovery**: For non-trivial requests, search and explore available tools to understand what capabilities are at your disposal.
-
-3. **Tool Selection**: After discovery, decide which tools are appropriate for the task. Describe the chosen tools to the user, explaining what they do and how they help.
-
-4. **Execution**: Execute the tools thoughtfully and produce a final answer. Prefer aggregations and summaries over raw results. Return only the subset of information relevant to the user's request.
-
-## Important Notes
-- All tool calls are logged and audited for security and compliance
-- You have access to the tools exposed through the selected agent
-- Connections may expose resources that users can browse and edit`;
-
-  if (!agentInstructions?.trim()) {
-    return platformPrompt;
-  }
-
-  return `${platformPrompt}
+  let text = platformPrompt;
+  if (agentInstructions?.trim()) {
+    text += `
 
 ---
 
@@ -56,6 +32,13 @@ Follow this state machine when handling user requests:
 The following instructions are specific to the agent (virtual MCP) the user has selected. These instructions supplement the platform guidelines above:
 
 ${agentInstructions}`;
+  }
+
+  return {
+    id: "decopilot-system",
+    role: "system",
+    parts: [{ type: "text", text }],
+  };
 }
 
 export const TITLE_GENERATOR_PROMPT = `Your task: Generate a short title (3-6 words) summarizing the user's request.

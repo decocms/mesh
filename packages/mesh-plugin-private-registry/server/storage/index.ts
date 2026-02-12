@@ -1,15 +1,13 @@
 import type { Kysely } from "kysely";
 import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
 import { setPluginStorage } from "../tools/utils";
-import { PublishRequestStorage } from "./publish-request";
 import { RegistryItemStorage } from "./registry-item";
+import { PublishRequestStorage } from "./publish-request";
+import { TestRunStorage, TestResultStorage } from "./test-run";
 import { TestConnectionStorage } from "./test-connection";
-import { TestResultStorage, TestRunStorage } from "./test-run";
 import type { PrivateRegistryDatabase } from "./types";
 
 export * from "./types";
-export * from "./test-connection";
-export * from "./test-run";
 
 export interface PrivateRegistryPluginStorage {
   items: RegistryItemStorage;

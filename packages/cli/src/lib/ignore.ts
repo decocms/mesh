@@ -6,7 +6,7 @@ import ignore from "ignore";
  * Create and configure ignore checker for .deconfigignore files
  * Uses the 'ignore' npm package (same as used by eslint, prettier, etc.)
  */
-export class DeconfigIgnore {
+class DeconfigIgnore {
   private ig: ReturnType<typeof ignore>;
   private rootPath: string;
   private patternCount: number = 0;

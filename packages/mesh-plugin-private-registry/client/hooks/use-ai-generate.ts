@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
@@ -41,6 +41,7 @@ type GenerateOutput = {
 export function useAIGenerate() {
   const { org } = useProjectContext();
   const [loadingType, setLoadingType] = useState<GenerateType | null>(null);
+  const inflightRef = useRef(0);
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -52,6 +53,7 @@ export function useAIGenerate() {
     modelId: string;
     context: GenerateContext;
   }): Promise<GenerateOutput> => {
+    inflightRef.current += 1;
     setLoadingType(params.type);
     try {
       const result = (await client.callTool({
@@ -68,7 +70,10 @@ export function useAIGenerate() {
 
       return (result.structuredContent ?? result) as GenerateOutput;
     } finally {
-      setLoadingType(null);
+      inflightRef.current -= 1;
+      if (inflightRef.current === 0) {
+        setLoadingType(null);
+      }
     }
   };
 

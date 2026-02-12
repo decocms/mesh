@@ -74,7 +74,7 @@ describe("ChatState Reducer Logic", () => {
 
   test("should start branch with START_BRANCH action", () => {
     const parentThread: ParentThread = {
-      threadId: "thread-123",
+      thread_id: "thread-123",
       messageId: "msg-456",
     };
 
@@ -101,7 +101,7 @@ describe("ChatState Reducer Logic", () => {
         ],
       },
       parentThread: {
-        threadId: "thread-123",
+        thread_id: "thread-123",
         messageId: "msg-456",
       },
       finishReason: null,
@@ -153,7 +153,7 @@ describe("ChatState Reducer Logic", () => {
         ],
       },
       parentThread: {
-        threadId: "thread-123",
+        thread_id: "thread-123",
         messageId: "msg-456",
       },
       finishReason: "stop",
@@ -186,7 +186,7 @@ describe("ChatState Reducer Logic", () => {
 
     // Start branch
     const parentThread: ParentThread = {
-      threadId: "thread-1",
+      thread_id: "thread-1",
       messageId: "msg-1",
     };
     state = applyAction(state, {
@@ -258,7 +258,7 @@ describe("ChatState Reducer Logic", () => {
 
   test("should handle branch context immutability", () => {
     const originalParentThread: ParentThread = {
-      threadId: "thread-1",
+      thread_id: "thread-1",
       messageId: "msg-1",
     };
 
@@ -271,7 +271,7 @@ describe("ChatState Reducer Logic", () => {
     const newState = applyAction(stateWithBranch, { type: "CLEAR_BRANCH" });
 
     // Original branch object should not be modified
-    expect(originalParentThread.threadId).toBe("thread-1");
+    expect(originalParentThread.thread_id).toBe("thread-1");
     expect(newState.parentThread).toBeNull();
   });
 });

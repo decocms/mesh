@@ -751,15 +751,18 @@ export async function createMeshContextFactory(
     // Note: Token revocation handled by Better Auth (deleteApiKey)
   };
 
-  // Create client pool once (singleton pattern) - shared across all requests
-  await using clientPool = createClientPool();
-
   // Return factory function
   return async (
     req?: Request,
     options?: FactoryOptions,
   ): Promise<MeshContext> => {
     const timings = options?.timings ?? DEFAULT_TIMINGS;
+
+    // Client pool scoped to this request — reuses connections within the same
+    // request cycle (e.g., virtual MCP calling multiple tools on the same connection).
+    // Must NOT be a singleton — per-request auth headers (x-mesh-token JWT) get
+    // baked into the transport at creation time and would go stale across requests.
+    const clientPool = createClientPool();
     const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
