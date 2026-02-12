@@ -127,4 +127,34 @@ describe("SqlThreadStorage", () => {
       ).toBe("Answered");
     });
   });
+
+  describe("status", () => {
+    it("create() without status defaults to completed", async () => {
+      const thread = await storage.create({
+        organizationId: "org_1",
+        createdBy: "user_1",
+      });
+      expect(thread.status).toBe("completed");
+    });
+
+    it("create() with explicit status stores it", async () => {
+      const thread = await storage.create({
+        organizationId: "org_1",
+        createdBy: "user_1",
+        status: "in_progress",
+      });
+      expect(thread.status).toBe("in_progress");
+    });
+
+    it("update() with status persists it", async () => {
+      const thread = await storage.create({
+        organizationId: "org_1",
+        createdBy: "user_1",
+      });
+      const updated = await storage.update(thread.id, { status: "failed" });
+      expect(updated.status).toBe("failed");
+      const loaded = await storage.get(thread.id);
+      expect(loaded?.status).toBe("failed");
+    });
+  });
 });

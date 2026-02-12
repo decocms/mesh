@@ -9,7 +9,7 @@ import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { DEFAULT_THREAD_TITLE } from "@/api/routes/decopilot/constants";
 import type { ThreadStoragePort } from "./ports";
-import type { Database, Thread, ThreadMessage } from "./types";
+import type { Database, Thread, ThreadMessage, ThreadStatus } from "./types";
 
 // ============================================================================
 // Thread Storage Implementation
@@ -41,6 +41,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       organization_id: data.organizationId,
       title: data.title,
       description: data.description ?? null,
+      status: data.status ?? "completed",
       created_at: now,
       updated_at: now,
       created_by: data.createdBy,
@@ -84,6 +85,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     if (data.hidden !== undefined) {
       updateData.hidden = data.hidden;
+    }
+    if (data.status !== undefined) {
+      updateData.status = data.status;
     }
 
     await this.db
@@ -251,6 +255,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     organization_id: string;
     title: string;
     description: string | null;
+    status: string;
     created_at: Date | string;
     updated_at: Date | string;
     created_by: string;
@@ -262,6 +267,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       organizationId: row.organization_id,
       title: row.title,
       description: row.description,
+      status: row.status as ThreadStatus,
       createdAt:
         typeof row.created_at === "string"
           ? row.created_at

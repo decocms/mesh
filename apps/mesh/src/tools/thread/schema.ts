@@ -6,6 +6,8 @@
 
 import { z } from "zod";
 
+import { THREAD_STATUSES } from "@/storage/types";
+
 // ============================================================================
 // Thread Message Schema
 // ============================================================================
@@ -43,6 +45,11 @@ export const ThreadEntitySchema = z.object({
   createdAt: z.string().datetime().describe("Timestamp of creation"),
   updatedAt: z.string().datetime().describe("Timestamp of last update"),
   hidden: z.boolean().optional().describe("Whether the thread is hidden"),
+  status: z
+    .enum([...THREAD_STATUSES, "expired"])
+    .describe(
+      "Thread execution status. 'expired' is virtual -- computed at read time for stale in_progress threads",
+    ),
   createdBy: z.string().describe("User ID who created the thread"),
   updatedBy: z
     .string()
