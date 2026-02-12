@@ -7,6 +7,13 @@
 
 import type { ThreadStatus } from "@/storage/types";
 
+type ResponsePart = {
+  type: string;
+  text?: string;
+  toolName?: string;
+  state?: string;
+};
+
 /**
  * Resolves the thread status from the AI SDK stream result.
  *
@@ -16,13 +23,14 @@ import type { ThreadStatus } from "@/storage/types";
  */
 export function resolveThreadStatus(
   finishReason: string | undefined,
-  responseParts: Array<{
-    type: string;
-    toolName?: string;
-    state?: string;
-  }> = [],
+  responseParts: ResponsePart[] = [],
 ): ThreadStatus {
   if (finishReason === "stop") {
+    // Question in last text part -> waiting for user answer
+    const lastTextPart = responseParts.findLast((p) => p.type === "text");
+    if (lastTextPart?.text?.includes("?")) {
+      return "requires_action";
+    }
     return "completed";
   }
 

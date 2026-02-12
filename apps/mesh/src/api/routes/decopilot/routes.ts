@@ -165,7 +165,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     }
 
     // Mark thread as in_progress at the start of streaming
-    await ctx.storage.threads.update(memory.thread.id, {
+    await ctx.storage.threads.update(mem.thread.id, {
       status: "in_progress",
     });
 
@@ -203,9 +203,9 @@ app.post("/:org/decopilot/stream", async (c) => {
     abortSignal.addEventListener("abort", () => {
       modelClient.close().catch(() => {});
       // Mark thread as failed on client disconnect
-      if (memory?.thread?.id) {
+      if (mem.thread.id) {
         ctx.storage.threads
-          .update(memory.thread.id, { status: "failed" })
+          .update(mem.thread.id, { status: "failed" })
           .catch(() => {});
       }
     });
@@ -222,7 +222,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       systemMessages: processedSystemMessages,
       messages: processedMessages,
       originalMessages,
-    } = await processConversation(memory, requestMessage, allSystemMessages, {
+    } = await processConversation(mem, requestMessage, allSystemMessages, {
       windowSize,
       models,
     });
@@ -232,7 +232,7 @@ app.post("/:org/decopilot/stream", async (c) => {
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const shouldGenerateTitle = memory.thread.title === DEFAULT_THREAD_TITLE;
+    const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
     const titlePromise = shouldGenerateTitle
       ? generateTitleInBackground({
           abortSignal,
@@ -261,7 +261,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         if (!resolvedTitle) return;
 
         await ctx.storage.threads
-          .update(memory!.thread.id, { title: resolvedTitle })
+          .update(mem.thread.id, { title: resolvedTitle })
           .catch((error) => {
             console.error(
               "[decopilot:stream] Error updating thread title",
@@ -290,7 +290,7 @@ app.post("/:org/decopilot/stream", async (c) => {
               thinking: models.thinking,
             },
             created_at: new Date(),
-            thread_id: memory!.thread.id,
+            thread_id: mem.thread.id,
           };
         }
         if (part.type === "reasoning-start") {
@@ -351,14 +351,14 @@ app.post("/:org/decopilot/stream", async (c) => {
         ].map((message, i) => ({
           ...message,
           metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
-          threadId: memory!.thread.id,
+          threadId: mem.thread.id,
           createdAt: new Date(now + i).toISOString(),
           updatedAt: new Date(now + i).toISOString(),
         }));
 
         if (messagesToSave.length === 0) return;
 
-        await memory!.save(messagesToSave).catch((error) => {
+        await mem.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
         });
 
@@ -366,15 +366,11 @@ app.post("/:org/decopilot/stream", async (c) => {
         const finishReason = await result.finishReason;
         const threadStatus = resolveThreadStatus(
           finishReason,
-          responseMessage?.parts as Array<{
-            type: string;
-            toolName?: string;
-            state?: string;
-          }>,
+          responseMessage?.parts ?? [],
         );
 
         await ctx.storage.threads
-          .update(memory!.thread.id, { status: threadStatus })
+          .update(mem.thread.id, { status: threadStatus })
           .catch((error) => {
             console.error(
               "[decopilot:stream] Error updating thread status",

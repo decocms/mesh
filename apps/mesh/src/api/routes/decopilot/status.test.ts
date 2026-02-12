@@ -6,6 +6,28 @@ describe("resolveThreadStatus", () => {
     expect(resolveThreadStatus("stop", [])).toBe("completed");
   });
 
+  test("stop with last text part containing ? -> requires_action", () => {
+    const parts = [
+      { type: "text", text: "Here is the answer." },
+      { type: "text", text: "Does that help?" },
+    ];
+    expect(resolveThreadStatus("stop", parts)).toBe("requires_action");
+  });
+
+  test("stop with last text part not containing ? -> completed", () => {
+    const parts = [{ type: "text", text: "Here is the answer." }];
+    expect(resolveThreadStatus("stop", parts)).toBe("completed");
+  });
+
+  test("stop with last text part (after non-text) containing ? -> requires_action", () => {
+    const parts = [
+      { type: "text", text: "Done." },
+      { type: "tool-invocation", toolName: "x", state: "result" },
+      { type: "text", text: "Want more?" },
+    ];
+    expect(resolveThreadStatus("stop", parts)).toBe("requires_action");
+  });
+
   test("tool-calls without user_ask -> completed", () => {
     const parts = [
       { type: "tool-invocation", toolName: "some_tool", state: "result" },
