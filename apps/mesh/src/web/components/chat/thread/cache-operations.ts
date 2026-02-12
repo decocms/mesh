@@ -51,8 +51,8 @@ export function updateThreadInCache(
     const updatedThread: Thread = {
       id: currentThread.id,
       title: updates.title ?? currentThread.title,
-      createdAt: currentThread.createdAt,
-      updatedAt: updates.updatedAt ?? currentThread.updatedAt,
+      created_at: currentThread.created_at,
+      updated_at: updates.updated_at ?? currentThread.updated_at,
       hidden: updates.hidden ?? currentThread.hidden,
     };
     updatedItems[threadIndex] = updatedThread;

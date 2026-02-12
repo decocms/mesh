@@ -83,8 +83,8 @@ export interface Metadata {
 export interface Thread {
   id: string;
   title: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
+  created_at: string; // ISO string
+  updated_at: string; // ISO string
   hidden?: boolean;
 }
 

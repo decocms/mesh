@@ -644,7 +644,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Update thread title in cache if available
     threadManager.updateThread(thread_id, {
       title,
-      updatedAt: new Date(created_at).toISOString(),
+      updated_at: new Date(created_at).toISOString(),
     });
   };
 

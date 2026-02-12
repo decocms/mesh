@@ -221,7 +221,7 @@ export function useThreadManager() {
         // Update thread hidden status in cache
         updateThreadInCache(queryClient, locator, threadId, {
           hidden: true,
-          updatedAt: updatedThread.updatedAt ?? new Date().toISOString(),
+          updated_at: updatedThread.updated_at ?? new Date().toISOString(),
         });
       }
     } catch (error) {

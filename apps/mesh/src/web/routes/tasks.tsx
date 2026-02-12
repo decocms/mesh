@@ -97,21 +97,13 @@ function TasksContent() {
   const navigate = useNavigate();
   const { switchToThread } = useChat();
 
-  // useListState expects ListStateEntity (snake_case). ThreadEntity uses camelCase.
-  // Use snake_case for listState; map to camelCase when sorting/filtering.
+  // useListState and ThreadEntity both use snake_case for audit fields
   const listState = useListState({
     namespace: org.slug,
     resource: "tasks",
     defaultSortKey: "updated_at",
     defaultViewMode: "table",
   });
-
-  const sortKeyToCamel: Record<string, string> = {
-    updated_at: "updatedAt",
-    created_at: "createdAt",
-    title: "title",
-    status: "status",
-  };
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.taskThreads(locator),
@@ -139,13 +131,12 @@ function TasksContent() {
       )
     : visible;
 
-  // 3. Sort (map snake_case sortKey to camelCase for ThreadEntity)
+  // 3. Sort by sortKey (ThreadEntity uses snake_case)
   const threads = [...searched].sort((a, b) => {
     const { sortKey, sortDirection } = listState;
     if (!sortKey || !sortDirection) return 0;
-    const key = sortKeyToCamel[sortKey] ?? sortKey;
-    const aVal = String((a as Record<string, unknown>)[key] ?? "");
-    const bVal = String((b as Record<string, unknown>)[key] ?? "");
+    const aVal = String((a as Record<string, unknown>)[sortKey] ?? "");
+    const bVal = String((b as Record<string, unknown>)[sortKey] ?? "");
     const cmp = aVal.localeCompare(bVal);
     return sortDirection === "asc" ? cmp : -cmp;
   });
@@ -180,9 +171,9 @@ function TasksContent() {
       sortable: true,
     },
     {
-      id: "createdBy",
+      id: "created_by",
       header: "Created by",
-      render: (thread) => <User id={thread.createdBy} size="3xs" />,
+      render: (thread) => <User id={thread.created_by} size="3xs" />,
       cellClassName: "w-32 shrink-0",
     },
     {
@@ -190,7 +181,7 @@ function TasksContent() {
       header: "Updated",
       render: (thread) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {thread.updatedAt ? formatTimeAgo(new Date(thread.updatedAt)) : "—"}
+          {thread.updated_at ? formatTimeAgo(new Date(thread.updated_at)) : "—"}
         </span>
       ),
       cellClassName: "max-w-24 w-24 shrink-0",
