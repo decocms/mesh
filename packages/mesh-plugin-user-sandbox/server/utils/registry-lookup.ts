@@ -54,18 +54,7 @@ interface RegistryItem {
   };
 }
 
-/** Mesh context with createMCPProxy - accepts any proxy-like object */
-interface MeshContextWithProxy {
-  createMCPProxy: (connectionId: string) => Promise<{
-    callTool: (params: {
-      name: string;
-      arguments?: Record<string, unknown>;
-    }) => Promise<unknown>;
-    listTools: () => Promise<{ tools: Array<{ name: string }> }>;
-    close: () => Promise<void>;
-    [key: string]: unknown; // Allow other Client methods
-  }>;
-}
+import type { ServerPluginToolContext } from "@decocms/bindings/server-plugin";
 
 /** The metadata key used by MCP Mesh registry - must match apps/mesh/src/core/constants.ts */
 const MCP_MESH_KEY = "mcp.mesh" as const;
@@ -267,7 +256,7 @@ function extractRequiredAppFromRegistryItem(
  * @returns RequiredApp data or throws if not found
  */
 async function lookupAppFromRegistry(
-  ctx: MeshContextWithProxy,
+  ctx: ServerPluginToolContext,
   registryId: string,
   appName: string,
   selectedTools: string[] | null = null,
@@ -315,7 +304,7 @@ async function lookupAppFromRegistry(
       ...appData,
     };
   } finally {
-    await proxy.close().catch(console.error);
+    await proxy.close?.().catch(console.error);
   }
 }
 
@@ -323,7 +312,7 @@ async function lookupAppFromRegistry(
  * Lookup multiple apps from a registry connection.
  */
 export async function lookupAppsFromRegistry(
-  ctx: MeshContextWithProxy,
+  ctx: ServerPluginToolContext,
   registryId: string,
   apps: Array<{
     app_name: string;

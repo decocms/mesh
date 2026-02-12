@@ -28,6 +28,8 @@ export interface ServerPluginToolContext {
   auth: {
     user?: { id: string; email?: string; name?: string };
   };
+  /** Kysely database instance for direct queries. */
+  db: Kysely<unknown>;
   createMCPProxy: (connectionId: string) => Promise<{
     callTool: (args: {
       name: string;
@@ -36,6 +38,9 @@ export interface ServerPluginToolContext {
       isError?: boolean;
       content?: Array<{ type?: string; text?: string }>;
       structuredContent?: unknown;
+    }>;
+    listTools: () => Promise<{
+      tools: Array<{ name: string; description?: string }>;
     }>;
     close?: () => Promise<void>;
   }>;
