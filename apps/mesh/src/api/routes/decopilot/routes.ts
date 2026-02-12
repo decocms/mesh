@@ -327,19 +327,19 @@ app.post("/:org/decopilot/stream", async (c) => {
         isAborted: _isAborted,
         responseMessage,
       }) => {
-        const now = new Date().toISOString();
+        const now = Date.now();
         const messagesToSave = [
           ...new Map(
             [requestMessage, responseMessage]
               .filter(Boolean)
               .map((m) => [m.id, m]),
           ).values(),
-        ].map((message) => ({
+        ].map((message, i) => ({
           ...message,
           metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
           threadId: memory.thread.id,
-          createdAt: now,
-          updatedAt: now,
+          createdAt: new Date(now + i).toISOString(),
+          updatedAt: new Date(now + i).toISOString(),
         }));
 
         if (messagesToSave.length === 0) return;
