@@ -58,8 +58,7 @@ export default function WorkflowPage() {
       title="Workflows"
       emptyState={{
         title: "Create Workflows",
-        description:
-          "Install MCP Studio to create and manage automated workflows with multiple steps and integrations.",
+        description: "Run durable MCP tool calls in background.",
       }}
       wellKnownMcp={getWellKnownMcpStudioConnection()}
     />
