@@ -484,24 +484,13 @@ export class RegistryItemStorage {
     const nextCursor = hasMore ? encodeCursor(offset + limit) : undefined;
 
     // Project to slim shape
-    const items: PrivateRegistrySearchItem[] = page.map((row) => {
-      const meta = safeJsonParse<RegistryItemMeta>(row.meta_json, {});
-      const meshMeta = meta?.["mcp.mesh"] ?? {};
-      const server = safeJsonParse<{ icons?: Array<{ src: string }> }>(
-        row.server_json,
-        {},
-      );
-
-      return {
-        id: row.id,
-        title: row.title,
-        short_description: meshMeta.short_description ?? null,
-        tags: csvToList(row.tags),
-        categories: csvToList(row.categories),
-        is_public: row.is_public === 1,
-        icon: server.icons?.[0]?.src ?? null,
-      };
-    });
+    const items: PrivateRegistrySearchItem[] = page.map((row) => ({
+      id: row.id,
+      title: row.title,
+      tags: csvToList(row.tags),
+      categories: csvToList(row.categories),
+      is_public: row.is_public === 1,
+    }));
 
     return { items, totalCount: filtered.length, hasMore, nextCursor };
   }

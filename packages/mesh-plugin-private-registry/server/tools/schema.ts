@@ -243,11 +243,9 @@ export const RegistrySearchInputSchema = z
 const RegistrySearchItemSchema = z.object({
   id: z.string(),
   title: z.string(),
-  short_description: z.string().nullable().optional(),
-  tags: z.array(z.string()).optional(),
-  categories: z.array(z.string()).optional(),
-  is_public: z.boolean().optional(),
-  icon: z.string().nullable().optional(),
+  tags: z.array(z.string()),
+  categories: z.array(z.string()),
+  is_public: z.boolean(),
 });
 
 export const RegistrySearchOutputSchema = z.object({
