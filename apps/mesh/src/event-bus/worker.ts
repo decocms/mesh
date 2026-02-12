@@ -109,6 +109,7 @@ export class EventBusWorker {
   private notifySubscriber: NotifySubscriberFn;
   private running = false;
   private processing = false;
+  private pendingNotify = false;
   private config: Required<EventBusConfig>;
 
   constructor(
@@ -163,11 +164,17 @@ export class EventBusWorker {
     if (!this.running) return;
 
     // Prevent concurrent processing
-    if (this.processing) return;
+    if (this.processing) {
+      this.pendingNotify = true;
+      return;
+    }
 
     this.processing = true;
     try {
-      await this.processEvents();
+      do {
+        this.pendingNotify = false;
+        await this.processEvents();
+      } while (this.pendingNotify);
     } catch (error) {
       console.error("[EventBus] Error processing events:", error);
     } finally {
