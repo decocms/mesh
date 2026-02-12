@@ -109,9 +109,6 @@ export function SubtaskPart({ part }: { part: SubtaskToolPart }) {
                 </span>
                 {prompt && (
                   <span className="text-xs text-muted-foreground/75 truncate">
-                    {agentId && (
-                      <span className="font-medium">{agentId}: </span>
-                    )}
                     {prompt}
                   </span>
                 )}
