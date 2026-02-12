@@ -8,15 +8,25 @@ import {
   CollectionDeleteInputSchema,
   createCollectionDeleteOutputSchema,
 } from "@decocms/bindings/collections";
+import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { ConnectionEntitySchema } from "./schema";
+
+const ConnectionDeleteInputSchema = CollectionDeleteInputSchema.extend({
+  force: z
+    .boolean()
+    .optional()
+    .describe(
+      "If true, removes this connection from all agents that reference it before deleting",
+    ),
+});
 
 export const COLLECTION_CONNECTIONS_DELETE = defineTool({
   name: "COLLECTION_CONNECTIONS_DELETE",
   description: "Delete a connection",
 
-  inputSchema: CollectionDeleteInputSchema,
+  inputSchema: ConnectionDeleteInputSchema,
   outputSchema: createCollectionDeleteOutputSchema(ConnectionEntitySchema),
 
   handler: async (input, ctx) => {
@@ -55,12 +65,17 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
         input.id,
       );
     if (referencingVirtualMcps.length > 0) {
-      const names = referencingVirtualMcps
-        .map((v) => `"${v.title}"`)
-        .join(", ");
-      throw new Error(
-        `Cannot delete this connection because it is used by the following agent(s): ${names}. Remove it from those agents first.`,
-      );
+      if (input.force) {
+        // Force mode: remove all references to this connection from virtual MCPs
+        await ctx.storage.virtualMcps.removeConnectionReferences(input.id);
+      } else {
+        throw new Error(
+          JSON.stringify({
+            code: "CONNECTION_IN_USE",
+            agentNames: referencingVirtualMcps.map((v) => v.title),
+          }),
+        );
+      }
     }
 
     // Delete connection
