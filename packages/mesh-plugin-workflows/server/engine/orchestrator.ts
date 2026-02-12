@@ -62,6 +62,31 @@ function isForEachStep(step: Step): boolean {
   return !!step.forEach?.ref;
 }
 
+function iterationIndex(stepId: string): number {
+  const match = stepId.match(/\[(\d+)\]$/);
+  return match ? Number(match[1]) : -1;
+}
+
+/**
+ * Build the output array for a completed forEach step.
+ * Sorts by numeric iteration index so the output array preserves positional
+ * correspondence with the input array (index 0 → slot 0, etc.).
+ * Failed iterations get `null` so downstream steps can correlate by position.
+ */
+function buildForEachOutput(
+  iterationResults: ParsedStepResult[],
+  totalIterations: number,
+): unknown[] {
+  const output: unknown[] = new Array(totalIterations).fill(null);
+  for (const r of iterationResults) {
+    const idx = iterationIndex(r.step_id);
+    if (idx >= 0 && idx < totalIterations && r.completed_at_epoch_ms) {
+      output[idx] = r.error ? null : r.output;
+    }
+  }
+  return output;
+}
+
 function getTerminalSteps(steps: Step[]): Step[] {
   const allDeps = new Set(steps.flatMap(getStepDependencies));
   return steps.filter((s) => !allDeps.has(s.name));
@@ -139,6 +164,8 @@ function buildOrchestrationSets(stepResults: ParsedStepResult[]): {
 // advanceExecution — shared "check completion → dispatch ready" logic
 // ---------------------------------------------------------------------------
 
+const DEFAULT_ON_ERROR: OnError = "continue";
+
 async function advanceExecution(
   ctx: OrchestratorContext,
   executionId: string,
@@ -179,7 +206,7 @@ async function advanceExecution(
     if (!result.error || !result.completed_at_epoch_ms) continue;
     if (result.step_id.includes("[")) continue;
     const step = steps.find((s) => s.name === result.step_id);
-    const onError: OnError = step?.config?.onError ?? "fail";
+    const onError: OnError = step?.config?.onError ?? DEFAULT_ON_ERROR;
     if (onError === "fail") {
       log(eid, `step "${result.step_id}" has unhandled error, failing`);
       await ctx.storage.updateExecution(
@@ -581,13 +608,13 @@ async function handleForEachIterationCompletion(
   );
 
   if (completedIterations.length === totalIterations) {
-    const success = successfulIterations.map((r) => r.output);
+    const output = buildForEachOutput(iterationResults, totalIterations);
     const errors = failedIterations.map((r) => String(r.error));
     const parentError =
       onError === "fail" && errors.length > 0 ? errors.join(", ") : undefined;
 
     await ctx.storage.updateStepResult(executionId, stepName, {
-      output: success,
+      output,
       error: parentError,
       completed_at_epoch_ms: Date.now(),
     });
@@ -690,9 +717,7 @@ async function dispatchStep(
 
     // All iterations already completed (crash between iteration completion and parent finalization)
     if (completedIterationIndices.size === items.length) {
-      const successResults = existingIterations
-        .filter((r) => r.completed_at_epoch_ms && !r.error)
-        .map((r) => r.output);
+      const output = buildForEachOutput(existingIterations, items.length);
       const errorResults = existingIterations
         .filter((r) => r.completed_at_epoch_ms && r.error)
         .map((r) => String(r.error));
@@ -700,7 +725,7 @@ async function dispatchStep(
         errorResults.length > 0 ? errorResults.join(", ") : undefined;
 
       await ctx.storage.updateStepResult(executionId, step.name, {
-        output: successResults,
+        output,
         error: parentError,
         completed_at_epoch_ms: Date.now(),
       });

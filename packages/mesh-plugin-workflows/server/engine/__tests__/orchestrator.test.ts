@@ -279,6 +279,88 @@ describe("Orchestrator", () => {
       expect(processResult!.completed_at_epoch_ms).not.toBeNull();
     });
 
+    it("output array preserves positional correspondence with input array", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      const executionId = await startWorkflow([
+        makeCodeStep(
+          "produce",
+          "export default function() { return [10, 20, 30]; }",
+        ),
+        makeCodeStep(
+          "process",
+          "export default function(input) { return { doubled: input.value * 2 }; }",
+          { value: "@item" },
+          { forEach: { ref: "@produce", concurrency: 10 } },
+        ),
+      ]);
+
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      const processResult = await storage.getStepResult(executionId, "process");
+      const output = processResult!.output as { doubled: number }[];
+      // output[0] must correspond to input[0]=10, output[1] to input[1]=20, etc.
+      expect(output).toEqual([
+        { doubled: 20 },
+        { doubled: 40 },
+        { doubled: 60 },
+      ]);
+    });
+
+    it("failed iterations produce null at their index position", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      const executionId = await startWorkflow([
+        makeCodeStep(
+          "produce",
+          "export default function() { return [1, 0, 3, 0, 5]; }",
+        ),
+        makeCodeStep(
+          "process",
+          `export default function(input) {
+            if (input.value === 0) throw new Error("zero!");
+            return { ok: input.value };
+          }`,
+          { value: "@item" },
+          { forEach: { ref: "@produce", concurrency: 10 } },
+        ),
+      ]);
+
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      const processResult = await storage.getStepResult(executionId, "process");
+      const output = processResult!.output as ({ ok: number } | null)[];
+      // Indices 1 and 3 failed, so they should be null
+      expect(output).toEqual([{ ok: 1 }, null, { ok: 3 }, null, { ok: 5 }]);
+    });
+
+    it("output order is correct for 12+ items (lexicographic sort would break)", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      // 12 items — string sort would give [0],[1],[10],[11],[2],[3],...
+      const executionId = await startWorkflow([
+        makeCodeStep(
+          "produce",
+          "export default function() { return [0,1,2,3,4,5,6,7,8,9,10,11]; }",
+        ),
+        makeCodeStep(
+          "process",
+          "export default function(input) { return input.value; }",
+          { value: "@item" },
+          { forEach: { ref: "@produce", concurrency: 4 } },
+        ),
+      ]);
+
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      const processResult = await storage.getStepResult(executionId, "process");
+      const output = processResult!.output as number[];
+      expect(output).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    });
+
     it("refills concurrency window when multiple iterations complete simultaneously", async () => {
       const ctx = createMockOrchestratorContext(storage);
 

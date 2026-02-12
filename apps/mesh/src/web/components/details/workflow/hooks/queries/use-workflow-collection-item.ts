@@ -32,7 +32,6 @@ export function usePollingWorkflowExecution(executionId?: string) {
     toolArguments: {
       id: executionId,
     },
-    gcTime: 0,
     enabled: !!executionId,
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
