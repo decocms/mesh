@@ -101,20 +101,13 @@ export const RegistryListInputSchema = CollectionListInputSchema.extend({
   tags: z
     .array(z.string())
     .optional()
-    .describe("Filter by tags (returns items with any of the specified tags)"),
+    .describe("Filter by tags (AND semantics)"),
   categories: z
     .array(z.string())
     .optional()
-    .describe(
-      "Filter by categories (returns items with any of the specified categories)",
-    ),
-  cursor: z
-    .string()
-    .optional()
-    .describe("Pagination cursor for fetching the next page of results"),
-}).describe(
-  "List registry items with optional filtering, sorting, and pagination. All parameters are optional.",
-);
+    .describe("Filter by categories (AND semantics)"),
+  cursor: z.string().optional().describe("Pagination cursor"),
+}).describe("List registry items with optional filtering and pagination.");
 
 export const RegistryListOutputSchema = z.object({
   items: z.array(RegistryItemSchema),
@@ -125,21 +118,13 @@ export const RegistryListOutputSchema = z.object({
 
 export const RegistryGetInputSchema = z
   .object({
-    id: z
-      .string()
-      .optional()
-      .describe("Unique identifier of the registry item"),
-    name: z
-      .string()
-      .optional()
-      .describe("Name of the registry item (alias for id)"),
+    id: z.string().optional().describe("Registry item ID"),
+    name: z.string().optional().describe("Registry item name (alias for id)"),
   })
   .refine((data) => data.id || data.name, {
     message: "At least one of 'id' or 'name' is required",
   })
-  .describe(
-    "Get a registry item by ID or name. At least one parameter is required.",
-  );
+  .describe("Get a registry item by ID or name.");
 
 export const RegistryGetOutputSchema = z.object({
   item: RegistryItemSchema.nullable(),
@@ -185,18 +170,8 @@ export const RegistryDeleteOutputSchema = z.object({
 });
 
 export const RegistryFiltersOutputSchema = z.object({
-  tags: z.array(
-    z.object({
-      value: z.string(),
-      count: z.number(),
-    }),
-  ),
-  categories: z.array(
-    z.object({
-      value: z.string(),
-      count: z.number(),
-    }),
-  ),
+  tags: z.array(z.object({ value: z.string(), count: z.number() })),
+  categories: z.array(z.object({ value: z.string(), count: z.number() })),
 });
 
 const RegistryAIGenerateTypeSchema = z.enum([
@@ -207,37 +182,28 @@ const RegistryAIGenerateTypeSchema = z.enum([
   "readme",
 ]);
 
-// ─── Search (lightweight) ───
-
 export const RegistrySearchInputSchema = z
   .object({
     query: z
       .string()
       .optional()
-      .describe(
-        "Free-text search across id, title, description, and server name",
-      ),
-    tags: z
-      .array(z.string())
-      .optional()
-      .describe("Filter by tags (AND semantics)"),
+      .describe("Free-text search across id, title, description, server name"),
+    tags: z.array(z.string()).optional().describe("Filter by tags (AND)"),
     categories: z
       .array(z.string())
       .optional()
-      .describe("Filter by categories (AND semantics)"),
+      .describe("Filter by categories (AND)"),
     limit: z
       .number()
       .int()
       .min(1)
       .max(100)
       .optional()
-      .describe("Max results to return (default 20)"),
+      .describe("Max results (default 20)"),
     cursor: z.string().optional().describe("Pagination cursor"),
   })
   .describe(
-    "Lightweight search returning minimal fields to save tokens. " +
-      "Search by free-text query, tags, or categories. " +
-      "Returns id, title, short_description, tags, categories, is_public, and icon only.",
+    "Lightweight search returning minimal fields (id, title, tags, categories, is_public).",
   );
 
 const RegistrySearchItemSchema = z.object({
@@ -255,14 +221,10 @@ export const RegistrySearchOutputSchema = z.object({
   nextCursor: z.string().optional(),
 });
 
-// ─── AI Generate ───
-
 export const RegistryAIGenerateInputSchema = z.object({
   type: RegistryAIGenerateTypeSchema.describe("Which content to generate"),
-  llmConnectionId: z
-    .string()
-    .describe("Connection ID of a language model provider"),
-  modelId: z.string().describe("Model ID to use for generation"),
+  llmConnectionId: z.string().describe("Connection ID of a language model"),
+  modelId: z.string().describe("Model ID to use"),
   context: z.object({
     name: z.string().optional(),
     provider: z.string().optional(),

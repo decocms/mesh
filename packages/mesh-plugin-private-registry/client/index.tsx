@@ -1,4 +1,3 @@
-import { REGISTRY_APP_BINDING } from "@decocms/bindings";
 import type { ClientPlugin } from "@decocms/bindings/plugins";
 import { Package } from "@untitledui/icons";
 import { lazy } from "react";
@@ -8,10 +7,10 @@ const PrivateRegistryLayout = lazy(
   () => import("./components/registry-layout"),
 );
 
-export const clientPlugin: ClientPlugin<typeof REGISTRY_APP_BINDING> = {
+export const clientPlugin: ClientPlugin = {
   id: PLUGIN_ID,
   description: PLUGIN_DESCRIPTION,
-  binding: REGISTRY_APP_BINDING,
+  // No binding — this plugin runs on the self MCP, not an external connection.
   LayoutComponent: PrivateRegistryLayout,
   setup: (context) => {
     context.registerSidebarGroup({

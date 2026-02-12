@@ -4,29 +4,12 @@ import {
   RegistryAIGenerateInputSchema,
   RegistryAIGenerateOutputSchema,
 } from "./schema";
-
-type MeshToolContext = {
-  organization?: { id: string } | null;
-  access: { check: () => Promise<void> };
-  createMCPProxy: (connectionId: string) => Promise<{
-    callTool: (args: {
-      name: string;
-      arguments?: Record<string, unknown>;
-    }) => Promise<{
-      isError?: boolean;
-      content?: Array<{ type?: string; text?: string }>;
-      structuredContent?: unknown;
-    }>;
-    close?: () => Promise<void>;
-  }>;
-};
+import { orgHandler } from "./utils";
 
 function normalizeList(values: string[]): string[] {
   return Array.from(
     new Set(
-      values
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0),
+      values.map((v) => v.trim().toLowerCase()).filter((v) => v.length > 0),
     ),
   );
 }
@@ -36,28 +19,24 @@ function extractTextOutput(result: {
   content?: Array<{ type?: string; text?: string }>;
 }): string {
   const structured = result.structuredContent as
-    | {
-        content?: Array<{ type?: string; text?: string }>;
-      }
+    | { content?: Array<{ type?: string; text?: string }> }
     | undefined;
 
   const fromStructured = structured?.content
-    ?.filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text ?? "")
+    ?.filter((p) => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text ?? "")
     .join("\n")
     .trim();
 
-  if (fromStructured) {
-    return fromStructured;
-  }
+  if (fromStructured) return fromStructured;
 
-  const fromContent = result.content
-    ?.filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text ?? "")
-    .join("\n")
-    .trim();
-
-  return fromContent ?? "";
+  return (
+    result.content
+      ?.filter((p) => p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text ?? "")
+      .join("\n")
+      .trim() ?? ""
+  );
 }
 
 function buildPrompt(input: z.infer<typeof RegistryAIGenerateInputSchema>): {
@@ -164,35 +143,25 @@ ${contextJson}`,
 export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
   name: "REGISTRY_AI_GENERATE",
   description:
-    "Generate MCP metadata (description, short description, tags, categories, README) using an LLM connection.",
+    "Generate MCP metadata (description, short description, tags, categories, README) using an LLM.",
   inputSchema: RegistryAIGenerateInputSchema,
   outputSchema: RegistryAIGenerateOutputSchema,
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistryAIGenerateInputSchema>;
-    const meshCtx = ctx as MeshToolContext;
 
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
-    const { system, user, maxOutputTokens } = buildPrompt(typedInput);
-    const proxy = await meshCtx.createMCPProxy(typedInput.llmConnectionId);
+  handler: orgHandler(RegistryAIGenerateInputSchema, async (input, ctx) => {
+    const { system, user, maxOutputTokens } = buildPrompt(input);
+    const proxy = await ctx.createMCPProxy(input.llmConnectionId);
 
     try {
       const llmResult = await proxy.callTool({
         name: "LLM_DO_GENERATE",
         arguments: {
-          modelId: typedInput.modelId,
+          modelId: input.modelId,
           callOptions: {
             temperature: 0.2,
             maxOutputTokens,
             prompt: [
               { role: "system", content: system },
-              {
-                role: "user",
-                content: [{ type: "text", text: user }],
-              },
+              { role: "user", content: [{ type: "text", text: user }] },
             ],
           },
         },
@@ -200,37 +169,29 @@ export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
 
       if (llmResult.isError) {
         const message =
-          llmResult.content?.find((part) => part.type === "text")?.text ??
+          llmResult.content?.find((p) => p.type === "text")?.text ??
           "Failed to generate content";
         throw new Error(message);
       }
 
       const rawText = extractTextOutput(llmResult);
 
-      if (typedInput.type === "tags" || typedInput.type === "categories") {
+      if (input.type === "tags" || input.type === "categories") {
         const items = normalizeList(
-          rawText.split(/[,\n;]/).map((value) => value.replace(/^[-*]\s*/, "")),
+          rawText.split(/[,\n;]/).map((v) => v.replace(/^[-*]\s*/, "")),
         );
-
-        if (typedInput.type === "tags") {
-          return { items: items.slice(0, 5) };
-        }
-        return { items: items.slice(0, 1) };
+        return { items: items.slice(0, input.type === "tags" ? 5 : 1) };
       }
 
-      if (typedInput.type === "description") {
+      if (input.type === "description")
         return { result: rawText.slice(0, 1500) };
-      }
-      if (typedInput.type === "short_description") {
+      if (input.type === "short_description")
         return { result: rawText.slice(0, 160) };
-      }
-      if (typedInput.type === "readme") {
-        return { result: rawText.slice(0, 50000) };
-      }
+      if (input.type === "readme") return { result: rawText.slice(0, 50000) };
 
       return { result: rawText };
     } finally {
       await proxy.close?.().catch(() => {});
     }
-  },
+  }),
 };

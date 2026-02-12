@@ -1,7 +1,7 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { z } from "zod";
 import { RegistryFiltersOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_FILTERS",
@@ -9,17 +9,8 @@ export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
   inputSchema: z.object({}),
   outputSchema: RegistryFiltersOutputSchema,
 
-  handler: async (_input, ctx) => {
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+  handler: orgHandler(z.object({}), async (_input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.getFilters(meshCtx.organization.id);
-  },
+    return storage.items.getFilters(ctx.organization.id);
+  }),
 };

@@ -1,16 +1,10 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import {
   RegistrySearchInputSchema,
   RegistrySearchOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
-/**
- * Lightweight search tool that returns minimal fields to save tokens.
- * Searches by free-text query (id, title, description, server name),
- * tags, and categories. Returns only: id, title, tags, categories, is_public.
- */
 export const COLLECTION_REGISTRY_APP_SEARCH: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_SEARCH",
   description:
@@ -21,18 +15,8 @@ export const COLLECTION_REGISTRY_APP_SEARCH: ServerPluginToolDefinition = {
   inputSchema: RegistrySearchInputSchema,
   outputSchema: RegistrySearchOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistrySearchInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+  handler: orgHandler(RegistrySearchInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.search(meshCtx.organization.id, typedInput);
-  },
+    return storage.items.search(ctx.organization.id, input);
+  }),
 };

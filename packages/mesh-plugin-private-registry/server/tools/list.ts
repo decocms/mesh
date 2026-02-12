@@ -1,7 +1,6 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import { RegistryListInputSchema, RegistryListOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_LIST",
@@ -9,18 +8,8 @@ export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
   inputSchema: RegistryListInputSchema,
   outputSchema: RegistryListOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistryListInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+  handler: orgHandler(RegistryListInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.list(meshCtx.organization.id, typedInput);
-  },
+    return storage.items.list(ctx.organization.id, input);
+  }),
 };

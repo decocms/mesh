@@ -25,13 +25,6 @@
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
-    },
-    "packages/mesh-plugin-private-registry": {
-      "entry": ["client/index.tsx", "server/index.ts", "shared.ts"],
-      "ignore": [
-        // Plugin router is loaded dynamically by the Mesh plugin system
-        "client/lib/router.ts"
-      ]
     }
   },
   "ignoreDependencies": ["@types/*"],
