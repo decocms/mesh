@@ -605,5 +605,9 @@ export function UserAskQuestionHighlight({
     return <UserAskLoadingUI />;
   }
 
+  if (pendingParts.length === 0) {
+    return null;
+  }
+
   return <UserAskPrompt parts={pendingParts} onSubmit={onSubmit} />;
 }
