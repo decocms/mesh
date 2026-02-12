@@ -1,4 +1,3 @@
-import type { UserAskInput } from "@/api/routes/decopilot/built-in-tools";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Form,
@@ -20,6 +19,9 @@ import { useEffect, useRef, useState } from "react";
 import { type Control, type FieldValues, useForm } from "react-hook-form";
 import type { UserAskToolPart } from "../types";
 import { buildCombinedSchema } from "./user-ask-schemas";
+
+/** Inferred from UserAskToolPart so we don't import the backend module directly. */
+type UserAskInput = NonNullable<UserAskToolPart["input"]>;
 
 // Type for the combined form values: { [toolCallId]: { response: string } }
 type CombinedFormValues = Record<string, { response: string }>;
@@ -302,7 +304,7 @@ function QuestionInput({ input, control, name }: QuestionInputProps) {
         <ChoiceInput
           control={control}
           name={name}
-          options={input.options ?? []}
+          options={(input.options?.filter(Boolean) ?? []) as string[]}
         />
       );
     case "confirm":

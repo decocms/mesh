@@ -5,6 +5,9 @@
  * agent (Virtual MCP). Uses AI SDK v6 streaming generator pattern.
  */
 
+import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
+import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
 import type { UIMessage } from "ai";
 import {
   readUIMessageStream,
@@ -13,12 +16,7 @@ import {
   tool,
   zodSchema,
 } from "ai";
-
-import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
-import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
-import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
 import { z } from "zod";
-
 import {
   DEFAULT_MAX_TOKENS,
   SUBAGENT_EXCLUDED_TOOLS,
@@ -61,8 +59,7 @@ const SUBTASK_DESCRIPTION =
   "subagent doesn't have enough information, it will return asking for clarification instead of " +
   "proceeding, so invest in writing a clear, self-contained prompt upfront.";
 
-export interface SubtaskToolDeps {
-  ctx: MeshContext;
+export interface SubtaskParams {
   modelProvider: ModelProvider;
   organization: OrganizationScope;
   models: ModelsConfig;
@@ -95,8 +92,8 @@ End with a concise summary: what you did, what you found/produced, any assumptio
   return prompt;
 }
 
-export function createSubtaskTool(deps: SubtaskToolDeps) {
-  const { ctx, modelProvider, organization, models } = deps;
+export function createSubtaskTool(params: SubtaskParams, ctx: MeshContext) {
+  const { modelProvider, organization, models } = params;
 
   return tool({
     description: SUBTASK_DESCRIPTION,

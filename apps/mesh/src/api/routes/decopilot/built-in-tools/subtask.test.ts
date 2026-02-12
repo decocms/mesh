@@ -6,17 +6,14 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { BuiltinToolParams } from "./index";
 import {
   buildSubagentSystemPrompt,
   createSubtaskTool,
   SubtaskInputSchema,
-  type SubtaskToolDeps,
-} from "./index";
+} from "./subtask";
 
-const mockDeps: SubtaskToolDeps = {
-  ctx: {
-    storage: { virtualMcps: { findById: () => Promise.resolve(null) } },
-  } as never,
+const mockParams: BuiltinToolParams = {
   modelProvider: { thinkingModel: {} as never } as never,
   organization: { id: "org_test" } as never,
   models: {
@@ -24,6 +21,10 @@ const mockDeps: SubtaskToolDeps = {
     thinking: { id: "model_test", limits: {} },
   } as never,
 };
+
+const mockCtx = {
+  storage: { virtualMcps: { findById: () => Promise.resolve(null) } },
+} as never;
 
 describe("SubtaskInputSchema", () => {
   describe("valid input", () => {
@@ -121,7 +122,7 @@ describe("SubtaskInputSchema", () => {
 
 describe("createSubtaskTool", () => {
   test("returns a tool with execute defined", () => {
-    const tool = createSubtaskTool(mockDeps);
+    const tool = createSubtaskTool(mockParams, mockCtx);
 
     expect(tool).toBeDefined();
     expect(tool.execute).toBeDefined();
@@ -129,7 +130,7 @@ describe("createSubtaskTool", () => {
   });
 
   test("returns a tool with toModelOutput defined", () => {
-    const tool = createSubtaskTool(mockDeps);
+    const tool = createSubtaskTool(mockParams, mockCtx);
 
     expect(tool).toBeDefined();
     expect(tool.toModelOutput).toBeDefined();
@@ -137,7 +138,7 @@ describe("createSubtaskTool", () => {
   });
 
   test("returns a tool with description and inputSchema", () => {
-    const tool = createSubtaskTool(mockDeps);
+    const tool = createSubtaskTool(mockParams, mockCtx);
 
     expect(tool.description).toBeDefined();
     expect(tool.description).toContain("Delegate");
@@ -178,7 +179,7 @@ describe("buildSubagentSystemPrompt", () => {
 });
 
 describe("toModelOutput", () => {
-  const tool = createSubtaskTool(mockDeps);
+  const tool = createSubtaskTool(mockParams, mockCtx);
   const toModelOutput = tool.toModelOutput!;
 
   const baseArgs = {
