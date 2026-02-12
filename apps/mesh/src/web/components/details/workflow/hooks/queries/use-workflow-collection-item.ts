@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { WorkflowExecution } from "@decocms/bindings/workflow";
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import {
@@ -11,12 +10,16 @@ type ExecutionQueryResult = {
   item: WorkflowExecution | null;
 };
 
-const POLLING_INTERVALS = [100, 1000, 2000];
-
+/**
+ * Fetch a single workflow execution by ID.
+ *
+ * Real-time updates are driven by SSE via useWorkflowSSE() which
+ * invalidates the query cache when workflow events arrive.
+ * No polling needed.
+ */
 export function usePollingWorkflowExecution(executionId?: string) {
   const { org } = useProjectContext();
   const connection = useWorkflowBindingConnection();
-  const intervalIndexRef = useRef(0);
 
   const client = useMCPClient({
     connectionId: connection.id,
@@ -34,31 +37,6 @@ export function usePollingWorkflowExecution(executionId?: string) {
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
         result) as ExecutionQueryResult,
-    refetchInterval: executionId
-      ? (query: unknown) => {
-          const queryData = query as {
-            state?: {
-              data?:
-                | { structuredContent?: ExecutionQueryResult }
-                | ExecutionQueryResult;
-            };
-          };
-          const rawData = queryData.state?.data;
-          const executionResult =
-            (rawData as { structuredContent?: ExecutionQueryResult })
-              ?.structuredContent ??
-            (rawData as ExecutionQueryResult | undefined);
-          const status = executionResult?.item?.status;
-          if (status === "running" || status === "enqueued") {
-            const interval = POLLING_INTERVALS[intervalIndexRef.current] ?? 1;
-            intervalIndexRef.current =
-              (intervalIndexRef.current + 1) % POLLING_INTERVALS.length;
-            return interval;
-          }
-          intervalIndexRef.current = 0;
-          return false;
-        }
-      : false,
   });
 
   return {
@@ -96,7 +74,6 @@ export function useExecutionCompletedStep(
       stepId: stepName,
     },
     enabled: isEnabled,
-    refetchInterval: options?.refetchInterval,
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
         result) as { output: unknown | null; error: string | null },

@@ -79,6 +79,12 @@ export const StepConfigSchema = z.object({
     .number()
     .optional()
     .describe("Max execution time in ms before step fails (default: 30000)"),
+  onError: z
+    .enum(["fail", "continue"])
+    .optional()
+    .describe(
+      "What to do when this step fails: 'fail' aborts the workflow, 'continue' skips the error and proceeds",
+    ),
 });
 export type StepConfig = z.infer<typeof StepConfigSchema>;
 

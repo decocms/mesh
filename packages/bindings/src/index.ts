@@ -101,3 +101,6 @@ export {
   type DeleteObjectsInput,
   type DeleteObjectsOutput,
 } from "./well-known/object-storage";
+
+// Re-export workflow binding types
+export { WORKFLOWS_COLLECTION_BINDING } from "./well-known/workflow";

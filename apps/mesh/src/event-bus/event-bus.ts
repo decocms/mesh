@@ -27,6 +27,7 @@ import type {
   SubscribeInput,
 } from "./interface";
 import type { NotifyStrategy } from "./notify-strategy";
+import { sseHub, toSSEEvent } from "./sse-hub";
 import { EventBusWorker } from "./worker";
 
 /**
@@ -115,6 +116,9 @@ export class EventBus implements IEventBus {
       data: input.data,
       cron: input.cron,
     });
+
+    // Fan out to SSE /watch connections (non-blocking, best-effort)
+    sseHub.emit(organizationId, toSSEEvent(event));
 
     // Find matching subscriptions and create delivery records
     const subscriptions = await this.storage.getMatchingSubscriptions(event);

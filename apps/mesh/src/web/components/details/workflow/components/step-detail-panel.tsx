@@ -5,9 +5,16 @@ import {
   AccordionTrigger,
 } from "@deco/ui/components/accordion.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { ScrollArea, ScrollBar } from "@deco/ui/components/scroll-area.tsx";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CornerDownRight, Plus, Repeat03 } from "@untitledui/icons";
+import {
+  Check,
+  CornerDownRight,
+  Plus,
+  Repeat03,
+  XClose,
+} from "@untitledui/icons";
 import {
   Box,
   Braces,
@@ -106,12 +113,26 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
   }
 
   const currentStepName = currentStep?.name;
+  const errorEntries = executionItem?.completed_steps?.error ?? [];
+  const hasStepError = errorEntries.some(
+    (entry) =>
+      entry === currentStepName || entry.startsWith(`${currentStepName}[`),
+  );
+  // Also check if execution failed while this step was running
+  const executionFailed =
+    executionItem?.status === "error" || executionItem?.status === "failed";
+  const wasRunningWhenFailed =
+    executionFailed &&
+    executionItem?.running_steps?.includes(currentStepName ?? "");
   const isCompleted =
     executionItem?.completed_steps?.success?.some(
       (completedStep) => completedStep.name === currentStepName,
-    ) || executionItem?.completed_steps?.error?.includes(currentStepName)
+    ) ||
+    hasStepError ||
+    wasRunningWhenFailed
       ? true
       : false;
+  const isStepErrored = hasStepError || wasRunningWhenFailed;
 
   return (
     <div
@@ -126,6 +147,14 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
         key={isCompleted ? "open" : "closed"}
         step={currentStep}
         defaultOpen={isCompleted}
+        isStepErrored={isStepErrored}
+        executionError={
+          isStepErrored && executionItem?.error != null
+            ? typeof executionItem.error === "string"
+              ? executionItem.error
+              : JSON.stringify(executionItem.error)
+            : undefined
+        }
       />
       {!trackingExecutionId && <TransformCodeSection step={currentStep} />}
       {!trackingExecutionId && <StepCodeSection step={currentStep} />}
@@ -309,26 +338,86 @@ function filterSchemaByExecutionInput(
 function OutputSection({
   step,
   defaultOpen,
+  isStepErrored,
+  executionError,
 }: {
   step: Step;
   defaultOpen: boolean;
+  isStepErrored?: boolean;
+  executionError?: string;
 }) {
   const outputSchema = step.outputSchema;
   const trackingExecutionId = useTrackingExecutionId();
   const { item: executionItem } =
     usePollingWorkflowExecution(trackingExecutionId);
+  const errorEntries = executionItem?.completed_steps?.error ?? [];
+  const hasStepError = errorEntries.some(
+    (entry) => entry === step.name || entry.startsWith(`${step.name}[`),
+  );
+  const executionFailed =
+    executionItem?.status === "error" || executionItem?.status === "failed";
+  const wasRunningWhenFailed =
+    executionFailed && executionItem?.running_steps?.includes(step.name);
   const isCompleted =
     executionItem?.completed_steps?.success?.some(
       (completedStep) => completedStep.name === step.name,
-    ) || executionItem?.completed_steps?.error?.includes(step.name)
+    ) ||
+    hasStepError ||
+    wasRunningWhenFailed
       ? true
       : false;
   const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  // forEach iteration tracking
+  const isForEachStep = step.forEach !== undefined;
+  // "all" means show aggregated parent output, number means show that iteration
+  const [selectedIteration, setSelectedIteration] = useState<"all" | number>(
+    "all",
+  );
+
+  // Build iteration info for forEach steps
+  const forEachRegex = isForEachStep
+    ? new RegExp(`^${step.name}\\[(\\d+)\\]$`)
+    : null;
+  const successIterations = isForEachStep
+    ? (executionItem?.completed_steps?.success ?? [])
+        .filter((s) => forEachRegex!.test(s.name))
+        .map((s) => {
+          const match = s.name.match(forEachRegex!);
+          return { index: Number(match![1]), status: "success" as const };
+        })
+    : [];
+  const errorIterationNames = isForEachStep
+    ? errorEntries.filter((entry) => forEachRegex!.test(entry))
+    : [];
+  const errorIterations = errorIterationNames.map((entry) => {
+    const match = entry.match(forEachRegex!);
+    return { index: Number(match![1]), status: "error" as const };
+  });
+  const allIterations = [...successIterations, ...errorIterations].sort(
+    (a, b) => a.index - b.index,
+  );
+  const hasIterations = allIterations.length > 0;
+
+  // Determine which stepId to fetch
+  const iterationStepId =
+    isForEachStep && selectedIteration !== "all"
+      ? `${step.name}[${selectedIteration}]`
+      : undefined;
+  const parentStepId = isCompleted ? step.name : undefined;
+  const fetchStepId = iterationStepId ?? parentStepId;
+
   const { output, error } = useExecutionCompletedStep(
     trackingExecutionId,
-    isCompleted ? step.name : undefined,
+    fetchStepId,
   );
-  const content = output ? output : error ? { error: error } : undefined;
+  const content = output
+    ? output
+    : error
+      ? { error: error }
+      : isStepErrored && executionError
+        ? { error: executionError }
+        : undefined;
 
   // Always show the Output section (even if empty)
   const properties =
@@ -339,6 +428,15 @@ function OutputSection({
       : undefined;
 
   const propertyEntries = properties ? Object.entries(properties) : [];
+
+  // Determine if the selected iteration has an error
+  const selectedIterationHasError =
+    selectedIteration !== "all" &&
+    errorIterations.some((it) => it.index === selectedIteration);
+  const showError =
+    selectedIteration === "all"
+      ? isStepErrored || hasStepError || wasRunningWhenFailed
+      : selectedIterationHasError;
 
   return (
     <div
@@ -352,7 +450,14 @@ function OutputSection({
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-muted-foreground">Output</h3>
+          <h3
+            className={cn(
+              "text-sm font-medium",
+              showError ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {showError ? "Error" : "Output"}
+          </h3>
           {isOpen ? (
             <ChevronUp size={14} className="text-muted-foreground" />
           ) : (
@@ -361,25 +466,101 @@ function OutputSection({
         </div>
       </div>
       {isOpen && (
-        <div className="flex-1 min-h-0 overflow-auto px-5">
-          {trackingExecutionId && content ? (
-            <MonacoCodeEditor
-              code={JSON.stringify(content, null, 2)}
-              language="json"
-              height="100%"
-              readOnly
+        <>
+          {/* forEach iteration picker */}
+          {trackingExecutionId && isForEachStep && hasIterations && (
+            <ForEachIterationPicker
+              iterations={allIterations}
+              selectedIteration={selectedIteration}
+              onSelect={setSelectedIteration}
             />
-          ) : null}
-          {!trackingExecutionId &&
-            propertyEntries.map(([key, propSchema]) => (
-              <OutputProperty
-                key={key}
-                name={key}
-                schema={propSchema as JsonSchema}
+          )}
+          {trackingExecutionId && content ? (
+            <div className="flex-1 min-h-0">
+              <MonacoCodeEditor
+                key={`output-${step.name}-${selectedIteration}`}
+                code={JSON.stringify(content, null, 2)}
+                language="json"
+                height="100%"
+                readOnly
               />
-            ))}
-        </div>
+            </div>
+          ) : null}
+          {!trackingExecutionId && propertyEntries.length > 0 && (
+            <div className="flex-1 min-h-0 overflow-auto px-5">
+              {propertyEntries.map(([key, propSchema]) => (
+                <OutputProperty
+                  key={key}
+                  name={key}
+                  schema={propSchema as JsonSchema}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ForEach Iteration Picker
+// ============================================================================
+
+function ForEachIterationPicker({
+  iterations,
+  selectedIteration,
+  onSelect,
+}: {
+  iterations: { index: number; status: "success" | "error" }[];
+  selectedIteration: "all" | number;
+  onSelect: (iteration: "all" | number) => void;
+}) {
+  return (
+    <div className="px-5 pb-3 shrink-0 border-b border-border/50">
+      <ScrollArea className="w-full whitespace-nowrap">
+        <div className="flex w-max items-center gap-2 pb-3">
+          <button
+            type="button"
+            className={cn(
+              "h-7 px-3 text-xs font-medium rounded-lg border transition-colors inline-flex gap-1.5 items-center",
+              selectedIteration === "all"
+                ? "bg-accent border-border text-foreground"
+                : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            )}
+            onClick={() => onSelect("all")}
+          >
+            All Results
+          </button>
+
+          <div className="w-px h-4 bg-border mx-1" />
+
+          {iterations.map((it) => {
+            const isActive = selectedIteration === it.index;
+            return (
+              <button
+                key={it.index}
+                type="button"
+                className={cn(
+                  "h-7 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex gap-1.5 items-center",
+                  isActive
+                    ? "bg-accent border-border text-foreground"
+                    : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+                onClick={() => onSelect(it.index)}
+              >
+                {it.status === "success" ? (
+                  <Check size={12} className="text-success" />
+                ) : (
+                  <XClose size={12} className="text-destructive" />
+                )}
+                <span className="font-mono">#{it.index}</span>
+              </button>
+            );
+          })}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
     </div>
   );
 }

@@ -15,8 +15,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.js";
+import { Badge } from "@deco/ui/components/badge.js";
 import { Button } from "@deco/ui/components/button.js";
-import { Clock, Eye, FileIcon, X } from "lucide-react";
+import { AlertOctagon, Check, Clock, Eye, FileIcon, X } from "lucide-react";
 import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
@@ -34,6 +35,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 import { usePollingWorkflowExecution } from "./hooks";
+import { useWorkflowSSE } from "./hooks/use-workflow-sse";
 import { useRef, useState, useSyncExternalStore } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -198,36 +200,58 @@ function formatDuration(milliseconds: number): string {
 function WorkflowExecutionBar() {
   const { setTrackingExecutionId } = useWorkflowActions();
   const trackingExecutionId = useTrackingExecutionId();
+  const { item: executionItem } =
+    usePollingWorkflowExecution(trackingExecutionId);
 
   const duration = useExecutionDuration();
   const formattedDuration = duration != null ? formatDuration(duration) : null;
+  const status = executionItem?.status;
+  const isError = status === "error" || status === "failed";
+  const isSuccess = status === "success";
   return (
-    <div className="h-10 bg-accent flex items-center justify-between border-b border-border">
-      <div className="flex items-center h-full">
-        <div className="flex items-center justify-center h-full w-12">
-          <Eye className="w-4 h-4 text-muted-foreground" />
-        </div>
-        <p className="flex gap-3 items-center h-full">
-          <strong className="text-base text-foreground">Run</strong>
-          <span className="text-sm text-muted-foreground">
-            #{trackingExecutionId}
-          </span>
-        </p>
-        <div className="flex items-center gap-1 ml-6">
-          <Clock className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {formattedDuration}
-          </span>
-        </div>
-      </div>
+    <div className="flex flex-col border-b border-border">
+      <div className="h-10 bg-accent flex items-center justify-between">
+        <div className="flex items-center h-full">
+          <div className="flex items-center justify-center h-full w-12">
+            <Eye className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <p className="flex gap-3 items-center h-full">
+            <strong className="text-base text-foreground">Run</strong>
+            <span className="text-sm text-muted-foreground">
+              #{trackingExecutionId}
+            </span>
+          </p>
 
-      <Button
-        variant="ghost"
-        size="xs"
-        onClick={() => setTrackingExecutionId(undefined)}
-      >
-        <X className="w-4 h-4 text-muted-foreground" />
-      </Button>
+          {/* Status badge */}
+          {isSuccess && (
+            <Badge variant="success" className="gap-1 ml-3">
+              <Check size={11} />
+              Success
+            </Badge>
+          )}
+          {isError && (
+            <Badge variant="destructive" className="gap-1 ml-3">
+              <AlertOctagon size={11} />
+              Failed
+            </Badge>
+          )}
+
+          <div className="flex items-center gap-1 ml-6">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              {formattedDuration}
+            </span>
+          </div>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => setTrackingExecutionId(undefined)}
+        >
+          <X className="w-4 h-4 text-muted-foreground" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -275,6 +299,9 @@ function WorkflowStudio({
   onUpdate,
   isUpdating,
 }: Omit<WorkflowDetailsProps, "onBack">) {
+  // Subscribe to workflow SSE events — invalidates query caches on changes
+  useWorkflowSSE();
+
   const workflow = useWorkflow();
   const trackingExecutionId = useTrackingExecutionId();
   const { viewMode, showExecutionsList } = useViewModeStore();
@@ -348,11 +375,17 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
 
   const collectionName = "WORKFLOW_EXECUTION";
 
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? null,
+    orgId: org.id,
+  });
+
   const item = useCollectionItem<WorkflowExecution>(
     scopeKey,
     collectionName,
     itemId,
-    connectionId,
+    client,
   );
 
   return {

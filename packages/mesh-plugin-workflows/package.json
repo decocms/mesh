@@ -1,0 +1,36 @@
+{
+  "name": "mesh-plugin-workflows",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Workflows plugin for Mesh - create and manage workflows",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "exports": {
+    "./server": "./server/index.ts",
+    "./client": "./client/index.tsx"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
+    "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
+    "@untitledui/icons": "^0.0.19",
+    "hono": "^4.7.10",
+    "kysely": "^0.27.5",
+    "quickjs-emscripten-core": "^0.31.0",
+    "sucrase": "^3.35.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "kysely-bun-worker": "^0.6.0",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "lucide-react": "*",
+    "react": "^19.2.0",
+    "sonner": ">=2.0.0"
+  }
+}

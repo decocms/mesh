@@ -56,12 +56,16 @@ export function WorkflowStepCard({
 
   const completedSteps = executionItem?.completed_steps;
   const successSteps = completedSteps?.success;
+  const errorEntries = completedSteps?.error ?? [];
   const thisStep = successSteps?.find(
     (completedStep) => completedStep.name === step.name,
   );
   const stepCompletedAt = thisStep?.completed_at_epoch_ms;
   const isCompletedSuccessfully = thisStep != null;
-  const isCompletedWithError = completedSteps?.error?.includes(step.name);
+  // Match both exact ("step_a") and forEach iteration ("step_a[7]") errors
+  const isCompletedWithError = errorEntries.some(
+    (entry) => entry === step.name || entry.startsWith(`${step.name}[`),
+  );
 
   const isToolStep = "toolName" in step.action;
   const connectionId =
@@ -73,9 +77,15 @@ export function WorkflowStepCard({
   const hasToolSelected = Boolean(toolName);
   const outputSchemaProperties = getOutputSchemaProperties(step);
 
+  // If execution failed while this step was in running_steps, mark it as error
+  const executionFailed =
+    executionItem?.status === "error" || executionItem?.status === "failed";
+  const wasRunningWhenFailed =
+    executionFailed && executionItem?.running_steps?.includes(step.name);
+
   const status = isCompletedSuccessfully
     ? "success"
-    : isCompletedWithError
+    : isCompletedWithError || wasRunningWhenFailed
       ? "error"
       : executionStatus?.status;
   const isTracking = executionStatus !== undefined;
@@ -139,11 +149,12 @@ export function WorkflowStepCard({
   );
   const refPath = targetRef?.replace("@", "");
   const refValue = refPath ? resolveRefPath(targetOutput, refPath) : undefined;
+  const forEachRegex = new RegExp(`^${step.name}\\[\\d+\\]$`);
   const completedForEachItems = executionItem?.completed_steps?.success?.filter(
-    (completedStep) => {
-      const regex = new RegExp(`^${step.name}\\[\\d+\\]$`);
-      return regex.test(completedStep.name);
-    },
+    (completedStep) => forEachRegex.test(completedStep.name),
+  );
+  const erroredForEachItems = errorEntries.filter((entry) =>
+    forEachRegex.test(entry),
   );
   return (
     <div
@@ -218,8 +229,13 @@ export function WorkflowStepCard({
 
           <div className="flex items-center gap-2">
             {isForEachStep && refValue && refValue.length > 0 && (
-              <span className="text-xs font-mono opacity-75 h-8 flex items-center">
-                {`${completedForEachItems?.length ?? 0} / ${refValue.length}`}
+              <span className="text-xs font-mono opacity-75 h-8 flex items-center gap-1">
+                {`${(completedForEachItems?.length ?? 0) + erroredForEachItems.length} / ${refValue.length}`}
+                {erroredForEachItems.length > 0 && (
+                  <span className="text-destructive">
+                    ({erroredForEachItems.length} failed)
+                  </span>
+                )}
               </span>
             )}
             {/* Status Icon on the right */}
@@ -370,13 +386,19 @@ function SuccessBadge({
 }: {
   completedAtEpochMs?: number | null;
 }) {
-  // Only show timestamp if we have the completion time
+  // Only show timestamp if we have a valid completion time
   const completionDate =
-    completedAtEpochMs != null ? new Date(completedAtEpochMs) : null;
-  const dateStr = completionDate
+    completedAtEpochMs != null && completedAtEpochMs > 0
+      ? new Date(completedAtEpochMs)
+      : null;
+
+  // Validate the date is actually valid before formatting
+  const isValidDate = completionDate && !Number.isNaN(completionDate.getTime());
+
+  const dateStr = isValidDate
     ? completionDate.toISOString().split("T")[0]
     : null;
-  const timeStr = completionDate
+  const timeStr = isValidDate
     ? completionDate.toTimeString().split(" ")[0]
     : null;
 

@@ -1,0 +1,191 @@
+/**
+ * Workflows Plugin - Database Schema
+ *
+ * Creates tables for:
+ * - workflow_collection: Workflow template definitions (reusable)
+ * - workflow: Immutable workflow snapshots (created per execution)
+ * - workflow_execution: Execution state and lifecycle
+ * - workflow_execution_step_result: Per-step results within an execution
+ */
+
+import { Kysely, sql } from "kysely";
+import type { ServerPluginMigration } from "@decocms/bindings/server-plugin";
+
+export const migration: ServerPluginMigration = {
+  name: "001-workflows",
+
+  async up(db: Kysely<unknown>): Promise<void> {
+    // workflow_collection: Reusable workflow templates
+    await db.schema
+      .createTable("workflow_collection")
+      .addColumn("id", "text", (col) => col.primaryKey())
+      .addColumn("organization_id", "text", (col) =>
+        col.notNull().references("organization.id").onDelete("cascade"),
+      )
+      .addColumn("title", "text", (col) => col.notNull())
+      .addColumn("description", "text")
+      .addColumn("virtual_mcp_id", "text", (col) => col.notNull())
+      .addColumn("steps", "text", (col) => col.notNull().defaultTo("[]"))
+      .addColumn("created_at", "text", (col) =>
+        col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
+      )
+      .addColumn("updated_at", "text", (col) =>
+        col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
+      )
+      .addColumn("created_by", "text")
+      .addColumn("updated_by", "text")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_collection_org")
+      .on("workflow_collection")
+      .column("organization_id")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_collection_created_at")
+      .on("workflow_collection")
+      .column("created_at")
+      .execute();
+
+    // workflow: Immutable snapshot of a workflow definition (one per execution)
+    await db.schema
+      .createTable("workflow")
+      .addColumn("id", "text", (col) => col.primaryKey())
+      .addColumn("workflow_collection_id", "text")
+      .addColumn("organization_id", "text", (col) =>
+        col.notNull().references("organization.id").onDelete("cascade"),
+      )
+      .addColumn("steps", "text", (col) => col.notNull().defaultTo("[]"))
+      .addColumn("input", "text")
+      .addColumn("virtual_mcp_id", "text", (col) => col.notNull())
+      .addColumn("created_at_epoch_ms", "integer", (col) => col.notNull())
+      .addColumn("created_by", "text")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_workflow_created_at")
+      .on("workflow")
+      .column("created_at_epoch_ms")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_workflow_collection_id")
+      .on("workflow")
+      .column("workflow_collection_id")
+      .execute();
+
+    // workflow_execution: Execution state
+    await db.schema
+      .createTable("workflow_execution")
+      .addColumn("id", "text", (col) => col.primaryKey())
+      .addColumn("workflow_id", "text", (col) =>
+        col.notNull().references("workflow.id").onDelete("cascade"),
+      )
+      .addColumn("organization_id", "text", (col) =>
+        col.notNull().references("organization.id").onDelete("cascade"),
+      )
+      .addColumn("status", "text", (col) => col.notNull().defaultTo("enqueued"))
+      .addColumn("input", "text")
+      .addColumn("output", "text")
+      .addColumn("error", "text")
+      .addColumn("created_at", "integer", (col) => col.notNull())
+      .addColumn("updated_at", "integer", (col) => col.notNull())
+      .addColumn("start_at_epoch_ms", "integer")
+      .addColumn("started_at_epoch_ms", "integer")
+      .addColumn("completed_at_epoch_ms", "integer")
+      .addColumn("timeout_ms", "integer")
+      .addColumn("deadline_at_epoch_ms", "integer")
+      .addColumn("created_by", "text")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_execution_status")
+      .on("workflow_execution")
+      .column("status")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_execution_workflow_id")
+      .on("workflow_execution")
+      .column("workflow_id")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_execution_org")
+      .on("workflow_execution")
+      .column("organization_id")
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_execution_created_at")
+      .on("workflow_execution")
+      .column("created_at")
+      .execute();
+
+    // workflow_execution_step_result: Per-step results
+    await db.schema
+      .createTable("workflow_execution_step_result")
+      .addColumn("execution_id", "text", (col) =>
+        col.notNull().references("workflow_execution.id").onDelete("cascade"),
+      )
+      .addColumn("step_id", "text", (col) => col.notNull())
+      .addColumn("started_at_epoch_ms", "integer")
+      .addColumn("completed_at_epoch_ms", "integer")
+      .addColumn("output", "text")
+      .addColumn("error", "text")
+      .execute();
+
+    // Composite primary key via unique index
+    await db.schema
+      .createIndex("idx_wf_step_result_pk")
+      .on("workflow_execution_step_result")
+      .columns(["execution_id", "step_id"])
+      .unique()
+      .execute();
+
+    await db.schema
+      .createIndex("idx_wf_step_result_execution")
+      .on("workflow_execution_step_result")
+      .column("execution_id")
+      .execute();
+  },
+
+  async down(db: Kysely<unknown>): Promise<void> {
+    // Drop indexes
+    await db.schema
+      .dropIndex("idx_wf_step_result_execution")
+      .ifExists()
+      .execute();
+    await db.schema.dropIndex("idx_wf_step_result_pk").ifExists().execute();
+    await db.schema
+      .dropIndex("idx_wf_execution_created_at")
+      .ifExists()
+      .execute();
+    await db.schema.dropIndex("idx_wf_execution_org").ifExists().execute();
+    await db.schema
+      .dropIndex("idx_wf_execution_workflow_id")
+      .ifExists()
+      .execute();
+    await db.schema.dropIndex("idx_wf_execution_status").ifExists().execute();
+    await db.schema
+      .dropIndex("idx_workflow_collection_id")
+      .ifExists()
+      .execute();
+    await db.schema.dropIndex("idx_workflow_created_at").ifExists().execute();
+    await db.schema
+      .dropIndex("idx_wf_collection_created_at")
+      .ifExists()
+      .execute();
+    await db.schema.dropIndex("idx_wf_collection_org").ifExists().execute();
+
+    // Drop tables (step results and executions first due to FK constraints)
+    await db.schema
+      .dropTable("workflow_execution_step_result")
+      .ifExists()
+      .execute();
+    await db.schema.dropTable("workflow_execution").ifExists().execute();
+    await db.schema.dropTable("workflow").ifExists().execute();
+    await db.schema.dropTable("workflow_collection").ifExists().execute();
+  },
+};
