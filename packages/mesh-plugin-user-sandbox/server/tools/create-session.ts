@@ -193,7 +193,7 @@ export const USER_SANDBOX_CREATE_SESSION: ServerPluginToolDefinition = {
     const typedInput = input as z.infer<
       typeof UserSandboxCreateSessionInputSchema
     >;
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       auth: { user: { id: string } | null };
       access: { check: () => Promise<void> };

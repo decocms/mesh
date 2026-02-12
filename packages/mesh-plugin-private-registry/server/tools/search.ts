@@ -1,10 +1,9 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import {
   RegistrySearchInputSchema,
   RegistrySearchOutputSchema,
 } from "./schema";
-import { getPluginStorage, requireOrgContext } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_SEARCH: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_SEARCH",
@@ -16,10 +15,8 @@ export const COLLECTION_REGISTRY_APP_SEARCH: ServerPluginToolDefinition = {
   inputSchema: RegistrySearchInputSchema,
   outputSchema: RegistrySearchOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistrySearchInputSchema>;
-    const meshCtx = await requireOrgContext(ctx);
+  handler: orgHandler(RegistrySearchInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
-    return storage.items.search(meshCtx.organization.id, typedInput);
-  },
+    return storage.items.search(ctx.organization.id, input);
+  }),
 };

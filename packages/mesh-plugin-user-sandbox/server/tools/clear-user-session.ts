@@ -60,7 +60,7 @@ export const USER_SANDBOX_CLEAR_USER_SESSION: ServerPluginToolDefinition = {
     const typedInput = input as z.infer<
       typeof UserSandboxClearUserSessionInputSchema
     >;
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       access: { check: () => Promise<void> };
       db: Kysely<unknown>;

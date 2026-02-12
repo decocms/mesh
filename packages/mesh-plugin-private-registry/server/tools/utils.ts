@@ -1,3 +1,8 @@
+import type {
+  ServerPluginToolContext,
+  ServerPluginToolDefinition,
+} from "@decocms/bindings/server-plugin";
+import type { z } from "zod";
 import { PLUGIN_ID } from "../../shared";
 import type { PrivateRegistryPluginStorage } from "../storage";
 
@@ -16,35 +21,28 @@ export function getPluginStorage(): PrivateRegistryPluginStorage {
   return pluginStorage;
 }
 
-export interface MeshToolContext {
+/** Context returned by requireOrgContext — organization is guaranteed non-null. */
+export type OrgToolContext = ServerPluginToolContext & {
   organization: { id: string };
-  access: { check: () => Promise<void> };
-  user?: { id?: string };
-  createMCPProxy: (connectionId: string) => Promise<{
-    callTool: (args: {
-      name: string;
-      arguments?: Record<string, unknown>;
-    }) => Promise<{
-      isError?: boolean;
-      content?: Array<{ type?: string; text?: string }>;
-      structuredContent?: unknown;
-    }>;
-    close?: () => Promise<void>;
-  }>;
-}
+};
 
-export async function requireOrgContext(
-  ctx: unknown,
-): Promise<MeshToolContext> {
-  const meshCtx = ctx as {
-    organization: { id: string } | null;
-    access: { check: () => Promise<void> };
-    user?: { id?: string };
-    createMCPProxy?: MeshToolContext["createMCPProxy"];
-  };
-  if (!meshCtx.organization) {
+async function requireOrgContext(
+  ctx: ServerPluginToolContext,
+): Promise<OrgToolContext> {
+  if (!ctx.organization) {
     throw new Error("Organization context required");
   }
-  await meshCtx.access.check();
-  return meshCtx as MeshToolContext;
+  await ctx.access.check();
+  return ctx as OrgToolContext;
+}
+
+/** Creates a typed handler that validates org context and casts input automatically. */
+export function orgHandler<T extends z.ZodType>(
+  _schema: T,
+  fn: (input: z.infer<T>, ctx: OrgToolContext) => Promise<unknown>,
+): ServerPluginToolDefinition["handler"] {
+  return async (input, ctx) => {
+    const orgCtx = await requireOrgContext(ctx);
+    return fn(input as z.infer<T>, orgCtx);
+  };
 }

@@ -182,17 +182,18 @@ export function collectPluginTools(): ToolDefinition<
     if (!plugin.tools) continue;
 
     for (const toolDef of plugin.tools) {
-      // Convert ServerPluginToolDefinition to Tool and wrap with gating
+      // Convert ServerPluginToolDefinition to Tool and wrap with gating.
+      // MeshContext is a superset of ServerPluginToolContext so the cast is safe.
       const tool = {
         name: toolDef.name,
         description: toolDef.description ?? "",
         inputSchema: toolDef.inputSchema as z.ZodType,
         outputSchema: toolDef.outputSchema as z.ZodType | undefined,
-        handler: toolDef.handler as (
+        handler: toolDef.handler as unknown as (
           input: unknown,
           ctx: MeshContext,
         ) => Promise<unknown>,
-        execute: toolDef.handler as (
+        execute: toolDef.handler as unknown as (
           input: unknown,
           ctx: MeshContext,
         ) => Promise<unknown>,
