@@ -410,7 +410,16 @@ export class PassthroughClient extends Client {
           name,
           arguments: innerArgs,
         });
-        // Extract the actual content from the result
+
+        // Prefer structuredContent when available (MCP spec: present when tool defines outputSchema)
+        if (
+          result.structuredContent &&
+          typeof result.structuredContent === "object"
+        ) {
+          return result.structuredContent;
+        }
+
+        // Fall back to extracting from content array
         const content = result.content as
           | Array<{ type: string; text?: string }>
           | undefined;
