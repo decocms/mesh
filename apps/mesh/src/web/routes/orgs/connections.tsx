@@ -597,6 +597,19 @@ function OrgMcpsContent() {
     });
   };
 
+  /** Extract error text from an MCP tool result's content array */
+  const getMcpErrorText = (result: Record<string, unknown>): string => {
+    const content = result.content;
+    if (
+      Array.isArray(content) &&
+      content[0]?.type === "text" &&
+      typeof content[0].text === "string"
+    ) {
+      return content[0].text;
+    }
+    return "Unknown error";
+  };
+
   const confirmDelete = async () => {
     if (dialogState.mode !== "deleting") return;
 
@@ -604,27 +617,43 @@ function OrgMcpsContent() {
     dispatch({ type: "close" });
 
     try {
-      await selfClient.callTool({
+      const result = await selfClient.callTool({
         name: "COLLECTION_CONNECTIONS_DELETE",
         arguments: { id: connection.id },
       });
+
+      if (result.isError) {
+        const errorText = getMcpErrorText(result);
+
+        // Try to parse structured error for "connection in use" case
+        // The MCP error text may be prefixed with "Error: " — strip it
+        const jsonText = errorText.replace(/^Error:\s*/, "");
+        try {
+          const parsed = JSON.parse(jsonText) as {
+            code?: string;
+            agentNames?: string[];
+          };
+          if (parsed.code === "CONNECTION_IN_USE" && parsed.agentNames) {
+            dispatch({
+              type: "force-delete",
+              connection,
+              agentNames: parsed.agentNames.map((n) => `"${n}"`).join(", "),
+            });
+            return;
+          }
+        } catch {
+          // Not JSON — fall through to generic error toast
+        }
+
+        toast.error(`Failed to delete connection: ${errorText}`);
+        return;
+      }
+
       invalidateConnections();
       toast.success("Connection deleted successfully");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // Check if this is an "in use by agents" error and offer force-delete
-      const agentMatch = message.match(
-        /used by the following agent\(s\): (.+)\. Remove/,
-      );
-      if (agentMatch?.[1]) {
-        dispatch({
-          type: "force-delete",
-          connection,
-          agentNames: agentMatch[1],
-        });
-      } else {
-        toast.error(`Failed to delete connection: ${message}`);
-      }
+      toast.error(`Failed to delete connection: ${message}`);
     }
   };
 
@@ -635,10 +664,16 @@ function OrgMcpsContent() {
     dispatch({ type: "close" });
 
     try {
-      await selfClient.callTool({
+      const result = await selfClient.callTool({
         name: "COLLECTION_CONNECTIONS_DELETE",
         arguments: { id, force: true },
       });
+
+      if (result.isError) {
+        toast.error(`Failed to delete connection: ${getMcpErrorText(result)}`);
+        return;
+      }
+
       invalidateConnections();
       toast.success("Connection deleted successfully");
     } catch (error) {

@@ -69,11 +69,11 @@ export const COLLECTION_CONNECTIONS_DELETE = defineTool({
         // Force mode: remove all references to this connection from virtual MCPs
         await ctx.storage.virtualMcps.removeConnectionReferences(input.id);
       } else {
-        const names = referencingVirtualMcps
-          .map((v) => `"${v.title}"`)
-          .join(", ");
         throw new Error(
-          `Cannot delete this connection because it is used by the following agent(s): ${names}. Remove it from those agents first.`,
+          JSON.stringify({
+            code: "CONNECTION_IN_USE",
+            agentNames: referencingVirtualMcps.map((v) => v.title),
+          }),
         );
       }
     }
