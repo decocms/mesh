@@ -38,6 +38,7 @@ import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
 import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
 import {
+  getDecopilotId,
   useMCPClient,
   useMCPToolsListQuery,
   useProjectContext,
@@ -235,10 +236,11 @@ function ReplaceToolButton() {
 
 function useVirtualMCPTool(toolName: string) {
   const { org } = useProjectContext();
-  const virtualMcpId = useSelectedVirtualMcpId();
+  const selectedId = useSelectedVirtualMcpId();
+  const virtualMcpId = selectedId ?? getDecopilotId(org.id);
 
   const client = useMCPClient({
-    connectionId: virtualMcpId ?? null,
+    connectionId: virtualMcpId,
     orgId: org.id,
   });
 

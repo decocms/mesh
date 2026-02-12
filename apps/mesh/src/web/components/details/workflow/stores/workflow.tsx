@@ -11,7 +11,11 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/vanilla/shallow";
 import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
-import { useVirtualMCPs } from "@decocms/mesh-sdk";
+import {
+  getDecopilotId,
+  useProjectContext,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
 import { useCollectionWorkflow } from "..";
 
 type CurrentStepTab = "input" | "output" | "action" | "executions";
@@ -424,11 +428,17 @@ export function WorkflowStoreProvider({
   initialState: initialStateProps,
 }: PropsWithChildren<WorkflowExecutionStoreProps>) {
   const virtualMcps = useVirtualMCPs();
+  const { org } = useProjectContext();
+
+  // Default to the first virtual MCP, or fall back to Decopilot (which has
+  // passthrough and exposes all tools available in the organization).
+  const defaultVirtualMcpId = virtualMcps?.[0]?.id ?? getDecopilotId(org.id);
+
   const [store] = useState(() =>
     createWorkflowStore({
       workflow: initialStateProps.workflow,
       originalWorkflow: initialStateProps.workflow,
-      selectedVirtualMcpId: virtualMcps?.[0]?.id,
+      selectedVirtualMcpId: defaultVirtualMcpId,
       isAddingStep: false,
       selectedParentSteps: [],
       trackingExecutionId: initialStateProps.trackingExecutionId,
