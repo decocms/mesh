@@ -1,5 +1,6 @@
 import { AlertCircle, MessageQuestionCircle } from "@untitledui/icons";
 import type { UserAskToolPart } from "../../types.ts";
+import { getToolPartErrorText } from "./utils.ts";
 
 export function UserAskQuestionPart({ part }: { part: UserAskToolPart }) {
   if (part.state === "output-available" && part.output) {
@@ -18,10 +19,7 @@ export function UserAskQuestionPart({ part }: { part: UserAskToolPart }) {
     );
   }
   if (part.state === "output-error") {
-    const errorText =
-      "errorText" in part && typeof part.errorText === "string"
-        ? part.errorText
-        : "An unknown error occurred";
+    const errorText = getToolPartErrorText(part);
     return (
       <div className="flex items-center gap-2 p-3 border border-dashed rounded-lg bg-destructive/10 text-sm text-destructive">
         <AlertCircle className="size-4 shrink-0" />

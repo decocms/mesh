@@ -11,6 +11,7 @@ import { MemoizedMarkdown } from "../markdown.tsx";
 import type { ChatMessage } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
+import { SubtaskPart } from "./parts/subtask-part.tsx";
 import { ToolCallPart } from "./parts/tool-call-part.tsx";
 import { UserAskQuestionPart } from "./parts/user-ask-part.tsx";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
@@ -230,6 +231,12 @@ function MessagePart({
       return (
         <div className="my-2">
           <UserAskQuestionPart part={part} />
+        </div>
+      );
+    case "tool-subtask":
+      return (
+        <div className="my-2 w-full">
+          <SubtaskPart part={part} />
         </div>
       );
     case "text":

@@ -17,7 +17,20 @@ import {
   UserAskInputSchema,
   UserAskOutputSchema,
   userAskTool,
+  type SubtaskToolDeps,
 } from "./index";
+
+const mockDeps: SubtaskToolDeps = {
+  ctx: {
+    storage: { virtualMcps: { findById: () => Promise.resolve(null) } },
+  } as never,
+  modelProvider: { thinkingModel: {} as never } as never,
+  organization: { id: "org_test" } as never,
+  models: {
+    connectionId: "conn_test",
+    thinking: { id: "model_test" },
+  } as never,
+};
 
 describe("user_ask E2E Integration", () => {
   // ============================================================================
@@ -26,7 +39,7 @@ describe("user_ask E2E Integration", () => {
 
   describe("Tool Registration", () => {
     test("tool is registered in getBuiltInTools()", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       expect(tools).toBeDefined();
       expect(tools.user_ask).toBeDefined();
@@ -34,7 +47,7 @@ describe("user_ask E2E Integration", () => {
     });
 
     test("getBuiltInTools() returns correct ToolSet structure", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       // ToolSet is Record<string, CoreTool>
       expect(typeof tools).toBe("object");
@@ -48,7 +61,7 @@ describe("user_ask E2E Integration", () => {
 
   describe("Tool Metadata", () => {
     test("has correct description", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       expect(tools.user_ask?.description).toBe(
         "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, or before destructive changes. Prefer this tool over asking in plain text.",
@@ -56,13 +69,13 @@ describe("user_ask E2E Integration", () => {
     });
 
     test("has inputSchema defined", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       expect(tools.user_ask?.inputSchema).toBeDefined();
     });
 
     test("has outputSchema defined", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       expect(tools.user_ask?.outputSchema).toBeDefined();
     });
@@ -86,7 +99,7 @@ describe("user_ask E2E Integration", () => {
 
   describe("Client-Side Only", () => {
     test("has no execute function", () => {
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
 
       // Client-side tools should not have execute function defined
       // (execute is optional in AI SDK tool type)
@@ -319,7 +332,7 @@ describe("user_ask E2E Integration", () => {
   describe("Complete Integration Flow", () => {
     test("full workflow from registration to validation", () => {
       // 1. Get tool from registry
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
       const tool = tools.user_ask;
 
       expect(tool).toBeDefined();
@@ -345,7 +358,7 @@ describe("user_ask E2E Integration", () => {
 
     test("choice type workflow with validation", () => {
       // 1. Get tool
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
       expect(tools.user_ask).toBeDefined();
 
       // 2. Validate choice input
@@ -370,7 +383,7 @@ describe("user_ask E2E Integration", () => {
 
     test("confirm type workflow with validation", () => {
       // 1. Get tool
-      const tools = getBuiltInTools();
+      const tools = getBuiltInTools(mockDeps);
       expect(tools.user_ask).toBeDefined();
 
       // 2. Validate confirm input

@@ -8,6 +8,10 @@ export const DEFAULT_MAX_TOKENS = 32768;
 export const DEFAULT_WINDOW_SIZE = 50;
 export const DEFAULT_THREAD_TITLE = "New chat";
 
+export const PARENT_STEP_LIMIT = 30;
+export const SUBAGENT_STEP_LIMIT = 15;
+export const SUBAGENT_EXCLUDED_TOOLS = ["user_ask", "subtask"];
+
 /**
  * Base system prompt for Decopilot
  *

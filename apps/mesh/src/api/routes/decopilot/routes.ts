@@ -14,13 +14,14 @@ import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
-import { getBuiltInTools } from "./built-in-tools";
+import { getBuiltInTools, type SubtaskToolDeps } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
   generateMessageId,
+  PARENT_STEP_LIMIT,
 } from "./constants";
 import { processConversation, splitRequestMessages } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
@@ -193,8 +194,14 @@ app.post("/:org/decopilot/stream", async (c) => {
       createModelProviderFromClient(streamableModelClient, models),
     ]);
 
-    // 3. Get built-in tools (client-side tools like user_ask)
-    const builtInTools = getBuiltInTools();
+    // 3. Get built-in tools (client-side tools like user_ask, server-side like subtask)
+    const subtaskDeps: SubtaskToolDeps = {
+      ctx,
+      modelProvider,
+      organization,
+      models,
+    };
+    const builtInTools = getBuiltInTools(subtaskDeps);
 
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
     // Without this, when client disconnects mid-stream, onFinish/onError are NOT called
@@ -254,7 +261,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       temperature,
       maxOutputTokens,
       abortSignal,
-      stopWhen: stepCountIs(30),
+      stopWhen: stepCountIs(PARENT_STEP_LIMIT),
       onStepFinish: async () => {
         resolvedTitle = await titlePromise;
 

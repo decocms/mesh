@@ -2,6 +2,7 @@ import { AlertCircle, Terminal, ChevronRight, Atom02 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import { ToolOutputRenderer } from "./tool-outputs/tool-output-renderer.tsx";
+import { getToolPartErrorText } from "./utils.ts";
 import { useState } from "react";
 import { MonacoCodeEditor } from "../../../details/workflow/components/monaco-editor.tsx";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
@@ -198,10 +199,7 @@ export function ToolCallPart({
                     </div>
                     <div className="border border-destructive/20 rounded-lg max-h-[200px] overflow-auto p-2 bg-destructive/10">
                       <pre className="text-xs font-mono text-destructive whitespace-pre-wrap wrap-break-word">
-                        {"errorText" in part &&
-                        typeof part.errorText === "string"
-                          ? part.errorText
-                          : "An unknown error occurred"}
+                        {getToolPartErrorText(part)}
                       </pre>
                     </div>
                   </div>
