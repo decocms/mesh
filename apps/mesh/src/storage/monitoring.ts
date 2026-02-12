@@ -429,7 +429,9 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       propertyFilters?: PropertyFilters;
     };
   }): Promise<number> {
-    const { organizationId, filters } = params;
+    const { organizationId, path, from, filters } = params;
+
+    const sourceColumn = from === "input" ? "input" : "output";
 
     let query = this.db
       .selectFrom("monitoring_logs")
@@ -460,8 +462,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       query = this.applyPropertyFilters(query, filters.propertyFilters);
     }
 
-    // Count records in the time range (we can't easily filter by JSONPath non-null with Kysely)
+    // Only count records where the JSONPath extracts a non-null value
+    const valueExpr = this.jsonExtractPathText(sourceColumn, path);
     const result = await query
+      .where(sql`${valueExpr}`, "is not", null)
       .select((eb) => eb.fn.count("id").as("count"))
       .executeTakeFirst();
 
