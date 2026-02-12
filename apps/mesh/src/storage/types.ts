@@ -628,10 +628,10 @@ export interface Thread {
   organizationId: string;
   title: string;
   description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by: string | null;
   hidden: boolean | null;
   status: ThreadStatus;
 }
@@ -647,8 +647,8 @@ export interface ThreadMessageTable {
 }
 export interface ThreadMessage extends ChatMessage {
   threadId: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================================

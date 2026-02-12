@@ -27,8 +27,8 @@ export const ThreadMessageEntitySchema = z.object({
     .array(z.record(z.string(), z.unknown()))
     .describe("Message content parts (AI SDK UIMessagePart format)"),
   role: z.enum(["user", "assistant", "system"]).describe("Message role"),
-  createdAt: z.string().datetime().describe("Timestamp of creation"),
-  updatedAt: z.string().datetime().describe("Timestamp of last update"),
+  created_at: z.string().datetime().describe("Timestamp of creation"),
+  updated_at: z.string().datetime().describe("Timestamp of last update"),
 });
 
 export type ThreadMessageEntity = z.infer<typeof ThreadMessageEntitySchema>;
@@ -42,16 +42,16 @@ export const ThreadEntitySchema = z.object({
   organizationId: z.string().describe("Organization this thread belongs to"),
   title: z.string().describe("Thread title"),
   description: z.string().nullable().describe("Thread description"),
-  createdAt: z.string().datetime().describe("Timestamp of creation"),
-  updatedAt: z.string().datetime().describe("Timestamp of last update"),
+  created_at: z.string().datetime().describe("Timestamp of creation"),
+  updated_at: z.string().datetime().describe("Timestamp of last update"),
   hidden: z.boolean().optional().describe("Whether the thread is hidden"),
   status: z
     .enum([...THREAD_STATUSES, "expired"])
     .describe(
       "Thread execution status. 'expired' is virtual -- computed at read time for stale in_progress threads",
     ),
-  createdBy: z.string().describe("User ID who created the thread"),
-  updatedBy: z
+  created_by: z.string().describe("User ID who created the thread"),
+  updated_by: z
     .string()
     .nullable()
     .describe("User ID who last updated the thread"),
