@@ -193,16 +193,6 @@ export class EventBusWorker {
     );
     if (pendingDeliveries.length === 0) return;
 
-    const wfEvents = pendingDeliveries.filter((p) =>
-      p.event.type.startsWith("workflow."),
-    );
-    if (wfEvents.length > 0) {
-      console.log(
-        `[WF:bus] processEvents — claimed ${pendingDeliveries.length} deliveries (${wfEvents.length} workflow)`,
-        wfEvents.map((p) => `${p.event.type}:${p.event.subject?.slice(0, 8)}`),
-      );
-    }
-
     // Group by subscription (connection)
     const grouped = groupByConnection(pendingDeliveries);
 
