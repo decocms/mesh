@@ -70,7 +70,13 @@ async function ensureSubscriptionsForOrg(
   ctx: MeshContext,
   orgId: string,
 ): Promise<void> {
-  if (syncedOrgs.has(orgId) || !hasPluginEventHandlers()) return;
+  if (!hasPluginEventHandlers()) return;
+
+  const existing = syncedOrgs.get(orgId);
+  if (existing) {
+    await existing;
+    return;
+  }
 
   const selfConnectionId = WellKnownOrgMCPId.SELF(orgId);
   const promise = ensurePluginEventSubscriptions(
