@@ -185,7 +185,7 @@ function VirtualMCPBadge({
   return (
     <div
       className={cn(
-        "flex items-center justify-between px-3 py-1.5 rounded-t-xl",
+        "flex items-center justify-between px-3 py-1.5 rounded-t-xl z-10",
         color?.bg,
       )}
     >
