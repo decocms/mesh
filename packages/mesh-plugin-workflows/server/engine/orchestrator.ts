@@ -547,7 +547,7 @@ async function handleStepError(
   isIteration: boolean,
   onError: OnError,
 ): Promise<boolean> {
-  if (isIteration && onError === "continue") {
+  if (onError === "continue") {
     return true;
   }
 

@@ -145,7 +145,7 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
       <OutputSection
-        key={isCompleted ? "open" : "closed"}
+        key={`${currentStepName}-${isCompleted ? "open" : "closed"}`}
         step={currentStep}
         defaultOpen={isCompleted}
         isStepErrored={isStepErrored}

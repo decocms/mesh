@@ -5,8 +5,8 @@
  * Supports optional transformCode for post-processing results.
  *
  * When a transform is configured, the raw tool output is checkpointed to the
- * database inside a transaction before the transform runs. This guarantees the
- * raw result is never lost even if the transform code fails.
+ * database before the transform runs. This guarantees the raw result is never
+ * lost even if the transform code fails.
  */
 
 import { ToolCallActionSchema, type Step } from "@decocms/bindings/workflow";
@@ -100,7 +100,7 @@ export async function executeToolStep(
     proxy?.close().catch(() => {});
   }
 
-  // Post-processing: checkpoint raw output then run transformCode in a transaction
+  // Post-processing: checkpoint raw output then run transformCode
   if (transformCode) {
     const checkpointResult = await ctx.storage.checkpointAndTransform(
       ctx.executionId,

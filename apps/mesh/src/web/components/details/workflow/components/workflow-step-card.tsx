@@ -149,7 +149,8 @@ export function WorkflowStepCard({
   );
   const refPath = targetRef?.replace("@", "");
   const refValue = refPath ? resolveRefPath(targetOutput, refPath) : undefined;
-  const forEachRegex = new RegExp(`^${step.name}\\[\\d+\\]$`);
+  const escapedName = step.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const forEachRegex = new RegExp(`^${escapedName}\\[\\d+\\]$`);
   const completedForEachItems = executionItem?.completed_steps?.success?.filter(
     (completedStep) => forEachRegex.test(completedStep.name),
   );

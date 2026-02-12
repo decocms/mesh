@@ -337,29 +337,31 @@ export class WorkflowExecutionStorage {
     executionId: string,
     organizationId: string,
   ): Promise<boolean> {
-    const now = Date.now();
+    return this.db.transaction().execute(async (trx) => {
+      const now = Date.now();
 
-    // Clear claimed-but-not-completed step results
-    await this.db
-      .deleteFrom("workflow_execution_step_result")
-      .where("execution_id", "=", executionId)
-      .where("completed_at_epoch_ms", "is", null)
-      .execute();
+      // Clear claimed-but-not-completed step results
+      await trx
+        .deleteFrom("workflow_execution_step_result")
+        .where("execution_id", "=", executionId)
+        .where("completed_at_epoch_ms", "is", null)
+        .execute();
 
-    const result = await this.db
-      .updateTable("workflow_execution")
-      .set({
-        status: "enqueued",
-        updated_at: now,
-        completed_at_epoch_ms: null,
-      })
-      .where("id", "=", executionId)
-      .where("organization_id", "=", organizationId)
-      .where("status", "=", "cancelled")
-      .returningAll()
-      .executeTakeFirst();
+      const result = await trx
+        .updateTable("workflow_execution")
+        .set({
+          status: "enqueued",
+          updated_at: now,
+          completed_at_epoch_ms: null,
+        })
+        .where("id", "=", executionId)
+        .where("organization_id", "=", organizationId)
+        .where("status", "=", "cancelled")
+        .returningAll()
+        .executeTakeFirst();
 
-    return !!result;
+      return !!result;
+    });
   }
 
   async listExecutions(
@@ -507,14 +509,16 @@ export class WorkflowExecutionStorage {
   }
 
   /**
-   * Checkpoint raw tool output and apply a transform in a single transaction.
+   * Checkpoint raw tool output and apply a transform.
    *
    * 1. Persists `rawToolOutput` to the step result row (checkpoint).
-   * 2. Runs `transformFn` to produce the final output.
+   * 2. Runs `transformFn` outside the DB connection to produce the final output.
    * 3. Persists the transformed output (or error) and marks the step completed.
    *
-   * If the transform throws, the raw output is still committed and the step
-   * is marked as failed with the transform error.
+   * Each DB write is a separate operation so the transform (which may be
+   * CPU-intensive, e.g. QuickJS sandbox with up to 10 s timeout) never holds
+   * a connection open. The raw checkpoint is committed first, guaranteeing it
+   * survives even if the transform or the final persist fails.
    */
   async checkpointAndTransform(
     executionId: string,
@@ -524,48 +528,46 @@ export class WorkflowExecutionStorage {
       raw: unknown,
     ) => Promise<{ output?: unknown; error?: string }>,
   ): Promise<ParsedStepResult | null> {
-    return this.db.transaction().execute(async (trx) => {
-      // 1. Checkpoint: persist the raw tool output
-      await trx
-        .updateTable("workflow_execution_step_result")
-        .set({
-          raw_tool_output: JSON.stringify(rawToolOutput),
-        })
-        .where("execution_id", "=", executionId)
-        .where("step_id", "=", stepId)
-        .execute();
+    // 1. Checkpoint: persist the raw tool output (separate write)
+    await this.db
+      .updateTable("workflow_execution_step_result")
+      .set({
+        raw_tool_output: JSON.stringify(rawToolOutput),
+      })
+      .where("execution_id", "=", executionId)
+      .where("step_id", "=", stepId)
+      .execute();
 
-      // 2. Run the transform
-      let output: unknown;
-      let error: string | undefined;
-      try {
-        const result = await transformFn(rawToolOutput);
-        output = result.output;
-        error = result.error;
-      } catch (err) {
-        error =
-          err instanceof Error
-            ? `Transform failed: ${err.message}`
-            : `Transform failed: ${String(err)}`;
-      }
+    // 2. Run the transform — no DB connection held
+    let output: unknown;
+    let error: string | undefined;
+    try {
+      const result = await transformFn(rawToolOutput);
+      output = result.output;
+      error = result.error;
+    } catch (err) {
+      error =
+        err instanceof Error
+          ? `Transform failed: ${err.message}`
+          : `Transform failed: ${String(err)}`;
+    }
 
-      // 3. Persist the final result
-      const setValues: Record<string, unknown> = {
-        completed_at_epoch_ms: Date.now(),
-      };
-      if (output !== undefined) setValues.output = JSON.stringify(output);
-      if (error !== undefined) setValues.error = JSON.stringify(error);
+    // 3. Persist the final result (separate write)
+    const setValues: Record<string, unknown> = {
+      completed_at_epoch_ms: Date.now(),
+    };
+    if (output !== undefined) setValues.output = JSON.stringify(output);
+    if (error !== undefined) setValues.error = JSON.stringify(error);
 
-      const row = await trx
-        .updateTable("workflow_execution_step_result")
-        .set(setValues)
-        .where("execution_id", "=", executionId)
-        .where("step_id", "=", stepId)
-        .returningAll()
-        .executeTakeFirst();
+    const row = await this.db
+      .updateTable("workflow_execution_step_result")
+      .set(setValues)
+      .where("execution_id", "=", executionId)
+      .where("step_id", "=", stepId)
+      .returningAll()
+      .executeTakeFirst();
 
-      return row ? parseStepResult(row) : null;
-    });
+    return row ? parseStepResult(row) : null;
   }
 
   async getStepResult(

@@ -647,15 +647,28 @@ export async function createApp(options: CreateAppOptions = {}) {
   // SSE Watch Endpoint — stream events for an organization in real time
   // ============================================================================
 
-  app.get("/org/:organizationId/watch", (c) => {
+  app.get("/org/:organizationId/watch", async (c) => {
     const meshContext = c.var.meshContext;
 
     // Require authentication (user session or API key)
-    if (!meshContext.auth.user?.id && !meshContext.auth.apiKey?.id) {
+    const userId = meshContext.auth.user?.id ?? meshContext.auth.apiKey?.userId;
+    if (!userId) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
     const orgId = c.req.param("organizationId");
+
+    // Verify the authenticated user is a member of this organization
+    const membership = await meshContext.db
+      .selectFrom("member")
+      .select("id")
+      .where("userId", "=", userId)
+      .where("organizationId", "=", orgId)
+      .executeTakeFirst();
+
+    if (!membership) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
 
     // Optional type filter: ?types=workflow.*,public.* (comma-separated patterns)
     const typesParam = c.req.query("types");

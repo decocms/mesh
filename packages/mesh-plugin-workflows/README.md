@@ -19,4 +19,4 @@ This plugin will provide workflow capabilities for Mesh, allowing users to creat
 
 ## License
 
-MIT
+See [LICENSE.md](../../LICENSE.md) in the repository root.

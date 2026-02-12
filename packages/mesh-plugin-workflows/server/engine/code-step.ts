@@ -67,12 +67,8 @@ function installConsole(ctx: QuickJSContext): { dispose: () => void } {
 
   const makeLog = (level: string) => {
     const logFn = ctx.newFunction(level, (...args: QuickJSHandle[]) => {
-      try {
-        const parts = args.map((h) => ctx.dump(h));
-        console.log(`[SANDBOX:${level}]`, ...parts);
-      } finally {
-        args.forEach((h) => h.dispose());
-      }
+      const parts = args.map((h) => ctx.dump(h));
+      console.log(`[SANDBOX:${level}]`, ...parts);
       return ctx.undefined;
     });
     handles.push(logFn);

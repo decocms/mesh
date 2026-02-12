@@ -319,6 +319,15 @@ export const WORKFLOW_EXECUTION_GET_STEP_RESULT: ServerPluginToolDefinition = {
     };
     const storage = getPluginStorage();
 
+    // Verify the execution belongs to the caller's organization
+    const execution = await storage.executions.getExecution(
+      executionId,
+      meshCtx.organization.id,
+    );
+    if (!execution) {
+      throw new Error("Execution not found");
+    }
+
     const result = await storage.executions.getStepResult(executionId, stepId);
     if (!result) {
       throw new Error("Step result not found");
