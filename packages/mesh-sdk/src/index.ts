@@ -144,6 +144,7 @@ export {
   emptyUsageStats,
   addUsage,
   calculateUsageStats,
+  sanitizeProviderMetadata,
   type UsageData,
   type UsageStats,
 } from "./lib/usage";

@@ -36,7 +36,6 @@ import {
 import {
   ChevronRight,
   ChevronUp,
-  CpuChip02,
   CubeOutline,
   File02,
   Loading01,
@@ -44,6 +43,7 @@ import {
   Plus,
   Share07,
   Tool01,
+  Users03,
 } from "@untitledui/icons";
 import {
   Breadcrumb,
@@ -344,7 +344,7 @@ function VirtualMcpDetailViewWithData({
                 name={form.watch("title") || "Agent"}
                 size="lg"
                 className="shrink-0 shadow-sm"
-                fallbackIcon={<CpuChip02 />}
+                fallbackIcon={<Users03 />}
               />
               <div className="flex flex-col flex-1 min-w-0">
                 <Input
