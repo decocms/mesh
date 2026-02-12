@@ -1,0 +1,68 @@
+---
+title: tool_enable
+description: Enable a tool for use in the current task
+icon: ToggleRight
+---
+
+## Overview
+
+Enables a tool for use in the current task. Can only enable tools that exist in the current scope's virtual MCP. Tool remains enabled for task duration only.
+
+## Availability
+
+- **Tasks**: ✓ Available
+- **Subtasks**: ✓ Available
+
+## Signature
+
+```typescript
+tool_enable(tool_name: string)
+```
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tool_name` | `string` | Required | Name of the tool to enable |
+
+## Returns
+
+Success status and enabled confirmation.
+
+## Behavior
+
+- Can only enable tools that exist in the current scope's virtual MCP
+- Tool remains enabled for task duration only
+- Must be called before invoking target tools
+- Tools are discovered via `tool_search` first
+
+## Example Usage
+
+```typescript
+// Enable a Shopify tool
+tool_enable("GET_ORDERS")
+
+// Enable an inventory tool
+tool_enable("UPDATE_STOCK_LEVELS")
+
+// Enable a shipping tool
+tool_enable("CREATE_SHIPPING_LABEL")
+```
+
+## Workflow Pattern
+
+```typescript
+// 1. Discover available tools
+const tools = tool_search("order")
+
+// 2. Enable specific tool
+tool_enable("GET_ORDERS")
+
+// 3. Use the enabled tool
+GET_ORDERS({ status: "pending", limit: 50 })
+```
+
+## Related
+
+- [**tool_search**](/en/mcp-mesh/api-reference/built-in-tools/tool-search) - Discover available tools
+- [Built-in Tools Overview](/en/mcp-mesh/api-reference/built-in-tools)

@@ -353,12 +353,13 @@ const editUrl = doc
         root.render(
           React.createElement("div", { className: "flex items-center gap-2" }, [
             React.createElement(LanguageSelector, {
+              key: "language-selector",
               locale:
                 document.querySelector("nav")?.getAttribute("data-locale") ||
                 "en",
               className: "w-32",
             }),
-            React.createElement(ThemeToggle),
+            React.createElement(ThemeToggle, { key: "theme-toggle" }),
           ])
         );
       }

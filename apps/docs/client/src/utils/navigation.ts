@@ -15,23 +15,57 @@ export async function getNavigationLinks(
 
   // Define the correct order for navigation
   const order = [
-    "introduction",
-    // MCP Mesh (product docs)
-    "mcp-mesh/overview",
+    // 1. Quickstart & Overview
     "mcp-mesh/quickstart",
-    "mcp-mesh/concepts",
-    "mcp-mesh/connect-clients",
-    "mcp-mesh/authentication",
-    "mcp-mesh/authorization-and-roles",
-    "mcp-mesh/mcp-servers",
-    "mcp-mesh/mcp-gateways",
-    "mcp-mesh/api-keys",
-    "mcp-mesh/monitoring",
-    "mcp-mesh/api-reference",
-    "mcp-mesh/deploy/local-docker-compose",
-    "mcp-mesh/deploy/kubernetes-helm-chart",
+    "mcp-mesh/overview",
+
+    // 2. Getting Started
     "getting-started/ai-builders",
     "getting-started/developers",
+
+    // 4. Core Concepts
+    "mcp-mesh/concepts",
+
+    // 5. Working with MCP
+    "mcp-mesh/connections",
+    "mcp-mesh/virtual-mcps",
+    "mcp-mesh/projects",
+    "mcp-mesh/agents",
+
+    // 6. Decopilot
+    "mcp-mesh/decopilot/overview",
+    "mcp-mesh/decopilot/quickstart",
+    "mcp-mesh/decopilot/context",
+    "mcp-mesh/decopilot/tasks-and-spawning",
+    "mcp-mesh/decopilot/tools",
+    "mcp-mesh/decopilot/scopes",
+    "mcp-mesh/decopilot/architecture",
+
+    // 7. Monitoring & Observability
+    "mcp-mesh/monitoring",
+
+    // 8. User Management
+    "mcp-mesh/api-keys",
+    "mcp-mesh/user-management",
+
+    // 9. API Reference
+    "mcp-mesh/api-reference/connection-proxy",
+    "mcp-mesh/api-reference/built-in-tools",
+    "mcp-mesh/api-reference/built-in-tools/tool-search",
+    "mcp-mesh/api-reference/built-in-tools/tool-enable",
+    "mcp-mesh/api-reference/built-in-tools/agent-search",
+    "mcp-mesh/api-reference/built-in-tools/subtask-run",
+    "mcp-mesh/api-reference/built-in-tools/user-ask",
+    "mcp-mesh/api-reference/built-in-tools/resource-read",
+    "mcp-mesh/api-reference/built-in-tools/prompt-read",
+
+    // 10. Self-Hosting
+    "mcp-mesh/self-hosting/quickstart",
+    "mcp-mesh/self-hosting/authentication",
+    "mcp-mesh/self-hosting/deploy/docker-compose",
+    "mcp-mesh/self-hosting/deploy/kubernetes",
+
+    // 11. Legacy Admin Guides (no-code and full-code guides)
     "no-code-guides/creating-tools",
     "no-code-guides/creating-agents",
     "full-code-guides/project-structure",

@@ -2,6 +2,10 @@
 
 This file provides guidance when working with code in this repository, including for Claude Code (claude.ai/code) and other AI coding assistants.
 
+## Documentation Philosophy
+
+**IMPORTANT**: The documentation in `apps/docs/` describes the **intended system design and behavior**, not necessarily the current implementation state. Documentation represents the target architecture and how the system should work, serving as both specification and aspiration. When implementation and documentation differ, the documentation defines the goal, not a bug to be "fixed" in the docs.
+
 ## Overview
 
 MCP Mesh is an open-source control plane for Model Context Protocol (MCP) traffic. It provides a unified layer for authentication, routing, and observability between MCP clients (Cursor, Claude, VS Code) and MCP servers. The system is built as a monorepo using Bun workspaces with TypeScript, Hono (API), and React 19 (UI).
