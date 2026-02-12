@@ -36,7 +36,7 @@ export const USER_SANDBOX_CREATE: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof UserSandboxCreateInputSchema>;
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       auth: { user: { id: string } | null };
       access: { check: () => Promise<void> };

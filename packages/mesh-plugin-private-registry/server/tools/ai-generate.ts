@@ -4,7 +4,7 @@ import {
   RegistryAIGenerateInputSchema,
   RegistryAIGenerateOutputSchema,
 } from "./schema";
-import { requireOrgContext } from "./utils";
+import { orgHandler } from "./utils";
 
 function normalizeList(values: string[]): string[] {
   return Array.from(
@@ -147,18 +147,15 @@ export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
   inputSchema: RegistryAIGenerateInputSchema,
   outputSchema: RegistryAIGenerateOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistryAIGenerateInputSchema>;
-    const meshCtx = await requireOrgContext(ctx);
-
-    const { system, user, maxOutputTokens } = buildPrompt(typedInput);
-    const proxy = await meshCtx.createMCPProxy(typedInput.llmConnectionId);
+  handler: orgHandler(RegistryAIGenerateInputSchema, async (input, ctx) => {
+    const { system, user, maxOutputTokens } = buildPrompt(input);
+    const proxy = await ctx.createMCPProxy(input.llmConnectionId);
 
     try {
       const llmResult = await proxy.callTool({
         name: "LLM_DO_GENERATE",
         arguments: {
-          modelId: typedInput.modelId,
+          modelId: input.modelId,
           callOptions: {
             temperature: 0.2,
             maxOutputTokens,
@@ -179,23 +176,22 @@ export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
 
       const rawText = extractTextOutput(llmResult);
 
-      if (typedInput.type === "tags" || typedInput.type === "categories") {
+      if (input.type === "tags" || input.type === "categories") {
         const items = normalizeList(
           rawText.split(/[,\n;]/).map((v) => v.replace(/^[-*]\s*/, "")),
         );
-        return { items: items.slice(0, typedInput.type === "tags" ? 5 : 1) };
+        return { items: items.slice(0, input.type === "tags" ? 5 : 1) };
       }
 
-      if (typedInput.type === "description")
+      if (input.type === "description")
         return { result: rawText.slice(0, 1500) };
-      if (typedInput.type === "short_description")
+      if (input.type === "short_description")
         return { result: rawText.slice(0, 160) };
-      if (typedInput.type === "readme")
-        return { result: rawText.slice(0, 50000) };
+      if (input.type === "readme") return { result: rawText.slice(0, 50000) };
 
       return { result: rawText };
     } finally {
       await proxy.close?.().catch(() => {});
     }
-  },
+  }),
 };

@@ -34,7 +34,7 @@ export const USER_SANDBOX_UPDATE: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const typedInput = input as z.infer<typeof UserSandboxUpdateInputSchema>;
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       access: { check: () => Promise<void> };
       createMCPProxy: (connectionId: string) => Promise<MCPProxy>;

@@ -25,7 +25,7 @@ export const USER_SANDBOX_LIST_USER_AGENTS: ServerPluginToolDefinition = {
     const typedInput = input as z.infer<
       typeof UserSandboxListUserAgentsInputSchema
     >;
-    const meshCtx = ctx as {
+    const meshCtx = ctx as unknown as {
       organization: { id: string } | null;
       access: { check: () => Promise<void> };
       storage: {

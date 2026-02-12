@@ -1,10 +1,9 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import {
   RegistryUpdateInputSchema,
   RegistryUpdateOutputSchema,
 } from "./schema";
-import { getPluginStorage, requireOrgContext } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_UPDATE: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_UPDATE",
@@ -12,15 +11,13 @@ export const COLLECTION_REGISTRY_APP_UPDATE: ServerPluginToolDefinition = {
   inputSchema: RegistryUpdateInputSchema,
   outputSchema: RegistryUpdateOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistryUpdateInputSchema>;
-    const meshCtx = await requireOrgContext(ctx);
+  handler: orgHandler(RegistryUpdateInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
     const item = await storage.items.update(
-      meshCtx.organization.id,
-      typedInput.id,
-      typedInput.data,
+      ctx.organization.id,
+      input.id,
+      input.data,
     );
     return { item };
-  },
+  }),
 };

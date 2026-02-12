@@ -1,10 +1,9 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import {
   RegistryBulkCreateInputSchema,
   RegistryBulkCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage, requireOrgContext } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_BULK_CREATE",
@@ -12,19 +11,17 @@ export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
   inputSchema: RegistryBulkCreateInputSchema,
   outputSchema: RegistryBulkCreateOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof RegistryBulkCreateInputSchema>;
-    const meshCtx = await requireOrgContext(ctx);
+  handler: orgHandler(RegistryBulkCreateInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
     const errors: Array<{ id: string; error: string }> = [];
     let created = 0;
 
-    for (const item of typedInput.items) {
+    for (const item of input.items) {
       try {
         await storage.items.create({
           ...item,
-          organization_id: meshCtx.organization.id,
-          created_by: meshCtx.user?.id ?? null,
+          organization_id: ctx.organization.id,
+          created_by: ctx.auth.user?.id ?? null,
         });
         created += 1;
       } catch (error) {
@@ -36,5 +33,5 @@ export const COLLECTION_REGISTRY_APP_BULK_CREATE: ServerPluginToolDefinition = {
     }
 
     return { created, errors };
-  },
+  }),
 };
