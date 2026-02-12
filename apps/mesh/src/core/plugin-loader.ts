@@ -6,18 +6,24 @@
  * - Route mounting
  * - Migration collection
  * - Storage factory initialization
+ * - Event handler registration and routing
  */
 
 import type { Hono } from "hono";
 import type {
   ServerPluginContext,
   ServerPluginMigration,
+  ServerPluginEvent,
+  ServerPluginEventContext,
+  ServerPluginStartupContext,
 } from "@decocms/bindings/server-plugin";
 import type { z } from "zod";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { serverPlugins } from "../server-plugins";
 import type { MeshContext } from "./mesh-context";
 import type { Tool, ToolDefinition } from "./define-tool";
 import type { CredentialVault } from "../encryption/credential-vault";
+import type { CloudEvent } from "@decocms/bindings";
 
 // ============================================================================
 // Plugin Tool Gating
@@ -29,9 +35,47 @@ import type { CredentialVault } from "../encryption/credential-vault";
 const pluginToolMap = new Map<string, string>();
 
 /**
- * Wrap a tool with plugin-enabled check.
- * The tool will throw an error if the plugin is not enabled for the organization.
+ * Check if a plugin is enabled for an organization.
+ * Checks both org settings (legacy) and all projects (current - UI saves to projects table).
  */
+async function isPluginEnabledForOrg(
+  ctx: MeshContext,
+  orgId: string,
+  pluginId: string,
+): Promise<boolean> {
+  // Check legacy org settings
+  const settings = await ctx.storage.organizationSettings.get(orgId);
+  if (settings?.enabled_plugins?.includes(pluginId)) {
+    return true;
+  }
+
+  // Check all projects in the org (current UI saves enabledPlugins to projects table)
+  const projects = await ctx.storage.projects.list(orgId);
+  for (const project of projects) {
+    if (project.enabledPlugins?.includes(pluginId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Ensure plugin event subscriptions are synced for the given org.
+ * Called lazily on first plugin tool invocation per-org.
+ * Awaited to ensure subscriptions exist before the tool publishes events.
+ * Subsequent calls for the same org are no-ops (cached).
+ */
+async function ensureSubscriptionsForOrg(
+  ctx: MeshContext,
+  orgId: string,
+): Promise<void> {
+  if (syncedOrgs.has(orgId) || !hasPluginEventHandlers()) return;
+
+  const selfConnectionId = WellKnownOrgMCPId.SELF(orgId);
+  await ensurePluginEventSubscriptions(ctx.eventBus, orgId, selfConnectionId);
+}
+
 function withPluginEnabled<
   TInput extends z.ZodType,
   TOutput extends z.ZodType,
@@ -53,13 +97,15 @@ function withPluginEnabled<
         );
       }
 
-      const settings = await ctx.storage.organizationSettings.get(org.id);
-      if (!settings?.enabled_plugins?.includes(pluginId)) {
+      if (!(await isPluginEnabledForOrg(ctx, org.id, pluginId))) {
         throw new Error(
           `Plugin "${pluginId}" is not enabled for this organization. ` +
             `Enable it in Settings > Plugins.`,
         );
       }
+
+      // Ensure plugin event subscriptions exist for this org (lazy, cached after first call)
+      await ensureSubscriptionsForOrg(ctx, org.id);
 
       return tool.handler(input, ctx);
     },
@@ -71,13 +117,15 @@ function withPluginEnabled<
         );
       }
 
-      const settings = await ctx.storage.organizationSettings.get(org.id);
-      if (!settings?.enabled_plugins?.includes(pluginId)) {
+      if (!(await isPluginEnabledForOrg(ctx, org.id, pluginId))) {
         throw new Error(
           `Plugin "${pluginId}" is not enabled for this organization. ` +
             `Enable it in Settings > Plugins.`,
         );
       }
+
+      // Ensure plugin event subscriptions exist for this org (lazy, cached after first call)
+      await ensureSubscriptionsForOrg(ctx, org.id);
 
       return tool.execute(input, ctx);
     },
@@ -240,6 +288,181 @@ export function initializePluginStorage(
     if (plugin.createStorage) {
       const storage = plugin.createStorage(ctx);
       pluginStorageMap.set(plugin.id, storage);
+    }
+  }
+}
+
+// ============================================================================
+// Plugin Event Handling
+// ============================================================================
+
+/**
+ * Track which organizations have had plugin event subscriptions synced.
+ * This avoids redundant sync calls on every tool invocation.
+ */
+const syncedOrgs = new Set<string>();
+
+/**
+ * Collect all event types that plugins want to handle.
+ * Returns a flat array of event type strings.
+ */
+export function collectPluginEventTypes(): string[] {
+  const types: string[] = [];
+  for (const plugin of serverPlugins) {
+    if (plugin.onEvents) {
+      types.push(...plugin.onEvents.types);
+    }
+  }
+  return types;
+}
+
+/**
+ * Ensure plugin event subscriptions exist for an organization.
+ *
+ * Creates subscriptions on the SELF connection for all plugin event types.
+ * Uses syncSubscriptions for idempotency — safe to call multiple times.
+ * Results are cached per-org so subsequent calls are no-ops.
+ *
+ * @param eventBus - Event bus instance
+ * @param organizationId - Organization to sync subscriptions for
+ * @param selfConnectionId - SELF connection ID (e.g., "org123_self")
+ */
+export async function ensurePluginEventSubscriptions(
+  eventBus: {
+    syncSubscriptions: (
+      orgId: string,
+      input: {
+        connectionId: string;
+        subscriptions: Array<{
+          eventType: string;
+          publisher?: string;
+        }>;
+      },
+    ) => Promise<unknown>;
+  },
+  organizationId: string,
+  selfConnectionId: string,
+): Promise<void> {
+  if (syncedOrgs.has(organizationId)) return;
+
+  const allEventTypes = collectPluginEventTypes();
+  if (allEventTypes.length === 0) return;
+
+  try {
+    await eventBus.syncSubscriptions(organizationId, {
+      connectionId: selfConnectionId,
+      subscriptions: allEventTypes.map((eventType) => ({
+        eventType,
+        // Subscribe to events from any publisher (including SELF)
+        publisher: undefined,
+      })),
+    });
+    syncedOrgs.add(organizationId);
+  } catch (error) {
+    console.error(
+      `[PluginLoader] Failed to sync plugin event subscriptions for org ${organizationId}:`,
+      error,
+    );
+  }
+}
+
+/**
+ * Check if any registered plugins handle events.
+ */
+export function hasPluginEventHandlers(): boolean {
+  return serverPlugins.some((p) => p.onEvents);
+}
+
+/**
+ * Route events to matching plugin handlers.
+ *
+ * Called by the event bus notify subscriber when events are delivered
+ * to the SELF connection. Matches event types against plugin subscriptions
+ * and dispatches to the appropriate handlers.
+ *
+ * @param events - CloudEvents to route
+ * @param ctx - Event context with org info and publish function
+ * @returns true if any plugin handled events, false otherwise
+ */
+export async function routeEventsToPlugins(
+  events: CloudEvent[],
+  ctx: ServerPluginEventContext,
+): Promise<boolean> {
+  let handled = false;
+
+  for (const plugin of serverPlugins) {
+    if (!plugin.onEvents) continue;
+
+    // Filter events that match this plugin's registered types
+    const matchingEvents = events.filter((event) =>
+      plugin.onEvents!.types.some((type) => matchEventType(type, event.type)),
+    );
+
+    if (matchingEvents.length === 0) continue;
+
+    // Convert CloudEvents to ServerPluginEvents
+    const pluginEvents: ServerPluginEvent[] = matchingEvents.map((e) => ({
+      id: e.id,
+      type: e.type,
+      source: e.source,
+      subject: e.subject,
+      data: e.data,
+      time: e.time,
+    }));
+
+    try {
+      await plugin.onEvents.handler(pluginEvents, ctx);
+      handled = true;
+    } catch (error) {
+      console.error(
+        `[PluginLoader] Plugin "${plugin.id}" event handler error:`,
+        error,
+      );
+      // Don't throw - other plugins should still get their events
+      handled = true; // Still counts as handled even if errored
+    }
+  }
+
+  return handled;
+}
+
+/**
+ * Match an event type against a pattern.
+ * Supports exact match and wildcard suffix (e.g., "workflow.*" matches "workflow.execution.created").
+ */
+function matchEventType(pattern: string, eventType: string): boolean {
+  if (pattern === eventType) return true;
+  if (pattern.endsWith(".*")) {
+    const prefix = pattern.slice(0, -2);
+    return eventType.startsWith(prefix + ".");
+  }
+  return false;
+}
+
+// ============================================================================
+// Plugin Startup Hooks
+// ============================================================================
+
+/**
+ * Run onStartup hooks for all registered plugins.
+ *
+ * Called once after the event bus is ready and plugin storage is initialized.
+ * Each plugin's onStartup is called independently — errors in one plugin
+ * don't prevent other plugins from starting.
+ */
+export async function runPluginStartupHooks(
+  ctx: ServerPluginStartupContext,
+): Promise<void> {
+  for (const plugin of serverPlugins) {
+    if (!plugin.onStartup) continue;
+
+    try {
+      await plugin.onStartup(ctx);
+    } catch (error) {
+      console.error(
+        `[PluginLoader] Plugin "${plugin.id}" onStartup hook failed:`,
+        error,
+      );
     }
   }
 }
