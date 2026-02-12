@@ -242,7 +242,7 @@ const collectionDetailRoute = createRoute({
   ),
 });
 
-// Monitoring
+// Monitoring (org-level, but requires org-admin project context)
 const monitoringRoute = createRoute({
   getParentRoute: () => projectLayout,
   path: "/monitoring",
@@ -250,7 +250,7 @@ const monitoringRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
-      tab: z.enum(["logs", "analytics"]).default("logs"),
+      tab: z.enum(["logs", "analytics", "dashboards"]).default("logs"),
       from: z.string().default("now-24h"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
@@ -263,6 +263,26 @@ const monitoringRoute = createRoute({
       propertyFilters: z.string().default(""),
       hideSystem: z.boolean().default(false),
     }),
+  ),
+});
+
+// Dashboard view (org-admin only)
+const dashboardViewRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/monitoring/dashboards/$dashboardId",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-view.tsx"),
+  ),
+});
+
+// Dashboard edit (org-admin only, full editor page)
+const dashboardEditRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/monitoring/dashboards/$dashboardId/edit",
+  beforeLoad: orgAdminGuard,
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
   ),
 });
 
@@ -391,6 +411,8 @@ const projectRoutes = [
   connectionDetailRoute,
   collectionDetailRoute,
   monitoringRoute,
+  dashboardViewRoute,
+  dashboardEditRoute,
   storeRouteWithChildren,
   agentsRoute,
   agentDetailRoute,

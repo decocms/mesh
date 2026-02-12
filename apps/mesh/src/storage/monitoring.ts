@@ -9,8 +9,41 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
 import type { MonitoringStorage, PropertyFilters } from "./ports";
-import type { Database, MonitoringLog } from "./types";
+import type { AggregationFunction, Database, MonitoringLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+
+// ============================================================================
+// Aggregation Types
+// ============================================================================
+
+export interface AggregationParams {
+  organizationId: string;
+  path: string; // JSONPath to extract, e.g., "$.usage.total_tokens"
+  from: "input" | "output";
+  aggregation: AggregationFunction;
+  groupBy?: string; // Optional JSONPath for grouping
+  interval?: string; // For timeseries: "1h", "1d"
+  filters?: {
+    connectionIds?: string[];
+    virtualMcpIds?: string[];
+    toolNames?: string[];
+    startDate?: Date;
+    endDate?: Date;
+    propertyFilters?: PropertyFilters;
+  };
+}
+
+export interface AggregationResult {
+  value: number | null;
+  groups?: Array<{
+    key: string;
+    value: number;
+  }>;
+  timeseries?: Array<{
+    timestamp: string;
+    value: number;
+  }>;
+}
 
 // ============================================================================
 // Monitoring Storage Implementation
@@ -184,62 +217,11 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     // Apply property filters
     if (filters.propertyFilters) {
-      const { properties, propertyKeys, propertyPatterns, propertyInValues } =
-        filters.propertyFilters;
-
-      // Exact match: property key=value
-      if (properties) {
-        for (const [key, value] of Object.entries(properties)) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          query = query.where(jsonExpr as never, "=", value as never);
-          countQuery = countQuery.where(jsonExpr as never, "=", value as never);
-        }
-      }
-
-      // Exists: check if property key exists
-      if (propertyKeys && propertyKeys.length > 0) {
-        for (const key of propertyKeys) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          query = query.where(jsonExpr as never, "is not", null as never);
-          countQuery = countQuery.where(
-            jsonExpr as never,
-            "is not",
-            null as never,
-          );
-        }
-      }
-
-      // Pattern match: property value matches pattern (using LIKE)
-      if (propertyPatterns) {
-        for (const [key, pattern] of Object.entries(propertyPatterns)) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
-          const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
-          query = query.where(jsonExpr as never, likeOp, pattern as never);
-          countQuery = countQuery.where(
-            jsonExpr as never,
-            likeOp,
-            pattern as never,
-          );
-        }
-      }
-
-      // In match: check if value exists in comma-separated property value
-      // This enables exact matching within arrays stored as comma-separated strings
-      // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
-      if (propertyInValues) {
-        for (const [key, value] of Object.entries(propertyInValues)) {
-          // Wrap the property value in commas and search for the exact value surrounded by commas
-          // This prevents partial matches (e.g., "Eng" matching "Engineering")
-          // Escape LIKE wildcards to ensure exact matching (e.g., "100%" matches literally)
-          const inExpr = this.jsonExtractWithCommas("properties", key);
-          const escapedValue = this.escapeLikeWildcards(value);
-          const searchPattern = `%,${escapedValue},%`;
-          const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
-          query = query.where(likeCondition as never);
-          countQuery = countQuery.where(likeCondition as never);
-        }
-      }
+      query = this.applyPropertyFilters(query, filters.propertyFilters);
+      countQuery = this.applyPropertyFilters(
+        countQuery,
+        filters.propertyFilters,
+      );
     }
 
     // Order by timestamp descending (most recent first)
@@ -314,8 +296,359 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   }
 
   // ============================================================================
+  // Aggregation Methods (for Dashboard Widgets)
+  // ============================================================================
+
+  /**
+   * Extract JSON value using JSONPath and aggregate across logs.
+   * Supports groupBy for breakdown and interval for timeseries.
+   */
+  async aggregate(params: AggregationParams): Promise<AggregationResult> {
+    const {
+      organizationId,
+      path,
+      from,
+      aggregation,
+      groupBy,
+      interval,
+      filters,
+    } = params;
+
+    // Determine which column to extract from
+    const sourceColumn = from === "input" ? "input" : "output";
+
+    // Build base query with filters
+    let baseQuery = this.db
+      .selectFrom("monitoring_logs")
+      .where("organization_id", "=", organizationId);
+
+    // Apply additional filters
+    if (filters?.connectionIds && filters.connectionIds.length > 0) {
+      baseQuery = baseQuery.where("connection_id", "in", filters.connectionIds);
+    }
+    if (filters?.virtualMcpIds && filters.virtualMcpIds.length > 0) {
+      baseQuery = baseQuery.where(
+        "virtual_mcp_id",
+        "in",
+        filters.virtualMcpIds,
+      );
+    }
+    if (filters?.toolNames && filters.toolNames.length > 0) {
+      baseQuery = baseQuery.where("tool_name", "in", filters.toolNames);
+    }
+    if (filters?.startDate) {
+      baseQuery = baseQuery.where(
+        "timestamp",
+        ">=",
+        filters.startDate.toISOString() as never,
+      );
+    }
+    if (filters?.endDate) {
+      baseQuery = baseQuery.where(
+        "timestamp",
+        "<=",
+        filters.endDate.toISOString() as never,
+      );
+    }
+    if (filters?.propertyFilters) {
+      baseQuery = this.applyPropertyFilters(baseQuery, filters.propertyFilters);
+    }
+
+    // Get JSON extraction expression
+    const valueExpr = this.jsonExtractPath(sourceColumn, path);
+
+    // If we have groupBy, return grouped results
+    if (groupBy) {
+      // Use text extraction for groupBy (it's typically a string like model name)
+      const groupExpr = this.jsonExtractPathText(sourceColumn, groupBy);
+      const rows = await baseQuery
+        .select([
+          sql<string>`${groupExpr}`.as("group_key"),
+          this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+        ])
+        .groupBy(sql`${groupExpr}`)
+        .execute();
+
+      return {
+        value: null,
+        groups: rows
+          .filter((row) => row.group_key !== null)
+          .map((row) => ({
+            key: String(row.group_key),
+            value: Number(row.agg_value) || 0,
+          })),
+      };
+    }
+
+    // If we have interval, return timeseries
+    if (interval) {
+      const bucketExpr = this.timeBucketExpression(interval);
+      const rows = await baseQuery
+        .select([
+          bucketExpr.as("time_bucket"),
+          this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+        ])
+        .groupBy(sql`time_bucket`)
+        .orderBy(sql`time_bucket`)
+        .execute();
+
+      return {
+        value: null,
+        timeseries: rows.map((row) => ({
+          timestamp: String(row.time_bucket),
+          value: Number(row.agg_value) || 0,
+        })),
+      };
+    }
+
+    // Simple aggregation without grouping
+    const result = await baseQuery
+      .select([
+        this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
+      ])
+      .executeTakeFirst();
+
+    return {
+      value: result ? Number(result.agg_value) || 0 : null,
+    };
+  }
+
+  /**
+   * Count records that have a non-null value at the given JSONPath.
+   * Used for preview to show how many records matched.
+   */
+  async countMatched(params: {
+    organizationId: string;
+    path: string;
+    from: "input" | "output";
+    filters?: {
+      connectionIds?: string[];
+      toolNames?: string[];
+      startDate?: Date;
+      endDate?: Date;
+      propertyFilters?: PropertyFilters;
+    };
+  }): Promise<number> {
+    const { organizationId, path, from, filters } = params;
+
+    const sourceColumn = from === "input" ? "input" : "output";
+
+    let query = this.db
+      .selectFrom("monitoring_logs")
+      .where("organization_id", "=", organizationId);
+
+    // Apply filters
+    if (filters?.connectionIds && filters.connectionIds.length > 0) {
+      query = query.where("connection_id", "in", filters.connectionIds);
+    }
+    if (filters?.toolNames && filters.toolNames.length > 0) {
+      query = query.where("tool_name", "in", filters.toolNames);
+    }
+    if (filters?.startDate) {
+      query = query.where(
+        "timestamp",
+        ">=",
+        filters.startDate.toISOString() as never,
+      );
+    }
+    if (filters?.endDate) {
+      query = query.where(
+        "timestamp",
+        "<=",
+        filters.endDate.toISOString() as never,
+      );
+    }
+    if (filters?.propertyFilters) {
+      query = this.applyPropertyFilters(query, filters.propertyFilters);
+    }
+
+    // Only count records where the JSONPath extracts a non-null value
+    const valueExpr = this.jsonExtractPathText(sourceColumn, path);
+    const result = await query
+      .where(sql`${valueExpr}`, "is not", null)
+      .select((eb) => eb.fn.count("id").as("count"))
+      .executeTakeFirst();
+
+    return Number(result?.count || 0);
+  }
+
+  /**
+   * Get JSON extraction SQL for a JSONPath (numeric value).
+   * Converts "$.usage.total_tokens" to appropriate SQL.
+   * Used for values that will be aggregated (sum, avg, etc.)
+   */
+  private jsonExtractPath(column: string, jsonPath: string) {
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: use jsonb extraction operators
+      // For nested paths like $.usage.total_tokens, use #>>
+      const pathParts = jsonPath.replace(/^\$\.?/, "").split(".");
+      const pathArray = `{${pathParts.join(",")}}`;
+      return sql`(${sql.ref(column)}::jsonb #>> ${pathArray})::numeric`;
+    }
+    // SQLite: use json_extract with JSON path
+    return sql`CAST(json_extract(${sql.ref(column)}, ${jsonPath}) AS REAL)`;
+  }
+
+  /**
+   * Get JSON extraction SQL for a JSONPath (text value).
+   * Used for groupBy fields which are typically strings.
+   */
+  private jsonExtractPathText(column: string, jsonPath: string) {
+    if (this.databaseType === "postgres") {
+      const pathParts = jsonPath.replace(/^\$\.?/, "").split(".");
+      const pathArray = `{${pathParts.join(",")}}`;
+      return sql`(${sql.ref(column)}::jsonb #>> ${pathArray})`;
+    }
+    // SQLite: use json_extract with JSON path (returns text naturally)
+    return sql`json_extract(${sql.ref(column)}, ${jsonPath})`;
+  }
+
+  /**
+   * Get aggregation SQL expression.
+   */
+  private aggregationExpression(
+    fn: AggregationFunction,
+    valueExpr: ReturnType<typeof sql>,
+  ) {
+    switch (fn) {
+      case "sum":
+        return sql`COALESCE(SUM(${valueExpr}), 0)`;
+      case "avg":
+        return sql`COALESCE(AVG(${valueExpr}), 0)`;
+      case "min":
+        return sql`MIN(${valueExpr})`;
+      case "max":
+        return sql`MAX(${valueExpr})`;
+      case "count":
+        return sql`COUNT(${valueExpr})`;
+      case "last":
+        // For "last", we'd need a subquery - simplified to max for now
+        return sql`MAX(${valueExpr})`;
+      default:
+        return sql`SUM(${valueExpr})`;
+    }
+  }
+
+  /**
+   * Get time bucket expression for timeseries grouping.
+   */
+  private timeBucketExpression(interval: string) {
+    // Parse interval like "1h", "1d", "15m"
+    const match = interval.match(/^(\d+)([mhd])$/);
+    if (!match) {
+      throw new Error(
+        `Invalid interval format: ${interval}. Use format like "1h", "1d", "15m"`,
+      );
+    }
+
+    const [, amountStr, unit] = match;
+    if (!amountStr || !unit) {
+      throw new Error(`Invalid interval format: ${interval}`);
+    }
+    const amount = parseInt(amountStr, 10);
+
+    if (this.databaseType === "postgres") {
+      // PostgreSQL: use date_trunc or custom bucketing
+      let truncUnit: string;
+      switch (unit) {
+        case "m":
+          truncUnit = "minute";
+          break;
+        case "h":
+          truncUnit = "hour";
+          break;
+        case "d":
+          truncUnit = "day";
+          break;
+        default:
+          truncUnit = "hour";
+      }
+      if (amount === 1) {
+        return sql`date_trunc(${truncUnit}, timestamp::timestamp)`;
+      }
+      // For non-1 intervals, use epoch-based bucketing
+      const secondsPerUnit = unit === "m" ? 60 : unit === "h" ? 3600 : 86400;
+      const bucketSeconds = amount * secondsPerUnit;
+      return sql`to_timestamp(floor(extract(epoch from timestamp::timestamp) / ${bucketSeconds}) * ${bucketSeconds})`;
+    }
+
+    // SQLite: use strftime for bucketing
+    switch (unit) {
+      case "m":
+        if (amount === 1) {
+          return sql`strftime('%Y-%m-%d %H:%M:00', timestamp)`;
+        }
+        // For multi-minute buckets, round down
+        return sql`strftime('%Y-%m-%d %H:', timestamp) || printf('%02d', (cast(strftime('%M', timestamp) as integer) / ${amount}) * ${amount}) || ':00'`;
+      case "h":
+        if (amount === 1) {
+          return sql`strftime('%Y-%m-%d %H:00:00', timestamp)`;
+        }
+        return sql`strftime('%Y-%m-%d ', timestamp) || printf('%02d', (cast(strftime('%H', timestamp) as integer) / ${amount}) * ${amount}) || ':00:00'`;
+      case "d":
+        return sql`strftime('%Y-%m-%d 00:00:00', timestamp)`;
+      default:
+        return sql`strftime('%Y-%m-%d %H:00:00', timestamp)`;
+    }
+  }
+
+  // ============================================================================
   // Private Helper Methods
   // ============================================================================
+
+  /**
+   * Apply property filters to a Kysely query builder.
+   * Supports exact match, exists, pattern (LIKE), and in-value matching.
+   * Reused by query(), aggregate(), and countMatched().
+   */
+  // deno-lint-ignore no-explicit-any
+  private applyPropertyFilters<T extends { where: (...args: any[]) => any }>(
+    query: T,
+    pf: PropertyFilters,
+  ): T {
+    const { properties, propertyKeys, propertyPatterns, propertyInValues } = pf;
+
+    // Exact match: property key=value
+    if (properties) {
+      for (const [key, value] of Object.entries(properties)) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        query = query.where(jsonExpr as never, "=", value as never);
+      }
+    }
+
+    // Exists: check if property key exists
+    if (propertyKeys && propertyKeys.length > 0) {
+      for (const key of propertyKeys) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        query = query.where(jsonExpr as never, "is not", null as never);
+      }
+    }
+
+    // Pattern match: property value matches pattern (using LIKE)
+    if (propertyPatterns) {
+      for (const [key, pattern] of Object.entries(propertyPatterns)) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
+        const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
+        query = query.where(jsonExpr as never, likeOp, pattern as never);
+      }
+    }
+
+    // In match: check if value exists in comma-separated property value
+    // This enables exact matching within arrays stored as comma-separated strings
+    // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
+    if (propertyInValues) {
+      for (const [key, value] of Object.entries(propertyInValues)) {
+        const inExpr = this.jsonExtractWithCommas("properties", key);
+        const escapedValue = this.escapeLikeWildcards(value);
+        const searchPattern = `%,${escapedValue},%`;
+        const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
+        query = query.where(likeCondition as never);
+      }
+    }
+
+    return query;
+  }
 
   private toDbRow(log: MonitoringLog) {
     const id = log.id || generatePrefixedId("log");
