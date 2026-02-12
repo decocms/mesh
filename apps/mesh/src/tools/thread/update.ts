@@ -53,7 +53,7 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
     const existing = await ctx.storage.threads.get(id);
 
     // Verify it exists and belongs to the current organization
-    if (!existing || existing.organizationId !== organization.id) {
+    if (!existing || existing.organization_id !== organization.id) {
       throw new Error("Thread not found in organization");
     }
 

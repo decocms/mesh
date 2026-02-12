@@ -21,7 +21,7 @@ import { THREAD_STATUSES } from "@/storage/types";
  */
 export const ThreadMessageEntitySchema = z.object({
   id: z.string().describe("Unique message ID"),
-  threadId: z.string().describe("ID of the parent thread"),
+  thread_id: z.string().describe("ID of the parent thread"),
   metadata: z.unknown().optional().describe("Optional message metadata"),
   parts: z
     .array(z.record(z.string(), z.unknown()))
@@ -39,7 +39,7 @@ export type ThreadMessageEntity = z.infer<typeof ThreadMessageEntitySchema>;
 
 export const ThreadEntitySchema = z.object({
   id: z.string().describe("Unique thread ID"),
-  organizationId: z.string().describe("Organization this thread belongs to"),
+  organization_id: z.string().describe("Organization this thread belongs to"),
   title: z.string().describe("Thread title"),
   description: z.string().nullable().describe("Thread description"),
   created_at: z.string().datetime().describe("Timestamp of creation"),

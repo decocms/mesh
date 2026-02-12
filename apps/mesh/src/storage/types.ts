@@ -625,7 +625,7 @@ export interface ThreadTable {
 
 export interface Thread {
   id: string;
-  organizationId: string;
+  organization_id: string;
   title: string;
   description: string | null;
   created_at: string;
@@ -646,7 +646,7 @@ export interface ThreadMessageTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 export interface ThreadMessage extends ChatMessage {
-  threadId: string;
+  thread_id: string;
   created_at: string;
   updated_at: string;
 }

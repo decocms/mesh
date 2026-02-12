@@ -8,7 +8,7 @@ import { normalizeThreadForResponse, THREAD_EXPIRY_MS } from "./helpers";
 
 const BASE_THREAD: Thread = {
   id: "thrd_test",
-  organizationId: "org_test",
+  organization_id: "org_test",
   title: "Test thread",
   description: null,
   created_at: "2025-01-01T00:00:00.000Z",

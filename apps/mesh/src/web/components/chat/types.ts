@@ -98,7 +98,7 @@ export interface Thread {
  */
 export interface ParentThread {
   /** Thread ID of the parent message */
-  threadId: string;
+  thread_id: string;
   /** ID of the parent message being branched from */
   messageId: string;
 }

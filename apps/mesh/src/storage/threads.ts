@@ -30,8 +30,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const id = data.id ?? generatePrefixedId("thrd");
     const now = new Date().toISOString();
 
-    if (!data.organizationId) {
-      throw new Error("organizationId is required");
+    if (!data.organization_id) {
+      throw new Error("organization_id is required");
     }
     if (!data.created_by) {
       throw new Error("created_by is required");
@@ -42,7 +42,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
     const row = {
       id,
-      organization_id: data.organizationId,
+      organization_id: data.organization_id,
       title: data.title,
       description: data.description ?? null,
       status: data.status ?? "completed",
@@ -161,21 +161,28 @@ export class SqlThreadStorage implements ThreadStoragePort {
    */
   async saveMessages(data: ThreadMessage[]): Promise<void> {
     const now = new Date().toISOString();
-    const threadId = data[0]?.threadId;
+    const threadId = data[0]?.thread_id;
     if (!threadId) {
-      throw new Error("threadId is required when creating multiple messages");
+      throw new Error("thread_id is required when creating multiple messages");
     }
     // Deduplicate by id - PostgreSQL ON CONFLICT cannot affect same row twice in one INSERT.
+    // Also detect duplicate ids with conflicting thread_ids to reject corrupt batches early.
     const byId = new Map<string, ThreadMessage>();
     for (const m of data) {
+      const existing = byId.get(m.id);
+      if (existing && existing.thread_id !== m.thread_id) {
+        throw new Error(
+          `Duplicate message id "${m.id}" with conflicting thread_ids: "${existing.thread_id}" vs "${m.thread_id}"`,
+        );
+      }
       byId.set(m.id, m);
     }
     const unique = [...byId.values()];
     // Validate all messages target the same thread to prevent data corruption.
-    const mismatchedMessage = unique.find((m) => m.threadId !== threadId);
+    const mismatchedMessage = unique.find((m) => m.thread_id !== threadId);
     if (mismatchedMessage) {
       throw new Error(
-        `All messages must target the same thread. Expected threadId "${threadId}", but message "${mismatchedMessage.id}" has threadId "${mismatchedMessage.threadId}"`,
+        `All messages must target the same thread. Expected thread_id "${threadId}", but message "${mismatchedMessage.id}" has thread_id "${mismatchedMessage.thread_id}"`,
       );
     }
     const rows = unique.map((message) => ({
@@ -268,7 +275,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   }): Thread {
     return {
       id: row.id,
-      organizationId: row.organization_id,
+      organization_id: row.organization_id,
       title: row.title,
       description: row.description,
       status: row.status as ThreadStatus,
@@ -317,7 +324,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
 
     return {
       id: row.id,
-      threadId: row.thread_id,
+      thread_id: row.thread_id,
       metadata,
       parts,
       role: row.role,

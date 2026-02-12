@@ -118,7 +118,7 @@ function useThreadMessages(threadId: string | null) {
     "THREAD_MESSAGES",
     client,
     {
-      filters: threadId ? [{ column: "threadId", value: threadId }] : [],
+      filters: threadId ? [{ column: "thread_id", value: threadId }] : [],
       pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
     },
   ) as ChatMessage[] | undefined;
@@ -170,7 +170,7 @@ export function useThreadManager() {
     // Prefill message cache
     if (client) {
       prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
-        filters: [{ column: "threadId", value: newThreadId }],
+        filters: [{ column: "thread_id", value: newThreadId }],
         pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
       });
     }

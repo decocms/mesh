@@ -160,7 +160,7 @@ export async function prefetchThreadMessages(
   }
 
   const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
-    filters: [{ column: "threadId", value: threadId }],
+    filters: [{ column: "thread_id", value: threadId }],
     pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
   });
 
@@ -178,7 +178,7 @@ export async function prefetchThreadMessages(
   const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
   const where = buildWhereExpression(
     undefined,
-    [{ column: "threadId", value: threadId }],
+    [{ column: "thread_id", value: threadId }],
     [],
   );
   const orderBy = buildOrderByExpression(
@@ -224,7 +224,7 @@ export function updateMessagesCache(
   }
 
   const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
-    filters: [{ column: "threadId", value: threadId }],
+    filters: [{ column: "thread_id", value: threadId }],
     pageSize: THREAD_CONSTANTS.THREAD_MESSAGES_PAGE_SIZE,
   });
 

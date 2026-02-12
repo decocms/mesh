@@ -141,15 +141,15 @@ app.post("/:org/decopilot/stream", async (c) => {
     }
 
     const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
-    const threadId = thread_id ?? memoryConfig?.threadId;
+    const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
 
     // Get connection entities and create/load memory in parallel
     const [virtualMcp, modelConnection, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(agent.id, organization.id),
       ctx.storage.connections.findById(models.connectionId, organization.id),
       createMemory(ctx.storage.threads, {
-        organizationId: organization.id,
-        threadId,
+        organization_id: organization.id,
+        thread_id: resolvedThreadId,
         userId,
         defaultWindowSize: windowSize,
       }),
@@ -351,7 +351,7 @@ app.post("/:org/decopilot/stream", async (c) => {
         ].map((message, i) => ({
           ...message,
           metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
-          threadId: mem.thread.id,
+          thread_id: mem.thread.id,
           created_at: new Date(now + i).toISOString(),
           updated_at: new Date(now + i).toISOString(),
         }));
