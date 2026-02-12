@@ -111,7 +111,7 @@ export function ToolCallShell({
           {isExpandable && (
             <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
               <div className="border-t border-border/50 px-3 pb-3 pt-3">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 max-h-48 overflow-y-auto">
                   <div className="flex-1 min-w-0 overflow-hidden">
                     {looksLikeMarkdown(detail!) ? (
                       <MemoizedMarkdown

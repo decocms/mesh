@@ -1,7 +1,6 @@
 "use client";
 
-import { GitBranch01 } from "@untitledui/icons";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { Users03 } from "@untitledui/icons";
 import { ToolCallShell } from "./common.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useChat } from "../../../context.tsx";
@@ -11,17 +10,9 @@ import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
-  isFirstInSequence?: boolean;
-  isLastInSequence?: boolean;
-  hasNextToolCall?: boolean;
 }
 
-export function SubtaskPart({
-  part,
-  isFirstInSequence,
-  isLastInSequence,
-  hasNextToolCall,
-}: SubtaskPartProps) {
+export function SubtaskPart({ part }: SubtaskPartProps) {
   const { virtualMcps } = useChat();
 
   // State computation
@@ -77,24 +68,17 @@ export function SubtaskPart({
   const detail = `# Task\n${part.input?.prompt ?? "No prompt provided"}\n\n# ${isError ? "Error" : "Execution"}\n${response}`;
 
   // Icon
-  const icon = agent?.icon ? (
+  const icon = (
     <IntegrationIcon
-      icon={agent.icon}
-      name={agent.title ?? "Subtask"}
+      icon={agent?.icon}
+      name={agent?.title ?? "Subtask"}
       size="2xs"
+      fallbackIcon={<Users03 />}
     />
-  ) : (
-    <GitBranch01 className="size-4 text-muted-foreground" />
   );
 
   return (
-    <div
-      className={cn(
-        "relative",
-        isFirstInSequence && "mt-2",
-        isLastInSequence && "mb-2",
-      )}
-    >
+    <div className="my-2">
       <ToolCallShell
         icon={icon}
         title={title}
@@ -103,9 +87,6 @@ export function SubtaskPart({
         state={effectiveState}
         detail={detail}
       />
-      {hasNextToolCall && (
-        <div className="absolute left-[19px] top-full h-2 w-px bg-border/50" />
-      )}
     </div>
   );
 }

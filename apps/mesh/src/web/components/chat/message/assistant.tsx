@@ -209,55 +209,16 @@ interface MessagePartProps {
   part: MessagePart;
   id: string;
   usageStats?: ReactNode;
-  isFollowedByToolCall?: boolean;
-  isFirstToolCallInSequence?: boolean;
-  isLastToolCallInSequence?: boolean;
-  hasNextToolCall?: boolean;
 }
 
-function isToolCallPart(part: MessagePart | null | undefined): boolean {
-  return Boolean(
-    part?.type === "dynamic-tool" || part?.type?.startsWith("tool-"),
-  );
-}
-
-function MessagePart({
-  part,
-  id,
-  usageStats,
-  isFollowedByToolCall,
-  isFirstToolCallInSequence,
-  isLastToolCallInSequence,
-  hasNextToolCall,
-}: MessagePartProps) {
+function MessagePart({ part, id, usageStats }: MessagePartProps) {
   switch (part.type) {
     case "dynamic-tool":
-      return (
-        <GenericToolCallPart
-          part={part}
-          isFirstInSequence={isFirstToolCallInSequence}
-          isLastInSequence={isLastToolCallInSequence}
-          hasNextToolCall={hasNextToolCall}
-        />
-      );
+      return <GenericToolCallPart part={part} />;
     case "tool-user_ask":
-      return (
-        <UserAskPart
-          part={part}
-          isFirstInSequence={isFirstToolCallInSequence}
-          isLastInSequence={isLastToolCallInSequence}
-          hasNextToolCall={hasNextToolCall}
-        />
-      );
+      return <UserAskPart part={part} />;
     case "tool-subtask":
-      return (
-        <SubtaskPart
-          part={part}
-          isFirstInSequence={isFirstToolCallInSequence}
-          isLastInSequence={isLastToolCallInSequence}
-          hasNextToolCall={hasNextToolCall}
-        />
-      );
+      return <SubtaskPart part={part} />;
     case "text":
       return (
         <MessageTextPart
@@ -265,7 +226,6 @@ function MessagePart({
           part={part}
           extraActions={usageStats}
           copyable
-          hasToolCallAfter={isFollowedByToolCall}
         />
       );
     case "reasoning":
@@ -279,14 +239,7 @@ function MessagePart({
     default: {
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
-        return (
-          <GenericToolCallPart
-            part={fallback}
-            isFirstInSequence={isFirstToolCallInSequence}
-            isLastInSequence={isLastToolCallInSequence}
-            hasNextToolCall={hasNextToolCall}
-          />
-        );
+        return <GenericToolCallPart part={fallback} />;
       }
       throw new Error(`Unknown part type: ${fallback.type}`);
     }
@@ -367,16 +320,6 @@ export function MessageAssistant({
           )}
           {message.parts.map((part, index) => {
             const isLastPart = index === message.parts.length - 1;
-            const nextPart = message.parts[index + 1];
-            const prevPart = message.parts[index - 1];
-
-            const isToolCall = isToolCallPart(part);
-            const prevIsToolCall = isToolCallPart(prevPart);
-            const nextIsToolCall = isToolCallPart(nextPart);
-
-            const isFirstToolCallInSequence = isToolCall && !prevIsToolCall;
-            const isLastToolCallInSequence = isToolCall && !nextIsToolCall;
-            const hasNextToolCall = isToolCall && nextIsToolCall;
 
             return (
               <MessagePart
@@ -384,10 +327,6 @@ export function MessageAssistant({
                 part={part}
                 id={message.id}
                 usageStats={isLastPart && <UsageStats messages={[message]} />}
-                isFollowedByToolCall={nextIsToolCall}
-                isFirstToolCallInSequence={isFirstToolCallInSequence}
-                isLastToolCallInSequence={isLastToolCallInSequence}
-                hasNextToolCall={hasNextToolCall}
               />
             );
           })}

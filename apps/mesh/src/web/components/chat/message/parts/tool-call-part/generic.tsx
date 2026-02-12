@@ -10,9 +10,6 @@ interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
   /** Kept for backwards compatibility with assistant.tsx call sites (unused internally) */
   id?: string;
-  isFirstInSequence?: boolean;
-  isLastInSequence?: boolean;
-  hasNextToolCall?: boolean;
 }
 
 function safeStringify(value: unknown): string {
@@ -92,14 +89,16 @@ export function GenericToolCallPart({ part }: GenericToolCallPartProps) {
   }
 
   return (
-    <ToolCallShell
-      icon={<Atom02 className="size-4 text-muted-foreground" />}
-      title={title}
-      usage={undefined}
-      latencySeconds={undefined}
-      summary={summary}
-      state={effectiveState}
-      detail={detail || null}
-    />
+    <div className="my-2">
+      <ToolCallShell
+        icon={<Atom02 className="size-4 text-muted-foreground" />}
+        title={title}
+        usage={undefined}
+        latencySeconds={undefined}
+        summary={summary}
+        state={effectiveState}
+        detail={detail || null}
+      />
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Users03, ChevronRight, Plus, Loading01 } from "@untitledui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { IntegrationIcon } from "@/web/components/integration-icon";
 
 interface ConnectionVirtualMCPsSectionProps {
   connectionId: string;
@@ -29,17 +30,12 @@ function VirtualMCPListItem({
       params={{ org, project: ORG_ADMIN_PROJECT_SLUG, agentId: virtualMcp.id }}
       className="flex items-center gap-3 p-2 pr-1 rounded-lg hover:bg-muted/50 transition-colors group"
     >
-      {virtualMcp.icon ? (
-        <img
-          src={virtualMcp.icon}
-          alt={virtualMcp.title}
-          className="w-5 h-5 rounded-md object-cover shrink-0"
-        />
-      ) : (
-        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-          <Users03 size={16} className="text-primary" />
-        </div>
-      )}
+      <IntegrationIcon
+        icon={virtualMcp.icon}
+        name={virtualMcp.title}
+        size="xs"
+        fallbackIcon={<Users03 size={16} />}
+      />
       <span className="flex-1 text-sm font-medium text-foreground truncate">
         {virtualMcp.title}
       </span>

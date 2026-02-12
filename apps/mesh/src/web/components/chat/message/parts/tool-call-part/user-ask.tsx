@@ -7,9 +7,6 @@ import { ToolCallShell } from "./common.tsx";
 
 interface UserAskPartProps {
   part: UserAskToolPart;
-  isFirstInSequence?: boolean;
-  isLastInSequence?: boolean;
-  hasNextToolCall?: boolean;
 }
 
 export function UserAskPart({ part }: UserAskPartProps) {
@@ -36,14 +33,18 @@ export function UserAskPart({ part }: UserAskPartProps) {
       : "idle";
 
   return (
-    <ToolCallShell
-      icon={<MessageQuestionCircle className="size-4 text-muted-foreground" />}
-      title={title}
-      usage={undefined}
-      latencySeconds={undefined}
-      summary={summary}
-      state={effectiveState}
-      detail={`# Question\n${part.input?.prompt ?? ""}\n\n# Answer\n${summary}`}
-    />
+    <div className="my-2">
+      <ToolCallShell
+        icon={
+          <MessageQuestionCircle className="size-4 text-muted-foreground" />
+        }
+        title={title}
+        usage={undefined}
+        latencySeconds={undefined}
+        summary={summary}
+        state={effectiveState}
+        detail={`# Question\n${part.input?.prompt ?? ""}\n\n# Answer\n${summary}`}
+      />
+    </div>
   );
 }
