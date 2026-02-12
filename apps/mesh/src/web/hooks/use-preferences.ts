@@ -4,11 +4,13 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys.ts";
 interface Preferences {
   devMode: boolean;
   experimental_projects: boolean;
+  experimental_tasks: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
   devMode: false,
   experimental_projects: false,
+  experimental_tasks: false,
 };
 
 export function usePreferences() {
