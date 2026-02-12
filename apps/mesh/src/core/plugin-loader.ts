@@ -306,7 +306,7 @@ const syncedOrgs = new Set<string>();
  * Collect all event types that plugins want to handle.
  * Returns a flat array of event type strings.
  */
-export function collectPluginEventTypes(): string[] {
+function collectPluginEventTypes(): string[] {
   const types: string[] = [];
   for (const plugin of serverPlugins) {
     if (plugin.onEvents) {
@@ -327,7 +327,7 @@ export function collectPluginEventTypes(): string[] {
  * @param organizationId - Organization to sync subscriptions for
  * @param selfConnectionId - SELF connection ID (e.g., "org123_self")
  */
-export async function ensurePluginEventSubscriptions(
+async function ensurePluginEventSubscriptions(
   eventBus: {
     syncSubscriptions: (
       orgId: string,
