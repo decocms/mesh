@@ -13,8 +13,7 @@
 
 import type { ColumnType } from "kysely";
 import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
-import type { UIMessage } from "ai";
-import type { Metadata } from "../web/components/chat/types";
+import type { ChatMessage } from "../api/routes/decopilot/types";
 
 // ============================================================================
 // Type Utilities
@@ -634,7 +633,7 @@ export interface ThreadMessageTable {
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
-export interface ThreadMessage extends UIMessage<Metadata> {
+export interface ThreadMessage extends ChatMessage {
   threadId: string;
   createdAt: string;
   updatedAt: string;

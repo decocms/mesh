@@ -1,24 +1,24 @@
+import type { ChatMessage } from "@/api/routes/decopilot/types";
+export type { ChatMessage };
+import type { UseChatHelpers } from "@ai-sdk/react";
 import type { JSONContent } from "@tiptap/core";
-import type { UIMessage } from "ai";
 
 // ============================================================================
 // Chat Config Types
 // ============================================================================
 
-export interface ChatModelConfig {
+export interface ChatModelInfo {
   id: string;
-  connectionId: string;
-  fastId?: string | null;
+  capabilities?: { vision?: boolean; text?: boolean; tools?: boolean };
   provider?: string | null;
-  limits?: {
-    contextWindow?: number;
-    maxOutputTokens?: number;
-  };
-  capabilities?: {
-    vision?: boolean;
-    text?: boolean;
-    tools?: boolean;
-  };
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
+}
+
+export interface ChatModelsConfig {
+  connectionId: string;
+  thinking: ChatModelInfo;
+  coding?: ChatModelInfo;
+  fast?: ChatModelInfo;
 }
 
 export interface ChatAgentConfig {
@@ -53,10 +53,9 @@ export type TiptapNode = JSONContent;
 // ============================================================================
 
 export interface Metadata {
-  fastId?: string | null;
   reasoning_start_at?: string | Date;
   reasoning_end_at?: string | Date;
-  model?: ChatModelConfig;
+  models?: ChatModelsConfig;
   agent?: ChatAgentConfig;
   user?: ChatUserConfig;
   created_at?: string | Date;
@@ -89,8 +88,6 @@ export interface Thread {
   hidden?: boolean;
 }
 
-export type Message = UIMessage<Metadata>;
-
 // ============================================================================
 // Parent Thread Types
 // ============================================================================
@@ -105,3 +102,18 @@ export interface ParentThread {
   /** ID of the parent message being branched from */
   messageId: string;
 }
+
+// ============================================================================
+// Chat Message Types
+// ============================================================================
+
+export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
+
+// ============================================================================
+// Tool Part Types
+// ============================================================================
+
+export type UserAskToolPart = Extract<
+  ChatMessage["parts"][number],
+  { type: "tool-user_ask" }
+>;

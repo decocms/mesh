@@ -1,5 +1,5 @@
 /**
- * Memory Implementation
+ * Memory
  *
  * Thread-based conversation history management.
  * Wraps the thread storage for conversation-focused operations.
@@ -7,13 +7,35 @@
 
 import type { Thread, ThreadMessage } from "@/storage/types";
 import type { ThreadStoragePort } from "@/storage/ports";
-import type { Memory, MemoryConfig } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
- * Thread-based Memory implementation
+ * Configuration for creating a Memory instance
  */
-class ThreadMemory implements Memory {
+export interface MemoryConfig {
+  /** Thread ID (creates new if not found) */
+  threadId?: string | null;
+
+  /** Organization scope */
+  organizationId: string;
+
+  /** User who owns/created the thread */
+  userId: string;
+
+  /** Default window size for pruning */
+  defaultWindowSize?: number;
+}
+
+/**
+ * Thread-based conversation memory.
+ *
+ * Provides:
+ * - Thread management (get or create)
+ * - Message history loading
+ * - Message saving
+ * - Pruning for context window management
+ */
+export class Memory {
   readonly thread: Thread;
   readonly organizationId: string;
 
@@ -31,20 +53,24 @@ class ThreadMemory implements Memory {
     this.defaultWindowSize = config.defaultWindowSize ?? 50;
   }
 
-  async loadHistory(): Promise<ThreadMessage[]> {
-    const { messages } = await this.storage.listMessages(this.thread.id);
-    return messages;
+  async loadHistory(windowSize?: number): Promise<ThreadMessage[]> {
+    const limit = windowSize ?? this.defaultWindowSize;
+    const { messages } = await this.storage.listMessages(this.thread.id, {
+      limit,
+      sort: "desc",
+    });
+    // Reverse so chronological (oldest first)
+    const chronological = [...messages].reverse();
+    // Ensure the window starts with a "user" message; trim from the start if needed.
+    // When no user message exists in the window, keep the windowed messages to preserve
+    // assistant/tool context for follow-up turns.
+    const startIndex = chronological.findIndex((m) => m.role === "user");
+    return startIndex >= 0 ? chronological.slice(startIndex) : chronological;
   }
 
   async save(messages: ThreadMessage[]): Promise<void> {
     if (messages.length === 0) return;
     await this.storage.saveMessages(messages);
-  }
-
-  async getPrunedHistory(windowSize?: number): Promise<ThreadMessage[]> {
-    const messages = await this.loadHistory();
-    const size = windowSize ?? this.defaultWindowSize;
-    return messages.slice(-size);
   }
 }
 
@@ -83,7 +109,7 @@ export async function createMemory(
     }
   }
 
-  return new ThreadMemory({
+  return new Memory({
     thread,
     storage,
     defaultWindowSize,
