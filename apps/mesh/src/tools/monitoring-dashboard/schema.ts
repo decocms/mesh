@@ -11,7 +11,7 @@ import { z } from "zod";
 // Aggregation Function Schema
 // ============================================================================
 
-export const AggregationFunctionSchema = z
+const AggregationFunctionSchema = z
   .enum(["sum", "avg", "min", "max", "count", "last"])
   .describe("Aggregation function to apply");
 
@@ -19,7 +19,7 @@ export const AggregationFunctionSchema = z
 // Widget Type Schema
 // ============================================================================
 
-export const WidgetTypeSchema = z
+const WidgetTypeSchema = z
   .enum(["metric", "timeseries", "table"])
   .describe("Widget display type");
 
@@ -27,7 +27,7 @@ export const WidgetTypeSchema = z
 // Dashboard Widget Schema
 // ============================================================================
 
-export const DashboardWidgetSourceSchema = z.object({
+const DashboardWidgetSourceSchema = z.object({
   path: z
     .string()
     .describe("JSONPath to extract value, e.g., '$.usage.total_tokens'"),
@@ -36,7 +36,7 @@ export const DashboardWidgetSourceSchema = z.object({
     .describe("Extract from tool call input or output"),
 });
 
-export const DashboardWidgetAggregationSchema = z.object({
+const DashboardWidgetAggregationSchema = z.object({
   fn: AggregationFunctionSchema,
   groupBy: z
     .string()
@@ -48,7 +48,7 @@ export const DashboardWidgetAggregationSchema = z.object({
     .describe("For timeseries widgets: interval like '1h', '1d', '15m'"),
 });
 
-export const DashboardWidgetFilterSchema = z.object({
+const DashboardWidgetFilterSchema = z.object({
   connectionIds: z
     .array(z.string())
     .optional()
@@ -123,12 +123,12 @@ export type MonitoringDashboardOutput = z.infer<
 // Query Result Schemas
 // ============================================================================
 
-export const WidgetGroupResultSchema = z.object({
+const WidgetGroupResultSchema = z.object({
   key: z.string().describe("Group key value"),
   value: z.number().describe("Aggregated value for this group"),
 });
 
-export const WidgetTimeseriesPointSchema = z.object({
+const WidgetTimeseriesPointSchema = z.object({
   timestamp: z.string().describe("Time bucket timestamp"),
   value: z.number().describe("Aggregated value for this time bucket"),
 });
