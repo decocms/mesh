@@ -26,6 +26,31 @@ export const MONITORING_DASHBOARD_QUERY = defineTool({
       })
       .optional()
       .describe("Time range for the query (defaults to last 24 hours)"),
+    propertyFilters: z
+      .object({
+        properties: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("Exact match: property key equals value"),
+        propertyKeys: z
+          .array(z.string())
+          .optional()
+          .describe("Exists: filter logs that have these property keys"),
+        propertyPatterns: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe(
+            "Pattern match: property value matches pattern (SQL LIKE, use % as wildcard)",
+          ),
+        propertyInValues: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("In match: exact match within comma-separated values"),
+      })
+      .optional()
+      .describe(
+        "Runtime property filters applied to all widgets (merged with dashboard-level filters)",
+      ),
   }),
   outputSchema: z.object({
     dashboardId: z.string().describe("Dashboard ID"),
@@ -61,6 +86,23 @@ export const MONITORING_DASHBOARD_QUERY = defineTool({
     const results: WidgetQueryResult[] = await Promise.all(
       dashboard.widgets.map(async (widget: DashboardWidget) => {
         // Merge dashboard-level filters with widget-level filters
+        // Dashboard-level propertyFilters are exact-match only; runtime ones
+        // support all operators (eq, contains, exists, in).
+        const dashboardProps = dashboard.filters?.propertyFilters;
+        const runtimePF = input.propertyFilters;
+        const mergedPF =
+          dashboardProps || runtimePF
+            ? {
+                properties: {
+                  ...dashboardProps,
+                  ...runtimePF?.properties,
+                },
+                propertyKeys: runtimePF?.propertyKeys,
+                propertyPatterns: runtimePF?.propertyPatterns,
+                propertyInValues: runtimePF?.propertyInValues,
+              }
+            : undefined;
+
         const mergedFilters = {
           connectionIds:
             widget.filter?.connectionIds ??
@@ -73,6 +115,7 @@ export const MONITORING_DASHBOARD_QUERY = defineTool({
             undefined,
           startDate,
           endDate,
+          propertyFilters: mergedPF,
         };
 
         try {

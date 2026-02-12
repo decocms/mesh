@@ -87,6 +87,12 @@ export const DashboardFiltersSchema = z.object({
     .array(z.string())
     .optional()
     .describe("Filter to specific tools"),
+  propertyFilters: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe(
+      "Filter by exact metadata property key=value matches (e.g., { environment: 'production' })",
+    ),
 });
 
 export type DashboardFiltersInput = z.infer<typeof DashboardFiltersSchema>;

@@ -158,6 +158,7 @@ export const KEYS = {
     dashboardId: string,
     startDate: string,
     endDate: string,
+    propertyFilters?: string,
   ) =>
     [
       "monitoringDashboardQuery",
@@ -165,6 +166,7 @@ export const KEYS = {
       dashboardId,
       startDate,
       endDate,
+      propertyFilters ?? "",
     ] as const,
 
   // Virtual MCP prompts (for ice breakers in chat)

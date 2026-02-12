@@ -29,6 +29,7 @@ export interface AggregationParams {
     toolNames?: string[];
     startDate?: Date;
     endDate?: Date;
+    propertyFilters?: PropertyFilters;
   };
 }
 
@@ -216,62 +217,11 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     // Apply property filters
     if (filters.propertyFilters) {
-      const { properties, propertyKeys, propertyPatterns, propertyInValues } =
-        filters.propertyFilters;
-
-      // Exact match: property key=value
-      if (properties) {
-        for (const [key, value] of Object.entries(properties)) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          query = query.where(jsonExpr as never, "=", value as never);
-          countQuery = countQuery.where(jsonExpr as never, "=", value as never);
-        }
-      }
-
-      // Exists: check if property key exists
-      if (propertyKeys && propertyKeys.length > 0) {
-        for (const key of propertyKeys) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          query = query.where(jsonExpr as never, "is not", null as never);
-          countQuery = countQuery.where(
-            jsonExpr as never,
-            "is not",
-            null as never,
-          );
-        }
-      }
-
-      // Pattern match: property value matches pattern (using LIKE)
-      if (propertyPatterns) {
-        for (const [key, pattern] of Object.entries(propertyPatterns)) {
-          const jsonExpr = this.jsonExtract("properties", key);
-          // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
-          const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
-          query = query.where(jsonExpr as never, likeOp, pattern as never);
-          countQuery = countQuery.where(
-            jsonExpr as never,
-            likeOp,
-            pattern as never,
-          );
-        }
-      }
-
-      // In match: check if value exists in comma-separated property value
-      // This enables exact matching within arrays stored as comma-separated strings
-      // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
-      if (propertyInValues) {
-        for (const [key, value] of Object.entries(propertyInValues)) {
-          // Wrap the property value in commas and search for the exact value surrounded by commas
-          // This prevents partial matches (e.g., "Eng" matching "Engineering")
-          // Escape LIKE wildcards to ensure exact matching (e.g., "100%" matches literally)
-          const inExpr = this.jsonExtractWithCommas("properties", key);
-          const escapedValue = this.escapeLikeWildcards(value);
-          const searchPattern = `%,${escapedValue},%`;
-          const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
-          query = query.where(likeCondition as never);
-          countQuery = countQuery.where(likeCondition as never);
-        }
-      }
+      query = this.applyPropertyFilters(query, filters.propertyFilters);
+      countQuery = this.applyPropertyFilters(
+        countQuery,
+        filters.propertyFilters,
+      );
     }
 
     // Order by timestamp descending (most recent first)
@@ -400,6 +350,9 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         filters.endDate.toISOString() as never,
       );
     }
+    if (filters?.propertyFilters) {
+      baseQuery = this.applyPropertyFilters(baseQuery, filters.propertyFilters);
+    }
 
     // Get JSON extraction expression
     const valueExpr = this.jsonExtractPath(sourceColumn, path);
@@ -473,6 +426,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       toolNames?: string[];
       startDate?: Date;
       endDate?: Date;
+      propertyFilters?: PropertyFilters;
     };
   }): Promise<number> {
     const { organizationId, filters } = params;
@@ -501,6 +455,9 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         "<=",
         filters.endDate.toISOString() as never,
       );
+    }
+    if (filters?.propertyFilters) {
+      query = this.applyPropertyFilters(query, filters.propertyFilters);
     }
 
     // Count records in the time range (we can't easily filter by JSONPath non-null with Kysely)
@@ -634,6 +591,60 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
+
+  /**
+   * Apply property filters to a Kysely query builder.
+   * Supports exact match, exists, pattern (LIKE), and in-value matching.
+   * Reused by query(), aggregate(), and countMatched().
+   */
+  // deno-lint-ignore no-explicit-any
+  private applyPropertyFilters<T extends { where: (...args: any[]) => any }>(
+    query: T,
+    pf: PropertyFilters,
+  ): T {
+    const { properties, propertyKeys, propertyPatterns, propertyInValues } = pf;
+
+    // Exact match: property key=value
+    if (properties) {
+      for (const [key, value] of Object.entries(properties)) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        query = query.where(jsonExpr as never, "=", value as never);
+      }
+    }
+
+    // Exists: check if property key exists
+    if (propertyKeys && propertyKeys.length > 0) {
+      for (const key of propertyKeys) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        query = query.where(jsonExpr as never, "is not", null as never);
+      }
+    }
+
+    // Pattern match: property value matches pattern (using LIKE)
+    if (propertyPatterns) {
+      for (const [key, pattern] of Object.entries(propertyPatterns)) {
+        const jsonExpr = this.jsonExtract("properties", key);
+        // Use ILIKE for PostgreSQL (case-insensitive), LIKE for SQLite
+        const likeOp = this.databaseType === "postgres" ? "ilike" : "like";
+        query = query.where(jsonExpr as never, likeOp, pattern as never);
+      }
+    }
+
+    // In match: check if value exists in comma-separated property value
+    // This enables exact matching within arrays stored as comma-separated strings
+    // e.g., user_tags="Engineering,Sales" with value="Engineering" will match
+    if (propertyInValues) {
+      for (const [key, value] of Object.entries(propertyInValues)) {
+        const inExpr = this.jsonExtractWithCommas("properties", key);
+        const escapedValue = this.escapeLikeWildcards(value);
+        const searchPattern = `%,${escapedValue},%`;
+        const likeCondition = sql`${inExpr} LIKE ${searchPattern} ESCAPE '\\'`;
+        query = query.where(likeCondition as never);
+      }
+    }
+
+    return query;
+  }
 
   private toDbRow(log: MonitoringLog) {
     const id = log.id || generatePrefixedId("log");

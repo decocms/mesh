@@ -154,6 +154,40 @@ async function readBodyTextWithLimit(
   return { text: parts.join(""), truncated };
 }
 
+/**
+ * Extract usage/token metadata from NDJSON stream text.
+ *
+ * Streaming LLM responses are newline-delimited JSON where the last event
+ * is a `{ type: "finish", usage: { ... } }` object. This function scans
+ * the trailing lines for that event and returns the usage payload so it
+ * can be stored as a top-level key for easy aggregation.
+ */
+function extractStreamUsage(text: string): Record<string, unknown> | undefined {
+  if (!text) return undefined;
+
+  // Walk backwards through the non-empty lines (finish event is at/near the end)
+  const lines = text.trimEnd().split("\n");
+  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 5; i--) {
+    const line = lines[i]?.trim();
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed && typeof parsed === "object" && parsed.type === "finish") {
+        const result: Record<string, unknown> = {};
+        if (parsed.usage) result.usage = parsed.usage;
+        if (parsed.providerMetadata)
+          result.providerMetadata = parsed.providerMetadata;
+        if (parsed.finishReason) result.finishReason = parsed.finishReason;
+        return Object.keys(result).length > 0 ? result : undefined;
+      }
+    } catch {
+      // Not valid JSON, skip
+    }
+  }
+
+  return undefined;
+}
+
 async function logProxyMonitoringEvent(args: {
   ctx: MeshContext;
   enabled: boolean;
@@ -323,6 +357,15 @@ export function createProxyStreamableMonitoringMiddleware(
                       ? `Response body truncated to ${MAX_STREAMABLE_LOG_BYTES} bytes`
                       : undefined;
 
+            const output = formatMonitoringOutput(body);
+            // For NDJSON streams, extract usage from the last "finish" event
+            // so it's available as a top-level key for aggregation.
+            const streamUsage = extractStreamUsage(text);
+
+            if (streamUsage) {
+              Object.assign(output, streamUsage);
+            }
+
             await logProxyMonitoringEvent({
               ctx,
               enabled,
@@ -331,7 +374,7 @@ export function createProxyStreamableMonitoringMiddleware(
               connectionTitle,
               virtualMcpId,
               request,
-              output: formatMonitoringOutput(body),
+              output,
               isError,
               errorMessage,
               durationMs: duration,

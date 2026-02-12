@@ -488,6 +488,7 @@ export interface DashboardFilters {
   connectionIds?: string[];
   virtualMcpIds?: string[];
   toolNames?: string[];
+  propertyFilters?: Record<string, string>;
 }
 
 /**

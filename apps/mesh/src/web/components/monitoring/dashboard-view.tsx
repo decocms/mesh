@@ -31,6 +31,9 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Link } from "@tanstack/react-router";
+import { PropertyFilterPopover } from "./property-filter-popover";
+import type { PropertyFilter } from "./types";
+import { propertyFiltersToApiParams, serializePropertyFilters } from "./types";
 
 // ============================================================================
 // Types
@@ -287,17 +290,21 @@ function TimeseriesWidget({
 interface DashboardViewContentProps {
   dashboardId: string;
   timeRange: { from: string; to: string };
+  propertyFilters: PropertyFilter[];
   onEdit?: () => void;
   onRefresh: () => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
+  onPropertyFiltersChange: (filters: PropertyFilter[]) => void;
 }
 
 function DashboardViewContent({
   dashboardId,
   timeRange,
+  propertyFilters,
   onEdit,
   onRefresh,
   onTimeRangeChange,
+  onPropertyFiltersChange,
 }: DashboardViewContentProps) {
   const { org, project, locator } = useProjectContext();
   const client = useMCPClient({
@@ -321,12 +328,20 @@ function DashboardViewContent({
   // Fetch query results
   // IMPORTANT: Use expression strings in the key (not computed dates) to avoid
   // infinite re-fetching when expressions like "now" are used
+  const activeFilters = propertyFilters.filter((f) => f.key.trim());
+  const serializedFilters = serializePropertyFilters(activeFilters);
+  const apiPropertyFilters =
+    activeFilters.length > 0
+      ? propertyFiltersToApiParams(activeFilters)
+      : undefined;
+
   const { data: queryData, isRefetching } = useSuspenseQuery({
     queryKey: KEYS.monitoringDashboardQuery(
       locator,
       dashboardId,
       timeRange.from,
       timeRange.to,
+      serializedFilters || undefined,
     ),
     queryFn: async () => {
       if (!client) throw new Error("MCP client not available");
@@ -346,6 +361,9 @@ function DashboardViewContent({
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
           },
+          ...(apiPropertyFilters
+            ? { propertyFilters: apiPropertyFilters }
+            : {}),
         },
       })) as { structuredContent?: QueryResponse };
       return (result.structuredContent ?? result) as QueryResponse;
@@ -410,6 +428,10 @@ function DashboardViewContent({
         >
           <RefreshCw01 size={14} />
         </Button>
+        <PropertyFilterPopover
+          value={propertyFilters}
+          onChange={onPropertyFiltersChange}
+        />
         <TimeRangePicker
           value={{ from: timeRange.from, to: timeRange.to }}
           onChange={onTimeRangeChange}
@@ -492,6 +514,7 @@ export function DashboardViewPage({
     from: "now-24h",
     to: "now",
   });
+  const [propertyFilters, setPropertyFilters] = useState<PropertyFilter[]>([]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({
@@ -522,9 +545,11 @@ export function DashboardViewPage({
         <DashboardViewContent
           dashboardId={dashboardId}
           timeRange={timeRange}
+          propertyFilters={propertyFilters}
           onEdit={onEdit}
           onRefresh={handleRefresh}
           onTimeRangeChange={setTimeRange}
+          onPropertyFiltersChange={setPropertyFilters}
         />
       </Suspense>
     </ErrorBoundary>

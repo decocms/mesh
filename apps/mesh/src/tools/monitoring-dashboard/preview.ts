@@ -50,6 +50,27 @@ export const MONITORING_WIDGET_PREVIEW = defineTool({
       })
       .optional()
       .describe("Time range for the query (defaults to last 24 hours)"),
+    propertyFilters: z
+      .object({
+        properties: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("Exact match: property key equals value"),
+        propertyKeys: z
+          .array(z.string())
+          .optional()
+          .describe("Exists: filter logs that have these property keys"),
+        propertyPatterns: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("Pattern match: property value matches pattern (SQL LIKE)"),
+        propertyInValues: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe("In match: exact match within comma-separated values"),
+      })
+      .optional()
+      .describe("Property filters to apply"),
   }),
   outputSchema: z.object({
     value: z.number().nullable().optional().describe("Aggregated value"),
@@ -86,6 +107,7 @@ export const MONITORING_WIDGET_PREVIEW = defineTool({
       toolNames: widget.filter?.toolNames,
       startDate,
       endDate,
+      propertyFilters: input.propertyFilters,
     };
 
     try {
