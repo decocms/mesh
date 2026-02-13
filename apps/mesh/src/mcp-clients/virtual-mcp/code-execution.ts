@@ -58,6 +58,13 @@ export class CodeExecutionClient extends BaseSelection {
       description:
         'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use GATEWAY_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
       inputSchema: RUN_CODE_INPUT_JSON_SCHEMA,
+      annotations: {
+        title: "Run Code",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     };
   }
 

@@ -83,6 +83,13 @@ export class SmartToolSelectionClient extends BaseSelection {
       description:
         "Execute a tool by name. Use GATEWAY_DESCRIBE_TOOLS first to understand the input schema.",
       inputSchema: jsonSchema,
+      annotations: {
+        title: "Call Tool",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     };
   }
 
