@@ -16,7 +16,13 @@ import { ThreadEntitySchema } from "./schema";
 export const COLLECTION_THREADS_DELETE = defineTool({
   name: "COLLECTION_THREADS_DELETE",
   description: "Delete a thread",
-
+  annotations: {
+    title: "Delete Thread",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: CollectionDeleteInputSchema,
   outputSchema: createCollectionDeleteOutputSchema(ThreadEntitySchema),
 

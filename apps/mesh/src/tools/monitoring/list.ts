@@ -39,6 +39,13 @@ const monitoringLogSchema = z.object({
 export const MONITORING_LOGS_LIST = defineTool({
   name: "MONITORING_LOGS_LIST",
   description: "List monitoring logs for tool calls in the organization",
+  annotations: {
+    title: "List Monitoring Logs",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     connectionId: z.string().optional().describe("Filter by connection ID"),
     excludeConnectionIds: z

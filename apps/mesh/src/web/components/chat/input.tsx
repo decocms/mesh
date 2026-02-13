@@ -1,4 +1,5 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -287,6 +288,7 @@ export function ChatInput() {
   } = useChat();
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
+  const usage = calculateUsageStats(messages);
 
   const canSubmit =
     !isStreaming && !!selectedModel && !isTiptapDocEmpty(tiptapDoc);
@@ -374,7 +376,7 @@ export function ChatInput() {
                       disabled={isStreaming}
                     />
                   )}
-                  <UsageStats messages={messages} />
+                  <UsageStats usage={usage} />
                 </div>
 
                 {/* Right Actions (model, mode, file upload, send button) */}

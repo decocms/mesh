@@ -37,6 +37,7 @@ import {
   type ConnectionEntity,
   type HttpConnectionParameters,
   type StdioConnectionParameters,
+  type ToolDefinition,
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -283,6 +284,7 @@ function ConnectionInspectorViewWithConnection({
     description?: string;
     inputSchema?: Record<string, unknown>;
     outputSchema?: Record<string, unknown>;
+    annotations?: ToolDefinition["annotations"];
   }>;
   isLoadingTools: boolean;
 }) {
@@ -678,6 +680,7 @@ function ConnectionInspectorViewContent() {
         name: t.name,
         description: t.description,
         inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+        annotations: t.annotations,
       }));
 
   // Update connection handler

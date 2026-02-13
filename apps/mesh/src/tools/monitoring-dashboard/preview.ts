@@ -38,6 +38,13 @@ export const MONITORING_WIDGET_PREVIEW = defineTool({
   name: "MONITORING_WIDGET_PREVIEW",
   description:
     "Preview a widget aggregation without saving. Used to test queries in the dashboard editor.",
+  annotations: {
+    title: "Preview Monitoring Widget",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     widget: WidgetConfigSchema.describe("Widget configuration to preview"),
     timeRange: z

@@ -27,6 +27,13 @@ const OutputSchema = z.object({
 export const USER_GET = defineTool({
   name: "USER_GET",
   description: "Get a user by id (restricted to shared organizations)",
+  annotations: {
+    title: "Get User",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {

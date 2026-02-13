@@ -12,7 +12,13 @@ import { serializedPluginConfigSchema } from "./schema";
 export const PROJECT_PLUGIN_CONFIG_GET = defineTool({
   name: "PROJECT_PLUGIN_CONFIG_GET" as const,
   description: "Get plugin configuration for a project",
-
+  annotations: {
+    title: "Get Project Plugin Config",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     projectId: z.string().describe("Project ID"),
     pluginId: z.string().describe("Plugin ID"),

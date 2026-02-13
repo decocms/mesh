@@ -15,7 +15,13 @@ export const EVENT_SUBSCRIPTION_LIST = defineTool({
   name: "EVENT_SUBSCRIPTION_LIST",
   description:
     "List event subscriptions, optionally filtered by connection ID.",
-
+  annotations: {
+    title: "List Event Subscriptions",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: ListSubscriptionsInputSchema,
   outputSchema: ListSubscriptionsOutputSchema,
 

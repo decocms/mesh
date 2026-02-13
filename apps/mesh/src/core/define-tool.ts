@@ -18,6 +18,26 @@ import type { MeshContext } from "./mesh-context";
 // Tool Definition Types
 // ============================================================================
 
+/**
+ * MCP Tool Annotations (from MCP spec 2025-11-25)
+ *
+ * Additional properties describing a Tool to clients.
+ * NOTE: all properties are **hints** — they are not guaranteed to provide
+ * a faithful description of tool behavior.
+ */
+export interface ToolAnnotations {
+  /** A human-readable title for the tool. */
+  title?: string;
+  /** If true, the tool does not modify its environment. Default: false */
+  readOnlyHint?: boolean;
+  /** If true, the tool may perform destructive updates. Default: true */
+  destructiveHint?: boolean;
+  /** If true, calling repeatedly with the same args has no additional effect. Default: false */
+  idempotentHint?: boolean;
+  /** If true, the tool may interact with an "open world" of external entities. Default: true */
+  openWorldHint?: boolean;
+}
+
 export interface ToolBinder<
   TInput extends z.ZodType,
   TOutput extends z.ZodType,
@@ -27,6 +47,7 @@ export interface ToolBinder<
   description: string;
   inputSchema: TInput;
   outputSchema: TOutput;
+  annotations?: ToolAnnotations;
 }
 /**
  * Tool definition structure

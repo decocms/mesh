@@ -16,6 +16,13 @@ import {
 export const MONITORING_DASHBOARD_CREATE = defineTool({
   name: "MONITORING_DASHBOARD_CREATE",
   description: "Create a new monitoring dashboard with JSONPath widgets",
+  annotations: {
+    title: "Create Monitoring Dashboard",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     name: z.string().min(1).describe("Dashboard name"),
     description: z.string().optional().describe("Dashboard description"),

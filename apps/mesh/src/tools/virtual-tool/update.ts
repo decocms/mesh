@@ -34,7 +34,13 @@ export const COLLECTION_VIRTUAL_TOOLS_UPDATE = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_UPDATE",
   description:
     "Update an existing virtual tool on a Virtual MCP. Specify connection_dependencies to update which connections this tool uses.",
-
+  annotations: {
+    title: "Update Virtual Tool",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: UpdateInputSchema,
   outputSchema: UpdateOutputSchema,
 

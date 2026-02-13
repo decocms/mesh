@@ -1,18 +1,30 @@
 "use client";
 
-import { Users03 } from "@untitledui/icons";
-import { ToolCallShell } from "./common.tsx";
+import type { ToolSubtaskMetadata } from "../../use-filter-parts.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
+import type { ToolDefinition } from "@decocms/mesh-sdk";
+import { Users03 } from "@untitledui/icons";
 import { useChat } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
-import type { SubtaskResultMeta } from "@/api/routes/decopilot/built-in-tools/subtask";
 import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
+import { ToolCallShell } from "./common.tsx";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
+  /** Subtask metadata from data part */
+  subtaskMeta?: ToolSubtaskMetadata;
+  /** Tool annotations from data part */
+  annotations?: ToolDefinition["annotations"];
+  /** Latency in seconds from data-tool-metadata part */
+  latency?: number;
 }
 
-export function SubtaskPart({ part }: SubtaskPartProps) {
+export function SubtaskPart({
+  part,
+  subtaskMeta,
+  annotations,
+  latency,
+}: SubtaskPartProps) {
   const { virtualMcps } = useChat();
 
   // State computation
@@ -34,16 +46,8 @@ export function SubtaskPart({ part }: SubtaskPartProps) {
   const agentId = part.input?.agent_id;
   const agent = agentId ? virtualMcps.find((v) => v.id === agentId) : null;
 
-  // Usage extraction (only when complete)
-  const subtaskMeta = isComplete
-    ? (
-        part.output?.metadata as
-          | { subtaskResult?: SubtaskResultMeta }
-          | undefined
-      )?.subtaskResult
-    : undefined;
+  // Usage extraction from data part
   const usage = subtaskMeta?.usage;
-  const tokens = usage && usage.totalTokens > 0 ? usage.totalTokens : undefined;
 
   // Title mapping
   const title: string = agent?.title
@@ -82,10 +86,12 @@ export function SubtaskPart({ part }: SubtaskPartProps) {
       <ToolCallShell
         icon={icon}
         title={title}
-        usage={tokens ? { tokens } : undefined}
         summary={summary}
-        state={effectiveState}
+        usage={usage}
+        latency={latency}
         detail={detail}
+        annotations={annotations}
+        state={effectiveState}
       />
     </div>
   );

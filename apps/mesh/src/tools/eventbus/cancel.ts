@@ -13,7 +13,13 @@ export const EVENT_CANCEL = defineTool({
   name: "EVENT_CANCEL",
   description:
     "Cancel a recurring event to stop future deliveries. Only the publisher can cancel their own events.",
-
+  annotations: {
+    title: "Cancel Recurring Event",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: CancelEventInputSchema,
   outputSchema: CancelEventOutputSchema,
 

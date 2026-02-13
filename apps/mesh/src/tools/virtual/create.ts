@@ -34,7 +34,13 @@ const CreateOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_CREATE",
   description: "Create a new MCP virtual MCP in the organization",
-
+  annotations: {
+    title: "Create Virtual MCP",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: CreateInputSchema,
   outputSchema: CreateOutputSchema,
 

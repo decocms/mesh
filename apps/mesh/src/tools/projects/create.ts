@@ -14,7 +14,13 @@ import type { ProjectUI } from "../../storage/types";
 export const PROJECT_CREATE = defineTool({
   name: "PROJECT_CREATE" as const,
   description: "Create a new project in an organization",
-
+  annotations: {
+    title: "Create Project",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string().describe("Organization ID"),
     slug: z

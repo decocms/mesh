@@ -12,7 +12,13 @@ import { serializedProjectSchema } from "./schema";
 export const PROJECT_GET = defineTool({
   name: "PROJECT_GET" as const,
   description: "Get a project by ID or slug",
-
+  annotations: {
+    title: "Get Project",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z
     .object({
       organizationId: z.string().describe("Organization ID"),

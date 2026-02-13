@@ -6,7 +6,13 @@ import { SidebarItemSchema } from "./schema.ts";
 export const ORGANIZATION_SETTINGS_UPDATE = defineTool({
   name: "ORGANIZATION_SETTINGS_UPDATE",
   description: "Update organization-level settings",
-
+  annotations: {
+    title: "Update Organization Settings",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).optional(),

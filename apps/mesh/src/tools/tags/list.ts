@@ -11,7 +11,13 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 export const TAGS_LIST = defineTool({
   name: "TAGS_LIST",
   description: "List all tags in an organization",
-
+  annotations: {
+    title: "List Tags",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({}),
 
   outputSchema: z.object({

@@ -66,6 +66,13 @@ export class BaseSelection extends PassthroughClient {
       name: "GATEWAY_SEARCH_TOOLS",
       description: `Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling GATEWAY_DESCRIBE_TOOLS for detailed schemas. Total tools: ${totalTools}.`,
       inputSchema: SEARCH_INPUT_JSON_SCHEMA,
+      annotations: {
+        title: "Search Tools",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     };
   }
 
@@ -78,6 +85,13 @@ export class BaseSelection extends PassthroughClient {
       description:
         "Get detailed schemas for specific tools. Call after GATEWAY_SEARCH_TOOLS to get full input/output schemas.",
       inputSchema: DESCRIBE_INPUT_JSON_SCHEMA,
+      annotations: {
+        title: "Describe Tools",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     };
   }
 

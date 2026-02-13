@@ -3,8 +3,17 @@ import { CollectionSearch } from "@/web/components/collections/collection-search
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
+import { AlertTriangle, Eye, Globe02, RefreshCw01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ViewActions } from "@/web/components/details/layout";
@@ -12,6 +21,55 @@ import { ViewActions } from "@/web/components/details/layout";
 export interface Tool {
   name: string;
   description?: string;
+  annotations?: ToolDefinition["annotations"];
+}
+
+const ANNOTATION_HINTS = [
+  { key: "readOnlyHint", label: "Read-only", Icon: Eye, variant: "secondary" },
+  {
+    key: "destructiveHint",
+    label: "Destructive",
+    Icon: AlertTriangle,
+    variant: "destructive",
+  },
+  {
+    key: "idempotentHint",
+    label: "Idempotent",
+    Icon: RefreshCw01,
+    variant: "secondary",
+  },
+  {
+    key: "openWorldHint",
+    label: "Open-world",
+    Icon: Globe02,
+    variant: "outline",
+  },
+] as const;
+
+export function ToolAnnotationBadges({
+  annotations,
+}: {
+  annotations?: ToolDefinition["annotations"];
+}) {
+  if (!annotations) return null;
+  const active = ANNOTATION_HINTS.filter((h) => annotations[h.key] === true);
+  if (active.length === 0) return null;
+  return (
+    <TooltipProvider>
+      <div className="flex gap-1 flex-nowrap">
+        {active.map(({ label, Icon, variant }) => (
+          <Tooltip key={label}>
+            <TooltipTrigger asChild>
+              <Badge asChild variant={variant} className="size-6 p-1">
+                <Icon />
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    </TooltipProvider>
+  );
 }
 
 export interface ToolsListProps {
@@ -116,6 +174,14 @@ export function ToolsList({
         </span>
       ),
       sortable: true,
+    },
+    {
+      id: "annotations",
+      header: "Hints",
+      render: (tool: Tool) => (
+        <ToolAnnotationBadges annotations={tool.annotations} />
+      ),
+      cellClassName: "w-32 shrink-0",
     },
     {
       id: "description",

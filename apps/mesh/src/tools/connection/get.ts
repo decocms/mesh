@@ -28,7 +28,13 @@ const ConnectionGetOutputSchema = createCollectionGetOutputSchema(
 export const COLLECTION_CONNECTIONS_GET = defineTool({
   name: "COLLECTION_CONNECTIONS_GET",
   description: "Get connection details by ID",
-
+  annotations: {
+    title: "Get Connection",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: CollectionGetInputSchema,
   outputSchema: ConnectionGetOutputSchema,
 

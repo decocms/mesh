@@ -1,13 +1,7 @@
-import { ToolsList } from "@/web/components/tools";
+import { ToolsList, type Tool } from "@/web/components/tools";
 
 interface ToolsTabProps {
-  tools:
-    | Array<{
-        name: string;
-        description?: string;
-        inputSchema?: Record<string, unknown>;
-      }>
-    | undefined;
+  tools: Tool[] | undefined;
   connectionId: string;
   org: string;
   isLoading?: boolean;

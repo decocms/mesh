@@ -632,20 +632,14 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const { title, thread_id, created_at } = message.metadata ?? {};
+    const { thread_id } = message.metadata ?? {};
 
-    if (!thread_id || !title || !created_at) {
+    if (!thread_id) {
       return;
     }
 
     // Update messages cache with the latest messages from the stream
     threadManager.updateMessagesCache(thread_id, messages);
-
-    // Update thread title in cache if available
-    threadManager.updateThread(thread_id, {
-      title,
-      updated_at: new Date(created_at).toISOString(),
-    });
   };
 
   const onError = (error: Error) => {
@@ -664,6 +658,20 @@ export function ChatProvider({ children }: PropsWithChildren) {
     onFinish,
     onToolCall,
     onError,
+    onData: ({ data, type }) => {
+      if (type === "data-thread-title") {
+        const { title } = data;
+
+        if (!title) {
+          return;
+        }
+
+        threadManager.updateThread(threadManager.activeThreadId, {
+          title,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    },
   });
 
   // ===========================================================================

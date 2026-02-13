@@ -13,7 +13,13 @@ export const EVENT_SUBSCRIBE = defineTool({
   name: "EVENT_SUBSCRIBE",
   description:
     "Subscribe to events of a specific type. The subscriber is automatically set to the caller's connection.",
-
+  annotations: {
+    title: "Subscribe to Events",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: SubscribeInputSchema,
   outputSchema: SubscribeOutputSchema,
 

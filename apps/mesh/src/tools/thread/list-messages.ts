@@ -46,7 +46,13 @@ const ListMessagesOutputSchema = createCollectionListOutputSchema(
 export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
   name: "COLLECTION_THREAD_MESSAGES_LIST",
   description: "List all messages for a specific thread",
-
+  annotations: {
+    title: "List Thread Messages",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: CollectionListInputSchema,
   outputSchema: ListMessagesOutputSchema,
 

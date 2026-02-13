@@ -11,7 +11,13 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 export const MEMBER_TAGS_GET = defineTool({
   name: "MEMBER_TAGS_GET",
   description: "Get tags assigned to a member",
-
+  annotations: {
+    title: "Get Member Tags",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     memberId: z.string().describe("Member ID"),
   }),

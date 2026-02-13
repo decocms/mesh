@@ -18,7 +18,13 @@ import { getBaseUrl } from "../../core/server-constants";
 export const PROJECT_PLUGIN_CONFIG_UPDATE = defineTool({
   name: "PROJECT_PLUGIN_CONFIG_UPDATE" as const,
   description: "Update or create plugin configuration for a project",
-
+  annotations: {
+    title: "Update Project Plugin Config",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     projectId: z.string().describe("Project ID"),
     pluginId: z.string().describe("Plugin ID"),

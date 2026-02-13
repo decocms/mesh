@@ -5,18 +5,17 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Coins01 } from "@untitledui/icons";
-import type { Metadata } from "./types.ts";
-import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
+import type { UsageStats as UsageStatsType } from "@/web/lib/usage-utils.ts";
 
 interface UsageStatsProps {
-  messages: Array<{ metadata?: Metadata }>;
+  usage: UsageStatsType | null | undefined;
 }
 
-export function UsageStats({ messages }: UsageStatsProps) {
-  const usage = calculateUsageStats(messages);
+export function UsageStats({ usage }: UsageStatsProps) {
   if (!usage) return null;
   const { totalTokens, inputTokens, outputTokens, cost } = usage;
   if (!totalTokens && !inputTokens && !outputTokens) return null;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>

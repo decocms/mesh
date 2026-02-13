@@ -14,6 +14,13 @@ export const MONITORING_DASHBOARD_QUERY = defineTool({
   name: "MONITORING_DASHBOARD_QUERY",
   description:
     "Execute a dashboard's widgets and return aggregated monitoring data",
+  annotations: {
+    title: "Query Monitoring Dashboard",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     dashboardId: z.string().describe("Dashboard ID to query"),
     timeRange: z

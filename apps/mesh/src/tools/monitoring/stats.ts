@@ -11,6 +11,13 @@ import { z } from "zod";
 export const MONITORING_STATS = defineTool({
   name: "MONITORING_STATS",
   description: "Get aggregated statistics for tool call monitoring",
+  annotations: {
+    title: "Get Monitoring Stats",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     startDate: z
       .string()

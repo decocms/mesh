@@ -55,7 +55,13 @@ const ListOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_TOOLS_LIST = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_LIST",
   description: "List all virtual tools for a Virtual MCP",
-
+  annotations: {
+    title: "List Virtual Tools",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: ListInputSchema,
   outputSchema: ListOutputSchema,
 

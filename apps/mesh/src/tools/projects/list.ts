@@ -12,7 +12,13 @@ import { serializedProjectWithBindingsSchema } from "./schema";
 export const PROJECT_LIST = defineTool({
   name: "PROJECT_LIST" as const,
   description: "List all projects in an organization",
-
+  annotations: {
+    title: "List Projects",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string().describe("Organization ID to list projects for"),
   }),

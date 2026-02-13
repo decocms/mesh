@@ -13,7 +13,13 @@ import type { ProjectUI } from "../../storage/types";
 export const PROJECT_UPDATE = defineTool({
   name: "PROJECT_UPDATE" as const,
   description: "Update a project's details",
-
+  annotations: {
+    title: "Update Project",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     projectId: z.string().describe("Project ID to update"),
     name: z.string().min(1).max(200).optional().describe("New display name"),

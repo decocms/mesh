@@ -10,6 +10,7 @@ import {
   ModelMessage,
   pruneMessages,
   SystemModelMessage,
+  type ToolSet,
   validateUIMessages,
 } from "ai";
 import type { ChatMessage } from "./types";
@@ -62,7 +63,7 @@ export async function processConversation(
   memory: Memory,
   requestMessage: ChatMessage,
   systemMessages: ChatMessage[],
-  config: { windowSize: number; models: ModelsConfig },
+  config: { windowSize: number; models: ModelsConfig; tools?: ToolSet },
 ): Promise<ProcessedConversation> {
   // Load thread history
   const threadMessages = await memory.loadHistory(config.windowSize);
@@ -84,6 +85,7 @@ export async function processConversation(
 
   // Convert to model messages
   const modelMessages = await convertToModelMessages(validUIMessages, {
+    tools: config.tools,
     ignoreIncompleteToolCalls: true,
   });
 

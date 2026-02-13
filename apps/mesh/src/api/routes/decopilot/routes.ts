@@ -5,15 +5,20 @@
  * Uses Memory and ModelProvider abstractions.
  */
 
-import { consumeStream, stepCountIs, streamText } from "ai";
-import type { Context } from "hono";
-import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
-
 import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import {
+  consumeStream,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  stepCountIs,
+  streamText,
+} from "ai";
+import type { Context } from "hono";
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
@@ -26,7 +31,6 @@ import {
 import { processConversation, splitRequestMessages } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createMemory, Memory } from "./memory";
-import { resolveThreadStatus } from "./status";
 import { ensureModelCompatibility } from "./model-compat";
 import {
   checkModelPermission,
@@ -35,7 +39,8 @@ import {
 } from "./model-permissions";
 import { createModelProviderFromClient } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { generateTitleInBackground } from "./title-generator";
+import { resolveThreadStatus } from "./status";
+import { genTitle } from "./title-generator";
 import type { ChatMessage } from "./types";
 
 // ============================================================================
@@ -185,16 +190,10 @@ app.post("/:org/decopilot/stream", async (c) => {
       { superUser: false },
     );
 
-    // Extract tools and create model provider
-    const [mcpTools, modelProvider] = await Promise.all([
-      toolsFromMCP(mcpClient),
-      createModelProviderFromClient(streamableModelClient, models),
-    ]);
-
-    // 3. Get built-in tools (client-side tools like user_ask, server-side like subtask)
-    const builtInTools = getBuiltInTools(
-      { modelProvider, organization, models },
-      ctx,
+    // Extract model provider (can stay outside execute)
+    const modelProvider = await createModelProviderFromClient(
+      streamableModelClient,
+      models,
     );
 
     // CRITICAL: Register abort handler to ensure client cleanup on disconnect
@@ -218,176 +217,208 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
     const allSystemMessages: ChatMessage[] = [systemPrompt, ...systemMessages];
 
-    // 4. Process conversation
-    const {
-      systemMessages: processedSystemMessages,
-      messages: processedMessages,
-      originalMessages,
-    } = await processConversation(mem, requestMessage, allSystemMessages, {
-      windowSize,
-      models,
-    });
-
-    ensureModelCompatibility(models, originalMessages);
-
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
-    const titlePromise = shouldGenerateTitle
-      ? generateTitleInBackground({
-          abortSignal,
-          model: modelProvider.fastModel ?? modelProvider.thinkingModel,
-          userMessage: JSON.stringify(processedMessages[0]?.content),
-        })
-      : Promise.resolve(null);
+    let streamFinished = false;
 
-    let resolvedTitle: string | null = null;
-    let reasoningStartAt: Date | null = null;
-    let lastProviderMetadata: Record<string, unknown> | undefined;
+    // 4. Create stream with writer access for data parts
+    const uiStream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        // Create tools inside execute so they have access to writer
+        const mcpTools = await toolsFromMCP(mcpClient, writer);
 
-    // 5. Main stream
-    const result = streamText({
-      model: modelProvider.thinkingModel,
-      system: processedSystemMessages,
-      messages: processedMessages,
-      tools: { ...mcpTools, ...builtInTools },
-      temperature,
-      maxOutputTokens,
-      abortSignal,
-      stopWhen: stepCountIs(PARENT_STEP_LIMIT),
-      onStepFinish: async () => {
-        resolvedTitle = await titlePromise;
+        const builtInTools = getBuiltInTools(
+          writer,
+          { modelProvider, organization, models },
+          ctx,
+        );
 
-        if (!resolvedTitle) return;
+        const tools = { ...mcpTools, ...builtInTools };
 
-        await ctx.storage.threads
-          .update(mem.thread.id, { title: resolvedTitle })
-          .catch((error) => {
-            console.error(
-              "[decopilot:stream] Error updating thread title",
-              error,
-            );
+        // Process conversation with tools for validation
+        const {
+          systemMessages: processedSystemMessages,
+          messages: processedMessages,
+          originalMessages,
+        } = await processConversation(mem, requestMessage, allSystemMessages, {
+          windowSize,
+          models,
+          tools,
+        });
+
+        ensureModelCompatibility(models, originalMessages);
+
+        const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
+        if (shouldGenerateTitle) {
+          genTitle({
+            abortSignal,
+            model: modelProvider.fastModel ?? modelProvider.thinkingModel,
+            userMessage: JSON.stringify(processedMessages[0]?.content),
+          }).then(async (title) => {
+            if (!title) return;
+
+            await ctx.storage.threads
+              .update(mem.thread.id, { title })
+              .catch((error) => {
+                console.error(
+                  "[decopilot:stream] Error updating thread title",
+                  error,
+                );
+              });
+
+            if (!streamFinished) {
+              writer.write({
+                type: "data-thread-title",
+                data: { title },
+                transient: true,
+              });
+            }
           });
+        }
+
+        let reasoningStartAt: Date | null = null;
+        let lastProviderMetadata: Record<string, unknown> | undefined;
+
+        const result = streamText({
+          model: modelProvider.thinkingModel,
+          system: processedSystemMessages,
+          messages: processedMessages,
+          tools,
+          temperature,
+          maxOutputTokens,
+          abortSignal,
+          stopWhen: stepCountIs(PARENT_STEP_LIMIT),
+          onError: async (error) => {
+            console.error("[decopilot:stream] Error", error);
+            throw error;
+          },
+        });
+
+        writer.merge(
+          result.toUIMessageStream({
+            originalMessages,
+            generateMessageId,
+            messageMetadata: ({ part }) => {
+              if (part.type === "start") {
+                return {
+                  agent: { id: agent.id ?? null, mode: agent.mode },
+                  models: {
+                    connectionId: models.connectionId,
+                    thinking: models.thinking,
+                  },
+                  created_at: new Date(),
+                  thread_id: mem.thread.id,
+                };
+              }
+              if (part.type === "reasoning-start") {
+                if (reasoningStartAt === null) {
+                  reasoningStartAt = new Date();
+                }
+                return { reasoning_start_at: reasoningStartAt };
+              }
+              if (part.type === "reasoning-end") {
+                return { reasoning_end_at: new Date() };
+              }
+
+              if (part.type === "finish-step") {
+                lastProviderMetadata = part.providerMetadata;
+                return;
+              }
+
+              if (part.type === "finish") {
+                const provider = models.thinking.provider;
+                const totalUsage = part.totalUsage;
+                const providerMeta =
+                  lastProviderMetadata ??
+                  (part as { providerMetadata?: Record<string, unknown> })
+                    .providerMetadata;
+                const usage = totalUsage
+                  ? {
+                      inputTokens: totalUsage.inputTokens ?? 0,
+                      outputTokens: totalUsage.outputTokens ?? 0,
+                      reasoningTokens: totalUsage.reasoningTokens ?? undefined,
+                      totalTokens: totalUsage.totalTokens ?? 0,
+                      providerMetadata: sanitizeProviderMetadata(
+                        provider && providerMeta
+                          ? {
+                              ...providerMeta,
+                              [provider]: {
+                                ...((providerMeta[provider] as object) ?? {}),
+                                reasoning_details: undefined,
+                              },
+                            }
+                          : providerMeta,
+                      ),
+                    }
+                  : undefined;
+
+                return {
+                  ...(usage && { usage }),
+                };
+              }
+
+              return;
+            },
+            onFinish: async ({ responseMessage }) => {
+              const now = Date.now();
+              const messagesToSave = [
+                ...new Map(
+                  [requestMessage, responseMessage]
+                    .filter(Boolean)
+                    .map((m) => [m.id, m]),
+                ).values(),
+              ].map((message, i) => ({
+                ...message,
+                metadata: {
+                  ...message.metadata,
+                },
+                thread_id: mem.thread.id,
+                created_at: new Date(now + i).toISOString(),
+                updated_at: new Date(now + i).toISOString(),
+              }));
+
+              if (messagesToSave.length === 0) return;
+
+              await mem.save(messagesToSave).catch((error) => {
+                console.error(
+                  "[decopilot:stream] Error saving messages",
+                  error,
+                );
+              });
+
+              // Determine and persist thread status
+              const finishReason = await result.finishReason;
+              const threadStatus = resolveThreadStatus(
+                finishReason,
+                responseMessage?.parts ?? [],
+              );
+
+              await ctx.storage.threads
+                .update(mem.thread.id, { status: threadStatus })
+                .catch((error) => {
+                  console.error(
+                    "[decopilot:stream] Error updating thread status",
+                    error,
+                  );
+                });
+            },
+          }),
+        );
       },
-      onError: async (error) => {
-        console.error("[decopilot:stream] Error", error);
-        throw error;
+      onError: (error) => {
+        streamFinished = true;
+        console.error("[decopilot] stream error:", error);
+        return error instanceof Error ? error.message : String(error);
+      },
+      onFinish: () => {
+        streamFinished = true;
       },
     });
 
-    // 6. Return the stream response with metadata
-    return result.toUIMessageStreamResponse({
-      originalMessages,
-      // consumeSseStream ensures proper abort handling and prevents memory leaks
+    return createUIMessageStreamResponse({
+      stream: uiStream,
       consumeSseStream: consumeStream,
-      generateMessageId,
-      messageMetadata: ({ part }) => {
-        if (part.type === "start") {
-          return {
-            agent: { id: agent.id ?? null, mode: agent.mode },
-            models: {
-              connectionId: models.connectionId,
-              thinking: models.thinking,
-            },
-            created_at: new Date(),
-            thread_id: mem.thread.id,
-          };
-        }
-        if (part.type === "reasoning-start") {
-          if (reasoningStartAt === null) {
-            reasoningStartAt = new Date();
-          }
-          return { reasoning_start_at: reasoningStartAt };
-        }
-        if (part.type === "reasoning-end") {
-          return { reasoning_end_at: new Date() };
-        }
-
-        if (part.type === "finish-step") {
-          lastProviderMetadata = part.providerMetadata;
-          return;
-        }
-
-        if (part.type === "finish") {
-          const provider = models.thinking.provider;
-          const totalUsage = part.totalUsage;
-          const providerMeta =
-            lastProviderMetadata ??
-            (part as { providerMetadata?: Record<string, unknown> })
-              .providerMetadata;
-          const usage = totalUsage
-            ? {
-                inputTokens: totalUsage.inputTokens ?? 0,
-                outputTokens: totalUsage.outputTokens ?? 0,
-                reasoningTokens: totalUsage.reasoningTokens ?? undefined,
-                totalTokens: totalUsage.totalTokens ?? 0,
-                providerMetadata: sanitizeProviderMetadata(
-                  provider && providerMeta
-                    ? {
-                        ...providerMeta,
-                        [provider]: {
-                          ...((providerMeta[provider] as object) ?? {}),
-                          reasoning_details: undefined,
-                        },
-                      }
-                    : providerMeta,
-                ),
-              }
-            : undefined;
-
-          return {
-            title: resolvedTitle ?? undefined,
-            ...(usage && { usage }),
-          };
-        }
-
-        return;
-      },
-      onFinish: async ({
-        messages: _UIMessages,
-        isAborted: _isAborted,
-        responseMessage,
-      }) => {
-        const now = Date.now();
-        const messagesToSave = [
-          ...new Map(
-            [requestMessage, responseMessage]
-              .filter(Boolean)
-              .map((m) => [m.id, m]),
-          ).values(),
-        ].map((message, i) => ({
-          ...message,
-          metadata: { ...message.metadata, title: resolvedTitle ?? undefined },
-          thread_id: mem.thread.id,
-          created_at: new Date(now + i).toISOString(),
-          updated_at: new Date(now + i).toISOString(),
-        }));
-
-        if (messagesToSave.length === 0) {
-          return;
-        }
-
-        await mem.save(messagesToSave).catch((error) => {
-          console.error("[decopilot:stream] Error saving messages", error);
-        });
-
-        // Determine and persist thread status
-        const finishReason = await result.finishReason;
-        const threadStatus = resolveThreadStatus(
-          finishReason,
-          responseMessage?.parts ?? [],
-        );
-
-        await ctx.storage.threads
-          .update(mem.thread.id, { status: threadStatus })
-          .catch((error) => {
-            console.error(
-              "[decopilot:stream] Error updating thread status",
-              error,
-            );
-          });
-      },
     });
   } catch (err) {
     // If we have a thread, mark it as failed

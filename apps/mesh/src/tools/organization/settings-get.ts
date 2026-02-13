@@ -6,7 +6,13 @@ import { SidebarItemSchema } from "./schema.ts";
 export const ORGANIZATION_SETTINGS_GET = defineTool({
   name: "ORGANIZATION_SETTINGS_GET",
   description: "Get organization-level settings",
-
+  annotations: {
+    title: "Get Organization Settings",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({}),
 
   outputSchema: z.object({

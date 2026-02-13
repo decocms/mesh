@@ -11,6 +11,13 @@ import { z } from "zod";
 export const MONITORING_DASHBOARD_DELETE = defineTool({
   name: "MONITORING_DASHBOARD_DELETE",
   description: "Delete a monitoring dashboard",
+  annotations: {
+    title: "Delete Monitoring Dashboard",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     id: z.string().describe("Dashboard ID to delete"),
   }),

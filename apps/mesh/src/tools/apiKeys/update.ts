@@ -23,6 +23,13 @@ export const API_KEY_UPDATE = defineTool({
   name: "API_KEY_UPDATE",
   description:
     "Update an existing API key's name, permissions, or metadata. Note: Key value cannot be changed or retrieved.",
+  annotations: {
+    title: "Update API Key",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 
   inputSchema: ApiKeyUpdateInputSchema,
   outputSchema: ApiKeyUpdateOutputSchema,

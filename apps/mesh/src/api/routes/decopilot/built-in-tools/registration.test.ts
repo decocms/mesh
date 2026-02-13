@@ -20,8 +20,13 @@ const mockCtx = {
   storage: { virtualMcps: { findById: () => Promise.resolve(null) } },
 } as never;
 
+const mockWriter = {
+  write: () => {},
+  merge: () => {},
+} as never;
+
 function getTools() {
-  return getBuiltInTools(mockParams, mockCtx);
+  return getBuiltInTools(mockWriter, mockParams, mockCtx);
 }
 
 describe("getBuiltInTools", () => {

@@ -40,7 +40,13 @@ const CreateOutputSchema = z.object({
 export const COLLECTION_CONNECTIONS_CREATE = defineTool({
   name: "COLLECTION_CONNECTIONS_CREATE",
   description: "Create a new MCP connection in the organization",
-
+  annotations: {
+    title: "Create Connection",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: CreateInputSchema,
   outputSchema: CreateOutputSchema,
 

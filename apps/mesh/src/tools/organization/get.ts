@@ -11,7 +11,13 @@ import { requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_GET = defineTool({
   name: "ORGANIZATION_GET",
   description: "Get organization details by slug or ID",
-
+  annotations: {
+    title: "Get Organization",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     // No input needed - uses active organization from context
   }),

@@ -11,7 +11,13 @@ import { requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_MEMBER_ADD = defineTool({
   name: "ORGANIZATION_MEMBER_ADD",
   description: "Add a member to an organization",
-
+  annotations: {
+    title: "Add Organization Member",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string().optional(), // Optional: defaults to active organization
     userId: z.string(),
