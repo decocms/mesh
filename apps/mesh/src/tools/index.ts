@@ -7,6 +7,7 @@
  * Plugin tools are collected at startup and combined with core tools.
  */
 
+import type { ToolAnnotations } from "@/core/define-tool";
 import { MeshContext } from "@/core/mesh-context";
 import {
   collectPluginTools,
@@ -138,6 +139,7 @@ interface CombinedTool {
   description: string;
   inputSchema: unknown;
   outputSchema: unknown;
+  annotations?: ToolAnnotations;
   handler: (input: unknown, ctx: MeshContext) => Promise<unknown>;
   execute: (input: unknown, ctx: MeshContext) => Promise<unknown>;
 }
@@ -209,6 +211,7 @@ export const managementMCP = async (ctx: MeshContext) => {
         description: tool.description ?? "",
         inputSchema: inputShape,
         outputSchema: outputShape,
+        annotations: tool.annotations,
       },
       async (args) => {
         ctx.access.setToolName(tool.name);
