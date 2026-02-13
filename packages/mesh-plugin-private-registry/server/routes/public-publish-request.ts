@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
+import type { Kysely } from "kysely";
 import { z } from "zod";
 import { PLUGIN_ID } from "../../shared";
 import { PublishRequestStorage } from "../storage/publish-request";
+import { PublishApiKeyStorage } from "../storage/publish-api-key";
 import { PublicPublishRequestInputSchema } from "../tools/schema";
+import type { PrivateRegistryDatabase } from "../storage/types";
+
+/** Rate limit: max requests per org per hour */
+const RATE_LIMIT_PER_HOUR = 30;
 
 type CoreDb = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,10 +37,15 @@ async function resolveOrganizationId(
   return bySlug?.id ?? null;
 }
 
-async function acceptsPublishRequests(
+interface PluginSettings {
+  acceptPublishRequests?: boolean;
+  requireApiToken?: boolean;
+}
+
+async function getPluginSettings(
   db: CoreDb,
   orgId: string,
-): Promise<boolean> {
+): Promise<PluginSettings> {
   const rows = await db
     .selectFrom("project_plugin_configs")
     .innerJoin("projects", "projects.id", "project_plugin_configs.project_id")
@@ -43,7 +54,7 @@ async function acceptsPublishRequests(
     .where("project_plugin_configs.plugin_id", "=", PLUGIN_ID)
     .execute();
 
-  return rows.some((row: { settings: string | null }) => {
+  for (const row of rows as Array<{ settings: string | null }>) {
     const rawSettings = row.settings;
     const settings =
       typeof rawSettings === "string"
@@ -55,8 +66,35 @@ async function acceptsPublishRequests(
             }
           })()
         : ((rawSettings as Record<string, unknown> | null) ?? {});
-    return settings.acceptPublishRequests === true;
-  });
+
+    if (settings.acceptPublishRequests === true) {
+      return {
+        acceptPublishRequests: true,
+        requireApiToken: settings.requireApiToken === true,
+      };
+    }
+  }
+
+  return { acceptPublishRequests: false };
+}
+
+/**
+ * Check how many publish requests were created for this org in the last hour.
+ */
+async function countRecentRequests(
+  db: Kysely<PrivateRegistryDatabase>,
+  orgId: string,
+): Promise<number> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const row = await db
+    .selectFrom("private_registry_publish_request")
+    .select((eb) => eb.fn.countAll<string>().as("count"))
+    .where("organization_id", "=", orgId)
+    .where("created_at", ">=", oneHourAgo)
+    .executeTakeFirst();
+
+  return Number(row?.count ?? 0);
 }
 
 export function publicPublishRequestRoutes(
@@ -65,7 +103,9 @@ export function publicPublishRequestRoutes(
 ): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = ctx.db as any;
-  const storage = new PublishRequestStorage(db);
+  const typedDb = ctx.db as Kysely<PrivateRegistryDatabase>;
+  const storage = new PublishRequestStorage(typedDb);
+  const apiKeyStorage = new PublishApiKeyStorage(typedDb);
 
   app.post("/org/:orgRef/registry/publish-request", async (c) => {
     const orgRef = c.req.param("orgRef");
@@ -73,15 +113,50 @@ export function publicPublishRequestRoutes(
     if (!organizationId) {
       return c.json({ error: "Organization not found" }, 404);
     }
-    const enabled = await acceptsPublishRequests(db as CoreDb, organizationId);
 
-    if (!enabled) {
+    // ── Check plugin settings ──
+    const settings = await getPluginSettings(db as CoreDb, organizationId);
+
+    if (!settings.acceptPublishRequests) {
       return c.json(
         { error: "Publish requests are not enabled for this registry." },
         403,
       );
     }
 
+    // ── API key validation ──
+    if (settings.requireApiToken) {
+      const authHeader = c.req.header("Authorization");
+      const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7).trim()
+        : null;
+
+      if (!token) {
+        return c.json(
+          { error: "API key required. Use Authorization: Bearer <key>" },
+          401,
+        );
+      }
+
+      const valid = await apiKeyStorage.validate(organizationId, token);
+      if (!valid) {
+        return c.json({ error: "Invalid API key" }, 401);
+      }
+    }
+
+    // ── Rate limit ──
+    const recentCount = await countRecentRequests(typedDb, organizationId);
+    if (recentCount >= RATE_LIMIT_PER_HOUR) {
+      return c.json(
+        {
+          error: "Too many publish requests. Please try again later.",
+          retryAfterSeconds: 3600,
+        },
+        422,
+      );
+    }
+
+    // ── Parse and create ──
     let body: unknown;
     try {
       body = await c.req.json();

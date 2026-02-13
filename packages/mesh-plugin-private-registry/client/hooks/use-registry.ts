@@ -11,6 +11,8 @@ import {
 } from "@decocms/mesh-sdk";
 import { KEYS } from "../lib/query-keys";
 import type {
+  PublishApiKeyGenerateResult,
+  PublishApiKeyListResponse,
   PublishRequest,
   PublishRequestListResponse,
   PublishRequestStatus,
@@ -228,6 +230,7 @@ interface RegistryConfigSettings {
   llmConnectionId?: string;
   llmModelId?: string;
   acceptPublishRequests?: boolean;
+  requireApiToken?: boolean;
 }
 
 export function useRegistryConfig(pluginId: string) {
@@ -301,12 +304,18 @@ export function useRegistryConfig(pluginId: string) {
       | boolean
       | undefined) ?? false;
 
+  const requireApiToken =
+    (configQuery.data?.config?.settings?.requireApiToken as
+      | boolean
+      | undefined) ?? false;
+
   return {
     registryName,
     registryIcon,
     registryLLMConnectionId,
     registryLLMModelId,
     acceptPublishRequests,
+    requireApiToken,
     isLoadingConfig: configQuery.isLoading,
     saveRegistryConfigMutation,
   };
@@ -393,4 +402,64 @@ export function usePublishRequestMutations() {
   });
 
   return { reviewMutation, deleteMutation };
+}
+
+// ─── Publish API Keys ───
+
+export function usePublishApiKeys() {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useQuery({
+    queryKey: KEYS.publishApiKeys(),
+    queryFn: async () =>
+      callTool<PublishApiKeyListResponse>(
+        client,
+        "REGISTRY_PUBLISH_API_KEY_LIST",
+        {},
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function usePublishApiKeyMutations() {
+  const queryClient = useQueryClient();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async (name: string) =>
+      callTool<PublishApiKeyGenerateResult>(
+        client,
+        "REGISTRY_PUBLISH_API_KEY_GENERATE",
+        { name },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.publishApiKeys(),
+      });
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async (keyId: string) =>
+      callTool<{ success: boolean; keyId: string }>(
+        client,
+        "REGISTRY_PUBLISH_API_KEY_REVOKE",
+        { keyId },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.publishApiKeys(),
+      });
+    },
+  });
+
+  return { generateMutation, revokeMutation };
 }

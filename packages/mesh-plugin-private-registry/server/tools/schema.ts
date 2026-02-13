@@ -318,3 +318,37 @@ export const PublicPublishRequestInputSchema = z.object({
     })
     .optional(),
 });
+
+// ─── Publish API Keys ───
+
+export const PublishApiKeySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  prefix: z.string(),
+  createdAt: z.string(),
+});
+
+export const PublishApiKeyGenerateInputSchema = z.object({
+  name: z.string().min(1).max(64).describe("A descriptive name for this key"),
+});
+
+export const PublishApiKeyGenerateOutputSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  prefix: z.string(),
+  key: z.string().describe("The full API key — shown only once!"),
+  createdAt: z.string(),
+});
+
+export const PublishApiKeyListOutputSchema = z.object({
+  items: z.array(PublishApiKeySchema),
+});
+
+export const PublishApiKeyRevokeInputSchema = z.object({
+  keyId: z.string(),
+});
+
+export const PublishApiKeyRevokeOutputSchema = z.object({
+  success: z.boolean(),
+  keyId: z.string(),
+});

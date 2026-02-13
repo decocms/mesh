@@ -16,4 +16,5 @@ export const KEYS = {
   publishRequestsList: (status?: string) =>
     [...KEYS.publishRequests(), "list", { status: status ?? "all" }] as const,
   publishRequestsCount: () => [...KEYS.publishRequests(), "count"] as const,
+  publishApiKeys: () => [...KEYS.all, "publish-api-keys"] as const,
 };

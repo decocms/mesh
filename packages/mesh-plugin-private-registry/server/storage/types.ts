@@ -32,9 +32,19 @@ export interface PublishRequestTable {
   updated_at: ColumnType<string, string, string>;
 }
 
+export interface PublishApiKeyTable {
+  id: string;
+  organization_id: string;
+  name: string;
+  key_hash: string;
+  prefix: string;
+  created_at: ColumnType<string, string, string>;
+}
+
 export interface PrivateRegistryDatabase {
   private_registry_item: PrivateRegistryItemTable;
   private_registry_publish_request: PublishRequestTable;
+  private_registry_publish_api_key: PublishApiKeyTable;
 }
 
 export interface RegistryToolMeta {
@@ -207,4 +217,12 @@ export interface PublishRequestCreateInput {
   server: RegistryServerDefinition;
   requester_name?: string | null;
   requester_email?: string | null;
+}
+
+export interface PublishApiKeyEntity {
+  id: string;
+  organization_id: string;
+  name: string;
+  prefix: string;
+  created_at: string;
 }

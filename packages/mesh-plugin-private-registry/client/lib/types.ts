@@ -113,3 +113,22 @@ export interface PublishRequestListResponse {
   items: PublishRequest[];
   totalCount: number;
 }
+
+export interface PublishApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+}
+
+export interface PublishApiKeyGenerateResult {
+  id: string;
+  name: string;
+  prefix: string;
+  key: string;
+  createdAt: string;
+}
+
+export interface PublishApiKeyListResponse {
+  items: PublishApiKey[];
+}

@@ -13,6 +13,9 @@ import { REGISTRY_PUBLISH_REQUEST_LIST } from "./publish-request-list";
 import { REGISTRY_PUBLISH_REQUEST_REVIEW } from "./publish-request-review";
 import { REGISTRY_PUBLISH_REQUEST_COUNT } from "./publish-request-count";
 import { REGISTRY_PUBLISH_REQUEST_DELETE } from "./publish-request-delete";
+import { REGISTRY_PUBLISH_API_KEY_GENERATE } from "./publish-api-key-generate";
+import { REGISTRY_PUBLISH_API_KEY_LIST } from "./publish-api-key-list";
+import { REGISTRY_PUBLISH_API_KEY_REVOKE } from "./publish-api-key-revoke";
 
 export const tools = [
   COLLECTION_REGISTRY_APP_LIST,
@@ -30,4 +33,7 @@ export const tools = [
   REGISTRY_PUBLISH_REQUEST_REVIEW,
   REGISTRY_PUBLISH_REQUEST_COUNT,
   REGISTRY_PUBLISH_REQUEST_DELETE,
+  REGISTRY_PUBLISH_API_KEY_GENERATE,
+  REGISTRY_PUBLISH_API_KEY_LIST,
+  REGISTRY_PUBLISH_API_KEY_REVOKE,
 ];

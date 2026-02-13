@@ -66,12 +66,13 @@ export default function RegistryLayout() {
     registryLLMConnectionId,
     registryLLMModelId,
     acceptPublishRequests,
+    requireApiToken,
   } = useRegistryConfig(PLUGIN_ID);
   const pendingQuery = usePublishRequestCount();
 
   // Build a stable key from server config so SettingsPage re-mounts when
   // the persisted values change (e.g. after save).
-  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}|${acceptPublishRequests}`;
+  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}|${acceptPublishRequests}|${requireApiToken}`;
 
   // If publish requests were disabled while viewing requests tab, redirect
   if (!acceptPublishRequests && activeTab === "requests") {
@@ -143,6 +144,7 @@ export default function RegistryLayout() {
             initialLLMConnectionId={registryLLMConnectionId}
             initialLLMModelId={registryLLMModelId}
             initialAcceptPublishRequests={acceptPublishRequests}
+            initialRequireApiToken={requireApiToken}
           />
         )}
       </main>
