@@ -389,8 +389,8 @@ export default function RegistrySettingsPage({
               </p>
             )}
 
-            {/* ── API Keys (inline, only when saved) ── */}
-            {initialAcceptPublishRequests && initialRequireApiToken && (
+            {/* ── API Keys (inline) ── */}
+            {acceptPublishRequestsDraft && requireApiTokenDraft && (
               <>
                 <div className="flex items-center gap-2 pt-2 border-t border-border">
                   <Key01 size={14} className="text-muted-foreground" />
