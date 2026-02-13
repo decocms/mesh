@@ -1,4 +1,14 @@
 import { useMemo, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
@@ -20,21 +30,12 @@ import {
   XCircle,
 } from "@untitledui/icons";
 import { toast } from "sonner";
-import { PLUGIN_ID } from "../../shared";
 import {
   usePublishRequestMutations,
   usePublishRequests,
-  useRegistryConfig,
-  useRegistryFilters,
   useRegistryMutations,
 } from "../hooks/use-registry";
-import type {
-  PublishRequest,
-  PublishRequestStatus,
-  RegistryCreateInput,
-  RegistryUpdateInput,
-} from "../lib/types";
-import { RegistryItemDialog } from "./registry-item-dialog";
+import type { PublishRequest, PublishRequestStatus } from "../lib/types";
 
 const STATUS_OPTIONS: Array<{ value: PublishRequestStatus; label: string }> = [
   { value: "pending", label: "Pending" },
@@ -81,8 +82,8 @@ function getReadmeMeta(request: PublishRequest): {
 
 export default function RegistryRequestsPage() {
   const [status, setStatus] = useState<PublishRequestStatus>("pending");
-  const [approveOpen, setApproveOpen] = useState(false);
-  const [approvingRequest, setApprovingRequest] =
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [confirmApproveRequest, setConfirmApproveRequest] =
     useState<PublishRequest | null>(null);
   const [rejectingRequest, setRejectingRequest] =
     useState<PublishRequest | null>(null);
@@ -94,15 +95,9 @@ export default function RegistryRequestsPage() {
   const listQuery = usePublishRequests(status);
   const { reviewMutation, deleteMutation } = usePublishRequestMutations();
   const { createMutation } = useRegistryMutations();
-  const filtersQuery = useRegistryFilters();
-  const { registryLLMConnectionId, registryLLMModelId } =
-    useRegistryConfig(PLUGIN_ID);
 
   const requests = listQuery.data?.items ?? [];
   const totalCount = listQuery.data?.totalCount ?? 0;
-  const tags = filtersQuery.data?.tags?.map((item) => item.value) ?? [];
-  const categories =
-    filtersQuery.data?.categories?.map((item) => item.value) ?? [];
 
   const pendingById = useMemo(
     () =>
@@ -114,34 +109,41 @@ export default function RegistryRequestsPage() {
     [requests],
   );
 
-  const handleApprove = (request: PublishRequest) => {
-    setApprovingRequest(request);
-    setApproveOpen(true);
-  };
-
-  const handleApproveSubmit = async (
-    payload: RegistryCreateInput | { id: string; data: RegistryUpdateInput },
-  ) => {
-    if (!approvingRequest) return;
-    if ("data" in payload) {
-      throw new Error("Unexpected update payload while approving a request");
-    }
-
+  const handleApproveConfirmed = async () => {
+    const request = confirmApproveRequest;
+    if (!request) return;
+    setConfirmApproveRequest(null);
+    setApprovingId(request.id);
     try {
-      await createMutation.mutateAsync(payload);
+      // 1. Review first — has conflict check (findByIdOrName)
       await reviewMutation.mutateAsync({
-        id: approvingRequest.id,
+        id: request.id,
         status: "approved",
         reviewerNotes: undefined,
       });
-      toast.success("Request approved and saved to registry");
-      setApproveOpen(false);
-      setApprovingRequest(null);
+      // 2. Then create the registry item
+      const draft = requestToDraft(request);
+      await createMutation.mutateAsync({
+        id: draft.id,
+        title: draft.title,
+        description: draft.description,
+        _meta: draft._meta,
+        server: draft.server,
+        is_public: draft.is_public,
+      });
+      toast.success("Request approved and added to registry");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to approve request",
-      );
-      throw error;
+      const msg =
+        error instanceof Error ? error.message : "Failed to approve request";
+      if (msg.includes("UNIQUE constraint") || msg.includes("already exists")) {
+        toast.error(
+          "An item with this ID already exists in the registry. Delete or rename it first.",
+        );
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -215,18 +217,30 @@ export default function RegistryRequestsPage() {
             </p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
             {requests.map((request) => {
-              const remoteUrl = request.server?.remotes?.[0]?.url ?? "-";
               const iconUrl = getIconUrl(request);
               const readmeMeta = getReadmeMeta(request);
               const tags = request._meta?.["mcp.mesh"]?.tags ?? [];
               const categories = request._meta?.["mcp.mesh"]?.categories ?? [];
+              const hasBadges =
+                readmeMeta.hasReadmeContent ||
+                readmeMeta.hasReadmeLink ||
+                tags.length > 0 ||
+                categories.length > 0;
+              const requesterInfo = [
+                request.requester_name,
+                request.requester_email,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+
               return (
-                <Card key={request.id} className="p-4 grid gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex items-start gap-2">
-                      <div className="size-9 rounded-md border border-border bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
+                <Card key={request.id} className="p-3 grid gap-1.5">
+                  {/* Header: icon + title + status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <div className="size-7 rounded-md border border-border bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
                         {iconUrl ? (
                           <img
                             src={iconUrl}
@@ -240,105 +254,107 @@ export default function RegistryRequestsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {request.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {remoteUrl}
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium truncate">
+                        {request.title}
+                      </p>
                     </div>
-                    <Badge variant="secondary" className="capitalize">
+                    <Badge
+                      variant="secondary"
+                      className="capitalize text-[11px] shrink-0"
+                    >
                       {request.status}
                     </Badge>
                   </div>
 
-                  <p className="text-sm text-muted-foreground line-clamp-2 min-h-10">
-                    {request.description || "No description provided."}
-                  </p>
+                  {/* Description (only if provided) */}
+                  {request.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 pl-9">
+                      {request.description}
+                    </p>
+                  )}
 
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {readmeMeta.hasReadmeContent && (
-                      <Badge variant="outline" className="text-[11px]">
-                        README content
-                      </Badge>
+                  {/* Badges row (only if any exist) */}
+                  {hasBadges && (
+                    <div className="flex flex-wrap items-center gap-1 pl-9">
+                      {readmeMeta.hasReadmeContent && (
+                        <Badge variant="outline" className="text-[10px]">
+                          README
+                        </Badge>
+                      )}
+                      {readmeMeta.hasReadmeLink && (
+                        <Badge variant="outline" className="text-[10px]">
+                          README link
+                        </Badge>
+                      )}
+                      {tags.slice(0, 2).map((tag) => (
+                        <Badge
+                          key={`${request.id}-tag-${tag}`}
+                          variant="secondary"
+                          className="text-[10px]"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                      {categories.slice(0, 1).map((category) => (
+                        <Badge
+                          key={`${request.id}-category-${category}`}
+                          variant="secondary"
+                          className="text-[10px]"
+                        >
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Meta line: requester · date */}
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pl-9">
+                    {requesterInfo && (
+                      <>
+                        <span className="truncate">{requesterInfo}</span>
+                        <span>·</span>
+                      </>
                     )}
-                    {readmeMeta.hasReadmeLink && (
-                      <Badge variant="outline" className="text-[11px]">
-                        README link
-                      </Badge>
-                    )}
-                    {tags.slice(0, 2).map((tag) => (
-                      <Badge
-                        key={`${request.id}-tag-${tag}`}
-                        variant="secondary"
-                        className="text-[11px]"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                    {categories.slice(0, 1).map((category) => (
-                      <Badge
-                        key={`${request.id}-category-${category}`}
-                        variant="secondary"
-                        className="text-[11px]"
-                      >
-                        {category}
-                      </Badge>
-                    ))}
+                    <span className="shrink-0">
+                      {formatDate(request.created_at)}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-                    <div>
-                      <p className="font-medium text-foreground">Requester</p>
-                      <p className="truncate">
-                        {request.requester_name || "-"}
-                      </p>
-                      <p className="truncate">
-                        {request.requester_email || "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Submitted</p>
-                      <p>{formatDate(request.created_at)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 pl-9 pt-0.5">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-8"
+                      className="h-7 text-xs px-2"
                       onClick={() => setViewingRequest(request)}
                     >
-                      <Eye size={14} />
-                      View details
+                      <Eye size={13} />
+                      View
                     </Button>
                     {pendingById.has(request.id) ? (
                       <>
                         <Button
                           size="sm"
-                          className="h-8"
-                          onClick={() => handleApprove(request)}
-                          disabled={
-                            reviewMutation.isPending || createMutation.isPending
-                          }
+                          className="h-7 text-xs px-2"
+                          onClick={() => setConfirmApproveRequest(request)}
+                          disabled={approvingId !== null}
                         >
-                          <CheckCircle size={14} />
-                          Approve
+                          <CheckCircle size={13} />
+                          {approvingId === request.id
+                            ? "Approving..."
+                            : "Approve"}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8"
+                          className="h-7 text-xs px-2"
                           onClick={() => {
                             setRejectingRequest(request);
                             setRejectNotes("");
                           }}
                           disabled={reviewMutation.isPending}
                         >
-                          <XCircle size={14} />
+                          <XCircle size={13} />
                           Reject
                         </Button>
                       </>
@@ -346,11 +362,11 @@ export default function RegistryRequestsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8"
+                        className="h-7 text-xs px-2"
                         onClick={() => handleDelete(request)}
                         disabled={deleteMutation.isPending}
                       >
-                        <Trash01 size={14} />
+                        <Trash01 size={13} />
                         Delete
                       </Button>
                     )}
@@ -361,24 +377,6 @@ export default function RegistryRequestsPage() {
           </div>
         )}
       </div>
-
-      <RegistryItemDialog
-        key={approvingRequest?.id ?? "approve-request"}
-        open={approveOpen}
-        onOpenChange={(next) => {
-          setApproveOpen(next);
-          if (!next) {
-            setApprovingRequest(null);
-          }
-        }}
-        draft={approvingRequest ? requestToDraft(approvingRequest) : null}
-        availableTags={tags}
-        availableCategories={categories}
-        defaultLLMConnectionId={registryLLMConnectionId}
-        defaultLLMModelId={registryLLMModelId}
-        isSubmitting={createMutation.isPending || reviewMutation.isPending}
-        onSubmit={handleApproveSubmit}
-      />
 
       <Dialog
         open={Boolean(viewingRequest)}
@@ -533,6 +531,34 @@ export default function RegistryRequestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Approve confirmation */}
+      <AlertDialog
+        open={Boolean(confirmApproveRequest)}
+        onOpenChange={(next) => {
+          if (!next) setConfirmApproveRequest(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve publish request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will add{" "}
+              <span className="font-medium text-foreground">
+                {confirmApproveRequest?.title}
+              </span>{" "}
+              to your private registry. The requester will be notified of the
+              approval.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApproveConfirmed}>
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={Boolean(rejectingRequest)}

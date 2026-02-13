@@ -26,7 +26,7 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
 
     const storage = getPluginStorage();
 
-    // When approving, verify the requested_id doesn't conflict with an existing registry item
+    // When approving, verify the requested_id/title don't conflict with existing registry items
     if (typedInput.status === "approved") {
       const request = await storage.publishRequests.findById(
         meshCtx.organization.id,
@@ -37,6 +37,7 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
       }
 
       const targetId = request.requested_id ?? request.server?.name;
+      // Check by id
       if (targetId) {
         const existing = await storage.items.findByIdOrName(
           meshCtx.organization.id,
@@ -45,6 +46,18 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
         if (existing) {
           throw new Error(
             `Cannot approve: a registry item with id "${existing.id}" already exists. Delete or rename it first.`,
+          );
+        }
+      }
+      // Check by title (it may differ from the id)
+      if (request.title && request.title !== targetId) {
+        const existingByTitle = await storage.items.findByIdOrName(
+          meshCtx.organization.id,
+          request.title,
+        );
+        if (existingByTitle) {
+          throw new Error(
+            `Cannot approve: a registry item with title "${existingByTitle.title}" already exists. Delete or rename it first.`,
           );
         }
       }
