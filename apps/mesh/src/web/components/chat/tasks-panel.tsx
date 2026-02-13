@@ -11,90 +11,23 @@
 import { useChat } from "@/web/components/chat/index";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { User } from "@/web/components/user/user.tsx";
+import { useTaskData } from "@/web/hooks/use-task-data";
 import { formatTimeAgo } from "@/web/lib/format-time";
-import { KEYS } from "@/web/lib/query-keys";
-import type { ThreadEntity } from "@/tools/thread/schema";
-import type { CollectionListOutput } from "@decocms/bindings/collections";
 import {
-  SELF_MCP_ALIAS_ID,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+  STATUS_ORDER,
+  STATUS_CONFIG,
+  groupByStatus,
+} from "@/web/lib/task-status";
+import type { ThreadEntity } from "@/tools/thread/schema";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import {
-  CheckCircle,
-  ChevronRight,
-  Hourglass03,
-  Loading01,
-  Placeholder,
-  Plus,
-  XCircle,
-} from "@untitledui/icons";
+import { ChevronRight, Loading01, Plus } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
-
-// --- Status config ---
-
-const STATUS_ORDER = [
-  "in_progress",
-  "requires_action",
-  "failed",
-  "expired",
-  "completed",
-] as const;
-
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; icon: typeof Loading01; iconClassName: string }
-> = {
-  in_progress: {
-    label: "In Progress",
-    icon: Loading01,
-    iconClassName: "text-muted-foreground animate-spin",
-  },
-  requires_action: {
-    label: "Need Action",
-    icon: Placeholder,
-    iconClassName: "text-orange-500",
-  },
-  failed: {
-    label: "Failed",
-    icon: XCircle,
-    iconClassName: "text-destructive",
-  },
-  expired: {
-    label: "Timed Out",
-    icon: Hourglass03,
-    iconClassName: "text-warning",
-  },
-  completed: {
-    label: "Complete",
-    icon: CheckCircle,
-    iconClassName: "text-success",
-  },
-};
-
-function groupByStatus(tasks: ThreadEntity[]) {
-  const groups: Record<string, ThreadEntity[]> = {};
-  for (const task of tasks) {
-    const status = task.status ?? "completed";
-    if (!groups[status]) groups[status] = [];
-    groups[status].push(task);
-  }
-  for (const group of Object.values(groups)) {
-    group.sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    );
-  }
-  return groups;
-}
 
 // --- Truncated text with tooltip ---
 
@@ -132,29 +65,6 @@ function TruncatedText({
 }
 
 // --- Shared task list content ---
-
-function useTaskData() {
-  const { org, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  return useSuspenseQuery({
-    queryKey: KEYS.taskThreads(locator),
-    queryFn: async () => {
-      if (!client) throw new Error("MCP client is not available");
-      const result = (await client.callTool({
-        name: "COLLECTION_THREADS_LIST",
-        arguments: { limit: 100, offset: 0 },
-      })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ??
-        result) as CollectionListOutput<ThreadEntity>;
-      return payload.items ?? [];
-    },
-    staleTime: 30_000,
-  });
-}
 
 interface TaskListContentProps {
   /** Called when a task is selected (defaults to switchToThread from chat context) */
@@ -287,10 +197,10 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
                             className="text-sm font-medium text-foreground flex-1 min-w-0"
                           />
                         </div>
-                        <div className="flex items-center gap-2 p-3 shrink-0">
+                        <div className="flex items-center gap-2 p-3 pr-0 shrink-0">
                           <User id={task.created_by} size="3xs" avatarOnly />
                         </div>
-                        <div className="p-3 shrink-0 text-right">
+                        <div className="w-20 p-3 shrink-0 text-right">
                           <span className="text-sm text-muted-foreground whitespace-nowrap">
                             {task.updated_at
                               ? formatTimeAgo(new Date(task.updated_at))
