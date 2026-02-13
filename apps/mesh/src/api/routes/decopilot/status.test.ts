@@ -57,6 +57,60 @@ describe("resolveThreadStatus", () => {
     expect(resolveThreadStatus("tool-calls", parts)).toBe("completed");
   });
 
+  test("tool-calls with approval-requested -> requires_action", () => {
+    const parts = [
+      {
+        type: "tool-invocation",
+        toolName: "some_tool",
+        state: "approval-requested",
+      },
+    ];
+    expect(resolveThreadStatus("tool-calls", parts)).toBe("requires_action");
+  });
+
+  test("tool-calls with multiple tools, one approval-requested -> requires_action", () => {
+    const parts = [
+      {
+        type: "tool-invocation",
+        toolName: "tool_a",
+        state: "output-available",
+      },
+      {
+        type: "tool-invocation",
+        toolName: "tool_b",
+        state: "approval-requested",
+      },
+    ];
+    expect(resolveThreadStatus("tool-calls", parts)).toBe("requires_action");
+  });
+
+  test("tool-calls with approval-requested and user_ask pending -> requires_action", () => {
+    const parts = [
+      {
+        type: "tool-invocation",
+        toolName: "some_tool",
+        state: "approval-requested",
+      },
+      {
+        type: "tool-user_ask",
+        toolName: "user_ask",
+        state: "input-available",
+      },
+    ];
+    expect(resolveThreadStatus("tool-calls", parts)).toBe("requires_action");
+  });
+
+  test("tool-calls with denied approval -> completed", () => {
+    const parts = [
+      {
+        type: "tool-invocation",
+        toolName: "some_tool",
+        state: "output-denied",
+      },
+    ];
+    expect(resolveThreadStatus("tool-calls", parts)).toBe("completed");
+  });
+
   test("length -> failed", () => {
     expect(resolveThreadStatus("length", [])).toBe("failed");
   });
