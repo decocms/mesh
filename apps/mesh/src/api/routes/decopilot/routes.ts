@@ -220,6 +220,8 @@ app.post("/:org/decopilot/stream", async (c) => {
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
+    let streamFinished = false;
+
     // 4. Create stream with writer access for data parts
     const uiStream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -265,11 +267,13 @@ app.post("/:org/decopilot/stream", async (c) => {
                 );
               });
 
-            writer.write({
-              type: "data-thread-title",
-              data: { title },
-              transient: true,
-            });
+            if (!streamFinished) {
+              writer.write({
+                type: "data-thread-title",
+                data: { title },
+                transient: true,
+              });
+            }
           });
         }
 
@@ -407,8 +411,12 @@ app.post("/:org/decopilot/stream", async (c) => {
         );
       },
       onError: (error) => {
+        streamFinished = true;
         console.error("[decopilot] stream error:", error);
         return error instanceof Error ? error.message : String(error);
+      },
+      onFinish: () => {
+        streamFinished = true;
       },
     });
 
