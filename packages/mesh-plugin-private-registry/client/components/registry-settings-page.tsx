@@ -381,8 +381,16 @@ export default function RegistrySettingsPage({
               />
             </div>
 
-            {/* ── API Keys (inline) ── */}
-            {acceptPublishRequestsDraft && requireApiTokenDraft && (
+            {/* ── Unsaved hint for toggles ── */}
+            {(acceptPublishRequestsDraft !== initialAcceptPublishRequests ||
+              requireApiTokenDraft !== initialRequireApiToken) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Unsaved changes — click Save to apply.
+              </p>
+            )}
+
+            {/* ── API Keys (inline, only when saved) ── */}
+            {initialAcceptPublishRequests && initialRequireApiToken && (
               <>
                 <div className="flex items-center gap-2 pt-2 border-t border-border">
                   <Key01 size={14} className="text-muted-foreground" />
