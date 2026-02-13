@@ -9,6 +9,7 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { PasswordInput } from "@deco/ui/components/password-input.tsx";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
@@ -22,7 +23,6 @@ import {
   Plus,
   Save01,
   Trash01,
-  XClose,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { PLUGIN_ID } from "../../shared";
@@ -91,7 +91,6 @@ export default function RegistrySettingsPage({
     useCopy();
   const { handleCopy: handleCopyPublishUrl, copied: copiedPublishUrl } =
     useCopy();
-  const { handleCopy: handleCopyToken, copied: copiedToken } = useCopy();
 
   const itemsQuery = useRegistryItems({
     search: "",
@@ -125,6 +124,13 @@ export default function RegistrySettingsPage({
   const publicCount = loadedItems.filter((item) => item.is_public).length;
 
   const publishRequestUrl = `${window.location.origin}/org/${org.slug}/registry/publish-request`;
+  const revealedKeyPrefix = revealedKey?.slice(0, 12) ?? null;
+  const hasRevealedKeyInList = Boolean(
+    revealedKeyPrefix &&
+      (apiKeysQuery.data?.items ?? []).some(
+        (apiKey) => apiKey.prefix === revealedKeyPrefix,
+      ),
+  );
 
   const isDirty =
     nameDraft.trim() !== initialName.trim() ||
@@ -208,6 +214,7 @@ export default function RegistrySettingsPage({
   const handleRevokeKey = async (keyId: string) => {
     try {
       await revokeMutation.mutateAsync(keyId);
+      onRevealedKeyChange(null);
       toast.success("API key revoked");
     } catch (error) {
       toast.error(
@@ -392,39 +399,17 @@ export default function RegistrySettingsPage({
                   <span className="text-sm font-medium">API Keys</span>
                 </div>
 
-                {/* ── Revealed key (shown once) ── */}
-                {revealedKey && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 grid gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Copy this key now — it won&apos;t be shown again!
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => onRevealedKeyChange(null)}
-                      >
-                        <XClose size={14} />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
-                      <code className="text-xs font-mono flex-1 break-all select-all">
-                        {revealedKey}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => handleCopyToken(revealedKey)}
-                      >
-                        {copiedToken ? (
-                          <Check size={14} />
-                        ) : (
-                          <Copy01 size={14} />
-                        )}
-                      </Button>
-                    </div>
+                {/* ── Revealed key fallback (while list refreshes) ── */}
+                {revealedKey && !hasRevealedKeyInList && (
+                  <div className="rounded-md border border-border px-3 py-2 grid gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      New key (refreshing list...)
+                    </span>
+                    <PasswordInput
+                      value={revealedKey}
+                      readOnly
+                      className="h-8 text-xs font-mono"
+                    />
                   </div>
                 )}
 
@@ -470,9 +455,17 @@ export default function RegistrySettingsPage({
                           <span className="text-sm font-medium truncate">
                             {apiKey.name}
                           </span>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {apiKey.prefix}••••••••
-                          </span>
+                          {revealedKeyPrefix === apiKey.prefix ? (
+                            <PasswordInput
+                              value={revealedKey ?? ""}
+                              readOnly
+                              className="h-8 text-xs font-mono"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {apiKey.prefix}••••••••
+                            </span>
+                          )}
                         </div>
                         <Button
                           variant="ghost"
