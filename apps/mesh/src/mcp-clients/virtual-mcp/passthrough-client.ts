@@ -7,7 +7,7 @@
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
-import { clientFromConnection } from "@/mcp-clients";
+import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { fallbackOnMethodNotFoundError } from "@/mcp-clients/utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -79,7 +79,28 @@ function createLazyClient(
 
   function getRealClient(): Promise<Client> {
     if (!realClientPromise) {
-      realClientPromise = clientFromConnection(connection, ctx, superUser);
+      realClientPromise = clientFromConnection(connection, ctx, superUser).then(
+        (client) => {
+          // Apply streaming support for HTTP connections so callStreamableTool
+          // can stream responses via direct fetch instead of MCP transport
+          if (
+            connection.connection_type === "HTTP" ||
+            connection.connection_type === "SSE" ||
+            connection.connection_type === "Websocket"
+          ) {
+            return withStreamingSupport(
+              client,
+              connection.id,
+              connection,
+              ctx,
+              {
+                superUser,
+              },
+            );
+          }
+          return client;
+        },
+      );
     }
     return realClientPromise;
   }
@@ -134,6 +155,28 @@ function createLazyClient(
   placeholder.readResource = async (params, options) => {
     const real = await getRealClient();
     return real.readResource(params, options);
+  };
+
+  // Proxy callStreamableTool so the `"callStreamableTool" in client` check
+  // in PassthroughClient.callStreamableTool() works for lazy clients.
+  // The real client may have this method if it's a PassthroughClient (nested
+  // virtual MCPs) or if withStreamingSupport was applied.
+  (placeholder as any).callStreamableTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Response> => {
+    const real = await getRealClient();
+    if (
+      "callStreamableTool" in real &&
+      typeof (real as any).callStreamableTool === "function"
+    ) {
+      return (real as any).callStreamableTool(name, args);
+    }
+    // Fallback: call tool normally and return JSON response
+    const result = await real.callTool({ name, arguments: args });
+    return new Response(JSON.stringify(result), {
+      headers: { "Content-Type": "application/json" },
+    });
   };
 
   // Close the real client if it was ever created
