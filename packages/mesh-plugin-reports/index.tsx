@@ -1,11 +1,8 @@
 /**
  * Reports Plugin
  *
- * Provides a UI for viewing automated reports with actionable insights.
+ * Provides a UI for viewing automated reports.
  * Reports are provided by an MCP server that implements the REPORTS_BINDING.
- *
- * Uses LayoutComponent (instead of routes) to avoid route ID collisions
- * with other plugins that share the /$pluginId parent route.
  */
 
 import { REPORTS_BINDING } from "@decocms/bindings";
@@ -15,8 +12,10 @@ import type {
 } from "@decocms/bindings/plugins";
 import { FileCheck02 } from "@untitledui/icons";
 import { lazy } from "react";
+import { reportsRouter } from "./lib/router";
 
-const ReportsLayout = lazy(() => import("./components/reports-layout"));
+const PluginHeader = lazy(() => import("./components/plugin-header"));
+const PluginEmptyState = lazy(() => import("./components/plugin-empty-state"));
 
 /**
  * Reports Plugin Definition
@@ -25,10 +24,13 @@ export const reportsPlugin: ClientPlugin<typeof REPORTS_BINDING> = {
   id: "reports",
   description: "View automated reports with actionable insights",
   binding: REPORTS_BINDING,
-  LayoutComponent: ReportsLayout,
+  renderHeader: (props) => <PluginHeader {...props} />,
+  renderEmptyState: () => <PluginEmptyState />,
   setup: (context: PluginSetupContext) => {
+    const { registerSidebarGroup, registerPluginRoutes } = context;
+
     // Register under the "Observability" sidebar group
-    context.registerSidebarGroup({
+    registerSidebarGroup({
       id: "observability",
       label: "Observability",
       items: [
@@ -38,5 +40,9 @@ export const reportsPlugin: ClientPlugin<typeof REPORTS_BINDING> = {
         },
       ],
     });
+
+    // Create and register plugin routes
+    const routes = reportsRouter.createRoutes(context);
+    registerPluginRoutes(routes);
   },
 };

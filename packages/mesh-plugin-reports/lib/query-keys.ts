@@ -7,4 +7,6 @@ export const KEYS = {
     ["reports", "list", connectionId, { category, status }] as const,
   report: (connectionId: string, reportId: string) =>
     ["reports", "detail", connectionId, reportId] as const,
+  pluginConfig: (projectId: string, pluginId: string) =>
+    ["project-plugin-config", projectId, pluginId] as const,
 } as const;
