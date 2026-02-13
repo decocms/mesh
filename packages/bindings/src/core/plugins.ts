@@ -58,13 +58,17 @@ export interface PluginRenderHeaderProps {
  * Client plugins are separate from server plugins to avoid bundling
  * server code into the client bundle.
  */
-export interface ClientPlugin<TBinding extends Binder> {
+export interface ClientPlugin<TBinding extends Binder = Binder> {
   id: string;
   /**
    * Short description of the plugin shown in the settings UI.
    */
   description?: string;
-  binding: TBinding;
+  /**
+   * Binding schema used to filter compatible connections.
+   * Omit for plugins that manage their own connection (e.g. self MCP).
+   */
+  binding?: TBinding;
   setup?: PluginSetup;
   /**
    * Optional custom layout component for this plugin.

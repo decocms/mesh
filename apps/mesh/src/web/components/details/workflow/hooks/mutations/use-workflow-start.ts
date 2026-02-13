@@ -6,6 +6,7 @@ import {
 import { useWorkflowBindingConnection } from "../use-workflow-binding-connection";
 import { useWorkflowInputSchema } from "../derived/use-workflow-input-schema";
 import {
+  getDecopilotId,
   useMCPClient,
   useMCPToolCallMutation,
   useProjectContext,
@@ -28,15 +29,13 @@ export function useWorkflowStart() {
     });
 
   const handleRunWorkflow = async (input: Record<string, unknown> = {}) => {
-    if (!selectedVirtualMcpId) {
-      throw new Error("Please select an Agent before running the workflow");
-    }
+    const virtualMcpId = selectedVirtualMcpId ?? getDecopilotId(org.id);
     const startAtEpochMs = Date.now();
     const result = await startWorkflowMutation({
       name: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
       arguments: {
         input,
-        virtual_mcp_id: selectedVirtualMcpId,
+        virtual_mcp_id: virtualMcpId,
         start_at_epoch_ms: startAtEpochMs,
         workflow_collection_id: workflow.id,
       },

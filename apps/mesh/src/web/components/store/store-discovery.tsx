@@ -44,7 +44,7 @@ function filterItemsBySearch(
   return items.filter(
     (item) =>
       (item.name || item.title || "").toLowerCase().includes(searchLower) ||
-      (item.description || item.server.description || "")
+      (item.description || item.server?.description || "")
         .toLowerCase()
         .includes(searchLower),
   );
@@ -125,9 +125,9 @@ function StoreDiscoveryContent({
     saveScrollPosition();
 
     const serverSlug = slugify(
-      item.name || item.title || item.server.title || "",
+      item.name || item.title || item.server?.title || "",
     );
-    const serverName = item.server.name;
+    const serverName = item.server?.name || item.id;
 
     navigate({
       to: "/$org/$project/store/$appName",

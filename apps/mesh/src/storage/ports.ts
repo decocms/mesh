@@ -208,6 +208,7 @@ export interface VirtualMCPStoragePort {
     data: VirtualMCPUpdateData,
   ): Promise<VirtualMCPEntity>;
   delete(id: string): Promise<void>;
+  removeConnectionReferences(connectionId: string): Promise<void>;
 
   // Virtual Tool CRUD methods
   listVirtualTools(virtualMcpId: string): Promise<VirtualToolEntity[]>;

@@ -404,13 +404,37 @@ export async function runCodeWithTools(
   timeoutMs: number,
 ): Promise<RunCodeResult> {
   // Create tools record for sandbox
+  // Extract structured data from CallToolResult so sandbox code can use it directly
   const toolsRecord: Record<
     string,
-    (args: Record<string, unknown>) => Promise<CallToolResult>
+    (args: Record<string, unknown>) => Promise<unknown>
   > = Object.fromEntries(
     toolContext.tools.map((tool) => [
       tool.name,
-      async (innerArgs) => toolContext.callTool(tool.name, innerArgs ?? {}),
+      async (innerArgs) => {
+        const result = await toolContext.callTool(tool.name, innerArgs ?? {});
+
+        // Prefer structuredContent when available (MCP spec: present when tool defines outputSchema)
+        if (
+          result.structuredContent &&
+          typeof result.structuredContent === "object"
+        ) {
+          return result.structuredContent;
+        }
+
+        // Fall back to extracting from content array
+        const content = result.content as
+          | Array<{ type: string; text?: string }>
+          | undefined;
+        if (content?.[0]?.type === "text" && content[0].text) {
+          try {
+            return JSON.parse(content[0].text);
+          } catch {
+            return content[0].text;
+          }
+        }
+        return result;
+      },
     ]),
   );
 

@@ -29,7 +29,7 @@ export async function clientFromConnection(
   superUser = false,
 ): Promise<Client> {
   if (connection.connection_type === "VIRTUAL") {
-    return createVirtualClient(connection, ctx);
+    return createVirtualClient(connection, ctx, superUser);
   }
   return createOutboundClient(connection, ctx, superUser);
 }

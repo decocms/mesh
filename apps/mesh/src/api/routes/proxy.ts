@@ -143,6 +143,14 @@ async function createMCPProxyDoNotUseDirectly(
 
   // Create server directly from decorated client
   // Tool caching is handled by the decorated client
+  // For VIRTUAL connections (PassthroughClient), getServerCapabilities() returns undefined
+  // because the client is synthetic (never connected to a real server).
+  // Fall back to default capabilities that include tools/resources/prompts.
+  const capabilities = cachedClient.getServerCapabilities() ?? {
+    tools: {},
+    resources: {},
+    prompts: {},
+  };
   const server = createServerFromClient(
     cachedClient,
     {
@@ -150,7 +158,7 @@ async function createMCPProxyDoNotUseDirectly(
       version: "1.0.0",
     },
     {
-      capabilities: cachedClient.getServerCapabilities(),
+      capabilities,
       instructions: cachedClient.getInstructions(),
     },
   );

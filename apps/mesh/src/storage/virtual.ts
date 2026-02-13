@@ -385,6 +385,13 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       .execute();
   }
 
+  async removeConnectionReferences(connectionId: string): Promise<void> {
+    await this.db
+      .deleteFrom("connection_aggregations")
+      .where("child_connection_id", "=", connectionId)
+      .execute();
+  }
+
   /**
    * Deserialize connection row with aggregations to VirtualMCPEntity
    */

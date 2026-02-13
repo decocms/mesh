@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test";
 import type { BuiltinToolParams } from "./index";
 import {
   buildSubagentSystemPrompt,
+  buildSubtaskFinalMetadata,
   createSubtaskTool,
   SubtaskInputSchema,
 } from "./subtask";
@@ -175,6 +176,45 @@ describe("buildSubagentSystemPrompt", () => {
     const prompt = buildSubagentSystemPrompt("   \n  ");
 
     expect(prompt).not.toContain("Agent-Specific Instructions");
+  });
+});
+
+describe("metadata isolation", () => {
+  /**
+   * Regression test: subtask final metadata must NOT include usage at root level.
+   * Spreading lastMessage.metadata could leak subagent usage into parent message
+   * and cause double-counting. Only subtaskResult.usage should contain usage.
+   */
+  test("buildSubtaskFinalMetadata excludes usage from root metadata", () => {
+    const lastMessage = {
+      id: "msg-1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "done" }],
+      metadata: {
+        usage: { totalTokens: 999, inputTokens: 500, outputTokens: 499 },
+      },
+    };
+    const accumulatedUsage = {
+      inputTokens: 100,
+      outputTokens: 200,
+      reasoningTokens: 0,
+      totalTokens: 300,
+      cost: 0.001,
+    };
+
+    const result = buildSubtaskFinalMetadata(
+      lastMessage,
+      accumulatedUsage,
+      "agent_1",
+      mockParams.models,
+    );
+
+    const meta = result.metadata as Record<string, unknown> | undefined;
+    expect(meta?.usage).toBeUndefined();
+    expect((meta?.subtaskResult as { usage?: unknown })?.usage).toEqual(
+      accumulatedUsage,
+    );
+    expect((meta?.subtaskResult as { agent?: unknown })?.agent).toBe("agent_1");
   });
 });
 

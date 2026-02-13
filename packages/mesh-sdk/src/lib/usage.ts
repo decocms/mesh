@@ -80,6 +80,37 @@ export function getCostFromUsage(usage: UsageData | null | undefined): number {
 }
 
 // ============================================================================
+// Provider metadata sanitization
+// ============================================================================
+
+const ALLOWED_PROVIDER_FIELDS = ["usage", "cost", "model"] as const;
+
+/**
+ * Sanitize provider metadata to prevent leaking sensitive data.
+ * Only allows whitelisted fields: usage, cost, model.
+ */
+export function sanitizeProviderMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const provider in metadata) {
+    const providerData = metadata[provider];
+    if (typeof providerData === "object" && providerData !== null) {
+      const safeData: Record<string, unknown> = {};
+      for (const field of ALLOWED_PROVIDER_FIELDS) {
+        if (field in providerData) {
+          safeData[field] = (providerData as Record<string, unknown>)[field];
+        }
+      }
+      sanitized[provider] = safeData;
+    }
+  }
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+// ============================================================================
 // Usage accumulation
 // ============================================================================
 

@@ -16,15 +16,45 @@ import type { Hono } from "hono";
 import type { Kysely } from "kysely";
 
 /**
- * Tool definition compatible with MCP tools.
- * This is a simplified type - the actual implementation uses the full ToolDefinition from mesh.
+ * Subset of MeshContext exposed to server plugin tool handlers.
+ *
+ * Plugins receive the full MeshContext at runtime but should only depend on
+ * these properties. This keeps the plugin contract stable and avoids coupling
+ * plugins to Mesh internals (db, vault, tracer, etc.).
+ */
+export interface ServerPluginToolContext {
+  organization: { id: string } | null;
+  access: { check: () => Promise<void> };
+  auth: {
+    user?: { id: string; email?: string; name?: string };
+  };
+  /** Kysely database instance for direct queries. */
+  db: Kysely<unknown>;
+  createMCPProxy: (connectionId: string) => Promise<{
+    callTool: (args: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    }) => Promise<{
+      isError?: boolean;
+      content?: Array<{ type?: string; text?: string }>;
+      structuredContent?: unknown;
+    }>;
+    listTools: () => Promise<{
+      tools: Array<{ name: string; description?: string }>;
+    }>;
+    close?: () => Promise<void>;
+  }>;
+}
+
+/**
+ * Tool definition for server plugins.
  */
 export interface ServerPluginToolDefinition {
   name: string;
   description?: string;
   inputSchema: unknown;
   outputSchema?: unknown;
-  handler: (input: unknown, ctx: unknown) => Promise<unknown>;
+  handler: (input: unknown, ctx: ServerPluginToolContext) => Promise<unknown>;
 }
 
 /**

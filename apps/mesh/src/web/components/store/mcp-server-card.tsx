@@ -275,23 +275,23 @@ export function MCPServerCard(props: MCPServerCardProps) {
 function extractCardDisplayData(
   item: RegistryItem,
 ): Omit<MCPServerCardStoreProps, "onClick" | "variant"> {
-  const rawTitle = item.title || item.server.title || item.id || "Unnamed Item";
+  const server = item.server;
+  const rawTitle = item.title || server?.title || item.id || "Unnamed Item";
   const meshMeta = item._meta?.["mcp.mesh"];
 
-  // Description priority: short_description > mesh_description > server.description
+  // Description priority: short_description > mesh_description > server.description > item.description
   const description =
     meshMeta?.short_description ||
     meshMeta?.mesh_description ||
-    item.server.description ||
+    server?.description ||
+    item.description ||
     null;
 
   const icon =
-    item.server.icons?.[0]?.src ||
-    getGitHubAvatarUrl(item.server.repository) ||
-    null;
+    server?.icons?.[0]?.src || getGitHubAvatarUrl(server?.repository) || null;
   const isVerified = meshMeta?.verified ?? false;
-  const hasRemotes = (item.server.remotes?.length ?? 0) > 0;
-  const hasPackages = (item.server.packages?.length ?? 0) > 0;
+  const hasRemotes = (server?.remotes?.length ?? 0) > 0;
+  const hasPackages = (server?.packages?.length ?? 0) > 0;
   const canInstall = hasRemotes || hasPackages;
 
   // Extract scopeName and displayName from title if it contains "/"
@@ -319,7 +319,7 @@ function extractCardDisplayData(
   }
 
   // Fallback to item.id when it contains a scope (e.g. "provider/name")
-  if (!scopeName && item.id?.includes("/")) {
+  if (!scopeName && item.id.includes("/")) {
     scopeName = item.id;
   }
 
@@ -358,7 +358,8 @@ export function MCPServerCardGrid({
   title,
   onItemClick,
 }: MCPServerCardGridProps) {
-  if (items.length === 0) return null;
+  const safeItems = items.filter((item) => item !== null && item !== undefined);
+  if (safeItems.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -368,7 +369,7 @@ export function MCPServerCardGrid({
         </div>
       )}
       <div className="grid grid-cols-4 gap-4">
-        {items.map((item) => {
+        {safeItems.map((item) => {
           const displayData = extractCardDisplayData(item);
           return (
             <MCPServerCard

@@ -26,6 +26,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
     tags: null as never,
     projects: null as never,
     projectPluginConfigs: null as never,
+    monitoringDashboards: null as never,
   },
   vault: null as never,
   authInstance: null as never,
