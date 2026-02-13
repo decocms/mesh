@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@decocms/bindings": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.26.0",
     "@decocms/mesh-sdk": "workspace:*",
     "@deco/ui": "workspace:*",
     "@tanstack/react-query": "5.90.11",
