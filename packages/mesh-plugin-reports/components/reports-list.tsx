@@ -386,7 +386,7 @@ export default function ReportsList({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20">
+          <div className="flex flex-col items-center justify-center h-full">
             <Loading01
               size={32}
               className="animate-spin text-muted-foreground mb-4"
@@ -394,7 +394,7 @@ export default function ReportsList({
             <p className="text-sm text-muted-foreground">Loading reports...</p>
           </div>
         ) : visibleReports.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center">
             {tab === "done" ? (
               <>
                 <CheckDone01 size={48} className="text-muted-foreground mb-4" />
