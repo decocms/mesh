@@ -9,21 +9,20 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
+  Check,
   Copy01,
-  Eye,
-  EyeOff,
   FlipBackward,
-  Globe01,
   Key01,
-  Link01,
   Loading01,
   Plus,
   Save01,
   Trash01,
+  XClose,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { PLUGIN_ID } from "../../shared";
@@ -88,7 +87,11 @@ export default function RegistrySettingsPage({
   const apiKeysQuery = usePublishApiKeys();
   const { generateMutation, revokeMutation } = usePublishApiKeyMutations();
   const [newKeyName, setNewKeyName] = useState("");
-  const [showKey, setShowKey] = useState(false);
+  const { handleCopy: handleCopyPublicUrl, copied: copiedPublicUrl } =
+    useCopy();
+  const { handleCopy: handleCopyPublishUrl, copied: copiedPublishUrl } =
+    useCopy();
+  const { handleCopy: handleCopyToken, copied: copiedToken } = useCopy();
 
   const itemsQuery = useRegistryItems({
     search: "",
@@ -190,7 +193,6 @@ export default function RegistrySettingsPage({
       const result = await generateMutation.mutateAsync(name);
       if (result?.key) {
         onRevealedKeyChange(result.key);
-        setShowKey(true);
         setNewKeyName("");
         toast.success(
           "API key generated. Copy it now — it won't be shown again!",
@@ -316,22 +318,17 @@ export default function RegistrySettingsPage({
                 {publicCount === 1 ? "public item" : "public items"}
               </Badge>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 grid grid-cols-[auto,1fr,auto] items-start gap-2 min-w-0">
-              <Globe01 size={14} className="text-muted-foreground shrink-0" />
-              <code className="text-xs font-mono break-all leading-5 min-w-0">
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-center gap-2 min-w-0">
+              <code className="text-xs font-mono break-all leading-5 min-w-0 flex-1 select-all">
                 {publicStoreUrl}
               </code>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1.5 text-xs shrink-0"
-                onClick={() => {
-                  navigator.clipboard.writeText(publicStoreUrl);
-                  toast.success("URL copied to clipboard");
-                }}
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => handleCopyPublicUrl(publicStoreUrl)}
               >
-                <Link01 size={12} />
-                Copy
+                {copiedPublicUrl ? <Check size={14} /> : <Copy01 size={14} />}
               </Button>
             </div>
           </Card>
@@ -350,22 +347,17 @@ export default function RegistrySettingsPage({
                 onCheckedChange={setAcceptPublishRequestsDraft}
               />
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 grid grid-cols-[auto,1fr,auto] items-start gap-2 min-w-0">
-              <Globe01 size={14} className="text-muted-foreground shrink-0" />
-              <code className="text-xs font-mono break-all leading-5 min-w-0">
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-center gap-2 min-w-0">
+              <code className="text-xs font-mono break-all leading-5 min-w-0 flex-1 select-all">
                 {publishRequestUrl}
               </code>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1.5 text-xs shrink-0"
-                onClick={() => {
-                  navigator.clipboard.writeText(publishRequestUrl);
-                  toast.success("Publish URL copied to clipboard");
-                }}
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => handleCopyPublishUrl(publishRequestUrl)}
               >
-                <Link01 size={12} />
-                Copy
+                {copiedPublishUrl ? <Check size={14} /> : <Copy01 size={14} />}
               </Button>
             </div>
 
@@ -402,47 +394,37 @@ export default function RegistrySettingsPage({
 
                 {/* ── Revealed key (shown once) ── */}
                 {revealedKey && (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 grid gap-2">
-                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                      Copy this key now — it won&apos;t be shown again!
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono flex-1 break-all">
-                        {showKey
-                          ? revealedKey
-                          : revealedKey.replace(/./g, "\u2022")}
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 grid gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Copy this key now — it won&apos;t be shown again!
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() => onRevealedKeyChange(null)}
+                      >
+                        <XClose size={14} />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
+                      <code className="text-xs font-mono flex-1 break-all select-all">
+                        {revealedKey}
                       </code>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 shrink-0"
-                        onClick={() => setShowKey(!showKey)}
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() => handleCopyToken(revealedKey)}
                       >
-                        {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 shrink-0"
-                        onClick={() => {
-                          navigator.clipboard.writeText(revealedKey);
-                          toast.success("API key copied to clipboard");
-                        }}
-                      >
-                        <Copy01 size={14} />
+                        {copiedToken ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy01 size={14} />
+                        )}
                       </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-fit"
-                      onClick={() => {
-                        onRevealedKeyChange(null);
-                        setShowKey(false);
-                      }}
-                    >
-                      Dismiss
-                    </Button>
                   </div>
                 )}
 
