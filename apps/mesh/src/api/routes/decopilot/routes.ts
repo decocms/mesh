@@ -360,11 +360,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
               return;
             },
-            onFinish: async ({
-              messages: _UIMessages,
-              isAborted: _isAborted,
-              responseMessage,
-            }) => {
+            onFinish: async ({ responseMessage }) => {
               const now = Date.now();
               const messagesToSave = [
                 ...new Map(
