@@ -1,7 +1,7 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { z } from "zod";
 import { PublishApiKeyListOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const REGISTRY_PUBLISH_API_KEY_LIST: ServerPluginToolDefinition = {
   name: "REGISTRY_PUBLISH_API_KEY_LIST",
@@ -10,18 +10,9 @@ export const REGISTRY_PUBLISH_API_KEY_LIST: ServerPluginToolDefinition = {
   inputSchema: z.object({}),
   outputSchema: PublishApiKeyListOutputSchema,
 
-  handler: async (_input, ctx) => {
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+  handler: orgHandler(z.object({}), async (_input, ctx) => {
     const storage = getPluginStorage();
-    const items = await storage.publishApiKeys.list(meshCtx.organization.id);
+    const items = await storage.publishApiKeys.list(ctx.organization.id);
 
     return {
       items: items.map((item) => ({
@@ -31,5 +22,5 @@ export const REGISTRY_PUBLISH_API_KEY_LIST: ServerPluginToolDefinition = {
         createdAt: item.created_at,
       })),
     };
-  },
+  }),
 };

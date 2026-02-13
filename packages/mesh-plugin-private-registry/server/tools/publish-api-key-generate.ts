@@ -1,10 +1,9 @@
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
 import {
   PublishApiKeyGenerateInputSchema,
   PublishApiKeyGenerateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
+import { getPluginStorage, orgHandler } from "./utils";
 
 export const REGISTRY_PUBLISH_API_KEY_GENERATE: ServerPluginToolDefinition = {
   name: "REGISTRY_PUBLISH_API_KEY_GENERATE",
@@ -13,23 +12,11 @@ export const REGISTRY_PUBLISH_API_KEY_GENERATE: ServerPluginToolDefinition = {
   inputSchema: PublishApiKeyGenerateInputSchema,
   outputSchema: PublishApiKeyGenerateOutputSchema,
 
-  handler: async (input, ctx) => {
-    const typedInput = input as z.infer<
-      typeof PublishApiKeyGenerateInputSchema
-    >;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
-
+  handler: orgHandler(PublishApiKeyGenerateInputSchema, async (input, ctx) => {
     const storage = getPluginStorage();
     const { entity, key } = await storage.publishApiKeys.generate(
-      meshCtx.organization.id,
-      typedInput.name,
+      ctx.organization.id,
+      input.name,
     );
 
     return {
@@ -39,5 +26,5 @@ export const REGISTRY_PUBLISH_API_KEY_GENERATE: ServerPluginToolDefinition = {
       key,
       createdAt: entity.created_at,
     };
-  },
+  }),
 };
