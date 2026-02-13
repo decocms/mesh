@@ -7,6 +7,13 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Tooltip,
@@ -115,6 +122,55 @@ export function UserSettingsDialog({
                   />
                 </div>
               </button>
+            </div>
+
+            {/* Tool Approval */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm font-medium text-foreground">
+                Tool Approval
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Choose when to require approval before tools execute
+              </p>
+              <Select
+                value={preferences.toolApprovalLevel}
+                onValueChange={(value) =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    toolApprovalLevel: value as "none" | "readonly" | "yolo",
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <div className="flex items-start flex-col gap-0.5">
+                      <span className="font-medium">None</span>
+                      <span className="text-xs text-muted-foreground">
+                        Require approval for all tool calls
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="readonly">
+                    <div className="flex items-start flex-col gap-0.5">
+                      <span className="font-medium">Read-only</span>
+                      <span className="text-xs text-muted-foreground">
+                        Auto-approve read-only tools
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="yolo">
+                    <div className="flex items-start flex-col gap-0.5">
+                      <span className="font-medium">YOLO</span>
+                      <span className="text-xs text-muted-foreground">
+                        Execute all tools without approval
+                      </span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Experimental */}

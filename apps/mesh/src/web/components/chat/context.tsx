@@ -21,6 +21,7 @@ import type {
 import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
   type UIMessage,
 } from "ai";
 import {
@@ -35,6 +36,7 @@ import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
+import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { type ModelChangePayload, useModels } from "./select-model";
@@ -87,6 +89,7 @@ type ChatFromUseChat = Pick<
   | "clearError"
   | "stop"
   | "addToolOutput"
+  | "addToolApprovalResponse"
 >;
 
 /**
@@ -147,8 +150,9 @@ const createModelsTransport = (
       const {
         system,
         tiptapDoc: _tiptapDoc,
+        toolApprovalLevel,
         ...metadata
-      } = requestMetadata as Metadata;
+      } = requestMetadata as Metadata & { toolApprovalLevel?: string };
       const systemMessage: UIMessage<Metadata> | null = system
         ? {
             id: crypto.randomUUID(),
@@ -174,6 +178,7 @@ const createModelsTransport = (
         body: {
           messages: allMessages,
           ...mergedMetadata,
+          ...(toolApprovalLevel && { toolApprovalLevel }),
         },
       };
     },
@@ -558,6 +563,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // User session
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
+  // Preferences
+  const [preferences] = usePreferences();
   // Chat state (reducer-based)
   const [chatState, chatDispatch] = useReducer(
     chatStateReducer,
@@ -654,7 +661,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     id: threadManager.activeThreadId,
     messages: initialMessages,
     transport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    sendAutomaticallyWhen: ({ messages }) =>
+      lastAssistantMessageIsCompleteWithToolCalls({ messages }) ||
+      lastAssistantMessageIsCompleteWithApprovalResponses({ messages }),
     onFinish,
     onToolCall,
     onError,
@@ -746,6 +755,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       ...messageMetadata,
       system: contextPrompt,
       models: selectedModel,
+      toolApprovalLevel: preferences.toolApprovalLevel,
     };
 
     const userMessage: ChatMessage = {
@@ -807,6 +817,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     clearError: chat.clearError,
     stop,
     addToolOutput: chat.addToolOutput,
+    addToolApprovalResponse: chat.addToolApprovalResponse,
     sendMessage,
     isStreaming,
     isChatEmpty,
