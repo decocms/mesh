@@ -380,128 +380,123 @@ export default function RegistrySettingsPage({
                 onCheckedChange={setRequireApiTokenDraft}
               />
             </div>
-          </Card>
 
-          {/* ── API Key Manager ── */}
-          {acceptPublishRequestsDraft && requireApiTokenDraft && (
-            <Card className="min-w-0 p-4 grid gap-3 content-start">
-              <div className="flex items-center gap-2">
-                <Key01 size={16} className="text-muted-foreground" />
-                <div>
-                  <h3 className="text-base font-semibold">API Keys</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Generate keys for external publish requests.
-                  </p>
+            {/* ── API Keys (inline) ── */}
+            {acceptPublishRequestsDraft && requireApiTokenDraft && (
+              <>
+                <div className="flex items-center gap-2 pt-2 border-t border-border">
+                  <Key01 size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-medium">API Keys</span>
                 </div>
-              </div>
 
-              {/* ── Revealed key (shown once) ── */}
-              {revealedKey && (
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 grid gap-2">
-                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                    Copy this key now — it won&apos;t be shown again!
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="text-xs font-mono flex-1 break-all">
-                      {showKey
-                        ? revealedKey
-                        : revealedKey.replace(/./g, "\u2022")}
-                    </code>
+                {/* ── Revealed key (shown once) ── */}
+                {revealedKey && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 grid gap-2">
+                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                      Copy this key now — it won&apos;t be shown again!
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono flex-1 break-all">
+                        {showKey
+                          ? revealedKey
+                          : revealedKey.replace(/./g, "\u2022")}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0"
+                        onClick={() => setShowKey(!showKey)}
+                      >
+                        {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(revealedKey);
+                          toast.success("API key copied to clipboard");
+                        }}
+                      >
+                        <Copy01 size={14} />
+                      </Button>
+                    </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 shrink-0"
-                      onClick={() => setShowKey(!showKey)}
-                    >
-                      {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 shrink-0"
+                      className="w-fit"
                       onClick={() => {
-                        navigator.clipboard.writeText(revealedKey);
-                        toast.success("API key copied to clipboard");
+                        setRevealedKey(null);
+                        setShowKey(false);
                       }}
                     >
-                      <Copy01 size={14} />
+                      Dismiss
                     </Button>
+                  </div>
+                )}
+
+                {/* ── Generate new key ── */}
+                <div className="flex items-end gap-2">
+                  <div className="grid gap-1.5 flex-1">
+                    <Label htmlFor="api-key-name" className="text-xs">
+                      Key name
+                    </Label>
+                    <Input
+                      id="api-key-name"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="e.g. CI/CD Pipeline"
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-fit"
-                    onClick={() => {
-                      setRevealedKey(null);
-                      setShowKey(false);
-                    }}
+                    className="h-8 gap-1.5"
+                    disabled={!newKeyName.trim() || generateMutation.isPending}
+                    onClick={handleGenerateKey}
                   >
-                    Dismiss
+                    {generateMutation.isPending ? (
+                      <Loading01 size={14} className="animate-spin" />
+                    ) : (
+                      <Plus size={14} />
+                    )}
+                    Generate
                   </Button>
                 </div>
-              )}
 
-              {/* ── Generate new key ── */}
-              <div className="flex items-end gap-2">
-                <div className="grid gap-1.5 flex-1">
-                  <Label htmlFor="api-key-name" className="text-xs">
-                    Key name
-                  </Label>
-                  <Input
-                    id="api-key-name"
-                    value={newKeyName}
-                    onChange={(e) => setNewKeyName(e.target.value)}
-                    placeholder="e.g. CI/CD Pipeline"
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5"
-                  disabled={!newKeyName.trim() || generateMutation.isPending}
-                  onClick={handleGenerateKey}
-                >
-                  {generateMutation.isPending ? (
-                    <Loading01 size={14} className="animate-spin" />
-                  ) : (
-                    <Plus size={14} />
-                  )}
-                  Generate
-                </Button>
-              </div>
-
-              {/* ── Key list ── */}
-              {(apiKeysQuery.data?.items?.length ?? 0) > 0 && (
-                <div className="grid gap-1 pt-1">
-                  {apiKeysQuery.data?.items?.map((apiKey) => (
-                    <div
-                      key={apiKey.id}
-                      className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
-                    >
-                      <div className="grid gap-0.5 min-w-0">
-                        <span className="text-sm font-medium truncate">
-                          {apiKey.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {apiKey.prefix}••••••••
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-destructive hover:text-destructive shrink-0"
-                        disabled={revokeMutation.isPending}
-                        onClick={() => handleRevokeKey(apiKey.id)}
+                {/* ── Key list ── */}
+                {(apiKeysQuery.data?.items?.length ?? 0) > 0 && (
+                  <div className="grid gap-1">
+                    {apiKeysQuery.data?.items?.map((apiKey) => (
+                      <div
+                        key={apiKey.id}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
                       >
-                        <Trash01 size={14} />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          )}
+                        <div className="grid gap-0.5 min-w-0">
+                          <span className="text-sm font-medium truncate">
+                            {apiKey.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {apiKey.prefix}••••••••
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-destructive hover:text-destructive shrink-0"
+                          disabled={revokeMutation.isPending}
+                          onClick={() => handleRevokeKey(apiKey.id)}
+                        >
+                          <Trash01 size={14} />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
         </div>
       </div>
     </div>
