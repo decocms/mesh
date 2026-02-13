@@ -20,8 +20,8 @@ if [ "$branch_checkout" = "1" ]; then
       # Get the main worktree path
       main_worktree=$(dirname "$git_common_dir")
 
-      # Copy .env if it exists in main worktree
-      if [ -f "$main_worktree/apps/mesh/.env" ]; then
+      # Copy .env from main worktree only if it doesn't already exist here
+      if [ -f "$main_worktree/apps/mesh/.env" ] && [ ! -f "$(pwd)/apps/mesh/.env" ]; then
         echo "🔧 Copying .env to new worktree..."
         mkdir -p "$(pwd)/apps/mesh"
         cp "$main_worktree/apps/mesh/.env" "$(pwd)/apps/mesh/.env"
