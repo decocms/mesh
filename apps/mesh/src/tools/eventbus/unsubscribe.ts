@@ -15,7 +15,7 @@ export const EVENT_UNSUBSCRIBE = defineTool({
     title: "Unsubscribe from Events",
     readOnlyHint: false,
     destructiveHint: true,
-    idempotentHint: true,
+    idempotentHint: false,
     openWorldHint: false,
   },
   inputSchema: UnsubscribeInputSchema,
