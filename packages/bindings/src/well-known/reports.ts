@@ -1,0 +1,220 @@
+/**
+ * Reports Well-Known Binding
+ *
+ * Defines the interface for viewing automated reports.
+ * Any MCP that implements this binding can provide reports to the Reports plugin
+ * (e.g. performance audits, security scans, accessibility checks).
+ *
+ * This binding includes:
+ * - REPORTS_LIST: List all available reports with metadata
+ * - REPORTS_GET: Get a specific report with full content
+ */
+
+import { z } from "zod";
+import type { Binder, ToolBinder } from "../core/binder";
+
+// ============================================================================
+// Shared Schemas
+// ============================================================================
+
+/**
+ * Report status indicates the overall health/outcome of the report.
+ */
+export const ReportStatusSchema = z.enum([
+  "passing",
+  "warning",
+  "failing",
+  "info",
+]);
+export type ReportStatus = z.infer<typeof ReportStatusSchema>;
+
+/**
+ * A single metric item within a metrics section.
+ */
+export const MetricItemSchema = z.object({
+  label: z.string().describe("Metric label (e.g. 'LCP', 'Performance')"),
+  value: z.union([z.number(), z.string()]).describe("Current metric value"),
+  unit: z
+    .string()
+    .optional()
+    .describe("Unit of measurement (e.g. 's', 'ms', 'score')"),
+  previousValue: z
+    .union([z.number(), z.string()])
+    .optional()
+    .describe("Previous value for delta comparison"),
+  status: ReportStatusSchema.optional().describe(
+    "Status of this individual metric",
+  ),
+});
+export type MetricItem = z.infer<typeof MetricItemSchema>;
+
+/**
+ * Report sections -- polymorphic by type.
+ * Sections represent the main content blocks of a report.
+ */
+export const ReportSectionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("markdown"),
+    content: z.string().describe("Markdown content"),
+  }),
+  z.object({
+    type: z.literal("metrics"),
+    title: z.string().optional().describe("Section title"),
+    items: z.array(MetricItemSchema).describe("Metric items"),
+  }),
+  z.object({
+    type: z.literal("table"),
+    title: z.string().optional().describe("Section title"),
+    columns: z.array(z.string()).describe("Column headers"),
+    rows: z
+      .array(z.array(z.union([z.string(), z.number(), z.null()])))
+      .describe("Table rows"),
+  }),
+]);
+export type ReportSection = z.infer<typeof ReportSectionSchema>;
+
+/**
+ * Lifecycle status of a report within the inbox workflow.
+ */
+export const ReportLifecycleStatusSchema = z.enum([
+  "unread",
+  "read",
+  "dismissed",
+]);
+export type ReportLifecycleStatus = z.infer<typeof ReportLifecycleStatusSchema>;
+
+/**
+ * Summary of a report returned by REPORTS_LIST.
+ */
+export const ReportSummarySchema = z.object({
+  id: z.string().describe("Unique report identifier"),
+  title: z.string().describe("Report title"),
+  category: z
+    .string()
+    .describe(
+      "Report category (e.g. 'performance', 'security', 'accessibility')",
+    ),
+  status: ReportStatusSchema.describe("Overall report status"),
+  summary: z.string().describe("One-line summary of findings"),
+  updatedAt: z.string().describe("ISO 8601 timestamp of last update"),
+  source: z
+    .string()
+    .optional()
+    .describe(
+      "Agent or service that generated the report (e.g. 'security-auditor', 'performance-monitor')",
+    ),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Free-form tags for filtering (e.g. 'homepage', 'api', 'ci')"),
+  lifecycleStatus: ReportLifecycleStatusSchema.optional().describe(
+    "Inbox lifecycle status of the report (default: unread)",
+  ),
+});
+export type ReportSummary = z.infer<typeof ReportSummarySchema>;
+
+/**
+ * Full report returned by REPORTS_GET.
+ */
+export const ReportSchema = ReportSummarySchema.extend({
+  sections: z.array(ReportSectionSchema).describe("Ordered content sections"),
+});
+export type Report = z.infer<typeof ReportSchema>;
+
+// ============================================================================
+// Tool Schemas
+// ============================================================================
+
+/**
+ * REPORTS_LIST - List all available reports with optional filters
+ */
+const ReportsListInputSchema = z.object({
+  category: z
+    .string()
+    .optional()
+    .describe("Filter by category (e.g. 'performance', 'security')"),
+  status: ReportStatusSchema.optional().describe("Filter by report status"),
+});
+
+const ReportsListOutputSchema = z.object({
+  reports: z.array(ReportSummarySchema).describe("List of report summaries"),
+});
+
+export type ReportsListInput = z.infer<typeof ReportsListInputSchema>;
+export type ReportsListOutput = z.infer<typeof ReportsListOutputSchema>;
+
+/**
+ * REPORTS_GET - Get a specific report with full content
+ */
+const ReportsGetInputSchema = z.object({
+  id: z.string().describe("Report identifier"),
+});
+
+const ReportsGetOutputSchema = ReportSchema;
+
+export type ReportsGetInput = z.infer<typeof ReportsGetInputSchema>;
+export type ReportsGetOutput = z.infer<typeof ReportsGetOutputSchema>;
+
+/**
+ * REPORTS_UPDATE_STATUS - Update the lifecycle status of a report (optional tool)
+ */
+const ReportsUpdateStatusInputSchema = z.object({
+  reportId: z.string().describe("Report identifier"),
+  lifecycleStatus: ReportLifecycleStatusSchema.describe(
+    "New lifecycle status for the report",
+  ),
+});
+
+const ReportsUpdateStatusOutputSchema = z.object({
+  success: z.boolean().describe("Whether the operation succeeded"),
+  message: z.string().optional().describe("Human-readable result message"),
+});
+
+export type ReportsUpdateStatusInput = z.infer<
+  typeof ReportsUpdateStatusInputSchema
+>;
+export type ReportsUpdateStatusOutput = z.infer<
+  typeof ReportsUpdateStatusOutputSchema
+>;
+
+// ============================================================================
+// Binding Definition
+// ============================================================================
+
+/**
+ * Reports Binding
+ *
+ * Defines the interface for viewing automated reports.
+ * Any MCP that implements this binding can be used with the Reports plugin.
+ *
+ * Required tools:
+ * - REPORTS_LIST: List available reports with optional filtering
+ * - REPORTS_GET: Get a single report with full content
+ *
+ * Optional tools:
+ * - REPORTS_UPDATE_STATUS: Update the lifecycle status of a report (unread → read → dismissed)
+ */
+export const REPORTS_BINDING = [
+  {
+    name: "REPORTS_LIST" as const,
+    inputSchema: ReportsListInputSchema,
+    outputSchema: ReportsListOutputSchema,
+  } satisfies ToolBinder<"REPORTS_LIST", ReportsListInput, ReportsListOutput>,
+  {
+    name: "REPORTS_GET" as const,
+    inputSchema: ReportsGetInputSchema,
+    outputSchema: ReportsGetOutputSchema,
+  } satisfies ToolBinder<"REPORTS_GET", ReportsGetInput, ReportsGetOutput>,
+  {
+    name: "REPORTS_UPDATE_STATUS" as const,
+    inputSchema: ReportsUpdateStatusInputSchema,
+    outputSchema: ReportsUpdateStatusOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<
+    "REPORTS_UPDATE_STATUS",
+    ReportsUpdateStatusInput,
+    ReportsUpdateStatusOutput
+  >,
+] as const satisfies Binder;
+
+export type ReportsBinding = typeof REPORTS_BINDING;
