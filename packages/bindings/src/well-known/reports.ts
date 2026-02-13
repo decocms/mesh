@@ -1,14 +1,13 @@
 /**
  * Reports Well-Known Binding
  *
- * Defines the interface for viewing automated reports with actionable insights.
+ * Defines the interface for viewing automated reports.
  * Any MCP that implements this binding can provide reports to the Reports plugin
  * (e.g. performance audits, security scans, accessibility checks).
  *
  * This binding includes:
  * - REPORTS_LIST: List all available reports with metadata
  * - REPORTS_GET: Get a specific report with full content
- * - REPORTS_EXECUTE_ACTION: Execute an actionable item from a report
  */
 
 import { z } from "zod";
@@ -75,28 +74,14 @@ export const ReportSectionSchema = z.discriminatedUnion("type", [
 export type ReportSection = z.infer<typeof ReportSectionSchema>;
 
 /**
- * An actionable item attached to a report.
+ * Lifecycle status of a report within the inbox workflow.
  */
-export const ReportActionSchema = z.object({
-  id: z.string().describe("Unique action identifier within the report"),
-  label: z.string().describe("Display label for the action"),
-  description: z
-    .string()
-    .optional()
-    .describe("Longer description of what the action does"),
-  type: z
-    .enum(["create-pr", "create-issue", "run-command", "link"])
-    .describe("Action type"),
-  status: z
-    .enum(["pending", "completed", "failed", "in-progress"])
-    .optional()
-    .describe("Current execution status"),
-  params: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe("Action-specific parameters"),
-});
-export type ReportAction = z.infer<typeof ReportActionSchema>;
+export const ReportLifecycleStatusSchema = z.enum([
+  "unread",
+  "read",
+  "dismissed",
+]);
+export type ReportLifecycleStatus = z.infer<typeof ReportLifecycleStatusSchema>;
 
 /**
  * Summary of a report returned by REPORTS_LIST.
@@ -116,17 +101,15 @@ export const ReportSummarySchema = z.object({
     .string()
     .optional()
     .describe(
-      "Source tool or service (e.g. 'pagespeed-insights', 'npm-audit')",
+      "Agent or service that generated the report (e.g. 'security-auditor', 'performance-monitor')",
     ),
-  actionCount: z.number().describe("Number of available actionable items"),
-  read: z
-    .boolean()
+  tags: z
+    .array(z.string())
     .optional()
-    .describe("Whether this report has been viewed by the user"),
-  dismissed: z
-    .boolean()
-    .optional()
-    .describe("Whether this report has been dismissed/completed"),
+    .describe("Free-form tags for filtering (e.g. 'homepage', 'api', 'ci')"),
+  lifecycleStatus: ReportLifecycleStatusSchema.optional().describe(
+    "Inbox lifecycle status of the report (default: unread)",
+  ),
 });
 export type ReportSummary = z.infer<typeof ReportSummarySchema>;
 
@@ -135,7 +118,6 @@ export type ReportSummary = z.infer<typeof ReportSummarySchema>;
  */
 export const ReportSchema = ReportSummarySchema.extend({
   sections: z.array(ReportSectionSchema).describe("Ordered content sections"),
-  actions: z.array(ReportActionSchema).describe("Actionable items"),
 });
 export type Report = z.infer<typeof ReportSchema>;
 
@@ -174,64 +156,26 @@ export type ReportsGetInput = z.infer<typeof ReportsGetInputSchema>;
 export type ReportsGetOutput = z.infer<typeof ReportsGetOutputSchema>;
 
 /**
- * REPORTS_EXECUTE_ACTION - Execute an actionable item from a report
+ * REPORTS_UPDATE_STATUS - Update the lifecycle status of a report (optional tool)
  */
-const ReportsExecuteActionInputSchema = z.object({
+const ReportsUpdateStatusInputSchema = z.object({
   reportId: z.string().describe("Report identifier"),
-  actionId: z.string().describe("Action identifier within the report"),
+  lifecycleStatus: ReportLifecycleStatusSchema.describe(
+    "New lifecycle status for the report",
+  ),
 });
 
-const ReportsExecuteActionOutputSchema = z.object({
-  success: z.boolean().describe("Whether the action was executed successfully"),
-  message: z.string().optional().describe("Human-readable result message"),
-  url: z
-    .string()
-    .optional()
-    .describe("URL of the created resource (e.g. PR URL, issue URL)"),
-});
-
-export type ReportsExecuteActionInput = z.infer<
-  typeof ReportsExecuteActionInputSchema
->;
-export type ReportsExecuteActionOutput = z.infer<
-  typeof ReportsExecuteActionOutputSchema
->;
-
-/**
- * REPORTS_MARK_READ - Mark a report as read/unread (optional tool)
- */
-const ReportsMarkReadInputSchema = z.object({
-  reportId: z.string().describe("Report identifier"),
-  read: z
-    .boolean()
-    .describe("Whether to mark as read (true) or unread (false)"),
-});
-
-const ReportsMarkReadOutputSchema = z.object({
+const ReportsUpdateStatusOutputSchema = z.object({
   success: z.boolean().describe("Whether the operation succeeded"),
   message: z.string().optional().describe("Human-readable result message"),
 });
 
-export type ReportsMarkReadInput = z.infer<typeof ReportsMarkReadInputSchema>;
-export type ReportsMarkReadOutput = z.infer<typeof ReportsMarkReadOutputSchema>;
-
-/**
- * REPORTS_DISMISS - Dismiss/un-dismiss a report (optional tool)
- */
-const ReportsDismissInputSchema = z.object({
-  reportId: z.string().describe("Report identifier"),
-  dismissed: z
-    .boolean()
-    .describe("Whether to dismiss (true) or restore (false)"),
-});
-
-const ReportsDismissOutputSchema = z.object({
-  success: z.boolean().describe("Whether the operation succeeded"),
-  message: z.string().optional().describe("Human-readable result message"),
-});
-
-export type ReportsDismissInput = z.infer<typeof ReportsDismissInputSchema>;
-export type ReportsDismissOutput = z.infer<typeof ReportsDismissOutputSchema>;
+export type ReportsUpdateStatusInput = z.infer<
+  typeof ReportsUpdateStatusInputSchema
+>;
+export type ReportsUpdateStatusOutput = z.infer<
+  typeof ReportsUpdateStatusOutputSchema
+>;
 
 // ============================================================================
 // Binding Definition
@@ -240,17 +184,15 @@ export type ReportsDismissOutput = z.infer<typeof ReportsDismissOutputSchema>;
 /**
  * Reports Binding
  *
- * Defines the interface for viewing automated reports with actionable insights.
+ * Defines the interface for viewing automated reports.
  * Any MCP that implements this binding can be used with the Reports plugin.
  *
  * Required tools:
  * - REPORTS_LIST: List available reports with optional filtering
- * - REPORTS_GET: Get a single report with full content and actions
- * - REPORTS_EXECUTE_ACTION: Execute an actionable item (e.g. create a PR)
+ * - REPORTS_GET: Get a single report with full content
  *
  * Optional tools:
- * - REPORTS_MARK_READ: Mark a report as read/unread
- * - REPORTS_DISMISS: Dismiss or restore a report
+ * - REPORTS_UPDATE_STATUS: Update the lifecycle status of a report (unread → read → dismissed)
  */
 export const REPORTS_BINDING = [
   {
@@ -264,33 +206,14 @@ export const REPORTS_BINDING = [
     outputSchema: ReportsGetOutputSchema,
   } satisfies ToolBinder<"REPORTS_GET", ReportsGetInput, ReportsGetOutput>,
   {
-    name: "REPORTS_EXECUTE_ACTION" as const,
-    inputSchema: ReportsExecuteActionInputSchema,
-    outputSchema: ReportsExecuteActionOutputSchema,
-  } satisfies ToolBinder<
-    "REPORTS_EXECUTE_ACTION",
-    ReportsExecuteActionInput,
-    ReportsExecuteActionOutput
-  >,
-  {
-    name: "REPORTS_MARK_READ" as const,
-    inputSchema: ReportsMarkReadInputSchema,
-    outputSchema: ReportsMarkReadOutputSchema,
+    name: "REPORTS_UPDATE_STATUS" as const,
+    inputSchema: ReportsUpdateStatusInputSchema,
+    outputSchema: ReportsUpdateStatusOutputSchema,
     opt: true,
   } satisfies ToolBinder<
-    "REPORTS_MARK_READ",
-    ReportsMarkReadInput,
-    ReportsMarkReadOutput
-  >,
-  {
-    name: "REPORTS_DISMISS" as const,
-    inputSchema: ReportsDismissInputSchema,
-    outputSchema: ReportsDismissOutputSchema,
-    opt: true,
-  } satisfies ToolBinder<
-    "REPORTS_DISMISS",
-    ReportsDismissInput,
-    ReportsDismissOutput
+    "REPORTS_UPDATE_STATUS",
+    ReportsUpdateStatusInput,
+    ReportsUpdateStatusOutput
   >,
 ] as const satisfies Binder;
 

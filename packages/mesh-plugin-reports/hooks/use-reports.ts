@@ -44,7 +44,7 @@ export function useReportsList(options?: {
 }
 
 /**
- * Fetch a single report by ID with full content and actions.
+ * Fetch a single report by ID with full content.
  */
 export function useReport(reportId: string) {
   const { connectionId, toolCaller } =

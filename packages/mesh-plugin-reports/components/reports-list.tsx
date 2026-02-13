@@ -36,7 +36,6 @@ import {
   FileCheck02,
   Inbox01,
   InfoCircle,
-  Lightning01,
   Loading01,
   XCircle,
 } from "@untitledui/icons";
@@ -122,7 +121,8 @@ function ReportCard({
   onSelect: (id: string) => void;
   onDismiss: (id: string, dismissed: boolean) => void;
 }) {
-  const isUnread = !report.read && !report.dismissed;
+  const isUnread =
+    !report.lifecycleStatus || report.lifecycleStatus === "unread";
 
   return (
     <Card
@@ -185,12 +185,6 @@ function ReportCard({
             )}
           </div>
           <div className="flex items-center gap-3">
-            {report.actionCount > 0 && (
-              <span className="inline-flex items-center gap-1">
-                <Lightning01 size={12} />
-                {report.actionCount}
-              </span>
-            )}
             <span className="inline-flex items-center gap-1">
               <Clock size={12} />
               {formatTimeAgo(report.updatedAt)}
@@ -279,10 +273,16 @@ export default function ReportsList({
   const allReports = data?.reports ?? [];
 
   // Split into inbox / done
-  const inboxReports = allReports.filter((r) => !r.dismissed);
-  const doneReports = allReports.filter((r) => r.dismissed === true);
+  const inboxReports = allReports.filter(
+    (r) => r.lifecycleStatus !== "dismissed",
+  );
+  const doneReports = allReports.filter(
+    (r) => r.lifecycleStatus === "dismissed",
+  );
   const visibleReports = tab === "inbox" ? inboxReports : doneReports;
-  const unreadCount = inboxReports.filter((r) => !r.read).length;
+  const unreadCount = inboxReports.filter(
+    (r) => !r.lifecycleStatus || r.lifecycleStatus === "unread",
+  ).length;
 
   // Derive unique categories from the full list
   const { data: allData } = useReportsList();
@@ -294,12 +294,12 @@ export default function ReportsList({
   const dismissMutation = useMutation({
     mutationFn: async ({
       reportId,
-      dismissed,
+      lifecycleStatus,
     }: {
       reportId: string;
-      dismissed: boolean;
+      lifecycleStatus: "read" | "dismissed";
     }) => {
-      return toolCaller("REPORTS_DISMISS", { reportId, dismissed });
+      return toolCaller("REPORTS_UPDATE_STATUS", { reportId, lifecycleStatus });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -312,7 +312,10 @@ export default function ReportsList({
   });
 
   const handleDismiss = (reportId: string, dismissed: boolean) => {
-    dismissMutation.mutate({ reportId, dismissed });
+    dismissMutation.mutate({
+      reportId,
+      lifecycleStatus: dismissed ? "dismissed" : "read",
+    });
   };
 
   if (error) {

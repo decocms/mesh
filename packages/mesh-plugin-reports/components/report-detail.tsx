@@ -4,9 +4,8 @@
  * Displays a single report with its full content:
  * - Header with title, status, category, source, timestamp
  * - Sections rendered by ReportSectionRenderer
- * - Actionable items at the bottom
  *
- * Automatically marks the report as read on mount via REPORTS_MARK_READ.
+ * Automatically marks the report as read on mount via REPORTS_UPDATE_STATUS.
  * Provides a "Mark as done" button that dismisses the report.
  */
 
@@ -29,7 +28,6 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useReport } from "../hooks/use-reports";
 import { KEYS } from "../lib/query-keys";
-import { ReportActions } from "./report-actions";
 import { ReportSectionRenderer } from "./report-sections";
 
 // ---------------------------------------------------------------------------
@@ -109,7 +107,10 @@ export default function ReportDetail({
     if (markedReadRef.current) return;
     markedReadRef.current = true;
 
-    toolCaller("REPORTS_MARK_READ", { reportId, read: true })
+    toolCaller("REPORTS_UPDATE_STATUS", {
+      reportId,
+      lifecycleStatus: "read",
+    })
       .then(() => {
         queryClient.invalidateQueries({
           queryKey: KEYS.reportsList(connectionId),
@@ -123,7 +124,10 @@ export default function ReportDetail({
   // Dismiss mutation
   const dismissMutation = useMutation({
     mutationFn: async () => {
-      return toolCaller("REPORTS_DISMISS", { reportId, dismissed: true });
+      return toolCaller("REPORTS_UPDATE_STATUS", {
+        reportId,
+        lifecycleStatus: "dismissed",
+      });
     },
     onSuccess: () => {
       toast.success("Report marked as done");
@@ -231,13 +235,6 @@ export default function ReportDetail({
           <ReportSectionRenderer key={idx} section={section} />
         ))}
       </div>
-
-      {/* Actions */}
-      {report.actions.length > 0 && (
-        <div className="border-t border-border px-6 py-5">
-          <ReportActions reportId={report.id} actions={report.actions} />
-        </div>
-      )}
     </div>
   );
 }

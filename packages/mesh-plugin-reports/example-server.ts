@@ -34,14 +34,7 @@ type ReportSection =
       rows: (string | number | null)[][];
     };
 
-interface ReportAction {
-  id: string;
-  label: string;
-  description?: string;
-  type: "create-pr" | "create-issue" | "run-command" | "link";
-  status?: "pending" | "completed" | "failed" | "in-progress";
-  params?: Record<string, unknown>;
-}
+type ReportLifecycleStatus = "unread" | "read" | "dismissed";
 
 interface Report {
   id: string;
@@ -51,11 +44,9 @@ interface Report {
   summary: string;
   updatedAt: string;
   source?: string;
-  actionCount: number;
-  read: boolean;
-  dismissed: boolean;
+  tags?: string[];
+  lifecycleStatus: ReportLifecycleStatus;
   sections: ReportSection[];
-  actions: ReportAction[];
 }
 
 const REPORTS: Report[] = [
@@ -67,9 +58,8 @@ const REPORTS: Report[] = [
     summary: "Performance score dropped from 92 to 78",
     updatedAt: new Date().toISOString(),
     source: "pagespeed-insights",
-    actionCount: 2,
-    read: false,
-    dismissed: false,
+    tags: ["homepage", "web-vitals"],
+    lifecycleStatus: "unread",
     sections: [
       {
         type: "markdown",
@@ -144,24 +134,6 @@ const REPORTS: Report[] = [
         ],
       },
     ],
-    actions: [
-      {
-        id: "optimize-images",
-        label: "Optimize images",
-        description:
-          "Create a PR that compresses hero-image.jpg and converts it to WebP format (~90% size reduction)",
-        type: "create-pr",
-        status: "pending",
-      },
-      {
-        id: "view-pagespeed",
-        label: "View full PageSpeed report",
-        type: "link",
-        params: {
-          url: "https://pagespeed.web.dev/analysis/https-example-com/abc123",
-        },
-      },
-    ],
   },
   {
     id: "security-deps",
@@ -171,9 +143,8 @@ const REPORTS: Report[] = [
     summary: "3 critical, 5 high severity vulnerabilities found",
     updatedAt: new Date(Date.now() - 3600_000).toISOString(),
     source: "npm-audit",
-    actionCount: 3,
-    read: false,
-    dismissed: false,
+    tags: ["dependencies", "ci"],
+    lifecycleStatus: "unread",
     sections: [
       {
         type: "markdown",
@@ -260,30 +231,6 @@ const REPORTS: Report[] = [
         ],
       },
     ],
-    actions: [
-      {
-        id: "auto-fix-deps",
-        label: "Auto-fix dependencies",
-        description:
-          "Create a PR running `npm audit fix` to patch all auto-fixable vulnerabilities",
-        type: "create-pr",
-        status: "pending",
-      },
-      {
-        id: "create-tracking-issue",
-        label: "Create tracking issue",
-        description:
-          "Open a GitHub issue to track manual remediation of remaining vulnerabilities",
-        type: "create-issue",
-        status: "pending",
-      },
-      {
-        id: "view-audit",
-        label: "View full audit report",
-        type: "link",
-        params: { url: "https://github.com/example/repo/security/dependabot" },
-      },
-    ],
   },
   {
     id: "a11y-landing",
@@ -293,9 +240,8 @@ const REPORTS: Report[] = [
     summary: "98/100 accessibility score, 2 minor issues",
     updatedAt: new Date(Date.now() - 86400_000).toISOString(),
     source: "axe-core",
-    actionCount: 1,
-    read: true,
-    dismissed: false,
+    tags: ["landing-page", "wcag"],
+    lifecycleStatus: "read",
     sections: [
       {
         type: "markdown",
@@ -336,16 +282,6 @@ const REPORTS: Report[] = [
         ],
       },
     ],
-    actions: [
-      {
-        id: "fix-contrast",
-        label: "Fix contrast issues",
-        description:
-          "Create a PR to update footer text color to meet WCAG AA requirements",
-        type: "create-pr",
-        status: "pending",
-      },
-    ],
   },
   {
     id: "bundle-analysis",
@@ -355,9 +291,8 @@ const REPORTS: Report[] = [
     summary: "Total bundle: 1.2 MB (gzipped: 380 KB)",
     updatedAt: new Date(Date.now() - 172800_000).toISOString(),
     source: "webpack-bundle-analyzer",
-    actionCount: 0,
-    read: true,
-    dismissed: true,
+    tags: ["build", "ci"],
+    lifecycleStatus: "dismissed",
     sections: [
       {
         type: "markdown",
@@ -388,7 +323,6 @@ const REPORTS: Report[] = [
         ],
       },
     ],
-    actions: [],
   },
 ];
 
@@ -422,9 +356,7 @@ function createServer(): McpServer {
         filtered = filtered.filter((r) => r.status === args.status);
       }
 
-      const summaries = filtered.map(
-        ({ sections, actions, ...summary }) => summary,
-      );
+      const summaries = filtered.map(({ sections, ...summary }) => summary);
 
       return {
         content: [
@@ -457,13 +389,15 @@ function createServer(): McpServer {
     },
   );
 
-  // --- REPORTS_EXECUTE_ACTION ---
+  // --- REPORTS_UPDATE_STATUS ---
   server.tool(
-    "REPORTS_EXECUTE_ACTION",
-    "Execute an actionable item from a report",
+    "REPORTS_UPDATE_STATUS",
+    "Update the lifecycle status of a report",
     {
       reportId: z.string().describe("Report identifier"),
-      actionId: z.string().describe("Action identifier within the report"),
+      lifecycleStatus: z
+        .enum(["unread", "read", "dismissed"])
+        .describe("New lifecycle status"),
     },
     async (args) => {
       const report = REPORTS.find((r) => r.id === args.reportId);
@@ -478,117 +412,12 @@ function createServer(): McpServer {
         };
       }
 
-      const action = report.actions.find((a) => a.id === args.actionId);
-      if (!action) {
-        const result = {
-          success: false,
-          message: `Action "${args.actionId}" not found in report "${args.reportId}"`,
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result) }],
-          structuredContent: result,
-        };
-      }
-
-      // Simulate execution
-      console.log(`\n${"=".repeat(60)}`);
-      console.log(`EXECUTING ACTION: ${action.label}`);
-      console.log(`  Report:  ${report.title}`);
-      console.log(`  Type:    ${action.type}`);
-      console.log(`  Action:  ${action.id}`);
-      if (action.description) {
-        console.log(`  Desc:    ${action.description}`);
-      }
-      if (action.params) {
-        console.log(`  Params:  ${JSON.stringify(action.params)}`);
-      }
-      console.log(`${"=".repeat(60)}\n`);
-
-      // Update the action status in memory
-      action.status = "completed";
+      report.lifecycleStatus = args.lifecycleStatus;
+      console.log(`[UPDATE_STATUS] ${report.title} -> ${args.lifecycleStatus}`);
 
       const result = {
         success: true,
-        message: `Action "${action.label}" executed successfully (simulated)`,
-        url:
-          action.type === "link"
-            ? (action.params?.url as string)
-            : `https://github.com/example/repo/pull/42`,
-      };
-
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        structuredContent: result,
-      };
-    },
-  );
-
-  // --- REPORTS_MARK_READ ---
-  server.tool(
-    "REPORTS_MARK_READ",
-    "Mark a report as read or unread",
-    {
-      reportId: z.string().describe("Report identifier"),
-      read: z
-        .boolean()
-        .describe("Whether to mark as read (true) or unread (false)"),
-    },
-    async (args) => {
-      const report = REPORTS.find((r) => r.id === args.reportId);
-      if (!report) {
-        const result = {
-          success: false,
-          message: `Report "${args.reportId}" not found`,
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result) }],
-          structuredContent: result,
-        };
-      }
-
-      report.read = args.read;
-      console.log(`[MARK_READ] ${report.title} -> read=${args.read}`);
-
-      const result = {
-        success: true,
-        message: `Report marked as ${args.read ? "read" : "unread"}`,
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        structuredContent: result,
-      };
-    },
-  );
-
-  // --- REPORTS_DISMISS ---
-  server.tool(
-    "REPORTS_DISMISS",
-    "Dismiss or restore a report",
-    {
-      reportId: z.string().describe("Report identifier"),
-      dismissed: z
-        .boolean()
-        .describe("Whether to dismiss (true) or restore (false)"),
-    },
-    async (args) => {
-      const report = REPORTS.find((r) => r.id === args.reportId);
-      if (!report) {
-        const result = {
-          success: false,
-          message: `Report "${args.reportId}" not found`,
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result) }],
-          structuredContent: result,
-        };
-      }
-
-      report.dismissed = args.dismissed;
-      console.log(`[DISMISS] ${report.title} -> dismissed=${args.dismissed}`);
-
-      const result = {
-        success: true,
-        message: `Report ${args.dismissed ? "dismissed" : "restored to inbox"}`,
+        message: `Report status updated to "${args.lifecycleStatus}"`,
       };
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],
