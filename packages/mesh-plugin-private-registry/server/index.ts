@@ -11,8 +11,9 @@ export const serverPlugin: ServerPlugin = {
   tools,
   migrations,
   publicRoutes: (app, ctx) => {
-    publicMCPServerRoutes(app, ctx);
+    // Register specific routes BEFORE the wildcard MCP catch-all
     publicPublishRequestRoutes(app, ctx);
+    publicMCPServerRoutes(app, ctx);
   },
   createStorage,
 };
