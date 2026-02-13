@@ -176,7 +176,7 @@ export function publicPublishRequestRoutes(
           error: "Too many publish requests. Please try again later.",
           retryAfterSeconds: 3600,
         },
-        422,
+        429,
       );
     }
 
@@ -217,8 +217,9 @@ export function publicPublishRequestRoutes(
       );
     }
 
-    const created = await storage.create({
+    const created = await storage.createOrUpdate({
       organization_id: organizationId,
+      requested_id: parsed.data.data.id,
       title: parsed.data.data.title,
       description: parsed.data.data.description ?? null,
       _meta: parsed.data.data._meta,
@@ -230,6 +231,7 @@ export function publicPublishRequestRoutes(
     return c.json(
       {
         id: created.id,
+        requested_id: created.requested_id,
         status: created.status,
       },
       201,

@@ -20,6 +20,7 @@ export type PublishRequestStatus = "pending" | "approved" | "rejected";
 export interface PublishRequestTable {
   id: string;
   organization_id: string;
+  requested_id: ColumnType<string | null, string | null, string | null>;
   status: PublishRequestStatus;
   title: string;
   description: ColumnType<string | null, string | null, string | null>;
@@ -197,6 +198,7 @@ export interface PrivateRegistrySearchResult {
 export interface PublishRequestEntity {
   id: string;
   organization_id: string;
+  requested_id: string | null;
   status: PublishRequestStatus;
   title: string;
   description: string | null;
@@ -211,6 +213,7 @@ export interface PublishRequestEntity {
 
 export interface PublishRequestCreateInput {
   organization_id: string;
+  requested_id: string;
   title: string;
   description?: string | null;
   _meta?: RegistryItemMeta;

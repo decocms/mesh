@@ -264,6 +264,7 @@ export const PublishRequestStatusSchema = z.enum([
 export const PublishRequestSchema = z.object({
   id: z.string(),
   organization_id: z.string(),
+  requested_id: z.string().nullable().optional(),
   status: PublishRequestStatusSchema,
   title: z.string(),
   description: z.string().nullable().optional(),

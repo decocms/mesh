@@ -97,6 +97,7 @@ export type PublishRequestStatus = "pending" | "approved" | "rejected";
 export interface PublishRequest {
   id: string;
   organization_id: string;
+  requested_id?: string | null;
   status: PublishRequestStatus;
   title: string;
   description?: string | null;

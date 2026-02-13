@@ -25,16 +25,57 @@ function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
 export class PublishRequestStorage {
   constructor(private db: Kysely<PrivateRegistryDatabase>) {}
 
-  async create(
+  /**
+   * Create a new publish request, or update an existing pending request with
+   * the same `requested_id` (upsert behaviour — avoids duplicates).
+   */
+  async createOrUpdate(
     input: PublishRequestCreateInput,
   ): Promise<PublishRequestEntity> {
-    const id = randomUUID();
     const now = new Date().toISOString();
+
+    // Check for an existing pending request with the same requested_id
+    const existing = await this.findPendingByRequestedId(
+      input.organization_id,
+      input.requested_id,
+    );
+
+    if (existing) {
+      // Update the existing pending request with new data
+      const update: Updateable<
+        PrivateRegistryDatabase["private_registry_publish_request"]
+      > = {
+        title: input.title,
+        description: input.description ?? null,
+        server_json: JSON.stringify(input.server),
+        meta_json: input._meta ? JSON.stringify(input._meta) : null,
+        requester_name: input.requester_name ?? null,
+        requester_email: input.requester_email ?? null,
+        updated_at: now,
+      };
+
+      await this.db
+        .updateTable("private_registry_publish_request")
+        .set(update)
+        .where("organization_id", "=", input.organization_id)
+        .where("id", "=", existing.id)
+        .execute();
+
+      const updated = await this.findById(input.organization_id, existing.id);
+      if (!updated) {
+        throw new Error("Failed to update publish request");
+      }
+      return updated;
+    }
+
+    // Create new request
+    const id = randomUUID();
     const row: Insertable<
       PrivateRegistryDatabase["private_registry_publish_request"]
     > = {
       id,
       organization_id: input.organization_id,
+      requested_id: input.requested_id,
       status: "pending",
       title: input.title,
       description: input.description ?? null,
@@ -56,6 +97,23 @@ export class PublishRequestStorage {
       throw new Error("Failed to create publish request");
     }
     return created;
+  }
+
+  /**
+   * Find a pending publish request by its requested registry item ID.
+   */
+  async findPendingByRequestedId(
+    organizationId: string,
+    requestedId: string,
+  ): Promise<PublishRequestEntity | null> {
+    const row = await this.db
+      .selectFrom("private_registry_publish_request")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("requested_id", "=", requestedId)
+      .where("status", "=", "pending")
+      .executeTakeFirst();
+    return row ? this.deserialize(row as RawRow) : null;
   }
 
   async findById(
@@ -162,6 +220,7 @@ export class PublishRequestStorage {
     return {
       id: row.id,
       organization_id: row.organization_id,
+      requested_id: row.requested_id ?? null,
       status: row.status,
       title: row.title,
       description: row.description,

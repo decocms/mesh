@@ -50,7 +50,7 @@ function formatDate(value: string): string {
 
 function requestToDraft(request: PublishRequest) {
   return {
-    id: request.server?.name,
+    id: request.requested_id ?? request.server?.name,
     title: request.title,
     description: request.description ?? "",
     _meta: request._meta,
