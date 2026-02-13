@@ -255,13 +255,9 @@ export const RegistryAIGenerateOutputSchema = z.object({
 
 // ─── Publish Requests ───
 
-export const PublishRequestStatusSchema = z.enum([
-  "pending",
-  "approved",
-  "rejected",
-]);
+const PublishRequestStatusSchema = z.enum(["pending", "approved", "rejected"]);
 
-export const PublishRequestSchema = z.object({
+const PublishRequestSchema = z.object({
   id: z.string(),
   organization_id: z.string(),
   requested_id: z.string().nullable().optional(),
@@ -322,7 +318,7 @@ export const PublicPublishRequestInputSchema = z.object({
 
 // ─── Publish API Keys ───
 
-export const PublishApiKeySchema = z.object({
+const PublishApiKeySchema = z.object({
   id: z.string(),
   name: z.string(),
   prefix: z.string(),
