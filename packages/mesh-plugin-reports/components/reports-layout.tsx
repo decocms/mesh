@@ -72,7 +72,7 @@ export default function ReportsLayout() {
     navigate({
       search: id ? { reportId: id } : {},
       replace: true,
-    });
+    } as Parameters<typeof navigate>[0]);
   };
 
   // Fetch plugin config to get the configured connection
