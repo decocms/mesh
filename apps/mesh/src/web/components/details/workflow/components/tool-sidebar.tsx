@@ -7,6 +7,7 @@ import {
   useWorkflowActions,
 } from "../stores/workflow";
 import {
+  getDecopilotId,
   useMCPClient,
   useMCPToolsListQuery,
   useProjectContext,
@@ -19,14 +20,17 @@ interface ToolSidebarProps {
 }
 
 /**
- * Hook to get tools from the selected virtual MCP (agent)
+ * Hook to get tools from the selected virtual MCP (agent).
+ * Falls back to Decopilot (passthrough) when no agent is selected,
+ * which exposes all tools available in the organization.
  */
 function useVirtualMCPTools() {
   const { org } = useProjectContext();
-  const virtualMcpId = useSelectedVirtualMcpId();
+  const selectedId = useSelectedVirtualMcpId();
+  const virtualMcpId = selectedId ?? getDecopilotId(org.id);
 
   const client = useMCPClient({
-    connectionId: virtualMcpId ?? null,
+    connectionId: virtualMcpId,
     orgId: org.id,
   });
 
@@ -40,18 +44,6 @@ function useVirtualMCPTools() {
 }
 
 export function ToolSidebar({ className }: ToolSidebarProps) {
-  const virtualMcpId = useSelectedVirtualMcpId();
-
-  if (!virtualMcpId) {
-    return (
-      <div className={cn("flex flex-col h-full bg-sidebar", className)}>
-        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4 text-center">
-          Select an agent to see available tools
-        </div>
-      </div>
-    );
-  }
-
   return <ToolSelector className={className} />;
 }
 

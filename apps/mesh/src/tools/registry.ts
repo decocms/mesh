@@ -72,6 +72,14 @@ const ALL_TOOL_NAMES = [
   // Monitoring tools
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
+  // Monitoring Dashboard tools
+  "MONITORING_DASHBOARD_CREATE",
+  "MONITORING_DASHBOARD_GET",
+  "MONITORING_DASHBOARD_LIST",
+  "MONITORING_DASHBOARD_UPDATE",
+  "MONITORING_DASHBOARD_DELETE",
+  "MONITORING_DASHBOARD_QUERY",
+  "MONITORING_WIDGET_PREVIEW",
   // API Key tools
   "API_KEY_CREATE",
   "API_KEY_LIST",
@@ -314,6 +322,43 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "View monitoring statistics",
     category: "Monitoring",
   },
+  // Monitoring Dashboard tools
+  {
+    name: "MONITORING_DASHBOARD_CREATE",
+    description: "Create monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_GET",
+    description: "View dashboard details",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_LIST",
+    description: "List monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_UPDATE",
+    description: "Update monitoring dashboards",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_DASHBOARD_DELETE",
+    description: "Delete monitoring dashboards",
+    category: "Monitoring",
+    dangerous: true,
+  },
+  {
+    name: "MONITORING_DASHBOARD_QUERY",
+    description: "Query dashboard widget data",
+    category: "Monitoring",
+  },
+  {
+    name: "MONITORING_WIDGET_PREVIEW",
+    description: "Preview widget aggregation",
+    category: "Monitoring",
+  },
   {
     name: "API_KEY_CREATE",
     description: "Create API key",
@@ -526,6 +571,13 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_VIRTUAL_TOOLS_DELETE: "Delete virtual tools",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
+  MONITORING_DASHBOARD_CREATE: "Create monitoring dashboards",
+  MONITORING_DASHBOARD_GET: "View dashboard details",
+  MONITORING_DASHBOARD_LIST: "List monitoring dashboards",
+  MONITORING_DASHBOARD_UPDATE: "Update monitoring dashboards",
+  MONITORING_DASHBOARD_DELETE: "Delete monitoring dashboards",
+  MONITORING_DASHBOARD_QUERY: "Query dashboard widget data",
+  MONITORING_WIDGET_PREVIEW: "Preview widget aggregation",
   API_KEY_CREATE: "Create API key",
   API_KEY_LIST: "List API keys",
   API_KEY_UPDATE: "Update API key",

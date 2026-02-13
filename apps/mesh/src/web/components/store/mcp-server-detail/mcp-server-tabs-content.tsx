@@ -5,24 +5,23 @@ import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
 import { KEYS } from "@/web/lib/query-keys";
-
-import DOMPurify from "dompurify";
+import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
+import { MCPServersList } from "./mcp-servers-list";
+import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
 
 /**
  * Sanitize HTML generated from markdown to prevent XSS.
- * Uses DOMPurify which handles all known bypass vectors including
+ * Uses DOMPurify (lazy-loaded) which handles all known bypass vectors including
  * unquoted event handlers, SVG/MathML payloads, and style injection.
  */
-function sanitizeHtml(html: string): string {
+async function sanitizeHtml(html: string): Promise<string> {
+  const DOMPurify = (await import("dompurify")).default;
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ["style", "form"],
     FORBID_ATTR: ["style"],
   });
 }
-import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
-import { MCPServersList } from "./mcp-servers-list";
-import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
 
 interface MCPServerTabsContentProps {
   data: MCPServerData;
@@ -61,11 +60,19 @@ export function MCPServerTabsContent({
 }: MCPServerTabsContentProps) {
   const hasEmbeddedReadme = Boolean(data.readmeMarkdown?.trim());
   const hasReadmeUrl = Boolean(data.readmeUrl?.trim());
-  const embeddedReadmeHtml = hasEmbeddedReadme
-    ? sanitizeHtml(
-        marked.parse(data.readmeMarkdown ?? "", { async: false }) as string,
-      )
-    : null;
+
+  const { data: embeddedReadmeHtml, isLoading: isLoadingEmbeddedReadme } =
+    useQuery({
+      queryKey: KEYS.storeReadmeUrl(`embedded:${data.readmeMarkdown}`),
+      queryFn: async () => {
+        const rawHtml = marked.parse(data.readmeMarkdown ?? "", {
+          async: false,
+        }) as string;
+        return sanitizeHtml(rawHtml);
+      },
+      enabled: hasEmbeddedReadme,
+      staleTime: Infinity,
+    });
 
   const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
     queryKey: KEYS.storeReadmeUrl(data.readmeUrl),
@@ -84,7 +91,9 @@ export function MCPServerTabsContent({
   });
 
   const customReadmeHtml = embeddedReadmeHtml ?? fetchedReadmeHtml ?? null;
-  const customReadmeLoading = !hasEmbeddedReadme && isLoadingReadmeUrl;
+  const customReadmeLoading =
+    (hasEmbeddedReadme && isLoadingEmbeddedReadme) ||
+    (!hasEmbeddedReadme && isLoadingReadmeUrl);
 
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {

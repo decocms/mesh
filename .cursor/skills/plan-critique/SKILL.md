@@ -48,7 +48,7 @@ Critique the implementation plan from the [{PERSPECTIVE}] perspective.
 **Your role:** You are a critical reviewer focused ONLY on [{PERSPECTIVE}]. Be skeptical. Find gaps, risks, and oversights.
 
 **Check:**
-[PERSPECTIVE-SPECIFIC CHECKS - see critic-prompts.md]
+[PERSPECTIVE-SPECIFIC CHECKS - see references/critic-prompts.md]
 
 **Output format:**
 - **Issues found:** (Blocker / Important / Minor)
@@ -57,7 +57,7 @@ Critique the implementation plan from the [{PERSPECTIVE}] perspective.
 - **Verdict:** Ready / Needs changes / High risk
 ```
 
-For full prompts per perspective, see [critic-prompts.md](critic-prompts.md).
+For full prompts per perspective, see [references/critic-prompts.md](references/critic-prompts.md).
 
 ### 3. Synthesize Results
 

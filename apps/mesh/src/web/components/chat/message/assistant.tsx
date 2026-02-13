@@ -1,3 +1,8 @@
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@deco/ui/components/collapsible.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   ChevronRight,
@@ -11,9 +16,11 @@ import { MemoizedMarkdown } from "../markdown.tsx";
 import type { ChatMessage } from "../types.ts";
 import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
-import { SubtaskPart } from "./parts/subtask-part.tsx";
-import { ToolCallPart } from "./parts/tool-call-part.tsx";
-import { UserAskQuestionPart } from "./parts/user-ask-part.tsx";
+import {
+  GenericToolCallPart,
+  UserAskPart,
+  SubtaskPart,
+} from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 
 type ThinkingStage = "planning" | "thinking";
@@ -80,12 +87,11 @@ function ThoughtSummary({
   id,
   isStreaming,
 }: {
-  duration: number;
+  duration: number | null;
   parts: ReasoningPart[];
   id: string;
   isStreaming: boolean;
 }) {
-  const seconds = (duration / 1000).toFixed(1);
   const [isExpanded, setIsExpanded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -100,78 +106,86 @@ function ThoughtSummary({
     }
   }, [parts, isStreaming]);
 
-  // Always expanded while streaming, collapsible when done
-  const shouldShowContent = isStreaming || isExpanded;
-
   return (
     <div className="flex flex-col mb-2">
-      <button
-        type="button"
-        onClick={() => !isStreaming && setIsExpanded(!isExpanded)}
-        className={cn(
-          "group/thought-summary flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
-          !isStreaming && "cursor-pointer hover:opacity-100",
-          isStreaming && "cursor-default",
-        )}
+      <Collapsible
+        open={isStreaming || isExpanded}
+        onOpenChange={!isStreaming ? setIsExpanded : undefined}
       >
-        <span className="flex items-center gap-1.5">
-          {isStreaming ? (
-            <Stars01
-              className="text-muted-foreground shrink-0 shimmer"
-              size={14}
-            />
-          ) : (
-            <span className="relative w-[14px] h-[14px] shrink-0">
-              <ChevronRight
-                className={cn(
-                  "absolute inset-0 text-muted-foreground transition-transform",
-                  isExpanded && "rotate-90",
-                  "opacity-0 group-hover/thought-summary:opacity-100",
-                )}
-                size={14}
-              />
-              <Lightbulb01
-                className="absolute inset-0 text-muted-foreground shrink-0 opacity-100 group-hover/thought-summary:opacity-0 transition-opacity"
-                size={14}
-              />
-            </span>
-          )}
-          <span
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
             className={cn(
-              "text-[15px] text-muted-foreground",
-              isStreaming && "shimmer",
+              "group/thought-summary flex items-center gap-1.5 py-2 opacity-60 transition-opacity",
+              !isStreaming && "cursor-pointer hover:opacity-100",
+              isStreaming && "cursor-default",
             )}
           >
-            {isStreaming ? "Thinking..." : `Thought for ${seconds}s`}
-          </span>
-        </span>
-      </button>
-      {shouldShowContent && (
-        <div className="relative">
-          {/* Gradient overlay - only while streaming */}
-          {isStreaming && (
-            <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
-          )}
-          <div
-            ref={scrollContainerRef}
-            className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
-          >
-            {parts.map((part, index) => {
-              return (
-                <div
-                  key={`${id}-reasoning-${index}`}
-                  className="text-muted-foreground markdown-sm pb-2"
-                >
-                  <MemoizedMarkdown
-                    id={`${id}-reasoning-${index}`}
-                    text={part.text}
+            <span className="flex items-center gap-1.5">
+              {isStreaming ? (
+                <Stars01
+                  className="text-muted-foreground shrink-0 shimmer"
+                  size={14}
+                />
+              ) : (
+                <span className="relative w-[14px] h-[14px] shrink-0">
+                  <ChevronRight
+                    className={cn(
+                      "absolute inset-0 text-muted-foreground transition-transform",
+                      isExpanded && "rotate-90",
+                      "opacity-0 group-hover/thought-summary:opacity-100",
+                    )}
+                    size={14}
                   />
-                </div>
-              );
-            })}
+                  <Lightbulb01
+                    className="absolute inset-0 text-muted-foreground shrink-0 opacity-100 group-hover/thought-summary:opacity-0 transition-opacity"
+                    size={14}
+                  />
+                </span>
+              )}
+              <span
+                className={cn(
+                  "text-[15px] text-muted-foreground",
+                  isStreaming && "shimmer",
+                )}
+              >
+                {isStreaming
+                  ? "Thinking..."
+                  : duration !== null
+                    ? `Thought for ${(duration / 1000).toFixed(1)}s`
+                    : "Thought"}
+              </span>
+            </span>
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
+          <div className="relative">
+            {/* Gradient overlay - only while streaming */}
+            {isStreaming && (
+              <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
+            )}
+            <div
+              ref={scrollContainerRef}
+              className="ml-[6px] border-l-2 pl-4 mt-1 mb-2 h-[100px] overflow-y-auto"
+            >
+              {parts.map((part, index) => {
+                return (
+                  <div
+                    key={`${id}-reasoning-${index}`}
+                    className="text-muted-foreground markdown-sm pb-2"
+                  >
+                    <MemoizedMarkdown
+                      id={`${id}-reasoning-${index}`}
+                      text={part.text}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -195,50 +209,16 @@ interface MessagePartProps {
   part: MessagePart;
   id: string;
   usageStats?: ReactNode;
-  isFollowedByToolCall?: boolean;
-  isFirstToolCallInSequence?: boolean;
-  isLastToolCallInSequence?: boolean;
-  hasNextToolCall?: boolean;
 }
 
-function isToolCallPart(part: MessagePart | null | undefined): boolean {
-  return Boolean(
-    part?.type === "dynamic-tool" || part?.type?.startsWith("tool-"),
-  );
-}
-
-function MessagePart({
-  part,
-  id,
-  usageStats,
-  isFollowedByToolCall,
-  isFirstToolCallInSequence,
-  isLastToolCallInSequence,
-  hasNextToolCall,
-}: MessagePartProps) {
+function MessagePart({ part, id, usageStats }: MessagePartProps) {
   switch (part.type) {
     case "dynamic-tool":
-      return (
-        <ToolCallPart
-          part={part}
-          id={id}
-          isFirstInSequence={isFirstToolCallInSequence}
-          isLastInSequence={isLastToolCallInSequence}
-          hasNextToolCall={hasNextToolCall}
-        />
-      );
+      return <GenericToolCallPart part={part} />;
     case "tool-user_ask":
-      return (
-        <div className="my-2">
-          <UserAskQuestionPart part={part} />
-        </div>
-      );
+      return <UserAskPart part={part} />;
     case "tool-subtask":
-      return (
-        <div className="my-2 w-full">
-          <SubtaskPart part={part} />
-        </div>
-      );
+      return <SubtaskPart part={part} />;
     case "text":
       return (
         <MessageTextPart
@@ -246,7 +226,6 @@ function MessagePart({
           part={part}
           extraActions={usageStats}
           copyable
-          hasToolCallAfter={isFollowedByToolCall}
         />
       );
     case "reasoning":
@@ -260,15 +239,7 @@ function MessagePart({
     default: {
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
-        return (
-          <ToolCallPart
-            part={fallback}
-            id={id}
-            isFirstInSequence={isFirstToolCallInSequence}
-            isLastInSequence={isLastToolCallInSequence}
-            hasNextToolCall={hasNextToolCall}
-          />
-        );
+        return <GenericToolCallPart part={fallback} />;
       }
       throw new Error(`Unknown part type: ${fallback.type}`);
     }
@@ -339,7 +310,7 @@ export function MessageAssistant({
     <Container className={className}>
       {hasContent ? (
         <>
-          {hasReasoning && duration !== null && (
+          {hasReasoning && (
             <ThoughtSummary
               duration={duration}
               parts={reasoningParts}
@@ -349,16 +320,6 @@ export function MessageAssistant({
           )}
           {message.parts.map((part, index) => {
             const isLastPart = index === message.parts.length - 1;
-            const nextPart = message.parts[index + 1];
-            const prevPart = message.parts[index - 1];
-
-            const isToolCall = isToolCallPart(part);
-            const prevIsToolCall = isToolCallPart(prevPart);
-            const nextIsToolCall = isToolCallPart(nextPart);
-
-            const isFirstToolCallInSequence = isToolCall && !prevIsToolCall;
-            const isLastToolCallInSequence = isToolCall && !nextIsToolCall;
-            const hasNextToolCall = isToolCall && nextIsToolCall;
 
             return (
               <MessagePart
@@ -366,10 +327,6 @@ export function MessageAssistant({
                 part={part}
                 id={message.id}
                 usageStats={isLastPart && <UsageStats messages={[message]} />}
-                isFollowedByToolCall={nextIsToolCall}
-                isFirstToolCallInSequence={isFirstToolCallInSequence}
-                isLastToolCallInSequence={isLastToolCallInSequence}
-                hasNextToolCall={hasNextToolCall}
               />
             );
           })}

@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "2.88.0",
+  "version": "2.96.0",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "license": "MIT",
@@ -113,6 +113,7 @@
     "mesh-plugin-object-storage": "workspace:*",
     "mesh-plugin-private-registry": "workspace:*",
     "mesh-plugin-user-sandbox": "workspace:*",
+    "mesh-plugin-workflows": "workspace:*",
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
     "prettier": "^3.4.2",

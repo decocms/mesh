@@ -32,6 +32,8 @@ export interface VirtualClientOptions {
   virtualMcp: VirtualMCPEntity;
   /** Virtual tools defined on this Virtual MCP (tools with code in _meta["mcp.mesh"]["tool.fn"]) */
   virtualTools?: VirtualToolDefinition[];
+  /** Whether to use superuser mode for background processes (bypasses auth checks on sub-clients) */
+  superUser?: boolean;
 }
 
 /**

@@ -136,7 +136,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
               {data.map((item) => (
                 <div
                   key={item.id}

@@ -13,7 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
-import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
+import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
@@ -247,7 +247,7 @@ app.post("/:org/decopilot/stream", async (c) => {
 
     let resolvedTitle: string | null = null;
     let reasoningStartAt: Date | null = null;
-    let accumulatedUsage: UsageStats = emptyUsageStats();
+    let lastProviderMetadata: Record<string, unknown> | undefined;
 
     // 5. Main stream
     const result = streamText({
@@ -308,33 +308,40 @@ app.post("/:org/decopilot/stream", async (c) => {
         }
 
         if (part.type === "finish-step") {
-          accumulatedUsage = addUsage(accumulatedUsage, {
-            ...part.usage,
-            providerMetadata: part.providerMetadata,
-          });
-          const provider = models.thinking.provider;
-          return {
-            usage: {
-              inputTokens: accumulatedUsage.inputTokens,
-              outputTokens: accumulatedUsage.outputTokens,
-              reasoningTokens: accumulatedUsage.reasoningTokens || undefined,
-              totalTokens: accumulatedUsage.totalTokens,
-              providerMetadata: provider
-                ? {
-                    ...part.providerMetadata,
-                    [provider]: {
-                      ...(part.providerMetadata?.[provider] ?? {}),
-                      reasoning_details: undefined,
-                    },
-                  }
-                : part.providerMetadata,
-            },
-          };
+          lastProviderMetadata = part.providerMetadata;
+          return;
         }
 
         if (part.type === "finish") {
+          const provider = models.thinking.provider;
+          const totalUsage = part.totalUsage;
+          const providerMeta =
+            lastProviderMetadata ??
+            (part as { providerMetadata?: Record<string, unknown> })
+              .providerMetadata;
+          const usage = totalUsage
+            ? {
+                inputTokens: totalUsage.inputTokens ?? 0,
+                outputTokens: totalUsage.outputTokens ?? 0,
+                reasoningTokens: totalUsage.reasoningTokens ?? undefined,
+                totalTokens: totalUsage.totalTokens ?? 0,
+                providerMetadata: sanitizeProviderMetadata(
+                  provider && providerMeta
+                    ? {
+                        ...providerMeta,
+                        [provider]: {
+                          ...((providerMeta[provider] as object) ?? {}),
+                          reasoning_details: undefined,
+                        },
+                      }
+                    : providerMeta,
+                ),
+              }
+            : undefined;
+
           return {
             title: resolvedTitle ?? undefined,
+            ...(usage && { usage }),
           };
         }
 

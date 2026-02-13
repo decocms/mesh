@@ -433,6 +433,96 @@ export interface MonitoringLog {
 }
 
 // ============================================================================
+// Monitoring Dashboard Table Definitions
+// ============================================================================
+
+/**
+ * Aggregation function types for dashboard widgets
+ */
+export type AggregationFunction =
+  | "sum"
+  | "avg"
+  | "min"
+  | "max"
+  | "count"
+  | "last";
+
+/**
+ * Widget display types
+ */
+export type WidgetType = "metric" | "timeseries" | "table";
+
+/**
+ * Dashboard widget definition
+ * Defines how to extract and aggregate data from monitoring logs
+ */
+export interface DashboardWidget {
+  id: string;
+  name: string;
+  type: WidgetType;
+
+  // What to extract (JSONPath syntax)
+  source: {
+    path: string; // e.g., "$.usage.total_tokens"
+    from: "input" | "output";
+  };
+
+  // Aggregation configuration
+  aggregation: {
+    fn: AggregationFunction;
+    groupBy?: string; // Optional JSONPath for grouping
+    interval?: string; // For timeseries: "1h", "1d"
+  };
+
+  // Widget-specific filter overrides
+  filter?: {
+    connectionIds?: string[];
+    toolNames?: string[];
+  };
+}
+
+/**
+ * Dashboard-level filters applied to all widgets
+ */
+export interface DashboardFilters {
+  connectionIds?: string[];
+  virtualMcpIds?: string[];
+  toolNames?: string[];
+  propertyFilters?: Record<string, string>;
+}
+
+/**
+ * Monitoring Dashboard table definition
+ * Stores custom dashboards with JSONPath-based widgets
+ */
+export interface MonitoringDashboardTable {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  filters: JsonObject<DashboardFilters> | null; // JSON
+  widgets: JsonArray<DashboardWidget>; // JSON array
+  created_by: string;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
+ * Monitoring Dashboard runtime type
+ */
+export interface MonitoringDashboard {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  filters: DashboardFilters | null;
+  widgets: DashboardWidget[];
+  createdBy: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// ============================================================================
 // Event Bus Table Definitions
 // ============================================================================
 
@@ -784,6 +874,7 @@ export interface Database {
   organization_settings: OrganizationSettingsTable; // Organization-level configuration
   api_keys: ApiKeyTable; // Better Auth API keys
   monitoring_logs: MonitoringLogTable; // Tool call monitoring logs
+  monitoring_dashboards: MonitoringDashboardTable; // Custom monitoring dashboards
 
   // OAuth tables (for MCP OAuth server)
   oauth_clients: OAuthClientTable;
