@@ -20,10 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@deco/ui/components/table.tsx";
+import { Markdown } from "@deco/ui/components/markdown.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ArrowDown, ArrowUp, Minus } from "@untitledui/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -48,11 +47,7 @@ const STATUS_BG: Record<ReportStatus, string> = {
 // ---------------------------------------------------------------------------
 
 function MarkdownSection({ content }: { content: string }) {
-  return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-    </div>
-  );
+  return <Markdown>{content}</Markdown>;
 }
 
 // ---------------------------------------------------------------------------

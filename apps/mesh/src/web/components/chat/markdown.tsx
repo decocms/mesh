@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { Button } from "@deco/ui/components/button.tsx";
+import { markdownComponents as sharedMarkdownComponents } from "@deco/ui/components/markdown.tsx";
 import { Check, Copy01 } from "@untitledui/icons";
 // @ts-ignore - correct
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
@@ -129,74 +130,13 @@ function Table(props: React.HTMLAttributes<HTMLTableElement>) {
 const remarkPluginsMemo = [remarkGfm];
 const rehypePluginsMemo = [rehypeRaw];
 
-// Memoize the components object to prevent re-creating it on every render
+// Extend shared markdown components with chat-specific overrides (table with CSV copy)
 const markdownComponents = {
-  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
-    <p {...props} className="leading-relaxed text-[15px] mb-2 last:mb-0" />
-  ),
-  strong: (props: React.HTMLAttributes<HTMLElement>) => (
-    <strong {...props} className="font-bold" />
-  ),
-  em: (props: React.HTMLAttributes<HTMLElement>) => (
-    <em {...props} className="italic" />
-  ),
-  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a
-      {...props}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-primary-dark hover:underline break-all font-medium"
-    />
-  ),
-  ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul {...props} className="list-disc ml-6 my-4 space-y-2" />
-  ),
-  ol: (props: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol {...props} className="list-decimal ml-6 my-4 space-y-2" />
-  ),
-  li: (props: React.HTMLAttributes<HTMLLIElement>) => (
-    <li {...props} className="leading-relaxed text-[15px]" />
-  ),
-  code: (props: React.HTMLAttributes<HTMLElement>) => (
-    <code
-      {...props}
-      className="px-1 py-0.5 bg-muted rounded text-[15px] font-mono break-all"
-    />
-  ),
-  pre: (props: React.HTMLAttributes<HTMLPreElement>) => (
-    <pre
-      {...props}
-      className="flex w-full min-w-0 my-4 bg-muted rounded overflow-hidden"
-    >
-      <code className="flex-1 min-w-0 p-4 text-[15px] font-mono whitespace-pre overflow-x-auto">
-        {props.children}
-      </code>
-    </pre>
-  ),
+  ...sharedMarkdownComponents,
   table: (props: React.HTMLAttributes<HTMLTableElement>) => (
     <Table {...props} />
   ),
-  thead: (props: React.HTMLAttributes<HTMLTableSectionElement>) => (
-    <thead {...props} className="bg-muted">
-      {props.children}
-    </thead>
-  ),
-  tr: (props: React.HTMLAttributes<HTMLTableRowElement>) => (
-    <tr
-      {...props}
-      className="even:bg-muted/50 border-b border-border last:border-0"
-    />
-  ),
-  th: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <th
-      {...props}
-      className="px-4 py-2 text-left font-semibold text-muted-foreground border-b border-border"
-    />
-  ),
-  td: (props: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <td {...props} className="px-4 py-2 border-b border-border" />
-  ),
-};
+} as typeof sharedMarkdownComponents;
 
 const MemoizedMarkdownBlock = memo(
   ({ content }: { content: string }) => {

@@ -9,7 +9,11 @@
  * Provides a "Mark as done" button that dismisses the report.
  */
 
-import { REPORTS_BINDING, type ReportStatus } from "@decocms/bindings";
+import {
+  REPORTS_BINDING,
+  type Report,
+  type ReportStatus,
+} from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -18,13 +22,14 @@ import {
   CheckCircle,
   CheckDone01,
   Clock,
+  Copy01,
+  Inbox01,
   InfoCircle,
   Loading01,
   XCircle,
 } from "@untitledui/icons";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useReport } from "../hooks/use-reports";
 import { KEYS } from "../lib/query-keys";
@@ -86,6 +91,83 @@ function formatDate(iso: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Markdown export
+// ---------------------------------------------------------------------------
+
+function reportToMarkdown(report: Report): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`# ${report.title}`);
+  lines.push("");
+  lines.push(`> ${report.summary}`);
+  lines.push("");
+
+  // Meta
+  const meta: string[] = [
+    `**Status:** ${report.status}`,
+    `**Category:** ${report.category}`,
+  ];
+  if (report.source) meta.push(`**Source:** ${report.source}`);
+  meta.push(`**Updated:** ${report.updatedAt}`);
+  if (report.tags?.length) meta.push(`**Tags:** ${report.tags.join(", ")}`);
+  lines.push(meta.join("  \n"));
+  lines.push("");
+
+  // Sections
+  for (const section of report.sections) {
+    switch (section.type) {
+      case "markdown":
+        lines.push(section.content);
+        lines.push("");
+        break;
+
+      case "metrics": {
+        if (section.title) {
+          lines.push(`## ${section.title}`);
+          lines.push("");
+        }
+        const cols = ["Metric", "Value", "Previous", "Status"];
+        const hasUnit = section.items.some((m) => m.unit);
+        lines.push(`| ${cols.join(" | ")} |`);
+        lines.push(`| ${cols.map(() => "---").join(" | ")} |`);
+        for (const m of section.items) {
+          const val = hasUnit && m.unit ? `${m.value} ${m.unit}` : `${m.value}`;
+          const prev =
+            m.previousValue != null
+              ? hasUnit && m.unit
+                ? `${m.previousValue} ${m.unit}`
+                : `${m.previousValue}`
+              : "—";
+          const st = m.status ?? "—";
+          lines.push(`| ${m.label} | ${val} | ${prev} | ${st} |`);
+        }
+        lines.push("");
+        break;
+      }
+
+      case "table": {
+        if (section.title) {
+          lines.push(`## ${section.title}`);
+          lines.push("");
+        }
+        lines.push(`| ${section.columns.join(" | ")} |`);
+        lines.push(`| ${section.columns.map(() => "---").join(" | ")} |`);
+        for (const row of section.rows) {
+          lines.push(
+            `| ${row.map((c) => (c == null ? "—" : `${c}`)).join(" | ")} |`,
+          );
+        }
+        lines.push("");
+        break;
+      }
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -100,44 +182,28 @@ export default function ReportDetail({
     usePluginContext<typeof REPORTS_BINDING>();
   const queryClient = useQueryClient();
   const { data: report, isLoading, error } = useReport(reportId);
-  const markedReadRef = useRef(false);
 
-  // Auto-mark as read when the detail view mounts
-  useEffect(() => {
-    if (markedReadRef.current) return;
-    markedReadRef.current = true;
+  const isDismissed = report?.lifecycleStatus === "dismissed";
 
-    toolCaller("REPORTS_UPDATE_STATUS", {
-      reportId,
-      lifecycleStatus: "read",
-    })
-      .then(() => {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.reportsList(connectionId),
-        });
-      })
-      .catch(() => {
-        // Silently ignore -- server may not implement this optional tool
-      });
-  }, [reportId, connectionId, toolCaller, queryClient]);
-
-  // Dismiss mutation
-  const dismissMutation = useMutation({
+  // Toggle lifecycle status mutation
+  const statusMutation = useMutation({
     mutationFn: async () => {
       return toolCaller("REPORTS_UPDATE_STATUS", {
         reportId,
-        lifecycleStatus: "dismissed",
+        lifecycleStatus: isDismissed ? "read" : "dismissed",
       });
     },
     onSuccess: () => {
-      toast.success("Report marked as done");
+      toast.success(
+        isDismissed ? "Report restored to inbox" : "Report marked as done",
+      );
       queryClient.invalidateQueries({
         queryKey: KEYS.reportsList(connectionId),
       });
       onBack();
     },
     onError: (err) => {
-      toast.error(`Failed to dismiss report: ${err.message}`);
+      toast.error(`Failed to update report: ${err.message}`);
     },
   });
 
@@ -185,20 +251,38 @@ export default function ReportDetail({
             <ArrowLeft size={14} />
             Reports
           </button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => dismissMutation.mutate()}
-            disabled={dismissMutation.isPending}
-          >
-            {dismissMutation.isPending ? (
-              <Loading01 size={14} className="animate-spin" />
-            ) : (
-              <CheckDone01 size={14} />
-            )}
-            Mark as done
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                const md = reportToMarkdown(report);
+                navigator.clipboard.writeText(md).then(() => {
+                  toast.success("Copied report as Markdown");
+                });
+              }}
+            >
+              <Copy01 size={14} />
+              Copy as Markdown
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => statusMutation.mutate()}
+              disabled={statusMutation.isPending}
+            >
+              {statusMutation.isPending ? (
+                <Loading01 size={14} className="animate-spin" />
+              ) : isDismissed ? (
+                <Inbox01 size={14} />
+              ) : (
+                <CheckDone01 size={14} />
+              )}
+              {isDismissed ? "Move to inbox" : "Mark as done"}
+            </Button>
+          </div>
         </div>
 
         {/* Title row */}
