@@ -52,6 +52,8 @@ interface RegistrySettingsPageProps {
   initialLLMModelId: string;
   initialAcceptPublishRequests: boolean;
   initialRequireApiToken: boolean;
+  revealedKey: string | null;
+  onRevealedKeyChange: (key: string | null) => void;
 }
 
 export default function RegistrySettingsPage({
@@ -61,6 +63,8 @@ export default function RegistrySettingsPage({
   initialLLMModelId,
   initialAcceptPublishRequests,
   initialRequireApiToken,
+  revealedKey,
+  onRevealedKeyChange,
 }: RegistrySettingsPageProps) {
   const { org } = useProjectContext();
   const { uploadImage, isUploading: isUploadingIcon } = useImageUpload();
@@ -84,7 +88,6 @@ export default function RegistrySettingsPage({
   const apiKeysQuery = usePublishApiKeys();
   const { generateMutation, revokeMutation } = usePublishApiKeyMutations();
   const [newKeyName, setNewKeyName] = useState("");
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
 
   const itemsQuery = useRegistryItems({
@@ -186,7 +189,7 @@ export default function RegistrySettingsPage({
     try {
       const result = await generateMutation.mutateAsync(name);
       if (result?.key) {
-        setRevealedKey(result.key);
+        onRevealedKeyChange(result.key);
         setShowKey(true);
         setNewKeyName("");
         toast.success(
@@ -434,7 +437,7 @@ export default function RegistrySettingsPage({
                       size="sm"
                       className="w-fit"
                       onClick={() => {
-                        setRevealedKey(null);
+                        onRevealedKeyChange(null);
                         setShowKey(false);
                       }}
                     >

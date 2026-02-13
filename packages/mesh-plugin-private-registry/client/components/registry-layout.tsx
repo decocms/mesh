@@ -60,6 +60,7 @@ function HeaderTabs({
 
 export default function RegistryLayout() {
   const [activeTab, setActiveTab] = useState<NavItem["tab"]>("items");
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const {
     registryName,
     registryIcon,
@@ -145,6 +146,8 @@ export default function RegistryLayout() {
             initialLLMModelId={registryLLMModelId}
             initialAcceptPublishRequests={acceptPublishRequests}
             initialRequireApiToken={requireApiToken}
+            revealedKey={revealedKey}
+            onRevealedKeyChange={setRevealedKey}
           />
         )}
       </main>
