@@ -1,9 +1,9 @@
 ---
-name: review-critique
+name: review-pr
 description: Analyze the git diff between the current branch and main from multiple perspectives (duplication, correctness, security, performance, testing, architecture, scope) using parallel subagents, then produce a remediation plan for issues found. Use when reviewing branch changes before merge, after implementation, or when the user asks to critique or review current code changes.
 ---
 
-# Review Critique
+# Review PR
 
 Spawn parallel subagents to critique the git diff of the current branch (vs main) from independent perspectives. Synthesize findings into a prioritized remediation plan.
 
@@ -92,7 +92,7 @@ When all critics return:
 ### 4. Critique Summary
 
 ```markdown
-# Review Critique Summary
+# Review PR Summary
 
 **Branch:** {branch_name}
 **Files changed:** {count}
@@ -169,6 +169,6 @@ Transform findings into an actionable plan. Group by file or concern, not by cri
 
 ## Integration
 
-- **plan-critique** — Similar pattern but for plans; use review-critique for code
+- **review-plan** — Similar pattern but for plans; use review-pr for code
 - **superpowers:verification-before-completion** — Run after remediation to confirm fixes
-- **superpowers:finishing-a-development-branch** — Use review-critique before finishing
+- **superpowers:finishing-a-development-branch** — Use review-pr before finishing
