@@ -6,6 +6,7 @@
  */
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import type { UIMessageStreamWriter } from "ai";
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 
@@ -50,6 +51,13 @@ export interface AgentSearchParams {
   organization: OrganizationScope;
 }
 
+const AGENT_SEARCH_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
+
 /**
  * agent_search tool definition (AI SDK)
  *
@@ -57,6 +65,7 @@ export interface AgentSearchParams {
  * the database for Virtual MCPs and returns agent metadata.
  */
 export function createAgentSearchTool(
+  writer: UIMessageStreamWriter,
   params: AgentSearchParams,
   ctx: MeshContext,
 ) {
@@ -66,7 +75,14 @@ export function createAgentSearchTool(
     description,
     inputSchema: zodSchema(AgentSearchInputSchema),
     outputSchema: zodSchema(AgentSearchOutputSchema),
-    execute: async ({ search_term }) => {
+    execute: async ({ search_term }, options) => {
+      // Emit annotations as a data part tied to this tool call
+      writer.write({
+        type: "data-tool-annotations",
+        id: options.toolCallId,
+        data: { annotations: AGENT_SEARCH_ANNOTATIONS },
+      });
+
       // Fetch all Virtual MCPs for the organization
       const virtualMcps = await ctx.storage.virtualMcps.list(organization.id);
 

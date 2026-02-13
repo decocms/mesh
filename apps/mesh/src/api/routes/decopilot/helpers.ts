@@ -7,7 +7,14 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
-import { jsonSchema, JSONSchema7, JSONValue, tool, ToolSet } from "ai";
+import {
+  jsonSchema,
+  type JSONSchema7,
+  type JSONValue,
+  tool,
+  type ToolSet,
+  type UIMessageStreamWriter,
+} from "ai";
 import type { Context } from "hono";
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
@@ -32,7 +39,10 @@ export function ensureOrganization(
 /**
  * Convert MCP tools to AI SDK ToolSet
  */
-export async function toolsFromMCP(client: Client): Promise<ToolSet> {
+export async function toolsFromMCP(
+  client: Client,
+  writer?: UIMessageStreamWriter,
+): Promise<ToolSet> {
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
@@ -48,6 +58,15 @@ export async function toolsFromMCP(client: Client): Promise<ToolSet> {
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
         execute: (input, options) => {
+          // Emit annotations as a data part tied to this specific tool call
+          if (writer && t.annotations) {
+            writer.write({
+              type: "data-tool-annotations",
+              id: options.toolCallId,
+              data: { annotations: t.annotations },
+            });
+          }
+
           return client.callTool(
             {
               name: t.name,

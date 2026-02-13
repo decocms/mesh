@@ -18,10 +18,11 @@ import { UsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import {
   GenericToolCallPart,
-  UserAskPart,
   SubtaskPart,
+  UserAskPart,
 } from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
+import { useFilterParts, type DataParts } from "./use-filter-parts.ts";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -194,10 +195,6 @@ type MessagePart = ChatMessage["parts"][number];
 
 type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
 
-function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === "reasoning";
-}
-
 interface MessageAssistantProps {
   message: ChatMessage | null;
   status?: "streaming" | "submitted" | "ready" | "error";
@@ -209,16 +206,28 @@ interface MessagePartProps {
   part: MessagePart;
   id: string;
   usageStats?: ReactNode;
+  dataParts: DataParts;
 }
 
-function MessagePart({ part, id, usageStats }: MessagePartProps) {
+function MessagePart({ part, id, usageStats, dataParts }: MessagePartProps) {
   switch (part.type) {
     case "dynamic-tool":
-      return <GenericToolCallPart part={part} />;
+      return (
+        <GenericToolCallPart
+          part={part}
+          annotations={dataParts.toolAnnotations.get(part.toolCallId)}
+        />
+      );
     case "tool-user_ask":
       return <UserAskPart part={part} />;
     case "tool-subtask":
-      return <SubtaskPart part={part} />;
+      return (
+        <SubtaskPart
+          part={part}
+          subtaskMeta={dataParts.subtaskResult.get(part.toolCallId)}
+          annotations={dataParts.toolAnnotations.get(part.toolCallId)}
+        />
+      );
     case "text":
       return (
         <MessageTextPart
@@ -229,17 +238,29 @@ function MessagePart({ part, id, usageStats }: MessagePartProps) {
         />
       );
     case "reasoning":
-      // Don't render reasoning inline - it's shown in ThoughtSummary
       return null;
     case "step-start":
     case "file":
     case "source-url":
     case "source-document":
       return null;
+    case "data-tool-annotations":
+    case "data-subtask-result":
+      return null;
     default: {
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
-        return <GenericToolCallPart part={fallback} />;
+        return (
+          <GenericToolCallPart
+            part={fallback}
+            annotations={dataParts.toolAnnotations.get(
+              (fallback as ToolUIPart).toolCallId,
+            )}
+          />
+        );
+      }
+      if (fallback.type.startsWith("data-")) {
+        return null;
       }
       throw new Error(`Unknown part type: ${fallback.type}`);
     }
@@ -290,8 +311,8 @@ export function MessageAssistant({
   // Handle null message or empty parts
   const hasContent = message !== null && message.parts.length > 0;
 
-  // Reasoning logic (only when message exists)
-  const reasoningParts = message?.parts?.filter(isReasoningPart) ?? [];
+  // Use hook to extract reasoning and data parts in a single pass
+  const { reasoningParts, dataParts } = useFilterParts(message);
   const hasReasoning = reasoningParts.length > 0;
 
   const reasoningStartAt = message?.metadata?.reasoning_start_at
@@ -327,6 +348,7 @@ export function MessageAssistant({
                 part={part}
                 id={message.id}
                 usageStats={isLastPart && <UsageStats messages={[message]} />}
+                dataParts={dataParts}
               />
             );
           })}

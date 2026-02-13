@@ -18,6 +18,8 @@ export interface ToolCallShellProps {
   icon: ReactNode;
   /** Primary label (tool name, question text, agent title) */
   title: string;
+  /** Optional annotation badges rendered after the title */
+  badges?: ReactNode;
   /** Usage for the operation (optional). Tokens always shown when provided; cost shown when cost > 0. */
   usage?: { tokens: number; cost?: number };
   /** Latency in seconds for the operation (optional) */
@@ -33,6 +35,7 @@ export interface ToolCallShellProps {
 export function ToolCallShell({
   icon,
   title,
+  badges,
   usage,
   latencySeconds,
   summary,
@@ -90,6 +93,7 @@ export function ToolCallShell({
                   {metricsStr}
                 </span>
               )}
+              {badges}
               {isExpandable && (
                 <ChevronRight
                   className={cn(

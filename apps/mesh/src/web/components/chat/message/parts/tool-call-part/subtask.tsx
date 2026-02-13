@@ -1,8 +1,10 @@
 "use client";
 
 import { Users03 } from "@untitledui/icons";
+import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { ToolCallShell } from "./common.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
+import { ToolAnnotationBadges } from "@/web/components/tools";
 import { useChat } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
 import type { SubtaskResultMeta } from "@/api/routes/decopilot/built-in-tools/subtask";
@@ -10,9 +12,17 @@ import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
+  /** Subtask result from data part */
+  subtaskMeta?: SubtaskResultMeta;
+  /** Tool annotations from data part */
+  annotations?: ToolDefinition["annotations"];
 }
 
-export function SubtaskPart({ part }: SubtaskPartProps) {
+export function SubtaskPart({
+  part,
+  subtaskMeta,
+  annotations,
+}: SubtaskPartProps) {
   const { virtualMcps } = useChat();
 
   // State computation
@@ -34,14 +44,7 @@ export function SubtaskPart({ part }: SubtaskPartProps) {
   const agentId = part.input?.agent_id;
   const agent = agentId ? virtualMcps.find((v) => v.id === agentId) : null;
 
-  // Usage extraction (only when complete)
-  const subtaskMeta = isComplete
-    ? (
-        part.output?.metadata as
-          | { subtaskResult?: SubtaskResultMeta }
-          | undefined
-      )?.subtaskResult
-    : undefined;
+  // Usage extraction from data part
   const usage = subtaskMeta?.usage;
   const tokens = usage && usage.totalTokens > 0 ? usage.totalTokens : undefined;
 
@@ -82,6 +85,11 @@ export function SubtaskPart({ part }: SubtaskPartProps) {
       <ToolCallShell
         icon={icon}
         title={title}
+        badges={
+          annotations ? (
+            <ToolAnnotationBadges annotations={annotations} />
+          ) : undefined
+        }
         usage={tokens ? { tokens } : undefined}
         summary={summary}
         state={effectiveState}

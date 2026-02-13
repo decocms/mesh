@@ -8,7 +8,7 @@
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { addUsage, emptyUsageStats, type UsageStats } from "@decocms/mesh-sdk";
-import type { UIMessage } from "ai";
+import type { UIMessageStreamWriter } from "ai";
 import {
   readUIMessageStream,
   stepCountIs,
@@ -50,28 +50,6 @@ export interface SubtaskResultMeta {
   usage: UsageStats;
 }
 
-/**
- * Build metadata for subtask final yield. Explicitly does NOT spread
- * lastMessage.metadata to prevent usage leakage into parent message.
- */
-export function buildSubtaskFinalMetadata(
-  lastMessage: UIMessage,
-  accumulatedUsage: UsageStats,
-  agentId: string,
-  models: ModelsConfig,
-): UIMessage {
-  return {
-    ...lastMessage,
-    metadata: {
-      subtaskResult: {
-        usage: accumulatedUsage,
-        agent: agentId,
-        models,
-      },
-    },
-  };
-}
-
 const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
   "and returns results when complete. Use this when a task is better handled by a specialized agent, " +
@@ -86,6 +64,13 @@ export interface SubtaskParams {
   organization: OrganizationScope;
   models: ModelsConfig;
 }
+
+const SUBTASK_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
 
 export function buildSubagentSystemPrompt(agentInstructions?: string): string {
   let prompt = `You are a focused subtask agent delegated a specific task by a parent agent.
@@ -114,13 +99,27 @@ End with a concise summary: what you did, what you found/produced, any assumptio
   return prompt;
 }
 
-export function createSubtaskTool(params: SubtaskParams, ctx: MeshContext) {
+export function createSubtaskTool(
+  writer: UIMessageStreamWriter,
+  params: SubtaskParams,
+  ctx: MeshContext,
+) {
   const { modelProvider, organization, models } = params;
 
   return tool({
     description: SUBTASK_DESCRIPTION,
     inputSchema: zodSchema(SubtaskInputSchema),
-    execute: async function* ({ prompt, agent_id }, { abortSignal }) {
+    execute: async function* (
+      { prompt, agent_id },
+      { abortSignal, toolCallId },
+    ) {
+      // Emit annotations as a data part tied to this tool call
+      writer.write({
+        type: "data-tool-annotations",
+        id: toolCallId,
+        data: { annotations: SUBTASK_ANNOTATIONS },
+      });
+
       // ── 1. Load and validate target agent ──────────────────────────
       const virtualMcp = await ctx.storage.virtualMcps.findById(
         agent_id,
@@ -178,22 +177,22 @@ export function createSubtaskTool(params: SubtaskParams, ctx: MeshContext) {
       });
 
       // ── 6. Stream results via readUIMessageStream ──────────────────
-      let lastMessage: UIMessage | undefined;
       for await (const message of readUIMessageStream({
         stream: result.toUIMessageStream(),
       })) {
-        lastMessage = message;
         yield message;
       }
 
-      if (lastMessage) {
-        yield buildSubtaskFinalMetadata(
-          lastMessage,
-          accumulatedUsage,
-          agent_id,
+      // Emit usage as a data part tied to this tool call
+      writer.write({
+        type: "data-subtask-result",
+        id: toolCallId,
+        data: {
+          usage: accumulatedUsage,
+          agent: agent_id,
           models,
-        );
-      }
+        },
+      });
     },
     toModelOutput: ({ output: message }) => {
       if (!message) {

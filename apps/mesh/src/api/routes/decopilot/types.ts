@@ -9,6 +9,7 @@
 
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type { InferUITool, UIMessage } from "ai";
+import type { ToolDefinition, UsageStats } from "@decocms/mesh-sdk";
 import type { Metadata } from "@/web/components/chat/types";
 import type { getBuiltInTools } from "./built-in-tools";
 
@@ -20,10 +21,20 @@ import type { getBuiltInTools } from "./built-in-tools";
  * Message type for chat - frontend and backend.
  * Validated messages from the client with proper Metadata typing.
  * Includes UITools for built-in tools (e.g. user_ask).
+ * DataParts define custom data-* stream parts for tool annotations and subtask results.
  */
 export type ChatMessage = UIMessage<
   Metadata,
-  {},
+  {
+    "tool-annotations": {
+      annotations: NonNullable<ToolDefinition["annotations"]>;
+    };
+    "subtask-result": {
+      usage: UsageStats;
+      agent: string;
+      models: ModelsConfig;
+    };
+  },
   {
     [K in keyof ReturnType<typeof getBuiltInTools>]: InferUITool<
       ReturnType<typeof getBuiltInTools>[K]
