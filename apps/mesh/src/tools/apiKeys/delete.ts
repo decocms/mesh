@@ -23,6 +23,13 @@ export const API_KEY_DELETE = defineTool({
   name: "API_KEY_DELETE",
   description:
     "Delete an API key. This instantly revokes the key - it can no longer be used for authentication.",
+  annotations: {
+    title: "Delete API Key",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 
   inputSchema: ApiKeyDeleteInputSchema,
   outputSchema: ApiKeyDeleteOutputSchema,

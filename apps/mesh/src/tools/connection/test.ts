@@ -11,7 +11,13 @@ import { requireOrganization } from "../../core/mesh-context";
 export const CONNECTION_TEST = defineTool({
   name: "CONNECTION_TEST",
   description: "Test connection health and latency",
-
+  annotations: {
+    title: "Test Connection",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
   inputSchema: z.object({
     id: z.string(),
   }),

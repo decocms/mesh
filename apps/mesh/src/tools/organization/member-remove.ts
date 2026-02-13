@@ -11,7 +11,13 @@ import { requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_MEMBER_REMOVE = defineTool({
   name: "ORGANIZATION_MEMBER_REMOVE",
   description: "Remove a member from an organization",
-
+  annotations: {
+    title: "Remove Organization Member",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string().optional(), // Optional: defaults to active organization
     memberIdOrEmail: z.string(), // Member ID or email

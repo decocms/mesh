@@ -13,6 +13,13 @@ export const API_KEY_CREATE = defineTool({
   name: "API_KEY_CREATE",
   description:
     "Create a new API key with specified permissions. The key value is only returned once - store it securely!",
+  annotations: {
+    title: "Create API Key",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
 
   inputSchema: ApiKeyCreateInputSchema,
   outputSchema: ApiKeyCreateOutputSchema,

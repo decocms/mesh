@@ -18,7 +18,13 @@ export const CODE_EXECUTION_SEARCH_TOOLS = defineTool({
   name: "CODE_EXECUTION_SEARCH_TOOLS",
   description:
     "Search for available tools by name or description. Returns tool names and brief descriptions without full schemas. Use this to discover tools before calling CODE_EXECUTION_DESCRIBE_TOOLS for detailed schemas.",
-
+  annotations: {
+    title: "Search Tools",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: SearchToolsInputSchema,
   outputSchema: SearchToolsOutputSchema,
 

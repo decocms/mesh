@@ -12,6 +12,13 @@ import { MonitoringDashboardSchema } from "./schema";
 export const MONITORING_DASHBOARD_GET = defineTool({
   name: "MONITORING_DASHBOARD_GET",
   description: "Get a monitoring dashboard by ID",
+  annotations: {
+    title: "Get Monitoring Dashboard",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     id: z.string().describe("Dashboard ID"),
   }),

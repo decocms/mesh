@@ -210,7 +210,13 @@ async function executeWithIsolation(
 export const DATABASES_RUN_SQL = defineTool({
   name: "DATABASES_RUN_SQL",
   description: "Run a SQL query against the database",
-
+  annotations: {
+    title: "Run SQL Query",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: DatatabasesRunSqlInputSchema,
   outputSchema: z.object({
     result: z.array(QueryResult),

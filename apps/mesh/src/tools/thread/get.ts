@@ -22,7 +22,13 @@ const ThreadGetOutputSchema =
 export const COLLECTION_THREADS_GET = defineTool({
   name: "COLLECTION_THREADS_GET",
   description: "Get thread details by ID",
-
+  annotations: {
+    title: "Get Thread",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: CollectionGetInputSchema,
   outputSchema: ThreadGetOutputSchema,
 

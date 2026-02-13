@@ -12,6 +12,13 @@ import { MonitoringDashboardSchema } from "./schema";
 export const MONITORING_DASHBOARD_LIST = defineTool({
   name: "MONITORING_DASHBOARD_LIST",
   description: "List all monitoring dashboards for the organization",
+  annotations: {
+    title: "List Monitoring Dashboards",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({}),
   outputSchema: z.object({
     dashboards: z

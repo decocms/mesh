@@ -18,7 +18,13 @@ export const CODE_EXECUTION_RUN_CODE = defineTool({
   name: "CODE_EXECUTION_RUN_CODE",
   description:
     'Run JavaScript code in a sandbox. Code must be an ES module that `export default`s an async function that receives (tools) as its first parameter. Use CODE_EXECUTION_DESCRIBE_TOOLS to understand the input/output schemas for a tool before calling it. Use `await tools.toolName(args)` or `await tools["tool-name"](args)` to call tools.',
-
+  annotations: {
+    title: "Run Code",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
   inputSchema: RunCodeInputSchema,
   outputSchema: RunCodeOutputSchema,
 

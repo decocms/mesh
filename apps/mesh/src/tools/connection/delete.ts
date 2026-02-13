@@ -25,7 +25,13 @@ const ConnectionDeleteInputSchema = CollectionDeleteInputSchema.extend({
 export const COLLECTION_CONNECTIONS_DELETE = defineTool({
   name: "COLLECTION_CONNECTIONS_DELETE",
   description: "Delete a connection",
-
+  annotations: {
+    title: "Delete Connection",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: ConnectionDeleteInputSchema,
   outputSchema: createCollectionDeleteOutputSchema(ConnectionEntitySchema),
 

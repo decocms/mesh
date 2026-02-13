@@ -27,6 +27,13 @@ export const API_KEY_LIST = defineTool({
   name: "API_KEY_LIST",
   description:
     "List all API keys for the current user in the current organization. Returns metadata only - key values are never shown after creation.",
+  annotations: {
+    title: "List API Keys",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
 
   inputSchema: ApiKeyListInputSchema,
   outputSchema: ApiKeyListOutputSchema,

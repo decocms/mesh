@@ -212,7 +212,13 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
   name: "COLLECTION_CONNECTIONS_LIST",
   description:
     "List all connections in the organization with filtering, sorting, and pagination",
-
+  annotations: {
+    title: "List Connections",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: ConnectionListInputSchema,
   outputSchema: ConnectionListOutputSchema,
 

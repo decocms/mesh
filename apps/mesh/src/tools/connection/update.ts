@@ -104,7 +104,13 @@ async function validateConfiguration(
 export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
   name: "COLLECTION_CONNECTIONS_UPDATE",
   description: "Update an existing MCP connection in the organization",
-
+  annotations: {
+    title: "Update Connection",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: UpdateInputSchema,
   outputSchema: UpdateOutputSchema,
 

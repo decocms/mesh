@@ -34,7 +34,13 @@ export const COLLECTION_VIRTUAL_TOOLS_CREATE = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_CREATE",
   description:
     "Create a new virtual tool on a Virtual MCP. The tool code should be a JavaScript ES module that exports a default async function: export default async (tools, args) => { ... }. Specify connection_dependencies to indicate which connections this tool uses.",
-
+  annotations: {
+    title: "Create Virtual Tool",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: CreateInputSchema,
   outputSchema: CreateOutputSchema,
 

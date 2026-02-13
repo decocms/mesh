@@ -11,7 +11,13 @@ import { getUserId, requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_CREATE = defineTool({
   name: "ORGANIZATION_CREATE" as const,
   description: "Create a new organization",
-
+  annotations: {
+    title: "Create Organization",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     slug: z
       .string()

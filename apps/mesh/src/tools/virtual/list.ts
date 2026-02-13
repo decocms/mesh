@@ -200,7 +200,13 @@ const ListOutputSchema = createCollectionListOutputSchema(
 export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_LIST",
   description: "List all MCP virtual MCPs in the organization",
-
+  annotations: {
+    title: "List Virtual MCPs",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: ListInputSchema,
   outputSchema: ListOutputSchema,
 

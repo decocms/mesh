@@ -11,7 +11,13 @@ import { requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_MEMBER_UPDATE_ROLE = defineTool({
   name: "ORGANIZATION_MEMBER_UPDATE_ROLE",
   description: "Update a member's role in an organization",
-
+  annotations: {
+    title: "Update Member Role",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     organizationId: z.string().optional(), // Optional: defaults to active organization
     memberId: z.string(),

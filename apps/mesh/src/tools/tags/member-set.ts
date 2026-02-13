@@ -11,7 +11,13 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 export const MEMBER_TAGS_SET = defineTool({
   name: "MEMBER_TAGS_SET",
   description: "Set tags for a member (replaces all existing tags)",
-
+  annotations: {
+    title: "Set Member Tags",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     memberId: z.string().describe("Member ID"),
     tagIds: z.array(z.string()).describe("Array of tag IDs to assign"),

@@ -11,7 +11,13 @@ import { getUserId, requireAuth } from "../../core/mesh-context";
 export const ORGANIZATION_LIST = defineTool({
   name: "ORGANIZATION_LIST",
   description: "List all organizations user has access to",
-
+  annotations: {
+    title: "List Organizations",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     userId: z.string().optional(), // Optional: filter by user
   }),

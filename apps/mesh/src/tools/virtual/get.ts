@@ -30,7 +30,13 @@ const GetOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_MCP_GET = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_GET",
   description: "Get an MCP virtual MCP by ID",
-
+  annotations: {
+    title: "Get Virtual MCP",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: GetInputSchema,
   outputSchema: GetOutputSchema,
 

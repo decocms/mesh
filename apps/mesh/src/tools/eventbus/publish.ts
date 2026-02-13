@@ -18,7 +18,13 @@ export const EVENT_PUBLISH = defineTool({
   name: "EVENT_PUBLISH",
   description:
     "Publish an event to the event bus. Supports immediate, scheduled (deliverAt), and recurring (cron) delivery. The source is automatically set to the caller's connection ID.",
-
+  annotations: {
+    title: "Publish Event",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: PublishEventInputSchema,
   outputSchema: PublishEventOutputSchema,
 

@@ -31,7 +31,13 @@ const GetOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_TOOLS_GET = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_GET",
   description: "Get a virtual tool by name from a Virtual MCP",
-
+  annotations: {
+    title: "Get Virtual Tool",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: GetInputSchema,
   outputSchema: GetOutputSchema,
 

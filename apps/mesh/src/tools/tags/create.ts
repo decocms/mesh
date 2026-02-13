@@ -11,7 +11,13 @@ import { requireAuth, requireOrganization } from "../../core/mesh-context";
 export const TAGS_CREATE = defineTool({
   name: "TAGS_CREATE",
   description: "Create a new tag in an organization",
-
+  annotations: {
+    title: "Create Tag",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     name: z.string().min(1).max(50).describe("Tag name"),
   }),

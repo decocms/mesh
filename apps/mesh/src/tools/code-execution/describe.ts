@@ -18,7 +18,13 @@ export const CODE_EXECUTION_DESCRIBE_TOOLS = defineTool({
   name: "CODE_EXECUTION_DESCRIBE_TOOLS",
   description:
     "Get detailed schemas for specific tools. Call after CODE_EXECUTION_SEARCH_TOOLS to get full input/output schemas before executing code.",
-
+  annotations: {
+    title: "Describe Tools",
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: DescribeToolsInputSchema,
   outputSchema: DescribeToolsOutputSchema,
 

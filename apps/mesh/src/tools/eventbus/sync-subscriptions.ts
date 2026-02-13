@@ -17,7 +17,13 @@ export const EVENT_SYNC_SUBSCRIPTIONS = defineTool({
   name: "EVENT_SYNC_SUBSCRIPTIONS",
   description:
     "Sync subscriptions to desired state. Creates new, deletes removed, updates changed filters. Subscriptions are identified by (eventType, publisher).",
-
+  annotations: {
+    title: "Sync Event Subscriptions",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: SyncSubscriptionsInputSchema,
   outputSchema: SyncSubscriptionsOutputSchema,
 

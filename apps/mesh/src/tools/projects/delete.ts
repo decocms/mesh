@@ -12,7 +12,13 @@ import { requireAuth } from "../../core/mesh-context";
 export const PROJECT_DELETE = defineTool({
   name: "PROJECT_DELETE" as const,
   description: "Delete a project (cannot delete org-admin)",
-
+  annotations: {
+    title: "Delete Project",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     projectId: z.string().describe("Project ID to delete"),
   }),

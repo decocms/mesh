@@ -16,6 +16,13 @@ import {
 export const MONITORING_DASHBOARD_UPDATE = defineTool({
   name: "MONITORING_DASHBOARD_UPDATE",
   description: "Update an existing monitoring dashboard",
+  annotations: {
+    title: "Update Monitoring Dashboard",
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
   inputSchema: z.object({
     id: z.string().describe("Dashboard ID to update"),
     name: z.string().optional().describe("New dashboard name"),
