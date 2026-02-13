@@ -5,6 +5,10 @@
  * Uses Memory and ModelProvider abstractions.
  */
 
+import type { MeshContext } from "@/core/mesh-context";
+import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
+import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
+import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import {
   consumeStream,
   createUIMessageStream,
@@ -15,11 +19,6 @@ import {
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-
-import type { MeshContext } from "@/core/mesh-context";
-import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
-import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
-import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { getBuiltInTools } from "./built-in-tools";
 import {
   DECOPILOT_BASE_PROMPT,
@@ -32,7 +31,6 @@ import {
 import { processConversation, splitRequestMessages } from "./conversation";
 import { ensureOrganization, toolsFromMCP } from "./helpers";
 import { createMemory, Memory } from "./memory";
-import { resolveThreadStatus } from "./status";
 import { ensureModelCompatibility } from "./model-compat";
 import {
   checkModelPermission,
@@ -41,7 +39,8 @@ import {
 } from "./model-permissions";
 import { createModelProviderFromClient } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
-import { generateTitleInBackground } from "./title-generator";
+import { resolveThreadStatus } from "./status";
+import { genTitle } from "./title-generator";
 import type { ChatMessage } from "./types";
 
 // ============================================================================
@@ -218,35 +217,10 @@ app.post("/:org/decopilot/stream", async (c) => {
     const systemPrompt = DECOPILOT_BASE_PROMPT(serverInstructions);
     const allSystemMessages: ChatMessage[] = [systemPrompt, ...systemMessages];
 
-    // 4. Process conversation
-    const {
-      systemMessages: processedSystemMessages,
-      messages: processedMessages,
-      originalMessages,
-    } = await processConversation(mem, requestMessage, allSystemMessages, {
-      windowSize,
-      models,
-    });
-
-    ensureModelCompatibility(models, originalMessages);
-
     const maxOutputTokens =
       models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
-    const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
-    const titlePromise = shouldGenerateTitle
-      ? generateTitleInBackground({
-          abortSignal,
-          model: modelProvider.fastModel ?? modelProvider.thinkingModel,
-          userMessage: JSON.stringify(processedMessages[0]?.content),
-        })
-      : Promise.resolve(null);
-
-    let resolvedTitle: string | null = null;
-    let reasoningStartAt: Date | null = null;
-    let lastProviderMetadata: Record<string, unknown> | undefined;
-
-    // 5. Create stream with writer access for data parts
+    // 4. Create stream with writer access for data parts
     const uiStream = createUIMessageStream({
       execute: async ({ writer }) => {
         // Create tools inside execute so they have access to writer
@@ -258,29 +232,59 @@ app.post("/:org/decopilot/stream", async (c) => {
           ctx,
         );
 
-        const result = streamText({
-          model: modelProvider.thinkingModel,
-          system: processedSystemMessages,
-          messages: processedMessages,
-          tools: { ...mcpTools, ...builtInTools },
-          temperature,
-          maxOutputTokens,
-          abortSignal,
-          stopWhen: stepCountIs(PARENT_STEP_LIMIT),
-          onStepFinish: async () => {
-            resolvedTitle = await titlePromise;
+        const tools = { ...mcpTools, ...builtInTools };
 
-            if (!resolvedTitle) return;
+        // Process conversation with tools for validation
+        const {
+          systemMessages: processedSystemMessages,
+          messages: processedMessages,
+          originalMessages,
+        } = await processConversation(mem, requestMessage, allSystemMessages, {
+          windowSize,
+          models,
+          tools,
+        });
+
+        ensureModelCompatibility(models, originalMessages);
+
+        const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
+        if (shouldGenerateTitle) {
+          genTitle({
+            abortSignal,
+            model: modelProvider.fastModel ?? modelProvider.thinkingModel,
+            userMessage: JSON.stringify(processedMessages[0]?.content),
+          }).then(async (title) => {
+            if (!title) return;
 
             await ctx.storage.threads
-              .update(mem.thread.id, { title: resolvedTitle })
+              .update(mem.thread.id, { title })
               .catch((error) => {
                 console.error(
                   "[decopilot:stream] Error updating thread title",
                   error,
                 );
               });
-          },
+
+            writer.write({
+              type: "data-thread-title",
+              data: { title },
+              transient: true,
+            });
+          });
+        }
+
+        let reasoningStartAt: Date | null = null;
+        let lastProviderMetadata: Record<string, unknown> | undefined;
+
+        const result = streamText({
+          model: modelProvider.thinkingModel,
+          system: processedSystemMessages,
+          messages: processedMessages,
+          tools,
+          temperature,
+          maxOutputTokens,
+          abortSignal,
+          stopWhen: stepCountIs(PARENT_STEP_LIMIT),
           onError: async (error) => {
             console.error("[decopilot:stream] Error", error);
             throw error;
@@ -346,7 +350,6 @@ app.post("/:org/decopilot/stream", async (c) => {
                   : undefined;
 
                 return {
-                  title: resolvedTitle ?? undefined,
                   ...(usage && { usage }),
                 };
               }
@@ -369,7 +372,6 @@ app.post("/:org/decopilot/stream", async (c) => {
                 ...message,
                 metadata: {
                   ...message.metadata,
-                  title: resolvedTitle ?? undefined,
                 },
                 thread_id: mem.thread.id,
                 created_at: new Date(now + i).toISOString(),

@@ -11,11 +11,10 @@ import { TITLE_GENERATOR_PROMPT } from "./constants";
 
 /**
  * Generate a short title for the conversation in the background.
- * Writes to the stream writer when complete.
  */
 const TITLE_TIMEOUT_MS = 2500;
 
-export async function generateTitleInBackground(config: {
+export async function genTitle(config: {
   abortSignal: AbortSignal;
   model: LanguageModelV2;
   userMessage: string;

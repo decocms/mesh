@@ -26,13 +26,17 @@ import type { getBuiltInTools } from "./built-in-tools";
 export type ChatMessage = UIMessage<
   Metadata,
   {
-    "tool-annotations": {
-      annotations: NonNullable<ToolDefinition["annotations"]>;
+    "tool-metadata": {
+      annotations?: NonNullable<ToolDefinition["annotations"]>;
+      latencyMs?: number;
     };
-    "subtask-result": {
+    "tool-subtask-metadata": {
       usage: UsageStats;
       agent: string;
       models: ModelsConfig;
+    };
+    "thread-title": {
+      title: string;
     };
   },
   {
