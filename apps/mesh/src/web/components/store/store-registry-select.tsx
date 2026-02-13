@@ -1,12 +1,12 @@
+import { useState } from "react";
 import type { ConnectionCreateData } from "@/tools/connection/schema";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deco/ui/components/select.tsx";
-import { Plus } from "@untitledui/icons";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import { Check, ChevronDown, Plus } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 interface Registry {
   id: string;
@@ -31,17 +31,50 @@ export function StoreRegistrySelect({
   wellKnownRegistries,
   placeholder = "Select a registry...",
 }: StoreRegistrySelectProps) {
+  const [open, setOpen] = useState(false);
+
+  const selected = registries.find((r) => r.id === value);
+
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger size="sm" className="w-auto min-w-[160px]">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 hover:bg-accent hover:text-accent-foreground dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-lg border bg-transparent px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] outline-none focus-visible:ring-[3px] h-7 min-w-[160px]",
+          )}
+        >
+          {selected ? (
+            <span className="flex items-center gap-2">
+              {selected.icon ? (
+                <img
+                  src={selected.icon}
+                  alt={selected.name}
+                  className="w-4 h-4 rounded"
+                />
+              ) : (
+                <span className="w-4 h-4 rounded from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                  {selected.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span>{selected.name}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+          <ChevronDown className="size-4 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto min-w-[200px] p-1">
         {registries.map((registry) => (
-          <SelectItem
-            className="cursor-pointer"
+          <button
+            type="button"
             key={registry.id ?? registry.name}
-            value={registry.id ?? registry.name}
+            onClick={() => {
+              onValueChange(registry.id ?? registry.name);
+              setOpen(false);
+            }}
+            className="relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
           >
             <div className="flex items-center gap-2">
               {registry.icon ? (
@@ -51,25 +84,30 @@ export function StoreRegistrySelect({
                   className="w-4 h-4 rounded"
                 />
               ) : (
-                <div className="w-4 h-4 rounded from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                <span className="w-4 h-4 rounded from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
                   {registry.name.slice(0, 1).toUpperCase()}
-                </div>
+                </span>
               )}
               <span>{registry.name}</span>
             </div>
-          </SelectItem>
+            {value === (registry.id ?? registry.name) && (
+              <span className="absolute right-2 flex size-3.5 items-center justify-center">
+                <Check className="size-4" />
+              </span>
+            )}
+          </button>
         ))}
         {wellKnownRegistries.length > 0 && (
-          <div className="border-t border-border pt-1">
+          <div className="border-t border-border pt-1 mt-1">
             <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
               Other known registries
             </p>
             {wellKnownRegistries.map((registry) => (
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                type="button"
+                onClick={() => {
                   onAddWellKnown(registry);
+                  setOpen(false);
                 }}
                 key={registry.id ?? registry.title}
                 className="relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
@@ -82,9 +120,9 @@ export function StoreRegistrySelect({
                       className="w-4 h-4 rounded"
                     />
                   ) : (
-                    <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                    <span className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
                       {registry.title.slice(0, 1).toUpperCase()}
-                    </div>
+                    </span>
                   )}
                   <span className="flex-1">{registry.title}</span>
                 </div>
@@ -95,7 +133,7 @@ export function StoreRegistrySelect({
             ))}
           </div>
         )}
-      </SelectContent>
-    </Select>
+      </PopoverContent>
+    </Popover>
   );
 }
