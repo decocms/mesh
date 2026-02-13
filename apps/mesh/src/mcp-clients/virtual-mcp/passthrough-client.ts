@@ -7,7 +7,7 @@
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
-import { clientFromConnection } from "@/mcp-clients";
+import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { fallbackOnMethodNotFoundError } from "@/mcp-clients/utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -54,31 +54,163 @@ interface ResourceCache extends Cache<Resource> {}
 interface PromptCache extends Cache<Prompt> {}
 
 /**
+ * Create a lazy-connecting client wrapper for a connection.
+ *
+ * If the connection has cached tools in the database, `listTools()` returns
+ * them immediately without establishing an MCP connection. The real client
+ * (and its transport + handshake) is only created on the first call that
+ * actually needs it (e.g. `callTool`).
+ *
+ * This avoids the ~80-120ms MCP handshake per connection when tools are cached.
+ */
+function createLazyClient(
+  connection: ConnectionEntity,
+  ctx: MeshContext,
+  superUser: boolean,
+): Client {
+  // Placeholder client — never connects to anything
+  const placeholder = new Client(
+    { name: `lazy-${connection.id}`, version: "1.0.0" },
+    { capabilities: {} },
+  );
+
+  // Shared promise for the real client (single-flight)
+  let realClientPromise: Promise<Client> | null = null;
+
+  function getRealClient(): Promise<Client> {
+    if (!realClientPromise) {
+      realClientPromise = clientFromConnection(connection, ctx, superUser).then(
+        (client) => {
+          // Apply streaming support for HTTP connections so callStreamableTool
+          // can stream responses via direct fetch instead of MCP transport
+          if (
+            connection.connection_type === "HTTP" ||
+            connection.connection_type === "SSE" ||
+            connection.connection_type === "Websocket"
+          ) {
+            return withStreamingSupport(
+              client,
+              connection.id,
+              connection,
+              ctx,
+              {
+                superUser,
+              },
+            );
+          }
+          return client;
+        },
+      );
+    }
+    return realClientPromise;
+  }
+
+  const hasCachedTools =
+    connection.connection_type !== "VIRTUAL" &&
+    Array.isArray(connection.tools) &&
+    connection.tools.length > 0;
+
+  // If cached tools exist, listTools returns them without connecting
+  if (hasCachedTools) {
+    placeholder.listTools = async () => ({
+      tools: connection.tools!.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema as Tool["inputSchema"],
+        outputSchema: tool.outputSchema as Tool["outputSchema"],
+        annotations: tool.annotations,
+        _meta: tool._meta,
+      })),
+    });
+  } else {
+    // No cached tools — must connect to get tool list
+    placeholder.listTools = async () => {
+      const real = await getRealClient();
+      return real.listTools();
+    };
+  }
+
+  // Proxy callTool to the real client (always needs a connection)
+  placeholder.callTool = async (params, resultSchema, options) => {
+    const real = await getRealClient();
+    return real.callTool(params, resultSchema, options);
+  };
+
+  // Proxy other methods that need a real connection
+  placeholder.listResources = async () => {
+    const real = await getRealClient();
+    return real.listResources();
+  };
+
+  placeholder.listPrompts = async () => {
+    const real = await getRealClient();
+    return real.listPrompts();
+  };
+
+  placeholder.getPrompt = async (params, options) => {
+    const real = await getRealClient();
+    return real.getPrompt(params, options);
+  };
+
+  placeholder.readResource = async (params, options) => {
+    const real = await getRealClient();
+    return real.readResource(params, options);
+  };
+
+  // Proxy callStreamableTool so the `"callStreamableTool" in client` check
+  // in PassthroughClient.callStreamableTool() works for lazy clients.
+  // The real client may have this method if it's a PassthroughClient (nested
+  // virtual MCPs) or if withStreamingSupport was applied.
+  (placeholder as any).callStreamableTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Response> => {
+    const real = await getRealClient();
+    if (
+      "callStreamableTool" in real &&
+      typeof (real as any).callStreamableTool === "function"
+    ) {
+      return (real as any).callStreamableTool(name, args);
+    }
+    // Fallback: call tool normally and return JSON response
+    const result = await real.callTool({ name, arguments: args });
+    return new Response(JSON.stringify(result), {
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  // Close the real client if it was ever created
+  const originalClose = placeholder.close.bind(placeholder);
+  placeholder.close = async () => {
+    if (realClientPromise) {
+      const real = await realClientPromise.catch(() => null);
+      if (real) await real.close().catch(() => {});
+    }
+    await originalClose();
+  };
+
+  return placeholder;
+}
+
+/**
  * Create a map of connection ID to client entry
  *
- * Creates clients for all connections in parallel, filtering out failures
+ * Creates lazy-connecting clients for all connections. Clients with cached
+ * tools in the database will skip the MCP handshake entirely during tool
+ * listing, only connecting when a tool is actually called.
  */
-async function createClientMap(
+function createClientMap(
   connections: ConnectionEntity[],
   ctx: MeshContext,
   superUser = false,
-): Promise<Map<string, Client>> {
-  const clientResults = await Promise.all(
-    connections.map(async (connection) => {
-      try {
-        const client = await clientFromConnection(connection, ctx, superUser);
-        return [connection.id, client] as const;
-      } catch (error) {
-        console.warn(
-          `[aggregator] Failed to create client for connection ${connection.id}:`,
-          error,
-        );
-        return null;
-      }
-    }),
-  );
+): Map<string, Client> {
+  const clientMap = new Map<string, Client>();
 
-  return new Map(clientResults.filter((result) => !!result));
+  for (const connection of connections) {
+    clientMap.set(connection.id, createLazyClient(connection, ctx, superUser));
+  }
+
+  return clientMap;
 }
 
 /**
@@ -101,7 +233,7 @@ export class PassthroughClient extends Client {
   protected _cachedTools: Promise<ToolCache>;
   protected _cachedResources: Promise<ResourceCache>;
   protected _cachedPrompts: Promise<PromptCache>;
-  protected _clients: Promise<Map<string, Client>>;
+  protected _clients: Map<string, Client>;
   protected _connections: Map<string, ConnectionEntity>;
   protected _selectionMap: Map<string, VirtualMCPConnection>;
 
@@ -140,13 +272,11 @@ export class PassthroughClient extends Client {
       this._connections.set(connection.id, connection);
     }
 
-    // Initialize client map lazily - shared across all caches
-    this._clients = lazy(() =>
-      createClientMap(
-        this.options.connections,
-        this.ctx,
-        this.options.superUser,
-      ),
+    // Create lazy-connecting client map (synchronous — no connections established yet)
+    this._clients = createClientMap(
+      this.options.connections,
+      this.ctx,
+      this.options.superUser,
     );
 
     // Initialize lazy caches - all share the same ProxyCollection
@@ -159,7 +289,7 @@ export class PassthroughClient extends Client {
    * Load tools cache including virtual tools
    */
   private async loadToolsCache(): Promise<ToolCache> {
-    const clients = await this._clients;
+    const clients = this._clients;
 
     const results = await Promise.all(
       Array.from(clients.entries()).map(async ([connectionId, client]) => {
@@ -243,7 +373,7 @@ export class PassthroughClient extends Client {
   private async loadCache<T>(
     target: "resources" | "prompts",
   ): Promise<Cache<T>> {
-    const clients = await this._clients;
+    const clients = this._clients;
 
     const results = await Promise.all(
       Array.from(clients.entries()).map(async ([connectionId, client]) => {
@@ -329,10 +459,8 @@ export class PassthroughClient extends Client {
   override async callTool(
     params: CallToolRequest["params"],
   ): Promise<CallToolResult> {
-    const [cache, clients] = await Promise.all([
-      this._cachedTools,
-      this._clients,
-    ]);
+    const cache = await this._cachedTools;
+    const clients = this._clients;
 
     const connectionId = cache.mappings.get(params.name);
     if (!connectionId) {
@@ -500,10 +628,8 @@ export class PassthroughClient extends Client {
   override async readResource(
     params: ReadResourceRequest["params"],
   ): Promise<ReadResourceResult> {
-    const [cache, clients] = await Promise.all([
-      this._cachedResources,
-      this._clients,
-    ]);
+    const cache = await this._cachedResources;
+    const clients = this._clients;
 
     const connectionId = cache.mappings.get(params.uri);
     if (!connectionId) {
@@ -532,10 +658,8 @@ export class PassthroughClient extends Client {
   override async getPrompt(
     params: GetPromptRequest["params"],
   ): Promise<GetPromptResult> {
-    const [cache, clients] = await Promise.all([
-      this._cachedPrompts,
-      this._clients,
-    ]);
+    const cache = await this._cachedPrompts;
+    const clients = this._clients;
 
     const connectionId = cache.mappings.get(params.name);
     if (!connectionId) {
@@ -557,10 +681,8 @@ export class PassthroughClient extends Client {
     name: string,
     args: Record<string, unknown>,
   ): Promise<Response> {
-    const [cache, clients] = await Promise.all([
-      this._cachedTools,
-      this._clients,
-    ]);
+    const cache = await this._cachedTools;
+    const clients = this._clients;
 
     // For direct tools, route to underlying proxy for streaming
     const connectionId = cache.mappings.get(name);
@@ -584,20 +706,14 @@ export class PassthroughClient extends Client {
    * Dispose of all clients in the collection
    */
   async [Symbol.asyncDispose](): Promise<void> {
-    const clients = await this._clients;
-    if (clients) {
-      await disposeClientMap(clients);
-    }
+    await disposeClientMap(this._clients);
   }
 
   /**
    * Close the client and dispose of all clients
    */
   override async close(): Promise<void> {
-    const clients = await this._clients;
-    if (clients) {
-      await disposeClientMap(clients);
-    }
+    await disposeClientMap(this._clients);
     await super.close();
   }
 
