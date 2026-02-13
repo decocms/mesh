@@ -15,8 +15,26 @@ export interface PrivateRegistryItemTable {
   created_by: ColumnType<string | null, string | null, string | null>;
 }
 
+export type PublishRequestStatus = "pending" | "approved" | "rejected";
+
+export interface PublishRequestTable {
+  id: string;
+  organization_id: string;
+  status: PublishRequestStatus;
+  title: string;
+  description: ColumnType<string | null, string | null, string | null>;
+  server_json: string;
+  meta_json: ColumnType<string | null, string | null, string | null>;
+  requester_name: ColumnType<string | null, string | null, string | null>;
+  requester_email: ColumnType<string | null, string | null, string | null>;
+  reviewer_notes: ColumnType<string | null, string | null, string | null>;
+  created_at: ColumnType<string, string, string>;
+  updated_at: ColumnType<string, string, string>;
+}
+
 export interface PrivateRegistryDatabase {
   private_registry_item: PrivateRegistryItemTable;
+  private_registry_publish_request: PublishRequestTable;
 }
 
 export interface RegistryToolMeta {
@@ -164,4 +182,29 @@ export interface PrivateRegistrySearchResult {
   totalCount: number;
   hasMore: boolean;
   nextCursor?: string;
+}
+
+export interface PublishRequestEntity {
+  id: string;
+  organization_id: string;
+  status: PublishRequestStatus;
+  title: string;
+  description: string | null;
+  _meta?: RegistryItemMeta;
+  server: RegistryServerDefinition;
+  requester_name: string | null;
+  requester_email: string | null;
+  reviewer_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublishRequestCreateInput {
+  organization_id: string;
+  title: string;
+  description?: string | null;
+  _meta?: RegistryItemMeta;
+  server: RegistryServerDefinition;
+  requester_name?: string | null;
+  requester_email?: string | null;
 }

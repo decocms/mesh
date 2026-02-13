@@ -252,3 +252,69 @@ export const RegistryAIGenerateOutputSchema = z.object({
   result: z.string().optional(),
   items: z.array(z.string()).optional(),
 });
+
+// ─── Publish Requests ───
+
+export const PublishRequestStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+export const PublishRequestSchema = z.object({
+  id: z.string(),
+  organization_id: z.string(),
+  status: PublishRequestStatusSchema,
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  _meta: RegistryItemMetaSchema.optional(),
+  server: RegistryServerSchema,
+  requester_name: z.string().nullable().optional(),
+  requester_email: z.string().nullable().optional(),
+  reviewer_notes: z.string().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const PublishRequestListInputSchema = z.object({
+  status: PublishRequestStatusSchema.optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+  offset: z.number().int().min(0).optional(),
+});
+
+export const PublishRequestListOutputSchema = z.object({
+  items: z.array(PublishRequestSchema),
+  totalCount: z.number(),
+});
+
+export const PublishRequestReviewInputSchema = z.object({
+  id: z.string(),
+  status: z.enum(["approved", "rejected"]),
+  reviewerNotes: z.string().nullable().optional(),
+});
+
+export const PublishRequestReviewOutputSchema = z.object({
+  item: PublishRequestSchema,
+});
+
+export const PublishRequestCountOutputSchema = z.object({
+  pending: z.number(),
+});
+
+export const PublishRequestDeleteInputSchema = z.object({
+  id: z.string(),
+});
+
+export const PublishRequestDeleteOutputSchema = z.object({
+  item: PublishRequestSchema.nullable(),
+});
+
+export const PublicPublishRequestInputSchema = z.object({
+  data: RegistryCreateSchema,
+  requester: z
+    .object({
+      name: z.string().optional(),
+      email: z.string().email().optional(),
+    })
+    .optional(),
+});

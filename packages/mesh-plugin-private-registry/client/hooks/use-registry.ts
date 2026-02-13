@@ -11,6 +11,9 @@ import {
 } from "@decocms/mesh-sdk";
 import { KEYS } from "../lib/query-keys";
 import type {
+  PublishRequest,
+  PublishRequestListResponse,
+  PublishRequestStatus,
   RegistryBulkCreateResult,
   RegistryCreateInput,
   RegistryFilters,
@@ -224,6 +227,7 @@ interface RegistryConfigSettings {
   registryIcon?: string;
   llmConnectionId?: string;
   llmModelId?: string;
+  acceptPublishRequests?: boolean;
 }
 
 export function useRegistryConfig(pluginId: string) {
@@ -292,12 +296,101 @@ export function useRegistryConfig(pluginId: string) {
     (configQuery.data?.config?.settings?.llmModelId as string | undefined) ??
     "";
 
+  const acceptPublishRequests =
+    (configQuery.data?.config?.settings?.acceptPublishRequests as
+      | boolean
+      | undefined) ?? false;
+
   return {
     registryName,
     registryIcon,
     registryLLMConnectionId,
     registryLLMModelId,
+    acceptPublishRequests,
     isLoadingConfig: configQuery.isLoading,
     saveRegistryConfigMutation,
   };
+}
+
+export function usePublishRequests(status?: PublishRequestStatus) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useQuery({
+    queryKey: KEYS.publishRequestsList(status),
+    queryFn: async () =>
+      callTool<PublishRequestListResponse>(
+        client,
+        "REGISTRY_PUBLISH_REQUEST_LIST",
+        {
+          status,
+        },
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function usePublishRequestCount() {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useQuery({
+    queryKey: KEYS.publishRequestsCount(),
+    queryFn: async () =>
+      callTool<{ pending: number }>(
+        client,
+        "REGISTRY_PUBLISH_REQUEST_COUNT",
+        {},
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function usePublishRequestMutations() {
+  const queryClient = useQueryClient();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const invalidateAll = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: KEYS.publishRequests() }),
+    ]);
+  };
+
+  const reviewMutation = useMutation({
+    mutationFn: async (data: {
+      id: string;
+      status: "approved" | "rejected";
+      reviewerNotes?: string;
+    }) => {
+      return callTool<{ item: PublishRequest }>(
+        client,
+        "REGISTRY_PUBLISH_REQUEST_REVIEW",
+        data,
+      );
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return callTool<{ item: PublishRequest | null }>(
+        client,
+        "REGISTRY_PUBLISH_REQUEST_DELETE",
+        { id },
+      );
+    },
+    onSuccess: invalidateAll,
+  });
+
+  return { reviewMutation, deleteMutation };
 }

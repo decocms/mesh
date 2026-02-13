@@ -91,3 +91,25 @@ export interface RegistryBulkCreateResult {
   created: number;
   errors: Array<{ id: string; error: string }>;
 }
+
+export type PublishRequestStatus = "pending" | "approved" | "rejected";
+
+export interface PublishRequest {
+  id: string;
+  organization_id: string;
+  status: PublishRequestStatus;
+  title: string;
+  description?: string | null;
+  _meta?: RegistryItem["_meta"];
+  server: RegistryServerDefinition;
+  requester_name?: string | null;
+  requester_email?: string | null;
+  reviewer_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublishRequestListResponse {
+  items: PublishRequest[];
+  totalCount: number;
+}

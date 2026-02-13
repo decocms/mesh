@@ -11,6 +11,7 @@ import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   FlipBackward,
   Globe01,
@@ -38,6 +39,7 @@ interface RegistrySettingsPageProps {
   initialIcon: string;
   initialLLMConnectionId: string;
   initialLLMModelId: string;
+  initialAcceptPublishRequests: boolean;
 }
 
 export default function RegistrySettingsPage({
@@ -45,6 +47,7 @@ export default function RegistrySettingsPage({
   initialIcon,
   initialLLMConnectionId,
   initialLLMModelId,
+  initialAcceptPublishRequests,
 }: RegistrySettingsPageProps) {
   const { org } = useProjectContext();
   const { uploadImage, isUploading: isUploadingIcon } = useImageUpload();
@@ -57,6 +60,9 @@ export default function RegistrySettingsPage({
     initialLLMConnectionId,
   );
   const [llmModelDraft, setLLMModelDraft] = useState(initialLLMModelId);
+  const [acceptPublishRequestsDraft, setAcceptPublishRequestsDraft] = useState(
+    initialAcceptPublishRequests,
+  );
 
   const itemsQuery = useRegistryItems({
     search: "",
@@ -89,11 +95,14 @@ export default function RegistrySettingsPage({
     itemsQuery.data?.pages.flatMap((page) => page.items ?? []) ?? [];
   const publicCount = loadedItems.filter((item) => item.is_public).length;
 
+  const publishRequestUrl = `${window.location.origin}/org/${org.slug}/registry/publish-request`;
+
   const isDirty =
     nameDraft.trim() !== initialName.trim() ||
     iconDraft.trim() !== initialIcon.trim() ||
     llmConnectionDraft.trim() !== initialLLMConnectionId.trim() ||
-    llmModelDraft.trim() !== initialLLMModelId.trim();
+    llmModelDraft.trim() !== initialLLMModelId.trim() ||
+    acceptPublishRequestsDraft !== initialAcceptPublishRequests;
 
   const isSaving = saveRegistryConfigMutation.isPending;
 
@@ -125,6 +134,7 @@ export default function RegistrySettingsPage({
         registryIcon: iconDraft.trim(),
         llmConnectionId: nextConnectionId,
         llmModelId: nextModelId,
+        acceptPublishRequests: acceptPublishRequestsDraft,
       });
       toast.success("Registry settings updated");
     } catch (error) {
@@ -141,6 +151,7 @@ export default function RegistrySettingsPage({
     setIconDraft(initialIcon);
     setLLMConnectionDraft(initialLLMConnectionId);
     setLLMModelDraft(initialLLMModelId);
+    setAcceptPublishRequestsDraft(initialAcceptPublishRequests);
   };
 
   return (
@@ -226,6 +237,40 @@ export default function RegistrySettingsPage({
                 onClick={() => {
                   navigator.clipboard.writeText(publicStoreUrl);
                   toast.success("URL copied to clipboard");
+                }}
+              >
+                <Link01 size={12} />
+                Copy
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="min-w-0 p-4 grid gap-3 content-start">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-semibold">Publish Requests</h3>
+                <p className="text-sm text-muted-foreground">
+                  Allow external users to submit MCP servers for review.
+                </p>
+              </div>
+              <Switch
+                id="accept-publish-requests"
+                checked={acceptPublishRequestsDraft}
+                onCheckedChange={setAcceptPublishRequestsDraft}
+              />
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 grid grid-cols-[auto,1fr,auto] items-start gap-2 min-w-0">
+              <Globe01 size={14} className="text-muted-foreground shrink-0" />
+              <code className="text-xs font-mono break-all leading-5 min-w-0">
+                {publishRequestUrl}
+              </code>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs shrink-0"
+                onClick={() => {
+                  navigator.clipboard.writeText(publishRequestUrl);
+                  toast.success("Publish URL copied to clipboard");
                 }}
               >
                 <Link01 size={12} />

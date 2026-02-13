@@ -1,16 +1,21 @@
 import { useState, type ComponentType } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Container, Settings01 } from "@untitledui/icons";
+import { CheckCircle, Container, Settings01 } from "@untitledui/icons";
 import { PLUGIN_ID } from "../../shared";
-import { useRegistryConfig } from "../hooks/use-registry";
+import {
+  usePublishRequestCount,
+  useRegistryConfig,
+} from "../hooks/use-registry";
 import RegistryItemsPage from "./registry-items-page";
+import RegistryRequestsPage from "./registry-requests-page";
 import RegistrySettingsPage from "./registry-settings-page";
 
 type NavItem = {
   id: string;
   label: string;
+  count?: number;
   icon: ComponentType<{ size?: number; className?: string }>;
-  tab: "items" | "settings";
+  tab: "items" | "requests" | "settings";
 };
 
 function HeaderTabs({
@@ -41,17 +46,17 @@ function HeaderTabs({
           >
             <Icon size={14} />
             <span>{item.label}</span>
+            {typeof item.count === "number" && item.count > 0 && (
+              <span className="min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold">
+                {item.count}
+              </span>
+            )}
           </button>
         );
       })}
     </nav>
   );
 }
-
-const NAV_ITEMS: NavItem[] = [
-  { id: "items", label: "Items", icon: Container, tab: "items" },
-  { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
-];
 
 export default function RegistryLayout() {
   const [activeTab, setActiveTab] = useState<NavItem["tab"]>("items");
@@ -60,13 +65,35 @@ export default function RegistryLayout() {
     registryIcon,
     registryLLMConnectionId,
     registryLLMModelId,
+    acceptPublishRequests,
   } = useRegistryConfig(PLUGIN_ID);
+  const pendingQuery = usePublishRequestCount();
 
   // Build a stable key from server config so SettingsPage re-mounts when
-  // the persisted values change (e.g. after save). This replaces the four
-  // useEffect(setDraft(serverValue), [serverValue]) calls that were
-  // previously needed to sync external state into local draft state.
-  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}`;
+  // the persisted values change (e.g. after save).
+  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}|${acceptPublishRequests}`;
+
+  // If publish requests were disabled while viewing requests tab, redirect
+  if (!acceptPublishRequests && activeTab === "requests") {
+    setActiveTab("items");
+  }
+
+  const pendingCount = pendingQuery.data?.pending ?? 0;
+  const navItems: NavItem[] = [
+    { id: "items", label: "Items", icon: Container, tab: "items" },
+    ...(acceptPublishRequests
+      ? [
+          {
+            id: "requests",
+            label: "Requests",
+            icon: CheckCircle,
+            tab: "requests" as const,
+            count: pendingCount,
+          },
+        ]
+      : []),
+    { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
+  ];
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -98,13 +125,16 @@ export default function RegistryLayout() {
           <HeaderTabs
             activeTab={activeTab}
             onChange={setActiveTab}
-            items={NAV_ITEMS}
+            items={navItems}
           />
         </div>
       </header>
 
       <main className="flex-1 min-w-0 overflow-hidden">
         {activeTab === "items" && <RegistryItemsPage />}
+        {activeTab === "requests" && acceptPublishRequests && (
+          <RegistryRequestsPage />
+        )}
         {activeTab === "settings" && (
           <RegistrySettingsPage
             key={settingsKey}
@@ -112,6 +142,7 @@ export default function RegistryLayout() {
             initialIcon={registryIcon}
             initialLLMConnectionId={registryLLMConnectionId}
             initialLLMModelId={registryLLMModelId}
+            initialAcceptPublishRequests={acceptPublishRequests}
           />
         )}
       </main>

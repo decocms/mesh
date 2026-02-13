@@ -1,7 +1,7 @@
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
 import { PLUGIN_DESCRIPTION, PLUGIN_ID } from "../shared";
 import { migrations } from "./migrations";
-import { publicMCPServerRoutes } from "./routes";
+import { publicMCPServerRoutes, publicPublishRequestRoutes } from "./routes";
 import { createStorage } from "./storage";
 import { tools } from "./tools";
 
@@ -12,6 +12,7 @@ export const serverPlugin: ServerPlugin = {
   migrations,
   publicRoutes: (app, ctx) => {
     publicMCPServerRoutes(app, ctx);
+    publicPublishRequestRoutes(app, ctx);
   },
   createStorage,
 };

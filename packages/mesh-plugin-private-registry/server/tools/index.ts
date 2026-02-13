@@ -9,6 +9,10 @@ import { COLLECTION_REGISTRY_APP_LIST } from "./list";
 import { COLLECTION_REGISTRY_APP_SEARCH } from "./search";
 import { COLLECTION_REGISTRY_APP_UPDATE } from "./update";
 import { COLLECTION_REGISTRY_APP_VERSIONS } from "./versions";
+import { REGISTRY_PUBLISH_REQUEST_LIST } from "./publish-request-list";
+import { REGISTRY_PUBLISH_REQUEST_REVIEW } from "./publish-request-review";
+import { REGISTRY_PUBLISH_REQUEST_COUNT } from "./publish-request-count";
+import { REGISTRY_PUBLISH_REQUEST_DELETE } from "./publish-request-delete";
 
 export const tools = [
   COLLECTION_REGISTRY_APP_LIST,
@@ -22,4 +26,8 @@ export const tools = [
   COLLECTION_REGISTRY_APP_FILTERS,
   REGISTRY_DISCOVER_TOOLS,
   REGISTRY_AI_GENERATE,
+  REGISTRY_PUBLISH_REQUEST_LIST,
+  REGISTRY_PUBLISH_REQUEST_REVIEW,
+  REGISTRY_PUBLISH_REQUEST_COUNT,
+  REGISTRY_PUBLISH_REQUEST_DELETE,
 ];

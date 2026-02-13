@@ -12,4 +12,8 @@ export const KEYS = {
   registryConfig: () => [...KEYS.all, "registry-config"] as const,
   registryConfigByPlugin: (projectId: string, pluginId: string) =>
     [...KEYS.registryConfig(), projectId, pluginId] as const,
+  publishRequests: () => [...KEYS.all, "publish-requests"] as const,
+  publishRequestsList: (status?: string) =>
+    [...KEYS.publishRequests(), "list", { status: status ?? "all" }] as const,
+  publishRequestsCount: () => [...KEYS.publishRequests(), "count"] as const,
 };
