@@ -29,15 +29,11 @@ import {
 } from "@deco/ui/components/select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  AlertCircle,
-  CheckCircle,
   CheckDone01,
   Clock,
   FileCheck02,
   Inbox01,
-  InfoCircle,
   Loading01,
-  XCircle,
 } from "@untitledui/icons";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,54 +41,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useReportsList } from "../hooks/use-reports";
 import { KEYS } from "../lib/query-keys";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const STATUS_CONFIG: Record<
-  ReportStatus,
-  { label: string; color: string; icon: typeof CheckCircle }
-> = {
-  passing: {
-    label: "Passing",
-    color:
-      "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/25",
-    icon: CheckCircle,
-  },
-  warning: {
-    label: "Warning",
-    color:
-      "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/25",
-    icon: AlertCircle,
-  },
-  failing: {
-    label: "Failing",
-    color: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25",
-    icon: XCircle,
-  },
-  info: {
-    label: "Info",
-    color: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/25",
-    icon: InfoCircle,
-  },
-};
-
-function StatusBadge({ status }: { status: ReportStatus }) {
-  const cfg = STATUS_CONFIG[status];
-  const Icon = cfg.icon;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        cfg.color,
-      )}
-    >
-      <Icon size={12} />
-      {cfg.label}
-    </span>
-  );
-}
+import { STATUS_CONFIG, StatusBadge } from "./status-badge";
 
 function formatTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -148,7 +97,7 @@ function ReportCard({
             {report.title}
           </CardTitle>
           <div className="flex items-center gap-1.5 shrink-0">
-            <StatusBadge status={report.status} />
+            <StatusBadge status={report.status} size="sm" />
             {/* Quick dismiss / restore button */}
             <button
               type="button"
@@ -208,10 +157,10 @@ function Filters({
   onStatusChange,
 }: {
   category?: string;
-  status?: string;
+  status?: ReportStatus;
   categories: string[];
   onCategoryChange: (value: string | undefined) => void;
-  onStatusChange: (value: string | undefined) => void;
+  onStatusChange: (value: ReportStatus | undefined) => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -234,7 +183,9 @@ function Filters({
 
       <Select
         value={status ?? "__all__"}
-        onValueChange={(v) => onStatusChange(v === "__all__" ? undefined : v)}
+        onValueChange={(v) =>
+          onStatusChange(v === "__all__" ? undefined : (v as ReportStatus))
+        }
       >
         <SelectTrigger size="sm">
           <SelectValue placeholder="All statuses" />
@@ -263,7 +214,7 @@ export default function ReportsList({
 }) {
   const [tab, setTab] = useState<"inbox" | "done">("inbox");
   const [category, setCategory] = useState<string | undefined>();
-  const [status, setStatus] = useState<string | undefined>();
+  const [status, setStatus] = useState<ReportStatus | undefined>();
 
   const { connectionId, toolCaller } =
     usePluginContext<typeof REPORTS_BINDING>();

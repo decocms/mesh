@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   REPORTS_BINDING,
+  type ReportStatus,
   type ReportsListOutput,
   type Report,
 } from "@decocms/bindings";
@@ -16,7 +17,7 @@ import { KEYS } from "../lib/query-keys";
  */
 export function useReportsList(options?: {
   category?: string;
-  status?: string;
+  status?: ReportStatus;
 }) {
   const { connectionId, toolCaller } =
     usePluginContext<typeof REPORTS_BINDING>();
@@ -30,12 +31,7 @@ export function useReportsList(options?: {
     queryFn: async (): Promise<ReportsListOutput> => {
       const result = await toolCaller("REPORTS_LIST", {
         category: options?.category,
-        status: options?.status as
-          | "passing"
-          | "warning"
-          | "failing"
-          | "info"
-          | undefined,
+        status: options?.status,
       });
       return result;
     },
