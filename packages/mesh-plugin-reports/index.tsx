@@ -27,10 +27,16 @@ export const reportsPlugin: ClientPlugin<typeof REPORTS_BINDING> = {
   binding: REPORTS_BINDING,
   LayoutComponent: ReportsLayout,
   setup: (context: PluginSetupContext) => {
-    // Register sidebar item only -- no routes (LayoutComponent handles rendering)
-    context.registerRootSidebarItem({
-      icon: <FileCheck02 size={16} />,
-      label: "Reports",
+    // Register under the "Observability" sidebar group
+    context.registerSidebarGroup({
+      id: "observability",
+      label: "Observability",
+      items: [
+        {
+          icon: <FileCheck02 size={16} />,
+          label: "Reports",
+        },
+      ],
     });
   },
 };
