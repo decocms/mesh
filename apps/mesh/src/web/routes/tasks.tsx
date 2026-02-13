@@ -136,6 +136,9 @@ function StatusGroup({
           <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
             {config.label}
           </span>
+          <span className="text-xs text-muted-foreground/60">
+            {tasks.length}
+          </span>
         </div>
       </button>
 

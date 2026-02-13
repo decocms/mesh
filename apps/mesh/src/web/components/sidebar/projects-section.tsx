@@ -10,6 +10,11 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -32,14 +37,14 @@ function ProjectIcon({
       <img
         src={project.ui.icon}
         alt=""
-        className="size-4 rounded object-cover border border-border/50"
+        className="size-4 shrink-0 rounded object-cover aspect-square border border-border/50"
       />
     );
   }
 
   return (
     <div
-      className="size-4 rounded flex items-center justify-center border border-border/50"
+      className="size-4 shrink-0 rounded flex items-center justify-center aspect-square border border-border/50"
       style={{ backgroundColor: themeColor }}
     >
       <span className="text-[10px] font-medium text-white">
@@ -69,7 +74,9 @@ function ProjectListItem({
         }}
         tooltip={project.name}
       >
-        <ProjectIcon project={project} />
+        <span className="flex items-center justify-center shrink-0 [&>img]:size-4 [&>div]:size-4">
+          <ProjectIcon project={project} />
+        </span>
         <span className="truncate flex-1">{project.name}</span>
         <ChevronRight
           size={12}
@@ -120,39 +127,62 @@ function ProjectsSectionContent() {
         <SidebarGroup className="py-0">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {/* Section Header */}
+              {/* Section Header — text when expanded, dash when collapsed */}
               <SidebarMenuItem>
-                <div className="flex items-center justify-between px-2 h-6">
-                  <CollapsibleTrigger asChild>
+                <div className="flex items-center px-2 h-6">
+                  {/* Expanded: label + chevron + add button */}
+                  <div className="group-data-[collapsible=icon]:hidden flex items-center justify-between w-full">
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <span>Projects</span>
+                        <ChevronDown
+                          size={12}
+                          className={cn(
+                            "transition-transform",
+                            !isOpen && "-rotate-90",
+                          )}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
                     <button
                       type="button"
-                      className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setCreateDialogOpen(true)}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
+                      title="Create new project"
                     >
-                      <span>Projects</span>
-                      <ChevronDown
-                        size={12}
-                        className={cn(
-                          "transition-transform",
-                          !isOpen && "-rotate-90",
-                        )}
-                      />
+                      <Plus size={16} />
                     </button>
-                  </CollapsibleTrigger>
-                  <button
-                    type="button"
-                    onClick={() => setCreateDialogOpen(true)}
-                    className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
-                    title="Create new project"
-                  >
-                    <Plus size={16} />
-                  </button>
+                  </div>
+                  {/* Collapsed: dash */}
+                  <div className="hidden group-data-[collapsible=icon]:block mx-auto w-4 h-px bg-border" />
                 </div>
               </SidebarMenuItem>
+
+              {/* Collapsed sidebar: show + button when no projects */}
+              {userProjects.length === 0 && (
+                <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <SidebarMenuButton
+                        className="cursor-pointer text-muted-foreground hover:text-foreground"
+                        onClick={() => setCreateDialogOpen(true)}
+                      >
+                        <Plus size={16} />
+                        <span className="truncate">Add project</span>
+                      </SidebarMenuButton>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Add project</TooltipContent>
+                  </Tooltip>
+                </SidebarMenuItem>
+              )}
 
               {/* Project List */}
               <CollapsibleContent>
                 {userProjects.length === 0 ? (
-                  <SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
                     <div className="px-2 py-2 text-xs text-muted-foreground">
                       No projects yet
                     </div>
