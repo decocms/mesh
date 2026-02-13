@@ -97,6 +97,30 @@ async function countRecentRequests(
   return Number(row?.count ?? 0);
 }
 
+/**
+ * Prevent publish requests from colliding with an existing registry item.
+ * We block when either the requested ID or title is already in use.
+ */
+async function findRegistryItemConflict(
+  db: Kysely<PrivateRegistryDatabase>,
+  orgId: string,
+  requestedId: string,
+  requestedTitle: string,
+): Promise<{ id: string; title: string } | null> {
+  const conflict = await db
+    .selectFrom("private_registry_item")
+    .select(["id", "title"])
+    .where("organization_id", "=", orgId)
+    .where((eb) =>
+      eb.or([eb("id", "=", requestedId), eb("title", "=", requestedTitle)]),
+    )
+    .executeTakeFirst();
+
+  return conflict
+    ? { id: String(conflict.id), title: String(conflict.title) }
+    : null;
+}
+
 export function publicPublishRequestRoutes(
   app: Hono,
   ctx: ServerPluginContext,
@@ -172,6 +196,24 @@ export function publicPublishRequestRoutes(
           details: z.treeifyError(parsed.error),
         },
         400,
+      );
+    }
+
+    // ── Existing item collision guard ──
+    const conflict = await findRegistryItemConflict(
+      typedDb,
+      organizationId,
+      parsed.data.data.id,
+      parsed.data.data.title,
+    );
+    if (conflict) {
+      return c.json(
+        {
+          error:
+            "A registry item with the same id or title already exists. Please use a different name/id.",
+          conflict,
+        },
+        409,
       );
     }
 

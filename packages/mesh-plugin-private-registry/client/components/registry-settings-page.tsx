@@ -9,7 +9,16 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { PasswordInput } from "@deco/ui/components/password-input.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
@@ -17,6 +26,8 @@ import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Check,
   Copy01,
+  Eye,
+  EyeOff,
   FlipBackward,
   Key01,
   Loading01,
@@ -87,9 +98,16 @@ export default function RegistrySettingsPage({
   const apiKeysQuery = usePublishApiKeys();
   const { generateMutation, revokeMutation } = usePublishApiKeyMutations();
   const [newKeyName, setNewKeyName] = useState("");
+  const [showRevealedKey, setShowRevealedKey] = useState(false);
+  const [keyToDelete, setKeyToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const { handleCopy: handleCopyPublicUrl, copied: copiedPublicUrl } =
     useCopy();
   const { handleCopy: handleCopyPublishUrl, copied: copiedPublishUrl } =
+    useCopy();
+  const { handleCopy: handleCopyRevealedKey, copied: copiedRevealedKey } =
     useCopy();
 
   const itemsQuery = useRegistryItems({
@@ -199,6 +217,7 @@ export default function RegistrySettingsPage({
       const result = await generateMutation.mutateAsync(name);
       if (result?.key) {
         onRevealedKeyChange(result.key);
+        setShowRevealedKey(false);
         setNewKeyName("");
         toast.success(
           "API key generated. Copy it now — it won't be shown again!",
@@ -215,6 +234,7 @@ export default function RegistrySettingsPage({
     try {
       await revokeMutation.mutateAsync(keyId);
       onRevealedKeyChange(null);
+      setKeyToDelete(null);
       toast.success("API key revoked");
     } catch (error) {
       toast.error(
@@ -401,14 +421,14 @@ export default function RegistrySettingsPage({
 
                 {/* ── Revealed key fallback (while list refreshes) ── */}
                 {revealedKey && !hasRevealedKeyInList && (
-                  <div className="rounded-md border border-border px-3 py-2 grid gap-1">
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2 grid gap-1.5">
                     <span className="text-xs text-muted-foreground">
                       New key (refreshing list...)
                     </span>
-                    <PasswordInput
-                      value={revealedKey}
+                    <Input
                       readOnly
-                      className="h-8 text-xs font-mono"
+                      value={revealedKey}
+                      className="h-8 text-xs font-mono bg-background"
                     />
                   </div>
                 )}
@@ -445,37 +465,84 @@ export default function RegistrySettingsPage({
 
                 {/* ── Key list ── */}
                 {(apiKeysQuery.data?.items?.length ?? 0) > 0 && (
-                  <div className="grid gap-1">
+                  <div className="grid gap-2">
                     {apiKeysQuery.data?.items?.map((apiKey) => (
                       <div
                         key={apiKey.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                        className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2"
                       >
-                        <div className="grid gap-0.5 min-w-0">
-                          <span className="text-sm font-medium truncate">
+                        <div className="grid gap-1 min-w-0 flex-1">
+                          <span className="text-sm font-medium truncate leading-none">
                             {apiKey.name}
                           </span>
                           {revealedKeyPrefix === apiKey.prefix ? (
-                            <PasswordInput
-                              value={revealedKey ?? ""}
+                            <Input
                               readOnly
-                              className="h-8 text-xs font-mono"
+                              value={
+                                showRevealedKey
+                                  ? (revealedKey ?? "")
+                                  : "••••••••••••••••••••••••••••••••••••••••••••••••••••"
+                              }
+                              className="h-8 text-xs font-mono bg-muted/20"
                             />
                           ) : (
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {apiKey.prefix}••••••••
-                            </span>
+                            <Input
+                              readOnly
+                              value={`${apiKey.prefix}••••••••`}
+                              className="h-8 text-xs font-mono bg-muted/20 text-muted-foreground"
+                            />
                           )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-destructive hover:text-destructive shrink-0"
-                          disabled={revokeMutation.isPending}
-                          onClick={() => handleRevokeKey(apiKey.id)}
-                        >
-                          <Trash01 size={14} />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {revealedKeyPrefix === apiKey.prefix && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() =>
+                                  setShowRevealedKey((prev) => !prev)
+                                }
+                              >
+                                {showRevealedKey ? (
+                                  <EyeOff size={14} />
+                                ) : (
+                                  <Eye size={14} />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                disabled={!revealedKey}
+                                onClick={() =>
+                                  revealedKey &&
+                                  handleCopyRevealedKey(revealedKey)
+                                }
+                              >
+                                {copiedRevealedKey ? (
+                                  <Check size={14} />
+                                ) : (
+                                  <Copy01 size={14} />
+                                )}
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            disabled={revokeMutation.isPending}
+                            onClick={() =>
+                              setKeyToDelete({
+                                id: apiKey.id,
+                                name: apiKey.name,
+                              })
+                            }
+                          >
+                            <Trash01 size={14} />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -485,6 +552,37 @@ export default function RegistrySettingsPage({
           </Card>
         </div>
       </div>
+      <AlertDialog
+        open={Boolean(keyToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !revokeMutation.isPending) {
+            setKeyToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The key
+              {keyToDelete ? ` "${keyToDelete.name}"` : ""} will stop working
+              immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revokeMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!keyToDelete || revokeMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => keyToDelete && handleRevokeKey(keyToDelete.id)}
+            >
+              {revokeMutation.isPending ? "Revoking..." : "Revoke key"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
