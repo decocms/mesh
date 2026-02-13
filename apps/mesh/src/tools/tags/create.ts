@@ -14,7 +14,7 @@ export const TAGS_CREATE = defineTool({
   annotations: {
     title: "Create Tag",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

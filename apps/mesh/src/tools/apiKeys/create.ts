@@ -16,7 +16,7 @@ export const API_KEY_CREATE = defineTool({
   annotations: {
     title: "Create API Key",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

@@ -43,7 +43,7 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
   annotations: {
     title: "Create Connection",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

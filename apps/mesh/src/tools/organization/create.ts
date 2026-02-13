@@ -14,7 +14,7 @@ export const ORGANIZATION_CREATE = defineTool({
   annotations: {
     title: "Create Organization",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

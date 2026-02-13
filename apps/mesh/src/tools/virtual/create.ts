@@ -37,7 +37,7 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
   annotations: {
     title: "Create Virtual MCP",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

@@ -17,7 +17,7 @@ export const PROJECT_CREATE = defineTool({
   annotations: {
     title: "Create Project",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

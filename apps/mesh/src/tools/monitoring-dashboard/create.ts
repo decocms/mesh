@@ -19,7 +19,7 @@ export const MONITORING_DASHBOARD_CREATE = defineTool({
   annotations: {
     title: "Create Monitoring Dashboard",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

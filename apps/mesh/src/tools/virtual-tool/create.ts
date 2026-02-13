@@ -37,7 +37,7 @@ export const COLLECTION_VIRTUAL_TOOLS_CREATE = defineTool({
   annotations: {
     title: "Create Virtual Tool",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },

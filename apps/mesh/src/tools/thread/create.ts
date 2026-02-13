@@ -38,7 +38,7 @@ export const COLLECTION_THREADS_CREATE = defineTool({
   annotations: {
     title: "Create Thread",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: false,
   },
