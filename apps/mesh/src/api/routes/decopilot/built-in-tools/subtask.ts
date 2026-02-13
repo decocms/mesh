@@ -113,12 +113,7 @@ export function createSubtaskTool(
       { prompt, agent_id },
       { abortSignal, toolCallId },
     ) {
-      // Emit annotations as a data part tied to this tool call
-      writer.write({
-        type: "data-tool-annotations",
-        id: toolCallId,
-        data: { annotations: SUBTASK_ANNOTATIONS },
-      });
+      const startTime = performance.now();
 
       // ── 1. Load and validate target agent ──────────────────────────
       const virtualMcp = await ctx.storage.virtualMcps.findById(
@@ -183,9 +178,15 @@ export function createSubtaskTool(
         yield message;
       }
 
-      // Emit usage as a data part tied to this tool call
+      // Emit tool metadata (annotations + latency) and subtask metadata
+      const latencyMs = performance.now() - startTime;
       writer.write({
-        type: "data-subtask-result",
+        type: "data-tool-metadata",
+        id: toolCallId,
+        data: { annotations: SUBTASK_ANNOTATIONS, latencyMs },
+      });
+      writer.write({
+        type: "data-tool-subtask-metadata",
         id: toolCallId,
         data: {
           usage: accumulatedUsage,

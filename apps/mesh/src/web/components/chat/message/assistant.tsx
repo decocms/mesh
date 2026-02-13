@@ -23,6 +23,7 @@ import {
 } from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 import { useFilterParts, type DataParts } from "./use-filter-parts.ts";
+import { addUsage, emptyUsageStats } from "@decocms/mesh-sdk";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -210,22 +211,34 @@ interface MessagePartProps {
 }
 
 function MessagePart({ part, id, usageStats, dataParts }: MessagePartProps) {
+  const getMeta = (toolCallId: string) =>
+    dataParts.toolMetadata.get(toolCallId);
+  const getSubtaskMeta = (toolCallId: string) =>
+    dataParts.toolSubtaskMetadata.get(toolCallId);
+
   switch (part.type) {
     case "dynamic-tool":
       return (
         <GenericToolCallPart
           part={part}
-          annotations={dataParts.toolAnnotations.get(part.toolCallId)}
+          annotations={getMeta(part.toolCallId)?.annotations}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
         />
       );
     case "tool-user_ask":
-      return <UserAskPart part={part} />;
+      return (
+        <UserAskPart
+          part={part}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
+        />
+      );
     case "tool-subtask":
       return (
         <SubtaskPart
           part={part}
-          subtaskMeta={dataParts.subtaskResult.get(part.toolCallId)}
-          annotations={dataParts.toolAnnotations.get(part.toolCallId)}
+          subtaskMeta={getSubtaskMeta(part.toolCallId)}
+          annotations={getMeta(part.toolCallId)?.annotations}
+          latency={getMeta(part.toolCallId)?.latencySeconds}
         />
       );
     case "text":
@@ -244,18 +257,19 @@ function MessagePart({ part, id, usageStats, dataParts }: MessagePartProps) {
     case "source-url":
     case "source-document":
       return null;
-    case "data-tool-annotations":
-    case "data-subtask-result":
+    case "data-tool-metadata":
+    case "data-tool-subtask-metadata":
       return null;
     default: {
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
+        const toolCallId = (fallback as ToolUIPart).toolCallId;
+        const meta = dataParts.toolMetadata.get(toolCallId);
         return (
           <GenericToolCallPart
             part={fallback}
-            annotations={dataParts.toolAnnotations.get(
-              (fallback as ToolUIPart).toolCallId,
-            )}
+            annotations={meta?.annotations}
+            latency={meta?.latencySeconds}
           />
         );
       }
@@ -341,13 +355,16 @@ export function MessageAssistant({
           )}
           {message.parts.map((part, index) => {
             const isLastPart = index === message.parts.length - 1;
+            const usage = isLastPart
+              ? addUsage(emptyUsageStats(), message.metadata?.usage)
+              : null;
 
             return (
               <MessagePart
                 key={`${message.id}-${index}`}
                 part={part}
                 id={message.id}
-                usageStats={isLastPart && <UsageStats messages={[message]} />}
+                usageStats={isLastPart && <UsageStats usage={usage} />}
                 dataParts={dataParts}
               />
             );

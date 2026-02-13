@@ -76,38 +76,43 @@ export function createAgentSearchTool(
     inputSchema: zodSchema(AgentSearchInputSchema),
     outputSchema: zodSchema(AgentSearchOutputSchema),
     execute: async ({ search_term }, options) => {
-      // Emit annotations as a data part tied to this tool call
-      writer.write({
-        type: "data-tool-annotations",
-        id: options.toolCallId,
-        data: { annotations: AGENT_SEARCH_ANNOTATIONS },
-      });
+      const startTime = performance.now();
+      try {
+        // Fetch all Virtual MCPs for the organization
+        const virtualMcps = await ctx.storage.virtualMcps.list(organization.id);
 
-      // Fetch all Virtual MCPs for the organization
-      const virtualMcps = await ctx.storage.virtualMcps.list(organization.id);
+        // Filter by search term if provided (case-insensitive)
+        let filteredAgents = virtualMcps.filter(
+          (vmc) => vmc.status === "active",
+        );
 
-      // Filter by search term if provided (case-insensitive)
-      let filteredAgents = virtualMcps.filter((vmc) => vmc.status === "active");
+        if (search_term && search_term.trim().length > 0) {
+          const searchLower = search_term.toLowerCase();
+          filteredAgents = filteredAgents.filter((vmc) => {
+            const titleMatch = vmc.title.toLowerCase().includes(searchLower);
+            const descriptionMatch =
+              vmc.description?.toLowerCase().includes(searchLower) ?? false;
+            return titleMatch || descriptionMatch;
+          });
+        }
 
-      if (search_term && search_term.trim().length > 0) {
-        const searchLower = search_term.toLowerCase();
-        filteredAgents = filteredAgents.filter((vmc) => {
-          const titleMatch = vmc.title.toLowerCase().includes(searchLower);
-          const descriptionMatch =
-            vmc.description?.toLowerCase().includes(searchLower) ?? false;
-          return titleMatch || descriptionMatch;
+        // Map to agent metadata format
+        const agents = filteredAgents.map((vmc) => ({
+          agent_id: vmc.id,
+          name: vmc.title,
+          purpose: vmc.description,
+          capabilities: [] as string[], // Simplified for now, can enhance later
+        }));
+
+        return { agents };
+      } finally {
+        const latencyMs = performance.now() - startTime;
+        writer.write({
+          type: "data-tool-metadata",
+          id: options.toolCallId,
+          data: { annotations: AGENT_SEARCH_ANNOTATIONS, latencyMs },
         });
       }
-
-      // Map to agent metadata format
-      const agents = filteredAgents.map((vmc) => ({
-        agent_id: vmc.id,
-        name: vmc.title,
-        purpose: vmc.description,
-        capabilities: [] as string[], // Simplified for now, can enhance later
-      }));
-
-      return { agents };
     },
   });
 }

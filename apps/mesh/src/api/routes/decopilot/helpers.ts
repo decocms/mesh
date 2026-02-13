@@ -57,24 +57,34 @@ export async function toolsFromMCP(
         outputSchema: outputSchema
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
-        execute: (input, options) => {
-          // Emit annotations as a data part tied to this specific tool call
-          if (writer && t.annotations) {
-            writer.write({
-              type: "data-tool-annotations",
-              id: options.toolCallId,
-              data: { annotations: t.annotations },
-            });
+        execute: async (input, options) => {
+          const startTime = performance.now();
+          try {
+            const result = await client.callTool(
+              {
+                name: t.name,
+                arguments: input as Record<string, unknown>,
+              },
+              CallToolResultSchema,
+              {
+                signal: options.abortSignal,
+                timeout: MCP_TOOL_CALL_TIMEOUT_MS,
+              },
+            );
+            return result as unknown as CallToolResult;
+          } finally {
+            if (writer) {
+              const latencyMs = performance.now() - startTime;
+              writer.write({
+                type: "data-tool-metadata",
+                id: options.toolCallId,
+                data: {
+                  annotations: t.annotations,
+                  latencyMs,
+                },
+              });
+            }
           }
-
-          return client.callTool(
-            {
-              name: t.name,
-              arguments: input as Record<string, unknown>,
-            },
-            CallToolResultSchema,
-            { signal: options.abortSignal, timeout: MCP_TOOL_CALL_TIMEOUT_MS },
-          ) as Promise<CallToolResult>;
         },
         toModelOutput: ({ output }) => {
           if (output.isError) {

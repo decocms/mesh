@@ -1,5 +1,5 @@
-import type { SubtaskResultMeta } from "@/api/routes/decopilot/built-in-tools/subtask";
-import type { ToolDefinition } from "@decocms/mesh-sdk";
+import type { ToolDefinition, UsageStats } from "@decocms/mesh-sdk";
+import type { ModelsConfig } from "@/api/routes/decopilot/types";
 import type { ChatMessage } from "../types.ts";
 
 type MessagePart = ChatMessage["parts"][number];
@@ -9,52 +9,66 @@ function isReasoningPart(part: MessagePart): part is ReasoningPart {
   return part.type === "reasoning";
 }
 
+export interface ToolMetadata {
+  annotations?: NonNullable<ToolDefinition["annotations"]>;
+  /** Latency in seconds (converted from ms for UI) */
+  latencySeconds?: number;
+}
+
+export interface ToolSubtaskMetadata {
+  usage: UsageStats;
+  agent: string;
+  models: ModelsConfig;
+}
+
 export interface DataParts {
-  toolAnnotations: Map<string, NonNullable<ToolDefinition["annotations"]>>;
-  subtaskResult: Map<string, SubtaskResultMeta>;
+  toolMetadata: Map<string, ToolMetadata>;
+  toolSubtaskMetadata: Map<string, ToolSubtaskMetadata>;
 }
 
 export function useFilterParts(message: ChatMessage | null) {
-  // Single pass through parts array to extract reasoning and data parts
   const reasoningParts: ReasoningPart[] = [];
-  const toolAnnotations = new Map<
-    string,
-    NonNullable<ToolDefinition["annotations"]>
-  >();
-  const subtaskResult = new Map<string, SubtaskResultMeta>();
+  const toolMetadata = new Map<string, ToolMetadata>();
+  const toolSubtaskMetadata = new Map<string, ToolSubtaskMetadata>();
 
   if (message) {
     for (const p of message.parts) {
-      // Extract reasoning parts
       if (isReasoningPart(p)) {
         reasoningParts.push(p);
         continue;
       }
 
-      // Extract tool annotations
-      if (p.type === "data-tool-annotations" && "id" in p) {
-        toolAnnotations.set(
-          (p as { id: string }).id,
-          (
-            p as {
-              data: { annotations: NonNullable<ToolDefinition["annotations"]> };
-            }
-          ).data.annotations,
-        );
+      if (p.type === "data-tool-metadata" && "id" in p && "data" in p) {
+        const data = (
+          p as { data: { annotations?: unknown; latencyMs?: number } }
+        ).data;
+        const meta: ToolMetadata = {};
+        if (data.annotations) {
+          meta.annotations = data.annotations as NonNullable<
+            ToolDefinition["annotations"]
+          >;
+        }
+        if (
+          typeof data.latencyMs === "number" &&
+          Number.isFinite(data.latencyMs)
+        ) {
+          meta.latencySeconds = data.latencyMs / 1000;
+        }
+        toolMetadata.set((p as { id: string }).id, meta);
         continue;
       }
 
-      // Extract subtask results
-      if (p.type === "data-subtask-result" && "id" in p) {
-        subtaskResult.set(
+      if (p.type === "data-tool-subtask-metadata" && "id" in p) {
+        toolSubtaskMetadata.set(
           (p as { id: string }).id,
-          (p as { data: SubtaskResultMeta }).data,
+          (p as { data: ToolSubtaskMetadata }).data,
         );
       }
     }
   }
 
-  const dataParts: DataParts = { toolAnnotations, subtaskResult };
-
-  return { reasoningParts, dataParts };
+  return {
+    reasoningParts,
+    dataParts: { toolMetadata, toolSubtaskMetadata },
+  };
 }

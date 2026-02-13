@@ -3,7 +3,6 @@
 import type { ToolUIPart, DynamicToolUIPart } from "ai";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { Atom02 } from "@untitledui/icons";
-import { ToolAnnotationBadges } from "@/web/components/tools";
 import { ToolCallShell } from "./common.tsx";
 import { getFriendlyToolName } from "./utils.tsx";
 import { getToolPartErrorText } from "../utils.ts";
@@ -14,6 +13,8 @@ interface GenericToolCallPartProps {
   id?: string;
   /** Optional MCP tool annotations to render as badges */
   annotations?: ToolDefinition["annotations"];
+  /** Latency in seconds from data-tool-metadata part */
+  latency?: number;
 }
 
 function safeStringify(value: unknown): string {
@@ -56,6 +57,7 @@ function getSummary(state: string): string {
 export function GenericToolCallPart({
   part,
   annotations,
+  latency,
 }: GenericToolCallPartProps) {
   // Extract tool name with proper dynamic-tool handling
   const toolName =
@@ -100,13 +102,8 @@ export function GenericToolCallPart({
       <ToolCallShell
         icon={<Atom02 className="size-4 text-muted-foreground" />}
         title={title}
-        badges={
-          annotations ? (
-            <ToolAnnotationBadges annotations={annotations} />
-          ) : undefined
-        }
-        usage={undefined}
-        latencySeconds={undefined}
+        annotations={annotations}
+        latency={latency}
         summary={summary}
         state={effectiveState}
         detail={detail || null}

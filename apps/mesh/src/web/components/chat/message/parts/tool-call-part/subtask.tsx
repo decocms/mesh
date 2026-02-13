@@ -1,27 +1,29 @@
 "use client";
 
-import { Users03 } from "@untitledui/icons";
-import type { ToolDefinition } from "@decocms/mesh-sdk";
-import { ToolCallShell } from "./common.tsx";
+import type { ToolSubtaskMetadata } from "../../use-filter-parts.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { ToolAnnotationBadges } from "@/web/components/tools";
+import type { ToolDefinition } from "@decocms/mesh-sdk";
+import { Users03 } from "@untitledui/icons";
 import { useChat } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
-import type { SubtaskResultMeta } from "@/api/routes/decopilot/built-in-tools/subtask";
 import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
+import { ToolCallShell } from "./common.tsx";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
-  /** Subtask result from data part */
-  subtaskMeta?: SubtaskResultMeta;
+  /** Subtask metadata from data part */
+  subtaskMeta?: ToolSubtaskMetadata;
   /** Tool annotations from data part */
   annotations?: ToolDefinition["annotations"];
+  /** Latency in seconds from data-tool-metadata part */
+  latency?: number;
 }
 
 export function SubtaskPart({
   part,
   subtaskMeta,
   annotations,
+  latency,
 }: SubtaskPartProps) {
   const { virtualMcps } = useChat();
 
@@ -46,7 +48,6 @@ export function SubtaskPart({
 
   // Usage extraction from data part
   const usage = subtaskMeta?.usage;
-  const tokens = usage && usage.totalTokens > 0 ? usage.totalTokens : undefined;
 
   // Title mapping
   const title: string = agent?.title
@@ -85,15 +86,12 @@ export function SubtaskPart({
       <ToolCallShell
         icon={icon}
         title={title}
-        badges={
-          annotations ? (
-            <ToolAnnotationBadges annotations={annotations} />
-          ) : undefined
-        }
-        usage={tokens ? { tokens } : undefined}
         summary={summary}
-        state={effectiveState}
+        usage={usage}
+        latency={latency}
         detail={detail}
+        annotations={annotations}
+        state={effectiveState}
       />
     </div>
   );

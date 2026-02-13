@@ -7,9 +7,11 @@ import { ToolCallShell } from "./common.tsx";
 
 interface UserAskPartProps {
   part: UserAskToolPart;
+  /** Latency in seconds from data-tool-metadata part */
+  latency?: number;
 }
 
-export function UserAskPart({ part }: UserAskPartProps) {
+export function UserAskPart({ part, latency }: UserAskPartProps) {
   // Only render if state starts with "output-"
   if (!part.state.startsWith("output-")) {
     return null;
@@ -39,9 +41,8 @@ export function UserAskPart({ part }: UserAskPartProps) {
           <MessageQuestionCircle className="size-4 text-muted-foreground" />
         }
         title={title}
-        usage={undefined}
-        latencySeconds={undefined}
         summary={summary}
+        latency={latency}
         state={effectiveState}
         detail={`# Question\n${part.input?.prompt ?? ""}\n\n# Answer\n${summary}`}
       />

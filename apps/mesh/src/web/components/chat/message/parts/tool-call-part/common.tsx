@@ -11,19 +11,22 @@ import {
 } from "@deco/ui/components/collapsible.tsx";
 import { useAutoScroll } from "@deco/ui/hooks/use-auto-scroll.ts";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
-import { formatToolMetrics } from "./utils.tsx";
+import { UsageStats } from "../../../usage-stats.tsx";
+import type { UsageStats as UsageStatsType } from "@/web/lib/usage-utils.ts";
+import { ToolAnnotationBadges } from "@/web/components/tools";
+import type { ToolDefinition } from "@decocms/mesh-sdk";
 
 export interface ToolCallShellProps {
   /** Icon rendered at the left of the row (ReactNode — caller picks the icon) */
   icon: ReactNode;
   /** Primary label (tool name, question text, agent title) */
   title: string;
-  /** Optional annotation badges rendered after the title */
-  badges?: ReactNode;
-  /** Usage for the operation (optional). Tokens always shown when provided; cost shown when cost > 0. */
-  usage?: { tokens: number; cost?: number };
+  /** Optional tool annotations to render as badges */
+  annotations?: ToolDefinition["annotations"];
+  /** Usage stats for the operation (optional) */
+  usage?: UsageStatsType | null;
   /** Latency in seconds for the operation (optional) */
-  latencySeconds?: number;
+  latency?: number;
   /** Second-line summary text shown in collapsed state */
   summary?: string;
   /** Derived UI state computed by caller based on their loading semantics */
@@ -35,9 +38,9 @@ export interface ToolCallShellProps {
 export function ToolCallShell({
   icon,
   title,
-  badges,
+  annotations,
   usage,
-  latencySeconds,
+  latency,
   summary,
   state,
   detail,
@@ -47,7 +50,6 @@ export function ToolCallShell({
   const isLoading = state === "loading";
   const isError = state === "error";
   const isExpandable = !!(detail && detail.trim());
-  const metricsStr = formatToolMetrics({ usage, latencySeconds });
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
   const { sentinelRef } = useAutoScroll({
@@ -88,12 +90,15 @@ export function ToolCallShell({
               >
                 {title}
               </span>
-              {metricsStr && (
+              {latency && (
                 <span className="shrink-0 text-xs text-muted-foreground/75 tabular-nums">
-                  {metricsStr}
+                  {latency.toFixed(2)}s
                 </span>
               )}
-              {badges}
+              <UsageStats usage={usage} />
+              {annotations && (
+                <ToolAnnotationBadges annotations={annotations} />
+              )}
               {isExpandable && (
                 <ChevronRight
                   className={cn(

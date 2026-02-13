@@ -186,13 +186,13 @@ describe("buildSubagentSystemPrompt", () => {
 describe("metadata isolation", () => {
   /**
    * Note: buildSubtaskFinalMetadata was removed — subtask usage metadata
-   * is now emitted as a data-subtask-result data part via writer.write().
+   * is now emitted as a data-tool-subtask-metadata data part via writer.write().
    * The isolation guarantee is now enforced by the data part mechanism
    * (separate from the message metadata entirely).
    */
   test("subtask result metadata is delivered via data part, not message metadata", () => {
     // The old pattern embedded metadata in part.output.metadata.subtaskResult.
-    // The new pattern emits a data-subtask-result data part via writer.write().
+    // The new pattern emits a data-tool-subtask-metadata data part via writer.write().
     // This test documents the architectural change.
     const tool = createSubtaskTool(mockWriter, mockParams, mockCtx);
     expect(tool.execute).toBeDefined();
