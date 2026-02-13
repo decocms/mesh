@@ -50,62 +50,64 @@ function StatusHighlight(props: StatusHighlightProps) {
   const Icon = isError ? AlertCircle : AlertTriangle;
 
   return (
-    <div
-      className={cn(
-        "flex items-start gap-2 px-3 py-2.5 rounded-lg border border-dashed text-sm w-full mb-2",
-        variantStyles,
-      )}
-    >
-      <div className={cn("mt-0.5 shrink-0", iconStyles)}>
-        <Icon size={16} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className={cn("text-xs mb-1 font-medium", iconStyles)}>
-          {title}
-        </div>
-        <div className="text-xs line-clamp-2 text-muted-foreground mb-2">
-          {description}
-        </div>
-        <div className="flex gap-2">
-          {isError ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={props.onFixInChat}
-                className="h-7 text-xs"
-              >
-                Fix in chat
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled
-                className="h-7 text-xs"
-              >
-                Report
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={props.onContinue}
-              className="h-7 text-xs"
-            >
-              Continue
-            </Button>
-          )}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        title="Dismiss"
+    <div className="px-0.5">
+      <div
+        className={cn(
+          "flex items-start gap-2 px-3 py-2.5 rounded-lg border border-dashed text-sm w-full mb-2 shadow",
+          variantStyles,
+        )}
       >
-        <X size={14} />
-      </button>
+        <div className={cn("mt-0.5 shrink-0", iconStyles)}>
+          <Icon size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={cn("text-xs mb-1 font-medium", iconStyles)}>
+            {title}
+          </div>
+          <div className="text-xs line-clamp-2 text-muted-foreground mb-2">
+            {description}
+          </div>
+          <div className="flex gap-2">
+            {isError ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={props.onFixInChat}
+                  className="h-7 text-xs"
+                >
+                  Fix in chat
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  className="h-7 text-xs"
+                >
+                  Report
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={props.onContinue}
+                className="h-7 text-xs"
+              >
+                Continue
+              </Button>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          title="Dismiss"
+        >
+          <X size={14} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -169,33 +171,41 @@ export function ChatHighlight() {
     });
   };
 
-  return (
-    <div className="flex flex-col w-full">
-      {isWaitingForUserInput ? (
+  if (isWaitingForUserInput) {
+    return (
+      <div className="absolute bottom-full left-0 right-0">
         <UserAskQuestionHighlight
           userAskParts={userAskParts}
           isStreaming={isStreaming}
           onSubmit={handleUserAskSubmit}
         />
-      ) : !isStreaming ? (
-        error ? (
-          <StatusHighlight
-            variant="error"
-            error={error}
-            onDismiss={clearError}
-            onFixInChat={handleFixInChat}
-          />
-        ) : finishReason && finishReason !== "stop" ? (
-          <StatusHighlight
-            variant="warning"
-            finishReason={finishReason}
-            onDismiss={clearFinishReason}
-            onContinue={handleContinue}
-          />
-        ) : null
-      ) : null}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  if (!isStreaming && error) {
+    return (
+      <StatusHighlight
+        variant="error"
+        error={error}
+        onDismiss={clearError}
+        onFixInChat={handleFixInChat}
+      />
+    );
+  }
+
+  if (!isStreaming && finishReason && finishReason !== "stop") {
+    return (
+      <StatusHighlight
+        variant="warning"
+        finishReason={finishReason}
+        onDismiss={clearFinishReason}
+        onContinue={handleContinue}
+      />
+    );
+  }
+
+  return null;
 }
 
 ChatHighlight.Error = function ErrorHighlight(props: {
