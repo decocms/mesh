@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Inbox01, SearchMd, Loading01, FilterLines } from "@untitledui/icons";
+import {
+  AlertTriangle,
+  Inbox01,
+  SearchMd,
+  Loading01,
+  FilterLines,
+  RefreshCw01,
+} from "@untitledui/icons";
 import { useDebounce } from "@/web/hooks/use-debounce";
 import { useScrollRestoration } from "@/web/hooks/use-scroll-restoration";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
@@ -17,6 +24,7 @@ import {
 import { CollectionSearch } from "../collections/collection-search";
 import { MCPServerCardGrid } from "./mcp-server-card";
 import { StoreFilters } from "./store-filters";
+import { Button } from "@deco/ui/components/button.tsx";
 import type { RegistryItem } from "./types";
 
 interface StoreDiscoveryProps {
@@ -80,6 +88,7 @@ function StoreDiscoveryContent({
     isLoadingMore,
     isInitialLoading,
     isFetching,
+    error,
     loadMore,
     availableTags,
     availableCategories,
@@ -178,8 +187,35 @@ function StoreDiscoveryContent({
       >
         <div className="p-5">
           <div>
-            {/* Initial loading state */}
-            {isInitialLoading ? (
+            {/* Error state — registry unreachable */}
+            {error && !isInitialLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                <div className="bg-destructive/10 p-3 rounded-full">
+                  <AlertTriangle className="size-8 text-destructive" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium">Registry unavailable</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    Could not load items from this registry. It may be
+                    temporarily offline.
+                  </p>
+                  {error.message && (
+                    <p className="text-xs text-muted-foreground/60 font-mono max-w-md mx-auto truncate">
+                      {error.message}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                >
+                  <RefreshCw01 className="size-4" />
+                  Try again
+                </Button>
+              </div>
+            ) : /* Initial loading state */
+            isInitialLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Loading01
                   size={32}
@@ -273,7 +309,20 @@ export function StoreDiscovery({ registryId }: StoreDiscoveryProps) {
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
   if (!listToolName) {
-    throw new Error("This registry does not support listing store items.");
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-12 text-center space-y-4">
+        <div className="bg-muted p-3 rounded-full">
+          <Inbox01 className="size-8 text-muted-foreground" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-medium">Registry not available</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            This registry does not support listing store items, or the
+            connection is not responding.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Find the FILTERS tool (optional - not all registries support it)
