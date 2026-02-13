@@ -17,8 +17,9 @@
 /* Explicitly scan @deco/ui components for Tailwind classes */
 @source "../components/**/*.tsx";
 
-/* Scan mesh-plugin-store components for Tailwind classes */
+/* Scan mesh-plugin components for Tailwind classes */
 @source "../../../mesh-plugin-object-storage/**/*.tsx";
+@source "../../../mesh-plugin-private-registry/**/*.tsx";
 
 @custom-variant dark (&:is(.dark *));
 

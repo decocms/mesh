@@ -40,6 +40,7 @@ import { slugify } from "@/web/utils/slugify";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
   findListToolName,
+  findRegistryToolBySuffix,
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
@@ -109,18 +110,21 @@ function extractItemData(item: RegistryItem): MCPServerData {
   const decoMeta = item._meta?.["mcp.mesh"];
   const officialMeta =
     item._meta?.["io.modelcontextprotocol.registry/official"];
-  const server = item.server;
+  const server = item.server ?? ({} as RegistryItem["server"]);
 
   // Extract connection type from remotes
-  const connectionType = getConnectionTypeLabel(server.remotes?.[0]?.type);
+  const connectionType = getConnectionTypeLabel(server?.remotes?.[0]?.type);
 
   // Extract schema version from $schema URL
-  const schemaVersion = extractSchemaVersion(server.$schema);
+  const schemaVersion = extractSchemaVersion(server?.$schema);
 
-  // Extract publisher - prioritize official registry meta
+  // Extract publisher - prioritize official registry meta, fallback to provider from item.id
+  const providerFromId = item.id?.includes("/")
+    ? item.id.split("/")[0]
+    : undefined;
   const publisher = officialMeta
     ? "io.modelcontextprotocol.registry/official"
-    : item.publisher || decoMeta?.scopeName || "Unknown";
+    : item.publisher || decoMeta?.scopeName || providerFromId || "Unknown";
 
   // Get icon with GitHub fallback
   const githubIcon = getGitHubAvatarUrl(server.repository);
@@ -151,6 +155,10 @@ function extractItemData(item: RegistryItem): MCPServerData {
 
   // Extract short_description
   const shortDescription = decoMeta?.short_description || null;
+  const readmeMarkdown =
+    typeof decoMeta?.readme === "string" ? decoMeta.readme : null;
+  const readmeUrl =
+    typeof decoMeta?.readme_url === "string" ? decoMeta.readme_url : null;
 
   // Extract tags and categories
   const tags = decoMeta?.tags || [];
@@ -160,6 +168,8 @@ function extractItemData(item: RegistryItem): MCPServerData {
     name: finalName,
     description: description,
     shortDescription: shortDescription,
+    readmeMarkdown,
+    readmeUrl,
     icon: icon,
     verified: item.verified || decoMeta?.verified,
     publisher: publisher,
@@ -168,8 +178,8 @@ function extractItemData(item: RegistryItem): MCPServerData {
     repository: server.repository || null,
     schemaVersion: schemaVersion ?? null,
     connectionType: connectionType,
-    connectionUrl: null,
-    remoteUrl: null,
+    connectionUrl: server?.remotes?.[0]?.url || null,
+    remoteUrl: server?.remotes?.[0]?.url || null,
     tags: tags,
     categories: categories,
     tools: item.tools || server.tools || decoMeta?.tools || [],
@@ -271,23 +281,15 @@ function StoreMCPServerDetailContent() {
   // Find the LIST tool from the registry connection
   const listToolName = findListToolName(registryConnection?.tools);
 
-  const versionsToolName = !registryConnection?.tools
-    ? ""
-    : (() => {
-        const versionsTool = registryConnection.tools.find((tool) =>
-          tool.name.endsWith("_VERSIONS"),
-        );
-        return versionsTool?.name || "";
-      })();
+  const versionsToolName = findRegistryToolBySuffix(
+    registryConnection?.tools ?? null,
+    "_VERSIONS",
+  );
 
-  const getToolName = !registryConnection?.tools
-    ? ""
-    : (() => {
-        const getTool = registryConnection.tools.find((tool) =>
-          tool.name.endsWith("_GET"),
-        );
-        return getTool?.name || "";
-      })();
+  const getToolName = findRegistryToolBySuffix(
+    registryConnection?.tools ?? null,
+    "_GET",
+  );
 
   // If serverName provided, use versions tool (or get as fallback); otherwise use list tool
   const shouldUseVersionsTool = !!serverName;
@@ -402,18 +404,19 @@ function StoreMCPServerDetailContent() {
 
   // Find the item matching the serverSlug or serverName
   let selectedItem = items.find((item) => {
-    const itemName = item.name || item.title || item.server.title || "";
+    const itemName = item.name || item.title || item.server?.title || "";
     return slugify(itemName) === serverSlug;
   });
 
-  // If not found in list but serverName provided, try to find by server name
+  // If not found in list but serverName provided, try to find by server name or id
   if (!selectedItem && serverName) {
     selectedItem = items.find((item) => {
-      const serverNameMatch =
-        item.server.name === serverName ||
+      return (
+        item.id === serverName ||
+        item.server?.name === serverName ||
         item.name === serverName ||
-        item.title === serverName;
-      return serverNameMatch;
+        item.title === serverName
+      );
     });
   }
 
@@ -531,16 +534,16 @@ function StoreMCPServerDetailContent() {
     {
       id: "readme",
       label: "README",
-      visible: !!data?.repository && !!repo,
+      visible:
+        Boolean(data?.readmeMarkdown) ||
+        Boolean(data?.readmeUrl) ||
+        (!!data?.repository && !!repo),
     },
     {
       id: "tools",
       label: "Tools",
       count: effectiveTools.length,
-      visible:
-        hasLocalTools ||
-        remoteTools.length > 0 ||
-        (isLoadingRemoteTools && !!remoteUrl),
+      visible: hasLocalTools || remoteTools.length > 0 || !!remoteUrl,
     },
   ].filter((tab) => tab.visible);
 

@@ -13,6 +13,18 @@ export function findListToolName(
   tools?: Array<{ name: string }> | null,
 ): string {
   if (!tools) return "";
+  const preferred = tools.find(
+    (tool) => tool.name === "COLLECTION_REGISTRY_APP_LIST",
+  );
+  if (preferred) return preferred.name;
+
+  const registryList = tools.find(
+    (tool) =>
+      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
+      tool.name.endsWith("_LIST"),
+  );
+  if (registryList) return registryList.name;
+
   const listTool = tools.find((tool) => tool.name.endsWith("_LIST"));
   return listTool?.name ?? "";
 }
@@ -26,8 +38,45 @@ export function findFiltersToolName(
   tools?: Array<{ name: string }> | null,
 ): string {
   if (!tools) return "";
-  const filtersTool = tools.find((tool) => tool.name.endsWith("_FILTERS"));
-  return filtersTool?.name ?? "";
+  const preferred = tools.find(
+    (tool) => tool.name === "COLLECTION_REGISTRY_APP_FILTERS",
+  );
+  if (preferred) return preferred.name;
+
+  const filtersTool = tools.find(
+    (tool) =>
+      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
+      tool.name.endsWith("_FILTERS"),
+  );
+  if (filtersTool) return filtersTool.name;
+
+  const genericFilters = tools.find((tool) => tool.name.endsWith("_FILTERS"));
+  return genericFilters?.name ?? "";
+}
+
+/**
+ * Find a REGISTRY_APP tool by suffix (e.g., "_GET", "_VERSIONS")
+ */
+export function findRegistryToolBySuffix(
+  tools: Array<{ name: string }> | null | undefined,
+  suffix: "_GET" | "_VERSIONS" | "_SEARCH",
+): string {
+  if (!tools) return "";
+
+  const preferred = tools.find(
+    (tool) => tool.name === `COLLECTION_REGISTRY_APP${suffix}`,
+  );
+  if (preferred) return preferred.name;
+
+  const registryTool = tools.find(
+    (tool) =>
+      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
+      tool.name.endsWith(suffix),
+  );
+  if (registryTool) return registryTool.name;
+
+  const genericTool = tools.find((tool) => tool.name.endsWith(suffix));
+  return genericTool?.name ?? "";
 }
 
 /**

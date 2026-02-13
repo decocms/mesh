@@ -1,10 +1,27 @@
 import { EmptyState } from "@/web/components/empty-state";
 import { ReadmeViewer } from "@/web/components/readme";
 import { Loading01 } from "@untitledui/icons";
+import { useQuery } from "@tanstack/react-query";
+import { marked } from "marked";
 import { ToolsList, type Tool } from "@/web/components/tools";
+import { KEYS } from "@/web/lib/query-keys";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { MCPServersList } from "./mcp-servers-list";
 import type { MCPServerData, TabItem, UnifiedServerEntry } from "./types";
+
+/**
+ * Sanitize HTML generated from markdown to prevent XSS.
+ * Uses DOMPurify (lazy-loaded) which handles all known bypass vectors including
+ * unquoted event handlers, SVG/MathML payloads, and style injection.
+ */
+async function sanitizeHtml(html: string): Promise<string> {
+  const DOMPurify = (await import("dompurify")).default;
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["style", "form"],
+    FORBID_ATTR: ["style"],
+  });
+}
 
 interface MCPServerTabsContentProps {
   data: MCPServerData;
@@ -41,6 +58,43 @@ export function MCPServerTabsContent({
   mcpName,
   showStdio = false,
 }: MCPServerTabsContentProps) {
+  const hasEmbeddedReadme = Boolean(data.readmeMarkdown?.trim());
+  const hasReadmeUrl = Boolean(data.readmeUrl?.trim());
+
+  const { data: embeddedReadmeHtml, isLoading: isLoadingEmbeddedReadme } =
+    useQuery({
+      queryKey: KEYS.storeReadmeUrl(`embedded:${data.readmeMarkdown}`),
+      queryFn: async () => {
+        const rawHtml = marked.parse(data.readmeMarkdown ?? "", {
+          async: false,
+        }) as string;
+        return sanitizeHtml(rawHtml);
+      },
+      enabled: hasEmbeddedReadme,
+      staleTime: Infinity,
+    });
+
+  const { data: fetchedReadmeHtml, isLoading: isLoadingReadmeUrl } = useQuery({
+    queryKey: KEYS.storeReadmeUrl(data.readmeUrl),
+    queryFn: async () => {
+      if (!data.readmeUrl) return null;
+      const response = await fetch(data.readmeUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch README (${response.status})`);
+      }
+      const markdown = await response.text();
+      return sanitizeHtml(marked.parse(markdown, { async: false }) as string);
+    },
+    enabled: hasReadmeUrl && !hasEmbeddedReadme,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+  });
+
+  const customReadmeHtml = embeddedReadmeHtml ?? fetchedReadmeHtml ?? null;
+  const customReadmeLoading =
+    (hasEmbeddedReadme && isLoadingEmbeddedReadme) ||
+    (!hasEmbeddedReadme && isLoadingReadmeUrl);
+
   // Convert tools to the expected format
   const tools: Tool[] = effectiveTools.map((tool) => {
     const t = tool as Record<string, unknown>;
@@ -106,7 +160,14 @@ export function MCPServerTabsContent({
       {/* README Tab Content */}
       {effectiveActiveTabId === "readme" && (
         <div className="flex-1 overflow-y-auto bg-background">
-          <ReadmeViewer repository={data?.repository} />
+          {hasEmbeddedReadme || hasReadmeUrl ? (
+            <ReadmeViewer
+              html={customReadmeHtml}
+              isLoading={customReadmeLoading}
+            />
+          ) : (
+            <ReadmeViewer repository={data?.repository} />
+          )}
         </div>
       )}
     </div>

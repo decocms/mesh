@@ -156,8 +156,10 @@ export function filterToolsByEnabledPlugins<T extends { name: string }>(
     const pluginId = pluginToolMap.get(tool.name);
     // Core tool (not from a plugin) - always show
     if (!pluginId) return true;
-    // Plugin tool - only show if plugin is enabled
-    return enabledPlugins?.includes(pluginId) ?? false;
+    // If org-level plugin settings are not configured, keep plugin tools visible.
+    if (enabledPlugins == null) return true;
+    // Plugin tool - only show if plugin is explicitly enabled
+    return enabledPlugins.includes(pluginId);
   });
 }
 
@@ -180,20 +182,21 @@ export function collectPluginTools(): ToolDefinition<
     if (!plugin.tools) continue;
 
     for (const toolDef of plugin.tools) {
-      // Convert ServerPluginToolDefinition to Tool and wrap with gating
+      // Convert ServerPluginToolDefinition to Tool and wrap with gating.
+      // MeshContext is a superset of ServerPluginToolContext so the cast is safe.
+      // MeshContext is a superset of ServerPluginToolContext; the Kysely
+      // generic parameter differs (Database vs unknown) so we go through unknown.
+      const handler = toolDef.handler as unknown as (
+        input: unknown,
+        ctx: MeshContext,
+      ) => Promise<unknown>;
       const tool = {
         name: toolDef.name,
         description: toolDef.description ?? "",
         inputSchema: toolDef.inputSchema as z.ZodType,
         outputSchema: toolDef.outputSchema as z.ZodType | undefined,
-        handler: toolDef.handler as (
-          input: unknown,
-          ctx: MeshContext,
-        ) => Promise<unknown>,
-        execute: toolDef.handler as (
-          input: unknown,
-          ctx: MeshContext,
-        ) => Promise<unknown>,
+        handler,
+        execute: handler,
       } as Tool<z.ZodType, z.ZodType, string>;
 
       const wrappedTool = withPluginEnabled(plugin.id, tool);
