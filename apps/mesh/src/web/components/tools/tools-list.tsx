@@ -46,7 +46,7 @@ const ANNOTATION_HINTS = [
   },
 ] as const;
 
-function ToolAnnotationBadges({
+export function ToolAnnotationBadges({
   annotations,
 }: {
   annotations?: ToolDefinition["annotations"];

@@ -1,1 +1,6 @@
-export { ToolsList, type Tool, type ToolsListProps } from "./tools-list";
+export {
+  ToolsList,
+  type Tool,
+  type ToolsListProps,
+  ToolAnnotationBadges,
+} from "./tools-list";

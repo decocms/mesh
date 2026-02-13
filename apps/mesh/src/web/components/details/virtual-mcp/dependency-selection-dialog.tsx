@@ -1,4 +1,5 @@
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { ToolAnnotationBadges } from "@/web/components/tools";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -30,6 +31,7 @@ import {
   Loading01,
   Tool01,
 } from "@untitledui/icons";
+import type { ReactNode } from "react";
 import { Suspense, useReducer } from "react";
 import type { VirtualMCPConnection } from "@decocms/mesh-sdk/types";
 import {
@@ -49,6 +51,7 @@ interface SelectableItem {
   id: string;
   name: string;
   description?: string;
+  tags?: ReactNode;
 }
 
 // Loading spinner component
@@ -120,7 +123,12 @@ function SelectionItem({
       )}
     >
       <div className="flex-1 min-w-0 space-y-2">
-        <p className="text-sm font-medium leading-none">{item.name}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium leading-none truncate">
+            {item.name}
+          </p>
+          {item.tags && <span className="shrink-0">{item.tags}</span>}
+        </div>
         {item.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">
             {item.description}
@@ -228,6 +236,7 @@ function ToolsTab({
     id: tool.name,
     name: tool.name,
     description: tool.description,
+    tags: <ToolAnnotationBadges annotations={tool.annotations} />,
   }));
 
   const EMPTY_MESSAGE = "No tools available";
