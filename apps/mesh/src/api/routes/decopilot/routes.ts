@@ -120,6 +120,7 @@ app.post("/:org/decopilot/stream", async (c) => {
       temperature,
       memory: memoryConfig,
       thread_id,
+      toolApprovalLevel,
     } = await validateRequest(c);
 
     const userId = ctx.auth?.user?.id;
@@ -223,14 +224,24 @@ app.post("/:org/decopilot/stream", async (c) => {
     let streamFinished = false;
 
     // 4. Create stream with writer access for data parts
+    // IMPORTANT: Do NOT pass onFinish/onStepFinish to createUIMessageStream when
+    // using writer.merge with toUIMessageStream that has originalMessages.
+    // createUIMessageStream wraps its stream in handleUIMessageStreamFinish which
+    // runs processUIMessageStream on every chunk. Without originalMessages, the outer
+    // state starts with an empty assistant message, causing "No tool invocation found"
+    // errors when tool-output-available chunks arrive (e.g. after tool approval flow).
     const uiStream = createUIMessageStream({
       execute: async ({ writer }) => {
         // Create tools inside execute so they have access to writer
-        const mcpTools = await toolsFromMCP(mcpClient, writer);
+        const mcpTools = await toolsFromMCP(
+          mcpClient,
+          writer,
+          toolApprovalLevel,
+        );
 
         const builtInTools = getBuiltInTools(
           writer,
-          { modelProvider, organization, models },
+          { modelProvider, organization, models, toolApprovalLevel },
           ctx,
         );
 
@@ -361,6 +372,8 @@ app.post("/:org/decopilot/stream", async (c) => {
               return;
             },
             onFinish: async ({ responseMessage }) => {
+              streamFinished = true;
+
               const now = Date.now();
               const messagesToSave = [
                 ...new Map(
@@ -370,9 +383,6 @@ app.post("/:org/decopilot/stream", async (c) => {
                 ).values(),
               ].map((message, i) => ({
                 ...message,
-                metadata: {
-                  ...message.metadata,
-                },
                 thread_id: mem.thread.id,
                 created_at: new Date(now + i).toISOString(),
                 updated_at: new Date(now + i).toISOString(),
@@ -409,10 +419,19 @@ app.post("/:org/decopilot/stream", async (c) => {
       onError: (error) => {
         streamFinished = true;
         console.error("[decopilot] stream error:", error);
+
+        if (mem.thread.id) {
+          ctx.storage.threads
+            .update(mem.thread.id, { status: "failed" })
+            .catch((statusErr) => {
+              console.error(
+                "[decopilot:stream] Error updating thread status on stream error",
+                statusErr,
+              );
+            });
+        }
+
         return error instanceof Error ? error.message : String(error);
-      },
-      onFinish: () => {
-        streamFinished = true;
       },
     });
 

@@ -7,6 +7,7 @@
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import type { UIMessageStreamWriter } from "ai";
+import { toolNeedsApproval, type ToolApprovalLevel } from "../helpers";
 import { createAgentSearchTool } from "./agent-search";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
@@ -16,6 +17,7 @@ export interface BuiltinToolParams {
   modelProvider: ModelProvider;
   organization: OrganizationScope;
   models: ModelsConfig;
+  toolApprovalLevel?: ToolApprovalLevel;
 }
 
 /**
@@ -28,14 +30,31 @@ export function getBuiltInTools(
   params: BuiltinToolParams,
   ctx: MeshContext,
 ) {
-  const { modelProvider, organization, models } = params;
+  const {
+    modelProvider,
+    organization,
+    models,
+    toolApprovalLevel = "none",
+  } = params;
   return {
     user_ask: userAskTool,
     subtask: createSubtaskTool(
       writer,
-      { modelProvider, organization, models },
+      {
+        modelProvider,
+        organization,
+        models,
+        needsApproval: toolNeedsApproval(toolApprovalLevel, false),
+      },
       ctx,
     ),
-    agent_search: createAgentSearchTool(writer, { organization }, ctx),
+    agent_search: createAgentSearchTool(
+      writer,
+      {
+        organization,
+        needsApproval: toolNeedsApproval(toolApprovalLevel, true),
+      },
+      ctx,
+    ),
   } as const;
 }

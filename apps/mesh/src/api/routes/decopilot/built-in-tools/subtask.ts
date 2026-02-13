@@ -63,6 +63,7 @@ export interface SubtaskParams {
   modelProvider: ModelProvider;
   organization: OrganizationScope;
   models: ModelsConfig;
+  needsApproval?: boolean;
 }
 
 const SUBTASK_ANNOTATIONS = {
@@ -104,11 +105,12 @@ export function createSubtaskTool(
   params: SubtaskParams,
   ctx: MeshContext,
 ) {
-  const { modelProvider, organization, models } = params;
+  const { modelProvider, organization, models, needsApproval } = params;
 
   return tool({
     description: SUBTASK_DESCRIPTION,
     inputSchema: zodSchema(SubtaskInputSchema),
+    needsApproval,
     execute: async function* (
       { prompt, agent_id },
       { abortSignal, toolCallId },
@@ -137,7 +139,7 @@ export function createSubtaskTool(
       );
 
       // ── 3. Load tools, excluding ones that shouldn't nest ──────────
-      const mcpTools = await toolsFromMCP(mcpClient);
+      const mcpTools = await toolsFromMCP(mcpClient, writer);
       const subagentTools = Object.fromEntries(
         Object.entries(mcpTools).filter(
           ([name]) => !SUBAGENT_EXCLUDED_TOOLS.includes(name),

@@ -21,6 +21,28 @@ import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "../proxy";
 
 /**
+ * Tool approval levels determine which tools require user approval before executing
+ */
+export type ToolApprovalLevel = "none" | "readonly" | "yolo";
+
+/**
+ * Determine if a tool needs approval based on approval level and readOnlyHint
+ *
+ * @param level - The approval level setting
+ * @param readOnlyHint - Optional hint from MCP tool annotations
+ * @returns true if the tool requires approval, false if auto-approved
+ */
+export function toolNeedsApproval(
+  level: ToolApprovalLevel,
+  readOnlyHint?: boolean,
+): boolean {
+  if (level === "yolo") return false;
+  if (level === "none") return true;
+  // "readonly": auto-approve only if explicitly marked readOnly
+  return readOnlyHint !== true;
+}
+
+/**
  * Ensure organization context exists and matches route param
  */
 export function ensureOrganization(
@@ -42,11 +64,13 @@ export function ensureOrganization(
 export async function toolsFromMCP(
   client: Client,
   writer?: UIMessageStreamWriter,
+  toolApprovalLevel: ToolApprovalLevel = "yolo",
 ): Promise<ToolSet> {
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
-    const { name, title, description, inputSchema, outputSchema } = t;
+    const { name, title, description, inputSchema, outputSchema, annotations } =
+      t;
 
     return [
       name,
@@ -57,6 +81,10 @@ export async function toolsFromMCP(
         outputSchema: outputSchema
           ? jsonSchema(outputSchema as JSONSchema7)
           : undefined,
+        needsApproval: toolNeedsApproval(
+          toolApprovalLevel,
+          annotations?.readOnlyHint,
+        ),
         execute: async (input, options) => {
           const startTime = performance.now();
           try {
