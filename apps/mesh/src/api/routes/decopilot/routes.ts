@@ -170,14 +170,11 @@ app.post("/:org/decopilot/stream", async (c) => {
       status: "in_progress",
     });
 
-    // Create model client for LLM calls
-    const modelClient = await clientFromConnection(modelConnection, ctx, false);
-
-    const mcpClient = await createVirtualClientFrom(
-      virtualMcp,
-      ctx,
-      agent.mode,
-    );
+    // Create model client and virtual MCP client in parallel (they are independent)
+    const [modelClient, mcpClient] = await Promise.all([
+      clientFromConnection(modelConnection, ctx, false),
+      createVirtualClientFrom(virtualMcp, ctx, agent.mode),
+    ]);
 
     // Add streaming support since agents may use streaming models
     const streamableModelClient = withStreamingSupport(
@@ -367,7 +364,9 @@ app.post("/:org/decopilot/stream", async (c) => {
           updated_at: new Date(now + i).toISOString(),
         }));
 
-        if (messagesToSave.length === 0) return;
+        if (messagesToSave.length === 0) {
+          return;
+        }
 
         await mem.save(messagesToSave).catch((error) => {
           console.error("[decopilot:stream] Error saving messages", error);
