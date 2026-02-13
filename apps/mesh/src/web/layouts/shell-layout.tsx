@@ -150,9 +150,12 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
  */
 function RouteAwareSidebarManager({ isHomeRoute }: { isHomeRoute: boolean }) {
   const { open, setOpen } = useSidebar();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [chatOpen, setChatOpen] = useDecoChatOpen();
   const prevIsHomeRef = useRef<boolean | null>(null);
 
+  // Render-phase state derivation (useEffect is banned — React 19 compiler
+  // handles memoization). Guards prevent no-op updates that would trigger
+  // unnecessary re-renders.
   if (prevIsHomeRef.current === null) {
     // First render — collapse sidebar on home
     prevIsHomeRef.current = isHomeRoute;
@@ -163,10 +166,10 @@ function RouteAwareSidebarManager({ isHomeRoute }: { isHomeRoute: boolean }) {
     // Route changed
     prevIsHomeRef.current = isHomeRoute;
     if (isHomeRoute) {
-      setOpen(false);
+      if (open) setOpen(false);
     } else {
-      setOpen(true);
-      setChatOpen(true);
+      if (!open) setOpen(true);
+      if (!chatOpen) setChatOpen(true);
     }
   }
 

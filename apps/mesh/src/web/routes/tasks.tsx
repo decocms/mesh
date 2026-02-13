@@ -5,91 +5,25 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Page } from "@/web/components/page";
 import { User } from "@/web/components/user/user.tsx";
 import { useListState } from "@/web/hooks/use-list-state";
+import { useTaskData } from "@/web/hooks/use-task-data";
 import { formatTimeAgo } from "@/web/lib/format-time";
-import { KEYS } from "@/web/lib/query-keys";
-import type { ThreadEntity } from "@/tools/thread/schema";
-import type { CollectionListOutput } from "@decocms/bindings/collections";
 import {
-  SELF_MCP_ALIAS_ID,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+  STATUS_ORDER,
+  STATUS_CONFIG,
+  groupByStatus,
+} from "@/web/lib/task-status";
+import type { ThreadEntity } from "@/tools/thread/schema";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
 } from "@deco/ui/components/breadcrumb.tsx";
-import {
-  CheckDone01,
-  Loading01,
-  CheckCircle,
-  XCircle,
-  Placeholder,
-  Hourglass03,
-  ChevronRight,
-} from "@untitledui/icons";
+import { CheckDone01, Loading01, ChevronRight } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useNavigate } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
-
-// --- Status config ---
-
-const STATUS_ORDER = [
-  "in_progress",
-  "requires_action",
-  "failed",
-  "expired",
-  "completed",
-] as const;
-
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; icon: typeof Loading01; iconClassName: string }
-> = {
-  in_progress: {
-    label: "In Progress",
-    icon: Loading01,
-    iconClassName: "text-muted-foreground animate-spin",
-  },
-  requires_action: {
-    label: "Need Action",
-    icon: Placeholder,
-    iconClassName: "text-orange-500",
-  },
-  failed: {
-    label: "Failed",
-    icon: XCircle,
-    iconClassName: "text-destructive",
-  },
-  expired: {
-    label: "Timed Out",
-    icon: Hourglass03,
-    iconClassName: "text-warning",
-  },
-  completed: {
-    label: "Complete",
-    icon: CheckCircle,
-    iconClassName: "text-success",
-  },
-};
-
-function groupByStatus(tasks: ThreadEntity[]) {
-  const groups: Record<string, ThreadEntity[]> = {};
-  for (const task of tasks) {
-    const status = task.status ?? "completed";
-    if (!groups[status]) groups[status] = [];
-    groups[status].push(task);
-  }
-  for (const group of Object.values(groups)) {
-    group.sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    );
-  }
-  return groups;
-}
 
 // --- Components ---
 
@@ -184,11 +118,7 @@ function StatusGroup({
 }
 
 function TasksContent() {
-  const { org, project, locator } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
+  const { org, project } = useProjectContext();
   const navigate = useNavigate();
   const { switchToThread } = useChat();
 
@@ -203,20 +133,7 @@ function TasksContent() {
     Record<string, boolean>
   >({});
 
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.taskThreads(locator),
-    queryFn: async () => {
-      if (!client) throw new Error("MCP client is not available");
-      const result = (await client.callTool({
-        name: "COLLECTION_THREADS_LIST",
-        arguments: { limit: 100, offset: 0 },
-      })) as { structuredContent?: unknown };
-      const payload = (result.structuredContent ??
-        result) as CollectionListOutput<ThreadEntity>;
-      return payload.items ?? [];
-    },
-    staleTime: 30_000,
-  });
+  const { data } = useTaskData();
 
   const visible = data.filter((t) => !t.hidden);
 
