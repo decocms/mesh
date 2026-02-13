@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import {
@@ -99,14 +100,10 @@ export default function RegistryRequestsPage() {
   const requests = listQuery.data?.items ?? [];
   const totalCount = listQuery.data?.totalCount ?? 0;
 
-  const pendingById = useMemo(
-    () =>
-      new Set(
-        requests
-          .filter((request) => request.status === "pending")
-          .map((request) => request.id),
-      ),
-    [requests],
+  const pendingById = new Set(
+    requests
+      .filter((request) => request.status === "pending")
+      .map((request) => request.id),
   );
 
   const handleApproveConfirmed = async () => {
@@ -191,11 +188,12 @@ export default function RegistryRequestsPage() {
               <button
                 key={option.value}
                 type="button"
-                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md transition-colors",
                   status === option.value
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    : "text-muted-foreground hover:text-foreground",
+                )}
                 onClick={() => setStatus(option.value)}
               >
                 {option.label}

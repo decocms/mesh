@@ -5,7 +5,7 @@ import type { PrivateRegistryDatabase, PublishApiKeyEntity } from "./types";
 /**
  * Hash a plaintext API key using SHA-256.
  */
-export async function hashApiKey(key: string): Promise<string> {
+async function hashApiKey(key: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(key);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
