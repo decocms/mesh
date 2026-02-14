@@ -10,25 +10,28 @@
  * communication for live preview updates, and debounce-saves to git.
  */
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { nanoid } from "nanoid";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft, Save01, Loading01, AlertCircle } from "@untitledui/icons";
+import {
+  ArrowLeft,
+  Save01,
+  Loading01,
+  AlertCircle,
+  ReverseLeft,
+  ReverseRight,
+} from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
 import { siteEditorRouter } from "../lib/router";
-import {
-  getPage,
-  updatePage,
-  type BlockInstance,
-  type Page,
-} from "../lib/page-api";
+import { getPage, updatePage, type BlockInstance } from "../lib/page-api";
 import { getBlock } from "../lib/block-api";
 import { useEditorMessages } from "../lib/use-editor-messages";
+import { useUndoRedo } from "../lib/use-undo-redo";
 import { PreviewPanel } from "./preview-panel";
 import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
 import { PropEditor } from "./prop-editor";
@@ -43,7 +46,6 @@ export default function PageComposer() {
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportKey>("desktop");
-  const [localPage, setLocalPage] = useState<Page | null>(null);
   const [showBlockPicker, setShowBlockPicker] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -59,15 +61,30 @@ export default function PageComposer() {
     queryFn: () => getPage(toolCaller, pageId),
   });
 
-  // Sync local page copy when server data loads
+  // Undo/redo state for blocks
+  const {
+    value: blocks,
+    push: pushBlocks,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset: resetBlocks,
+    clearFuture,
+  } = useUndoRedo<BlockInstance[]>(page?.blocks ?? []);
+
+  // Sync blocks when server data loads
   const lastSyncedRef = useRef<string | null>(null);
   if (page && lastSyncedRef.current !== page.metadata.updatedAt) {
     lastSyncedRef.current = page.metadata.updatedAt;
-    setLocalPage(page);
+    resetBlocks(page.blocks);
   }
 
+  // Build the local page object from query data + undo/redo blocks
+  const localPage = page ? { ...page, blocks } : null;
+
   // Find selected block
-  const selectedBlock = localPage?.blocks.find((b) => b.id === selectedBlockId);
+  const selectedBlock = blocks.find((b) => b.id === selectedBlockId);
 
   // Fetch block definition (schema) for the selected block
   const { data: blockDef } = useQuery({
@@ -79,16 +96,69 @@ export default function PageComposer() {
     enabled: !!selectedBlock,
   });
 
+  // Send page-config to iframe whenever blocks change (undo/redo or direct edit)
+  const prevBlocksRef = useRef<BlockInstance[]>(blocks);
+  if (localPage && blocks !== prevBlocksRef.current) {
+    prevBlocksRef.current = blocks;
+    queueMicrotask(() => {
+      if (localPage) {
+        send({ type: "deco:page-config", page: localPage });
+      }
+    });
+  }
+
+  // Keyboard shortcuts for undo/redo via useSyncExternalStore
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
+  undoRef.current = undo;
+  redoRef.current = redo;
+
+  useSyncExternalStore(
+    (notify) => {
+      const handler = (e: KeyboardEvent) => {
+        const mod = e.metaKey || e.ctrlKey;
+        if (!mod) return;
+
+        // Redo: Cmd+Shift+Z or Cmd+Y
+        if ((e.key === "z" || e.key === "Z") && e.shiftKey && mod) {
+          e.preventDefault();
+          redoRef.current();
+          notify();
+          return;
+        }
+        if ((e.key === "y" || e.key === "Y") && mod && !e.shiftKey) {
+          e.preventDefault();
+          redoRef.current();
+          notify();
+          return;
+        }
+        // Undo: Cmd+Z (no shift)
+        if ((e.key === "z" || e.key === "Z") && mod && !e.shiftKey) {
+          e.preventDefault();
+          undoRef.current();
+          notify();
+          return;
+        }
+      };
+
+      window.addEventListener("keydown", handler);
+      return () => window.removeEventListener("keydown", handler);
+    },
+    () => null,
+    () => null,
+  );
+
   // Debounced save to git
-  const debouncedSave = (updatedPage: Page) => {
+  const debouncedSave = (updatedBlocks: BlockInstance[]) => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = setTimeout(async () => {
       try {
         await updatePage(toolCaller, pageId, {
-          blocks: updatedPage.blocks,
+          blocks: updatedBlocks,
         });
+        clearFuture();
         queryClient.invalidateQueries({
           queryKey: queryKeys.pages.detail(connectionId, pageId),
         });
@@ -100,28 +170,15 @@ export default function PageComposer() {
     }, 2000);
   };
 
-  // Helper to update local page and trigger save
-  const applyPageUpdate = (updater: (prev: Page) => Page) => {
-    if (!localPage) return;
-    const updatedPage = updater(localPage);
-    setLocalPage(updatedPage);
-    debouncedSave(updatedPage);
-  };
-
   // Handle prop changes from PropEditor
   const handlePropChange = (newProps: Record<string, unknown>) => {
-    if (!localPage || !selectedBlockId) return;
+    if (!selectedBlockId) return;
 
-    const updatedBlocks = localPage.blocks.map((block) =>
+    const updatedBlocks = blocks.map((block) =>
       block.id === selectedBlockId ? { ...block, props: newProps } : block,
     );
 
-    const updatedPage: Page = {
-      ...localPage,
-      blocks: updatedBlocks,
-    };
-
-    setLocalPage(updatedPage);
+    pushBlocks(updatedBlocks);
 
     // Immediately send to iframe for live preview
     send({
@@ -131,15 +188,14 @@ export default function PageComposer() {
     });
 
     // Debounce save to git
-    debouncedSave(updatedPage);
+    debouncedSave(updatedBlocks);
   };
 
   // Handle block deletion
   const handleDeleteBlock = (blockId: string) => {
-    applyPageUpdate((prev) => ({
-      ...prev,
-      blocks: prev.blocks.filter((b) => b.id !== blockId),
-    }));
+    const updatedBlocks = blocks.filter((b) => b.id !== blockId);
+    pushBlocks(updatedBlocks);
+    debouncedSave(updatedBlocks);
     if (selectedBlockId === blockId) {
       setSelectedBlockId(null);
     }
@@ -147,15 +203,13 @@ export default function PageComposer() {
 
   // Handle block reordering via DnD
   const handleReorder = (activeId: string, overId: string) => {
-    if (!localPage) return;
-    const oldIndex = localPage.blocks.findIndex((b) => b.id === activeId);
-    const newIndex = localPage.blocks.findIndex((b) => b.id === overId);
+    const oldIndex = blocks.findIndex((b) => b.id === activeId);
+    const newIndex = blocks.findIndex((b) => b.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    applyPageUpdate((prev) => ({
-      ...prev,
-      blocks: arrayMove(prev.blocks, oldIndex, newIndex),
-    }));
+    const reorderedBlocks = arrayMove(blocks, oldIndex, newIndex);
+    pushBlocks(reorderedBlocks);
+    debouncedSave(reorderedBlocks);
   };
 
   // Handle adding a new block from the picker
@@ -169,10 +223,9 @@ export default function PageComposer() {
       props: defaults,
     };
 
-    applyPageUpdate((prev) => ({
-      ...prev,
-      blocks: [...prev.blocks, newBlock],
-    }));
+    const updatedBlocks = [...blocks, newBlock];
+    pushBlocks(updatedBlocks);
+    debouncedSave(updatedBlocks);
 
     setSelectedBlockId(newBlock.id);
     setShowBlockPicker(false);
@@ -191,6 +244,7 @@ export default function PageComposer() {
         path: localPage.path,
         blocks: localPage.blocks,
       });
+      clearFuture();
       toast.success("Page saved");
       queryClient.invalidateQueries({
         queryKey: queryKeys.pages.detail(connectionId, pageId),
@@ -259,6 +313,26 @@ export default function PageComposer() {
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!canUndo}
+              onClick={undo}
+              title="Undo (Cmd+Z)"
+            >
+              <ReverseLeft size={16} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={!canRedo}
+              onClick={redo}
+              title="Redo (Cmd+Shift+Z)"
+            >
+              <ReverseRight size={16} />
+            </Button>
+          </div>
           <ViewportToggle value={viewport} onChange={setViewport} />
           <Button size="sm" onClick={handleSave}>
             <Save01 size={14} className="mr-1" />
