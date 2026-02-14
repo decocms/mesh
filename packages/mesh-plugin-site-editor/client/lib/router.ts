@@ -43,11 +43,18 @@ export const siteEditorRouter = createPluginRouter((ctx) => {
     component: lazyRouteComponent(() => import("../components/loaders-list")),
   });
 
+  const loaderDetailRoute = createRoute({
+    getParentRoute: () => ctx.parentRoute,
+    path: "/loaders/$loaderId",
+    component: lazyRouteComponent(() => import("../components/loader-detail")),
+  });
+
   return [
     pagesRoute,
     pageEditorRoute,
     sectionsRoute,
     blockDetailRoute,
     loadersRoute,
+    loaderDetailRoute,
   ];
 });
