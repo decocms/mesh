@@ -31,11 +31,23 @@ export const siteEditorRouter = createPluginRouter((ctx) => {
     component: lazyRouteComponent(() => import("../components/sections-list")),
   });
 
+  const blockDetailRoute = createRoute({
+    getParentRoute: () => ctx.parentRoute,
+    path: "/sections/$blockId",
+    component: lazyRouteComponent(() => import("../components/block-detail")),
+  });
+
   const loadersRoute = createRoute({
     getParentRoute: () => ctx.parentRoute,
     path: "/loaders",
     component: lazyRouteComponent(() => import("../components/loaders-list")),
   });
 
-  return [pagesRoute, pageEditorRoute, sectionsRoute, loadersRoute];
+  return [
+    pagesRoute,
+    pageEditorRoute,
+    sectionsRoute,
+    blockDetailRoute,
+    loadersRoute,
+  ];
 });
