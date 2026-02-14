@@ -157,8 +157,14 @@ export class EventBusWorker {
   }
 
   /**
-   * Trigger event processing
-   * Called by the NotifyStrategy when events are available
+   * Trigger event processing.
+   * Called by the NotifyStrategy when events are available.
+   *
+   * The coalescing loop below means that notifications arriving while we're
+   * already processing don't wait for the next poll interval — they get picked
+   * up immediately in the next iteration of the do/while loop. Under frequent
+   * work this keeps the worker continuously busy instead of idling between
+   * polls. Won't scale forever but fine for now.
    */
   async processNow(): Promise<void> {
     if (!this.running) return;
