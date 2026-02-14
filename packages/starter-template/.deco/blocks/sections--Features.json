@@ -1,0 +1,49 @@
+{
+  "id": "sections--Features",
+  "type": "section",
+  "title": "Features",
+  "description": "Grid of feature cards with icon, title, and description",
+  "category": "sections",
+  "filePath": "app/components/sections/features.tsx",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "heading": { "type": "string", "description": "Section heading" },
+      "features": {
+        "type": "array",
+        "description": "List of features to display",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "description": "Feature title" },
+            "description": {
+              "type": "string",
+              "description": "Feature description"
+            },
+            "icon": { "type": "string", "description": "Icon name (optional)" }
+          },
+          "required": ["title", "description"]
+        }
+      },
+      "columns": {
+        "type": "number",
+        "description": "Number of columns (2, 3, or 4)",
+        "enum": [2, 3, 4]
+      }
+    },
+    "required": ["heading", "features"]
+  },
+  "defaults": {
+    "heading": "Features",
+    "features": [
+      { "title": "Feature 1", "description": "Description of feature 1" },
+      { "title": "Feature 2", "description": "Description of feature 2" },
+      { "title": "Feature 3", "description": "Description of feature 3" }
+    ],
+    "columns": 3
+  },
+  "metadata": {
+    "customized": false,
+    "lastScanned": "2026-01-01T00:00:00.000Z"
+  }
+}
