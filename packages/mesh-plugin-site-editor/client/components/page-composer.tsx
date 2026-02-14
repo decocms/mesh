@@ -28,7 +28,13 @@ import {
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
 import { siteEditorRouter } from "../lib/router";
-import { getPage, updatePage, type BlockInstance } from "../lib/page-api";
+import {
+  getPage,
+  updatePage,
+  isLoaderRef,
+  type BlockInstance,
+  type LoaderRef,
+} from "../lib/page-api";
 import { getBlock } from "../lib/block-api";
 import { useEditorMessages } from "../lib/use-editor-messages";
 import { useUndoRedo } from "../lib/use-undo-redo";
@@ -37,6 +43,7 @@ import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
 import { PropEditor } from "./prop-editor";
 import { SectionListSidebar } from "./section-list-sidebar";
 import { BlockPicker } from "./block-picker";
+import { LoaderPicker } from "./loader-picker";
 
 export default function PageComposer() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
@@ -47,6 +54,10 @@ export default function PageComposer() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportKey>("desktop");
   const [showBlockPicker, setShowBlockPicker] = useState(false);
+  const [loaderPickerState, setLoaderPickerState] = useState<{
+    open: boolean;
+    propName: string | null;
+  }>({ open: false, propName: null });
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { send } = useEditorMessages(iframeRef);
@@ -231,6 +242,47 @@ export default function PageComposer() {
     setShowBlockPicker(false);
   };
 
+  // Handle binding a loader to a prop on the selected block
+  const handleBindLoader = (loaderRef: LoaderRef) => {
+    if (!selectedBlockId || !loaderPickerState.propName) return;
+
+    const propName = loaderPickerState.propName;
+    const updatedBlocks = blocks.map((block) =>
+      block.id === selectedBlockId
+        ? { ...block, props: { ...block.props, [propName]: loaderRef } }
+        : block,
+    );
+
+    pushBlocks(updatedBlocks);
+    send({
+      type: "deco:update-block",
+      blockId: selectedBlockId,
+      props: updatedBlocks.find((b) => b.id === selectedBlockId)!.props,
+    });
+    debouncedSave(updatedBlocks);
+    setLoaderPickerState({ open: false, propName: null });
+  };
+
+  // Handle removing a loader binding from a prop
+  const handleRemoveLoaderBinding = (propName: string) => {
+    if (!selectedBlockId) return;
+
+    const updatedBlocks = blocks.map((block) => {
+      if (block.id !== selectedBlockId) return block;
+      const newProps = { ...block.props };
+      delete newProps[propName];
+      return { ...block, props: newProps };
+    });
+
+    pushBlocks(updatedBlocks);
+    send({
+      type: "deco:update-block",
+      blockId: selectedBlockId,
+      props: updatedBlocks.find((b) => b.id === selectedBlockId)!.props,
+    });
+    debouncedSave(updatedBlocks);
+  };
+
   // Manual save (flush debounce)
   const handleSave = async () => {
     if (!localPage) return;
@@ -379,6 +431,62 @@ export default function PageComposer() {
                 formData={selectedBlock.props}
                 onChange={handlePropChange}
               />
+
+              {/* Loader bindings section */}
+              <div className="mt-4 pt-4 border-t border-border space-y-2">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Loader Bindings
+                </h4>
+
+                {/* Show existing loader bindings */}
+                {Object.entries(selectedBlock.props)
+                  .filter(([, value]) => isLoaderRef(value))
+                  .map(([propName, value]) => {
+                    const ref = value as LoaderRef;
+                    return (
+                      <div
+                        key={propName}
+                        className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-medium">{propName}</span>
+                          <span className="text-muted-foreground ml-1">
+                            &larr; {ref.__loaderRef}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLoaderBinding(propName)}
+                          className="text-destructive hover:text-destructive/80 shrink-0 ml-2"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                {/* Bind loader button for each schema prop */}
+                {Object.keys(
+                  (blockDef.schema as Record<string, unknown>)?.properties ??
+                    {},
+                )
+                  .filter(
+                    (propName) => !isLoaderRef(selectedBlock.props[propName]),
+                  )
+                  .map((propName) => (
+                    <button
+                      key={propName}
+                      type="button"
+                      onClick={() =>
+                        setLoaderPickerState({ open: true, propName })
+                      }
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <span>Bind loader to</span>
+                      <span className="font-medium">{propName}</span>
+                    </button>
+                  ))}
+              </div>
             </div>
           ) : selectedBlockId ? (
             <div className="flex items-center justify-center h-full p-4">
@@ -401,6 +509,16 @@ export default function PageComposer() {
         open={showBlockPicker}
         onClose={() => setShowBlockPicker(false)}
         onSelect={handleAddBlock}
+      />
+
+      {/* Loader picker modal */}
+      <LoaderPicker
+        open={loaderPickerState.open}
+        onOpenChange={(open) =>
+          setLoaderPickerState((prev) => ({ ...prev, open }))
+        }
+        onSelect={handleBindLoader}
+        propName={loaderPickerState.propName ?? ""}
       />
     </div>
   );

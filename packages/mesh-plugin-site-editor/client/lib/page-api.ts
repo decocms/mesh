@@ -28,6 +28,25 @@ export interface BlockInstance {
   props: Record<string, unknown>;
 }
 
+/** Reference to a loader from a block instance prop value */
+export interface LoaderRef {
+  /** LoaderDefinition ID from .deco/loaders/ */
+  __loaderRef: string;
+  /** Optional: pick a specific field from loader output */
+  field?: string;
+  /** Configured input parameter values for this binding */
+  params?: Record<string, unknown>;
+}
+
+/** Check if a prop value is a loader reference */
+export function isLoaderRef(value: unknown): value is LoaderRef {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "__loaderRef" in (value as Record<string, unknown>)
+  );
+}
+
 export interface Page {
   id: string;
   path: string;
