@@ -14,6 +14,8 @@
  * - LIST_BRANCHES: List all branches (optional)
  * - MERGE_BRANCH: Merge a source branch into target (optional)
  * - DELETE_BRANCH: Delete a branch (optional)
+ * - GET_FILE_HISTORY: Get commit history for a file (optional)
+ * - READ_FILE_AT: Read a file at a specific commit (optional)
  */
 
 import { z } from "zod";
@@ -154,6 +156,51 @@ export type DeleteBranchInput = z.infer<typeof DeleteBranchInputSchema>;
 export type DeleteBranchOutput = z.infer<typeof DeleteBranchOutputSchema>;
 
 // ============================================================================
+// History Tool Schemas (optional -- not all MCPs support file history)
+// ============================================================================
+
+/**
+ * GET_FILE_HISTORY - Get commit history for a file
+ */
+const GetFileHistoryInputSchema = z.object({
+  path: z.string().describe("File path relative to project root"),
+  branch: z.string().optional().describe("Branch name (defaults to current)"),
+  limit: z
+    .number()
+    .optional()
+    .describe("Max entries to return (defaults to 50)"),
+});
+
+const GetFileHistoryOutputSchema = z.object({
+  entries: z.array(
+    z.object({
+      commitHash: z.string().describe("Git commit SHA"),
+      timestamp: z.number().describe("Commit timestamp (epoch ms)"),
+      author: z.string().describe("Commit author name"),
+      message: z.string().describe("Commit message"),
+    }),
+  ),
+});
+
+export type GetFileHistoryInput = z.infer<typeof GetFileHistoryInputSchema>;
+export type GetFileHistoryOutput = z.infer<typeof GetFileHistoryOutputSchema>;
+
+/**
+ * READ_FILE_AT - Read a file's content at a specific commit
+ */
+const ReadFileAtInputSchema = z.object({
+  path: z.string().describe("File path relative to project root"),
+  commitHash: z.string().describe("Git commit SHA to read from"),
+});
+
+const ReadFileAtOutputSchema = z.object({
+  content: z.string().describe("File content at the specified commit"),
+});
+
+export type ReadFileAtInput = z.infer<typeof ReadFileAtInputSchema>;
+export type ReadFileAtOutput = z.infer<typeof ReadFileAtOutputSchema>;
+
+// ============================================================================
 // Binding Definition
 // ============================================================================
 
@@ -174,6 +221,10 @@ export type DeleteBranchOutput = z.infer<typeof DeleteBranchOutputSchema>;
  * - LIST_BRANCHES: List all branches
  * - MERGE_BRANCH: Merge source branch into target
  * - DELETE_BRANCH: Delete a branch
+ *
+ * Optional tools (file history):
+ * - GET_FILE_HISTORY: Get commit history for a file
+ * - READ_FILE_AT: Read a file at a specific commit
  */
 export const SITE_BINDING = [
   {
@@ -227,6 +278,22 @@ export const SITE_BINDING = [
     DeleteBranchInput,
     DeleteBranchOutput
   >,
+  {
+    name: "GET_FILE_HISTORY" as const,
+    inputSchema: GetFileHistoryInputSchema,
+    outputSchema: GetFileHistoryOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<
+    "GET_FILE_HISTORY",
+    GetFileHistoryInput,
+    GetFileHistoryOutput
+  >,
+  {
+    name: "READ_FILE_AT" as const,
+    inputSchema: ReadFileAtInputSchema,
+    outputSchema: ReadFileAtOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<"READ_FILE_AT", ReadFileAtInput, ReadFileAtOutput>,
 ] as const satisfies Binder;
 
 export type SiteBinding = typeof SITE_BINDING;

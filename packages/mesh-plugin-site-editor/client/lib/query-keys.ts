@@ -25,6 +25,10 @@ export const queryKeys = {
     all: (connectionId: string) =>
       ["site-editor", "branches", connectionId] as const,
   },
+  history: {
+    page: (connectionId: string, pageId: string) =>
+      ["site-editor", "history", connectionId, pageId] as const,
+  },
 } as const;
 
 /** Shorthand for block query keys */

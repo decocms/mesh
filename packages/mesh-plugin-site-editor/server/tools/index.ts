@@ -24,6 +24,7 @@ import { BRANCH_LIST } from "./branch-list";
 import { BRANCH_CREATE } from "./branch-create";
 import { BRANCH_MERGE } from "./branch-merge";
 import { BRANCH_DELETE } from "./branch-delete";
+import { FILE_HISTORY, FILE_READ_AT } from "./page-history";
 
 export const tools: ServerPluginToolDefinition[] = [
   PAGE_LIST,
@@ -42,4 +43,6 @@ export const tools: ServerPluginToolDefinition[] = [
   BRANCH_CREATE,
   BRANCH_MERGE,
   BRANCH_DELETE,
+  FILE_HISTORY,
+  FILE_READ_AT,
 ];
