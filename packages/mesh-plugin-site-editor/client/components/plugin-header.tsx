@@ -1,13 +1,16 @@
 /**
  * Plugin Header Component
  *
- * Connection selector for the site editor plugin.
+ * Connection selector and branch switcher for the site editor plugin.
  * Uses native HTML elements to avoid type conflicts with UI package.
  */
 
 import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
 import { File06, ChevronDown, Check } from "@untitledui/icons";
-import { useState, useRef } from "react";
+import { useState, useRef, lazy, Suspense } from "react";
+
+const BranchSwitcher = lazy(() => import("./branch-switcher"));
+const PublishBar = lazy(() => import("./publish-bar"));
 
 /**
  * Simple dropdown menu using native elements.
@@ -98,5 +101,17 @@ function ConnectionSelector({
 }
 
 export default function PluginHeader(props: PluginRenderHeaderProps) {
-  return <ConnectionSelector {...props} />;
+  return (
+    <div className="flex flex-col w-full">
+      <div className="flex items-center gap-3">
+        <ConnectionSelector {...props} />
+        <Suspense fallback={null}>
+          <BranchSwitcher />
+        </Suspense>
+      </div>
+      <Suspense fallback={null}>
+        <PublishBar />
+      </Suspense>
+    </div>
+  );
 }
