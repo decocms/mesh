@@ -2,22 +2,43 @@
  * Preview Panel Component
  *
  * Renders a full-size iframe pointing to the user's running local dev server
- * via the tunnel URL created by `deco link`. When no tunnel URL is available,
- * shows a helpful empty state with instructions.
+ * via the tunnel URL. Communicates with the iframe via a typed postMessage
+ * protocol (deco:ready handshake, deco:page-config, deco:select-block).
  *
- * This component fills its parent container (100% width and height).
- * Responsive viewport toggles will be added in Phase 3 (EDIT-04).
+ * Supports viewport width switching for responsive preview.
  */
 
 import { useTunnelUrl } from "../lib/use-tunnel-url";
+import { useIframeBridge } from "../lib/use-iframe-bridge";
+import { VIEWPORTS, type ViewportKey } from "./viewport-toggle";
+import type { Page } from "../lib/page-api";
 
 interface PreviewPanelProps {
   /** Page path to preview (e.g., "/", "/about") */
   path?: string;
+  /** Current page data to send to the iframe */
+  page: Page | null;
+  /** Currently selected block ID for highlighting */
+  selectedBlockId: string | null;
+  /** Current viewport size */
+  viewport: ViewportKey;
+  /** Called when user clicks a block in the preview */
+  onBlockClicked: (blockId: string) => void;
 }
 
-export function PreviewPanel({ path = "/" }: PreviewPanelProps) {
+export function PreviewPanel({
+  path = "/",
+  page,
+  selectedBlockId,
+  viewport,
+  onBlockClicked,
+}: PreviewPanelProps) {
   const { url, isLoading } = useTunnelUrl();
+  const { setIframeRef } = useIframeBridge({
+    page,
+    selectedBlockId,
+    onBlockClicked,
+  });
 
   if (isLoading) {
     return (
@@ -45,12 +66,15 @@ export function PreviewPanel({ path = "/" }: PreviewPanelProps) {
   }
 
   const previewUrl = path !== "/" ? `${url}${path}` : url;
+  const viewportWidth = VIEWPORTS[viewport]?.width;
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full flex justify-center bg-muted/30">
       <iframe
+        ref={setIframeRef}
         src={previewUrl}
-        className="w-full h-full border-0"
+        style={{ width: viewportWidth ? `${viewportWidth}px` : "100%" }}
+        className="h-full border-0 bg-white shadow-md transition-[width] duration-300"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         title="Site preview"
       />
