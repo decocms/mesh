@@ -19,11 +19,20 @@ export interface PageSummary {
   updatedAt: string;
 }
 
+export interface BlockInstance {
+  /** Unique ID for this block instance on the page */
+  id: string;
+  /** Reference to block definition in .deco/blocks/ (e.g., "sections--Hero") */
+  blockType: string;
+  /** User-edited props for this instance */
+  props: Record<string, unknown>;
+}
+
 export interface Page {
   id: string;
   path: string;
   title: string;
-  blocks: unknown[];
+  blocks: BlockInstance[];
   metadata: {
     description: string;
     createdAt: string;
@@ -132,7 +141,7 @@ export async function createPage(
 export async function updatePage(
   toolCaller: ToolCaller,
   pageId: string,
-  updates: { title?: string; path?: string; blocks?: unknown[] },
+  updates: { title?: string; path?: string; blocks?: BlockInstance[] },
 ): Promise<Page> {
   const result = await toolCaller("READ_FILE", {
     path: `${PAGES_PREFIX}${pageId}.json`,
