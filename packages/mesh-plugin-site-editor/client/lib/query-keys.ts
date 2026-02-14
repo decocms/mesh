@@ -21,6 +21,10 @@ export const queryKeys = {
     detail: (connectionId: string, loaderId: string) =>
       ["site-editor", "loaders", connectionId, loaderId] as const,
   },
+  branches: {
+    all: (connectionId: string) =>
+      ["site-editor", "branches", connectionId] as const,
+  },
 } as const;
 
 /** Shorthand for block query keys */

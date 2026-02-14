@@ -4,6 +4,7 @@
  * Page CRUD tools for managing CMS pages stored in .deco/pages/.
  * Block scanner and management tools for .deco/blocks/.
  * Loader scanner and management tools for .deco/loaders/.
+ * Branch lifecycle tools for draft/publish workflow.
  */
 
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
@@ -19,6 +20,10 @@ import { BLOCK_REGISTER } from "./block-register";
 import { LOADER_SCAN } from "./loader-scan";
 import { LOADER_LIST } from "./loader-list";
 import { LOADER_GET } from "./loader-get";
+import { BRANCH_LIST } from "./branch-list";
+import { BRANCH_CREATE } from "./branch-create";
+import { BRANCH_MERGE } from "./branch-merge";
+import { BRANCH_DELETE } from "./branch-delete";
 
 export const tools: ServerPluginToolDefinition[] = [
   PAGE_LIST,
@@ -33,4 +38,8 @@ export const tools: ServerPluginToolDefinition[] = [
   LOADER_SCAN,
   LOADER_LIST,
   LOADER_GET,
+  BRANCH_LIST,
+  BRANCH_CREATE,
+  BRANCH_MERGE,
+  BRANCH_DELETE,
 ];

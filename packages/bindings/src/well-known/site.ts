@@ -1,7 +1,8 @@
 /**
  * Site Well-Known Binding
  *
- * Defines the interface for site file operations (read, write, list).
+ * Defines the interface for site file operations (read, write, list)
+ * and branch lifecycle operations (create, list, merge, delete).
  * Any MCP that implements this binding can provide file management
  * for a site's pages, sections, and loaders.
  *
@@ -9,6 +10,10 @@
  * - READ_FILE: Read a file's content by path
  * - PUT_FILE: Write content to a file by path
  * - LIST_FILES: List files with optional prefix filtering
+ * - CREATE_BRANCH: Create a new branch (optional)
+ * - LIST_BRANCHES: List all branches (optional)
+ * - MERGE_BRANCH: Merge a source branch into target (optional)
+ * - DELETE_BRANCH: Delete a branch (optional)
  */
 
 import { z } from "zod";
@@ -72,13 +77,90 @@ export type ListFilesInput = z.infer<typeof ListFilesInputSchema>;
 export type ListFilesOutput = z.infer<typeof ListFilesOutputSchema>;
 
 // ============================================================================
+// Branch Tool Schemas (optional -- not all MCPs support branches)
+// ============================================================================
+
+/**
+ * CREATE_BRANCH - Create a new branch
+ */
+const CreateBranchInputSchema = z.object({
+  name: z.string().describe("Branch name to create"),
+  from: z
+    .string()
+    .optional()
+    .describe("Source branch to create from (defaults to 'main')"),
+});
+
+const CreateBranchOutputSchema = z.object({
+  success: z.boolean().describe("Whether the branch was created"),
+  branch: z.string().describe("Name of the created branch"),
+});
+
+export type CreateBranchInput = z.infer<typeof CreateBranchInputSchema>;
+export type CreateBranchOutput = z.infer<typeof CreateBranchOutputSchema>;
+
+/**
+ * LIST_BRANCHES - List all branches
+ */
+const ListBranchesInputSchema = z.object({});
+
+const ListBranchesOutputSchema = z.object({
+  branches: z.array(
+    z.object({
+      name: z.string().describe("Branch name"),
+      isDefault: z.boolean().describe("Whether this is the default branch"),
+    }),
+  ),
+});
+
+export type ListBranchesInput = z.infer<typeof ListBranchesInputSchema>;
+export type ListBranchesOutput = z.infer<typeof ListBranchesOutputSchema>;
+
+/**
+ * MERGE_BRANCH - Merge a source branch into a target branch
+ */
+const MergeBranchInputSchema = z.object({
+  source: z.string().describe("Source branch to merge from"),
+  target: z
+    .string()
+    .optional()
+    .describe("Target branch to merge into (defaults to 'main')"),
+  deleteSource: z
+    .boolean()
+    .optional()
+    .describe("Whether to delete the source branch after merge"),
+});
+
+const MergeBranchOutputSchema = z.object({
+  success: z.boolean().describe("Whether the merge succeeded"),
+  message: z.string().optional().describe("Additional merge details"),
+});
+
+export type MergeBranchInput = z.infer<typeof MergeBranchInputSchema>;
+export type MergeBranchOutput = z.infer<typeof MergeBranchOutputSchema>;
+
+/**
+ * DELETE_BRANCH - Delete a branch
+ */
+const DeleteBranchInputSchema = z.object({
+  name: z.string().describe("Branch name to delete"),
+});
+
+const DeleteBranchOutputSchema = z.object({
+  success: z.boolean().describe("Whether the branch was deleted"),
+});
+
+export type DeleteBranchInput = z.infer<typeof DeleteBranchInputSchema>;
+export type DeleteBranchOutput = z.infer<typeof DeleteBranchOutputSchema>;
+
+// ============================================================================
 // Binding Definition
 // ============================================================================
 
 /**
  * Site Binding
  *
- * Defines the interface for site file operations.
+ * Defines the interface for site file operations and branch lifecycle.
  * Any MCP that implements this binding can be used with the Site Editor plugin
  * to provide a CMS UI for managing pages, sections, and loaders.
  *
@@ -86,6 +168,12 @@ export type ListFilesOutput = z.infer<typeof ListFilesOutputSchema>;
  * - READ_FILE: Read a file's content
  * - PUT_FILE: Write content to a file
  * - LIST_FILES: List files with prefix filtering
+ *
+ * Optional tools (branch lifecycle):
+ * - CREATE_BRANCH: Create a new branch
+ * - LIST_BRANCHES: List all branches
+ * - MERGE_BRANCH: Merge source branch into target
+ * - DELETE_BRANCH: Delete a branch
  */
 export const SITE_BINDING = [
   {
@@ -103,6 +191,42 @@ export const SITE_BINDING = [
     inputSchema: ListFilesInputSchema,
     outputSchema: ListFilesOutputSchema,
   } satisfies ToolBinder<"LIST_FILES", ListFilesInput, ListFilesOutput>,
+  {
+    name: "CREATE_BRANCH" as const,
+    inputSchema: CreateBranchInputSchema,
+    outputSchema: CreateBranchOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<
+    "CREATE_BRANCH",
+    CreateBranchInput,
+    CreateBranchOutput
+  >,
+  {
+    name: "LIST_BRANCHES" as const,
+    inputSchema: ListBranchesInputSchema,
+    outputSchema: ListBranchesOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<
+    "LIST_BRANCHES",
+    ListBranchesInput,
+    ListBranchesOutput
+  >,
+  {
+    name: "MERGE_BRANCH" as const,
+    inputSchema: MergeBranchInputSchema,
+    outputSchema: MergeBranchOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<"MERGE_BRANCH", MergeBranchInput, MergeBranchOutput>,
+  {
+    name: "DELETE_BRANCH" as const,
+    inputSchema: DeleteBranchInputSchema,
+    outputSchema: DeleteBranchOutputSchema,
+    opt: true,
+  } satisfies ToolBinder<
+    "DELETE_BRANCH",
+    DeleteBranchInput,
+    DeleteBranchOutput
+  >,
 ] as const satisfies Binder;
 
 export type SiteBinding = typeof SITE_BINDING;
