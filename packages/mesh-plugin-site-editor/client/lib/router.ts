@@ -22,7 +22,7 @@ export const siteEditorRouter = createPluginRouter((ctx) => {
   const pageEditorRoute = createRoute({
     getParentRoute: () => ctx.parentRoute,
     path: "/pages/$pageId",
-    component: lazyRouteComponent(() => import("../components/pages-list")),
+    component: lazyRouteComponent(() => import("../components/page-editor")),
   });
 
   const sectionsRoute = createRoute({
