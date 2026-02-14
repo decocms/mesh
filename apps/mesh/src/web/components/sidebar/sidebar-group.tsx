@@ -30,13 +30,14 @@ export function SidebarCollapsibleGroup({
             className="h-6 cursor-pointer select-none"
             onClick={() => setExpanded(!expanded)}
           >
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-xs font-medium text-muted-foreground group-data-[collapsible=icon]:hidden">
               {label}
             </span>
+            <div className="hidden group-data-[collapsible=icon]:block w-4 h-px bg-border" />
             <ChevronDown
               size={12}
               className={cn(
-                "text-muted-foreground transition-transform duration-200",
+                "text-muted-foreground transition-transform duration-200 group-data-[collapsible=icon]:hidden",
                 !expanded && "-rotate-90",
               )}
             />
