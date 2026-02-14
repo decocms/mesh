@@ -1,0 +1,31 @@
+{
+  "name": "mesh-plugin-site-editor",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Site editor plugin for Mesh - manage pages, sections, and loaders",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "exports": {
+    "./server": "./server/index.ts",
+    "./client": "./client/index.tsx"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
+    "@deco/ui": "workspace:*",
+    "@untitledui/icons": "^0.0.19",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "@tanstack/react-router": ">=1.0.0",
+    "nanoid": ">=5.0.0",
+    "react": "^19.2.0"
+  }
+}

@@ -102,6 +102,18 @@ export {
   type DeleteObjectsOutput,
 } from "./well-known/object-storage";
 
+// Re-export site binding types
+export {
+  SITE_BINDING,
+  type SiteBinding,
+  type ReadFileInput,
+  type ReadFileOutput,
+  type PutFileInput,
+  type PutFileOutput,
+  type ListFilesInput,
+  type ListFilesOutput,
+} from "./well-known/site";
+
 // Re-export workflow binding types
 export { WORKFLOWS_COLLECTION_BINDING } from "./well-known/workflow";
 
