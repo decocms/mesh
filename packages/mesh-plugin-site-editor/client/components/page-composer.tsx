@@ -2,39 +2,49 @@
  * Page Composer Component
  *
  * Three-panel visual editor layout:
- * - Left: section list sidebar (placeholder for Plan 03-02)
+ * - Left: sortable section list sidebar with DnD reordering
  * - Center: iframe preview with viewport toggle
  * - Right: prop editor for selected block
  *
- * Fetches page data, manages selected block state, and wires postMessage
- * communication for live preview updates.
+ * Fetches page data, manages selected block state, wires postMessage
+ * communication for live preview updates, and debounce-saves to git.
  */
 
 import { useRef, useState } from "react";
+import { nanoid } from "nanoid";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@deco/ui/components/button.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { ArrowLeft, Save01, Loading01, AlertCircle } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
 import { siteEditorRouter } from "../lib/router";
-import { getPage, updatePage, type Page } from "../lib/page-api";
+import {
+  getPage,
+  updatePage,
+  type BlockInstance,
+  type Page,
+} from "../lib/page-api";
 import { getBlock } from "../lib/block-api";
 import { useEditorMessages } from "../lib/use-editor-messages";
 import { PreviewPanel } from "./preview-panel";
 import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
 import { PropEditor } from "./prop-editor";
+import { SectionListSidebar } from "./section-list-sidebar";
+import { BlockPicker } from "./block-picker";
 
 export default function PageComposer() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
+  const queryClient = useQueryClient();
   const navigate = siteEditorRouter.useNavigate();
   const { pageId } = siteEditorRouter.useParams({ from: "/pages/$pageId" });
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportKey>("desktop");
   const [localPage, setLocalPage] = useState<Page | null>(null);
+  const [showBlockPicker, setShowBlockPicker] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { send } = useEditorMessages(iframeRef);
@@ -79,12 +89,23 @@ export default function PageComposer() {
         await updatePage(toolCaller, pageId, {
           blocks: updatedPage.blocks,
         });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pages.detail(connectionId, pageId),
+        });
       } catch (err) {
         toast.error(
           `Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
       }
     }, 2000);
+  };
+
+  // Helper to update local page and trigger save
+  const applyPageUpdate = (updater: (prev: Page) => Page) => {
+    if (!localPage) return;
+    const updatedPage = updater(localPage);
+    setLocalPage(updatedPage);
+    debouncedSave(updatedPage);
   };
 
   // Handle prop changes from PropEditor
@@ -113,7 +134,51 @@ export default function PageComposer() {
     debouncedSave(updatedPage);
   };
 
-  // Manual save
+  // Handle block deletion
+  const handleDeleteBlock = (blockId: string) => {
+    applyPageUpdate((prev) => ({
+      ...prev,
+      blocks: prev.blocks.filter((b) => b.id !== blockId),
+    }));
+    if (selectedBlockId === blockId) {
+      setSelectedBlockId(null);
+    }
+  };
+
+  // Handle block reordering via DnD
+  const handleReorder = (activeId: string, overId: string) => {
+    if (!localPage) return;
+    const oldIndex = localPage.blocks.findIndex((b) => b.id === activeId);
+    const newIndex = localPage.blocks.findIndex((b) => b.id === overId);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    applyPageUpdate((prev) => ({
+      ...prev,
+      blocks: arrayMove(prev.blocks, oldIndex, newIndex),
+    }));
+  };
+
+  // Handle adding a new block from the picker
+  const handleAddBlock = (
+    blockType: string,
+    defaults: Record<string, unknown>,
+  ) => {
+    const newBlock: BlockInstance = {
+      id: nanoid(8),
+      blockType,
+      props: defaults,
+    };
+
+    applyPageUpdate((prev) => ({
+      ...prev,
+      blocks: [...prev.blocks, newBlock],
+    }));
+
+    setSelectedBlockId(newBlock.id);
+    setShowBlockPicker(false);
+  };
+
+  // Manual save (flush debounce)
   const handleSave = async () => {
     if (!localPage) return;
     if (saveTimerRef.current) {
@@ -127,6 +192,9 @@ export default function PageComposer() {
         blocks: localPage.blocks,
       });
       toast.success("Page saved");
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.pages.detail(connectionId, pageId),
+      });
     } catch (err) {
       toast.error(
         `Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -201,34 +269,16 @@ export default function PageComposer() {
 
       {/* Three-panel layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: section list (placeholder for Plan 03-02) */}
-        <div className="w-[260px] border-r border-border overflow-y-auto p-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            Sections
-          </h3>
-          {localPage.blocks.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No sections yet. Add sections in Plan 03-02.
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {localPage.blocks.map((block) => (
-                <button
-                  key={block.id}
-                  type="button"
-                  onClick={() => setSelectedBlockId(block.id)}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded text-sm transition-colors",
-                    selectedBlockId === block.id
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-muted",
-                  )}
-                >
-                  {block.blockType.replace("sections--", "")}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* Left panel: sortable section list */}
+        <div className="w-[260px] border-r border-border overflow-y-auto">
+          <SectionListSidebar
+            blocks={localPage.blocks}
+            selectedBlockId={selectedBlockId}
+            onSelect={setSelectedBlockId}
+            onDelete={handleDeleteBlock}
+            onReorder={handleReorder}
+            onAddClick={() => setShowBlockPicker(true)}
+          />
         </div>
 
         {/* Center panel: preview */}
@@ -271,6 +321,13 @@ export default function PageComposer() {
           )}
         </div>
       </div>
+
+      {/* Block picker modal */}
+      <BlockPicker
+        open={showBlockPicker}
+        onClose={() => setShowBlockPicker(false)}
+        onSelect={handleAddBlock}
+      />
     </div>
   );
 }
