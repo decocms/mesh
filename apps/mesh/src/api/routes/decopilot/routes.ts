@@ -232,6 +232,7 @@ app.post("/:org/decopilot/stream", async (c) => {
           writer,
           { modelProvider, organization, models },
           ctx,
+          mcpClient,
         );
 
         const tools = { ...mcpTools, ...builtInTools };
