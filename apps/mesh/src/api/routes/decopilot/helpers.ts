@@ -64,7 +64,7 @@ export function ensureOrganization(
 export async function toolsFromMCP(
   client: Client,
   writer?: UIMessageStreamWriter,
-  toolApprovalLevel: ToolApprovalLevel = "yolo",
+  toolApprovalLevel: ToolApprovalLevel = "none",
 ): Promise<ToolSet> {
   const list = await client.listTools();
 
