@@ -91,16 +91,16 @@ export function GenericToolCallPart({
   // Build expanded content
   let detail = "";
   if (part.input !== undefined) {
-    detail += "Input\n" + safeStringify(part.input);
+    detail += "# Input\n" + safeStringify(part.input);
   }
 
   if (part.state === "output-error") {
     const errorText = getToolPartErrorText(part);
     if (detail) detail += "\n\n";
-    detail += "Error\n" + errorText;
+    detail += "# Error\n" + errorText;
   } else if (part.output !== undefined) {
     if (detail) detail += "\n\n";
-    detail += "Output\n" + safeStringify(part.output);
+    detail += "# Output\n" + safeStringify(part.output);
   }
 
   // Build approval actions for approval-requested state
