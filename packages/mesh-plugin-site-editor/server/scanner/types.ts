@@ -116,3 +116,73 @@ export interface BlockSummary {
   /** Number of top-level props */
   propsCount: number;
 }
+
+// ---------------------------------------------------------------------------
+// Loader types
+// ---------------------------------------------------------------------------
+
+/**
+ * Loader function info extracted during discovery (analogous to ComponentInfo).
+ */
+export interface LoaderInfo {
+  /** Loader function name */
+  name: string;
+  /** Source file path within the project */
+  filePath: string;
+  /** TypeScript type name for the input Props parameter, or null */
+  propsTypeName: string | null;
+  /** TypeScript type name for the return type (unwrapped from Promise), or null */
+  returnTypeName: string | null;
+  /** JSDoc description */
+  jsDocDescription: string;
+}
+
+/**
+ * Full loader definition stored in .deco/loaders/{id}.json.
+ */
+export interface LoaderDefinition {
+  /** Unique ID derived from loader path, e.g., "loaders--productList" */
+  id: string;
+  /** Source file path, e.g., "loaders/productList.ts" */
+  source: string;
+  /** Human-readable label, e.g., "Product List" */
+  label: string;
+  /** Category derived from directory, e.g., "Loaders" */
+  category: string;
+  /** Description from JSDoc */
+  description: string;
+  /** JSON Schema for loader INPUT parameters (Props type) */
+  inputSchema: JSONSchema7;
+  /** JSON Schema for loader OUTPUT (return type) */
+  outputSchema: JSONSchema7;
+  /** Default input parameter values */
+  defaults: Record<string, unknown>;
+  /** Scan metadata */
+  metadata: {
+    scannedAt: string;
+    scanMethod: "ts-morph" | "manual" | "ai-agent";
+    propsTypeName: string | null;
+    returnTypeName: string | null;
+    customized: string[];
+  };
+}
+
+/**
+ * Lightweight loader summary for list operations.
+ */
+export interface LoaderSummary {
+  id: string;
+  source: string;
+  label: string;
+  category: string;
+  inputParamsCount: number;
+}
+
+/**
+ * Reference to a loader definition from a block instance prop value.
+ */
+export interface LoaderRef {
+  __loaderRef: string; // LoaderDefinition.id
+  field?: string; // Optional: pick a specific field from loader output
+  params?: Record<string, unknown>; // Configured input parameter values
+}

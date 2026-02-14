@@ -17,7 +17,7 @@ import {
   type ArrowFunction,
   type FunctionExpression,
 } from "ts-morph";
-import type { ComponentInfo } from "./types.js";
+import type { ComponentInfo, LoaderInfo } from "./types.js";
 
 /**
  * JSX return type indicators. If a function's return type text contains any of
@@ -302,4 +302,245 @@ function extractJsDocFromParent(
   }
 
   return "";
+}
+
+// ---------------------------------------------------------------------------
+// Loader discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Unwrap Promise<T> from a return type text, returning the inner type text.
+ * Also strips trailing `| null` and `| undefined` for cleaner type name lookup.
+ */
+function unwrapPromise(typeText: string): string {
+  let inner = typeText;
+
+  // Unwrap Promise<...>
+  const promiseMatch = inner.match(/^Promise<(.+)>$/s);
+  if (promiseMatch) {
+    inner = promiseMatch[1];
+  }
+
+  return inner;
+}
+
+/**
+ * Strip nullable wrappers (| null | undefined) to get the core type name.
+ */
+function stripNullable(typeText: string): string {
+  return typeText
+    .split("|")
+    .map((s) => s.trim())
+    .filter((s) => s !== "null" && s !== "undefined")
+    .join(" | ");
+}
+
+/**
+ * Discover exported loader functions in the project's .ts source files.
+ *
+ * Loaders differ from components:
+ * - Only .ts files (not .tsx)
+ * - Default-exported async functions that do NOT return JSX
+ * - Extract both input Props type and return type
+ * - Zero-parameter loaders are valid (propsTypeName = null)
+ *
+ * @param project - ts-morph Project populated with source files
+ * @returns Array of discovered loaders with their metadata
+ */
+export function discoverLoaders(project: Project): LoaderInfo[] {
+  const loaders: LoaderInfo[] = [];
+
+  for (const sourceFile of project.getSourceFiles()) {
+    const filePath = sourceFile.getFilePath();
+
+    // Only scan .ts files, skip .tsx (those are components)
+    if (!filePath.endsWith(".ts") || filePath.endsWith(".d.ts")) continue;
+
+    const defaultExportSymbol = sourceFile.getDefaultExportSymbol();
+    if (!defaultExportSymbol) continue;
+
+    const declarations = defaultExportSymbol.getDeclarations();
+
+    for (const decl of declarations) {
+      const loaderInfo = extractLoaderFromDecl(decl, sourceFile, filePath);
+      if (loaderInfo) {
+        loaders.push(loaderInfo);
+        break; // One loader per file
+      }
+    }
+  }
+
+  return loaders;
+}
+
+/**
+ * Try to extract loader info from a declaration node.
+ */
+function extractLoaderFromDecl(
+  // deno-lint-ignore no-explicit-any
+  decl: any,
+  sourceFile: SourceFile,
+  filePath: string,
+): LoaderInfo | null {
+  // Direct function declaration: export default async function loader(props: Props) { ... }
+  if (decl.isKind(SyntaxKind.FunctionDeclaration)) {
+    return extractLoaderFromFunction(
+      decl as FunctionDeclaration,
+      sourceFile,
+      filePath,
+    );
+  }
+
+  // Variable declaration: const loader = async (props: Props) => { ... }; export default loader;
+  if (decl.isKind(SyntaxKind.VariableDeclaration)) {
+    const varDecl = decl as VariableDeclaration;
+    const initializer = varDecl.getInitializer();
+
+    if (
+      initializer?.isKind(SyntaxKind.ArrowFunction) ||
+      initializer?.isKind(SyntaxKind.FunctionExpression)
+    ) {
+      const fn = initializer as ArrowFunction | FunctionExpression;
+      return extractLoaderFromCallable(
+        fn,
+        varDecl.getName(),
+        sourceFile,
+        filePath,
+      );
+    }
+  }
+
+  // Export assignment: export default expression
+  if (decl.isKind(SyntaxKind.ExportAssignment)) {
+    const expr = decl.getExpression();
+    if (!expr) return null;
+
+    const symbol = expr.getSymbol();
+    if (!symbol) return null;
+
+    for (const symDecl of symbol.getDeclarations()) {
+      if (symDecl.isKind(SyntaxKind.FunctionDeclaration)) {
+        return extractLoaderFromFunction(
+          symDecl as FunctionDeclaration,
+          sourceFile,
+          filePath,
+        );
+      }
+      if (symDecl.isKind(SyntaxKind.VariableDeclaration)) {
+        const init = (symDecl as VariableDeclaration).getInitializer();
+        if (
+          init?.isKind(SyntaxKind.ArrowFunction) ||
+          init?.isKind(SyntaxKind.FunctionExpression)
+        ) {
+          return extractLoaderFromCallable(
+            init as ArrowFunction | FunctionExpression,
+            (symDecl as VariableDeclaration).getName(),
+            sourceFile,
+            filePath,
+          );
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract loader info from a function declaration.
+ * Unlike components, loaders can have zero parameters.
+ */
+function extractLoaderFromFunction(
+  fn: FunctionDeclaration,
+  sourceFile: SourceFile,
+  filePath: string,
+): LoaderInfo | null {
+  const returnTypeText = fn.getReturnType().getText();
+
+  // Skip if the return type looks like JSX (that's a component, not a loader)
+  if (looksLikeJSX(returnTypeText)) return null;
+
+  // Extract props type from first parameter (may be absent)
+  let propsTypeName: string | null = null;
+  const params = fn.getParameters();
+  if (params.length > 0) {
+    const propsType = params[0].getType();
+    propsTypeName =
+      propsType.getAliasSymbol()?.getName() ??
+      propsType.getSymbol()?.getName() ??
+      null;
+  }
+
+  // Extract return type name, unwrapping Promise<T>
+  const returnTypeName = resolveReturnTypeName(returnTypeText);
+
+  return {
+    name: fn.getName() ?? sourceFile.getBaseNameWithoutExtension(),
+    filePath,
+    propsTypeName,
+    returnTypeName,
+    jsDocDescription: extractJsDoc(fn),
+  };
+}
+
+/**
+ * Extract loader info from an arrow function or function expression.
+ */
+function extractLoaderFromCallable(
+  fn: ArrowFunction | FunctionExpression,
+  name: string,
+  sourceFile: SourceFile,
+  filePath: string,
+): LoaderInfo | null {
+  const returnTypeText = fn.getReturnType().getText();
+
+  if (looksLikeJSX(returnTypeText)) return null;
+
+  let propsTypeName: string | null = null;
+  const params = fn.getParameters();
+  if (params.length > 0) {
+    const propsType = params[0].getType();
+    propsTypeName =
+      propsType.getAliasSymbol()?.getName() ??
+      propsType.getSymbol()?.getName() ??
+      null;
+  }
+
+  const returnTypeName = resolveReturnTypeName(returnTypeText);
+
+  return {
+    name: name || sourceFile.getBaseNameWithoutExtension(),
+    filePath,
+    propsTypeName,
+    returnTypeName,
+    jsDocDescription: extractJsDocFromParent(fn),
+  };
+}
+
+/**
+ * Resolve the return type name by unwrapping Promise<> and stripping nullable.
+ * Returns null if the type can't be resolved to a named type.
+ */
+function resolveReturnTypeName(returnTypeText: string): string | null {
+  const unwrapped = unwrapPromise(returnTypeText);
+  const core = stripNullable(unwrapped);
+
+  // If the core type is a primitive or empty, return null
+  if (
+    !core ||
+    core === "void" ||
+    core === "never" ||
+    core === "any" ||
+    core === "unknown"
+  ) {
+    return null;
+  }
+
+  // If it looks like an inline/anonymous type (starts with { or contains =>),
+  // return null since ts-json-schema-generator needs a named type
+  if (core.startsWith("{") || core.includes("=>")) {
+    return null;
+  }
+
+  return core;
 }
