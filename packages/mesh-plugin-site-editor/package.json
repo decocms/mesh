@@ -16,6 +16,8 @@
     "@decocms/mesh-sdk": "workspace:*",
     "@deco/ui": "workspace:*",
     "@untitledui/icons": "^0.0.19",
+    "ts-morph": "^27.0.2",
+    "ts-json-schema-generator": "^2.4.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
