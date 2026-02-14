@@ -24,6 +24,7 @@ import {
   AlertCircle,
   ReverseLeft,
   ReverseRight,
+  Clock,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
@@ -44,6 +45,7 @@ import { PropEditor } from "./prop-editor";
 import { SectionListSidebar } from "./section-list-sidebar";
 import { BlockPicker } from "./block-picker";
 import { LoaderPicker } from "./loader-picker";
+import PageHistory from "./page-history";
 
 export default function PageComposer() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
@@ -58,6 +60,7 @@ export default function PageComposer() {
     open: boolean;
     propName: string | null;
   }>({ open: false, propName: null });
+  const [showHistory, setShowHistory] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { send } = useEditorMessages(iframeRef);
@@ -386,6 +389,14 @@ export default function PageComposer() {
             </Button>
           </div>
           <ViewportToggle value={viewport} onChange={setViewport} />
+          <Button
+            variant={showHistory ? "secondary" : "ghost"}
+            size="icon"
+            onClick={() => setShowHistory((prev) => !prev)}
+            title="Version History"
+          >
+            <Clock size={16} />
+          </Button>
           <Button size="sm" onClick={handleSave}>
             <Save01 size={14} className="mr-1" />
             Save
@@ -418,9 +429,11 @@ export default function PageComposer() {
           />
         </div>
 
-        {/* Right panel: prop editor */}
+        {/* Right panel: prop editor or history */}
         <div className="w-[320px] border-l border-border overflow-y-auto">
-          {selectedBlock && blockDef?.schema ? (
+          {showHistory ? (
+            <PageHistory pageId={pageId} />
+          ) : selectedBlock && blockDef?.schema ? (
             <div className="p-4">
               <h3 className="text-sm font-medium mb-3">
                 {blockDef.label ??

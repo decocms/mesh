@@ -28,6 +28,15 @@ export const queryKeys = {
   history: {
     page: (connectionId: string, pageId: string) =>
       ["site-editor", "history", connectionId, pageId] as const,
+    diff: (connectionId: string, pageId: string, commitHash: string) =>
+      [
+        "site-editor",
+        "history",
+        connectionId,
+        pageId,
+        "diff",
+        commitHash,
+      ] as const,
   },
 } as const;
 
