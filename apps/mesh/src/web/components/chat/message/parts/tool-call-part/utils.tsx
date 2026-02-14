@@ -46,3 +46,52 @@ export function getFriendlyToolName(toolName: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 }
+
+/**
+ * Check if a tool part is awaiting approval and has valid approval data.
+ * Returns the approval ID if all conditions are met, otherwise returns null.
+ */
+export function getApprovalId(part: {
+  state: string;
+  approval?: { id: string };
+}): string | null {
+  if (
+    part.state === "approval-requested" &&
+    "approval" in part &&
+    part.approval
+  ) {
+    return part.approval.id;
+  }
+  return null;
+}
+
+/**
+ * Derive the effective UI state for a tool call part.
+ * Returns "error", "loading", or "idle" based on the tool state.
+ *
+ * @param state - The current state of the tool part
+ * @param preliminary - Optional flag indicating streaming output (for subtasks)
+ * @returns The effective UI state for display
+ */
+export function getEffectiveState(
+  state: string,
+  preliminary?: boolean,
+): "loading" | "error" | "idle" {
+  // Error state takes precedence
+  if (state === "output-error") {
+    return "error";
+  }
+
+  // Loading states: input generation, approval waiting, or streaming output
+  if (
+    state === "input-streaming" ||
+    state === "input-available" ||
+    state === "approval-requested" ||
+    (state === "output-available" && preliminary === true)
+  ) {
+    return "loading";
+  }
+
+  // Default to idle
+  return "idle";
+}

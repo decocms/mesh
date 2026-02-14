@@ -33,6 +33,8 @@ export interface ToolCallShellProps {
   state: "loading" | "error" | "idle";
   /** Detail shown in expanded view. Rendered as plain text (copiable). */
   detail?: string | null;
+  /** Optional actions rendered below the title/summary (e.g., approve/deny buttons) */
+  actions?: ReactNode;
 }
 
 export function ToolCallShell({
@@ -44,6 +46,7 @@ export function ToolCallShell({
   summary,
   state,
   detail,
+  actions,
 }: ToolCallShellProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { handleCopy, copied } = useCopy();
@@ -117,6 +120,13 @@ export function ToolCallShell({
               </div>
             )}
           </CollapsibleTrigger>
+
+          {/* Actions (e.g., approve/deny buttons) - outside shimmer */}
+          {actions && (
+            <div className="flex flex-1 justify-end px-3 py-3 border-t border-border/50">
+              {actions}
+            </div>
+          )}
 
           {isExpandable && (
             <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">

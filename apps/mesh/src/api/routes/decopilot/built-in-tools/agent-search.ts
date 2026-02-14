@@ -49,6 +49,7 @@ const description =
 
 export interface AgentSearchParams {
   organization: OrganizationScope;
+  needsApproval?: boolean;
 }
 
 const AGENT_SEARCH_ANNOTATIONS = {
@@ -69,12 +70,13 @@ export function createAgentSearchTool(
   params: AgentSearchParams,
   ctx: MeshContext,
 ) {
-  const { organization } = params;
+  const { organization, needsApproval } = params;
 
   return tool({
     description,
     inputSchema: zodSchema(AgentSearchInputSchema),
     outputSchema: zodSchema(AgentSearchOutputSchema),
+    needsApproval,
     execute: async ({ search_term }, options) => {
       const startTime = performance.now();
       try {

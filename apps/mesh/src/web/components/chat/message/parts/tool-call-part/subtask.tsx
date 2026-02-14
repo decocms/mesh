@@ -8,6 +8,8 @@ import { useChat } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
 import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
+import { ApprovalActions } from "./approval-actions.tsx";
+import { getApprovalId, getEffectiveState } from "./utils.tsx";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
@@ -36,11 +38,10 @@ export function SubtaskPart({
   const isError = part.state === "output-error";
 
   // Derive UI state for ToolCallShell
-  const effectiveState: "loading" | "error" | "idle" = isError
-    ? "error"
-    : isInputStreaming || isOutputStreaming
-      ? "loading"
-      : "idle";
+  const effectiveState = getEffectiveState(
+    part.state,
+    "preliminary" in part ? part.preliminary : false,
+  );
 
   // Agent lookup
   const agentId = part.input?.agent_id;
@@ -81,6 +82,12 @@ export function SubtaskPart({
     />
   );
 
+  // Build approval actions for approval-requested state
+  const approvalId = getApprovalId(part);
+  const actions = approvalId ? (
+    <ApprovalActions approvalId={approvalId} />
+  ) : undefined;
+
   return (
     <div className="my-2">
       <ToolCallShell
@@ -92,6 +99,7 @@ export function SubtaskPart({
         detail={detail}
         annotations={annotations}
         state={effectiveState}
+        actions={actions}
       />
     </div>
   );

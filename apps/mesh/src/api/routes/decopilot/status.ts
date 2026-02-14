@@ -43,7 +43,15 @@ export function resolveThreadStatus(
       (part) =>
         part.type === "tool-user_ask" && part.state === "input-available",
     );
-    return hasUserAskPending ? "requires_action" : "completed";
+
+    // Check if any tools are awaiting approval
+    const hasApprovalPending = responseParts.some(
+      (part) => part.state === "approval-requested",
+    );
+
+    return hasUserAskPending || hasApprovalPending
+      ? "requires_action"
+      : "completed";
   }
 
   // "length", "content-filter", "error", "other", "unknown", undefined

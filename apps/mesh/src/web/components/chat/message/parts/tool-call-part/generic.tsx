@@ -4,8 +4,13 @@ import type { ToolUIPart, DynamicToolUIPart } from "ai";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { Atom02 } from "@untitledui/icons";
 import { ToolCallShell } from "./common.tsx";
-import { getFriendlyToolName } from "./utils.tsx";
+import {
+  getFriendlyToolName,
+  getApprovalId,
+  getEffectiveState,
+} from "./utils.tsx";
 import { getToolPartErrorText } from "../utils.ts";
+import { ApprovalActions } from "./approval-actions.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -31,6 +36,10 @@ function getTitle(state: string, friendlyName: string): string {
     case "input-streaming":
     case "input-available":
       return `Calling ${friendlyName}...`;
+    case "approval-requested":
+      return `Approve ${friendlyName}`;
+    case "output-denied":
+      return `Denied ${friendlyName}`;
     case "output-available":
       return `Called ${friendlyName}`;
     case "output-error":
@@ -45,6 +54,10 @@ function getSummary(state: string): string {
     case "input-streaming":
     case "input-available":
       return "Generating input";
+    case "approval-requested":
+      return "Waiting for approval";
+    case "output-denied":
+      return "Execution denied";
     case "output-available":
       return "Tool answered";
     case "output-error":
@@ -73,29 +86,28 @@ export function GenericToolCallPart({
   const summary = getSummary(part.state);
 
   // Derive UI state for ToolCallShell
-  const effectiveState: "loading" | "error" | "idle" =
-    part.state === "output-error"
-      ? "error"
-      : part.state === "input-streaming" ||
-          part.state === "input-available" ||
-          part.state === "approval-requested"
-        ? "loading"
-        : "idle";
+  const effectiveState = getEffectiveState(part.state);
 
   // Build expanded content
   let detail = "";
   if (part.input !== undefined) {
-    detail += "Input\n" + safeStringify(part.input);
+    detail += "# Input\n" + safeStringify(part.input);
   }
 
   if (part.state === "output-error") {
     const errorText = getToolPartErrorText(part);
     if (detail) detail += "\n\n";
-    detail += "Error\n" + errorText;
+    detail += "# Error\n" + errorText;
   } else if (part.output !== undefined) {
     if (detail) detail += "\n\n";
-    detail += "Output\n" + safeStringify(part.output);
+    detail += "# Output\n" + safeStringify(part.output);
   }
+
+  // Build approval actions for approval-requested state
+  const approvalId = getApprovalId(part);
+  const actions = approvalId ? (
+    <ApprovalActions approvalId={approvalId} />
+  ) : undefined;
 
   return (
     <div className="my-2">
@@ -107,6 +119,7 @@ export function GenericToolCallPart({
         summary={summary}
         state={effectiveState}
         detail={detail || null}
+        actions={actions}
       />
     </div>
   );

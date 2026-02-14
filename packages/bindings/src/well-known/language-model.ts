@@ -166,7 +166,10 @@ const ToolCallOutputPartSchema = z.object({
 
 /**
  * Tool Result Output Schema
- * The output of a tool result
+ * The output of a tool result.
+ * Accepts typed objects (text, json, error-text, error-json, content),
+ * execution-denied (from AI SDK tool approval flow), and raw strings
+ * (JSON-serialized outputs from mapToolResultOutput).
  */
 const ToolResultOutputSchema = z.union([
   z.object({
@@ -201,6 +204,15 @@ const ToolResultOutputSchema = z.union([
       ]),
     ),
   }),
+  z.object({
+    type: z.literal("execution-denied"),
+    reason: z.string().optional(),
+  }),
+  z
+    .string()
+    .describe(
+      "Raw or JSON-serialized output (e.g. from AI SDK mapToolResultOutput)",
+    ),
 ]);
 
 /**

@@ -139,6 +139,14 @@ export function ChatHighlight() {
     (p) => p.state !== "output-available",
   )?.length;
 
+  // Check if any tools are awaiting approval
+  const isWaitingForApprovals =
+    lastMessage?.role === "assistant"
+      ? lastMessage.parts.some(
+          (part) => "state" in part && part.state === "approval-requested",
+        )
+      : false;
+
   const handleFixInChat = () => {
     if (error) {
       const text = `I encountered this error: ${error.message}. Can you help me fix it?`;
@@ -194,7 +202,12 @@ export function ChatHighlight() {
     );
   }
 
-  if (!isStreaming && finishReason && finishReason !== "stop") {
+  if (
+    !isStreaming &&
+    finishReason &&
+    finishReason !== "stop" &&
+    !isWaitingForApprovals
+  ) {
     return (
       <StatusHighlight
         variant="warning"
