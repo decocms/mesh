@@ -6,9 +6,11 @@
  */
 
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { UIMessageStreamWriter } from "ai";
 import { createAgentSearchTool } from "./agent-search";
 import { createSubtaskTool } from "./subtask";
+import { createToolSearchTool } from "./tool-search";
 import { userAskTool } from "./user-ask";
 import type { ModelProvider, ModelsConfig } from "../types";
 
@@ -27,6 +29,7 @@ export function getBuiltInTools(
   writer: UIMessageStreamWriter,
   params: BuiltinToolParams,
   ctx: MeshContext,
+  mcpClient: Client,
 ) {
   const { modelProvider, organization, models } = params;
   return {
@@ -37,5 +40,6 @@ export function getBuiltInTools(
       ctx,
     ),
     agent_search: createAgentSearchTool(writer, { organization }, ctx),
+    tool_search: createToolSearchTool(writer, mcpClient),
   } as const;
 }

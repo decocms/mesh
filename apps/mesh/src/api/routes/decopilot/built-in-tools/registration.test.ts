@@ -25,8 +25,12 @@ const mockWriter = {
   merge: () => {},
 } as never;
 
+const mockMcpClient = {
+  listTools: () => Promise.resolve({ tools: [] }),
+} as never;
+
 function getTools() {
-  return getBuiltInTools(mockWriter, mockParams, mockCtx);
+  return getBuiltInTools(mockWriter, mockParams, mockCtx, mockMcpClient);
 }
 
 describe("getBuiltInTools", () => {
