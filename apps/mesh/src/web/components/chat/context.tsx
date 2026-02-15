@@ -36,6 +36,7 @@ import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
+import { useNotificationSound } from "../../hooks/use-notification-sound";
 import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
@@ -601,6 +602,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
+  // Notification sound
+  const { playNotificationSound } = useNotificationSound();
+
   // ===========================================================================
   // 2. DERIVED VALUES - Compute values from hook state
   // ===========================================================================
@@ -637,6 +641,16 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
       return;
+    }
+
+    // Play notification sound if user is not viewing the app
+    if (
+      typeof document !== "undefined" &&
+      !document.hasFocus() &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    ) {
+      playNotificationSound();
     }
 
     const { thread_id } = message.metadata ?? {};
