@@ -1,0 +1,35 @@
+{
+  "id": "sections--Hero",
+  "type": "section",
+  "title": "Hero",
+  "description": "Full-width hero section with headline, subtitle, and call-to-action",
+  "category": "sections",
+  "filePath": "app/components/sections/hero.tsx",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "description": "Main headline text" },
+      "subtitle": { "type": "string", "description": "Supporting description" },
+      "ctaText": {
+        "type": "string",
+        "description": "Call-to-action button text"
+      },
+      "ctaUrl": { "type": "string", "description": "CTA button link URL" },
+      "backgroundImage": {
+        "type": "string",
+        "description": "Optional background image URL"
+      }
+    },
+    "required": ["title", "subtitle", "ctaText", "ctaUrl"]
+  },
+  "defaults": {
+    "title": "Welcome",
+    "subtitle": "Your site, your way",
+    "ctaText": "Learn More",
+    "ctaUrl": "#"
+  },
+  "metadata": {
+    "customized": false,
+    "lastScanned": "2026-01-01T00:00:00.000Z"
+  }
+}

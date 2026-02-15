@@ -1,0 +1,117 @@
+/**
+ * Plugin Header Component
+ *
+ * Connection selector and branch switcher for the site editor plugin.
+ * Uses native HTML elements to avoid type conflicts with UI package.
+ */
+
+import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
+import { File06, ChevronDown, Check } from "@untitledui/icons";
+import { useState, useRef, lazy, Suspense } from "react";
+
+const BranchSwitcher = lazy(() => import("./branch-switcher"));
+const PublishBar = lazy(() => import("./publish-bar"));
+
+/**
+ * Simple dropdown menu using native elements.
+ */
+function ConnectionSelector({
+  connections,
+  selectedConnectionId,
+  onConnectionChange,
+}: PluginRenderHeaderProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedConnection = connections.find(
+    (c) => c.id === selectedConnectionId,
+  );
+
+  // Close dropdown when clicking outside
+  const handleBlur = (e: React.FocusEvent) => {
+    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+      setIsOpen(false);
+    }
+  };
+
+  if (connections.length === 1) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {selectedConnection?.icon ? (
+          <img
+            src={selectedConnection.icon}
+            alt=""
+            className="size-4 rounded"
+          />
+        ) : (
+          <File06 size={16} />
+        )}
+        <span>{selectedConnection?.title || "Site"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef} onBlur={handleBlur}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-background hover:bg-accent transition-colors"
+      >
+        {selectedConnection?.icon ? (
+          <img
+            src={selectedConnection.icon}
+            alt=""
+            className="size-4 rounded"
+          />
+        ) : (
+          <File06 size={16} />
+        )}
+        <span>{selectedConnection?.title || "Select site"}</span>
+        <ChevronDown size={14} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1 z-50 min-w-48 rounded-md border border-border bg-popover p-1 shadow-md">
+          {connections.map((connection) => (
+            <button
+              key={connection.id}
+              type="button"
+              onClick={() => {
+                onConnectionChange(connection.id);
+                setIsOpen(false);
+              }}
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors"
+            >
+              {connection.icon ? (
+                <img src={connection.icon} alt="" className="size-4 rounded" />
+              ) : (
+                <File06 size={16} />
+              )}
+              <span className="flex-1 text-left">{connection.title}</span>
+              {connection.id === selectedConnectionId && (
+                <Check size={14} className="text-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PluginHeader(props: PluginRenderHeaderProps) {
+  return (
+    <div className="flex flex-col w-full">
+      <div className="flex items-center gap-3">
+        <ConnectionSelector {...props} />
+        <Suspense fallback={null}>
+          <BranchSwitcher />
+        </Suspense>
+      </div>
+      <Suspense fallback={null}>
+        <PublishBar />
+      </Suspense>
+    </div>
+  );
+}

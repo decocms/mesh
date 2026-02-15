@@ -45,6 +45,13 @@ export interface ToolBinder<
    * If true, an implementation doesn't need to provide this tool.
    */
   opt?: true;
+
+  /**
+   * Alternative tool names that also satisfy this binding slot.
+   * Used for compatibility with standard MCP servers that use different naming.
+   * E.g., READ_FILE might accept ["read_file"] as an alias.
+   */
+  aliases?: string[];
 }
 
 /**
@@ -154,13 +161,20 @@ export function createBindingChecker<TDefinition extends readonly ToolBinder[]>(
   return {
     isImplementedBy: (tools: ToolWithSchemas[]): boolean => {
       for (const binderTool of binderTools) {
-        // Find matching tool by name (exact or regex)
+        // Find matching tool by name (exact or regex), including aliases
         const pattern =
           typeof binderTool.name === "string"
             ? new RegExp(`^${binderTool.name}$`)
             : binderTool.name;
 
-        const matchedTool = tools.find((t) => pattern.test(t.name));
+        const aliasPatterns = (binderTool.aliases ?? []).map(
+          (a) => new RegExp(`^${a}$`),
+        );
+
+        const matchedTool = tools.find(
+          (t) =>
+            pattern.test(t.name) || aliasPatterns.some((ap) => ap.test(t.name)),
+        );
 
         // Skip optional tools that aren't present
         if (!matchedTool && binderTool.opt) {
@@ -215,8 +229,41 @@ export function connectionImplementsBinding(
     name: b.name,
     inputSchema: b.inputSchema,
     opt: b.opt,
+    aliases: b.aliases,
   }));
 
   const checker = createBindingChecker(bindingForChecker);
   return checker.isImplementedBy(toolsForChecker);
+}
+
+/**
+ * Builds a mapping from canonical binding tool names to actual tool names
+ * on the connection. If the connection uses an alias (e.g. "read_file" instead
+ * of "READ_FILE"), the map will contain { READ_FILE: "read_file" }.
+ *
+ * Returns empty map if no aliasing is needed (all canonical names match directly).
+ */
+export function resolveToolNames(
+  connection: ConnectionForBinding,
+  binding: Binder,
+): Record<string, string> {
+  const toolNames = new Set((connection.tools ?? []).map((t) => t.name));
+  const map: Record<string, string> = {};
+
+  for (const binderTool of binding) {
+    const canonicalName =
+      typeof binderTool.name === "string" ? binderTool.name : null;
+    if (!canonicalName) continue;
+
+    // If canonical name exists directly, no mapping needed
+    if (toolNames.has(canonicalName)) continue;
+
+    // Check aliases
+    const matched = (binderTool.aliases ?? []).find((a) => toolNames.has(a));
+    if (matched) {
+      map[canonicalName] = matched;
+    }
+  }
+
+  return map;
 }

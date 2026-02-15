@@ -126,6 +126,7 @@ const connectionFormSchema = z
     connection_token: z.string().nullable().optional(),
     // For NPX
     npx_package: z.string().optional(),
+    npx_args: z.string().optional(),
     // For STDIO (custom command)
     stdio_command: z.string().optional(),
     stdio_args: z.string().optional(),
@@ -192,7 +193,9 @@ function normalizeUrl(input: string): string {
   }
 }
 
-function parseNpxLikeCommand(input: string): { packageName: string } | null {
+function parseNpxLikeCommand(
+  input: string,
+): { packageName: string; extraArgs: string } | null {
   const tokens = input.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
 
@@ -201,10 +204,12 @@ function parseNpxLikeCommand(input: string): { packageName: string } | null {
 
   // Skip flags like -y, --yes
   const args = tokens.slice(1);
-  const firstNonFlag = args.find((a) => !a.startsWith("-"));
-  if (!firstNonFlag) return null;
+  const pkgIndex = args.findIndex((a) => !a.startsWith("-"));
+  if (pkgIndex < 0) return null;
 
-  return { packageName: firstNonFlag };
+  const packageName = args[pkgIndex]!;
+  const extraArgs = args.slice(pkgIndex + 1).join(" ");
+  return { packageName, extraArgs };
 }
 
 function inferHardcodedProviderHint(params: {
@@ -294,10 +299,15 @@ function inferRegistryProviderHint(params: {
 function buildNpxParameters(
   packageName: string,
   envVars: EnvVar[],
+  extraArgs?: string,
 ): StdioConnectionParameters {
+  const args = ["-y", packageName];
+  if (extraArgs?.trim()) {
+    args.push(...extraArgs.trim().split(/\s+/));
+  }
   const params: StdioConnectionParameters = {
     command: "npx",
-    args: ["-y", packageName],
+    args,
   };
   const envRecord = envVarsToRecord(envVars);
   if (Object.keys(envRecord).length > 0) {
@@ -345,8 +355,16 @@ function isNpxCommand(params: StdioConnectionParameters): boolean {
 /**
  * Parse STDIO connection_headers back to NPX form fields
  */
-function parseStdioToNpx(params: StdioConnectionParameters): string {
-  return params.args?.find((a) => !a.startsWith("-")) ?? "";
+function parseStdioToNpx(params: StdioConnectionParameters): {
+  packageName: string;
+  extraArgs: string;
+} {
+  const args = params.args ?? [];
+  const packageName = args.find((a) => !a.startsWith("-")) ?? "";
+  // Extra args are everything after the package name (excluding flags like -y)
+  const pkgIndex = args.indexOf(packageName);
+  const extraArgs = pkgIndex >= 0 ? args.slice(pkgIndex + 1).join(" ") : "";
+  return { packageName, extraArgs };
 }
 
 /**
@@ -470,6 +488,7 @@ function OrgMcpsContent() {
       connection_url: "",
       connection_token: null,
       npx_package: "",
+      npx_args: "",
       stdio_command: "",
       stdio_args: "",
       stdio_cwd: "",
@@ -513,14 +532,15 @@ function OrgMcpsContent() {
 
         if (isNpxCommand(stdioParams)) {
           // NPX connection
-          const npxPackage = parseStdioToNpx(stdioParams);
+          const npxParsed = parseStdioToNpx(stdioParams);
           form.reset({
             title: editingConnection.title,
             description: editingConnection.description,
             ui_type: "NPX",
             connection_url: "",
             connection_token: null,
-            npx_package: npxPackage,
+            npx_package: npxParsed.packageName,
+            npx_args: npxParsed.extraArgs,
             stdio_command: "",
             stdio_args: "",
             stdio_cwd: "",
@@ -536,6 +556,7 @@ function OrgMcpsContent() {
             connection_url: "",
             connection_token: null,
             npx_package: "",
+            npx_args: "",
             stdio_command: customData.command,
             stdio_args: customData.args,
             stdio_cwd: customData.cwd,
@@ -699,6 +720,7 @@ function OrgMcpsContent() {
       connectionParameters = buildNpxParameters(
         data.npx_package || "",
         data.env_vars || [],
+        data.npx_args,
       );
     } else if (data.ui_type === "STDIO") {
       // Custom STDIO command
@@ -826,6 +848,7 @@ function OrgMcpsContent() {
     if (npx && stdioEnabled) {
       form.setValue("ui_type", "NPX", { shouldDirty: true });
       form.setValue("npx_package", npx.packageName, { shouldDirty: true });
+      form.setValue("npx_args", npx.extraArgs, { shouldDirty: true });
       // Clear HTTP fields for clarity
       form.setValue("connection_url", "", { shouldDirty: true });
       form.setValue("connection_token", null, { shouldDirty: true });
@@ -1131,6 +1154,26 @@ function OrgMcpsContent() {
                               }}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="npx_args"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Arguments</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="/path/to/project --flag value"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Additional arguments passed after the package name
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

@@ -1,0 +1,60 @@
+{
+  "id": "page_home",
+  "path": "/",
+  "title": "Home",
+  "blocks": [
+    {
+      "id": "block_hero1",
+      "blockType": "sections--Hero",
+      "props": {
+        "title": "Build Beautiful Sites with deco.cx",
+        "subtitle": "A stack-agnostic CMS that works with your existing TypeScript codebase",
+        "ctaText": "Get Started",
+        "ctaUrl": "/docs"
+      }
+    },
+    {
+      "id": "block_feat1",
+      "blockType": "sections--Features",
+      "props": {
+        "heading": "Why deco.cx?",
+        "features": [
+          {
+            "title": "Visual Editing",
+            "description": "Edit your site visually with a live preview. Changes update in real-time.",
+            "icon": "edit"
+          },
+          {
+            "title": "TypeScript Native",
+            "description": "Your components define the CMS schema. No config files, no boilerplate.",
+            "icon": "code"
+          },
+          {
+            "title": "Git-Backed Content",
+            "description": "All content lives in git. Branch, review, and deploy with confidence.",
+            "icon": "git-branch"
+          }
+        ],
+        "columns": 3
+      }
+    },
+    {
+      "id": "block_foot1",
+      "blockType": "sections--Footer",
+      "props": {
+        "siteName": "My Site",
+        "year": 2026,
+        "links": [
+          { "label": "Home", "url": "/" },
+          { "label": "About", "url": "/about" },
+          { "label": "GitHub", "url": "https://github.com/deco-cx" }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "description": "Default home page",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+}

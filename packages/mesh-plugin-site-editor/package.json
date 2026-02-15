@@ -1,0 +1,42 @@
+{
+  "name": "mesh-plugin-site-editor",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Site editor plugin for Mesh - manage pages, sections, and loaders",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "exports": {
+    "./server": "./server/index.ts",
+    "./client": "./client/index.tsx"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
+    "@deco/ui": "workspace:*",
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/modifiers": "^7.0.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@rjsf/core": "^6.1.2",
+    "@rjsf/utils": "^6.1.2",
+    "@rjsf/validator-ajv8": "^6.1.2",
+    "@untitledui/icons": "^0.0.19",
+    "lucide-react": "^0.468.0",
+    "ts-morph": "^27.0.2",
+    "ts-json-schema-generator": "^2.4.0",
+    "sonner": ">=2.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "@tanstack/react-router": ">=1.0.0",
+    "nanoid": ">=5.0.0",
+    "react": "^19.2.0"
+  }
+}

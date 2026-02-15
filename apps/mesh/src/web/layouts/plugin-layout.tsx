@@ -5,13 +5,14 @@
  * and provides PluginContext to plugin routes.
  *
  * Connection selection is controlled by project settings (plugin bindings).
- * If no connection is configured for the plugin, an empty state is shown
- * prompting the user to configure it in project settings.
+ * If no connection is configured for the plugin, the plugin's own empty
+ * state is shown so it can guide the user through setup.
  */
 
 import {
   Binder,
   connectionImplementsBinding,
+  resolveToolNames,
   PluginConnectionEntity,
   PluginContext,
   PluginContextPartial,
@@ -28,12 +29,11 @@ import {
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { authClient } from "@/web/lib/auth-client";
-import { Outlet, useParams, Link } from "@tanstack/react-router";
-import { Loading01, Settings01 } from "@untitledui/icons";
-import { Suspense, type ReactNode } from "react";
+import { Outlet, useLocation, useParams } from "@tanstack/react-router";
+import { Loading01 } from "@untitledui/icons";
+import { Suspense, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Page } from "@/web/components/page";
 
 interface PluginLayoutProps {
@@ -87,6 +87,110 @@ function toPluginConnectionEntity(
 }
 
 /**
+ * Extracts text content from an MCP tool result.
+ * Standard MCP tools return { content: [{ type: "text", text: "..." }] }.
+ */
+function extractMCPText(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const r = result as Record<string, unknown>;
+  // Check structuredContent.content first (newer MCP tools return this)
+  if (r.structuredContent && typeof r.structuredContent === "object") {
+    const sc = r.structuredContent as Record<string, unknown>;
+    if (typeof sc.content === "string") return sc.content;
+  }
+  // Fall back to content array
+  if (Array.isArray(r.content)) {
+    return (r.content as Array<{ type?: string; text?: string }>)
+      .filter((c) => c.type === "text" && c.text)
+      .map((c) => c.text)
+      .join("\n");
+  }
+  return "";
+}
+
+/**
+ * Make a relative path absolute by prepending the root directory.
+ * Matches the server-side site-proxy behavior.
+ */
+function toAbsolute(rootDir: string | null, relativePath: string): string {
+  if (!rootDir || relativePath.startsWith("/")) return relativePath;
+  return `${rootDir.replace(/\/$/, "")}/${relativePath}`;
+}
+
+/**
+ * Adapts binding tool inputs to match the aliased tool's expected schema.
+ * E.g. LIST_FILES({ prefix }) → list_directory({ path }).
+ * Resolves relative paths to absolute using the discovered root directory.
+ */
+function adaptToolInput(
+  canonicalName: string,
+  args: Record<string, unknown>,
+  rootDir: string | null,
+): Record<string, unknown> {
+  switch (canonicalName) {
+    case "LIST_FILES":
+      // LIST_FILES({ prefix }) → list_directory({ path })
+      return { path: toAbsolute(rootDir, (args.prefix as string) || ".") };
+    case "READ_FILE":
+      return { path: toAbsolute(rootDir, (args.path as string) || "") };
+    case "PUT_FILE":
+      return {
+        path: toAbsolute(rootDir, (args.path as string) || ""),
+        content: args.content,
+      };
+    default:
+      return args;
+  }
+}
+
+/**
+ * Adapts standard MCP tool responses to match binding output schemas.
+ * This bridges the gap between e.g. @modelcontextprotocol/server-filesystem
+ * responses and the structured formats bindings expect.
+ */
+function adaptToolResponse(
+  canonicalName: string,
+  rawResult: unknown,
+  originalArgs?: Record<string, unknown>,
+): unknown {
+  const text = extractMCPText(rawResult);
+
+  switch (canonicalName) {
+    case "READ_FILE":
+      // read_file returns text content → { content: string }
+      return { content: text };
+
+    case "PUT_FILE":
+      // write_file returns confirmation text → { success: boolean }
+      return { success: true };
+
+    case "LIST_FILES": {
+      // list_directory returns lines like "[FILE] name.json" and "[DIR] subdir"
+      // We need to reconstruct full paths relative to the queried prefix.
+      const lines = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const prefix = (originalArgs?.prefix as string) ?? "";
+      const files = lines
+        .filter((l) => l.startsWith("[FILE]"))
+        .map((l) => {
+          const name = l.replace("[FILE]", "").trim();
+          const fullPath =
+            prefix && prefix !== "."
+              ? `${prefix.replace(/\/$/, "")}/${name}`
+              : name;
+          return { path: fullPath, sizeInBytes: 0, mtime: 0 };
+        });
+      return { files, count: files.length };
+    }
+
+    default:
+      return rawResult;
+  }
+}
+
+/**
  * Plugin layout component that filters connections by binding
  * and provides PluginContext to children.
  *
@@ -110,13 +214,11 @@ export function PluginLayout({
   renderEmptyState,
 }: PluginLayoutProps) {
   const { org, project } = useProjectContext();
-  const {
-    org: orgParam,
-    project: projectParam,
-    pluginId,
-  } = useParams({
-    strict: false,
-  }) as { org: string; project: string; pluginId: string };
+  // Extract pluginId from params ($pluginId catch-all) or URL path (static routes)
+  const params = useParams({ strict: false }) as { pluginId?: string };
+  const location = useLocation();
+  const pluginId =
+    params.pluginId ?? location.pathname.split("/").filter(Boolean)[2] ?? "";
   const allConnections = useConnections();
   const { data: authSession } = authClient.useSession();
 
@@ -157,6 +259,11 @@ export function PluginLayout({
     orgId: org.id,
   });
 
+  // Cache the discovered root directory for the filesystem MCP.
+  // Must be called before early returns to satisfy React's Rules of Hooks.
+  // undefined = not yet discovered, null = discovery failed/not applicable, string = root path.
+  const rootDirRef = useRef<string | null | undefined>(undefined);
+
   // Build session for context (always available)
   const session: PluginSession | null = authSession?.user
     ? {
@@ -189,8 +296,8 @@ export function PluginLayout({
     );
   }
 
-  // If no valid connections exist at all, show the plugin's empty state
-  if (validConnections.length === 0) {
+  // If no valid connections or no configured connection, show the plugin's empty state
+  if (validConnections.length === 0 || !configuredConnection) {
     const emptyContext: PluginContextPartial<Binder> = {
       connectionId: null,
       connection: null,
@@ -208,42 +315,35 @@ export function PluginLayout({
     );
   }
 
-  // If no connection is configured in project settings, prompt user to configure
-  if (!configuredConnection) {
-    const emptyContext: PluginContextPartial<Binder> = {
-      connectionId: null,
-      connection: null,
-      toolCaller: null,
-      org: orgContext,
-      session,
-    };
+  // Build tool name mapping for aliased connections (e.g. read_file → READ_FILE)
+  const toolNameMap = resolveToolNames(configuredConnection, binding);
 
-    return (
-      <PluginContextProvider value={emptyContext}>
-        <div className="h-full flex flex-col items-center justify-center gap-4 p-8">
-          <div className="flex flex-col items-center gap-2 text-center max-w-md">
-            <Settings01 size={48} className="text-muted-foreground mb-2" />
-            <h2 className="text-lg font-semibold">Plugin Not Configured</h2>
-            <p className="text-sm text-muted-foreground">
-              This plugin requires a connection to be configured. Go to project
-              settings to select which integration to use.
-            </p>
-          </div>
-          <Button asChild>
-            <Link
-              to="/$org/$project/settings"
-              params={{
-                org: orgParam ?? org.slug,
-                project: projectParam ?? project.slug ?? "",
-              }}
-            >
-              Go to Project Settings
-            </Link>
-          </Button>
-        </div>
-      </PluginContextProvider>
-    );
-  }
+  /**
+   * Discovers the root directory by calling list_allowed_directories on the
+   * MCP connection. Caches the result so subsequent tool calls are instant.
+   */
+  const discoverRootDir = async (): Promise<string | null> => {
+    if (rootDirRef.current !== undefined) return rootDirRef.current;
+    if (!configuredClient) {
+      rootDirRef.current = null;
+      return null;
+    }
+    try {
+      const result = await configuredClient.callTool({
+        name: "list_allowed_directories",
+        arguments: {},
+      });
+      const text = extractMCPText(result);
+      const lines = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      rootDirRef.current = lines.find((l) => l.startsWith("/")) ?? null;
+    } catch {
+      rootDirRef.current = null;
+    }
+    return rootDirRef.current;
+  };
 
   // Create the plugin context with connection
   // TypedToolCaller is generic - the plugin will cast it to the correct binding type
@@ -254,12 +354,32 @@ export function PluginLayout({
     // Type safety is enforced by the plugin using usePluginContext<MyBinding>()
     toolCaller: ((toolName: string, args: unknown) =>
       configuredClient
-        ? configuredClient
-            .callTool({
-              name: toolName,
-              arguments: args as Record<string, unknown>,
-            })
-            .then((result) => result.structuredContent ?? result)
+        ? (async () => {
+            const isAliased = !!toolNameMap[toolName];
+            // Discover root directory on first aliased tool call
+            const rootDir = isAliased ? await discoverRootDir() : null;
+
+            const result = await configuredClient.callTool({
+              name: toolNameMap[toolName] ?? toolName,
+              arguments: (isAliased
+                ? adaptToolInput(
+                    toolName,
+                    args as Record<string, unknown>,
+                    rootDir,
+                  )
+                : args) as Record<string, unknown>,
+            });
+
+            if (isAliased) {
+              return adaptToolResponse(
+                toolName,
+                result,
+                args as Record<string, unknown>,
+              );
+            }
+            const payload = result.structuredContent ?? result;
+            return payload;
+          })()
         : Promise.reject(
             new Error("MCP client is not available"),
           )) as PluginContext<Binder>["toolCaller"],

@@ -3,12 +3,20 @@
  *
  * A reusable connection selector that filters connections by binding.
  * Shows connection icons and supports inline installation from registry.
+ * When running locally, offers a "Choose local folder" option that creates
+ * a @modelcontextprotocol/server-filesystem STDIO connection.
  */
 
-import { useConnections } from "@decocms/mesh-sdk";
+import {
+  useConnections,
+  useConnectionActions,
+  useProjectContext,
+  useMCPClient,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { Loading01, Plus } from "@untitledui/icons";
+import { Folder, Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Select,
@@ -59,10 +67,18 @@ export function BindingSelector({
   disabled = false,
 }: BindingSelectorProps) {
   const [isLocalInstalling, setIsLocalInstalling] = useState(false);
+  const [isBrowsing, setIsBrowsing] = useState(false);
   const { installByBinding, isInstalling: isGlobalInstalling } =
     useInstallFromRegistry();
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
+
+  const { org } = useProjectContext();
+  const { create } = useConnectionActions();
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   const allConnections = useConnections();
 
@@ -149,8 +165,82 @@ export function BindingSelector({
     onAddNew?.();
   };
 
-  // Get selected connection for display
-  const selectedConnection = connections.find((c) => c.id === value);
+  // Detect if binding requires object storage tools (LIST_OBJECTS, GET_PRESIGNED_URL, etc.)
+  const isObjectStorageBinding = (() => {
+    if (!binding) return false;
+    if (typeof binding === "string") {
+      return binding === "OBJECT_STORAGE";
+    }
+    if (Array.isArray(binding)) {
+      return binding.some(
+        (b) =>
+          b.name === "LIST_OBJECTS" ||
+          b.name === "GET_PRESIGNED_URL" ||
+          b.name === "PUT_PRESIGNED_URL",
+      );
+    }
+    return false;
+  })();
+
+  // Virtual connection ID for dev-assets (local object storage routed through mesh)
+  const devAssetsConnectionId = `${org.id}_dev-assets`;
+
+  const handleChooseLocalFolder = async () => {
+    setIsBrowsing(true);
+    try {
+      // Open native OS folder picker via the mesh server
+      const pickResult = (await selfClient.callTool({
+        name: "FILESYSTEM_PICK_DIRECTORY",
+        arguments: {},
+      })) as { structuredContent?: { path: string | null } };
+
+      const folderPath = pickResult.structuredContent?.path ?? null;
+      if (!folderPath) return;
+
+      const folderName =
+        folderPath.split("/").filter(Boolean).pop() ?? "folder";
+
+      // For object storage bindings, use the local-object-storage bridge
+      // For file/site bindings, use the standard filesystem MCP
+      const connectionConfig = isObjectStorageBinding
+        ? {
+            title: `Local Files: ${folderName}`,
+            connection_type: "STDIO" as const,
+            connection_headers: {
+              command: "node",
+              args: [
+                "--experimental-strip-types",
+                "../../packages/mcp-local-object-storage/src/index.ts",
+                folderPath,
+              ],
+            },
+          }
+        : {
+            title: `Local: ${folderName}`,
+            connection_type: "STDIO" as const,
+            connection_headers: {
+              command: "npx",
+              args: [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                folderPath,
+              ],
+            },
+          };
+
+      const newConnection = await create.mutateAsync(
+        connectionConfig as Parameters<typeof create.mutateAsync>[0],
+      );
+
+      onValueChange(newConnection.id);
+    } catch {
+      // Error is handled by the mutation toast
+    } finally {
+      setIsBrowsing(false);
+    }
+  };
+
+  const busy = isInstalling || isBrowsing;
 
   return (
     <Select
@@ -159,30 +249,24 @@ export function BindingSelector({
       disabled={disabled}
     >
       <SelectTrigger size="sm" className={cn("w-[200px]", className)}>
-        <SelectValue placeholder={placeholder}>
-          {selectedConnection ? (
-            <div className="flex items-center gap-2">
-              {selectedConnection.icon ? (
-                <img
-                  src={selectedConnection.icon}
-                  alt={selectedConnection.title}
-                  className="w-4 h-4 rounded shrink-0"
-                />
-              ) : (
-                <div className="w-4 h-4 rounded bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                  {selectedConnection.title.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <span className="truncate">{selectedConnection.title}</span>
-            </div>
-          ) : (
-            placeholder
-          )}
-        </SelectValue>
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="none">No connection</SelectItem>
-        {connections.length === 0 ? (
+        {isObjectStorageBinding && (
+          <SelectItem value={devAssetsConnectionId}>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <Folder size={16} />
+                <span>Local Storage</span>
+              </div>
+              <span className="text-xs text-muted-foreground ml-6">
+                Store in your browser
+              </span>
+            </div>
+          </SelectItem>
+        )}
+        {connections.length === 0 && !isObjectStorageBinding ? (
           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
             No compatible connections found
           </div>
@@ -206,8 +290,39 @@ export function BindingSelector({
             </SelectItem>
           ))
         )}
-        {(onAddNew || canInstallInline) && (
-          <div className="border-t border-border">
+        <div className="border-t border-border flex flex-col">
+          {/* Choose local folder - always available when running locally */}
+          <Button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleChooseLocalFolder();
+            }}
+            disabled={busy || disabled}
+            variant="ghost"
+            className="w-full justify-start gap-2 px-2 py-2 h-auto hover:bg-muted rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+          >
+            {isBrowsing ? (
+              <>
+                <Loading01 size={16} className="animate-spin" />
+                <span>Selecting folder...</span>
+              </>
+            ) : (
+              <div className="flex flex-col items-start">
+                <div className="flex items-center gap-2">
+                  <Folder size={16} />
+                  <span>Local Files</span>
+                </div>
+                <span className="text-xs text-muted-foreground ml-6">
+                  Store in your files
+                </span>
+              </div>
+            )}
+          </Button>
+          {/* Add connection / install from registry */}
+          {(onAddNew || canInstallInline) && (
             <Button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -215,7 +330,7 @@ export function BindingSelector({
                 e.stopPropagation();
                 handleCreateConnection();
               }}
-              disabled={isInstalling || disabled}
+              disabled={busy || disabled}
               variant="ghost"
               className="w-full justify-start gap-2 px-2 py-2 h-auto hover:bg-muted rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
@@ -228,12 +343,12 @@ export function BindingSelector({
               ) : (
                 <>
                   <Plus size={16} />
-                  <span>Add Connection</span>
+                  <span>Custom Connection</span>
                 </>
               )}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </SelectContent>
     </Select>
   );
