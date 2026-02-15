@@ -10,6 +10,7 @@ export {
   createBindingChecker,
   bindingClient,
   connectionImplementsBinding,
+  resolveToolNames,
   type Binder,
   type BindingChecker,
   type ToolBinder,

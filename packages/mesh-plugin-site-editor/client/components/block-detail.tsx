@@ -51,7 +51,7 @@ export default function BlockDetail() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
   const navigate = siteEditorRouter.useNavigate();
   const { blockId } = siteEditorRouter.useParams({
-    from: "/sections/$blockId",
+    from: "/site-editor-layout/sections/$blockId",
   });
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -105,7 +105,10 @@ export default function BlockDetail() {
         <p className="text-muted-foreground text-center mb-4">
           The block "{blockId}" could not be found.
         </p>
-        <Button variant="outline" onClick={() => navigate({ to: "/sections" })}>
+        <Button
+          variant="outline"
+          onClick={() => navigate({ to: "/site-editor-layout/sections" })}
+        >
           <ArrowLeft size={14} className="mr-1" />
           Back to Sections
         </Button>
@@ -126,7 +129,7 @@ export default function BlockDetail() {
         <div className="flex items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => navigate({ to: "/sections" })}
+            onClick={() => navigate({ to: "/site-editor-layout/sections" })}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             Sections

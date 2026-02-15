@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 /**
  * Derive a block ID from a component path.
@@ -62,7 +63,7 @@ export const BLOCK_REGISTER: ServerPluginToolDefinition = {
         defaults?: Record<string, unknown>;
       };
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const id = componentToId(blockInput.component);

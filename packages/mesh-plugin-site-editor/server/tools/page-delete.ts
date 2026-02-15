@@ -12,6 +12,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 export const PAGE_DELETE: ServerPluginToolDefinition = {
   name: "CMS_PAGE_DELETE",
@@ -29,7 +30,7 @@ export const PAGE_DELETE: ServerPluginToolDefinition = {
       connectionId: string;
       pageId: string;
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const filePath = `.deco/pages/${pageId}.json`;

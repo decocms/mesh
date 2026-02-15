@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^19.2.0",

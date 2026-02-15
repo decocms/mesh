@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 const PageSchema = z.object({
   id: z.string(),
@@ -39,7 +40,7 @@ export const PAGE_CREATE: ServerPluginToolDefinition = {
       title: string;
       path: string;
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const id = `page_${nanoid(8)}`;

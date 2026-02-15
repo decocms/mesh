@@ -52,7 +52,7 @@ export default function LoaderDetail() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
   const navigate = siteEditorRouter.useNavigate();
   const { loaderId } = siteEditorRouter.useParams({
-    from: "/loaders/$loaderId",
+    from: "/site-editor-layout/loaders/$loaderId",
   });
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -107,7 +107,10 @@ export default function LoaderDetail() {
         <p className="text-muted-foreground text-center mb-4">
           The loader &quot;{loaderId}&quot; could not be found.
         </p>
-        <Button variant="outline" onClick={() => navigate({ to: "/loaders" })}>
+        <Button
+          variant="outline"
+          onClick={() => navigate({ to: "/site-editor-layout/loaders" })}
+        >
           <ArrowLeft size={14} className="mr-1" />
           Back to Loaders
         </Button>
@@ -134,7 +137,7 @@ export default function LoaderDetail() {
         <div className="flex items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => navigate({ to: "/loaders" })}
+            onClick={() => navigate({ to: "/site-editor-layout/loaders" })}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             Loaders

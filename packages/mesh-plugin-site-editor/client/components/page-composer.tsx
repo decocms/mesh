@@ -51,7 +51,9 @@ export default function PageComposer() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
   const queryClient = useQueryClient();
   const navigate = siteEditorRouter.useNavigate();
-  const { pageId } = siteEditorRouter.useParams({ from: "/pages/$pageId" });
+  const { pageId } = siteEditorRouter.useParams({
+    from: "/site-editor-layout/pages/$pageId",
+  });
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportKey>("desktop");
@@ -343,7 +345,10 @@ export default function PageComposer() {
         <p className="text-muted-foreground text-center mb-4">
           The page &quot;{pageId}&quot; could not be found.
         </p>
-        <Button variant="outline" onClick={() => navigate({ to: "/" })}>
+        <Button
+          variant="outline"
+          onClick={() => navigate({ to: "/site-editor-layout/" })}
+        >
           <ArrowLeft size={14} className="mr-1" />
           Back to Pages
         </Button>
@@ -358,7 +363,7 @@ export default function PageComposer() {
         <div className="flex items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => navigate({ to: "/site-editor-layout/" })}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             Pages

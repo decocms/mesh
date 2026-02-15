@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 const PageSchema = z.object({
   id: z.string(),
@@ -43,7 +44,7 @@ export const PAGE_UPDATE: ServerPluginToolDefinition = {
       path?: string;
       blocks?: unknown[];
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       // Read existing page

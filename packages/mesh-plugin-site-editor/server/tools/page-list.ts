@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 const PageSummarySchema = z.object({
   id: z.string(),
@@ -28,7 +29,7 @@ export const PAGE_LIST: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const { connectionId } = input as { connectionId: string };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       // List files under .deco/pages/

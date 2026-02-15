@@ -81,7 +81,7 @@ export default function PagesList() {
       setNewTitle("");
       setNewPath("/");
       navigate({
-        to: "/pages/$pageId",
+        to: "/site-editor-layout/pages/$pageId",
         params: { pageId: page.id },
       });
     },
@@ -230,7 +230,7 @@ export default function PagesList() {
               type="button"
               onClick={() =>
                 navigate({
-                  to: "/pages/$pageId",
+                  to: "/site-editor-layout/pages/$pageId",
                   params: { pageId: page.id },
                 })
               }

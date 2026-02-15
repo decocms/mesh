@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 export const LOADER_LIST: ServerPluginToolDefinition = {
   name: "CMS_LOADER_LIST",
@@ -29,7 +30,7 @@ export const LOADER_LIST: ServerPluginToolDefinition = {
 
   handler: async (input, ctx) => {
     const { connectionId } = input as { connectionId: string };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const listResult = await proxy.callTool({

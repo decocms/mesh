@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 export const LOADER_GET: ServerPluginToolDefinition = {
   name: "CMS_LOADER_GET",
@@ -43,7 +44,7 @@ export const LOADER_GET: ServerPluginToolDefinition = {
       connectionId: string;
       loaderId: string;
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const readResult = await proxy.callTool({

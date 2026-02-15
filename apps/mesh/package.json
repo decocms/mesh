@@ -112,6 +112,7 @@
     "marked": "^15.0.6",
     "mesh-plugin-object-storage": "workspace:*",
     "mesh-plugin-private-registry": "workspace:*",
+    "mesh-plugin-site-editor": "workspace:*",
     "mesh-plugin-user-sandbox": "workspace:*",
     "mesh-plugin-reports": "workspace:*",
     "mesh-plugin-workflows": "workspace:*",

@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 
 export const BLOCK_GET: ServerPluginToolDefinition = {
   name: "CMS_BLOCK_GET",
@@ -41,7 +42,7 @@ export const BLOCK_GET: ServerPluginToolDefinition = {
       connectionId: string;
       blockId: string;
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     try {
       const readResult = await proxy.callTool({

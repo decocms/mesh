@@ -10,7 +10,7 @@ import PageComposer from "./page-composer";
 
 export default function PageEditor() {
   // Validate route params are available
-  siteEditorRouter.useParams({ from: "/pages/$pageId" });
+  siteEditorRouter.useParams({ from: "/site-editor-layout/pages/$pageId" });
 
   return <PageComposer />;
 }

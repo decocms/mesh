@@ -2,43 +2,77 @@
  * Hook to resolve the tunnel URL for the site preview.
  *
  * The tunnel URL is how users see their running local dev server in the
- * Mesh admin. They start their dev server locally, run `deco link` to
- * create a tunnel, and this hook resolves the preview URL.
+ * Mesh admin. They start their dev server locally and either:
+ * - Enter the local URL (e.g., http://localhost:5173) directly
+ * - Run `deco link` and use the generated tunnel URL
  *
- * For Phase 1, the tunnel URL is extracted from the connection's metadata.
- * The connection metadata may contain a `previewUrl` field set during
- * `deco link`, or we fall back to null (showing a placeholder).
+ * The URL is persisted in the connection's metadata.previewUrl field
+ * via COLLECTION_CONNECTIONS_UPDATE so it survives page reloads.
  */
 
+import { useState } from "react";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { SITE_BINDING } from "@decocms/bindings";
+import {
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
 
 export interface UseTunnelUrlResult {
   /** The resolved tunnel URL, or null if not available */
   url: string | null;
   /** Whether the URL is still being resolved */
   isLoading: boolean;
+  /** Set the preview URL and persist it to connection metadata */
+  setPreviewUrl: (url: string) => Promise<void>;
+  /** Whether setPreviewUrl is in progress */
+  isSaving: boolean;
 }
 
 /**
  * Resolves the tunnel URL from the plugin context's connection metadata.
- *
- * The connection metadata may contain:
- * - `previewUrl`: The URL to the running local dev server (set by `deco link`)
- *
- * Returns null when no tunnel URL is configured, which causes the
- * PreviewPanel to show instructions for running `deco link`.
+ * Also provides a setter to persist a new preview URL.
  */
 export function useTunnelUrl(): UseTunnelUrlResult {
-  const { connection } = usePluginContext<typeof SITE_BINDING>();
+  const { connection, connectionId } = usePluginContext<typeof SITE_BINDING>();
+  const { org } = useProjectContext();
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
 
-  // The preview URL lives in connection metadata, set by `deco link`.
-  // The metadata field is Record<string, unknown> | null on the connection entity.
   const metadata = connection?.metadata;
   const previewUrl =
     metadata && typeof metadata.previewUrl === "string"
       ? metadata.previewUrl
       : null;
 
-  return { url: previewUrl, isLoading: false };
+  const setPreviewUrl = async (url: string) => {
+    if (!connectionId) return;
+    setIsSaving(true);
+    try {
+      await selfClient.callTool({
+        name: "COLLECTION_CONNECTIONS_UPDATE",
+        arguments: {
+          id: connectionId,
+          data: {
+            metadata: {
+              ...((metadata as Record<string, unknown>) ?? {}),
+              previewUrl: url,
+            },
+          },
+        },
+      });
+      // Invalidate connections query so the new metadata is picked up
+      queryClient.invalidateQueries();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { url: previewUrl, isLoading: false, setPreviewUrl, isSaving };
 }

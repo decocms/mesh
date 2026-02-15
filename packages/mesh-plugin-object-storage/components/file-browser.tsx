@@ -168,7 +168,7 @@ export default function FileBrowser() {
     flat = false,
     view = "table",
   } = objectStorageRouter.useSearch({
-    from: "/",
+    from: "/object-storage-layout",
   });
   const navigate = objectStorageRouter.useNavigate();
 
@@ -176,14 +176,17 @@ export default function FileBrowser() {
 
   const setPrefix = (newPath: string) => {
     setSelectedKeys(new Set()); // Clear selection when navigating folders
-    navigate({ to: "/", search: { path: newPath || undefined, flat, view } });
+    navigate({
+      to: "/object-storage-layout/",
+      search: { path: newPath || undefined, flat, view },
+    });
   };
 
   const setFlat = (newFlat: boolean) => {
     setSelectedKeys(new Set()); // Clear selection when switching view mode
     // Reset to root when switching to flat mode, preserve path in directory mode
     navigate({
-      to: "/",
+      to: "/object-storage-layout/",
       search: {
         path: newFlat ? undefined : prefix || undefined,
         flat: newFlat,
@@ -195,7 +198,7 @@ export default function FileBrowser() {
   const setView = (newView: "table" | "grid") => {
     setSelectedKeys(new Set()); // Clear selection when switching view
     navigate({
-      to: "/",
+      to: "/object-storage-layout/",
       search: {
         path: prefix || undefined,
         flat,

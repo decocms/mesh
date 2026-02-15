@@ -122,7 +122,7 @@ export default function LoadersList() {
                   type="button"
                   onClick={() =>
                     navigate({
-                      to: "/loaders/$loaderId",
+                      to: "/site-editor-layout/loaders/$loaderId",
                       params: { loaderId: loader.id },
                     })
                   }

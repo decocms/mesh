@@ -231,16 +231,19 @@ export const SITE_BINDING = [
     name: "READ_FILE" as const,
     inputSchema: ReadFileInputSchema,
     outputSchema: ReadFileOutputSchema,
+    aliases: ["read_file"],
   } satisfies ToolBinder<"READ_FILE", ReadFileInput, ReadFileOutput>,
   {
     name: "PUT_FILE" as const,
     inputSchema: PutFileInputSchema,
     outputSchema: PutFileOutputSchema,
+    aliases: ["write_file"],
   } satisfies ToolBinder<"PUT_FILE", PutFileInput, PutFileOutput>,
   {
     name: "LIST_FILES" as const,
     inputSchema: ListFilesInputSchema,
     outputSchema: ListFilesOutputSchema,
+    aliases: ["list_directory"],
   } satisfies ToolBinder<"LIST_FILES", ListFilesInput, ListFilesOutput>,
   {
     name: "CREATE_BRANCH" as const,

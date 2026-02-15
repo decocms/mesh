@@ -122,7 +122,7 @@ export default function SectionsList() {
                   type="button"
                   onClick={() =>
                     navigate({
-                      to: "/sections/$blockId",
+                      to: "/site-editor-layout/sections/$blockId",
                       params: { blockId: block.id },
                     })
                   }

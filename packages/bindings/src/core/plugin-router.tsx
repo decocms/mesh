@@ -19,6 +19,11 @@ import type { PluginSetupContext } from "./plugins";
 /**
  * Prepends the plugin base path (/$org/$project/$pluginId) to a route path.
  * Handles both absolute plugin paths (starting with /) and relative paths.
+ *
+ * Plugin routes use ID-only layout routes (e.g., "site-editor-layout") as their
+ * root. Route references include this ID (e.g., "/site-editor-layout/pages/$pageId")
+ * but the ID doesn't correspond to a URL segment. This function strips the ID
+ * prefix so the URL is correct (e.g., /$org/$project/site-editor/pages/$pageId).
  */
 function prependBasePath(
   to: string | undefined,
@@ -28,13 +33,34 @@ function prependBasePath(
 ): string {
   if (!to) return `/${org}/${project}/${pluginId}`;
 
-  // If path starts with /, it's relative to the plugin root
   if (to.startsWith("/")) {
-    return `/${org}/${project}/${pluginId}${to}`;
+    // Strip the ID-only layout route prefix.
+    // e.g., "/site-editor-layout/pages/$pageId" → "/pages/$pageId"
+    // e.g., "/site-editor-layout/" → "/"
+    // e.g., "/site-editor-layout" → ""
+    const rest = to.substring(1); // "site-editor-layout/pages/$pageId"
+    const slashIdx = rest.indexOf("/");
+    const urlPath = slashIdx >= 0 ? rest.substring(slashIdx) : "";
+    return `/${org}/${project}/${pluginId}${urlPath}`;
   }
 
-  // Otherwise, it's already a full path or relative
   return to;
+}
+
+/**
+ * Extracts pluginId from params (catch-all $pluginId route) or from the
+ * pathname (per-plugin static routes). The pluginId is always the 3rd segment.
+ */
+function usePluginId(): { org: string; project: string; pluginId: string } {
+  const params = useParams({ strict: false }) as {
+    org: string;
+    project: string;
+    pluginId?: string;
+  };
+  const location = useLocation();
+  const pluginId =
+    params.pluginId ?? location.pathname.split("/").filter(Boolean)[2] ?? "";
+  return { org: params.org, project: params.project, pluginId };
 }
 
 /**
@@ -123,11 +149,7 @@ export function createPluginRouter<TRoutes extends AnyRoute | AnyRoute[]>(
      */
     useNavigate: () => {
       const navigate = useNavigate();
-      const { org, project, pluginId } = useParams({ strict: false }) as {
-        org: string;
-        project: string;
-        pluginId: string;
-      };
+      const { org, project, pluginId } = usePluginId();
 
       return <TTo extends TRouteId>(
         options: Omit<NavigateOptions, "to" | "params"> & {
@@ -171,11 +193,7 @@ export function createPluginRouter<TRoutes extends AnyRoute | AnyRoute[]>(
         children?: ReactNode;
       },
     ) {
-      const { org, project, pluginId } = useParams({ strict: false }) as {
-        org: string;
-        project: string;
-        pluginId: string;
-      };
+      const { org, project, pluginId } = usePluginId();
 
       const to = prependBasePath(props.to as string, org, project, pluginId);
 

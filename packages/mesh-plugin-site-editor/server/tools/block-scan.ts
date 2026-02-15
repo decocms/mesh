@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { createSiteProxy } from "../site-proxy";
 import { createProjectFromMCP } from "../scanner/extract.js";
 import { discoverComponents } from "../scanner/discover.js";
 import { generateSchema } from "../scanner/schema.js";
@@ -74,7 +75,7 @@ export const BLOCK_SCAN: ServerPluginToolDefinition = {
       connectionId: string;
       patterns?: string[];
     };
-    const proxy = await ctx.createMCPProxy(connectionId);
+    const proxy = await createSiteProxy(await ctx.createMCPProxy(connectionId));
 
     const blocks: BlockSummary[] = [];
     const errors: string[] = [];
