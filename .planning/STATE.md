@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 6 - Connection Setup
 Plan: —
-Status: Defining requirements
-Last activity: 2026-02-15 — Milestone v1.1 started
+Status: Ready to plan
+Last activity: 2026-02-15 — v1.1 roadmap created
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 
 ## Performance Metrics
 
@@ -22,6 +22,10 @@ Progress: [░░░░░░░░░░] 0%
 - Total plans completed: 13
 - Average duration: 4min
 - Total execution time: 0.8 hours
+
+**v1.1 Target:**
+- Estimated plans: 7
+- Estimated duration: ~0.5 hours
 
 ## Accumulated Context
 
@@ -35,17 +39,24 @@ Carried from v1.0:
 - Composer has disconnected `iframeRef` — `useIframeBridge` in PreviewPanel handles all iframe comms
 - `placeholderData` in React Query prevents iframe unmount on locale switch
 
+From v1.1 roadmap:
+- Connection setup moves to inline wizard (no project settings redirect)
+- Preview URL auto-detection eliminates manual tunnel URL entry
+- Sections and loaders pages need actual list/detail views (not just scaffolding)
+- Preview bridge cleanup consolidates all iframe comms in PreviewPanel (remove dead code)
+- anjo.chat is the validation target for all integration work
+
 ### Pending Todos
 
 None.
 
 ### Blockers/Concerns
 
-- Composer `iframeRef` + `useEditorMessages` are dead code — all iframe comms go through PreviewPanel's `useIframeBridge`
-- Sections and loaders pages depend on `.deco/blocks/` and `.deco/loaders/` existing in the connected site
+- Phase 6-9 must complete before Phase 10 validation
+- anjo.chat must have `.deco/blocks/` and `.deco/loaders/` from prior manual setup
 
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Defining v1.1 requirements
-Resume file: None
+Stopped at: v1.1 roadmap creation complete
+Resume file: Ready for `/gsd:plan-phase 6`

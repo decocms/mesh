@@ -122,36 +122,60 @@ Explicitly excluded. Documented to prevent scope creep.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
+### v1.0 (Completed)
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1: Plugin Shell | Pending |
-| FOUND-02 | Phase 1: Plugin Shell | Pending |
-| FOUND-03 | Phase 1: Plugin Shell | Pending |
-| FOUND-04 | Phase 1: Plugin Shell | Pending |
-| FOUND-05 | Phase 1: Plugin Shell | Pending |
-| FOUND-06 | Phase 1: Plugin Shell | Pending |
-| BLOCK-01 | Phase 2: Block Scanner | Pending |
-| BLOCK-02 | Phase 2: Block Scanner | Pending |
-| BLOCK-03 | Phase 2: Block Scanner | Pending |
-| BLOCK-04 | Phase 2: Block Scanner | Pending |
-| EDIT-01 | Phase 3: Visual Editor | Pending |
-| EDIT-02 | Phase 3: Visual Editor | Pending |
-| EDIT-03 | Phase 3: Visual Editor | Pending |
-| EDIT-04 | Phase 3: Visual Editor | Pending |
-| EDIT-05 | Phase 3: Visual Editor | Pending |
-| EDIT-06 | Phase 3: Visual Editor | Pending |
-| EDIT-07 | Phase 3: Visual Editor | Pending |
-| DATA-01 | Phase 4: Loaders | Pending |
-| DATA-02 | Phase 4: Loaders | Pending |
-| PUB-01 | Phase 5: Publishing | Pending |
-| PUB-02 | Phase 5: Publishing | Pending |
-| PUB-03 | Phase 5: Publishing | Pending |
+| FOUND-01 | Phase 1: Plugin Shell | Complete |
+| FOUND-02 | Phase 1: Plugin Shell | Complete |
+| FOUND-03 | Phase 1: Plugin Shell | Complete |
+| FOUND-04 | Phase 1: Plugin Shell | Complete |
+| FOUND-05 | Phase 1: Plugin Shell | Complete |
+| FOUND-06 | Phase 1: Plugin Shell | Complete |
+| BLOCK-01 | Phase 2: Block Scanner | Complete |
+| BLOCK-02 | Phase 2: Block Scanner | Complete |
+| BLOCK-03 | Phase 2: Block Scanner | Complete |
+| BLOCK-04 | Phase 2: Block Scanner | Complete |
+| EDIT-01 | Phase 3: Visual Editor | Complete |
+| EDIT-02 | Phase 3: Visual Editor | Complete |
+| EDIT-03 | Phase 3: Visual Editor | Complete |
+| EDIT-04 | Phase 3: Visual Editor | Complete |
+| EDIT-05 | Phase 3: Visual Editor | Complete |
+| EDIT-06 | Phase 3: Visual Editor | Complete |
+| EDIT-07 | Phase 3: Visual Editor | Complete |
+| DATA-01 | Phase 4: Loaders | Complete |
+| DATA-02 | Phase 4: Loaders | Complete |
+| PUB-01 | Phase 5: Publishing | Complete |
+| PUB-02 | Phase 5: Publishing | Complete |
+| PUB-03 | Phase 5: Publishing | Complete |
 
-**Coverage:**
+**v1.0 Coverage:**
 - v1 requirements: 22 total
 - Mapped to phases: 22
 - Unmapped: 0
 
+### v1.1 (In Progress)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CONN-01 | Phase 6: Connection Setup | Pending |
+| CONN-02 | Phase 6: Connection Setup | Pending |
+| SECT-01 | Phase 7: Sections Page | Pending |
+| SECT-02 | Phase 7: Sections Page | Pending |
+| SECT-03 | Phase 7: Sections Page | Pending |
+| LOAD-01 | Phase 8: Loaders Page | Pending |
+| LOAD-02 | Phase 8: Loaders Page | Pending |
+| PREV-01 | Phase 9: Preview Bridge | Pending |
+| PREV-02 | Phase 9: Preview Bridge | Pending |
+| PREV-03 | Phase 9: Preview Bridge | Pending |
+| SPEC-01 | Phase 10: Documentation & Validation | Pending |
+| VAL-01 | Phase 10: Documentation & Validation | Pending |
+
+**v1.1 Coverage:**
+- v1.1 requirements: 12 total
+- Mapped to phases: 12
+- Unmapped: 0
+
 ---
 *Requirements defined: 2026-02-14*
-*Last updated: 2026-02-14 after roadmap revision*
+*v1.1 traceability added: 2026-02-15*
