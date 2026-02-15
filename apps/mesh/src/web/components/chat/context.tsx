@@ -643,8 +643,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    // Play notification sound if user is not viewing the app
+    // Play notification sound if user is not viewing the app and has enabled sound notifications
     if (
+      preferences.soundNotificationsEnabled &&
       typeof document !== "undefined" &&
       !document.hasFocus() &&
       typeof Notification !== "undefined" &&
