@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
+  Bell01,
   Check,
   CheckDone01,
   Code01,
@@ -118,6 +119,38 @@ export function UserSettingsDialog({
                     checked={preferences.devMode}
                     onCheckedChange={(checked) =>
                       setPreferences((prev) => ({ ...prev, devMode: checked }))
+                    }
+                  />
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    soundNotificationsEnabled: !prev.soundNotificationsEnabled,
+                  }))
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <Bell01 size={16} className="text-muted-foreground" />
+                    Sound Notifications
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Play a sound when chat messages complete while app is
+                    unfocused
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={preferences.soundNotificationsEnabled}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        soundNotificationsEnabled: checked,
+                      }))
                     }
                   />
                 </div>
