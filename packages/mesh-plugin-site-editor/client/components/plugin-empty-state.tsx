@@ -8,7 +8,7 @@
 import { Folder } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { useLocation, useParams } from "@tanstack/react-router";
 import {
   useConnectionActions,
   useProjectContext,
@@ -22,13 +22,17 @@ import { Input } from "@deco/ui/components/input.tsx";
 
 export default function PluginEmptyState() {
   const [path, setPath] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [phase, setPhase] = useState<"form" | "connecting" | "success">("form");
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { org, project } = useProjectContext();
-  const { pluginId } = useParams({ strict: false }) as { pluginId: string };
+  // Static routes (e.g. /site-editor) don't have $pluginId param — fall back to URL path
+  const params = useParams({ strict: false }) as { pluginId?: string };
+  const location = useLocation();
+  const pluginId =
+    params.pluginId ?? location.pathname.split("/").filter(Boolean)[2] ?? "";
   const { create } = useConnectionActions();
   const queryClient = useQueryClient();
 
@@ -64,10 +68,30 @@ export default function PluginEmptyState() {
     const trimmed = path.trim();
     if (!trimmed) return;
 
-    setIsConnecting(true);
+    setPhase("connecting");
     setError(null);
 
     try {
+      // 0. Validate the project directory before creating a connection
+      const validation = await selfClient.callTool({
+        name: "FILESYSTEM_VALIDATE_PROJECT",
+        arguments: { path: trimmed },
+      });
+      const validationResult = validation.structuredContent as {
+        valid: boolean;
+        error: string | null;
+      };
+      if (!validationResult.valid) {
+        const errorMap: Record<string, string> = {
+          PATH_NOT_FOUND: "Path not found",
+          MISSING_TSCONFIG: "Not a TypeScript project (missing tsconfig.json)",
+          MISSING_PACKAGE_JSON: "Not a Node project (missing package.json)",
+        };
+        setError(errorMap[validationResult.error ?? ""] ?? "Invalid project");
+        setPhase("form");
+        return;
+      }
+
       const folderName = trimmed.split("/").filter(Boolean).pop() ?? "site";
 
       // 1. Create the STDIO connection
@@ -90,7 +114,11 @@ export default function PluginEmptyState() {
         },
       });
 
-      // 3. Invalidate queries so PluginLayout re-renders with the connection
+      // 3. Show success confirmation briefly
+      setPhase("success");
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // 4. Invalidate queries so PluginLayout re-renders with the connection
       const locator = Locator.from({
         org: org.slug,
         project: project.slug ?? "",
@@ -107,12 +135,36 @@ export default function PluginEmptyState() {
       setError(
         err instanceof Error ? err.message : "Failed to create connection",
       );
-    } finally {
-      setIsConnecting(false);
+      setPhase("form");
     }
   };
 
-  const busy = isConnecting || isBrowsing;
+  const busy = phase === "connecting" || isBrowsing;
+
+  if (phase === "success") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <svg
+              className="w-6 h-6 text-green-600 dark:text-green-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <p className="text-sm font-medium">Connected!</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
@@ -158,12 +210,10 @@ export default function PluginEmptyState() {
           className="w-full"
         />
 
-        {error && (
-          <p className="text-sm text-destructive text-center">{error}</p>
-        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         <Button type="submit" disabled={!path.trim() || busy}>
-          {isConnecting ? "Connecting..." : "Connect"}
+          {phase === "connecting" ? "Connecting..." : "Connect"}
         </Button>
       </form>
     </div>
