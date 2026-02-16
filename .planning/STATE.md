@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Phase: 6 - Connection Setup
-Plan: —
-Status: Context gathered, ready to plan
-Last activity: 2026-02-15 — Phase 6 context gathered
+Plan: 1 of 2 complete
+Status: Executing phase 6
+Last activity: 2026-02-15 — Completed 06-01 (validation tool + empty state)
 
 Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 
@@ -50,6 +50,11 @@ From pre-phase-6 bugfix:
 - PluginLayout now trusts project config connectionId directly (no binding check on lookup) — new STDIO connections don't have tools populated yet
 - Static plugin routes (`/site-editor`) don't have `$pluginId` param — always use URL path fallback (`location.pathname.split("/")[2]`) when reading pluginId
 
+From phase 6 plan 1:
+- Validation checks dir existence, tsconfig.json, package.json in order (fail-fast)
+- Phase state machine (form/connecting/success) replaces boolean flags in empty state
+- 1.5s success confirmation before query invalidation transitions view
+
 ### Pending Todos
 
 None.
@@ -62,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-connection-setup/06-CONTEXT.md
+Stopped at: Completed 06-01-PLAN.md
+Resume file: .planning/phases/06-connection-setup/06-01-SUMMARY.md
