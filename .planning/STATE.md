@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Phase: 9 - Preview Bridge
-Plan: 1 of 2 complete
-Status: Executing phase 9
-Last activity: 2026-02-16 — Completed 09-01 (protocol extension, bridge consolidation, site-side client)
+Plan: 2 of 2 complete
+Status: Phase 9 complete
+Last activity: 2026-02-16 — Completed 09-02 (interactive preview: mode toggle, disconnect detection, external nav)
 
-Progress: [████████░░] 85% (4.5/5 phases complete)
+Progress: [██████████] 100% (5/5 phases complete)
 
 ## Performance Metrics
 
@@ -80,6 +80,12 @@ From phase 9 plan 1:
 - useEditorProps hook uses useSyncExternalStore with null server snapshot for SSR safety
 - SectionRenderer component pattern for hook-based live prop injection in starter template
 
+From phase 9 plan 2:
+- Mode state owned by PageComposer as single source of truth, passed to bridge and PreviewPanel
+- Numeric state machine (0=loading, 1=ready, 2=disconnected) for useSyncExternalStore compatibility
+- notifyRef pattern stores subscribe callback for timer-driven re-renders from handleIframeLoad
+- 5-second disconnect timeout balances fast detection with slow dev server startup
+
 ### Pending Todos
 
 None.
@@ -92,5 +98,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 09-01-PLAN.md
-Resume file: .planning/phases/09-preview-bridge/09-01-SUMMARY.md
+Stopped at: Completed 09-02-PLAN.md (Phase 9 complete)
+Resume file: .planning/phases/09-preview-bridge/09-02-SUMMARY.md
