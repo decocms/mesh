@@ -16,10 +16,10 @@ This roadmap delivers a stack-agnostic CMS as a Mesh plugin, progressing from pl
 
 ### v1.1 — Polish & Integration
 
-- [ ] **Phase 6: Connection Setup** - Streamlined site connection with inline wizard and auto-detected preview URL
-- [ ] **Phase 7: Sections Page** - Scanned blocks listing with detail views and re-scan trigger
-- [ ] **Phase 8: Loaders Page** - Loader listing with detail views and binding status
-- [ ] **Phase 9: Preview Bridge** - Dead code cleanup and unified iframe communication
+- [x] **Phase 6: Connection Setup** - Streamlined site connection with inline wizard and auto-detected preview URL
+- [x] **Phase 7: Sections Page** - Scanned blocks listing with detail views and re-scan trigger
+- [x] **Phase 8: Loaders Page** - Loader listing with detail views and binding status
+- [x] **Phase 9: Preview Bridge** - Dead code cleanup and unified iframe communication
 - [ ] **Phase 10: Documentation & Validation** - Blocks framework spec and anjo.chat reference validation
 
 ## Phase Details
@@ -112,8 +112,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- FILESYSTEM_VALIDATE_PROJECT tool, empty state validation + success confirmation
-- [ ] 06-02-PLAN.md -- FILESYSTEM_READ_TUNNEL_CONFIG tool, tunnel auto-detection hook, instructions UI
+- [x] 06-01-PLAN.md -- FILESYSTEM_VALIDATE_PROJECT tool, empty state validation + success confirmation
+- [x] 06-02-PLAN.md -- FILESYSTEM_READ_TUNNEL_CONFIG tool, tunnel auto-detection hook, instructions UI
 
 ### Phase 7: Sections Page
 **Goal**: Users can browse all scanned blocks, view details, and trigger re-scans to refresh the block registry
@@ -126,8 +126,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md -- Sections list refactored to table-rows layout with collapsible categories and working scan trigger
-- [ ] 07-02-PLAN.md -- Block detail two-column layout with collapsible schema tree and live prop editor
+- [x] 07-01-PLAN.md -- Sections list refactored to table-rows layout with collapsible categories and working scan trigger
+- [x] 07-02-PLAN.md -- Block detail two-column layout with collapsible schema tree and live prop editor
 
 ### Phase 8: Loaders Page
 **Goal**: Users can browse all loaders, view configuration details, and understand binding relationships
@@ -139,7 +139,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md -- Loaders list with table-rows, connected sections, scan trigger; detail with SchemaTree + PropEditor two-column layout
+- [x] 08-01-PLAN.md -- Loaders list with table-rows, connected sections, scan trigger; detail with SchemaTree + PropEditor two-column layout
 
 ### Phase 9: Preview Bridge
 **Goal**: Unified iframe communication with dead code removed, enabling reliable click-to-select and live prop editing
@@ -152,8 +152,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- Remove dead code, extend protocol types, consolidate bridge in PageComposer, build site-side editor client with data-block-id rendering
-- [ ] 09-02-PLAN.md -- Add edit/interact mode toggle, wire click-to-select and deselect, iframe disconnect detection with reconnect overlay
+- [x] 09-01-PLAN.md -- Remove dead code, extend protocol types, consolidate bridge in PageComposer, build site-side editor client with data-block-id rendering
+- [x] 09-02-PLAN.md -- Add edit/interact mode toggle, wire click-to-select and deselect, iframe disconnect detection with reconnect overlay
 
 ### Phase 10: Documentation & Validation
 **Goal**: Blocks framework is fully documented for AI agents, and anjo.chat proves the full integration works
@@ -180,8 +180,8 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 10
 | 3. Visual Editor | 3/3 | Complete | 2026-02-14 |
 | 4. Loaders | 2/2 | Complete | 2026-02-14 |
 | 5. Publishing | 3/3 | Complete | 2026-02-14 |
-| 6. Connection Setup | 0/2 | Pending | — |
-| 7. Sections Page | 0/2 | Pending | — |
-| 8. Loaders Page | 0/1 | Pending | — |
-| 9. Preview Bridge | 0/2 | Pending | — |
+| 6. Connection Setup | 2/2 | Complete | 2026-02-15 |
+| 7. Sections Page | 2/2 | Complete | 2026-02-15 |
+| 8. Loaders Page | 1/1 | Complete | 2026-02-16 |
+| 9. Preview Bridge | 2/2 | Complete | 2026-02-16 |
 | 10. Documentation & Validation | 0/2 | Pending | — |

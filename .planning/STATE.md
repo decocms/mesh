@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 9 - Preview Bridge
-Plan: 2 of 2 complete
-Status: Phase 9 complete
-Last activity: 2026-02-16 — Completed 09-02 (interactive preview: mode toggle, disconnect detection, external nav)
+Phase: 10 - Documentation & Validation
+Plan: 0 of 2 — not yet planned
+Status: Phases 1–9 complete, phase 10 next
+Last activity: 2026-02-16 — Completed phase 9 (bridge Vite plugin, heartbeat fixes, variant selection)
 
-Progress: [██████████] 100% (5/5 phases complete)
+Progress: [██████████████████░░] 90% (9/10 phases complete)
 
 ## Performance Metrics
 
