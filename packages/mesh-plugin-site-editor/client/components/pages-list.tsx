@@ -6,8 +6,13 @@
  * Uses SITE_BINDING tools (READ_FILE, PUT_FILE, LIST_FILES) via page-api helpers.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SITE_BINDING } from "@decocms/bindings/site";
+import {
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -31,8 +36,10 @@ import {
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
+import { useTunnelDetection } from "../lib/use-tunnel-detection";
 import { siteEditorRouter } from "../lib/router";
 import { listPages, createPage, deletePage } from "../lib/page-api";
+import TunnelInstructions from "./tunnel-instructions";
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "-";
@@ -50,13 +57,60 @@ function formatDate(dateStr: string): string {
 }
 
 export default function PagesList() {
-  const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
+  const { toolCaller, connectionId, connection } =
+    usePluginContext<typeof SITE_BINDING>();
+  const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const navigate = siteEditorRouter.useNavigate();
+  const persistedRef = useRef(false);
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newPath, setNewPath] = useState("/");
+
+  // Read metadata for project path and preview URL
+  const metadata = connection?.metadata as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const projectPath =
+    typeof metadata?.projectPath === "string" ? metadata.projectPath : "";
+  const hasPreviewUrl =
+    typeof metadata?.previewUrl === "string" && metadata.previewUrl.length > 0;
+
+  // Tunnel detection — skip if preview URL already set
+  const tunnel = useTunnelDetection({
+    connectionId,
+    projectPath,
+    orgId: org.id,
+    enabled: !hasPreviewUrl && !!projectPath,
+  });
+
+  // Auto-persist tunnel URL when it becomes reachable (once)
+  if (tunnel.reachable && tunnel.tunnelUrl && !persistedRef.current) {
+    persistedRef.current = true;
+    selfClient
+      .callTool({
+        name: "COLLECTION_CONNECTIONS_UPDATE",
+        arguments: {
+          id: connectionId,
+          data: {
+            metadata: {
+              ...((metadata as Record<string, unknown>) ?? {}),
+              previewUrl: tunnel.tunnelUrl,
+            },
+          },
+        },
+      })
+      .then(() => {
+        queryClient.invalidateQueries();
+      });
+  }
 
   // Fetch pages list
   const {
@@ -193,6 +247,16 @@ export default function PagesList() {
         </Dialog>
       </div>
 
+      {/* Tunnel detection banner */}
+      {!hasPreviewUrl && (
+        <TunnelInstructions
+          tunnelUrl={tunnel.tunnelUrl}
+          reachable={tunnel.reachable}
+          noWranglerToml={tunnel.noWranglerToml}
+          isPolling={!!tunnel.tunnelUrl && !tunnel.reachable}
+        />
+      )}
+
       {/* Table header */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/30 text-sm font-medium text-muted-foreground">
         <span className="flex-1">Title</span>
@@ -241,6 +305,18 @@ export default function PagesList() {
                 <span className="truncate font-medium text-sm">
                   {page.title}
                 </span>
+                {page.variants.length > 0 && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {page.variants.map((v) => (
+                      <span
+                        key={v.locale}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary"
+                      >
+                        {v.locale.split("-")[0]?.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <span className="text-sm text-muted-foreground w-32 truncate">
                 {page.path}

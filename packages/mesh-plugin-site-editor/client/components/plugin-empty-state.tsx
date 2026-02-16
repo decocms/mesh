@@ -94,7 +94,7 @@ export default function PluginEmptyState() {
 
       const folderName = trimmed.split("/").filter(Boolean).pop() ?? "site";
 
-      // 1. Create the STDIO connection
+      // 1. Create the STDIO connection (store projectPath in metadata for tunnel detection)
       const newConnection = await create.mutateAsync({
         title: `Site: ${folderName}`,
         connection_type: "STDIO",
@@ -102,6 +102,7 @@ export default function PluginEmptyState() {
           command: "npx",
           args: ["-y", "@modelcontextprotocol/server-filesystem", trimmed],
         },
+        metadata: { projectPath: trimmed },
       } as Parameters<typeof create.mutateAsync>[0]);
 
       // 2. Bind the new connection to this plugin via project config
