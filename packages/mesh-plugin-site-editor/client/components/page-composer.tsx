@@ -11,10 +11,11 @@
  */
 
 import { useRef, useState, useSyncExternalStore } from "react";
+import { useIframeBridge } from "../lib/use-iframe-bridge";
 import { nanoid } from "nanoid";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -25,6 +26,8 @@ import {
   ReverseLeft,
   ReverseRight,
   Clock,
+  Globe02,
+  Plus,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
@@ -32,12 +35,13 @@ import { siteEditorRouter } from "../lib/router";
 import {
   getPage,
   updatePage,
+  listPages,
+  createPageVariant,
   isLoaderRef,
   type BlockInstance,
   type LoaderRef,
 } from "../lib/page-api";
 import { getBlock } from "../lib/block-api";
-import { useEditorMessages } from "../lib/use-editor-messages";
 import { useUndoRedo } from "../lib/use-undo-redo";
 import { PreviewPanel } from "./preview-panel";
 import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
@@ -63,18 +67,51 @@ export default function PageComposer() {
     propName: string | null;
   }>({ open: false, propName: null });
   const [showHistory, setShowHistory] = useState(false);
+  const [activeLocale, setActiveLocale] = useState<string | null>(null);
+  const [newLocaleInput, setNewLocaleInput] = useState("");
+  const [showNewLocale, setShowNewLocale] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { send } = useEditorMessages(iframeRef);
 
-  // Fetch page data
+  // Fetch page list to get available variants for this page
+  const { data: pageSummaries = [] } = useQuery({
+    queryKey: queryKeys.pages.all(connectionId),
+    queryFn: () => listPages(toolCaller),
+  });
+  const currentPageSummary = pageSummaries.find((p) => p.id === pageId);
+  const availableVariants = currentPageSummary?.variants ?? [];
+
+  // Fetch page data (optionally for a specific locale variant)
+  // placeholderData keeps previous variant visible while new one loads,
+  // preventing iframe unmount/remount on locale switch.
   const {
     data: page,
     isLoading,
     error,
+    isPlaceholderData: _isPlaceholderData,
   } = useQuery({
-    queryKey: queryKeys.pages.detail(connectionId, pageId),
-    queryFn: () => getPage(toolCaller, pageId),
+    queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
+    queryFn: () => getPage(toolCaller, pageId, activeLocale),
+    placeholderData: (prev) => prev,
+  });
+
+  // Create variant mutation
+  const createVariantMutation = useMutation({
+    mutationFn: (locale: string) =>
+      createPageVariant(toolCaller, pageId, locale),
+    onSuccess: (_, locale) => {
+      toast.success(`Created ${locale} variant`);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.pages.all(connectionId),
+      });
+      setActiveLocale(locale);
+      setShowNewLocale(false);
+      setNewLocaleInput("");
+    },
+    onError: (err) => {
+      toast.error(
+        `Failed to create variant: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    },
   });
 
   // Undo/redo state for blocks
@@ -89,15 +126,26 @@ export default function PageComposer() {
     clearFuture,
   } = useUndoRedo<BlockInstance[]>(page?.blocks ?? []);
 
-  // Sync blocks when server data loads
+  // Sync blocks when server data loads or locale changes
   const lastSyncedRef = useRef<string | null>(null);
-  if (page && lastSyncedRef.current !== page.metadata.updatedAt) {
-    lastSyncedRef.current = page.metadata.updatedAt;
+  const syncKey = page
+    ? `${pageId}:${activeLocale ?? "default"}:${page.metadata.updatedAt}`
+    : null;
+  if (page && syncKey && lastSyncedRef.current !== syncKey) {
+    lastSyncedRef.current = syncKey;
     resetBlocks(page.blocks);
   }
 
   // Build the local page object from query data + undo/redo blocks
   const localPage = page ? { ...page, blocks } : null;
+
+  // Single bridge for all iframe communication
+  const { send, setIframeRef, ready } = useIframeBridge({
+    page: localPage,
+    selectedBlockId,
+    onBlockClicked: setSelectedBlockId,
+    onClickAway: () => setSelectedBlockId(null),
+  });
 
   // Find selected block
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId);
@@ -111,17 +159,6 @@ export default function PageComposer() {
     queryFn: () => getBlock(toolCaller, selectedBlock!.blockType),
     enabled: !!selectedBlock,
   });
-
-  // Send page-config to iframe whenever blocks change (undo/redo or direct edit)
-  const prevBlocksRef = useRef<BlockInstance[]>(blocks);
-  if (localPage && blocks !== prevBlocksRef.current) {
-    prevBlocksRef.current = blocks;
-    queueMicrotask(() => {
-      if (localPage) {
-        send({ type: "deco:page-config", page: localPage });
-      }
-    });
-  }
 
   // Keyboard shortcuts for undo/redo via useSyncExternalStore
   const undoRef = useRef(undo);
@@ -171,12 +208,15 @@ export default function PageComposer() {
     }
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await updatePage(toolCaller, pageId, {
-          blocks: updatedBlocks,
-        });
+        await updatePage(
+          toolCaller,
+          pageId,
+          { blocks: updatedBlocks },
+          activeLocale,
+        );
         clearFuture();
         queryClient.invalidateQueries({
-          queryKey: queryKeys.pages.detail(connectionId, pageId),
+          queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
         });
       } catch (err) {
         toast.error(
@@ -296,15 +336,20 @@ export default function PageComposer() {
       saveTimerRef.current = null;
     }
     try {
-      await updatePage(toolCaller, pageId, {
-        title: localPage.title,
-        path: localPage.path,
-        blocks: localPage.blocks,
-      });
+      await updatePage(
+        toolCaller,
+        pageId,
+        {
+          title: localPage.title,
+          path: localPage.path,
+          blocks: localPage.blocks,
+        },
+        activeLocale,
+      );
       clearFuture();
       toast.success("Page saved");
       queryClient.invalidateQueries({
-        queryKey: queryKeys.pages.detail(connectionId, pageId),
+        queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
       });
     } catch (err) {
       toast.error(
@@ -358,7 +403,7 @@ export default function PageComposer() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar: breadcrumb, save button, viewport toggle */}
+      {/* Top bar: breadcrumb, locale switcher, save button, viewport toggle */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background">
         <div className="flex items-center gap-2 text-sm">
           <button
@@ -370,6 +415,68 @@ export default function PageComposer() {
           </button>
           <span className="text-muted-foreground">/</span>
           <span className="font-medium">{localPage.title}</span>
+
+          {/* Locale switcher */}
+          <div className="flex items-center gap-1 ml-3 bg-muted/50 rounded-full p-0.5">
+            <Globe02 size={14} className="text-muted-foreground ml-1.5" />
+            <button
+              type="button"
+              onClick={() => setActiveLocale(null)}
+              className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                activeLocale === null
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Default
+            </button>
+            {availableVariants.map((v) => (
+              <button
+                key={v.locale}
+                type="button"
+                onClick={() => setActiveLocale(v.locale)}
+                className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                  activeLocale === v.locale
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {v.locale}
+              </button>
+            ))}
+            {showNewLocale ? (
+              <form
+                className="flex items-center gap-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newLocaleInput.trim()) {
+                    createVariantMutation.mutate(newLocaleInput.trim());
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  value={newLocaleInput}
+                  onChange={(e) => setNewLocaleInput(e.target.value)}
+                  placeholder="en-US"
+                  className="w-16 px-1.5 py-0.5 rounded text-xs border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                  onBlur={() => {
+                    if (!newLocaleInput.trim()) setShowNewLocale(false);
+                  }}
+                />
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowNewLocale(true)}
+                className="px-1 py-0.5 rounded-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title="Add locale variant"
+              >
+                <Plus size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -427,10 +534,9 @@ export default function PageComposer() {
         <div className="flex-1 overflow-hidden">
           <PreviewPanel
             path={localPage.path}
-            page={localPage}
-            selectedBlockId={selectedBlockId}
             viewport={viewport}
-            onBlockClicked={setSelectedBlockId}
+            setIframeRef={setIframeRef}
+            ready={ready}
           />
         </div>
 

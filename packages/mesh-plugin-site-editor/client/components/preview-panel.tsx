@@ -10,9 +10,7 @@
 
 import { useState } from "react";
 import { useTunnelUrl } from "../lib/use-tunnel-url";
-import { useIframeBridge } from "../lib/use-iframe-bridge";
 import { VIEWPORTS, type ViewportKey } from "./viewport-toggle";
-import type { Page } from "../lib/page-api";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Globe02, Loading01, LinkExternal01 } from "@untitledui/icons";
@@ -20,29 +18,21 @@ import { Globe02, Loading01, LinkExternal01 } from "@untitledui/icons";
 interface PreviewPanelProps {
   /** Page path to preview (e.g., "/", "/about") */
   path?: string;
-  /** Current page data to send to the iframe */
-  page: Page | null;
-  /** Currently selected block ID for highlighting */
-  selectedBlockId: string | null;
   /** Current viewport size */
   viewport: ViewportKey;
-  /** Called when user clicks a block in the preview */
-  onBlockClicked: (blockId: string) => void;
+  /** Ref callback to attach to the iframe element */
+  setIframeRef: (el: HTMLIFrameElement | null) => void;
+  /** Whether the iframe bridge is ready */
+  ready: boolean;
 }
 
 export function PreviewPanel({
   path = "/",
-  page,
-  selectedBlockId,
   viewport,
-  onBlockClicked,
+  setIframeRef,
+  ready: _ready,
 }: PreviewPanelProps) {
   const { url, isLoading, setPreviewUrl, isSaving } = useTunnelUrl();
-  const { setIframeRef } = useIframeBridge({
-    page,
-    selectedBlockId,
-    onBlockClicked,
-  });
   const [inputUrl, setInputUrl] = useState("http://localhost:5173");
 
   if (isLoading) {

@@ -19,6 +19,8 @@ interface IframeBridgeOptions {
   page: Page | null;
   selectedBlockId: string | null;
   onBlockClicked: (blockId: string) => void;
+  onClickAway?: () => void;
+  onNavigated?: (url: string, isInternal: boolean) => void;
 }
 
 interface IframeBridgeResult {
@@ -40,17 +42,23 @@ export function useIframeBridge({
   page,
   selectedBlockId,
   onBlockClicked,
+  onClickAway,
+  onNavigated,
 }: IframeBridgeOptions): IframeBridgeResult {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const readyRef = useRef(false);
   const pageRef = useRef(page);
   const selectedBlockIdRef = useRef(selectedBlockId);
   const onBlockClickedRef = useRef(onBlockClicked);
+  const onClickAwayRef = useRef(onClickAway);
+  const onNavigatedRef = useRef(onNavigated);
 
   // Keep refs in sync with latest props (React Compiler handles this)
   pageRef.current = page;
   selectedBlockIdRef.current = selectedBlockId;
   onBlockClickedRef.current = onBlockClicked;
+  onClickAwayRef.current = onClickAway;
+  onNavigatedRef.current = onNavigated;
 
   const send = (msg: EditorMessage) => {
     iframeRef.current?.contentWindow?.postMessage(msg, "*");
@@ -104,6 +112,14 @@ export function useIframeBridge({
 
         if (msg.type === "deco:block-clicked") {
           onBlockClickedRef.current(msg.blockId);
+        }
+
+        if (msg.type === "deco:click-away") {
+          onClickAwayRef.current?.();
+        }
+
+        if (msg.type === "deco:navigated") {
+          onNavigatedRef.current?.(msg.url, msg.isInternal);
         }
       };
 
