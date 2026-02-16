@@ -123,6 +123,7 @@ const ALL_TOOL_NAMES = [
   "PROJECT_PLUGIN_CONFIG_UPDATE",
   // Filesystem tools
   "FILESYSTEM_PICK_DIRECTORY",
+  "FILESYSTEM_VALIDATE_PROJECT",
 ] as const;
 
 /**
@@ -544,6 +545,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Open native folder picker dialog",
     category: "Filesystem",
   },
+  {
+    name: "FILESYSTEM_VALIDATE_PROJECT",
+    description: "Validate directory is a TypeScript project",
+    category: "Filesystem",
+  },
 ];
 
 /**
@@ -622,6 +628,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   PROJECT_PLUGIN_CONFIG_GET: "View plugin config",
   PROJECT_PLUGIN_CONFIG_UPDATE: "Update plugin config",
   FILESYSTEM_PICK_DIRECTORY: "Pick directory",
+  FILESYSTEM_VALIDATE_PROJECT: "Validate project",
 };
 
 // ============================================================================

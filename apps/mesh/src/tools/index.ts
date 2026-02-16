@@ -132,6 +132,7 @@ const CORE_TOOLS = [
 
   // Filesystem tools
   FilesystemTools.FILESYSTEM_PICK_DIRECTORY,
+  FilesystemTools.FILESYSTEM_VALIDATE_PROJECT,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
