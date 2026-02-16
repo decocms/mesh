@@ -2,6 +2,9 @@ import { useParams } from "react-router";
 import Hero from "../components/sections/hero";
 import Features from "../components/sections/features";
 import Footer from "../components/sections/footer";
+import { initEditorBridge, useEditorProps } from "../lib/editor-client";
+
+initEditorBridge();
 
 const sectionRegistry: Record<string, React.ComponentType<any>> = {
   "sections--Hero": Hero,
@@ -20,6 +23,7 @@ interface PageConfig {
   path: string;
   title: string;
   blocks: BlockInstance[];
+  deleted?: boolean;
   metadata?: {
     description?: string;
   };
@@ -41,6 +45,23 @@ for (const [, config] of Object.entries(pageModules)) {
   }
 }
 
+function SectionRenderer({
+  block,
+  registry,
+}: {
+  block: BlockInstance;
+  registry: Record<string, React.ComponentType<any>>;
+}) {
+  const props = useEditorProps(block.id, block.props);
+  const Section = registry[block.blockType];
+  if (!Section) return null;
+  return (
+    <div data-block-id={block.id}>
+      <Section {...props} />
+    </div>
+  );
+}
+
 export default function CatchAllPage() {
   const params = useParams();
   const path = `/${params["*"] ?? ""}`;
@@ -60,14 +81,13 @@ export default function CatchAllPage() {
 
   return (
     <main>
-      {page.blocks.map((block) => {
-        const Section = sectionRegistry[block.blockType];
-        if (!Section) {
-          console.warn(`Unknown block type: ${block.blockType}`);
-          return null;
-        }
-        return <Section key={block.id} {...block.props} />;
-      })}
+      {page.blocks.map((block) => (
+        <SectionRenderer
+          key={block.id}
+          block={block}
+          registry={sectionRegistry}
+        />
+      ))}
     </main>
   );
 }
