@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 8 - Loaders Page
-Plan: 1 of 1 complete
-Status: Phase 8 complete
-Last activity: 2026-02-16 — Completed 08-01 (loaders list and detail upgrade)
+Phase: 9 - Preview Bridge
+Plan: 1 of 2 complete
+Status: Executing phase 9
+Last activity: 2026-02-16 — Completed 09-01 (protocol extension, bridge consolidation, site-side client)
 
-Progress: [████████░░] 80% (4/5 phases complete)
+Progress: [████████░░] 85% (4.5/5 phases complete)
 
 ## Performance Metrics
 
@@ -74,6 +74,12 @@ From phase 8 plan 1:
 - Use select option in useQuery for detail view to extract specific loader sections from shared map
 - Connected sections derived from page blocks at query time, not stored in loader definitions
 
+From phase 9 plan 1:
+- Lifted useIframeBridge from PreviewPanel to PageComposer for single bridge ownership
+- Site-side editor client uses module-level singleton pattern (no React context needed)
+- useEditorProps hook uses useSyncExternalStore with null server snapshot for SSR safety
+- SectionRenderer component pattern for hook-based live prop injection in starter template
+
 ### Pending Todos
 
 None.
@@ -86,5 +92,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 08-01-PLAN.md (phase 8 complete)
-Resume file: .planning/phases/08-loaders-page/08-01-SUMMARY.md
+Stopped at: Completed 09-01-PLAN.md
+Resume file: .planning/phases/09-preview-bridge/09-01-SUMMARY.md
