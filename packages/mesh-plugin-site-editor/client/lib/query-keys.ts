@@ -6,8 +6,14 @@ export const queryKeys = {
   pages: {
     all: (connectionId: string) =>
       ["site-editor", "pages", connectionId] as const,
-    detail: (connectionId: string, pageId: string) =>
-      ["site-editor", "pages", connectionId, pageId] as const,
+    detail: (connectionId: string, pageId: string, locale?: string | null) =>
+      [
+        "site-editor",
+        "pages",
+        connectionId,
+        pageId,
+        locale ?? "default",
+      ] as const,
   },
   blocks: {
     all: (connectionId: string) =>
@@ -24,6 +30,10 @@ export const queryKeys = {
   branches: {
     all: (connectionId: string) =>
       ["site-editor", "branches", connectionId] as const,
+  },
+  tunnel: {
+    detection: (connectionId: string) =>
+      ["site-editor", "tunnel", connectionId] as const,
   },
   history: {
     page: (connectionId: string, pageId: string) =>
