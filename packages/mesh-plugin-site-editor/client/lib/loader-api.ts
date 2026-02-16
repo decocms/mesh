@@ -8,6 +8,7 @@
 
 import type { TypedToolCaller } from "@decocms/bindings";
 import type { SiteBinding } from "@decocms/bindings/site";
+import { listPages, getPage, isLoaderRef } from "./page-api";
 
 type ToolCaller = TypedToolCaller<SiteBinding>;
 
@@ -111,4 +112,44 @@ export async function getLoader(
   } catch {
     return null;
   }
+}
+
+/**
+ * Build a map of loaderId -> section names that consume the loader.
+ * Walks all pages and their block instances, checking each prop value
+ * for LoaderRef references.
+ */
+export async function computeLoaderSectionMap(
+  toolCaller: ToolCaller,
+): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  const pageSummaries = await listPages(toolCaller);
+
+  for (const summary of pageSummaries) {
+    const page = await getPage(toolCaller, summary.id);
+    if (!page) continue;
+
+    for (const block of page.blocks) {
+      for (const value of Object.values(block.props)) {
+        if (!isLoaderRef(value)) continue;
+
+        const loaderId = value.__loaderRef;
+        // Derive section name from blockType: remove "sections--" prefix, replace "--" with "/"
+        const sectionName = block.blockType
+          .replace(/^sections--/, "")
+          .replace(/--/g, "/");
+
+        let sections = map.get(loaderId);
+        if (!sections) {
+          sections = [];
+          map.set(loaderId, sections);
+        }
+        if (!sections.includes(sectionName)) {
+          sections.push(sectionName);
+        }
+      }
+    }
+  }
+
+  return map;
 }

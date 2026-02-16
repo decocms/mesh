@@ -26,6 +26,8 @@ export const queryKeys = {
       ["site-editor", "loaders", connectionId] as const,
     detail: (connectionId: string, loaderId: string) =>
       ["site-editor", "loaders", connectionId, loaderId] as const,
+    sectionMap: (connectionId: string) =>
+      ["site-editor", "loaders", connectionId, "sectionMap"] as const,
   },
   branches: {
     all: (connectionId: string) =>
