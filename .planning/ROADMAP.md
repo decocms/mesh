@@ -109,10 +109,11 @@ Plans:
   1. User can connect their local project folder from the plugin's empty state via an inline wizard with path input, without being redirected to project settings
   2. Plugin auto-detects the site's running dev server tunnel URL and configures the preview panel without manual URL entry
   3. Connection wizard validates the selected path contains a valid TypeScript project before completing setup
-**Plans**: 1 plan
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Empty state connection wizard, tunnel auto-detection hook, preview panel auto-configuration
+- [ ] 06-01-PLAN.md -- FILESYSTEM_VALIDATE_PROJECT tool, empty state validation + success confirmation
+- [ ] 06-02-PLAN.md -- FILESYSTEM_READ_TUNNEL_CONFIG tool, tunnel auto-detection hook, instructions UI
 
 ### Phase 7: Sections Page
 **Goal**: Users can browse all scanned blocks, view details, and trigger re-scans to refresh the block registry
@@ -178,7 +179,7 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 10
 | 3. Visual Editor | 3/3 | Complete | 2026-02-14 |
 | 4. Loaders | 2/2 | Complete | 2026-02-14 |
 | 5. Publishing | 3/3 | Complete | 2026-02-14 |
-| 6. Connection Setup | 0/1 | Pending | — |
+| 6. Connection Setup | 0/2 | Pending | — |
 | 7. Sections Page | 0/1 | Pending | — |
 | 8. Loaders Page | 0/1 | Pending | — |
 | 9. Preview Bridge | 0/2 | Pending | — |
