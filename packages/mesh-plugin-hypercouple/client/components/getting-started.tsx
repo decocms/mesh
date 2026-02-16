@@ -3,12 +3,14 @@
  *
  * The main view users see when entering the Hypercouple workspace.
  * Guides them through initial setup with a warm, calm tone.
+ * Shows couple identity and reflects actual org member status.
  */
 
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CalendarDays, Check, Mail, Plane } from "lucide-react";
 import { hypercoupleRouter } from "../lib/router";
+import CoupleIdentity, { useCoupleMembers } from "./couple-identity";
 
 interface ChecklistItem {
   icon: React.ReactNode;
@@ -80,10 +82,10 @@ function ChecklistCard({ item }: { item: ChecklistItem }) {
 
 export default function GettingStarted() {
   const { session } = usePluginContext({ partial: true });
+  const { memberCount } = useCoupleMembers();
 
-  // Determine partner invite status based on org context
-  // In a 2-person workspace, having 2 members means partner was invited
-  const partnerInvited = false; // Will be enhanced when member count is available
+  // Partner is invited when org has 2 members
+  const partnerInvited = memberCount >= 2;
 
   const userName = session?.user?.name?.split(" ")[0] ?? "there";
 
@@ -91,9 +93,12 @@ export default function GettingStarted() {
     {
       icon: <Mail size={16} />,
       title: "Invite your partner",
-      description: "Send an invite so you can plan adventures together.",
+      description: partnerInvited
+        ? "Your partner has joined the space!"
+        : "Send an invite so you can plan adventures together.",
       status: partnerInvited ? "done" : "actionable",
-      href: "/hypercouple-layout/invite",
+      // Only link to invite if partner hasn't joined yet
+      href: partnerInvited ? undefined : "/hypercouple-layout/invite",
     },
     {
       icon: <Plane size={16} />,
@@ -113,7 +118,12 @@ export default function GettingStarted() {
 
   return (
     <div className="max-w-xl mx-auto py-10 px-4">
+      {/* Couple Identity */}
       <div className="mb-8">
+        <CoupleIdentity />
+      </div>
+
+      <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">
           Hey {userName}, let's get you set up
         </h1>

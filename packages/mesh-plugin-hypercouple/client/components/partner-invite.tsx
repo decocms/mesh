@@ -3,16 +3,18 @@
  *
  * Simple form to invite a partner to the couple's workspace.
  * Uses Better Auth's organization invite to add a partner as co-owner.
+ * Enforces two-person limit: hides invite when workspace is full.
  */
 
 import { createAuthClient } from "better-auth/react";
 import { organizationClient } from "better-auth/client/plugins";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Mail, ArrowLeft, Heart } from "lucide-react";
+import { Mail, ArrowLeft, Heart, Users } from "lucide-react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { hypercoupleRouter } from "../lib/router";
+import { useCoupleMembers } from "./couple-identity";
 
 // Create a minimal auth client for organization invites
 const authClient = createAuthClient({
@@ -24,6 +26,32 @@ export default function PartnerInvite() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const { memberCount } = useCoupleMembers();
+
+  // Two-person limit: if org already has 2 members, show full state
+  if (memberCount >= 2) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center">
+        <div className="flex items-center justify-center size-12 rounded-full bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 mx-auto mb-4">
+          <Users size={20} />
+        </div>
+        <h2 className="text-xl font-semibold mb-2">
+          Your space already has both partners
+        </h2>
+        <p className="text-muted-foreground mb-6">
+          Hypercouple workspaces are designed for two. Both partners are already
+          here and ready to plan adventures together.
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => navigate({ to: "/hypercouple-layout" })}
+        >
+          <ArrowLeft size={16} />
+          Back to Home
+        </Button>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +71,7 @@ export default function PartnerInvite() {
       }
 
       setIsSent(true);
-    } catch (_err) {
+    } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
