@@ -155,6 +155,17 @@ Plans:
 - [x] 09-01-PLAN.md -- Remove dead code, extend protocol types, consolidate bridge in PageComposer, build site-side editor client with data-block-id rendering
 - [x] 09-02-PLAN.md -- Add edit/interact mode toggle, wire click-to-select and deselect, iframe disconnect detection with reconnect overlay
 
+### Phase 09.1: Multi-Site Support (INSERTED)
+
+**Goal:** Users can toggle between multiple site connections in the top bar, switch the active site via a command palette, and see connection status — enabling management of multiple sites from one project
+**Depends on:** Phase 9
+**Requirements:** MULTI-SITE-STORE, MULTI-SITE-DIRTY, MULTI-SITE-SWITCHER, MULTI-SITE-LAYOUT, MULTI-SITE-LIFECYCLE
+**Plans:** 2 plans
+
+Plans:
+- [ ] 09.1-01-PLAN.md — Site store (useSyncExternalStore), dirty-state API, unsaved changes dialog
+- [ ] 09.1-02-PLAN.md — Site switcher command palette, top bar integration, PluginLayout multi-site wiring
+
 ### Phase 10: Documentation & Validation
 **Goal**: Blocks framework is fully documented for AI agents, and anjo.chat proves the full integration works
 **Depends on**: Phases 6, 7, 8, 9 (requires all integration work complete)
@@ -171,7 +182,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 10
+v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09.1 -> 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -184,4 +195,5 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 10
 | 7. Sections Page | 2/2 | Complete | 2026-02-15 |
 | 8. Loaders Page | 1/1 | Complete | 2026-02-16 |
 | 9. Preview Bridge | 2/2 | Complete | 2026-02-16 |
+| 09.1. Multi-Site Support | 0/? | Pending | — |
 | 10. Documentation & Validation | 0/2 | Pending | — |
