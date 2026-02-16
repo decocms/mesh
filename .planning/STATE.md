@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 7 - Sections Page
-Plan: 2 of 2 complete
-Status: Phase 7 complete
-Last activity: 2026-02-16 — Completed 07-02 (block detail schema tree)
+Phase: 8 - Loaders Page
+Plan: 1 of 1 complete
+Status: Phase 8 complete
+Last activity: 2026-02-16 — Completed 08-01 (loaders list and detail upgrade)
 
-Progress: [██████░░░░] 60% (3/5 phases complete)
+Progress: [████████░░] 80% (4/5 phases complete)
 
 ## Performance Metrics
 
@@ -69,6 +69,11 @@ From phase 7 plan 2:
 - Max depth 5 for schema tree prevents infinite nesting
 - Circular $ref detection via visited Set returning placeholder object
 
+From phase 8 plan 1:
+- Reuse sectionMap query key across list and detail views for cache sharing
+- Use select option in useQuery for detail view to extract specific loader sections from shared map
+- Connected sections derived from page blocks at query time, not stored in loader definitions
+
 ### Pending Todos
 
 None.
@@ -81,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 07-02-PLAN.md (phase 7 complete)
-Resume file: .planning/phases/07-sections-page/07-02-SUMMARY.md
+Stopped at: Completed 08-01-PLAN.md (phase 8 complete)
+Resume file: .planning/phases/08-loaders-page/08-01-SUMMARY.md
