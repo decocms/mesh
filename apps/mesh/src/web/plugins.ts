@@ -5,6 +5,7 @@ import { reportsPlugin } from "mesh-plugin-reports";
 import { clientPlugin as userSandboxPlugin } from "mesh-plugin-user-sandbox/client";
 import { clientPlugin as siteEditorPlugin } from "mesh-plugin-site-editor/client";
 import { clientPlugin as workflowsPlugin } from "mesh-plugin-workflows/client";
+import { clientPlugin as hypercouplePlugin } from "mesh-plugin-hypercouple/client";
 
 // Registered plugins
 export const sourcePlugins: AnyClientPlugin[] = [
@@ -14,4 +15,5 @@ export const sourcePlugins: AnyClientPlugin[] = [
   privateRegistryPlugin,
   workflowsPlugin,
   siteEditorPlugin,
+  hypercouplePlugin,
 ];
