@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Phase: 6 - Connection Setup
-Plan: 1 of 2 complete
-Status: Executing phase 6
-Last activity: 2026-02-15 — Completed 06-01 (validation tool + empty state)
+Plan: 2 of 2 complete
+Status: Phase 6 complete
+Last activity: 2026-02-15 — Completed 06-02 (tunnel auto-detection)
 
-Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
+Progress: [██░░░░░░░░] 20% (1/5 phases complete)
 
 ## Performance Metrics
 
@@ -55,6 +55,11 @@ From phase 6 plan 1:
 - Phase state machine (form/connecting/success) replaces boolean flags in empty state
 - 1.5s success confirmation before query invalidation transitions view
 
+From phase 6 plan 2:
+- Store projectPath in connection metadata (PluginConnectionEntity doesn't expose connection_headers)
+- Server-side reachability check avoids CORS issues from browser
+- Polling stops automatically when tunnel detected or no wrangler.toml found
+
 ### Pending Todos
 
 None.
@@ -67,5 +72,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 06-01-PLAN.md
-Resume file: .planning/phases/06-connection-setup/06-01-SUMMARY.md
+Stopped at: Completed 06-02-PLAN.md (phase 6 complete)
+Resume file: .planning/phases/06-connection-setup/06-02-SUMMARY.md
