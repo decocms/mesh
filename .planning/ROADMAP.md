@@ -152,8 +152,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- Remove dead code (composer iframeRef, useEditorMessages), consolidate all iframe comms in PreviewPanel
-- [ ] 09-02-PLAN.md -- Wire click-to-select in iframe to sidebar prop editor, verify live prop editing end-to-end
+- [ ] 09-01-PLAN.md -- Remove dead code, extend protocol types, consolidate bridge in PageComposer, build site-side editor client with data-block-id rendering
+- [ ] 09-02-PLAN.md -- Add edit/interact mode toggle, wire click-to-select and deselect, iframe disconnect detection with reconnect overlay
 
 ### Phase 10: Documentation & Validation
 **Goal**: Blocks framework is fully documented for AI agents, and anjo.chat proves the full integration works
