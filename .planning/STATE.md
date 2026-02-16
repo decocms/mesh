@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 Phase: 6 - Connection Setup
 Plan: —
-Status: Ready to plan
-Last activity: 2026-02-15 — v1.1 roadmap created
+Status: Context gathered, ready to plan
+Last activity: 2026-02-15 — Phase 6 context gathered
 
 Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 
@@ -46,6 +46,10 @@ From v1.1 roadmap:
 - Preview bridge cleanup consolidates all iframe comms in PreviewPanel (remove dead code)
 - anjo.chat is the validation target for all integration work
 
+From pre-phase-6 bugfix:
+- PluginLayout now trusts project config connectionId directly (no binding check on lookup) — new STDIO connections don't have tools populated yet
+- Static plugin routes (`/site-editor`) don't have `$pluginId` param — always use URL path fallback (`location.pathname.split("/")[2]`) when reading pluginId
+
 ### Pending Todos
 
 None.
@@ -58,5 +62,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: v1.1 roadmap creation complete
-Resume file: Ready for `/gsd:plan-phase 6`
+Stopped at: Phase 6 context gathered
+Resume file: .planning/phases/06-connection-setup/06-CONTEXT.md
