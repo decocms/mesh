@@ -123,10 +123,11 @@ Plans:
   1. User can view a list of all scanned blocks from `.deco/blocks/` showing name, category, and component path for each block
   2. User can navigate to a block detail view that displays the block's JSON Schema, default props, and a live property editor form preview
   3. User can trigger a codebase re-scan from the sections page UI, which regenerates `.deco/blocks/` and updates the block list
-**Plans**: 1 plan
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md -- Sections list page with block table, block detail view with schema viewer, re-scan trigger button wired to scanner
+- [ ] 07-01-PLAN.md -- Sections list refactored to table-rows layout with collapsible categories and working scan trigger
+- [ ] 07-02-PLAN.md -- Block detail two-column layout with collapsible schema tree and live prop editor
 
 ### Phase 8: Loaders Page
 **Goal**: Users can browse all loaders, view configuration details, and understand binding relationships
@@ -180,7 +181,7 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 10
 | 4. Loaders | 2/2 | Complete | 2026-02-14 |
 | 5. Publishing | 3/3 | Complete | 2026-02-14 |
 | 6. Connection Setup | 0/2 | Pending | — |
-| 7. Sections Page | 0/1 | Pending | — |
+| 7. Sections Page | 0/2 | Pending | — |
 | 8. Loaders Page | 0/1 | Pending | — |
 | 9. Preview Bridge | 0/2 | Pending | — |
 | 10. Documentation & Validation | 0/2 | Pending | — |
