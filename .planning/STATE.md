@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 10 - Documentation & Validation
-Plan: 0 of 2 — not yet planned
-Status: Phases 1–9 complete, phase 10 next
-Last activity: 2026-02-16 — Completed phase 9 (bridge Vite plugin, heartbeat fixes, variant selection)
+Phase: 09.1 - Multi-Site Support
+Plan: 0 — not yet planned
+Status: Phases 1–9 complete, phase 09.1 next (inserted)
+Last activity: 2026-02-16 — Inserted phase 09.1 for multi-site support
 
-Progress: [██████████████████░░] 90% (9/10 phases complete)
+Progress: [█████████████████░░░] 82% (9/11 phases complete)
 
 ## Performance Metrics
 
@@ -85,6 +85,10 @@ From phase 9 plan 2:
 - Numeric state machine (0=loading, 1=ready, 2=disconnected) for useSyncExternalStore compatibility
 - notifyRef pattern stores subscribe callback for timer-driven re-renders from handleIframeLoad
 - 5-second disconnect timeout balances fast detection with slow dev server startup
+
+### Roadmap Evolution
+
+- Phase 09.1 inserted after Phase 9: Multi-Site Support — toggle between multiple site connections in the top bar (URGENT)
 
 ### Pending Todos
 
