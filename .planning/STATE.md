@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 6 - Connection Setup
-Plan: 2 of 2 complete
-Status: Phase 6 complete
-Last activity: 2026-02-15 — Completed 06-02 (tunnel auto-detection)
+Phase: 7 - Sections Page
+Plan: 1 of 2 complete
+Status: Executing phase 7
+Last activity: 2026-02-16 — Completed 07-01 (sections list refactor)
 
-Progress: [██░░░░░░░░] 20% (1/5 phases complete)
+Progress: [████░░░░░░] 40% (2/5 phases complete)
 
 ## Performance Metrics
 
@@ -60,6 +60,10 @@ From phase 6 plan 2:
 - Server-side reachability check avoids CORS issues from browser
 - Polling stops automatically when tunnel detected or no wrangler.toml found
 
+From phase 7 plan 1:
+- Controlled Collapsible with Set<string> open state for category collapse tracking
+- CMS_BLOCK_SCAN called via selfClient (SELF_MCP_ALIAS_ID), not through toolCaller
+
 ### Pending Todos
 
 None.
@@ -71,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-15
-Stopped at: Completed 06-02-PLAN.md (phase 6 complete)
-Resume file: .planning/phases/06-connection-setup/06-02-SUMMARY.md
+Last session: 2026-02-16
+Stopped at: Completed 07-01-PLAN.md
+Resume file: .planning/phases/07-sections-page/07-01-SUMMARY.md
