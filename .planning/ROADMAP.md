@@ -139,7 +139,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md -- Loaders list page with loader table, loader detail view with config viewer and binding status
+- [ ] 08-01-PLAN.md -- Loaders list with table-rows, connected sections, scan trigger; detail with SchemaTree + PropEditor two-column layout
 
 ### Phase 9: Preview Bridge
 **Goal**: Unified iframe communication with dead code removed, enabling reliable click-to-select and live prop editing
