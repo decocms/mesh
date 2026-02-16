@@ -1,10 +1,9 @@
 /**
  * Loader Detail Component
  *
- * Shows loader metadata, output schema, and an @rjsf prop editor for input parameters.
+ * Two-column layout: output schema tree on left, readonly prop editor on right.
  * Uses SITE_BINDING tools via loader-api helpers.
- * This is a browsing/exploration view -- actual parameter configuration happens
- * when binding a loader to a section prop via the loader picker.
+ * Shows connected sections as an expandable badge in the metadata bar.
  */
 
 import { useRef, useState } from "react";
@@ -17,8 +16,9 @@ import { ArrowLeft, Loading01, AlertCircle } from "@untitledui/icons";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { loaderKeys } from "../lib/query-keys";
 import { siteEditorRouter } from "../lib/router";
-import { getLoader } from "../lib/loader-api";
+import { getLoader, computeLoaderSectionMap } from "../lib/loader-api";
 import { PropEditor } from "./prop-editor";
+import SchemaTree from "./schema-tree";
 
 function formatTimestamp(dateStr: string): string {
   if (!dateStr) return "-";
@@ -56,8 +56,7 @@ export default function LoaderDetail() {
   });
 
   const [formData, setFormData] = useState<Record<string, unknown>>({});
-  const [outputSchemaExpanded, setOutputSchemaExpanded] = useState(false);
-  const [inputSchemaExpanded, setInputSchemaExpanded] = useState(false);
+  const [sectionsExpanded, setSectionsExpanded] = useState(false);
   const lastSyncedLoaderId = useRef<string | null>(null);
 
   const {
@@ -67,6 +66,12 @@ export default function LoaderDetail() {
   } = useQuery({
     queryKey: loaderKeys.detail(connectionId, loaderId),
     queryFn: () => getLoader(toolCaller, loaderId),
+  });
+
+  const { data: connectedSections = [] } = useQuery({
+    queryKey: loaderKeys.sectionMap(connectionId),
+    queryFn: () => computeLoaderSectionMap(toolCaller),
+    select: (map) => map.get(loaderId) ?? [],
   });
 
   // Sync formData when loader data loads (ref-based, not useEffect)
@@ -121,14 +126,22 @@ export default function LoaderDetail() {
   const inputParamsCount = Object.keys(
     loader.inputSchema?.properties ?? {},
   ).length;
-  const hasInputSchema =
-    loader.inputSchema &&
-    typeof loader.inputSchema === "object" &&
-    Object.keys(loader.inputSchema).length > 0;
   const hasOutputSchema =
     loader.outputSchema &&
     typeof loader.outputSchema === "object" &&
     Object.keys(loader.outputSchema).length > 0;
+  const hasValidOutputSchema =
+    hasOutputSchema &&
+    (loader.outputSchema as Record<string, unknown>).type === "object" &&
+    (loader.outputSchema as Record<string, unknown>).properties;
+  const hasInputSchema =
+    loader.inputSchema &&
+    typeof loader.inputSchema === "object" &&
+    Object.keys(loader.inputSchema).length > 0;
+  const hasValidInputSchema =
+    hasInputSchema &&
+    (loader.inputSchema as Record<string, unknown>).type === "object" &&
+    (loader.inputSchema as Record<string, unknown>).properties;
 
   return (
     <div className="flex flex-col h-full">
@@ -148,127 +161,98 @@ export default function LoaderDetail() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl space-y-6">
-          {/* Loader info */}
-          <div>
-            <h2 className="text-xl font-semibold">{loader.label}</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {loader.source}
+      <div className="flex-1 overflow-hidden">
+        {/* Loader info bar -- spans full width */}
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-xl font-semibold">{loader.label}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{loader.source}</p>
+          {loader.description && (
+            <p className="text-sm text-muted-foreground mt-2">
+              {loader.description}
             </p>
-            {loader.description && (
-              <p className="text-sm text-muted-foreground mt-2">
-                {loader.description}
+          )}
+          {/* Metadata inline */}
+          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+            <Badge variant="secondary" className="text-xs">
+              {scanMethodLabel(loader.metadata.scanMethod)}
+            </Badge>
+            <span>Scanned {formatTimestamp(loader.metadata.scannedAt)}</span>
+            {loader.metadata.propsTypeName && (
+              <span className="font-mono">{loader.metadata.propsTypeName}</span>
+            )}
+            {loader.metadata.returnTypeName && (
+              <span className="font-mono">
+                {loader.metadata.returnTypeName}
+              </span>
+            )}
+            <span>{inputParamsCount} params</span>
+            <button
+              type="button"
+              onClick={() => setSectionsExpanded(!sectionsExpanded)}
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              <Badge variant="secondary" className="text-xs">
+                {connectedSections.length} sections
+              </Badge>
+              {sectionsExpanded ? (
+                <ChevronDown size={12} />
+              ) : (
+                <ChevronRight size={12} />
+              )}
+            </button>
+          </div>
+          {sectionsExpanded && connectedSections.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {connectedSections.map((name) => (
+                <Badge key={name} variant="outline" className="text-xs">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 h-[calc(100%-7rem)] divide-x divide-border">
+          {/* Left column: Output Schema */}
+          <div className="overflow-y-auto p-4">
+            <h3 className="text-sm font-medium mb-3">Output Schema</h3>
+            {hasValidOutputSchema ? (
+              <SchemaTree
+                schema={loader.outputSchema as Record<string, unknown>}
+              />
+            ) : hasOutputSchema ? (
+              <div>
+                <p className="text-sm text-amber-600 mb-2">
+                  Schema could not be rendered as a tree. Showing raw JSON.
+                </p>
+                <pre className="text-xs font-mono bg-muted/30 rounded p-3 max-h-80 overflow-auto">
+                  {JSON.stringify(loader.outputSchema, null, 2)}
+                </pre>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No output schema available for this loader.
               </p>
             )}
           </div>
 
-          {/* Metadata section */}
-          <div className="border border-border rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Metadata
-            </h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Scan Method</span>
-                <div className="mt-0.5">
-                  <Badge variant="secondary" className="text-xs">
-                    {scanMethodLabel(loader.metadata.scanMethod)}
-                  </Badge>
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Scanned</span>
-                <p className="mt-0.5">
-                  {formatTimestamp(loader.metadata.scannedAt)}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Props Type</span>
-                <p className="font-mono text-xs mt-0.5">
-                  {loader.metadata.propsTypeName ?? "none"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Return Type</span>
-                <p className="font-mono text-xs mt-0.5">
-                  {loader.metadata.returnTypeName ?? "unknown"}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Input Params</span>
-                <p className="mt-0.5">{inputParamsCount} params</p>
-              </div>
-            </div>
+          {/* Right column: Input Parameters */}
+          <div className="overflow-y-auto p-4">
+            <h3 className="text-sm font-medium mb-3">Input Parameters</h3>
+            {hasValidInputSchema && inputParamsCount > 0 ? (
+              <PropEditor
+                schema={loader.inputSchema as any}
+                formData={formData}
+                onChange={setFormData}
+                readonly
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                This loader has no input parameters.
+              </p>
+            )}
           </div>
-
-          {/* Output schema (collapsible) */}
-          {hasOutputSchema && (
-            <div className="border border-border rounded-lg">
-              <button
-                type="button"
-                onClick={() => setOutputSchemaExpanded(!outputSchemaExpanded)}
-                className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {outputSchemaExpanded ? (
-                  <ChevronDown size={14} />
-                ) : (
-                  <ChevronRight size={14} />
-                )}
-                Output Schema
-              </button>
-              {outputSchemaExpanded && (
-                <div className="border-t border-border px-4 py-3">
-                  <pre className="text-xs font-mono overflow-x-auto bg-muted/30 rounded p-3 max-h-80 overflow-y-auto">
-                    {JSON.stringify(loader.outputSchema, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Input schema raw view (collapsible) */}
-          {hasInputSchema && (
-            <div className="border border-border rounded-lg">
-              <button
-                type="button"
-                onClick={() => setInputSchemaExpanded(!inputSchemaExpanded)}
-                className="flex items-center gap-2 w-full px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {inputSchemaExpanded ? (
-                  <ChevronDown size={14} />
-                ) : (
-                  <ChevronRight size={14} />
-                )}
-                Raw Input Schema
-              </button>
-              {inputSchemaExpanded && (
-                <div className="border-t border-border px-4 py-3">
-                  <pre className="text-xs font-mono overflow-x-auto bg-muted/30 rounded p-3 max-h-80 overflow-y-auto">
-                    {JSON.stringify(loader.inputSchema, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Input Parameters editor */}
-          {hasInputSchema && inputParamsCount > 0 ? (
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium">Input Parameters</h3>
-              <div className="border border-border rounded-lg p-4">
-                <PropEditor
-                  schema={loader.inputSchema as any}
-                  formData={formData}
-                  onChange={setFormData}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              This loader has no input parameters.
-            </div>
-          )}
         </div>
       </div>
     </div>
