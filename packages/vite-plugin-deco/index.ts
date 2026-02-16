@@ -208,6 +208,218 @@ export function baseDecoPlugin(decoConfig: PluginConfig = {}): Plugin {
   };
 }
 
+/**
+ * Vite plugin that auto-injects the Deco editor bridge into the site's HTML.
+ * Only active during dev (`serve`). Works with both SPA and SSR (React Router, etc.)
+ * by intercepting HTML responses via configureServer middleware.
+ *
+ * The bridge script:
+ * - Detects if the page is inside an iframe (no-op otherwise)
+ * - Sends deco:ready handshake to the parent editor
+ * - Handles click-to-select, hover, mode switching, heartbeat, etc.
+ */
+export function decoEditorBridgePlugin(): Plugin {
+  const scriptTag = `<script data-deco-bridge="true">${BRIDGE_SCRIPT}</script>`;
+
+  return {
+    name: "vite-plugin-deco-editor-bridge",
+    apply: "serve", // dev only
+
+    // SPA: works for apps using index.html (classic Vite SPA)
+    transformIndexHtml() {
+      return [
+        {
+          tag: "script",
+          attrs: { "data-deco-bridge": "true" },
+          children: BRIDGE_SCRIPT,
+          injectTo: "body",
+        },
+      ];
+    },
+
+    // SSR: works for frameworks like React Router that render HTML server-side.
+    // Hooks res.write/res.end to inject bridge before </body> in streamed HTML.
+    configureServer(server) {
+      // Return function so this runs AFTER framework SSR middleware
+      return () => {
+        server.middlewares.use((_req, res, next) => {
+          const originalWrite = res.write.bind(res);
+          const originalEnd = res.end.bind(res);
+          let injected = false;
+
+          function tryInject(chunk: unknown): unknown {
+            if (injected || !chunk) return chunk;
+            const str =
+              typeof chunk === "string"
+                ? chunk
+                : Buffer.isBuffer(chunk)
+                  ? chunk.toString("utf-8")
+                  : null;
+            if (!str || !str.includes("</body>")) return chunk;
+            injected = true;
+            return str.replace("</body>", `${scriptTag}</body>`);
+          }
+
+          res.write = function (chunk: any, ...args: any[]) {
+            return originalWrite(tryInject(chunk), ...args);
+          } as typeof res.write;
+
+          res.end = function (chunk?: any, ...args: any[]) {
+            return originalEnd(tryInject(chunk), ...args);
+          } as typeof res.end;
+
+          next();
+        });
+      };
+    },
+  };
+}
+
+// Self-contained bridge IIFE — plain JS, no TypeScript, runs inside the iframe.
+const BRIDGE_SCRIPT = `(function() {
+  if (window.self === window.top) return; // Not in an iframe, skip
+
+  var DECO_PREFIX = "deco:";
+  var mode = "edit";
+
+  function sendToParent(msg) {
+    window.parent.postMessage(msg, "*");
+  }
+
+  function findSection(target) {
+    var el = target;
+    while (el) {
+      if (el.hasAttribute && el.hasAttribute("data-block-id")) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  // -- Edit mode --
+  var editClickHandler = null;
+  var editHoverHandler = null;
+
+  function setupEditMode() {
+    editClickHandler = function(e) {
+      if (mode !== "edit") return;
+      e.preventDefault();
+      e.stopPropagation();
+      var section = findSection(e.target);
+      if (section) {
+        var blockId = section.getAttribute("data-block-id");
+        var rect = section.getBoundingClientRect();
+        sendToParent({
+          type: "deco:block-clicked",
+          blockId: blockId,
+          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        });
+      } else {
+        sendToParent({ type: "deco:click-away" });
+      }
+    };
+    editHoverHandler = function(e) {
+      if (mode !== "edit") return;
+      var section = findSection(e.target);
+      if (section) {
+        var rect = section.getBoundingClientRect();
+        sendToParent({
+          type: "deco:block-hover",
+          blockId: section.getAttribute("data-block-id"),
+          rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        });
+      } else {
+        sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
+      }
+    };
+    document.addEventListener("click", editClickHandler, true);
+    document.addEventListener("mousemove", editHoverHandler, true);
+    document.addEventListener("mouseleave", handleMouseLeave);
+  }
+
+  function teardownEditMode() {
+    if (editClickHandler) {
+      document.removeEventListener("click", editClickHandler, true);
+      editClickHandler = null;
+    }
+    if (editHoverHandler) {
+      document.removeEventListener("mousemove", editHoverHandler, true);
+      editHoverHandler = null;
+    }
+    document.removeEventListener("mouseleave", handleMouseLeave);
+    sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
+  }
+
+  function handleMouseLeave() {
+    sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
+  }
+
+  // -- Interact mode --
+  var interactClickHandler = null;
+  var popstateHandler = null;
+
+  function setupInteractMode() {
+    interactClickHandler = function(e) {
+      if (mode !== "interact") return;
+      var target = e.target;
+      var anchor = target.closest ? target.closest("a") : null;
+      if (!anchor || !anchor.href) return;
+      var isInternal = new URL(anchor.href, window.location.origin).origin === window.location.origin;
+      sendToParent({ type: "deco:navigated", url: anchor.href, isInternal: isInternal });
+    };
+    popstateHandler = function() {
+      sendToParent({ type: "deco:navigated", url: window.location.href, isInternal: true });
+    };
+    document.addEventListener("click", interactClickHandler);
+    window.addEventListener("popstate", popstateHandler);
+  }
+
+  function teardownInteractMode() {
+    if (interactClickHandler) {
+      document.removeEventListener("click", interactClickHandler);
+      interactClickHandler = null;
+    }
+    if (popstateHandler) {
+      window.removeEventListener("popstate", popstateHandler);
+      popstateHandler = null;
+    }
+  }
+
+  // -- Message handler --
+  function handleEditorMessage(e) {
+    if (!e.data || !e.data.type || e.data.type.indexOf(DECO_PREFIX) !== 0) return;
+    switch (e.data.type) {
+      case "deco:ping":
+        sendToParent({ type: "deco:pong" });
+        break;
+      case "deco:set-mode":
+        var newMode = e.data.mode;
+        if (newMode === mode) break;
+        mode = newMode;
+        if (mode === "edit") { teardownInteractMode(); setupEditMode(); }
+        else { teardownEditMode(); setupInteractMode(); }
+        break;
+      case "deco:select-block":
+        var el = document.querySelector('[data-block-id="' + e.data.blockId + '"]');
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        break;
+      case "deco:deselect":
+        break;
+      case "deco:page-config":
+        window.dispatchEvent(new CustomEvent("deco:page-config", { detail: e.data.page }));
+        break;
+      case "deco:update-block":
+        window.dispatchEvent(new CustomEvent("deco:update-block", { detail: { blockId: e.data.blockId, props: e.data.props } }));
+        break;
+    }
+  }
+
+  // -- Init --
+  window.addEventListener("message", handleEditorMessage);
+  setupEditMode();
+  sendToParent({ type: "deco:ready", version: 1 });
+
+})();`;
+
 export default function vitePlugins(decoConfig: PluginConfig = {}): Plugin[] {
   const targets: Record<NonNullable<PluginConfig["target"]>, Plugin[]> = {
     cloudflare: [

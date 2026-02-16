@@ -18,6 +18,7 @@ import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@deco/ui/components/button.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   ArrowLeft,
   Save01,
@@ -142,23 +143,32 @@ export default function PageComposer() {
   const localPage = page ? { ...page, blocks } : null;
 
   // Single bridge for all iframe communication
-  const { send, setIframeRef, ready, disconnected, reconnect } =
-    useIframeBridge({
-      page: localPage,
-      selectedBlockId,
-      mode,
-      onBlockClicked: setSelectedBlockId,
-      onClickAway: () => setSelectedBlockId(null),
-      onNavigated: (url, isInternal) => {
-        if (!isInternal) {
-          setExternalNav(url);
-        }
-      },
-    });
+  const {
+    send,
+    setIframeRef,
+    ready,
+    disconnected,
+    reconnect,
+    hoverRect,
+    clearHover,
+  } = useIframeBridge({
+    page: localPage,
+    selectedBlockId,
+    mode,
+    onBlockClicked: (id: string) =>
+      setSelectedBlockId((prev) => (prev === id ? null : id)),
+    onClickAway: () => setSelectedBlockId(null),
+    onNavigated: (url, isInternal) => {
+      if (!isInternal) {
+        setExternalNav(url);
+      }
+    },
+  });
 
   // Mode change handler — updates local state and sends to iframe
   const handleModeChange = (newMode: "edit" | "interact") => {
     setMode(newMode);
+    setSelectedBlockId(null);
     send({ type: "deco:set-mode", mode: newMode });
   };
 
@@ -181,15 +191,23 @@ export default function PageComposer() {
     enabled: !!selectedBlock,
   });
 
-  // Keyboard shortcuts for undo/redo via useSyncExternalStore
+  // Keyboard shortcuts for undo/redo and Escape deselect via useSyncExternalStore
   const undoRef = useRef(undo);
   const redoRef = useRef(redo);
+  const setSelectedBlockIdRef = useRef(setSelectedBlockId);
   undoRef.current = undo;
   redoRef.current = redo;
+  setSelectedBlockIdRef.current = setSelectedBlockId;
 
   useSyncExternalStore(
     (notify) => {
       const handler = (e: KeyboardEvent) => {
+        // Escape: deselect current block
+        if (e.key === "Escape") {
+          setSelectedBlockIdRef.current(null);
+          return;
+        }
+
         const mod = e.metaKey || e.ctrlKey;
         if (!mod) return;
 
@@ -443,11 +461,12 @@ export default function PageComposer() {
             <button
               type="button"
               onClick={() => setActiveLocale(null)}
-              className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-medium transition-colors",
                 activeLocale === null
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
               Default
             </button>
@@ -456,11 +475,12 @@ export default function PageComposer() {
                 key={v.locale}
                 type="button"
                 onClick={() => setActiveLocale(v.locale)}
-                className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-xs font-medium transition-colors",
                   activeLocale === v.locale
                     ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    : "text-muted-foreground hover:text-foreground",
+                )}
               >
                 {v.locale}
               </button>
@@ -544,7 +564,9 @@ export default function PageComposer() {
           <SectionListSidebar
             blocks={localPage.blocks}
             selectedBlockId={selectedBlockId}
-            onSelect={setSelectedBlockId}
+            onSelect={(id) =>
+              setSelectedBlockId((prev) => (prev === id ? null : id))
+            }
             onDelete={handleDeleteBlock}
             onReorder={handleReorder}
             onAddClick={() => setShowBlockPicker(true)}
@@ -564,21 +586,48 @@ export default function PageComposer() {
             onReturnFromExternal={handleReturnFromExternal}
             disconnected={disconnected}
             reconnect={reconnect}
+            hoverRect={hoverRect}
+            onIframeMouseLeave={clearHover}
           />
         </div>
 
         {/* Right panel: prop editor or history */}
         <div
-          className={`w-[320px] border-l border-border overflow-y-auto ${externalNav ? "opacity-50 pointer-events-none" : ""}`}
+          className={cn(
+            "w-[320px] border-l border-border overflow-y-auto",
+            externalNav && "opacity-50 pointer-events-none",
+          )}
         >
           {showHistory ? (
             <PageHistory pageId={pageId} />
           ) : selectedBlock && blockDef?.schema ? (
             <div className="p-4">
-              <h3 className="text-sm font-medium mb-3">
-                {blockDef.label ??
-                  selectedBlock.blockType.replace("sections--", "")}
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">
+                  {blockDef.label ??
+                    selectedBlock.blockType.replace("sections--", "")}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBlockId(null)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                  title="Close editor"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
               <PropEditor
                 schema={blockDef.schema as import("@rjsf/utils").RJSFSchema}
                 formData={selectedBlock.props}

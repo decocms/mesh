@@ -24,7 +24,8 @@ export type EditorMessage =
   | { type: "deco:select-block"; blockId: string }
   | { type: "deco:set-viewport"; width: number }
   | { type: "deco:deselect" }
-  | { type: "deco:set-mode"; mode: "edit" | "interact" };
+  | { type: "deco:set-mode"; mode: "edit" | "interact" }
+  | { type: "deco:ping" };
 
 /**
  * Messages sent from the site iframe to the Mesh editor.
@@ -43,4 +44,5 @@ export type SiteMessage =
     }
   | { type: "deco:navigated"; url: string; isInternal: boolean }
   | { type: "deco:click-away" }
-  | { type: "deco:section-error"; blockId: string; error: string };
+  | { type: "deco:section-error"; blockId: string; error: string }
+  | { type: "deco:pong" };

@@ -14,8 +14,9 @@
  * The URL is persisted in connection metadata so it survives page reloads.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTunnelUrl } from "../lib/use-tunnel-url";
+import type { HoverRect } from "../lib/use-iframe-bridge";
 import { VIEWPORTS, type ViewportKey } from "./viewport-toggle";
 import { ModeToggle } from "./mode-toggle";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -44,6 +45,10 @@ interface PreviewPanelProps {
   disconnected: boolean;
   /** Callback to reconnect the iframe */
   reconnect: () => void;
+  /** Hover rect from iframe for editor-side overlay */
+  hoverRect: HoverRect | null;
+  /** Clear hover when mouse leaves iframe area */
+  onIframeMouseLeave: () => void;
 }
 
 export function PreviewPanel({
@@ -57,9 +62,14 @@ export function PreviewPanel({
   onReturnFromExternal,
   disconnected,
   reconnect,
+  hoverRect,
+  onIframeMouseLeave,
 }: PreviewPanelProps) {
+  const iframeContainerRef = useRef<HTMLDivElement>(null);
   const { url, isLoading, setPreviewUrl, isSaving } = useTunnelUrl();
   const [inputUrl, setInputUrl] = useState("http://localhost:5173");
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [editUrlValue, setEditUrlValue] = useState("");
 
   if (isLoading) {
     return (
@@ -125,26 +135,78 @@ export function PreviewPanel({
   return (
     <div className="flex flex-col w-full h-full">
       {/* Toolbar: URL display + mode toggle */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-background">
-        <span
-          className="text-xs text-muted-foreground truncate max-w-xs font-mono"
-          title={previewUrl}
-        >
-          {displayUrl}
-        </span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-background gap-2">
+        {editingUrl ? (
+          <form
+            className="flex-1 max-w-xs"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editUrlValue.trim()) {
+                setPreviewUrl(editUrlValue.trim());
+                setEditingUrl(false);
+              }
+            }}
+          >
+            <Input
+              value={editUrlValue}
+              onChange={(e) => setEditUrlValue(e.target.value)}
+              className="h-6 text-xs font-mono"
+              autoFocus
+              onBlur={() => setEditingUrl(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setEditingUrl(false);
+              }}
+            />
+          </form>
+        ) : (
+          <span
+            className="text-xs text-muted-foreground truncate max-w-xs font-mono cursor-pointer hover:text-foreground"
+            title={`${previewUrl} (click to edit)`}
+            onClick={() => {
+              setEditUrlValue(url ?? "");
+              setEditingUrl(true);
+            }}
+          >
+            {displayUrl}
+          </span>
+        )}
         <ModeToggle mode={mode} onChange={onModeChange} />
       </div>
 
       {/* Iframe container */}
-      <div className="relative flex-1 flex justify-center bg-muted/30">
-        <iframe
-          ref={setIframeRef}
-          src={previewUrl}
-          style={{ width: viewportWidth ? `${viewportWidth}px` : "100%" }}
-          className="h-full border-0 bg-white shadow-md transition-[width] duration-300"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          title="Site preview"
-        />
+      <div
+        ref={iframeContainerRef}
+        className="relative flex-1 flex justify-center bg-muted/30"
+      >
+        <div
+          className="relative"
+          style={{
+            width: viewportWidth ? `${viewportWidth}px` : "100%",
+            height: "100%",
+          }}
+          onMouseLeave={onIframeMouseLeave}
+        >
+          <iframe
+            ref={setIframeRef}
+            src={previewUrl}
+            className="w-full h-full border-0 bg-white shadow-md"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            title="Site preview"
+          />
+
+          {/* Editor-side hover overlay — positioned on top of iframe */}
+          {hoverRect && mode === "edit" && (
+            <div
+              className="pointer-events-none absolute z-[5] border-2 border-primary/40 bg-primary/5 transition-all duration-100 ease-out"
+              style={{
+                top: hoverRect.top,
+                left: hoverRect.left,
+                width: hoverRect.width,
+                height: hoverRect.height,
+              }}
+            />
+          )}
+        </div>
 
         {/* External navigation overlay */}
         {externalNav && (
