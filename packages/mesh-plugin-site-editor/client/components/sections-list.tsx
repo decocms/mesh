@@ -1,18 +1,38 @@
 /**
  * Sections List Component (Block Browser)
  *
- * Displays all scanned blocks grouped by category.
- * Navigates to block detail view on click.
- * Uses SITE_BINDING tools (LIST_FILES, READ_FILE) via block-api helpers.
+ * Displays all scanned blocks in a dense table-rows layout grouped by
+ * collapsible categories. Navigates to block detail view on click.
+ * Provides scan/re-scan trigger that calls CMS_BLOCK_SCAN via selfClient.
  */
 
+import { useState } from "react";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { useQuery } from "@tanstack/react-query";
+import {
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@deco/ui/components/table.tsx";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@deco/ui/components/collapsible.tsx";
 import { AlertCircle, Loading01 } from "@untitledui/icons";
-import { Box, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { blockKeys } from "../lib/query-keys";
 import { siteEditorRouter } from "../lib/router";
 import { listBlocks } from "../lib/block-api";
@@ -41,7 +61,14 @@ function groupByCategory(
 
 export default function SectionsList() {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
+  const { org } = useProjectContext();
   const navigate = siteEditorRouter.useNavigate();
+  const queryClient = useQueryClient();
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   const {
     data: blocks = [],
@@ -51,6 +78,45 @@ export default function SectionsList() {
     queryKey: blockKeys.all(connectionId),
     queryFn: () => listBlocks(toolCaller),
   });
+
+  const scanMutation = useMutation({
+    mutationFn: () =>
+      selfClient.callTool({
+        name: "CMS_BLOCK_SCAN",
+        arguments: { connectionId },
+      }),
+    onSuccess: () => {
+      toast.success("Codebase scan complete");
+      queryClient.invalidateQueries({
+        queryKey: blockKeys.all(connectionId),
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error(
+        `Scan failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    },
+  });
+
+  const grouped = groupByCategory(blocks);
+  const categoryNames = Object.keys(grouped).sort();
+
+  // Track which categories are open (all open by default)
+  const [openCategories, setOpenCategories] = useState<Set<string>>(
+    () => new Set(categoryNames),
+  );
+
+  function toggleCategory(category: string) {
+    setOpenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }
 
   if (error) {
     return (
@@ -64,17 +130,31 @@ export default function SectionsList() {
     );
   }
 
-  const grouped = groupByCategory(blocks);
-  const categoryNames = Object.keys(grouped).sort();
-
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background">
-        <h2 className="text-sm font-medium">Sections</h2>
-        <Badge variant="secondary" className="text-xs">
-          {blocks.length} blocks
-        </Badge>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium">Sections</h2>
+          <Badge variant="secondary" className="text-xs">
+            {blocks.length} blocks
+          </Badge>
+        </div>
+        {blocks.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={scanMutation.isPending}
+            onClick={() => scanMutation.mutate()}
+          >
+            {scanMutation.isPending ? (
+              <Loading01 size={14} className="animate-spin mr-1" />
+            ) : (
+              <RefreshCw size={14} className="mr-1" />
+            )}
+            Re-scan
+          </Button>
+        )}
       </div>
 
       {/* Block list */}
@@ -89,7 +169,14 @@ export default function SectionsList() {
           </div>
         ) : blocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-            <Search size={48} className="text-muted-foreground mb-4" />
+            {scanMutation.isPending ? (
+              <Loading01
+                size={48}
+                className="animate-spin text-muted-foreground mb-4"
+              />
+            ) : (
+              <Search size={48} className="text-muted-foreground mb-4" />
+            )}
             <h3 className="text-lg font-medium mb-2">No blocks found</h3>
             <p className="text-muted-foreground mb-4 max-w-sm">
               Scan your codebase to discover React components and generate
@@ -97,53 +184,79 @@ export default function SectionsList() {
             </p>
             <Button
               variant="outline"
-              onClick={() => {
-                console.log(
-                  "[site-editor] Scan trigger placeholder -- wire to CMS_BLOCK_SCAN in Phase 3",
-                );
-              }}
+              disabled={scanMutation.isPending}
+              onClick={() => scanMutation.mutate()}
             >
-              <Search size={14} className="mr-1" />
-              Scan Codebase
+              {scanMutation.isPending ? (
+                <Loading01 size={14} className="animate-spin mr-1" />
+              ) : (
+                <Search size={14} className="mr-1" />
+              )}
+              {scanMutation.isPending ? "Scanning..." : "Scan Codebase"}
             </Button>
           </div>
         ) : (
-          categoryNames.map((category) => (
-            <div key={category}>
-              {/* Category header */}
-              <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
-                {category}
-              </div>
-
-              {/* Blocks in category */}
-              {grouped[category].map((block) => (
-                <button
-                  key={block.id}
-                  type="button"
-                  onClick={() =>
-                    navigate({
-                      to: "/site-editor-layout/sections/$blockId",
-                      params: { blockId: block.id },
-                    })
-                  }
-                  className="group flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-muted/50 border-b border-border last:border-b-0 transition-colors"
-                >
-                  <Box size={16} className="text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="truncate font-medium text-sm block">
-                      {block.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground truncate block">
-                      {block.component}
-                    </span>
-                  </div>
-                  <Badge variant="outline" className="text-xs shrink-0">
-                    {block.propsCount} props
+          categoryNames.map((category) => {
+            const isOpen =
+              openCategories.has(category) ||
+              !openCategories.size; /* treat empty set as all-open on first render before state syncs */
+            return (
+              <Collapsible
+                key={category}
+                open={isOpen}
+                onOpenChange={() => toggleCategory(category)}
+              >
+                <CollapsibleTrigger className="flex items-center gap-2 w-full px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors">
+                  {isOpen ? (
+                    <ChevronDown size={14} className="shrink-0" />
+                  ) : (
+                    <ChevronRight size={14} className="shrink-0" />
+                  )}
+                  {category}
+                  <Badge variant="secondary" className="text-xs ml-auto">
+                    {grouped[category].length}
                   </Badge>
-                </button>
-              ))}
-            </div>
-          ))
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Name</TableHead>
+                        <TableHead className="text-xs">Category</TableHead>
+                        <TableHead className="text-xs">Component</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {grouped[category].map((block) => (
+                        <TableRow
+                          key={block.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() =>
+                            navigate({
+                              to: "/site-editor-layout/sections/$blockId",
+                              params: { blockId: block.id },
+                            })
+                          }
+                        >
+                          <TableCell className="text-sm font-medium">
+                            {block.label}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {block.category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {block.component}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })
         )}
       </div>
     </div>
