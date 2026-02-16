@@ -61,6 +61,8 @@ export default function PageComposer() {
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportKey>("desktop");
+  const [mode, setMode] = useState<"edit" | "interact">("edit");
+  const [externalNav, setExternalNav] = useState<string | null>(null);
   const [showBlockPicker, setShowBlockPicker] = useState(false);
   const [loaderPickerState, setLoaderPickerState] = useState<{
     open: boolean;
@@ -140,12 +142,31 @@ export default function PageComposer() {
   const localPage = page ? { ...page, blocks } : null;
 
   // Single bridge for all iframe communication
-  const { send, setIframeRef, ready } = useIframeBridge({
-    page: localPage,
-    selectedBlockId,
-    onBlockClicked: setSelectedBlockId,
-    onClickAway: () => setSelectedBlockId(null),
-  });
+  const { send, setIframeRef, ready, disconnected, reconnect } =
+    useIframeBridge({
+      page: localPage,
+      selectedBlockId,
+      mode,
+      onBlockClicked: setSelectedBlockId,
+      onClickAway: () => setSelectedBlockId(null),
+      onNavigated: (url, isInternal) => {
+        if (!isInternal) {
+          setExternalNav(url);
+        }
+      },
+    });
+
+  // Mode change handler — updates local state and sends to iframe
+  const handleModeChange = (newMode: "edit" | "interact") => {
+    setMode(newMode);
+    send({ type: "deco:set-mode", mode: newMode });
+  };
+
+  // Return from external navigation — clear state and reload iframe
+  const handleReturnFromExternal = () => {
+    setExternalNav(null);
+    reconnect();
+  };
 
   // Find selected block
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId);
@@ -537,11 +558,19 @@ export default function PageComposer() {
             viewport={viewport}
             setIframeRef={setIframeRef}
             ready={ready}
+            mode={mode}
+            onModeChange={handleModeChange}
+            externalNav={externalNav}
+            onReturnFromExternal={handleReturnFromExternal}
+            disconnected={disconnected}
+            reconnect={reconnect}
           />
         </div>
 
         {/* Right panel: prop editor or history */}
-        <div className="w-[320px] border-l border-border overflow-y-auto">
+        <div
+          className={`w-[320px] border-l border-border overflow-y-auto ${externalNav ? "opacity-50 pointer-events-none" : ""}`}
+        >
           {showHistory ? (
             <PageHistory pageId={pageId} />
           ) : selectedBlock && blockDef?.schema ? (
