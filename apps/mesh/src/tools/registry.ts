@@ -123,6 +123,7 @@ const ALL_TOOL_NAMES = [
   "PROJECT_PLUGIN_CONFIG_UPDATE",
   // Filesystem tools
   "FILESYSTEM_PICK_DIRECTORY",
+  "FILESYSTEM_READ_TUNNEL_CONFIG",
   "FILESYSTEM_VALIDATE_PROJECT",
 ] as const;
 
@@ -546,6 +547,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Filesystem",
   },
   {
+    name: "FILESYSTEM_READ_TUNNEL_CONFIG",
+    description: "Read wrangler.toml and compute tunnel URL",
+    category: "Filesystem",
+  },
+  {
     name: "FILESYSTEM_VALIDATE_PROJECT",
     description: "Validate directory is a TypeScript project",
     category: "Filesystem",
@@ -628,6 +634,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   PROJECT_PLUGIN_CONFIG_GET: "View plugin config",
   PROJECT_PLUGIN_CONFIG_UPDATE: "Update plugin config",
   FILESYSTEM_PICK_DIRECTORY: "Pick directory",
+  FILESYSTEM_READ_TUNNEL_CONFIG: "Read tunnel config",
   FILESYSTEM_VALIDATE_PROJECT: "Validate project",
 };
 

@@ -39,7 +39,8 @@
     "dompurify": "^3.3.1",
     "kysely": "^0.28.8",
     "kysely-bun-worker": "^0.6.0",
-    "quickjs-emscripten-core": "^0.31.0"
+    "quickjs-emscripten-core": "^0.31.0",
+    "smol-toml": "^1.6.0"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.0",

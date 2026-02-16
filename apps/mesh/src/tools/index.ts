@@ -132,6 +132,7 @@ const CORE_TOOLS = [
 
   // Filesystem tools
   FilesystemTools.FILESYSTEM_PICK_DIRECTORY,
+  FilesystemTools.FILESYSTEM_READ_TUNNEL_CONFIG,
   FilesystemTools.FILESYSTEM_VALIDATE_PROJECT,
 ] as const satisfies { name: ToolName }[];
 
