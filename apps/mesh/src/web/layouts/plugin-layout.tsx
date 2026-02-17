@@ -11,7 +11,6 @@
 
 import {
   Binder,
-  connectionImplementsBinding,
   resolveToolNames,
   PluginConnectionEntity,
   PluginContext,
@@ -53,19 +52,13 @@ interface PluginLayoutProps {
    * Render the empty state when no valid connections are available.
    */
   renderEmptyState: () => ReactNode;
-}
 
-/**
- * Filters connections that implement the given binding.
- */
-function filterConnectionsByBinding(
-  connections: ConnectionEntity[] | undefined,
-  binding: Binder,
-): ConnectionEntity[] {
-  if (!connections) return [];
-  return connections.filter((conn) =>
-    connectionImplementsBinding(conn, binding),
-  );
+  /**
+   * Optional connection ID override. When provided, this takes priority
+   * over the project plugin config's connectionId. Used by the site editor
+   * for multi-site switching via the site store.
+   */
+  connectionIdOverride?: string | null;
 }
 
 /**
@@ -212,6 +205,7 @@ export function PluginLayout({
   binding,
   renderHeader,
   renderEmptyState,
+  connectionIdOverride,
 }: PluginLayoutProps) {
   const { org, project } = useProjectContext();
   // Extract pluginId from params ($pluginId catch-all) or URL path (static routes)
@@ -243,13 +237,15 @@ export function PluginLayout({
     enabled: !!project.id && !!pluginId,
   });
 
-  // Filter connections by the plugin's binding
-  const validConnections = filterConnectionsByBinding(allConnections, binding);
-
-  // Connection is determined solely by project config
-  const configuredConnectionId = pluginConfig?.config?.connectionId;
+  // Connection is determined by override (multi-site) or project config.
+  // Look up from allConnections (not validConnections) because a newly created
+  // STDIO connection may not have its tools populated yet, which would fail
+  // the binding check in filterConnectionsByBinding.
+  const configuredConnectionId =
+    connectionIdOverride ?? pluginConfig?.config?.connectionId;
   const configuredConnection = configuredConnectionId
-    ? validConnections.find((c) => c.id === configuredConnectionId)
+    ? ((allConnections ?? []).find((c) => c.id === configuredConnectionId) ??
+      null)
     : null;
 
   // Call hook unconditionally - pass undefined to skip when no valid configured connection
@@ -296,8 +292,8 @@ export function PluginLayout({
     );
   }
 
-  // If no valid connections or no configured connection, show the plugin's empty state
-  if (validConnections.length === 0 || !configuredConnection) {
+  // If no configured connection, show the plugin's empty state
+  if (!configuredConnection) {
     const emptyContext: PluginContextPartial<Binder> = {
       connectionId: null,
       connection: null,
@@ -388,7 +384,10 @@ export function PluginLayout({
   };
 
   return (
-    <PluginContextProvider value={pluginContext}>
+    <PluginContextProvider
+      key={pluginContext.connectionId}
+      value={pluginContext}
+    >
       <Page>
         <Page.Header>
           <Page.Header.Left>

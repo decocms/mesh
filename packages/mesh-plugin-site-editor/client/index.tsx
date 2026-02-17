@@ -10,6 +10,7 @@ import type { Plugin, PluginSetupContext } from "@decocms/bindings/plugins";
 import { File06, LayoutAlt03, Database01 } from "@untitledui/icons";
 import { lazy } from "react";
 import { siteEditorRouter } from "./lib/router";
+import { useSiteStore } from "./lib/site-store";
 
 // Lazy load the header/empty state components that use UI dependencies
 const PluginHeader = lazy(() => import("./components/plugin-header"));
@@ -24,6 +25,7 @@ export const clientPlugin: Plugin<typeof SITE_BINDING> = {
   binding: SITE_BINDING,
   renderHeader: (props) => <PluginHeader {...props} />,
   renderEmptyState: () => <PluginEmptyState />,
+  useConnectionId: () => useSiteStore().activeSiteId,
   setup: (context: PluginSetupContext) => {
     const { registerSidebarGroup, registerPluginRoutes } = context;
 

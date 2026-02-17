@@ -32,7 +32,7 @@ import {
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
-import { markDirty, markClean } from "../lib/dirty-state";
+import { markDirty, markClean, registerFlush } from "../lib/dirty-state";
 import { siteEditorRouter } from "../lib/router";
 import {
   getPage,
@@ -75,6 +75,9 @@ export default function PageComposer() {
   const [newLocaleInput, setNewLocaleInput] = useState("");
   const [showNewLocale, setShowNewLocale] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ref holding the current handleSave so registerFlush can call it.
+  const handleSaveRef = useRef<(() => Promise<void>) | null>(null);
 
   // Fetch page list to get available variants for this page
   const { data: pageSummaries = [] } = useQuery({
@@ -402,6 +405,16 @@ export default function PageComposer() {
       );
     }
   };
+
+  // Keep handleSaveRef current and register flush callback for site switcher.
+  handleSaveRef.current = handleSave;
+  const flushRegisteredRef = useRef(false);
+  if (!flushRegisteredRef.current) {
+    flushRegisteredRef.current = true;
+    registerFlush(async () => {
+      if (handleSaveRef.current) await handleSaveRef.current();
+    });
+  }
 
   if (isLoading) {
     return (

@@ -1,110 +1,145 @@
 /**
  * Plugin Header Component
  *
- * Connection selector and branch switcher for the site editor plugin.
- * Uses native HTML elements to avoid type conflicts with UI package.
+ * Site switcher with command palette and branch switcher for the site editor plugin.
+ * Replaces the old ConnectionSelector with a multi-site aware SiteSwitcher.
  */
 
 import type { PluginRenderHeaderProps } from "@decocms/bindings/plugins";
-import { File06, ChevronDown, Check } from "@untitledui/icons";
+import {
+  useConnections,
+  useProjectContext,
+  type ConnectionEntity,
+} from "@decocms/mesh-sdk";
 import { useState, useRef, lazy, Suspense } from "react";
+import {
+  setSites,
+  setActiveSite,
+  useSiteStore,
+  deriveDisplayName,
+  type SiteConnection,
+} from "../lib/site-store";
+import {
+  hasPendingSave,
+  flushPendingSave,
+  cancelPendingSave,
+} from "../lib/dirty-state";
+import { siteEditorRouter } from "../lib/router";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
 
 const BranchSwitcher = lazy(() => import("./branch-switcher"));
 const PublishBar = lazy(() => import("./publish-bar"));
+const SiteSwitcher = lazy(() => import("./site-switcher"));
+const SitePalette = lazy(() => import("./site-palette"));
+const UnsavedChangesDialog = lazy(() => import("./unsaved-changes-dialog"));
+const PluginEmptyState = lazy(() => import("./plugin-empty-state"));
 
 /**
- * Simple dropdown menu using native elements.
+ * Derives SiteConnection[] from the raw connection entities.
+ * Only includes STDIO connections that have a projectPath in metadata.
  */
-function ConnectionSelector({
-  connections,
-  selectedConnectionId,
-  onConnectionChange,
-}: PluginRenderHeaderProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+function deriveSiteConnections(
+  connections: ConnectionEntity[],
+): SiteConnection[] {
+  const result: SiteConnection[] = [];
+  for (const c of connections) {
+    if (c.connection_type !== "STDIO") continue;
+    const meta = c.metadata as Record<string, unknown> | null | undefined;
+    const projectPath =
+      typeof meta?.projectPath === "string" ? meta.projectPath : null;
+    if (!projectPath) continue;
+    result.push({
+      connectionId: c.id,
+      projectPath,
+      displayName: c.title || deriveDisplayName(projectPath),
+      status: c.status as SiteConnection["status"],
+    });
+  }
+  return result;
+}
 
-  const selectedConnection = connections.find(
-    (c) => c.id === selectedConnectionId,
-  );
+export default function PluginHeader(_props: PluginRenderHeaderProps) {
+  const { org, project } = useProjectContext();
+  const allConnections = useConnections();
+  const navigate = siteEditorRouter.useNavigate();
 
-  // Close dropdown when clicking outside
-  const handleBlur = (e: React.FocusEvent) => {
-    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
-      setIsOpen(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingSwitchId, setPendingSwitchId] = useState<string | null>(null);
+  const [showAddSite, setShowAddSite] = useState(false);
+
+  const orgId = org.id;
+  const projectId = project.id ?? "";
+
+  // Derive site connections and sync into the site store (ref-guarded, not useEffect).
+  const lastSyncRef = useRef<string>("");
+  const siteConnections = deriveSiteConnections(allConnections ?? []);
+  const syncKey = siteConnections.map((s) => s.connectionId).join(",");
+  if (syncKey !== lastSyncRef.current) {
+    lastSyncRef.current = syncKey;
+    setSites(siteConnections, orgId, projectId);
+  }
+
+  const { activeSiteId } = useSiteStore();
+
+  const performSwitch = (connectionId: string) => {
+    setActiveSite(connectionId, orgId, projectId);
+    // Navigate to pages list for clean slate on site switch
+    navigate({ to: "/site-editor-layout/" });
+  };
+
+  const handleSwitchSite = (connectionId: string) => {
+    if (connectionId === activeSiteId) return;
+    if (hasPendingSave()) {
+      setPendingSwitchId(connectionId);
+      setShowUnsavedDialog(true);
+    } else {
+      performSwitch(connectionId);
     }
   };
 
-  if (connections.length === 1) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {selectedConnection?.icon ? (
-          <img
-            src={selectedConnection.icon}
-            alt=""
-            className="size-4 rounded"
-          />
-        ) : (
-          <File06 size={16} />
-        )}
-        <span>{selectedConnection?.title || "Site"}</span>
-      </div>
-    );
-  }
+  const handleSaveAndSwitch = async () => {
+    setShowUnsavedDialog(false);
+    await flushPendingSave();
+    if (pendingSwitchId) {
+      performSwitch(pendingSwitchId);
+      setPendingSwitchId(null);
+    }
+  };
 
-  return (
-    <div className="relative" ref={dropdownRef} onBlur={handleBlur}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-border bg-background hover:bg-accent transition-colors"
-      >
-        {selectedConnection?.icon ? (
-          <img
-            src={selectedConnection.icon}
-            alt=""
-            className="size-4 rounded"
-          />
-        ) : (
-          <File06 size={16} />
-        )}
-        <span>{selectedConnection?.title || "Select site"}</span>
-        <ChevronDown size={14} />
-      </button>
+  const handleDiscardAndSwitch = () => {
+    setShowUnsavedDialog(false);
+    cancelPendingSave();
+    if (pendingSwitchId) {
+      performSwitch(pendingSwitchId);
+      setPendingSwitchId(null);
+    }
+  };
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-48 rounded-md border border-border bg-popover p-1 shadow-md">
-          {connections.map((connection) => (
-            <button
-              key={connection.id}
-              type="button"
-              onClick={() => {
-                onConnectionChange(connection.id);
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors"
-            >
-              {connection.icon ? (
-                <img src={connection.icon} alt="" className="size-4 rounded" />
-              ) : (
-                <File06 size={16} />
-              )}
-              <span className="flex-1 text-left">{connection.title}</span>
-              {connection.id === selectedConnectionId && (
-                <Check size={14} className="text-primary" />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+  const handleCancelSwitch = () => {
+    setShowUnsavedDialog(false);
+    setPendingSwitchId(null);
+  };
 
-export default function PluginHeader(props: PluginRenderHeaderProps) {
+  const handleAddSite = () => {
+    setShowAddSite(true);
+  };
+
   return (
     <div className="flex flex-col w-full">
       <div className="flex items-center gap-3">
-        <ConnectionSelector {...props} />
+        <Suspense fallback={null}>
+          <SiteSwitcher
+            onOpenPalette={() => setPaletteOpen(true)}
+            onAddSite={handleAddSite}
+          />
+        </Suspense>
         <Suspense fallback={null}>
           <BranchSwitcher />
         </Suspense>
@@ -112,6 +147,41 @@ export default function PluginHeader(props: PluginRenderHeaderProps) {
       <Suspense fallback={null}>
         <PublishBar />
       </Suspense>
+
+      {/* Command palette for site switching */}
+      <Suspense fallback={null}>
+        <SitePalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          onSwitchSite={handleSwitchSite}
+          onAddSite={handleAddSite}
+        />
+      </Suspense>
+
+      {/* Unsaved changes confirmation */}
+      <Suspense fallback={null}>
+        <UnsavedChangesDialog
+          open={showUnsavedDialog}
+          onSaveAndSwitch={handleSaveAndSwitch}
+          onDiscardAndSwitch={handleDiscardAndSwitch}
+          onCancel={handleCancelSwitch}
+        />
+      </Suspense>
+
+      {/* Add site dialog — renders PluginEmptyState in a dialog */}
+      <Dialog open={showAddSite} onOpenChange={setShowAddSite}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add a new site</DialogTitle>
+            <DialogDescription>
+              Connect a local project folder as a new site.
+            </DialogDescription>
+          </DialogHeader>
+          <Suspense fallback={null}>
+            <PluginEmptyState />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
