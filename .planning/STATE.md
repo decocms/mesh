@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 09.1 - Multi-Site Support
-Plan: 2 of 2 complete
-Status: Phase 09.1 complete
-Last activity: 2026-02-17 — Completed 09.1-02-PLAN.md (site switcher UI, layout integration)
+Phase: 10 - Documentation & Validation
+Plan: 1 of 2 complete
+Status: In progress
+Last activity: 2026-02-17 — Completed 10-01-PLAN.md (blocks framework specification)
 
-Progress: [██████████████████░░] 91% (10/11 phases complete)
+Progress: [███████████████████░] 95% (10.5/11 phases complete)
 
 ## Performance Metrics
 
@@ -97,6 +97,11 @@ From phase 09.1 plan 2:
 - registerFlush/flushPendingSave pattern for save-and-switch flow via ref indirection
 - key={connectionId} on PluginContextProvider forces clean remount on site switch
 
+From phase 10 plan 1:
+- Spec placed at docs/BLOCKS_FRAMEWORK.md (repo root) for discoverability, not scoped under apps/mesh/
+- Claude skill contains full spec inline (not a reference to external file) for self-contained agent use
+- Three-copy distribution: canonical docs/ -> Claude skill .claude/commands/ (with frontmatter) -> starter template (identical)
+
 ### Roadmap Evolution
 
 - Phase 09.1 inserted after Phase 9: Multi-Site Support — toggle between multiple site connections in the top bar (URGENT)
@@ -113,5 +118,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 09.1-02-PLAN.md (phase 09.1 complete)
-Resume file: .planning/phases/09.1-multi-site-support/09.1-02-SUMMARY.md
+Stopped at: Completed 10-01-PLAN.md (blocks framework specification)
+Resume file: .planning/phases/10-documentation-validation/10-01-SUMMARY.md
