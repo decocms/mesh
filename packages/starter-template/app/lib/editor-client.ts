@@ -31,7 +31,6 @@ interface PageConfig {
 }
 
 let mode: "edit" | "interact" = "edit";
-let hoverOverlay: HTMLDivElement | null = null;
 let currentPageState: PageConfig | null = null;
 const listeners = new Set<() => void>();
 
@@ -66,13 +65,6 @@ function sendToParent(msg: Record<string, unknown>) {
 // -- Edit mode overlay --
 
 function setupEditMode() {
-  if (!hoverOverlay) {
-    hoverOverlay = document.createElement("div");
-    hoverOverlay.style.cssText =
-      "position:fixed;pointer-events:none;background:rgba(59,130,246,0.08);z-index:99999;display:none;transition:all 0.1s ease-out;";
-    document.body.appendChild(hoverOverlay);
-  }
-
   editClickHandler = (e: MouseEvent) => {
     if (mode !== "edit") return;
     e.preventDefault();
@@ -98,17 +90,11 @@ function setupEditMode() {
   };
 
   editHoverHandler = (e: MouseEvent) => {
-    if (mode !== "edit" || !hoverOverlay) return;
+    if (mode !== "edit") return;
 
     const section = findDeepestSection(e.target);
     if (section) {
       const rect = section.getBoundingClientRect();
-      hoverOverlay.style.display = "block";
-      hoverOverlay.style.top = `${rect.top}px`;
-      hoverOverlay.style.left = `${rect.left}px`;
-      hoverOverlay.style.width = `${rect.width}px`;
-      hoverOverlay.style.height = `${rect.height}px`;
-
       const blockId = section.getAttribute("data-block-id")!;
       sendToParent({
         type: "deco:block-hover",
@@ -121,20 +107,20 @@ function setupEditMode() {
         },
       });
     } else {
-      hoverOverlay.style.display = "none";
       sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
     }
   };
 
   document.addEventListener("click", editClickHandler, true);
   document.addEventListener("mousemove", editHoverHandler, true);
+  document.addEventListener("mouseleave", handleMouseLeave);
+}
+
+function handleMouseLeave() {
+  sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
 }
 
 function teardownEditMode() {
-  if (hoverOverlay) {
-    hoverOverlay.remove();
-    hoverOverlay = null;
-  }
   if (editClickHandler) {
     document.removeEventListener("click", editClickHandler, true);
     editClickHandler = null;
@@ -143,6 +129,9 @@ function teardownEditMode() {
     document.removeEventListener("mousemove", editHoverHandler, true);
     editHoverHandler = null;
   }
+  document.removeEventListener("mouseleave", handleMouseLeave);
+  // Tell editor to clear hover overlay
+  sendToParent({ type: "deco:block-hover", blockId: null, rect: null });
 }
 
 // -- Interact mode navigation detection --
@@ -233,7 +222,12 @@ function handleEditorMessage(e: MessageEvent) {
     }
 
     case "deco:deselect": {
-      // No persistent selected visual per user decision
+      // No iframe-side visual for deselect — editor handles overlay
+      break;
+    }
+
+    case "deco:ping": {
+      sendToParent({ type: "deco:pong" });
       break;
     }
   }

@@ -287,6 +287,11 @@ export const auth = betterAuth({
     enabled: true,
   },
 
+  // Allow cross-origin requests from trusted frontends (e.g. hypercouple public site)
+  trustedOrigins: process.env.TRUSTED_ORIGINS
+    ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim())
+    : ["http://localhost:5173"],
+
   // Load optional configuration from file
   ...authConfig,
 
