@@ -32,6 +32,7 @@ import {
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
+import { markDirty, markClean } from "../lib/dirty-state";
 import { siteEditorRouter } from "../lib/router";
 import {
   getPage,
@@ -245,6 +246,7 @@ export default function PageComposer() {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
+    markDirty();
     saveTimerRef.current = setTimeout(async () => {
       try {
         await updatePage(
@@ -253,11 +255,13 @@ export default function PageComposer() {
           { blocks: updatedBlocks },
           activeLocale,
         );
+        markClean();
         clearFuture();
         queryClient.invalidateQueries({
           queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
         });
       } catch (err) {
+        markClean();
         toast.error(
           `Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`,
         );
@@ -385,12 +389,14 @@ export default function PageComposer() {
         },
         activeLocale,
       );
+      markClean();
       clearFuture();
       toast.success("Page saved");
       queryClient.invalidateQueries({
         queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
       });
     } catch (err) {
+      markClean();
       toast.error(
         `Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
