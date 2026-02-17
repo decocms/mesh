@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(bun run check:*)",
+      "Bash(bun run fmt:*)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(bun run:*)",
+      "Bash(bun install:*)",
+      "Bash(python3:*)",
+      "Skill(gsd:progress)",
+      "Skill(gsd:insert-phase)",
+      "Bash(bunx tsc:*)",
+      "Bash(git status:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

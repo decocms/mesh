@@ -30,7 +30,8 @@ export type ToolCategory =
   | "Event Bus"
   | "Code Execution"
   | "Tags"
-  | "Projects";
+  | "Projects"
+  | "Filesystem";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -120,6 +121,10 @@ const ALL_TOOL_NAMES = [
   "PROJECT_DELETE",
   "PROJECT_PLUGIN_CONFIG_GET",
   "PROJECT_PLUGIN_CONFIG_UPDATE",
+  // Filesystem tools
+  "FILESYSTEM_PICK_DIRECTORY",
+  "FILESYSTEM_READ_TUNNEL_CONFIG",
+  "FILESYSTEM_VALIDATE_PROJECT",
 ] as const;
 
 /**
@@ -535,6 +540,22 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Update project plugin configuration",
     category: "Projects",
   },
+  // Filesystem tools
+  {
+    name: "FILESYSTEM_PICK_DIRECTORY",
+    description: "Open native folder picker dialog",
+    category: "Filesystem",
+  },
+  {
+    name: "FILESYSTEM_READ_TUNNEL_CONFIG",
+    description: "Read wrangler.toml and compute tunnel URL",
+    category: "Filesystem",
+  },
+  {
+    name: "FILESYSTEM_VALIDATE_PROJECT",
+    description: "Validate directory is a TypeScript project",
+    category: "Filesystem",
+  },
 ];
 
 /**
@@ -612,6 +633,9 @@ const TOOL_LABELS: Record<ToolName, string> = {
   PROJECT_DELETE: "Delete project",
   PROJECT_PLUGIN_CONFIG_GET: "View plugin config",
   PROJECT_PLUGIN_CONFIG_UPDATE: "Update plugin config",
+  FILESYSTEM_PICK_DIRECTORY: "Pick directory",
+  FILESYSTEM_READ_TUNNEL_CONFIG: "Read tunnel config",
+  FILESYSTEM_VALIDATE_PROJECT: "Validate project",
 };
 
 // ============================================================================
@@ -635,6 +659,7 @@ export function getToolsByCategory() {
     "Code Execution": [],
     Tags: [],
     Projects: [],
+    Filesystem: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

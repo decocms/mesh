@@ -345,15 +345,18 @@ const workflowsRoute = createRoute({
 // PLUGIN ROUTES
 // ============================================
 
-const pluginLayoutRoute = createRoute({
-  getParentRoute: () => projectLayout, // Changed from shellLayout
+// Catch-all for unknown/legacy plugins (dynamic $pluginId param).
+// Known plugins get their own static routes below, which TanStack Router
+// prioritizes over this dynamic route.
+const pluginCatchAllRoute = createRoute({
+  getParentRoute: () => projectLayout,
   path: "/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
   ),
 });
 
-// Plugin setup (same as before)
+// Plugin setup
 export const pluginRootSidebarItems: {
   pluginId: string;
   icon: ReactNode;
@@ -368,14 +371,28 @@ export const pluginSidebarGroups: {
   defaultExpanded?: boolean;
 }[] = [];
 
-const pluginRoutes: AnyRoute[] = [];
+// Each plugin gets its own static route under projectLayout.
+// This avoids route collisions (e.g. both plugins registering path: "/")
+// because each plugin's children are isolated under their own route.
+const perPluginStaticRoutes: AnyRoute[] = [];
 
 sourcePlugins.forEach((plugin: AnyClientPlugin) => {
-  // Only invoke setup if the plugin provides it
   if (!plugin.setup) return;
 
+  // Static route for this plugin: /site-editor, /object-storage, etc.
+  // Static paths rank higher than $pluginId, so these match first.
+  const pluginRoute = createRoute({
+    getParentRoute: () => projectLayout,
+    path: `/${plugin.id}`,
+    component: lazyRouteComponent(
+      () => import("./layouts/dynamic-plugin-layout.tsx"),
+    ),
+  }) as AnyRoute;
+
+  const perPluginRoutes: AnyRoute[] = [];
+
   const context: PluginSetupContext = {
-    parentRoute: pluginLayoutRoute as AnyRoute,
+    parentRoute: pluginRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
@@ -385,15 +402,14 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
     registerSidebarGroup: (group) =>
       pluginSidebarGroups.push({ pluginId: plugin.id, ...group }),
     registerPluginRoutes: (routes) => {
-      pluginRoutes.push(...routes);
+      perPluginRoutes.push(...routes);
     },
   };
 
   plugin.setup(context);
-});
 
-// Add all plugin routes as children of the plugin layout
-const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+  perPluginStaticRoutes.push(pluginRoute.addChildren(perPluginRoutes));
+});
 
 // ============================================
 // ROUTE TREE
@@ -417,7 +433,8 @@ const projectRoutes = [
   agentsRoute,
   agentDetailRoute,
   workflowsRoute,
-  pluginLayoutWithChildren,
+  ...perPluginStaticRoutes,
+  pluginCatchAllRoute, // Must be last — $pluginId catch-all
 ];
 
 const projectLayoutWithChildren = projectLayout.addChildren(projectRoutes);

@@ -28,6 +28,7 @@ import * as OrganizationTools from "./organization";
 import * as ProjectTools from "./projects";
 import * as TagTools from "./tags";
 import * as ThreadTools from "./thread";
+import * as FilesystemTools from "./filesystem";
 import * as UserTools from "./user";
 import { ToolName } from "./registry";
 
@@ -128,6 +129,11 @@ const CORE_TOOLS = [
   ProjectTools.PROJECT_DELETE,
   ProjectTools.PROJECT_PLUGIN_CONFIG_GET,
   ProjectTools.PROJECT_PLUGIN_CONFIG_UPDATE,
+
+  // Filesystem tools
+  FilesystemTools.FILESYSTEM_PICK_DIRECTORY,
+  FilesystemTools.FILESYSTEM_READ_TUNNEL_CONFIG,
+  FilesystemTools.FILESYSTEM_VALIDATE_PROJECT,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

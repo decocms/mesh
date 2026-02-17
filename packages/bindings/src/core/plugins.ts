@@ -85,6 +85,12 @@ export interface ClientPlugin<TBinding extends Binder = Binder> {
    * Render the empty state when no valid connections are available.
    */
   renderEmptyState?: () => ReactNode;
+  /**
+   * Optional hook that returns a connection ID override.
+   * Called during render to allow plugins with multi-site support
+   * to control which connection is active (e.g. via a site store).
+   */
+  useConnectionId?: () => string | null;
 }
 
 /**

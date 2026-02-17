@@ -1,0 +1,40 @@
+{
+  "id": "sections--Footer",
+  "type": "section",
+  "title": "Footer",
+  "description": "Site footer with navigation links and copyright",
+  "category": "sections",
+  "filePath": "app/components/sections/footer.tsx",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "siteName": { "type": "string", "description": "Company or site name" },
+      "year": { "type": "number", "description": "Copyright year" },
+      "links": {
+        "type": "array",
+        "description": "Navigation links",
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string", "description": "Link display text" },
+            "url": { "type": "string", "description": "Link URL" }
+          },
+          "required": ["label", "url"]
+        }
+      }
+    },
+    "required": ["siteName", "links"]
+  },
+  "defaults": {
+    "siteName": "My Site",
+    "year": 2026,
+    "links": [
+      { "label": "Home", "url": "/" },
+      { "label": "About", "url": "/about" }
+    ]
+  },
+  "metadata": {
+    "customized": false,
+    "lastScanned": "2026-01-01T00:00:00.000Z"
+  }
+}

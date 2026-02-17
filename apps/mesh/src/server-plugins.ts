@@ -11,7 +11,9 @@
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
 import { serverPlugin as privateRegistryPlugin } from "mesh-plugin-private-registry/server";
 import { serverPlugin as userSandboxPlugin } from "mesh-plugin-user-sandbox/server";
+import { serverPlugin as siteEditorPlugin } from "mesh-plugin-site-editor/server";
 import { serverPlugin as workflowsPlugin } from "mesh-plugin-workflows/server";
+import { serverPlugin as hypercouplePlugin } from "mesh-plugin-hypercouple/server";
 
 /**
  * Registered server plugins.
@@ -21,4 +23,6 @@ export const serverPlugins: ServerPlugin[] = [
   userSandboxPlugin,
   privateRegistryPlugin,
   workflowsPlugin,
+  siteEditorPlugin,
+  hypercouplePlugin,
 ];

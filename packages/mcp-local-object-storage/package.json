@@ -1,0 +1,22 @@
+{
+  "name": "@decocms/mcp-local-object-storage",
+  "version": "0.1.0",
+  "description": "Local filesystem-backed object storage MCP server with presigned URL support",
+  "type": "module",
+  "bin": {
+    "mcp-local-object-storage": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.9.1"
+  }
+}

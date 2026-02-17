@@ -1,12 +1,15 @@
 import {
   ORG_ADMIN_PROJECT_SLUG,
   useConnections,
+  useConnectionActions,
   useProjectContext,
+  useMCPClient,
+  SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { Loading01, Plus } from "@untitledui/icons";
+import { Folder, Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Select,
@@ -179,10 +182,18 @@ function BindingSelector({
   className,
 }: BindingSelectorProps) {
   const [isLocalInstalling, setIsLocalInstalling] = useState(false);
+  const [isBrowsing, setIsBrowsing] = useState(false);
   const { installByBinding, isInstalling: isGlobalInstalling } =
     useInstallFromRegistry();
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
+
+  const { org } = useProjectContext();
+  const { create } = useConnectionActions();
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   const allConnections = useConnections();
   const filteredConnections = useBindingConnections({
@@ -246,13 +257,102 @@ function BindingSelector({
     onAddNew?.();
   };
 
+  // Detect if binding requires object storage tools
+  const isObjectStorageBinding = (() => {
+    if (!binding) return false;
+    if (typeof binding === "string") {
+      return binding === "OBJECT_STORAGE";
+    }
+    if (Array.isArray(binding)) {
+      return binding.some(
+        (b) =>
+          b.name === "LIST_OBJECTS" ||
+          b.name === "GET_PRESIGNED_URL" ||
+          b.name === "PUT_PRESIGNED_URL",
+      );
+    }
+    return false;
+  })();
+
+  // Virtual connection ID for dev-assets (local object storage routed through mesh)
+  const devAssetsConnectionId = `${org.id}_dev-assets`;
+
+  const handleChooseLocalFolder = async () => {
+    setIsBrowsing(true);
+    try {
+      const pickResult = (await selfClient.callTool({
+        name: "FILESYSTEM_PICK_DIRECTORY",
+        arguments: {},
+      })) as { structuredContent?: { path: string | null } };
+
+      const folderPath = pickResult.structuredContent?.path ?? null;
+      if (!folderPath) return;
+
+      const folderName =
+        folderPath.split("/").filter(Boolean).pop() ?? "folder";
+
+      // For object storage bindings, use the local-object-storage bridge
+      // For file/site bindings, use the standard filesystem MCP
+      const connectionConfig = isObjectStorageBinding
+        ? {
+            title: `Local Files: ${folderName}`,
+            connection_type: "STDIO" as const,
+            connection_headers: {
+              command: "node",
+              args: [
+                "--experimental-strip-types",
+                "../../packages/mcp-local-object-storage/src/index.ts",
+                folderPath,
+              ],
+            },
+          }
+        : {
+            title: `Local: ${folderName}`,
+            connection_type: "STDIO" as const,
+            connection_headers: {
+              command: "npx",
+              args: [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                folderPath,
+              ],
+            },
+          };
+
+      const newConnection = await create.mutateAsync(
+        connectionConfig as Parameters<typeof create.mutateAsync>[0],
+      );
+
+      onValueChange(newConnection.id);
+    } catch {
+      // Error handled by mutation toast
+    } finally {
+      setIsBrowsing(false);
+    }
+  };
+
+  const busy = isInstalling || isBrowsing;
+
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger size="sm" className={cn("w-[200px]", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {connections.length === 0 ? (
+        {isObjectStorageBinding && (
+          <SelectItem value={devAssetsConnectionId}>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <Folder size={16} />
+                <span>Local Storage</span>
+              </div>
+              <span className="text-xs text-muted-foreground ml-6">
+                Store in your browser
+              </span>
+            </div>
+          </SelectItem>
+        )}
+        {connections.length === 0 && !isObjectStorageBinding ? (
           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
             No connections found
           </div>
@@ -276,15 +376,45 @@ function BindingSelector({
             </SelectItem>
           ))
         )}
-        {(onAddNew || canInstallInline) && (
-          <div className="border-t border-border">
+        <div className="border-t border-border flex flex-col">
+          <Button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleChooseLocalFolder();
+            }}
+            disabled={busy}
+            variant="ghost"
+            className="w-full justify-start gap-2 px-2 py-2 h-auto hover:bg-muted rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+          >
+            {isBrowsing ? (
+              <>
+                <Loading01 size={16} className="animate-spin" />
+                <span>Selecting folder...</span>
+              </>
+            ) : (
+              <div className="flex flex-col items-start">
+                <div className="flex items-center gap-2">
+                  <Folder size={16} />
+                  <span>Local Files</span>
+                </div>
+                <span className="text-xs text-muted-foreground ml-6">
+                  Store in your files
+                </span>
+              </div>
+            )}
+          </Button>
+          {(onAddNew || canInstallInline) && (
             <Button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleCreateConnection();
               }}
-              disabled={isInstalling}
+              disabled={busy}
               variant="ghost"
               className="w-full justify-start gap-2 px-2 py-2 h-auto hover:bg-muted rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
@@ -297,16 +427,12 @@ function BindingSelector({
               ) : (
                 <>
                   <Plus size={16} />
-                  <span>
-                    {canInstallInline
-                      ? "Custom Connection"
-                      : "Custom Connection"}
-                  </span>
+                  <span>Custom Connection</span>
                 </>
               )}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </SelectContent>
     </Select>
   );

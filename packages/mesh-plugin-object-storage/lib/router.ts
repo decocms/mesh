@@ -6,6 +6,7 @@
  */
 
 import { createPluginRouter } from "@decocms/bindings/plugins";
+import { Outlet } from "@tanstack/react-router";
 import * as z from "zod";
 
 /**
@@ -26,12 +27,20 @@ export type FileBrowserSearch = z.infer<typeof fileBrowserSearchSchema>;
 export const objectStorageRouter = createPluginRouter((ctx) => {
   const { createRoute, lazyRouteComponent } = ctx.routing;
 
-  const indexRoute = createRoute({
+  // Pathless layout route — uses id instead of path to avoid
+  // duplicate "/" collision with other plugins (e.g. site-editor).
+  const layoutRoute = createRoute({
     getParentRoute: () => ctx.parentRoute,
+    id: "object-storage-layout",
+    component: Outlet,
+  });
+
+  const indexRoute = createRoute({
+    getParentRoute: () => layoutRoute,
     path: "/",
     component: lazyRouteComponent(() => import("../components/file-browser")),
     validateSearch: fileBrowserSearchSchema,
   });
 
-  return [indexRoute];
+  return [layoutRoute.addChildren([indexRoute])];
 });

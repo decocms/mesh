@@ -5,14 +5,29 @@
  * Uses the plugin's renderHeader/renderEmptyState if defined, otherwise falls back to Outlet.
  */
 
-import { Outlet, useParams } from "@tanstack/react-router";
+import type { Binder } from "@decocms/bindings";
+import type { ClientPlugin } from "@decocms/bindings/plugins";
+import { Outlet, useLocation, useParams } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { Loading01 } from "@untitledui/icons";
 import { sourcePlugins } from "../plugins";
 import { PluginLayout } from "./plugin-layout";
 
+/**
+ * Extracts the pluginId from URL params (catch-all $pluginId route) or from
+ * the pathname (per-plugin static routes like /site-editor, /object-storage).
+ * The pluginId is always the 3rd path segment: /$org/$project/$pluginId/...
+ */
+function usePluginId(): string {
+  const params = useParams({ strict: false }) as { pluginId?: string };
+  const location = useLocation();
+  if (params.pluginId) return params.pluginId;
+  const segments = location.pathname.split("/").filter(Boolean);
+  return segments[2] ?? "";
+}
+
 export default function DynamicPluginLayout() {
-  const { pluginId } = useParams({ strict: false }) as { pluginId: string };
+  const pluginId = usePluginId();
 
   // Find the plugin by ID
   const plugin = sourcePlugins.find((p) => p.id === pluginId);
@@ -31,11 +46,7 @@ export default function DynamicPluginLayout() {
           </div>
         }
       >
-        <PluginLayout
-          binding={plugin.binding}
-          renderHeader={plugin.renderHeader}
-          renderEmptyState={plugin.renderEmptyState}
-        />
+        <PluginLayoutWithOverride plugin={plugin} />
       </Suspense>
     );
   }
@@ -60,5 +71,29 @@ export default function DynamicPluginLayout() {
     >
       <LayoutComponent />
     </Suspense>
+  );
+}
+
+/**
+ * Wrapper that calls plugin.useConnectionId() (if defined) to provide
+ * a connectionIdOverride to PluginLayout. Separated into its own component
+ * because hooks must be called at the top level of a React component.
+ */
+function PluginLayoutWithOverride({
+  plugin,
+}: {
+  plugin: ClientPlugin<Binder>;
+}) {
+  const connectionIdOverride = plugin.useConnectionId
+    ? plugin.useConnectionId()
+    : undefined;
+
+  return (
+    <PluginLayout
+      binding={plugin.binding!}
+      renderHeader={plugin.renderHeader!}
+      renderEmptyState={plugin.renderEmptyState!}
+      connectionIdOverride={connectionIdOverride}
+    />
   );
 }

@@ -1,0 +1,36 @@
+{
+  "id": "loaders--products",
+  "type": "loader",
+  "title": "Products",
+  "description": "Fetches product data from an API",
+  "category": "loaders",
+  "filePath": "app/loaders/products.ts",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "limit": {
+        "type": "number",
+        "description": "Maximum number of products to return"
+      },
+      "category": { "type": "string", "description": "Category filter" }
+    }
+  },
+  "outputSchema": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "image"]
+    }
+  },
+  "defaults": { "limit": 10 },
+  "metadata": {
+    "customized": false,
+    "lastScanned": "2026-01-01T00:00:00.000Z"
+  }
+}
