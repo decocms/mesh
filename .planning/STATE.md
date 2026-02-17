@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Phase: 09.1 - Multi-Site Support
-Plan: 0 — not yet planned
-Status: Phases 1–9 complete, phase 09.1 next (inserted)
-Last activity: 2026-02-16 — Inserted phase 09.1 for multi-site support
+Plan: 1 of 2 complete
+Status: Executing phase 09.1 plans
+Last activity: 2026-02-17 — Completed 09.1-01-PLAN.md (site store, dirty state, unsaved dialog)
 
 Progress: [█████████████████░░░] 82% (9/11 phases complete)
 
@@ -86,6 +86,11 @@ From phase 9 plan 2:
 - notifyRef pattern stores subscribe callback for timer-driven re-renders from handleIframeLoad
 - 5-second disconnect timeout balances fast detection with slow dev server startup
 
+From phase 09.1 plan 1:
+- Site store uses same useSyncExternalStore pattern as editor-client.ts for consistency
+- Dirty state is a simple module-level boolean, not a reactive store, since it only needs synchronous reads
+- markDirty/markClean bracket pattern around async save operations in PageComposer
+
 ### Roadmap Evolution
 
 - Phase 09.1 inserted after Phase 9: Multi-Site Support — toggle between multiple site connections in the top bar (URGENT)
@@ -101,6 +106,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 09-02-PLAN.md (Phase 9 complete)
-Resume file: .planning/phases/09-preview-bridge/09-02-SUMMARY.md
+Last session: 2026-02-17
+Stopped at: Completed 09.1-01-PLAN.md
+Resume file: .planning/phases/09.1-multi-site-support/09.1-01-SUMMARY.md
