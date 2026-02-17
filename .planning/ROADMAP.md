@@ -160,7 +160,7 @@ Plans:
 **Goal:** Users can toggle between multiple site connections in the top bar, switch the active site via a command palette, and see connection status — enabling management of multiple sites from one project
 **Depends on:** Phase 9
 **Requirements:** MULTI-SITE-STORE, MULTI-SITE-DIRTY, MULTI-SITE-SWITCHER, MULTI-SITE-LAYOUT, MULTI-SITE-LIFECYCLE
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 09.1-01-PLAN.md — Site store (useSyncExternalStore), dirty-state API, unsaved changes dialog
@@ -195,5 +195,5 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09
 | 7. Sections Page | 2/2 | Complete | 2026-02-15 |
 | 8. Loaders Page | 1/1 | Complete | 2026-02-16 |
 | 9. Preview Bridge | 2/2 | Complete | 2026-02-16 |
-| 09.1. Multi-Site Support | 0/? | Pending | — |
+| 09.1. Multi-Site Support | 0/? | Complete    | 2026-02-17 |
 | 10. Documentation & Validation | 0/2 | Pending | — |
