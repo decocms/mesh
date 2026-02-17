@@ -259,6 +259,13 @@ export function PluginLayout({
   // Must be called before early returns to satisfy React's Rules of Hooks.
   // undefined = not yet discovered, null = discovery failed/not applicable, string = root path.
   const rootDirRef = useRef<string | null | undefined>(undefined);
+  const prevConnectionIdRef = useRef<string | null | undefined>(undefined);
+
+  // Reset cached root dir when connection changes (multi-site switching)
+  if (prevConnectionIdRef.current !== configuredConnectionId) {
+    prevConnectionIdRef.current = configuredConnectionId;
+    rootDirRef.current = undefined;
+  }
 
   // Build session for context (always available)
   const session: PluginSession | null = authSession?.user
