@@ -31,6 +31,7 @@ import {
   Plus,
   XCircle,
 } from "@untitledui/icons";
+import { GitCommit } from "lucide-react";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
 import { markDirty, markClean, registerFlush } from "../lib/dirty-state";
@@ -48,12 +49,14 @@ import { getBlock } from "../lib/block-api";
 import { useUndoRedo } from "../lib/use-undo-redo";
 import { usePendingChanges } from "../lib/use-pending-changes";
 import { discardPageChanges } from "../lib/pending-changes-api";
+import { getDiff, gitCommit, generateCommitMessage } from "../lib/git-api";
 import { PreviewPanel } from "./preview-panel";
 import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
 import { PropEditor } from "./prop-editor";
 import { SectionListSidebar } from "./section-list-sidebar";
 import { BlockPicker } from "./block-picker";
 import { LoaderPicker } from "./loader-picker";
+import { CommitDialog } from "./commit-dialog";
 import PageHistory from "./page-history";
 
 export default function PageComposer() {
@@ -77,6 +80,15 @@ export default function PageComposer() {
   const [activeLocale, setActiveLocale] = useState<string | null>(null);
   const [newLocaleInput, setNewLocaleInput] = useState("");
   const [showNewLocale, setShowNewLocale] = useState(false);
+
+  // Commit flow state
+  type CommitState =
+    | { mode: "idle" }
+    | { mode: "generating" }
+    | { mode: "editing"; generatedMessage: string }
+    | { mode: "committing"; message: string };
+
+  const [commitState, setCommitState] = useState<CommitState>({ mode: "idle" });
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref holding the current handleSave so registerFlush can call it.
@@ -410,6 +422,54 @@ export default function PageComposer() {
     }
   };
 
+  // Start commit flow: fetch diff → call Haiku → show editable textarea
+  const handleCommitClick = async () => {
+    setCommitState({ mode: "generating" });
+
+    // 1. Get the git diff
+    const diff = await getDiff(toolCaller);
+
+    // 2. Generate commit message (server-side Haiku call)
+    // Both may fail gracefully — we fall back to empty string
+    const generatedMessage = diff
+      ? ((await generateCommitMessage(diff)) ?? "")
+      : "";
+
+    setCommitState({ mode: "editing", generatedMessage });
+  };
+
+  // User cancelled commit dialog
+  const handleCommitCancel = () => {
+    setCommitState({ mode: "idle" });
+  };
+
+  // User confirmed commit with final message
+  const handleCommitConfirm = async (message: string) => {
+    setCommitState({ mode: "committing", message });
+
+    const result = await gitCommit(toolCaller, message);
+
+    if (result) {
+      toast.success(
+        `Committed: ${result.hash.slice(0, 7)} — ${result.message}`,
+      );
+    } else {
+      toast.error("Commit failed. Is GIT_COMMIT supported by this site?");
+    }
+
+    // Reset commit state
+    setCommitState({ mode: "idle" });
+
+    // Invalidate pending changes → isDirty clears → badges clear → Commit button hides
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.pendingChanges.page(connectionId, pageId),
+    });
+    // Also invalidate pages to sync UI
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
+    });
+  };
+
   // Restore a deleted section from the committed (HEAD) version
   const handleUndelete = (block: BlockInstance) => {
     const updatedBlocks = [...blocks, block];
@@ -615,17 +675,44 @@ export default function PageComposer() {
           >
             <Clock size={16} />
           </Button>
-          {gitIsDirty && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={handleDiscard}
-              title="Discard all uncommitted changes to this page"
-            >
-              <XCircle size={14} className="mr-1" />
-              Discard changes
-            </Button>
+          {gitIsDirty && commitState.mode === "idle" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCommitClick}
+                title="Generate commit message and commit all changes"
+              >
+                <GitCommit size={14} className="mr-1" />
+                Commit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={handleDiscard}
+                title="Discard all uncommitted changes to this page"
+              >
+                <XCircle size={14} className="mr-1" />
+                Discard changes
+              </Button>
+            </>
+          )}
+
+          {/* Inline commit dialog — shown when commit flow is in progress */}
+          {commitState.mode !== "idle" && (
+            <CommitDialog
+              key={commitState.mode === "editing" ? "editing" : "generating"}
+              initialMessage={
+                commitState.mode === "editing"
+                  ? commitState.generatedMessage
+                  : ""
+              }
+              isGenerating={commitState.mode === "generating"}
+              isCommitting={commitState.mode === "committing"}
+              onConfirm={handleCommitConfirm}
+              onCancel={handleCommitCancel}
+            />
           )}
           <Button size="sm" onClick={handleSave}>
             <Save01 size={14} className="mr-1" />

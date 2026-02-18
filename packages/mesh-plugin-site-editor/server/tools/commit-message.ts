@@ -9,8 +9,14 @@
  * Requires ANTHROPIC_API_KEY environment variable. Returns { message: "" } if not set.
  */
 
-import type { Hono } from "hono";
-import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
+import type {
+  ServerPlugin,
+  ServerPluginContext,
+} from "@decocms/bindings/server-plugin";
+
+// Extract the Hono app type from the ServerPlugin routes signature
+// to avoid a direct `hono` package dependency from the plugin.
+type HonoApp = NonNullable<Parameters<NonNullable<ServerPlugin["routes"]>>[0]>;
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
@@ -33,7 +39,7 @@ Examples:
 Git diff:`;
 
 export function registerCommitMessageRoute(
-  app: Hono,
+  app: HonoApp,
   _ctx: ServerPluginContext,
 ): void {
   app.post("/commit-message", async (c) => {
@@ -44,7 +50,7 @@ export function registerCommitMessageRoute(
 
     let diff: string;
     try {
-      const body = await c.req.json<{ diff?: string }>();
+      const body = (await c.req.json()) as { diff?: string };
       diff = body.diff ?? "";
     } catch {
       return c.json({ error: "Invalid request body" }, 400);
