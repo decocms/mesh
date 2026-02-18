@@ -139,7 +139,7 @@ export function createSubtaskTool(
       );
 
       // ── 3. Load tools, excluding ones that shouldn't nest ──────────
-      const mcpTools = await toolsFromMCP(mcpClient, writer);
+      const mcpTools = await toolsFromMCP(mcpClient, writer, "yolo");
       const subagentTools = Object.fromEntries(
         Object.entries(mcpTools).filter(
           ([name]) => !SUBAGENT_EXCLUDED_TOOLS.includes(name),
@@ -205,12 +205,11 @@ export function createSubtaskTool(
         };
       }
 
-      const parts = message.parts ?? [];
-      const textParts = parts.filter(
+      
+      const lastTextPart = message.parts?.findLast(
         (p): p is { type: "text"; text: string } =>
           "type" in p && p.type === "text" && "text" in p,
       );
-      const lastTextPart = textParts.pop();
 
       return {
         type: "text" as const,
