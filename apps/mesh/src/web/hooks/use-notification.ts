@@ -1,3 +1,5 @@
+import { toast } from "@deco/ui/components/sonner.js";
+
 const notificationAudio = (() => {
   if (typeof window === "undefined") return null;
   const audio = new Audio("/sounds/notification.mp3");
@@ -9,10 +11,6 @@ const notificationAudio = (() => {
   return audio;
 })();
 
-// Track last play time to prevent overlapping sounds
-let lastPlayTime = 0;
-const MIN_PLAY_INTERVAL_MS = 2000; // 2 seconds cooldown
-
 interface NotificationOptions {
   title: string;
   body?: string;
@@ -21,24 +19,23 @@ interface NotificationOptions {
 }
 
 export function useNotification() {
-  const showNotification = (options: NotificationOptions) => {
+  const showNotification = async (options: NotificationOptions) => {
     const { title, body, icon = "/favicon.svg", tag } = options;
 
-    // Check if we should show notifications (all conditions must be met)
-    const shouldNotify =
-      typeof document !== "undefined" &&
-      !document.hasFocus() &&
-      typeof Notification !== "undefined" &&
-      Notification.permission === "granted";
-
-    if (!shouldNotify) return;
-
-    // Check debounce to prevent overlapping notifications
-    const now = Date.now();
-    if (now - lastPlayTime < MIN_PLAY_INTERVAL_MS) {
-      return; // Too soon since last notification
+    // If notifications are not granted, request permission so next time we can show notifications
+    if (Notification?.permission !== "granted") {
+      Notification?.requestPermission().then((result) => {
+        if (result === "denied") {
+          toast.error(
+            "Notifications denied. Please enable them in your browser settings.",
+          );
+        }
+      });
+      return;
     }
-    lastPlayTime = now;
+
+    // Check if we should show notifications (document must be focused)
+    if (!document?.hasFocus()) return;
 
     // Play notification sound
     if (notificationAudio) {
