@@ -22,6 +22,13 @@ This roadmap delivers a stack-agnostic CMS as a Mesh plugin, progressing from pl
 - [x] **Phase 9: Preview Bridge** - Dead code cleanup and unified iframe communication
 - [ ] **Phase 10: Documentation & Validation** - Blocks framework spec and anjo.chat reference validation
 
+### v1.2 — Git-Native Editing
+
+- [ ] **Phase 11: Git SITE_BINDING Tools** - GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT in local-fs MCP and SITE_BINDING declaration
+- [ ] **Phase 12: Pending Changes UI** - Section list diff status (deleted/new/edited), per-section undelete, and global discard
+- [ ] **Phase 13: Commit Flow** - Explicit commit button, AI-generated message via Gemini Flash, real git commit
+- [ ] **Phase 14: History Panel** - Commit list per page, iframe version preview, and non-destructive revert
+
 ## Phase Details
 
 ### Phase 1: Plugin Shell
@@ -179,10 +186,69 @@ Plans:
 - [ ] 10-01-PLAN.md -- Write BLOCKS_FRAMEWORK.md with complete conventions, schemas, and integration guide
 - [ ] 10-02-PLAN.md -- Validate anjo.chat end-to-end: connection, sections, loaders, preview, click-to-select, prop editing
 
+### Phase 11: Git SITE_BINDING Tools
+**Goal**: The local-fs MCP exposes git operations as MCP tools and SITE_BINDING declares them, giving the editor a complete server-side git API to build on
+**Depends on**: Phase 10
+**Requirements**: DIFF-01, DIFF-02, DIFF-03, DIFF-04, DIFF-05, COMMIT-01, COMMIT-02, COMMIT-03, HIST-01, HIST-02, HIST-03
+**Success Criteria** (what must be TRUE):
+  1. GIT_STATUS tool returns working-tree status for a given path, distinguishing modified, added, deleted, and untracked files
+  2. GIT_DIFF tool returns the unified diff between the working tree and HEAD for a given file path
+  3. GIT_LOG tool returns a list of commits that touched a given file, with hash, author, date, and message
+  4. GIT_SHOW tool returns the contents of a file at a specific commit hash
+  5. GIT_CHECKOUT tool reverts a given file to HEAD (or to a specified commit), discarding working-tree changes
+  6. GIT_COMMIT tool stages and commits all tracked changes with a provided message, returning the new commit hash
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01-PLAN.md -- Implement GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT in local-fs MCP server and extend SITE_BINDING declaration
+
+### Phase 12: Pending Changes UI
+**Goal**: Users can see at a glance which sections on the current page are new, modified, or deleted relative to the last commit, and can restore or discard those changes
+**Depends on**: Phase 11
+**Requirements**: DIFF-01, DIFF-02, DIFF-03, DIFF-04, DIFF-05
+**Success Criteria** (what must be TRUE):
+  1. Sections deleted from the page but not yet committed appear in the section list as greyed-out entries with a "(deleted)" indicator
+  2. Sections newly added but not yet committed show a "(new)" badge in the section list
+  3. Sections whose props changed but are not yet committed show an "(edited)" indicator in the section list
+  4. User can click "Undelete" on a greyed-out deleted section to restore it, removing the deletion from the working tree
+  5. User can click "Discard changes" to run GIT_CHECKOUT on the current page file, reverting all pending edits in one action
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01-PLAN.md -- GIT_STATUS + GIT_DIFF integration: parse diff output into per-section status, augment section list with status badges
+- [ ] 12-02-PLAN.md -- Undelete action (restore section from HEAD diff) and Discard changes action (GIT_CHECKOUT page file)
+
+### Phase 13: Commit Flow
+**Goal**: Users can explicitly commit all pending page changes with an AI-generated commit message, creating a real git commit in the connected repository
+**Depends on**: Phase 12
+**Requirements**: COMMIT-01, COMMIT-02, COMMIT-03
+**Success Criteria** (what must be TRUE):
+  1. A Commit button appears in the editor toolbar when there are pending changes (and is absent or disabled when the working tree is clean)
+  2. Clicking Commit triggers an AI call (Gemini Flash or equivalent) that generates a descriptive commit message from the diff, displayed to the user before confirming
+  3. Confirming the commit runs GIT_COMMIT in the connected site's repository and the section list clears all diff status indicators
+**Plans**: TBD
+
+Plans:
+- [ ] 13-01-PLAN.md -- Commit button in toolbar (visible only with pending changes), AI message generation via Gemini Flash, GIT_COMMIT execution and post-commit state reset
+
+### Phase 14: History Panel
+**Goal**: Users can browse the full git history of the current page, preview any historical version in the iframe, and restore any past state as a new commit
+**Depends on**: Phase 11
+**Requirements**: HIST-01, HIST-02, HIST-03
+**Success Criteria** (what must be TRUE):
+  1. User can open a history panel for the current page that shows a chronological list of git commits that touched that page's JSON file, with commit hash, date, and message
+  2. User can click any commit in the list to load that historical version of the page into the iframe preview, replacing the live view for inspection
+  3. User can click "Revert here" on any historical version to write that page JSON to disk (triggering live preview update) and create a new git commit on top, preserving the full history
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01-PLAN.md -- History panel UI: GIT_LOG fetch, commit list rendering, GIT_SHOW on click, iframe preview of historical page JSON
+- [ ] 14-02-PLAN.md -- "Revert here" action: write historical JSON to disk via PUT_FILE, trigger GIT_COMMIT with revert message, refresh section list
+
 ## Progress
 
 **Execution Order:**
-v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09.1 -> 10
+v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09.1 -> 10. v1.2 phases execute in order: 11 -> 12 -> 13 -> 14 (12 and 14 can run in parallel after 11)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -195,5 +261,9 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09
 | 7. Sections Page | 2/2 | Complete | 2026-02-15 |
 | 8. Loaders Page | 1/1 | Complete | 2026-02-16 |
 | 9. Preview Bridge | 2/2 | Complete | 2026-02-16 |
-| 09.1. Multi-Site Support | 0/? | Complete    | 2026-02-17 |
+| 09.1. Multi-Site Support | 0/? | Complete | 2026-02-17 |
 | 10. Documentation & Validation | 0/2 | Pending | — |
+| 11. Git SITE_BINDING Tools | 0/1 | Not started | — |
+| 12. Pending Changes UI | 0/2 | Not started | — |
+| 13. Commit Flow | 0/1 | Not started | — |
+| 14. History Panel | 0/2 | Not started | — |

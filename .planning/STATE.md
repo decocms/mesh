@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 11 — Git SITE_BINDING Tools
 Plan: —
-Status: Defining requirements
-Last activity: 2026-02-18 — Milestone v1.2 Git-Native Editing started
+Status: Ready to plan
+Last activity: 2026-02-18 — v1.2 roadmap created (phases 11-14)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/? phases complete)
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases complete)
 
 ## Performance Metrics
 
@@ -25,6 +25,10 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/?
 
 **v1.1 Target:**
 - Estimated plans: 7
+- Estimated duration: ~0.5 hours
+
+**v1.2 Target:**
+- Estimated plans: 6
 - Estimated duration: ~0.5 hours
 
 ## Accumulated Context
@@ -105,6 +109,7 @@ From phase 10 plan 1:
 ### Roadmap Evolution
 
 - Phase 09.1 inserted after Phase 9: Multi-Site Support — toggle between multiple site connections in the top bar (URGENT)
+- v1.2 phases 11-14 added: Git SITE_BINDING tools, pending changes UI, commit flow, history panel
 
 ### Pending Todos
 
@@ -112,11 +117,12 @@ None.
 
 ### Blockers/Concerns
 
-- Phase 6-9 must complete before Phase 10 validation
-- anjo.chat must have `.deco/blocks/` and `.deco/loaders/` from prior manual setup
+- Phase 10 (Documentation & Validation) should complete before v1.2 begins, but phases 11-14 are independent enough to start in parallel
+- Phase 11 (git tools in local-fs MCP at ../mcps) is the critical dependency — phases 12, 13, 14 all block on it
+- Phase 12 and Phase 14 can execute in parallel once Phase 11 is complete
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: v1.1 milestone complete — all 11 phases done
-Resume file: .planning/phases/10-documentation-validation/10-02-SUMMARY.md
+Last session: 2026-02-18
+Stopped at: v1.2 roadmap created — ready to plan Phase 11
+Resume file: .planning/ROADMAP.md (phases 11-14)

@@ -50,23 +50,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIFF-01 | — | Pending |
-| DIFF-02 | — | Pending |
-| DIFF-03 | — | Pending |
-| DIFF-04 | — | Pending |
-| DIFF-05 | — | Pending |
-| COMMIT-01 | — | Pending |
-| COMMIT-02 | — | Pending |
-| COMMIT-03 | — | Pending |
-| HIST-01 | — | Pending |
-| HIST-02 | — | Pending |
-| HIST-03 | — | Pending |
+| DIFF-01 | Phase 12 | Pending |
+| DIFF-02 | Phase 12 | Pending |
+| DIFF-03 | Phase 12 | Pending |
+| DIFF-04 | Phase 12 | Pending |
+| DIFF-05 | Phase 12 | Pending |
+| COMMIT-01 | Phase 13 | Pending |
+| COMMIT-02 | Phase 13 | Pending |
+| COMMIT-03 | Phase 13 | Pending |
+| HIST-01 | Phase 14 | Pending |
+| HIST-02 | Phase 14 | Pending |
+| HIST-03 | Phase 14 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11 ⚠️
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-14*
-*Last updated: 2026-02-18 after v1.2 milestone start*
+*Last updated: 2026-02-18 after v1.2 roadmap creation*
