@@ -1,47 +1,58 @@
 # Phase 10 Validation Results
 
 Date: 2026-02-17
+Test site: ../hypercouple (local STDIO connection)
 
-**Method:** Code-level validation (static analysis of source files, data files, TypeScript compilation). Runtime UI verification deferred to Task 2 human-verify checkpoint.
+## Runtime Validation (Manual Testing)
 
 | ID | Description | Result | Notes |
 |----|-------------|--------|-------|
-| V-01 | Connection Setup | PASS (code) | `plugin-empty-state.tsx` implements inline wizard with path validation (FILESYSTEM_VALIDATE_PROJECT), STDIO connection creation, and metadata persistence. Phase state machine (form/connecting/success) handles flow. anjo.chat path `/Users/guilherme/Projects/anjo.chat` has valid tsconfig.json and package.json. |
-| V-02 | Tunnel / Preview URL Detection | PASS (code) | `use-tunnel-url.ts` reads `metadata.previewUrl` from connection entity. `preview-panel.tsx` shows URL input form when no URL set, displays URL in toolbar when set. URL persisted via COLLECTION_CONNECTIONS_UPDATE. |
-| V-03 | Block Scanning | PASS (code) | `discover.ts` scanner finds .tsx files with default-exported functions with typed props. anjo.chat has 9 block JSON files in `.deco/blocks/` (Hero, Header, Footer, FooterCTA, FeaturedAngels, PitchBox, About, Testimonial, BecomeAnAngel). Each has valid schema, defaults, and metadata. |
-| V-04 | Sections List View | PASS (code) | `sections-list.tsx` groups blocks by category with Collapsible components and Set-based open state tracking. Shows block name, category badge, and component path in table rows. Re-scan button calls CMS_BLOCK_SCAN via selfClient. Empty state with scan CTA when no blocks found. |
-| V-05 | Section Detail View | PASS (code) | `block-detail.tsx` has two-column layout: SchemaTree on left, PropEditor (RJSF) on right. Breadcrumb navigation. Metadata bar shows scan method, timestamp, props type, prop count. Handles missing schema gracefully with raw JSON fallback. |
-| V-06 | Loaders List (Empty State) | PASS (code) | `loaders-list.tsx` handles `loaders.length === 0` with clean empty state: Search icon, "No loaders found" heading, description text, and "Scan Codebase" button. anjo.chat has no `.deco/loaders/` directory, confirming empty state will render. No crash path. |
-| V-07 | Live Preview Rendering | PASS (code) | `preview-panel.tsx` renders iframe with `src={previewUrl}` pointing to the site's dev server URL. `decoEditorBridgePlugin()` in anjo.chat's `vite.config.ts` injects bridge script into HTML via both `transformIndexHtml` (SPA) and `configureServer` middleware (SSR). Bridge sends `deco:ready` on init. anjo.chat's `home.tsx` renders blocks with `data-block-id` attributes. |
-| V-08 | Click-to-Select | PASS (code) | Bridge's `editClickHandler` captures clicks, walks DOM to find `data-block-id`, sends `deco:block-clicked` with blockId and rect. `useIframeBridge` receives message, calls `onBlockClicked`. `PageComposer` toggles `selectedBlockId` state, which opens PropEditor in right panel. Hover overlay also implemented via `deco:block-hover`. |
-| V-09 | Prop Editing with Live Update | PASS (code) | `PageComposer.handlePropChange` immediately sends `deco:update-block` to iframe via bridge. Bridge dispatches `CustomEvent("deco:update-block")`. anjo.chat's `useEditorBlocks()` hook listens for this event and updates `blocksRef.current`, triggering re-render via `useSyncExternalStore`. Props flow: editor -> postMessage -> CustomEvent -> React state -> re-render. |
-| V-10 | Save to Git | PASS (code) | `PageComposer.debouncedSave` calls `updatePage()` after 2s debounce. `updatePage` reads current file via `READ_FILE`, merges updates, writes back via `PUT_FILE` to `.deco/pages/page_home.json`. Manual save button calls `handleSave` which flushes immediately. `markDirty/markClean` bracket pattern tracks unsaved state. |
+| V-01 | Connection Setup | PASS | Inline wizard validates path, creates STDIO connection, transitions to connected state |
+| V-02 | Tunnel / Preview URL | SKIP | Not tested — hypercouple uses local dev server, tunnel detection not exercised |
+| V-03 | Block Scanning | PASS | Scanner discovers components, writes `.deco/blocks/` JSON files |
+| V-04 | Sections List View | PASS | Blocks visible with category grouping, collapsible categories work |
+| V-05 | Section Detail View | PASS | Two-column layout renders SchemaTree + PropEditor correctly |
+| V-06 | Loaders List (Empty) | PASS | Loaders page renders without errors (empty state) |
+| V-07 | Live Preview | KNOWN ISSUE | Bridge/STDIO connection disconnects intermittently — separate infrastructure concern |
+| V-08 | Click-to-Select | KNOWN ISSUE | Depends on stable bridge connection (V-07) |
+| V-09 | Prop Editing Live | KNOWN ISSUE | Depends on stable bridge connection (V-07) |
+| V-10 | Save to Git | KNOWN ISSUE | Depends on stable bridge connection (V-07) |
 
-## Validation Summary
+## Bugs Fixed (this session)
 
-**All 10 items: PASS (code-level)**
+### BUG-01: PluginLayout binding check blocks new STDIO connections
+- File: `apps/mesh/src/web/layouts/plugin-layout.tsx`
+- Symptom: Connection created but plugin stays on empty state
+- Root cause: `configuredConnection` looked up from binding-filtered `validConnections`; new STDIO connections have empty tools array so `connectionImplementsBinding` returns false
+- Fix: Look up from `allConnections` directly instead of `validConnections`
 
-TypeScript compilation passes cleanly for both `mesh-plugin-site-editor` and `vite-plugin-deco` packages. No type errors found. Biome formatting is clean (no changes needed).
+### BUG-02: pluginId undefined on static plugin routes
+- File: `packages/mesh-plugin-site-editor/client/components/plugin-empty-state.tsx`
+- Symptom: Connection created (step 1) but config never saved (step 2 fails silently)
+- Root cause: `useParams({ strict: false })` returns undefined for `pluginId` on static routes like `/site-editor` (only `/$pluginId` catch-all has it); `PROJECT_PLUGIN_CONFIG_UPDATE` fails zod validation
+- Fix: Added URL path fallback: `params.pluginId ?? location.pathname.split("/").filter(Boolean)[2] ?? ""`
 
-The code paths for all validation items are complete and correctly wired:
-- Connection setup wizard validates path, creates STDIO connection, persists projectPath in metadata
-- Block scanner discovers components via ts-morph, writes JSON to `.deco/blocks/`
-- anjo.chat has 9 scanned blocks and 2 page variants (default + en-US)
-- Sections list groups by category with collapsible UI
-- Loaders list handles empty state gracefully
-- Preview panel renders iframe with bridge injection (both SPA and SSR paths)
-- Click-to-select uses data-block-id DOM traversal + postMessage protocol
-- Live prop editing flows: editor -> postMessage -> CustomEvent -> React state -> re-render
-- Save persists to `.deco/pages/` via READ_FILE + PUT_FILE MCP tools
+### BUG-03: Sidebar navigation ignores plugin sub-paths
+- Files: `packages/bindings/src/core/plugins.ts`, `apps/mesh/src/web/hooks/use-project-sidebar-items.tsx`, `apps/mesh/src/web/index.tsx`, `packages/mesh-plugin-site-editor/client/index.tsx`
+- Symptom: Clicking Sections or Loaders in sidebar always shows Pages page
+- Root cause: All sidebar group items navigated to plugin root URL with no sub-path support
+- Fix: Added `path` field to `RegisterRootSidebarItemParams`, set paths on CMS items (`/`, `/sections`, `/loaders`), updated navigation to append item path
 
-## Bugs Fixed
-
-None found during code review. All code paths are correctly implemented.
+### BUG-04: Block detail crashes on blocks without metadata
+- File: `packages/mesh-plugin-site-editor/client/components/block-detail.tsx`
+- Symptom: "Cannot read properties of undefined (reading 'scanMethod')" when clicking a section
+- Root cause: Block JSON files from hypercouple don't have `metadata` field; code accessed `block.metadata.scanMethod` without null check
+- Fix: Added optional chaining (`block.metadata?.scanMethod`, etc.) with conditional rendering
 
 ## Known Issues
 
-None identified at the code level.
+### KNOWN-01: STDIO bridge disconnects intermittently
+- Symptom: MCP connection drops after short period, breaking preview/editing features
+- Scope: Infrastructure-level issue with STDIO connection management, not site-editor plugin
+- Impact: Blocks V-07 through V-10 validation
+- Workaround: Reconnect manually; items V-01 through V-06 work independently of bridge stability
 
-## Pending Runtime Verification
+## Code-Level Validation (Static Analysis)
 
-The above results are based on static code analysis. Full runtime verification (actually clicking through the UI, seeing the iframe render, editing props in real-time) requires the human-verify checkpoint in Task 2.
+All 10 items previously passed code-level validation (TypeScript compilation, code path analysis).
+See git history for full static analysis results.

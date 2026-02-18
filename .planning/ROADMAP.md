@@ -264,6 +264,6 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09
 | 09.1. Multi-Site Support | 0/? | Complete | 2026-02-17 |
 | 10. Documentation & Validation | 0/2 | Pending | — |
 | 11. Git SITE_BINDING Tools | 0/1 | Complete    | 2026-02-18 |
-| 12. Pending Changes UI | 0/2 | Not started | — |
-| 13. Commit Flow | 1/1 | Complete   | 2026-02-18 |
-| 14. History Panel | 2/2 | Complete   | 2026-02-18 |
+| 12. Pending Changes UI | 0/2 | Complete    | 2026-02-18 |
+| 13. Commit Flow | 1/1 | Complete    | 2026-02-18 |
+| 14. History Panel | 2/2 | Complete    | 2026-02-18 |
