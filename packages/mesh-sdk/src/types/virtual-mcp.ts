@@ -70,7 +70,10 @@ export const VirtualMCPEntitySchema = z.object({
   // Normalize null/undefined to { instructions: null } for consistent form tracking
   metadata: z
     .object({
-      instructions: z.string().nullable().describe("Instructions also used as system prompt"),
+      instructions: z
+        .string()
+        .nullable()
+        .describe("Instructions also used as system prompt"),
     })
     .loose()
     .describe("Metadata"),
