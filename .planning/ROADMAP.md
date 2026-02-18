@@ -26,7 +26,7 @@ This roadmap delivers a stack-agnostic CMS as a Mesh plugin, progressing from pl
 
 - [x] **Phase 11: Git SITE_BINDING Tools** - GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT in local-fs MCP and SITE_BINDING declaration (completed 2026-02-18)
 - [x] **Phase 12: Pending Changes UI** - Section list diff status (deleted/new/edited), per-section undelete, and global discard (completed 2026-02-18)
-- [ ] **Phase 13: Commit Flow** - Explicit commit button, AI-generated message via Gemini Flash, real git commit
+- [x] **Phase 13: Commit Flow** - Explicit commit button, AI-generated message via Gemini Flash, real git commit (completed 2026-02-18)
 - [ ] **Phase 14: History Panel** - Commit list per page, iframe version preview, and non-destructive revert
 
 ## Phase Details
@@ -265,5 +265,5 @@ v1.0 phases (1-5) complete. v1.1 phases execute in order: 6 -> 7 -> 8 -> 9 -> 09
 | 10. Documentation & Validation | 0/2 | Pending | — |
 | 11. Git SITE_BINDING Tools | 0/1 | Complete    | 2026-02-18 |
 | 12. Pending Changes UI | 0/2 | Not started | — |
-| 13. Commit Flow | 0/1 | Not started | — |
+| 13. Commit Flow | 1/1 | Complete   | 2026-02-18 |
 | 14. History Panel | 1/2 | In Progress|  |

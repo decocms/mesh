@@ -15,9 +15,9 @@
 
 ### Commit
 
-- [ ] **COMMIT-01**: User can commit all pending page changes via an explicit Commit button in the editor toolbar (no auto-commit)
-- [ ] **COMMIT-02**: The CMS auto-generates a commit message describing the changes using a cheap AI model (Gemini Flash or equivalent)
-- [ ] **COMMIT-03**: The commit creates a real git commit in the connected site's repository with the AI-generated message
+- [x] **COMMIT-01**: User can commit all pending page changes via an explicit Commit button in the editor toolbar (no auto-commit)
+- [x] **COMMIT-02**: The CMS auto-generates a commit message describing the changes using a cheap AI model (Gemini Flash or equivalent)
+- [x] **COMMIT-03**: The commit creates a real git commit in the connected site's repository with the AI-generated message
 
 ### History
 
@@ -55,9 +55,9 @@
 | DIFF-03 | Phase 12 | Complete |
 | DIFF-04 | Phase 12 | Complete |
 | DIFF-05 | Phase 12 | Complete |
-| COMMIT-01 | Phase 13 | Pending |
-| COMMIT-02 | Phase 13 | Pending |
-| COMMIT-03 | Phase 13 | Pending |
+| COMMIT-01 | Phase 13 | Complete |
+| COMMIT-02 | Phase 13 | Complete |
+| COMMIT-03 | Phase 13 | Complete |
 | HIST-01 | Phase 14 | Complete |
 | HIST-02 | Phase 14 | Complete |
 | HIST-03 | Phase 14 | Pending |

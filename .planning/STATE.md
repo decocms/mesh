@@ -111,6 +111,9 @@ From phase 14 plan 01:
 - previewingHash + loadingHash dual-state pattern for per-row loading without concurrent fetches
 - Amber banner used for historical version indicator (read-only preview mode signal)
 - PageHistory receives send + localPage from PageComposer for iframe bridge access
+- [Phase 13-commit-flow]: Anthropic API called via direct fetch on server side — no @ai-sdk/anthropic package needed
+- [Phase 13-commit-flow]: HonoApp type extracted from ServerPlugin['routes'] to avoid direct hono dep in plugin
+- [Phase 13-commit-flow]: CommitDialog uses key-based remount pattern (generating->editing) instead of useEffect to sync textarea
 
 ### Roadmap Evolution
 
