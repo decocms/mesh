@@ -10,12 +10,26 @@ export interface PrivateRegistryItemTable {
   tags: ColumnType<string | null, string | null, string | null>;
   categories: ColumnType<string | null, string | null, string | null>;
   is_public: ColumnType<number, number, number>;
+  is_unlisted: ColumnType<number, number, number>;
   created_at: ColumnType<string, string, string>;
   updated_at: ColumnType<string, string, string>;
   created_by: ColumnType<string | null, string | null, string | null>;
 }
 
 export type PublishRequestStatus = "pending" | "approved" | "rejected";
+export type TestRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export type TestResultStatus =
+  | "passed"
+  | "failed"
+  | "skipped"
+  | "error"
+  | "needs_auth";
+export type TestConnectionAuthStatus = "none" | "needs_auth" | "authenticated";
 
 export interface PublishRequestTable {
   id: string;
@@ -42,10 +56,56 @@ export interface PublishApiKeyTable {
   created_at: ColumnType<string, string, string>;
 }
 
+export interface TestRunTable {
+  id: string;
+  organization_id: string;
+  status: TestRunStatus;
+  config_snapshot: ColumnType<string | null, string | null, string | null>;
+  total_items: ColumnType<number, number, number>;
+  tested_items: ColumnType<number, number, number>;
+  passed_items: ColumnType<number, number, number>;
+  failed_items: ColumnType<number, number, number>;
+  skipped_items: ColumnType<number, number, number>;
+  current_item_id: ColumnType<string | null, string | null, string | null>;
+  started_at: ColumnType<string | null, string | null, string | null>;
+  finished_at: ColumnType<string | null, string | null, string | null>;
+  created_at: ColumnType<string, string, string>;
+}
+
+export interface TestResultTable {
+  id: string;
+  run_id: string;
+  organization_id: string;
+  item_id: string;
+  item_title: string;
+  status: TestResultStatus;
+  error_message: ColumnType<string | null, string | null, string | null>;
+  connection_ok: ColumnType<number, number, number>;
+  tools_listed: ColumnType<number, number, number>;
+  tool_results: ColumnType<string | null, string | null, string | null>;
+  agent_summary: ColumnType<string | null, string | null, string | null>;
+  duration_ms: ColumnType<number, number, number>;
+  action_taken: string;
+  tested_at: ColumnType<string, string, string>;
+}
+
+export interface TestConnectionTable {
+  id: string;
+  organization_id: string;
+  item_id: string;
+  connection_id: string;
+  auth_status: TestConnectionAuthStatus;
+  created_at: ColumnType<string, string, string>;
+  updated_at: ColumnType<string, string, string>;
+}
+
 export interface PrivateRegistryDatabase {
   private_registry_item: PrivateRegistryItemTable;
   private_registry_publish_request: PublishRequestTable;
   private_registry_publish_api_key: PublishApiKeyTable;
+  private_registry_test_run: TestRunTable;
+  private_registry_test_result: TestResultTable;
+  private_registry_test_connection: TestConnectionTable;
 }
 
 export interface RegistryToolMeta {
@@ -113,6 +173,7 @@ export interface PrivateRegistryItemEntity {
   _meta?: RegistryItemMeta;
   server: RegistryServerDefinition;
   is_public: boolean;
+  is_unlisted: boolean;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -126,6 +187,7 @@ export interface PrivateRegistryCreateInput {
   _meta?: RegistryItemMeta;
   server: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
   created_by?: string | null;
 }
 
@@ -135,6 +197,7 @@ export interface PrivateRegistryUpdateInput {
   _meta?: RegistryItemMeta;
   server?: RegistryServerDefinition;
   is_public?: boolean;
+  is_unlisted?: boolean;
 }
 
 export interface RegistryWhereExpression {
@@ -162,6 +225,7 @@ export interface PrivateRegistryListQuery {
   tags?: string[];
   categories?: string[];
   where?: RegistryWhereExpression;
+  includeUnlisted?: boolean;
 }
 
 export interface PrivateRegistryListResult {
@@ -178,6 +242,7 @@ export interface PrivateRegistrySearchItem {
   tags: string[];
   categories: string[];
   is_public: boolean;
+  is_unlisted: boolean;
 }
 
 export interface PrivateRegistrySearchQuery {
@@ -228,4 +293,73 @@ export interface PublishApiKeyEntity {
   name: string;
   prefix: string;
   created_at: string;
+}
+
+export interface TestToolResult {
+  toolName: string;
+  success: boolean;
+  durationMs: number;
+  input?: Record<string, unknown>;
+  outputPreview?: string | null;
+  error?: string | null;
+}
+
+export interface TestRunConfigSnapshot {
+  testMode: "health_check" | "tool_call" | "full_agent";
+  onFailure:
+    | "none"
+    | "unlisted"
+    | "remove_public"
+    | "remove_private"
+    | "remove_all";
+  agentPrompt?: string;
+  perMcpTimeoutMs?: number;
+  perToolTimeoutMs?: number;
+  llmConnectionId?: string;
+  llmModelId?: string;
+  testPublicOnly?: boolean;
+  testPrivateOnly?: boolean;
+}
+
+export interface TestRunEntity {
+  id: string;
+  organization_id: string;
+  status: TestRunStatus;
+  config_snapshot: TestRunConfigSnapshot | null;
+  total_items: number;
+  tested_items: number;
+  passed_items: number;
+  failed_items: number;
+  skipped_items: number;
+  current_item_id: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
+export interface TestResultEntity {
+  id: string;
+  run_id: string;
+  organization_id: string;
+  item_id: string;
+  item_title: string;
+  status: TestResultStatus;
+  error_message: string | null;
+  connection_ok: boolean;
+  tools_listed: boolean;
+  tool_results: TestToolResult[];
+  agent_summary: string | null;
+  duration_ms: number;
+  action_taken: string;
+  tested_at: string;
+}
+
+export interface TestConnectionEntity {
+  id: string;
+  organization_id: string;
+  item_id: string;
+  connection_id: string;
+  auth_status: TestConnectionAuthStatus;
+  created_at: string;
+  updated_at: string;
 }

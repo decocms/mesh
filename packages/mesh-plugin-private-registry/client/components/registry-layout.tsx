@@ -1,6 +1,6 @@
 import { useState, type ComponentType } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CheckCircle, Container, Settings01 } from "@untitledui/icons";
+import { CheckCircle, Container, Settings01, Tool02 } from "@untitledui/icons";
 import { PLUGIN_ID } from "../../shared";
 import {
   usePublishRequestCount,
@@ -9,13 +9,14 @@ import {
 import RegistryItemsPage from "./registry-items-page";
 import RegistryRequestsPage from "./registry-requests-page";
 import RegistrySettingsPage from "./registry-settings-page";
+import RegistryTestPage from "./registry-test-page";
 
 type NavItem = {
   id: string;
   label: string;
   count?: number;
   icon: ComponentType<{ size?: number; className?: string }>;
-  tab: "items" | "requests" | "settings";
+  tab: "items" | "requests" | "test" | "settings";
 };
 
 function HeaderTabs({
@@ -94,6 +95,7 @@ export default function RegistryLayout() {
           },
         ]
       : []),
+    { id: "test", label: "Test", icon: Tool02, tab: "test" },
     { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
   ];
 
@@ -137,6 +139,7 @@ export default function RegistryLayout() {
         {activeTab === "requests" && acceptPublishRequests && (
           <RegistryRequestsPage />
         )}
+        {activeTab === "test" && <RegistryTestPage />}
         {activeTab === "settings" && (
           <RegistrySettingsPage
             key={settingsKey}

@@ -16,6 +16,14 @@ import { REGISTRY_PUBLISH_REQUEST_DELETE } from "./publish-request-delete";
 import { REGISTRY_PUBLISH_API_KEY_GENERATE } from "./publish-api-key-generate";
 import { REGISTRY_PUBLISH_API_KEY_LIST } from "./publish-api-key-list";
 import { REGISTRY_PUBLISH_API_KEY_REVOKE } from "./publish-api-key-revoke";
+import { REGISTRY_TEST_RUN_START } from "./test-run-start";
+import { REGISTRY_TEST_RUN_LIST } from "./test-run-list";
+import { REGISTRY_TEST_RUN_GET } from "./test-run-get";
+import { REGISTRY_TEST_RUN_CANCEL } from "./test-run-cancel";
+import { REGISTRY_TEST_RESULT_LIST } from "./test-result-list";
+import { REGISTRY_TEST_CONNECTION_LIST } from "./test-connection-list";
+import { REGISTRY_TEST_CONNECTION_SYNC } from "./test-connection-sync";
+import { REGISTRY_TEST_CONNECTION_UPDATE_AUTH } from "./test-connection-update-auth";
 
 export const tools = [
   COLLECTION_REGISTRY_APP_LIST,
@@ -36,4 +44,12 @@ export const tools = [
   REGISTRY_PUBLISH_API_KEY_GENERATE,
   REGISTRY_PUBLISH_API_KEY_LIST,
   REGISTRY_PUBLISH_API_KEY_REVOKE,
+  REGISTRY_TEST_RUN_START,
+  REGISTRY_TEST_RUN_LIST,
+  REGISTRY_TEST_RUN_GET,
+  REGISTRY_TEST_RUN_CANCEL,
+  REGISTRY_TEST_RESULT_LIST,
+  REGISTRY_TEST_CONNECTION_LIST,
+  REGISTRY_TEST_CONNECTION_SYNC,
+  REGISTRY_TEST_CONNECTION_UPDATE_AUTH,
 ];
