@@ -198,22 +198,13 @@ export function createSubtaskTool(
       });
     },
     toModelOutput: ({ output: message }) => {
-      if (!message) {
-        return {
-          type: "text" as const,
-          value: "Subtask completed (no output).",
-        };
-      }
-
-      
-      const lastTextPart = message.parts?.findLast(
-        (p): p is { type: "text"; text: string } =>
-          "type" in p && p.type === "text" && "text" in p,
+      const lastTextPart = message?.parts?.findLast(
+        (p) => "type" in p && p.type === "text" && "text" in p,
       );
 
       return {
         type: "text" as const,
-        value: lastTextPart?.text ?? "Subtask completed.",
+        value: lastTextPart?.text ?? "Subtask completed (no output).",
       };
     },
   });
