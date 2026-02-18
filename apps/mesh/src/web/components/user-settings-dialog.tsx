@@ -131,7 +131,7 @@ export function UserSettingsDialog({
                   const checked = !preferences.enableNotifications;
                   if (checked) {
                     const result = await Notification.requestPermission();
-                    if (result === "denied") {
+                    if (result !== "granted") {
                       toast.error(
                         "Notifications denied. Please enable them in your browser settings.",
                       );
@@ -167,7 +167,7 @@ export function UserSettingsDialog({
                     onCheckedChange={async (checked) => {
                       if (checked) {
                         const result = await Notification.requestPermission();
-                        if (result === "denied") {
+                        if (result !== "granted") {
                           toast.error(
                             "Notifications denied. Please enable them in your browser settings.",
                           );
