@@ -8,6 +8,7 @@
 import type { ServerPlugin } from "@decocms/bindings/server-plugin";
 import { PLUGIN_ID, PLUGIN_DESCRIPTION } from "../shared";
 import { tools } from "./tools";
+import { registerCommitMessageRoute } from "./tools/commit-message";
 
 export const serverPlugin: ServerPlugin = {
   id: PLUGIN_ID,
@@ -15,4 +16,9 @@ export const serverPlugin: ServerPlugin = {
 
   // MCP tools (added in plan 01-03)
   tools,
+
+  // Authenticated API routes at /api/plugins/site-editor/*
+  routes: (app, ctx) => {
+    registerCommitMessageRoute(app, ctx);
+  },
 };
