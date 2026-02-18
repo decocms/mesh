@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import {
+  Bell01,
   Check,
   CheckDone01,
   Code01,
@@ -31,6 +32,7 @@ import {
 } from "@untitledui/icons";
 import { useState } from "react";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import { toast } from "@deco/ui/components/sonner.js";
 
 interface UserSettingsDialogProps {
   open: boolean;
@@ -54,6 +56,27 @@ export function UserSettingsDialog({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleNotificationsChange = async (checked: boolean) => {
+    if (checked) {
+      const result = await Notification.requestPermission();
+      if (result !== "granted") {
+        toast.error(
+          "Notifications denied. Please enable them in your browser settings.",
+        );
+        setPreferences((prev) => ({
+          ...prev,
+          enableNotifications: false,
+        }));
+        return;
+      }
+    }
+
+    setPreferences((prev) => ({
+      ...prev,
+      enableNotifications: checked,
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -68,8 +91,8 @@ export function UserSettingsDialog({
           </DialogClose>
         </DialogHeader>
 
-        <div className="flex flex-col">
-          <div className="p-5 space-y-6 min-h-[225px]">
+        <div className="flex flex-col overflow-y-hidden">
+          <div className="p-5 space-y-6 min-h-[225px] overflow-y-auto">
             {/* User Info Display */}
             <div className="flex items-center gap-4">
               <Avatar
@@ -119,6 +142,32 @@ export function UserSettingsDialog({
                     onCheckedChange={(checked) =>
                       setPreferences((prev) => ({ ...prev, devMode: checked }))
                     }
+                  />
+                </div>
+              </button>
+              <button
+                type="button"
+                disabled={typeof Notification === "undefined"}
+                onClick={() =>
+                  handleNotificationsChange(!preferences.enableNotifications)
+                }
+                className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
+              >
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2 pointer-events-none">
+                    <Bell01 size={16} className="text-muted-foreground" />
+                    Notifications
+                  </Label>
+                  <p className="text-xs text-muted-foreground pointer-events-none">
+                    Play a sound and show notifications when chat messages
+                    complete while app is unfocused
+                  </p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    disabled={typeof Notification === "undefined"}
+                    checked={preferences.enableNotifications}
+                    onCheckedChange={handleNotificationsChange}
                   />
                 </div>
               </button>

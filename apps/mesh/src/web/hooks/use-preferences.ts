@@ -8,6 +8,7 @@ interface Preferences {
   experimental_projects: boolean;
   experimental_tasks: boolean;
   toolApprovalLevel: ToolApprovalLevel;
+  enableNotifications: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -15,11 +16,12 @@ const DEFAULT_PREFERENCES: Preferences = {
   experimental_projects: false,
   experimental_tasks: false,
   toolApprovalLevel: "none",
+  enableNotifications: typeof Notification !== "undefined" ? true : false,
 };
 
 export function usePreferences() {
   return useLocalStorage<Preferences>(
     LOCALSTORAGE_KEYS.preferences(),
-    DEFAULT_PREFERENCES,
+    (existing) => ({ ...DEFAULT_PREFERENCES, ...existing }),
   );
 }

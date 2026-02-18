@@ -36,6 +36,7 @@ import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
+import { useNotification } from "../../hooks/use-notification";
 import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
@@ -601,6 +602,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
+  // Notification (sound + browser notification)
+  const { showNotification } = useNotification();
+
   // ===========================================================================
   // 2. DERIVED VALUES - Compute values from hook state
   // ===========================================================================
@@ -635,13 +639,28 @@ export function ChatProvider({ children }: PropsWithChildren) {
   }) => {
     chatDispatch({ type: "SET_FINISH_REASON", payload: finishReason ?? null });
 
-    if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
+    if (isAbort || isDisconnect || isError) {
       return;
     }
 
     const { thread_id } = message.metadata ?? {};
 
     if (!thread_id) {
+      return;
+    }
+
+    // Show notification (sound + browser popup) if enabled
+    if (preferences.enableNotifications) {
+      showNotification({
+        tag: `chat-${thread_id}`,
+        title: "Decopilot is waiting for your input at",
+        body:
+          threadManager.threads.find((t) => t.id === thread_id)?.title ??
+          "New chat",
+      });
+    }
+
+    if (finishReason !== "stop") {
       return;
     }
 
