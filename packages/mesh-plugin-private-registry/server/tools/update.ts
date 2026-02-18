@@ -5,8 +5,8 @@ import {
 } from "./schema";
 import { getPluginStorage, orgHandler } from "./utils";
 
-export const COLLECTION_REGISTRY_APP_UPDATE: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_UPDATE",
+export const REGISTRY_ITEM_UPDATE: ServerPluginToolDefinition = {
+  name: "REGISTRY_ITEM_UPDATE",
   description: "Update a private registry item",
   inputSchema: RegistryUpdateInputSchema,
   outputSchema: RegistryUpdateOutputSchema,

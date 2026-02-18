@@ -2,8 +2,8 @@ import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin
 import { RegistryGetInputSchema, RegistryGetOutputSchema } from "./schema";
 import { getPluginStorage, orgHandler } from "./utils";
 
-export const COLLECTION_REGISTRY_APP_GET: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_GET",
+export const REGISTRY_ITEM_GET: ServerPluginToolDefinition = {
+  name: "REGISTRY_ITEM_GET",
   description: "Get a private registry item by ID or name",
   inputSchema: RegistryGetInputSchema,
   outputSchema: RegistryGetOutputSchema,

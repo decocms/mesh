@@ -5,8 +5,8 @@ import {
 } from "./schema";
 import { getPluginStorage, orgHandler } from "./utils";
 
-export const COLLECTION_REGISTRY_APP_DELETE: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_DELETE",
+export const REGISTRY_ITEM_DELETE: ServerPluginToolDefinition = {
+  name: "REGISTRY_ITEM_DELETE",
   description: "Delete a private registry item",
   inputSchema: RegistryDeleteInputSchema,
   outputSchema: RegistryDeleteOutputSchema,

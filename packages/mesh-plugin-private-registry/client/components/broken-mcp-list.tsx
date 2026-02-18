@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
-import type { TestResult } from "../lib/types";
+import type { MonitorResult } from "../lib/types";
 import { cn } from "@deco/ui/lib/utils.ts";
 
-export function BrokenMCPList({ results }: { results: TestResult[] }) {
+export function BrokenMCPList({ results }: { results: MonitorResult[] }) {
   if (results.length === 0) {
     return (
       <Card className="p-4 text-sm text-muted-foreground text-center">
@@ -22,7 +22,7 @@ export function BrokenMCPList({ results }: { results: TestResult[] }) {
   );
 }
 
-function BrokenMCPCard({ result }: { result: TestResult }) {
+function BrokenMCPCard({ result }: { result: MonitorResult }) {
   const [expanded, setExpanded] = useState(false);
   const failedTools = result.tool_results.filter((t) => !t.success);
 

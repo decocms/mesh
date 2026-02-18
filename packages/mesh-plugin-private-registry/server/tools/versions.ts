@@ -3,8 +3,8 @@ import { z } from "zod";
 import { RegistryGetInputSchema, RegistryItemSchema } from "./schema";
 import { getPluginStorage, orgHandler } from "./utils";
 
-export const COLLECTION_REGISTRY_APP_VERSIONS: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_VERSIONS",
+export const REGISTRY_ITEM_VERSIONS: ServerPluginToolDefinition = {
+  name: "REGISTRY_ITEM_VERSIONS",
   description: "Get available versions of a registry item",
   inputSchema: RegistryGetInputSchema,
   outputSchema: z.object({

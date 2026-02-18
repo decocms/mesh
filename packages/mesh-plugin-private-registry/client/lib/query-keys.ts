@@ -13,22 +13,32 @@ export const KEYS = {
   registryConfigByPlugin: (projectId: string, pluginId: string) =>
     [...KEYS.registryConfig(), projectId, pluginId] as const,
   publishRequests: () => [...KEYS.all, "publish-requests"] as const,
+  publishRequestsByOrg: (orgId: string) =>
+    [...KEYS.publishRequests(), "org", orgId] as const,
   publishRequestsList: (status?: string) =>
     [...KEYS.publishRequests(), "list", { status: status ?? "all" }] as const,
-  publishRequestsCount: () => [...KEYS.publishRequests(), "count"] as const,
-  publishApiKeys: () => [...KEYS.all, "publish-api-keys"] as const,
-  tests: () => [...KEYS.all, "tests"] as const,
-  testRuns: () => [...KEYS.tests(), "runs"] as const,
-  testRunsList: (status?: string) =>
-    [...KEYS.testRuns(), "list", { status: status ?? "all" }] as const,
-  testRun: (runId?: string) =>
-    [...KEYS.testRuns(), "run", runId ?? "none"] as const,
-  testResults: () => [...KEYS.tests(), "results"] as const,
-  testResultsList: (runId?: string, status?: string) =>
+  publishRequestsListByOrg: (orgId: string, status?: string) =>
     [
-      ...KEYS.testResults(),
+      ...KEYS.publishRequestsByOrg(orgId),
+      "list",
+      { status: status ?? "all" },
+    ] as const,
+  publishRequestsCount: () => [...KEYS.publishRequests(), "count"] as const,
+  publishRequestsCountByOrg: (orgId: string) =>
+    [...KEYS.publishRequestsByOrg(orgId), "count"] as const,
+  publishApiKeys: () => [...KEYS.all, "publish-api-keys"] as const,
+  monitor: () => [...KEYS.all, "monitor"] as const,
+  monitorRuns: () => [...KEYS.monitor(), "runs"] as const,
+  monitorRunsList: (status?: string) =>
+    [...KEYS.monitorRuns(), "list", { status: status ?? "all" }] as const,
+  monitorRun: (runId?: string) =>
+    [...KEYS.monitorRuns(), "run", runId ?? "none"] as const,
+  monitorResults: () => [...KEYS.monitor(), "results"] as const,
+  monitorResultsList: (runId?: string, status?: string) =>
+    [
+      ...KEYS.monitorResults(),
       "list",
       { runId: runId ?? "none", status: status ?? "all" },
     ] as const,
-  testConnections: () => [...KEYS.tests(), "connections"] as const,
+  monitorConnections: () => [...KEYS.monitor(), "connections"] as const,
 };

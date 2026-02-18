@@ -107,17 +107,13 @@ export function useRegistryItems(params: {
             }
           : undefined;
 
-      return callTool<RegistryListResponse>(
-        client,
-        "COLLECTION_REGISTRY_APP_LIST",
-        {
-          cursor: pageParam as string | undefined,
-          limit,
-          tags: params.tags.length ? params.tags : undefined,
-          categories: params.categories.length ? params.categories : undefined,
-          where,
-        },
-      );
+      return callTool<RegistryListResponse>(client, "REGISTRY_ITEM_LIST", {
+        cursor: pageParam as string | undefined,
+        limit,
+        tags: params.tags.length ? params.tags : undefined,
+        categories: params.categories.length ? params.categories : undefined,
+        where,
+      });
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -135,7 +131,7 @@ export function useRegistryFilters() {
   return useQuery({
     queryKey: KEYS.filters(),
     queryFn: async () =>
-      callTool<RegistryFilters>(client, "COLLECTION_REGISTRY_APP_FILTERS", {}),
+      callTool<RegistryFilters>(client, "REGISTRY_ITEM_FILTERS", {}),
     placeholderData: { tags: [], categories: [] },
     staleTime: 60_000,
   });
@@ -160,7 +156,7 @@ export function useRegistryMutations() {
     mutationFn: async (data: RegistryCreateInput) => {
       const response = await callTool<{ item: RegistryItem }>(
         client,
-        "COLLECTION_REGISTRY_APP_CREATE",
+        "REGISTRY_ITEM_CREATE",
         { data },
       );
       return response.item;
@@ -178,7 +174,7 @@ export function useRegistryMutations() {
     }) => {
       const response = await callTool<{ item: RegistryItem }>(
         client,
-        "COLLECTION_REGISTRY_APP_UPDATE",
+        "REGISTRY_ITEM_UPDATE",
         { id, data },
       );
       return response.item;
@@ -190,7 +186,7 @@ export function useRegistryMutations() {
     mutationFn: async (id: string) => {
       const response = await callTool<{ item: RegistryItem | null }>(
         client,
-        "COLLECTION_REGISTRY_APP_DELETE",
+        "REGISTRY_ITEM_DELETE",
         { id },
       );
       return response.item;
@@ -200,13 +196,9 @@ export function useRegistryMutations() {
 
   const bulkCreateMutation = useMutation({
     mutationFn: async (items: RegistryCreateInput[]) =>
-      callTool<RegistryBulkCreateResult>(
-        client,
-        "COLLECTION_REGISTRY_APP_BULK_CREATE",
-        {
-          items,
-        },
-      ),
+      callTool<RegistryBulkCreateResult>(client, "REGISTRY_ITEM_BULK_CREATE", {
+        items,
+      }),
     onSuccess: invalidateAll,
   });
 
@@ -329,7 +321,7 @@ export function usePublishRequests(status?: PublishRequestStatus) {
   });
 
   return useQuery({
-    queryKey: KEYS.publishRequestsList(status),
+    queryKey: KEYS.publishRequestsListByOrg(org.id, status),
     queryFn: async () =>
       callTool<PublishRequestListResponse>(
         client,
@@ -339,6 +331,7 @@ export function usePublishRequests(status?: PublishRequestStatus) {
         },
       ),
     staleTime: 30_000,
+    refetchOnMount: true,
   });
 }
 
@@ -350,7 +343,7 @@ export function usePublishRequestCount() {
   });
 
   return useQuery({
-    queryKey: KEYS.publishRequestsCount(),
+    queryKey: KEYS.publishRequestsCountByOrg(org.id),
     queryFn: async () =>
       callTool<{ pending: number }>(
         client,

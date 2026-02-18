@@ -2,19 +2,19 @@ import { randomUUID } from "node:crypto";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
 import type {
   PrivateRegistryDatabase,
-  TestResultEntity,
-  TestResultStatus,
-  TestRunConfigSnapshot,
-  TestRunEntity,
-  TestRunStatus,
-  TestToolResult,
+  MonitorResultEntity,
+  MonitorResultStatus,
+  MonitorRunConfigSnapshot,
+  MonitorRunEntity,
+  MonitorRunStatus,
+  MonitorToolResult,
 } from "./types";
 
 type RawRunRow = Selectable<
-  PrivateRegistryDatabase["private_registry_test_run"]
+  PrivateRegistryDatabase["private_registry_monitor_run"]
 >;
 type RawResultRow = Selectable<
-  PrivateRegistryDatabase["private_registry_test_result"]
+  PrivateRegistryDatabase["private_registry_monitor_result"]
 >;
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
@@ -26,21 +26,21 @@ function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
-export class TestRunStorage {
+export class MonitorRunStorage {
   constructor(private db: Kysely<PrivateRegistryDatabase>) {}
 
   async create(input: {
     organization_id: string;
-    status?: TestRunStatus;
-    config_snapshot?: TestRunConfigSnapshot | null;
+    status?: MonitorRunStatus;
+    config_snapshot?: MonitorRunConfigSnapshot | null;
     total_items?: number;
     started_at?: string | null;
-  }): Promise<TestRunEntity> {
+  }): Promise<MonitorRunEntity> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
     const row: Insertable<
-      PrivateRegistryDatabase["private_registry_test_run"]
+      PrivateRegistryDatabase["private_registry_monitor_run"]
     > = {
       id,
       organization_id: input.organization_id,
@@ -59,10 +59,13 @@ export class TestRunStorage {
       created_at: now,
     };
 
-    await this.db.insertInto("private_registry_test_run").values(row).execute();
+    await this.db
+      .insertInto("private_registry_monitor_run")
+      .values(row)
+      .execute();
     const created = await this.findById(input.organization_id, id);
     if (!created) {
-      throw new Error(`Failed to create test run ${id}`);
+      throw new Error(`Failed to create monitor run ${id}`);
     }
     return created;
   }
@@ -70,9 +73,9 @@ export class TestRunStorage {
   async findById(
     organizationId: string,
     id: string,
-  ): Promise<TestRunEntity | null> {
+  ): Promise<MonitorRunEntity | null> {
     const row = await this.db
-      .selectFrom("private_registry_test_run")
+      .selectFrom("private_registry_monitor_run")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("id", "=", id)
@@ -85,24 +88,28 @@ export class TestRunStorage {
     query: {
       limit?: number;
       offset?: number;
-      status?: TestRunStatus;
+      status?: MonitorRunStatus;
     } = {},
-  ): Promise<{ items: TestRunEntity[]; totalCount: number }> {
-    let base = this.db
-      .selectFrom("private_registry_test_run")
+  ): Promise<{ items: MonitorRunEntity[]; totalCount: number }> {
+    let listQuery = this.db
+      .selectFrom("private_registry_monitor_run")
       .selectAll()
       .where("organization_id", "=", organizationId);
 
+    let countQuery = this.db
+      .selectFrom("private_registry_monitor_run")
+      .select((eb) => eb.fn.countAll<string>().as("count"))
+      .where("organization_id", "=", organizationId);
+
     if (query.status) {
-      base = base.where("status", "=", query.status);
+      listQuery = listQuery.where("status", "=", query.status);
+      countQuery = countQuery.where("status", "=", query.status);
     }
 
-    const totalCountRow = await base
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirst();
+    const totalCountRow = await countQuery.executeTakeFirst();
     const totalCount = Number(totalCountRow?.count ?? 0);
 
-    const rows = await base
+    const rows = await listQuery
       .orderBy("created_at", "desc")
       .limit(query.limit ?? 24)
       .offset(query.offset ?? 0)
@@ -119,7 +126,7 @@ export class TestRunStorage {
     id: string,
     patch: {
       total_items?: number;
-      status?: TestRunStatus;
+      status?: MonitorRunStatus;
       tested_items?: number;
       passed_items?: number;
       failed_items?: number;
@@ -128,9 +135,9 @@ export class TestRunStorage {
       started_at?: string | null;
       finished_at?: string | null;
     },
-  ): Promise<TestRunEntity> {
+  ): Promise<MonitorRunEntity> {
     const update: Updateable<
-      PrivateRegistryDatabase["private_registry_test_run"]
+      PrivateRegistryDatabase["private_registry_monitor_run"]
     > = {};
 
     if (patch.total_items !== undefined) update.total_items = patch.total_items;
@@ -149,7 +156,7 @@ export class TestRunStorage {
     if (patch.finished_at !== undefined) update.finished_at = patch.finished_at;
 
     await this.db
-      .updateTable("private_registry_test_run")
+      .updateTable("private_registry_monitor_run")
       .set(update)
       .where("organization_id", "=", organizationId)
       .where("id", "=", id)
@@ -157,17 +164,17 @@ export class TestRunStorage {
 
     const updated = await this.findById(organizationId, id);
     if (!updated) {
-      throw new Error(`Test run not found: ${id}`);
+      throw new Error(`Monitor run not found: ${id}`);
     }
     return updated;
   }
 
-  private deserializeRun(row: RawRunRow): TestRunEntity {
+  private deserializeRun(row: RawRunRow): MonitorRunEntity {
     return {
       id: row.id,
       organization_id: row.organization_id,
       status: row.status,
-      config_snapshot: safeJsonParse<TestRunConfigSnapshot | null>(
+      config_snapshot: safeJsonParse<MonitorRunConfigSnapshot | null>(
         row.config_snapshot,
         null,
       ),
@@ -184,7 +191,7 @@ export class TestRunStorage {
   }
 }
 
-export class TestResultStorage {
+export class MonitorResultStorage {
   constructor(private db: Kysely<PrivateRegistryDatabase>) {}
 
   async create(input: {
@@ -192,19 +199,19 @@ export class TestResultStorage {
     organization_id: string;
     item_id: string;
     item_title: string;
-    status: TestResultStatus;
+    status: MonitorResultStatus;
     error_message?: string | null;
     connection_ok?: boolean;
     tools_listed?: boolean;
-    tool_results?: TestToolResult[];
+    tool_results?: MonitorToolResult[];
     agent_summary?: string | null;
     duration_ms?: number;
     action_taken?: string;
-  }): Promise<TestResultEntity> {
+  }): Promise<MonitorResultEntity> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const row: Insertable<
-      PrivateRegistryDatabase["private_registry_test_result"]
+      PrivateRegistryDatabase["private_registry_monitor_result"]
     > = {
       id,
       run_id: input.run_id,
@@ -225,7 +232,7 @@ export class TestResultStorage {
     };
 
     await this.db
-      .insertInto("private_registry_test_result")
+      .insertInto("private_registry_monitor_result")
       .values(row)
       .execute();
     const created = await this.findById(input.organization_id, id);
@@ -238,9 +245,9 @@ export class TestResultStorage {
   async findById(
     organizationId: string,
     id: string,
-  ): Promise<TestResultEntity | null> {
+  ): Promise<MonitorResultEntity | null> {
     const row = await this.db
-      .selectFrom("private_registry_test_result")
+      .selectFrom("private_registry_monitor_result")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("id", "=", id)
@@ -252,27 +259,32 @@ export class TestResultStorage {
     organizationId: string,
     runId: string,
     query: {
-      status?: TestResultStatus;
+      status?: MonitorResultStatus;
       limit?: number;
       offset?: number;
     } = {},
-  ): Promise<{ items: TestResultEntity[]; totalCount: number }> {
-    let base = this.db
-      .selectFrom("private_registry_test_result")
+  ): Promise<{ items: MonitorResultEntity[]; totalCount: number }> {
+    let listQuery = this.db
+      .selectFrom("private_registry_monitor_result")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("run_id", "=", runId);
 
+    let countQuery = this.db
+      .selectFrom("private_registry_monitor_result")
+      .select((eb) => eb.fn.countAll<string>().as("count"))
+      .where("organization_id", "=", organizationId)
+      .where("run_id", "=", runId);
+
     if (query.status) {
-      base = base.where("status", "=", query.status);
+      listQuery = listQuery.where("status", "=", query.status);
+      countQuery = countQuery.where("status", "=", query.status);
     }
 
-    const totalCountRow = await base
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirst();
+    const totalCountRow = await countQuery.executeTakeFirst();
     const totalCount = Number(totalCountRow?.count ?? 0);
 
-    const rows = await base
+    const rows = await listQuery
       .orderBy("tested_at", "desc")
       .limit(query.limit ?? 50)
       .offset(query.offset ?? 0)
@@ -284,7 +296,54 @@ export class TestResultStorage {
     };
   }
 
-  private deserialize(row: RawResultRow): TestResultEntity {
+  async update(
+    organizationId: string,
+    id: string,
+    patch: {
+      status?: MonitorResultStatus;
+      error_message?: string | null;
+      connection_ok?: boolean;
+      tools_listed?: boolean;
+      tool_results?: MonitorToolResult[];
+      agent_summary?: string | null;
+      duration_ms?: number;
+      action_taken?: string;
+    },
+  ): Promise<MonitorResultEntity> {
+    const update: Updateable<
+      PrivateRegistryDatabase["private_registry_monitor_result"]
+    > = {};
+
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.error_message !== undefined)
+      update.error_message = patch.error_message;
+    if (patch.connection_ok !== undefined)
+      update.connection_ok = patch.connection_ok ? 1 : 0;
+    if (patch.tools_listed !== undefined)
+      update.tools_listed = patch.tools_listed ? 1 : 0;
+    if (patch.tool_results !== undefined)
+      update.tool_results = JSON.stringify(patch.tool_results);
+    if (patch.agent_summary !== undefined)
+      update.agent_summary = patch.agent_summary;
+    if (patch.duration_ms !== undefined) update.duration_ms = patch.duration_ms;
+    if (patch.action_taken !== undefined)
+      update.action_taken = patch.action_taken;
+
+    await this.db
+      .updateTable("private_registry_monitor_result")
+      .set(update)
+      .where("organization_id", "=", organizationId)
+      .where("id", "=", id)
+      .execute();
+
+    const updated = await this.findById(organizationId, id);
+    if (!updated) {
+      throw new Error(`Monitor result not found: ${id}`);
+    }
+    return updated;
+  }
+
+  private deserialize(row: RawResultRow): MonitorResultEntity {
     return {
       id: row.id,
       run_id: row.run_id,
@@ -295,7 +354,7 @@ export class TestResultStorage {
       error_message: row.error_message,
       connection_ok: row.connection_ok === 1,
       tools_listed: row.tools_listed === 1,
-      tool_results: safeJsonParse<TestToolResult[]>(row.tool_results, []),
+      tool_results: safeJsonParse<MonitorToolResult[]>(row.tool_results, []),
       agent_summary: row.agent_summary,
       duration_ms: Number(row.duration_ms ?? 0),
       action_taken: row.action_taken,
