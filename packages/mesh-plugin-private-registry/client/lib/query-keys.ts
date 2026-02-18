@@ -17,4 +17,18 @@ export const KEYS = {
     [...KEYS.publishRequests(), "list", { status: status ?? "all" }] as const,
   publishRequestsCount: () => [...KEYS.publishRequests(), "count"] as const,
   publishApiKeys: () => [...KEYS.all, "publish-api-keys"] as const,
+  tests: () => [...KEYS.all, "tests"] as const,
+  testRuns: () => [...KEYS.tests(), "runs"] as const,
+  testRunsList: (status?: string) =>
+    [...KEYS.testRuns(), "list", { status: status ?? "all" }] as const,
+  testRun: (runId?: string) =>
+    [...KEYS.testRuns(), "run", runId ?? "none"] as const,
+  testResults: () => [...KEYS.tests(), "results"] as const,
+  testResultsList: (runId?: string, status?: string) =>
+    [
+      ...KEYS.testResults(),
+      "list",
+      { runId: runId ?? "none", status: status ?? "all" },
+    ] as const,
+  testConnections: () => [...KEYS.tests(), "connections"] as const,
 };
