@@ -32,6 +32,7 @@ import {
 } from "@untitledui/icons";
 import { useState } from "react";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import { toast } from "@deco/ui/components/sonner.js";
 
 interface UserSettingsDialogProps {
   open: boolean;
@@ -125,12 +126,26 @@ export function UserSettingsDialog({
               </button>
               <button
                 type="button"
-                onClick={() =>
+                onClick={async () => {
+                  const checked = !preferences.enableNotifications;
+                  const result = await Notification?.requestPermission();
+
+                  if (checked && result === "denied") {
+                    toast.error(
+                      "Notifications denied. Please enable them in your browser settings.",
+                    );
+                    setPreferences((prev) => ({
+                      ...prev,
+                      enableNotifications: false,
+                    }));
+                    return;
+                  }
+
                   setPreferences((prev) => ({
                     ...prev,
-                    enableNotifications: !prev.enableNotifications,
-                  }))
-                }
+                    enableNotifications: checked,
+                  }));
+                }}
                 className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
               >
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -146,12 +161,25 @@ export function UserSettingsDialog({
                 <div onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={preferences.enableNotifications}
-                    onCheckedChange={(checked) =>
+                    onCheckedChange={async (checked) => {
+                      const result = await Notification?.requestPermission();
+
+                      if (checked && result === "denied") {
+                        toast.error(
+                          "Notifications denied. Please enable them in your browser settings.",
+                        );
+                        setPreferences((prev) => ({
+                          ...prev,
+                          enableNotifications: false,
+                        }));
+                        return;
+                      }
+
                       setPreferences((prev) => ({
                         ...prev,
                         enableNotifications: checked,
-                      }))
-                    }
+                      }));
+                    }}
                   />
                 </div>
               </button>
