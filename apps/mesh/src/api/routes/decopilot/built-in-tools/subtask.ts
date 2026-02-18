@@ -54,10 +54,7 @@ const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
   "and returns results when complete. Use this when a task is better handled by a specialized agent, " +
   "or to parallelize work across agents.\n\n" +
-  "IMPORTANT: The subagent has NO access to this conversation. You MUST include ALL necessary context " +
-  "in the prompt — be specific about what to do, where, and what the expected outcome is. If the " +
-  "subagent doesn't have enough information, it will return asking for clarification instead of " +
-  "proceeding, so invest in writing a clear, self-contained prompt upfront.";
+  "IMPORTANT: Every subtask call starts FRESH — no conversation history, no prior runs. Even if you call it multiple times, each run is isolated. Always include full context in the prompt; never use continuation phrases like 'continue' or 'as before'.";
 
 export interface SubtaskParams {
   modelProvider: ModelProvider;
@@ -139,7 +136,7 @@ export function createSubtaskTool(
       );
 
       // ── 3. Load tools, excluding ones that shouldn't nest ──────────
-      const mcpTools = await toolsFromMCP(mcpClient, writer);
+      const mcpTools = await toolsFromMCP(mcpClient, writer, "yolo");
       const subagentTools = Object.fromEntries(
         Object.entries(mcpTools).filter(
           ([name]) => !SUBAGENT_EXCLUDED_TOOLS.includes(name),
@@ -198,23 +195,13 @@ export function createSubtaskTool(
       });
     },
     toModelOutput: ({ output: message }) => {
-      if (!message) {
-        return {
-          type: "text" as const,
-          value: "Subtask completed (no output).",
-        };
-      }
-
-      const parts = message.parts ?? [];
-      const textParts = parts.filter(
-        (p): p is { type: "text"; text: string } =>
-          "type" in p && p.type === "text" && "text" in p,
+      const lastTextPart = message?.parts?.findLast(
+        (p) => "type" in p && p.type === "text" && "text" in p,
       );
-      const lastTextPart = textParts.pop();
 
       return {
         type: "text" as const,
-        value: lastTextPart?.text ?? "Subtask completed.",
+        value: lastTextPart?.text ?? "Subtask completed (no output).",
       };
     },
   });
