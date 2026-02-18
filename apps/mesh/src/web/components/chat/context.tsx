@@ -645,22 +645,22 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     const { thread_id } = message.metadata ?? {};
 
+    if (!thread_id) {
+      return;
+    }
+
     // Show notification (sound + browser popup) if enabled
     if (preferences.enableNotifications) {
-      // Find the last user message to display in notification
-      const truncatedText = messages
-        .findLast((msg) => msg.role === "user")
-        ?.parts.find((part) => part.type === "text")
-        ?.text?.slice(0, 60);
-
       showNotification({
-        title: "Chat Response Ready",
-        body: truncatedText || "Your chat response is ready",
         tag: `chat-${thread_id}`,
+        title: "Decopilot is waiting for your input at",
+        body:
+          threadManager.threads.find((t) => t.id === thread_id)?.title ??
+          "New chat",
       });
     }
 
-    if (!thread_id || finishReason !== "stop") {
+    if (finishReason !== "stop") {
       return;
     }
 
