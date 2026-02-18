@@ -128,17 +128,18 @@ export function UserSettingsDialog({
                 type="button"
                 onClick={async () => {
                   const checked = !preferences.enableNotifications;
-                  const result = await Notification?.requestPermission();
-
-                  if (checked && result === "denied") {
-                    toast.error(
-                      "Notifications denied. Please enable them in your browser settings.",
-                    );
-                    setPreferences((prev) => ({
-                      ...prev,
-                      enableNotifications: false,
-                    }));
-                    return;
+                  if (checked && typeof Notification !== "undefined") {
+                    const result = await Notification.requestPermission();
+                    if (result === "denied") {
+                      toast.error(
+                        "Notifications denied. Please enable them in your browser settings.",
+                      );
+                      setPreferences((prev) => ({
+                        ...prev,
+                        enableNotifications: false,
+                      }));
+                      return;
+                    }
                   }
 
                   setPreferences((prev) => ({
@@ -162,17 +163,18 @@ export function UserSettingsDialog({
                   <Switch
                     checked={preferences.enableNotifications}
                     onCheckedChange={async (checked) => {
-                      const result = await Notification?.requestPermission();
-
-                      if (checked && result === "denied") {
-                        toast.error(
-                          "Notifications denied. Please enable them in your browser settings.",
-                        );
-                        setPreferences((prev) => ({
-                          ...prev,
-                          enableNotifications: false,
-                        }));
-                        return;
+                      if (checked && typeof Notification !== "undefined") {
+                        const result = await Notification.requestPermission();
+                        if (result === "denied") {
+                          toast.error(
+                            "Notifications denied. Please enable them in your browser settings.",
+                          );
+                          setPreferences((prev) => ({
+                            ...prev,
+                            enableNotifications: false,
+                          }));
+                          return;
+                        }
                       }
 
                       setPreferences((prev) => ({
