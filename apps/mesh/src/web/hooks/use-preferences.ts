@@ -8,7 +8,7 @@ interface Preferences {
   experimental_projects: boolean;
   experimental_tasks: boolean;
   toolApprovalLevel: ToolApprovalLevel;
-  soundNotificationsEnabled: boolean;
+  enableNotifications: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -16,7 +16,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   experimental_projects: false,
   experimental_tasks: false,
   toolApprovalLevel: "none",
-  soundNotificationsEnabled: true,
+  enableNotifications: true,
 };
 
 export function usePreferences() {
