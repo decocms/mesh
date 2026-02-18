@@ -54,10 +54,7 @@ const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
   "and returns results when complete. Use this when a task is better handled by a specialized agent, " +
   "or to parallelize work across agents.\n\n" +
-  "IMPORTANT: The subagent has NO access to this conversation. You MUST include ALL necessary context " +
-  "in the prompt — be specific about what to do, where, and what the expected outcome is. If the " +
-  "subagent doesn't have enough information, it will return asking for clarification instead of " +
-  "proceeding, so invest in writing a clear, self-contained prompt upfront.";
+  "IMPORTANT: Every subtask call starts FRESH — no conversation history, no prior runs. Even if you call it multiple times, each run is isolated. Always include full context in the prompt; never use continuation phrases like 'continue' or 'as before'.";
 
 export interface SubtaskParams {
   modelProvider: ModelProvider;
