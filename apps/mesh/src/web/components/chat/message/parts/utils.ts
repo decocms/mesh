@@ -58,7 +58,7 @@ export function extractTextFromOutput(output: unknown): string | null {
         textParts.push(`## ${toolName}\nApproval responded...`);
       } else if (p.state === "output-available") {
         textParts.push(
-          p.output
+          p.output != null
             ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: ${JSON.stringify(p.output).slice(0, 40)}...`
             : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool responded with no output`,
         );
