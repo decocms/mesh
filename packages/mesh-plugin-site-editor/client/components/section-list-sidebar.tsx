@@ -4,6 +4,10 @@
  * Displays all block instances on a page in a sortable drag-and-drop list.
  * Each row shows the block name with a drag handle, selection highlight,
  * and delete button. Uses @dnd-kit for accessible DnD reordering.
+ *
+ * Augmented with pending-changes support:
+ * - sectionStatuses prop adds colored badges (new/edited/deleted)
+ * - Deleted sections render as greyed-out ghost rows with an Undelete button
  */
 
 import { useState } from "react";
@@ -29,6 +33,7 @@ import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { BlockInstance } from "../lib/page-api";
+import type { SectionStatus } from "../lib/use-pending-changes";
 
 interface SectionListSidebarProps {
   blocks: BlockInstance[];
@@ -37,6 +42,10 @@ interface SectionListSidebarProps {
   onDelete: (blockId: string) => void;
   onReorder: (activeId: string, overId: string) => void;
   onAddClick: () => void;
+  /** Per-section diff status from usePendingChanges */
+  sectionStatuses?: SectionStatus[];
+  /** Called when user clicks Undelete on a deleted ghost row */
+  onUndelete?: (block: BlockInstance) => void;
 }
 
 /**
@@ -54,6 +63,7 @@ interface SortableSectionItemProps {
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  status?: "new" | "edited";
 }
 
 function SortableSectionItem({
@@ -61,6 +71,7 @@ function SortableSectionItem({
   isSelected,
   onSelect,
   onDelete,
+  status,
 }: SortableSectionItemProps) {
   const {
     attributes,
@@ -107,6 +118,19 @@ function SortableSectionItem({
         {blockLabel(block.blockType)}
       </button>
 
+      {/* Diff badge */}
+      {status && (
+        <span
+          className={cn(
+            "shrink-0 text-[10px] font-medium px-1 py-0.5 rounded",
+            status === "new" && "bg-green-100 text-green-700",
+            status === "edited" && "bg-yellow-100 text-yellow-700",
+          )}
+        >
+          {status === "new" ? "new" : "edited"}
+        </span>
+      )}
+
       {/* Delete button - visible on hover */}
       <button
         type="button"
@@ -126,6 +150,39 @@ function SortableSectionItem({
   );
 }
 
+interface DeletedSectionGhostRowProps {
+  block: BlockInstance;
+  onUndelete: () => void;
+}
+
+function DeletedSectionGhostRow({
+  block,
+  onUndelete,
+}: DeletedSectionGhostRowProps) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm opacity-40 italic">
+      <span className="shrink-0 w-5" /> {/* spacer for drag handle alignment */}
+      <span className="flex-1 truncate text-muted-foreground">
+        {blockLabel(block.blockType)}
+      </span>
+      <span className="shrink-0 text-[10px] font-medium px-1 py-0.5 rounded bg-red-100 text-red-700">
+        deleted
+      </span>
+      <button
+        type="button"
+        className="shrink-0 text-xs text-blue-600 hover:text-blue-800 transition-colors whitespace-nowrap"
+        onClick={(e) => {
+          e.stopPropagation();
+          onUndelete();
+        }}
+        title="Restore this section"
+      >
+        Undelete
+      </button>
+    </div>
+  );
+}
+
 export function SectionListSidebar({
   blocks,
   selectedBlockId,
@@ -133,6 +190,8 @@ export function SectionListSidebar({
   onDelete,
   onReorder,
   onAddClick,
+  sectionStatuses,
+  onUndelete,
 }: SectionListSidebarProps) {
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -151,7 +210,16 @@ export function SectionListSidebar({
     }
   };
 
-  if (blocks.length === 0) {
+  // Build lookup map for section statuses
+  const statusMap = new Map(
+    (sectionStatuses ?? []).map((s) => [s.sectionId, s]),
+  );
+
+  const deletedStatuses = (sectionStatuses ?? []).filter(
+    (s) => s.status === "deleted" && s.committedBlock,
+  );
+
+  if (blocks.length === 0 && deletedStatuses.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
         <p className="text-sm text-muted-foreground mb-3">No sections yet</p>
@@ -187,10 +255,31 @@ export function SectionListSidebar({
                 isSelected={selectedBlockId === block.id}
                 onSelect={() => onSelect(block.id)}
                 onDelete={() => onDelete(block.id)}
+                status={
+                  statusMap.get(block.id)?.status === "deleted"
+                    ? undefined
+                    : (statusMap.get(block.id)?.status as
+                        | "new"
+                        | "edited"
+                        | undefined)
+                }
               />
             ))}
           </SortableContext>
         </DndContext>
+
+        {/* Deleted section ghost rows */}
+        {deletedStatuses.length > 0 && onUndelete && (
+          <div className="border-t border-dashed border-border/50 mt-1 pt-1">
+            {deletedStatuses.map((s) => (
+              <DeletedSectionGhostRow
+                key={s.sectionId}
+                block={s.committedBlock!}
+                onUndelete={() => onUndelete(s.committedBlock!)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Add Section footer */}
