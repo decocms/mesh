@@ -21,8 +21,8 @@
 
 ### History
 
-- [ ] **HIST-01**: User can open a history panel for the current page showing a list of git commits that touched that page's JSON file
-- [ ] **HIST-02**: User can click any commit in the history to load that version of the page into the iframe preview for inspection
+- [x] **HIST-01**: User can open a history panel for the current page showing a list of git commits that touched that page's JSON file
+- [x] **HIST-02**: User can click any commit in the history to load that version of the page into the iframe preview for inspection
 - [ ] **HIST-03**: User can click "Revert here" on any historical version to restore that page state — this writes the historical JSON to disk (triggering auto-save and live preview update) and creates a new git commit on top, preserving the full history
 
 ## v2 Requirements
@@ -58,8 +58,8 @@
 | COMMIT-01 | Phase 13 | Pending |
 | COMMIT-02 | Phase 13 | Pending |
 | COMMIT-03 | Phase 13 | Pending |
-| HIST-01 | Phase 14 | Pending |
-| HIST-02 | Phase 14 | Pending |
+| HIST-01 | Phase 14 | Complete |
+| HIST-02 | Phase 14 | Complete |
 | HIST-03 | Phase 14 | Pending |
 
 **Coverage:**

@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 12 — Pending Changes UI
+Phase: 14 — History Panel
 Plan: 01 (complete)
-Status: Phase 12 plan 01 complete — ready for Phase 13
-Last activity: 2026-02-18 — Phase 12 plan 01 executed (pending changes UI)
+Status: Phase 14 plan 01 complete — ready for Phase 14 plan 02 (revert action)
+Last activity: 2026-02-18 — Phase 14 plan 01 executed (history panel UI with GIT_LOG + iframe preview)
 
 Progress: [█░░░░░░░░░░░░░░░░░░░] 25% (1/4 phases complete)
 
@@ -106,6 +106,12 @@ From phase 10 plan 1:
 - Claude skill contains full spec inline (not a reference to external file) for self-contained agent use
 - Three-copy distribution: canonical docs/ -> Claude skill .claude/commands/ (with frontmatter) -> starter template (identical)
 
+From phase 14 plan 01:
+- getGitLog and getGitShow added to history-api.ts alongside existing functions (no removal)
+- previewingHash + loadingHash dual-state pattern for per-row loading without concurrent fetches
+- Amber banner used for historical version indicator (read-only preview mode signal)
+- PageHistory receives send + localPage from PageComposer for iframe bridge access
+
 ### Roadmap Evolution
 
 - Phase 09.1 inserted after Phase 9: Multi-Site Support — toggle between multiple site connections in the top bar (URGENT)
@@ -132,5 +138,5 @@ From phase 12 plan 01:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 12-01-PLAN.md — pending changes UI implemented
-Resume file: .planning/phases/13-commit-flow/ (Phase 13 next)
+Stopped at: Completed 14-01-PLAN.md — history panel UI with GIT_LOG + iframe preview
+Resume file: .planning/phases/14-history-panel/ (Phase 14 plan 02 — revert action)
