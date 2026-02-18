@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 ## Current Position
 
 Phase: 14 — History Panel
-Plan: 01 (complete)
-Status: Phase 14 plan 01 complete — ready for Phase 14 plan 02 (revert action)
-Last activity: 2026-02-18 — Phase 14 plan 01 executed (history panel UI with GIT_LOG + iframe preview)
+Plan: 02 (complete)
+Status: Phase 14 complete — history panel with GIT_LOG list, iframe preview, and revert action
+Last activity: 2026-02-18 — Phase 14 plan 02 executed (revert action with PUT_FILE + GIT_COMMIT + section list refresh)
 
 Progress: [█░░░░░░░░░░░░░░░░░░░] 25% (1/4 phases complete)
 
@@ -114,6 +114,8 @@ From phase 14 plan 01:
 - [Phase 13-commit-flow]: Anthropic API called via direct fetch on server side — no @ai-sdk/anthropic package needed
 - [Phase 13-commit-flow]: HonoApp type extracted from ServerPlugin['routes'] to avoid direct hono dep in plugin
 - [Phase 13-commit-flow]: CommitDialog uses key-based remount pattern (generating->editing) instead of useEffect to sync textarea
+- [Phase 14]: revertToCommit returns { success, committedWithGit } — graceful degrade when GIT_COMMIT unavailable
+- [Phase 14]: Query invalidation (pages.detail + history.page) on revert keeps section list and history list current
 
 ### Roadmap Evolution
 
@@ -141,5 +143,5 @@ From phase 12 plan 01:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 14-01-PLAN.md — history panel UI with GIT_LOG + iframe preview
-Resume file: .planning/phases/14-history-panel/ (Phase 14 plan 02 — revert action)
+Stopped at: Completed 14-02-PLAN.md — revert action with PUT_FILE + GIT_COMMIT + section list refresh
+Resume file: .planning/phases/ (Phase 14 complete — check roadmap for next phase)
