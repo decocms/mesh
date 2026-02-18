@@ -639,7 +639,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   }) => {
     chatDispatch({ type: "SET_FINISH_REASON", payload: finishReason ?? null });
 
-    if (finishReason !== "stop" || isAbort || isDisconnect || isError) {
+    if (isAbort || isDisconnect || isError) {
       return;
     }
 
@@ -648,29 +648,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
     // Show notification (sound + browser popup) if enabled
     if (preferences.enableNotifications) {
       // Find the last user message to display in notification
-      const lastUserMessage = messages
-        .slice()
-        .reverse()
-        .find((msg) => msg.role === "user");
-
-      // Extract text from the user message
-      let userMessageText = "";
-      if (lastUserMessage) {
-        const textParts = lastUserMessage.parts.filter(
-          (part) => part.type === "text",
-        );
-        if (textParts.length > 0) {
-          userMessageText = textParts
-            .map((part) => ("text" in part ? part.text : ""))
-            .join(" ");
-        }
-      }
-
-      // Truncate to 60 characters
-      const truncatedText =
-        userMessageText.length > 60
-          ? `${userMessageText.slice(0, 60)}...`
-          : userMessageText;
+      const truncatedText = messages
+        .findLast((msg) => msg.role === "user")
+        ?.parts.find((part) => part.type === "text")
+        ?.text?.slice(0, 60);
 
       showNotification({
         title: "Chat Response Ready",
@@ -679,7 +660,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       });
     }
 
-    if (!thread_id) {
+    if (!thread_id || finishReason !== "stop") {
       return;
     }
 
