@@ -22,6 +22,6 @@ const DEFAULT_PREFERENCES: Preferences = {
 export function usePreferences() {
   return useLocalStorage<Preferences>(
     LOCALSTORAGE_KEYS.preferences(),
-    DEFAULT_PREFERENCES,
+    (existing) => ({ ...DEFAULT_PREFERENCES, ...existing }),
   );
 }
