@@ -69,8 +69,8 @@ export function UserSettingsDialog({
           </DialogClose>
         </DialogHeader>
 
-        <div className="flex flex-col">
-          <div className="p-5 space-y-6 min-h-[225px]">
+        <div className="flex flex-col overflow-y-hidden">
+          <div className="p-5 space-y-6 min-h-[225px] overflow-y-auto">
             {/* User Info Display */}
             <div className="flex items-center gap-4">
               <Avatar
