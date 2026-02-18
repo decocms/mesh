@@ -10,10 +10,15 @@ import { useState } from "react";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Loading01 } from "@untitledui/icons";
+import { AlertCircle, Loading01, RefreshCcw01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
-import { getGitLog, getGitShow, type GitLogEntry } from "../lib/history-api";
+import {
+  getGitLog,
+  getGitShow,
+  revertToCommit,
+  type GitLogEntry,
+} from "../lib/history-api";
 import type { EditorMessage } from "../lib/editor-protocol";
 import type { Page } from "../lib/page-api";
 
@@ -42,17 +47,23 @@ interface PageHistoryProps {
   pageId: string;
   send: (msg: EditorMessage) => void;
   localPage: Page | null;
+  onRevert: () => void;
 }
 
 export default function PageHistory({
   pageId,
   send,
   localPage,
+  onRevert,
 }: PageHistoryProps) {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
 
   const [previewingHash, setPreviewingHash] = useState<string | null>(null);
   const [loadingHash, setLoadingHash] = useState<string | null>(null);
+  const [confirmingRevertHash, setConfirmingRevertHash] = useState<
+    string | null
+  >(null);
+  const [revertingHash, setRevertingHash] = useState<string | null>(null);
 
   const {
     data: commits,
@@ -63,8 +74,39 @@ export default function PageHistory({
     queryFn: () => getGitLog(toolCaller, `.deco/pages/${pageId}.json`, 50),
   });
 
+  const handleRevert = async (entry: GitLogEntry) => {
+    if (revertingHash !== null) return;
+    const shortHash = entry.hash.slice(0, 7);
+    setRevertingHash(entry.hash);
+    setConfirmingRevertHash(null);
+    try {
+      const { success, committedWithGit } = await revertToCommit(
+        toolCaller,
+        pageId,
+        entry.hash,
+      );
+      if (success) {
+        if (committedWithGit) {
+          toast.success(`Page reverted to ${shortHash}`);
+        } else {
+          toast.success(
+            `Page reverted to ${shortHash} (file saved, no git commit)`,
+          );
+        }
+        onRevert();
+      } else {
+        toast.error("Failed to revert page");
+      }
+    } catch {
+      toast.error("Failed to revert page");
+    } finally {
+      setRevertingHash(null);
+    }
+  };
+
   const handlePreviewCommit = async (entry: GitLogEntry) => {
     if (loadingHash !== null) return;
+    setConfirmingRevertHash(null);
     setLoadingHash(entry.hash);
     try {
       const path = `.deco/pages/${pageId}.json`;
@@ -190,6 +232,50 @@ export default function PageHistory({
                       )}
                       Preview
                     </button>
+
+                    {confirmingRevertHash === entry.hash ? (
+                      <span className="flex items-center gap-1 text-xs">
+                        <span className="text-muted-foreground">
+                          Are you sure?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRevert(entry)}
+                          disabled={revertingHash !== null}
+                          className="text-orange-600 hover:text-orange-800 font-medium transition-colors disabled:opacity-40"
+                        >
+                          {revertingHash === entry.hash ? (
+                            <Loading01
+                              size={12}
+                              className="animate-spin inline"
+                            />
+                          ) : (
+                            "Revert"
+                          )}
+                        </button>
+                        {!(
+                          revertingHash !== null && revertingHash === entry.hash
+                        ) && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingRevertHash(null)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRevertHash(entry.hash)}
+                        disabled={revertingHash !== null}
+                        className="flex items-center gap-0.5 text-xs text-orange-600 hover:text-orange-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCcw01 size={10} />
+                        Revert here
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
