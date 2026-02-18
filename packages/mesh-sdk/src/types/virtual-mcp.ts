@@ -51,31 +51,29 @@ const VirtualMCPConnectionInputSchema = VirtualMCPConnectionSchema.extend({
  */
 export const VirtualMCPEntitySchema = z.object({
   // Base collection entity fields
-  id: z.string().describe("Unique identifier for the virtual MCP"),
-  title: z.string().describe("Human-readable name for the virtual MCP"),
-  description: z.string().nullable().describe("Description of the virtual MCP"),
-  icon: z.string().nullable().describe("Icon URL for the virtual MCP"),
-  created_at: z.string().describe("When the virtual MCP was created"),
-  updated_at: z.string().describe("When the virtual MCP was last updated"),
-  created_by: z.string().describe("User ID who created the virtual MCP"),
+  id: z.string().describe("Unique identifier"),
+  title: z.string().describe("Human-readable name"),
+  description: z.string().nullable().describe("Description"),
+  icon: z.string().nullable().describe("Icon URL"),
+  created_at: z.string().describe("Creation timestamp"),
+  updated_at: z.string().describe("Last update timestamp"),
+  created_by: z.string().describe("User ID who created this item"),
   updated_by: z
     .string()
     .optional()
-    .describe("User ID who last updated the virtual MCP"),
+    .describe("User ID who last updated this item"),
 
-  // Virtual MCP-specific fields
-  organization_id: z
-    .string()
-    .describe("Organization ID this virtual MCP belongs to"),
+  // Entity-specific fields
+  organization_id: z.string().describe("Organization ID this item belongs to"),
   status: z.enum(["active", "inactive"]).describe("Current status"),
   // Metadata (stored in connections.metadata)
   // Normalize null/undefined to { instructions: null } for consistent form tracking
   metadata: z
     .object({
-      instructions: z.string().nullable().describe("MCP server instructions"),
+      instructions: z.string().nullable().describe("Instructions also used as system prompt"),
     })
     .loose()
-    .describe("Additional metadata including MCP server instructions"),
+    .describe("Metadata"),
   // Nested connections
   connections: z
     .array(VirtualMCPConnectionSchema)
