@@ -101,6 +101,59 @@ export async function getGitShow(
 }
 
 /**
+ * Revert a page to a previous commit.
+ *
+ * Steps:
+ * 1. Read content at commitHash via GIT_SHOW
+ * 2. Write it to the page file via PUT_FILE
+ * 3. Commit the change via GIT_COMMIT with a revert message
+ *
+ * Returns { success, committedWithGit }.
+ * If GIT_COMMIT is not supported, still returns success:true after PUT_FILE succeeds.
+ */
+export async function revertToCommit(
+  toolCaller: ToolCaller,
+  pageId: string,
+  commitHash: string,
+): Promise<{ success: boolean; committedWithGit: boolean }> {
+  const path = `${PAGES_PREFIX}${pageId}.json`;
+  const shortHash = commitHash.slice(0, 7);
+
+  // 1. Read historical content
+  let content: string | null = null;
+  try {
+    const result = await toolCaller("GIT_SHOW", { path, commitHash });
+    content = result.content;
+  } catch {
+    return { success: false, committedWithGit: false };
+  }
+
+  if (!content) {
+    return { success: false, committedWithGit: false };
+  }
+
+  // 2. Write to disk via PUT_FILE
+  try {
+    await toolCaller("PUT_FILE", { path, content });
+  } catch {
+    return { success: false, committedWithGit: false };
+  }
+
+  // 3. GIT_COMMIT (optional — graceful degrade if not supported)
+  let committedWithGit = false;
+  try {
+    await toolCaller("GIT_COMMIT", {
+      message: `revert: restore page to ${shortHash}`,
+    });
+    committedWithGit = true;
+  } catch {
+    // GIT_COMMIT not supported — PUT_FILE write still succeeded
+  }
+
+  return { success: true, committedWithGit };
+}
+
+/**
  * Revert a page to a previous version.
  *
  * Implements the "revert as PUT_FILE" pattern:
