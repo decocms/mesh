@@ -137,42 +137,47 @@ export interface PublishApiKeyListResponse {
   items: PublishApiKey[];
 }
 
-export type TestMode = "health_check" | "tool_call" | "full_agent";
-export type TestFailureAction =
+export type MonitorMode = "health_check" | "tool_call" | "full_agent";
+export type MonitorFailureAction =
   | "none"
   | "unlisted"
   | "remove_public"
   | "remove_private"
   | "remove_all";
-export type TestRunStatus =
+export type MonitorRunStatus =
   | "pending"
   | "running"
   | "completed"
   | "failed"
   | "cancelled";
-export type TestResultStatus =
+export type MonitorResultStatus =
   | "passed"
   | "failed"
   | "skipped"
   | "error"
   | "needs_auth";
-export type TestConnectionAuthStatus = "none" | "needs_auth" | "authenticated";
+export type MonitorConnectionAuthStatus =
+  | "none"
+  | "needs_auth"
+  | "authenticated";
 
-export interface RegistryTestConfig {
-  testMode: TestMode;
-  onFailure: TestFailureAction;
-  agentPrompt?: string;
+export interface RegistryMonitorConfig {
+  monitorMode: MonitorMode;
+  onFailure: MonitorFailureAction;
   schedule?: "manual" | "cron";
   cronExpression?: string;
+  scheduleEventId?: string;
   perMcpTimeoutMs: number;
   perToolTimeoutMs: number;
+  maxAgentSteps: number;
   testPublicOnly: boolean;
   testPrivateOnly: boolean;
+  agentContext?: string;
   llmConnectionId?: string;
   llmModelId?: string;
 }
 
-export interface TestToolResult {
+export interface MonitorToolResult {
   toolName: string;
   success: boolean;
   durationMs: number;
@@ -181,11 +186,11 @@ export interface TestToolResult {
   error?: string | null;
 }
 
-export interface TestRun {
+export interface MonitorRun {
   id: string;
   organization_id: string;
-  status: TestRunStatus;
-  config_snapshot: RegistryTestConfig | null;
+  status: MonitorRunStatus;
+  config_snapshot: RegistryMonitorConfig | null;
   total_items: number;
   tested_items: number;
   passed_items: number;
@@ -197,49 +202,49 @@ export interface TestRun {
   created_at: string;
 }
 
-export interface TestResult {
+export interface MonitorResult {
   id: string;
   run_id: string;
   organization_id: string;
   item_id: string;
   item_title: string;
-  status: TestResultStatus;
+  status: MonitorResultStatus;
   error_message: string | null;
   connection_ok: boolean;
   tools_listed: boolean;
-  tool_results: TestToolResult[];
+  tool_results: MonitorToolResult[];
   agent_summary: string | null;
   duration_ms: number;
   action_taken: string;
   tested_at: string;
 }
 
-export interface TestRunListResponse {
-  items: TestRun[];
+export interface MonitorRunListResponse {
+  items: MonitorRun[];
   totalCount: number;
 }
 
-export interface TestResultListResponse {
-  items: TestResult[];
+export interface MonitorResultListResponse {
+  items: MonitorResult[];
   totalCount: number;
 }
 
-export interface TestConnectionMapping {
+export interface MonitorConnectionMapping {
   id: string;
   organization_id: string;
   item_id: string;
   connection_id: string;
-  auth_status: TestConnectionAuthStatus;
+  auth_status: MonitorConnectionAuthStatus;
   created_at: string;
   updated_at: string;
 }
 
-export interface TestConnectionListItem {
-  mapping: TestConnectionMapping;
+export interface MonitorConnectionListItem {
+  mapping: MonitorConnectionMapping;
   item: RegistryItem | null;
   remoteUrl: string | null;
 }
 
-export interface TestConnectionListResponse {
-  items: TestConnectionListItem[];
+export interface MonitorConnectionListResponse {
+  items: MonitorConnectionListItem[];
 }

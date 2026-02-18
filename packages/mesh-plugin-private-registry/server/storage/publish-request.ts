@@ -137,22 +137,25 @@ export class PublishRequestStorage {
       offset?: number;
     } = {},
   ): Promise<{ items: PublishRequestEntity[]; totalCount: number }> {
-    let base = this.db
+    let listQuery = this.db
       .selectFrom("private_registry_publish_request")
       .selectAll()
       .where("organization_id", "=", organizationId);
 
+    let countQuery = this.db
+      .selectFrom("private_registry_publish_request")
+      .select((eb) => eb.fn.countAll<string>().as("count"))
+      .where("organization_id", "=", organizationId);
+
     if (query.status) {
-      base = base.where("status", "=", query.status);
+      listQuery = listQuery.where("status", "=", query.status);
+      countQuery = countQuery.where("status", "=", query.status);
     }
 
-    const totalCountRow = await base
-      .$if(Boolean(query.status), (qb) => qb)
-      .select((eb) => eb.fn.countAll<string>().as("count"))
-      .executeTakeFirst();
+    const totalCountRow = await countQuery.executeTakeFirst();
     const totalCount = Number(totalCountRow?.count ?? 0);
 
-    const rows = await base
+    const rows = await listQuery
       .orderBy("created_at", "desc")
       .limit(query.limit ?? 24)
       .offset(query.offset ?? 0)

@@ -40,7 +40,14 @@ export interface ServerPluginToolContext {
       structuredContent?: unknown;
     }>;
     listTools: () => Promise<{
-      tools: Array<{ name: string; description?: string }>;
+      tools: Array<{
+        name: string;
+        title?: string;
+        description?: string;
+        inputSchema?: Record<string, unknown>;
+        outputSchema?: Record<string, unknown>;
+        annotations?: Record<string, unknown>;
+      }>;
     }>;
     close?: () => Promise<void>;
   }>;

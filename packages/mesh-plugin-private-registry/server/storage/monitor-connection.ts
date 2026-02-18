@@ -2,23 +2,23 @@ import { randomUUID } from "node:crypto";
 import type { Insertable, Kysely, Selectable, Updateable } from "kysely";
 import type {
   PrivateRegistryDatabase,
-  TestConnectionAuthStatus,
-  TestConnectionEntity,
+  MonitorConnectionAuthStatus,
+  MonitorConnectionEntity,
 } from "./types";
 
 type RawRow = Selectable<
-  PrivateRegistryDatabase["private_registry_test_connection"]
+  PrivateRegistryDatabase["private_registry_monitor_connection"]
 >;
 
-export class TestConnectionStorage {
+export class MonitorConnectionStorage {
   constructor(private db: Kysely<PrivateRegistryDatabase>) {}
 
   async findByItemId(
     organizationId: string,
     itemId: string,
-  ): Promise<TestConnectionEntity | null> {
+  ): Promise<MonitorConnectionEntity | null> {
     const row = await this.db
-      .selectFrom("private_registry_test_connection")
+      .selectFrom("private_registry_monitor_connection")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("item_id", "=", itemId)
@@ -26,9 +26,9 @@ export class TestConnectionStorage {
     return row ? this.deserialize(row as RawRow) : null;
   }
 
-  async list(organizationId: string): Promise<TestConnectionEntity[]> {
+  async list(organizationId: string): Promise<MonitorConnectionEntity[]> {
     const rows = await this.db
-      .selectFrom("private_registry_test_connection")
+      .selectFrom("private_registry_monitor_connection")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .orderBy("updated_at", "desc")
@@ -36,12 +36,25 @@ export class TestConnectionStorage {
     return rows.map((row) => this.deserialize(row as RawRow));
   }
 
+  async findByConnectionId(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<MonitorConnectionEntity | null> {
+    const row = await this.db
+      .selectFrom("private_registry_monitor_connection")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("connection_id", "=", connectionId)
+      .executeTakeFirst();
+    return row ? this.deserialize(row as RawRow) : null;
+  }
+
   async upsert(input: {
     organization_id: string;
     item_id: string;
     connection_id: string;
-    auth_status?: TestConnectionAuthStatus;
-  }): Promise<TestConnectionEntity> {
+    auth_status?: MonitorConnectionAuthStatus;
+  }): Promise<MonitorConnectionEntity> {
     const existing = await this.findByItemId(
       input.organization_id,
       input.item_id,
@@ -50,7 +63,7 @@ export class TestConnectionStorage {
 
     if (!existing) {
       const row: Insertable<
-        PrivateRegistryDatabase["private_registry_test_connection"]
+        PrivateRegistryDatabase["private_registry_monitor_connection"]
       > = {
         id: randomUUID(),
         organization_id: input.organization_id,
@@ -61,19 +74,19 @@ export class TestConnectionStorage {
         updated_at: now,
       };
       await this.db
-        .insertInto("private_registry_test_connection")
+        .insertInto("private_registry_monitor_connection")
         .values(row)
         .execute();
     } else {
       const update: Updateable<
-        PrivateRegistryDatabase["private_registry_test_connection"]
+        PrivateRegistryDatabase["private_registry_monitor_connection"]
       > = {
         connection_id: input.connection_id,
         auth_status: input.auth_status ?? existing.auth_status,
         updated_at: now,
       };
       await this.db
-        .updateTable("private_registry_test_connection")
+        .updateTable("private_registry_monitor_connection")
         .set(update)
         .where("organization_id", "=", input.organization_id)
         .where("item_id", "=", input.item_id)
@@ -82,7 +95,7 @@ export class TestConnectionStorage {
 
     const saved = await this.findByItemId(input.organization_id, input.item_id);
     if (!saved) {
-      throw new Error("Failed to save test connection");
+      throw new Error("Failed to save monitor connection");
     }
     return saved;
   }
@@ -90,10 +103,10 @@ export class TestConnectionStorage {
   async updateAuthStatus(
     organizationId: string,
     itemId: string,
-    authStatus: TestConnectionAuthStatus,
-  ): Promise<TestConnectionEntity | null> {
+    authStatus: MonitorConnectionAuthStatus,
+  ): Promise<MonitorConnectionEntity | null> {
     await this.db
-      .updateTable("private_registry_test_connection")
+      .updateTable("private_registry_monitor_connection")
       .set({
         auth_status: authStatus,
         updated_at: new Date().toISOString(),
@@ -104,7 +117,7 @@ export class TestConnectionStorage {
     return this.findByItemId(organizationId, itemId);
   }
 
-  private deserialize(row: RawRow): TestConnectionEntity {
+  private deserialize(row: RawRow): MonitorConnectionEntity {
     return {
       id: row.id,
       organization_id: row.organization_id,

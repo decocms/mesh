@@ -2,11 +2,11 @@ import { Kysely, sql } from "kysely";
 import type { ServerPluginMigration } from "@decocms/bindings/server-plugin";
 
 export const migration: ServerPluginMigration = {
-  name: "005-test-runs",
+  name: "005-monitor-runs",
 
   async up(db: Kysely<unknown>): Promise<void> {
     await db.schema
-      .createTable("private_registry_test_run")
+      .createTable("private_registry_monitor_run")
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("organization_id", "text", (col) =>
         col.notNull().references("organization.id").onDelete("cascade"),
@@ -29,18 +29,18 @@ export const migration: ServerPluginMigration = {
       .execute();
 
     await db.schema
-      .createIndex("idx_private_registry_test_run_org_created")
-      .on("private_registry_test_run")
+      .createIndex("idx_private_registry_monitor_run_org_created")
+      .on("private_registry_monitor_run")
       .columns(["organization_id", "created_at"])
       .execute();
 
     await db.schema
-      .createTable("private_registry_test_result")
+      .createTable("private_registry_monitor_result")
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("run_id", "text", (col) =>
         col
           .notNull()
-          .references("private_registry_test_run.id")
+          .references("private_registry_monitor_run.id")
           .onDelete("cascade"),
       )
       .addColumn("organization_id", "text", (col) =>
@@ -66,19 +66,19 @@ export const migration: ServerPluginMigration = {
       .execute();
 
     await db.schema
-      .createIndex("idx_private_registry_test_result_run")
-      .on("private_registry_test_result")
+      .createIndex("idx_private_registry_monitor_result_run")
+      .on("private_registry_monitor_result")
       .columns(["run_id", "tested_at"])
       .execute();
 
     await db.schema
-      .createIndex("idx_private_registry_test_result_run_status")
-      .on("private_registry_test_result")
+      .createIndex("idx_private_registry_monitor_result_run_status")
+      .on("private_registry_monitor_result")
       .columns(["run_id", "status"])
       .execute();
 
     await db.schema
-      .createTable("private_registry_test_connection")
+      .createTable("private_registry_monitor_connection")
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("organization_id", "text", (col) =>
         col.notNull().references("organization.id").onDelete("cascade"),
@@ -99,8 +99,8 @@ export const migration: ServerPluginMigration = {
       .execute();
 
     await db.schema
-      .createIndex("idx_private_registry_test_connection_org_item")
-      .on("private_registry_test_connection")
+      .createIndex("idx_private_registry_monitor_connection_org_item")
+      .on("private_registry_monitor_connection")
       .columns(["organization_id", "item_id"])
       .unique()
       .execute();
@@ -108,31 +108,34 @@ export const migration: ServerPluginMigration = {
 
   async down(db: Kysely<unknown>): Promise<void> {
     await db.schema
-      .dropIndex("idx_private_registry_test_connection_org_item")
+      .dropIndex("idx_private_registry_monitor_connection_org_item")
       .ifExists()
       .execute();
     await db.schema
-      .dropTable("private_registry_test_connection")
+      .dropTable("private_registry_monitor_connection")
       .ifExists()
       .execute();
 
     await db.schema
-      .dropIndex("idx_private_registry_test_result_run_status")
+      .dropIndex("idx_private_registry_monitor_result_run_status")
       .ifExists()
       .execute();
     await db.schema
-      .dropIndex("idx_private_registry_test_result_run")
+      .dropIndex("idx_private_registry_monitor_result_run")
       .ifExists()
       .execute();
     await db.schema
-      .dropTable("private_registry_test_result")
+      .dropTable("private_registry_monitor_result")
       .ifExists()
       .execute();
 
     await db.schema
-      .dropIndex("idx_private_registry_test_run_org_created")
+      .dropIndex("idx_private_registry_monitor_run_org_created")
       .ifExists()
       .execute();
-    await db.schema.dropTable("private_registry_test_run").ifExists().execute();
+    await db.schema
+      .dropTable("private_registry_monitor_run")
+      .ifExists()
+      .execute();
   },
 };

@@ -4,6 +4,7 @@ import { migrations } from "./migrations";
 import { publicMCPServerRoutes, publicPublishRequestRoutes } from "./routes";
 import { createStorage } from "./storage";
 import { tools } from "./tools";
+import { RegistryMonitorConfigSchema } from "./tools/monitor-schemas";
 
 export const serverPlugin: ServerPlugin = {
   id: PLUGIN_ID,
@@ -16,4 +17,30 @@ export const serverPlugin: ServerPlugin = {
     publicMCPServerRoutes(app, ctx);
   },
   createStorage,
+  onEvents: {
+    types: ["registry.monitor.scheduled"],
+    handler: async (events, ctx) => {
+      const proxy = await ctx.createMCPProxy(ctx.connectionId);
+      try {
+        for (const event of events) {
+          if (event.type !== "registry.monitor.scheduled") continue;
+          const eventData =
+            event.data && typeof event.data === "object"
+              ? (event.data as Record<string, unknown>)
+              : {};
+          const rawConfig =
+            eventData.config && typeof eventData.config === "object"
+              ? eventData.config
+              : {};
+          const config = RegistryMonitorConfigSchema.parse(rawConfig);
+          await proxy.callTool({
+            name: "REGISTRY_MONITOR_RUN_START",
+            arguments: { config },
+          });
+        }
+      } finally {
+        await proxy.close();
+      }
+    },
+  },
 };

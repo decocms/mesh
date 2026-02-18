@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import type { ServerPluginContext } from "@decocms/bindings/server-plugin";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { PLUGIN_ID } from "../../shared";
 import { PublishRequestStorage } from "../storage/publish-request";
@@ -15,6 +18,111 @@ type CoreDb = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   selectFrom: (...args: any[]) => any;
 };
+
+type EventDb = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  insertInto: (...args: any[]) => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  selectFrom: (...args: any[]) => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  executeQuery?: (...args: any[]) => Promise<unknown>;
+};
+
+async function publishRequestCreatedEvent(args: {
+  db: EventDb;
+  organizationId: string;
+  request: {
+    id: string;
+    requested_id: string | null;
+    title: string;
+    status: string;
+    created_at: string;
+    requester_name: string | null;
+    requester_email: string | null;
+  };
+}): Promise<void> {
+  const now = new Date().toISOString();
+  const eventId = randomUUID();
+  const sourceConnectionId = WellKnownOrgMCPId.SELF(args.organizationId);
+  const eventType = "registry.publish_request.created";
+  const eventData = {
+    requestId: args.request.id,
+    requestedId: args.request.requested_id,
+    title: args.request.title,
+    status: args.request.status,
+    createdAt: args.request.created_at,
+    requester: {
+      name: args.request.requester_name,
+      email: args.request.requester_email,
+    },
+  };
+
+  await args.db
+    .insertInto("events")
+    .values({
+      id: eventId,
+      organization_id: args.organizationId,
+      type: eventType,
+      source: sourceConnectionId,
+      specversion: "1.0",
+      subject: args.request.id,
+      time: now,
+      datacontenttype: "application/json",
+      dataschema: null,
+      data: JSON.stringify(eventData),
+      cron: null,
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+      next_retry_at: null,
+      created_at: now,
+      updated_at: now,
+    })
+    .execute();
+
+  const subscriptions = await args.db
+    .selectFrom("event_subscriptions")
+    .select(["id"])
+    .where("organization_id", "=", args.organizationId)
+    .where("enabled", "=", 1)
+    .where("event_type", "=", eventType)
+    .where((eb: any) =>
+      eb.or([
+        eb("publisher", "is", null),
+        eb("publisher", "=", sourceConnectionId),
+      ]),
+    )
+    .execute();
+
+  if (subscriptions.length > 0) {
+    await args.db
+      .insertInto("event_deliveries")
+      .values(
+        subscriptions.map((subscription: { id: string }) => ({
+          id: randomUUID(),
+          event_id: eventId,
+          subscription_id: subscription.id,
+          status: "pending",
+          attempts: 0,
+          last_error: null,
+          delivered_at: null,
+          next_retry_at: null,
+          created_at: now,
+        })),
+      )
+      .execute();
+  }
+
+  // Best effort wake-up for PostgreSQL LISTEN/NOTIFY deployments.
+  // On SQLite, this query is expected to fail and is safely ignored.
+  try {
+    await sql`SELECT pg_notify('mesh_events', ${eventId})`.execute(
+      args.db as any,
+    );
+  } catch {
+    // no-op
+  }
+}
 
 async function resolveOrganizationId(
   db: CoreDb,
@@ -227,6 +335,19 @@ export function publicPublishRequestRoutes(
       requester_name: parsed.data.requester?.name ?? null,
       requester_email: parsed.data.requester?.email ?? null,
     });
+
+    try {
+      await publishRequestCreatedEvent({
+        db: db as EventDb,
+        organizationId,
+        request: created,
+      });
+    } catch (error) {
+      console.warn(
+        "[private-registry] failed to emit publish-request event:",
+        error,
+      );
+    }
 
     return c.json(
       {

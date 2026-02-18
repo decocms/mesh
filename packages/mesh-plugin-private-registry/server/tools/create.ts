@@ -5,8 +5,8 @@ import {
 } from "./schema";
 import { getPluginStorage, orgHandler } from "./utils";
 
-export const COLLECTION_REGISTRY_APP_CREATE: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_CREATE",
+export const REGISTRY_ITEM_CREATE: ServerPluginToolDefinition = {
+  name: "REGISTRY_ITEM_CREATE",
   description: "Create a private registry item",
   inputSchema: RegistryCreateInputSchema,
   outputSchema: RegistryCreateOutputSchema,

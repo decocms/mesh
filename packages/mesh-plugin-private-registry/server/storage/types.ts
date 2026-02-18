@@ -17,19 +17,22 @@ export interface PrivateRegistryItemTable {
 }
 
 export type PublishRequestStatus = "pending" | "approved" | "rejected";
-export type TestRunStatus =
+export type MonitorRunStatus =
   | "pending"
   | "running"
   | "completed"
   | "failed"
   | "cancelled";
-export type TestResultStatus =
+export type MonitorResultStatus =
   | "passed"
   | "failed"
   | "skipped"
   | "error"
   | "needs_auth";
-export type TestConnectionAuthStatus = "none" | "needs_auth" | "authenticated";
+export type MonitorConnectionAuthStatus =
+  | "none"
+  | "needs_auth"
+  | "authenticated";
 
 export interface PublishRequestTable {
   id: string;
@@ -56,10 +59,10 @@ export interface PublishApiKeyTable {
   created_at: ColumnType<string, string, string>;
 }
 
-export interface TestRunTable {
+export interface MonitorRunTable {
   id: string;
   organization_id: string;
-  status: TestRunStatus;
+  status: MonitorRunStatus;
   config_snapshot: ColumnType<string | null, string | null, string | null>;
   total_items: ColumnType<number, number, number>;
   tested_items: ColumnType<number, number, number>;
@@ -72,13 +75,13 @@ export interface TestRunTable {
   created_at: ColumnType<string, string, string>;
 }
 
-export interface TestResultTable {
+export interface MonitorResultTable {
   id: string;
   run_id: string;
   organization_id: string;
   item_id: string;
   item_title: string;
-  status: TestResultStatus;
+  status: MonitorResultStatus;
   error_message: ColumnType<string | null, string | null, string | null>;
   connection_ok: ColumnType<number, number, number>;
   tools_listed: ColumnType<number, number, number>;
@@ -89,12 +92,12 @@ export interface TestResultTable {
   tested_at: ColumnType<string, string, string>;
 }
 
-export interface TestConnectionTable {
+export interface MonitorConnectionTable {
   id: string;
   organization_id: string;
   item_id: string;
   connection_id: string;
-  auth_status: TestConnectionAuthStatus;
+  auth_status: MonitorConnectionAuthStatus;
   created_at: ColumnType<string, string, string>;
   updated_at: ColumnType<string, string, string>;
 }
@@ -103,9 +106,9 @@ export interface PrivateRegistryDatabase {
   private_registry_item: PrivateRegistryItemTable;
   private_registry_publish_request: PublishRequestTable;
   private_registry_publish_api_key: PublishApiKeyTable;
-  private_registry_test_run: TestRunTable;
-  private_registry_test_result: TestResultTable;
-  private_registry_test_connection: TestConnectionTable;
+  private_registry_monitor_run: MonitorRunTable;
+  private_registry_monitor_result: MonitorResultTable;
+  private_registry_monitor_connection: MonitorConnectionTable;
 }
 
 export interface RegistryToolMeta {
@@ -295,7 +298,7 @@ export interface PublishApiKeyEntity {
   created_at: string;
 }
 
-export interface TestToolResult {
+export interface MonitorToolResult {
   toolName: string;
   success: boolean;
   durationMs: number;
@@ -304,28 +307,32 @@ export interface TestToolResult {
   error?: string | null;
 }
 
-export interface TestRunConfigSnapshot {
-  testMode: "health_check" | "tool_call" | "full_agent";
+export interface MonitorRunConfigSnapshot {
+  monitorMode: "health_check" | "tool_call" | "full_agent";
   onFailure:
     | "none"
     | "unlisted"
     | "remove_public"
     | "remove_private"
     | "remove_all";
-  agentPrompt?: string;
   perMcpTimeoutMs?: number;
   perToolTimeoutMs?: number;
+  maxAgentSteps?: number;
+  agentContext?: string;
   llmConnectionId?: string;
   llmModelId?: string;
   testPublicOnly?: boolean;
   testPrivateOnly?: boolean;
+  schedule?: "manual" | "cron";
+  cronExpression?: string;
+  scheduleEventId?: string;
 }
 
-export interface TestRunEntity {
+export interface MonitorRunEntity {
   id: string;
   organization_id: string;
-  status: TestRunStatus;
-  config_snapshot: TestRunConfigSnapshot | null;
+  status: MonitorRunStatus;
+  config_snapshot: MonitorRunConfigSnapshot | null;
   total_items: number;
   tested_items: number;
   passed_items: number;
@@ -337,29 +344,29 @@ export interface TestRunEntity {
   created_at: string;
 }
 
-export interface TestResultEntity {
+export interface MonitorResultEntity {
   id: string;
   run_id: string;
   organization_id: string;
   item_id: string;
   item_title: string;
-  status: TestResultStatus;
+  status: MonitorResultStatus;
   error_message: string | null;
   connection_ok: boolean;
   tools_listed: boolean;
-  tool_results: TestToolResult[];
+  tool_results: MonitorToolResult[];
   agent_summary: string | null;
   duration_ms: number;
   action_taken: string;
   tested_at: string;
 }
 
-export interface TestConnectionEntity {
+export interface MonitorConnectionEntity {
   id: string;
   organization_id: string;
   item_id: string;
   connection_id: string;
-  auth_status: TestConnectionAuthStatus;
+  auth_status: MonitorConnectionAuthStatus;
   created_at: string;
   updated_at: string;
 }

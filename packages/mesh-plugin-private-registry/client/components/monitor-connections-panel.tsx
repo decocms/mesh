@@ -6,17 +6,17 @@ import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { toast } from "sonner";
 import {
-  useSyncTestConnections,
-  useTestConnections,
-  useUpdateTestConnectionAuth,
-} from "../hooks/use-test-runs";
+  useSyncMonitorConnections,
+  useMonitorConnections,
+  useUpdateMonitorConnectionAuth,
+} from "../hooks/use-monitor";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type {
-  TestConnectionAuthStatus,
-  TestConnectionListItem,
+  MonitorConnectionAuthStatus,
+  MonitorConnectionListItem,
 } from "../lib/types";
 
-function authBadgeStyle(status: TestConnectionAuthStatus) {
+function authBadgeStyle(status: MonitorConnectionAuthStatus) {
   switch (status) {
     case "authenticated":
       return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
@@ -27,7 +27,7 @@ function authBadgeStyle(status: TestConnectionAuthStatus) {
   }
 }
 
-function authBadgeLabel(status: TestConnectionAuthStatus) {
+function authBadgeLabel(status: MonitorConnectionAuthStatus) {
   switch (status) {
     case "authenticated":
       return "Authenticated";
@@ -42,7 +42,7 @@ function ConnectionRow({
   entry,
   onAuthChanged,
 }: {
-  entry: TestConnectionListItem;
+  entry: MonitorConnectionListItem;
   onAuthChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -60,7 +60,7 @@ function ConnectionRow({
     isServerError: false,
   });
 
-  const updateAuth = useUpdateTestConnectionAuth();
+  const updateAuth = useUpdateMonitorConnectionAuth();
   const connectionId = entry.mapping.connection_id;
   const authStatus = entry.mapping.auth_status;
   const title = entry.item?.title ?? entry.mapping.item_id;
@@ -182,7 +182,7 @@ function ConnectionRow({
       toast.success(`"${title}" authenticated!`);
       markAuthenticated();
     } catch (err) {
-      console.error("[TestConnectionsPanel] Auth error:", err);
+      console.error("[MonitorConnectionsPanel] Auth error:", err);
       toast.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
@@ -334,16 +334,16 @@ function ConnectionRow({
   );
 }
 
-export function TestConnectionsPanel() {
-  const listQuery = useTestConnections();
-  const syncMutation = useSyncTestConnections();
+export function MonitorConnectionsPanel() {
+  const listQuery = useMonitorConnections();
+  const syncMutation = useSyncMonitorConnections();
   const items = listQuery.data?.items ?? [];
 
   return (
     <Card className="p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">Test Connections</h3>
+          <h3 className="text-sm font-semibold">Monitor Connections</h3>
           <p className="text-[10px] text-muted-foreground">
             Click <strong>Authenticate</strong> to auto-detect OAuth or paste a
             Token manually.
@@ -369,8 +369,8 @@ export function TestConnectionsPanel() {
       <div className="space-y-2 max-h-[52vh] overflow-auto pr-1">
         {items.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-3">
-            No test connections yet. Click &quot;Sync&quot; to create them from
-            your registry items.
+            No monitor connections yet. Click &quot;Sync&quot; to create them
+            from your registry items.
           </p>
         )}
         {items.map((entry) => (

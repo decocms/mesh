@@ -1,65 +1,58 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { BrokenMCPList } from "./broken-mcp-list";
-import { TestConfiguration } from "./test-configuration";
-import { TestConnectionsPanel } from "./test-connections-panel";
+import { MonitorConfiguration } from "./monitor-configuration";
+import { MonitorConnectionsPanel } from "./monitor-connections-panel";
 import {
-  useRegistryTestConfig,
-  useTestResults,
-  useTestRun,
-  useTestRunCancel,
-  useTestRunStart,
-  useTestRuns,
-} from "../hooks/use-test-runs";
-import type { TestMode, TestResult, TestToolResult } from "../lib/types";
+  useRegistryMonitorConfig,
+  useMonitorResults,
+  useMonitorRun,
+  useMonitorRunCancel,
+  useMonitorRunStart,
+  useMonitorRuns,
+} from "../hooks/use-monitor";
+import type {
+  MonitorMode,
+  MonitorResult,
+  MonitorToolResult,
+} from "../lib/types";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  collapseLatestToolResults,
+  formatMonitorDuration,
+  monitorStatusBadgeClass,
+} from "../lib/monitor-utils";
 
 function pct(run: { total_items: number; tested_items: number }): number {
   if (!run.total_items) return 0;
   return Math.min(100, Math.round((run.tested_items / run.total_items) * 100));
 }
 
-function formatDuration(
-  startedAt: string | null,
-  finishedAt: string | null,
-): string | null {
-  if (!startedAt) return null;
-  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
-  const start = new Date(startedAt).getTime();
-  const ms = end - start;
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case "running":
-      return "bg-blue-500/10 text-blue-600 border-blue-500/20 animate-pulse";
-    case "completed":
-      return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-    case "failed":
-      return "bg-red-500/10 text-red-600 border-red-500/20";
-    case "cancelled":
-      return "bg-zinc-500/10 text-zinc-500 border-zinc-500/20";
-    default:
-      return "";
-  }
-}
-
 function ResultLogEntry({
   result: r,
   index: idx,
 }: {
-  result: TestResult;
+  result: MonitorResult;
   index: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const isHealthCheck = r.tool_results.every(
+  const latestToolResults = collapseLatestToolResults(r.tool_results);
+  const isHealthCheck = latestToolResults.every(
     (t) => t.outputPreview === "health_check: not called",
   );
-  const realToolTests = r.tool_results.filter(
+  const realToolTests = latestToolResults.filter(
     (t) => t.outputPreview !== "health_check: not called",
   );
   const passedTools = realToolTests.filter((t) => t.success).length;
@@ -121,8 +114,8 @@ function ResultLogEntry({
                   {failedTools}✗
                 </span>
               </>
-            ) : isHealthCheck && r.tool_results.length > 0 ? (
-              <span>{r.tool_results.length} tools found</span>
+            ) : isHealthCheck && latestToolResults.length > 0 ? (
+              <span>{latestToolResults.length} tools found</span>
             ) : (
               "no tools"
             )}
@@ -178,21 +171,24 @@ function ResultLogEntry({
                 Tools tested: {passedTools} passed, {failedTools} failed
               </p>
               <div className="space-y-0.5">
-                {realToolTests.map((tool) => (
-                  <ToolMiniRow key={`${r.id}-${tool.toolName}`} tool={tool} />
+                {realToolTests.map((tool, toolIndex) => (
+                  <ToolMiniRow
+                    key={`${r.id}-${tool.toolName}-${toolIndex}`}
+                    tool={tool}
+                  />
                 ))}
               </div>
             </div>
-          ) : isHealthCheck && r.tool_results.length > 0 ? (
+          ) : isHealthCheck && latestToolResults.length > 0 ? (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-muted-foreground">
-                Tools discovered ({r.tool_results.length}) - not individually
+                Tools discovered ({latestToolResults.length}) - not individually
                 tested (health-check mode)
               </p>
               <div className="flex flex-wrap gap-1">
-                {r.tool_results.map((tool) => (
+                {latestToolResults.map((tool, toolIndex) => (
                   <Badge
-                    key={`${r.id}-${tool.toolName}`}
+                    key={`${r.id}-${tool.toolName}-${toolIndex}`}
                     variant="outline"
                     className="text-[10px] font-mono"
                   >
@@ -218,7 +214,7 @@ function ResultLogEntry({
   );
 }
 
-function ToolMiniRow({ tool }: { tool: TestToolResult }) {
+function ToolMiniRow({ tool }: { tool: MonitorToolResult }) {
   const [showDetails, setShowDetails] = useState(false);
   return (
     <div className="rounded border border-border overflow-hidden">
@@ -279,31 +275,58 @@ function ToolMiniRow({ tool }: { tool: TestToolResult }) {
   );
 }
 
-export function TestDashboard({
+export function MonitorDashboard({
   activeRunId,
   onRunChange,
 }: {
   activeRunId?: string;
   onRunChange: (runId: string | undefined) => void;
 }) {
-  const { settings } = useRegistryTestConfig();
-  const [modeOverride, setModeOverride] = useState<TestMode | null>(null);
-  const runStartMutation = useTestRunStart();
-  const runCancelMutation = useTestRunCancel();
-  const runQuery = useTestRun(activeRunId);
-  const runsQuery = useTestRuns();
+  const { settings } = useRegistryMonitorConfig();
+  const [modeOverride, setModeOverride] = useState<MonitorMode | null>(null);
+  const [confirmStartOpen, setConfirmStartOpen] = useState(false);
+  const lastStartRef = useRef(0);
+  const runStartMutation = useMonitorRunStart();
+  const runCancelMutation = useMonitorRunCancel();
+  const runQuery = useMonitorRun(activeRunId);
+  const runsQuery = useMonitorRuns();
   const run = runQuery.data?.run ?? null;
   const runStatus = run?.status;
-  const brokenQuery = useTestResults(activeRunId, "failed", runStatus);
-  const allResults = useTestResults(activeRunId, undefined, runStatus);
+  const runConfigMode =
+    run?.config_snapshot?.monitorMode ??
+    (run?.config_snapshot as { testMode?: string } | null)?.testMode;
+  const allResults = useMonitorResults(activeRunId, undefined, runStatus);
+  const runningRun = (runsQuery.data?.items ?? []).find(
+    (runItem) => runItem.status === "running",
+  );
+  const failedResults = (allResults.data?.items ?? []).filter(
+    (result) => result.status === "failed" || result.status === "error",
+  );
 
-  const onStart = async () => {
-    const effectiveMode = modeOverride ?? settings.testMode;
+  const startMonitor = async () => {
+    const now = Date.now();
+    if (now - lastStartRef.current < 1000) {
+      return;
+    }
+    lastStartRef.current = now;
+    const effectiveMode = modeOverride ?? settings.monitorMode;
     const created = await runStartMutation.mutateAsync({
       ...settings,
-      testMode: effectiveMode,
+      monitorMode: effectiveMode,
     });
     onRunChange(created.run.id);
+  };
+
+  const onStart = async () => {
+    if (
+      runningRun &&
+      runningRun.id !== activeRunId &&
+      runningRun.status === "running"
+    ) {
+      setConfirmStartOpen(true);
+      return;
+    }
+    await startMonitor();
   };
 
   const onCancel = async () => {
@@ -312,9 +335,11 @@ export function TestDashboard({
   };
 
   const isRunning = run?.status === "running";
-  const duration = run ? formatDuration(run.started_at, run.finished_at) : null;
+  const duration = run
+    ? formatMonitorDuration(run.started_at, run.finished_at)
+    : null;
   const resultItems = allResults.data?.items ?? [];
-  const selectedMode = modeOverride ?? settings.testMode;
+  const selectedMode = modeOverride ?? settings.monitorMode;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
@@ -328,12 +353,21 @@ export function TestDashboard({
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {runningRun && runningRun.id !== activeRunId && (
+                <Badge variant="outline" className="text-[10px]">
+                  Run in progress: {runningRun.id.slice(0, 8)}
+                </Badge>
+              )}
               <Button
                 size="sm"
                 onClick={onStart}
                 disabled={runStartMutation.isPending || isRunning}
               >
-                {runStartMutation.isPending ? "Starting..." : "Start tests"}
+                {runStartMutation.isPending
+                  ? "Starting..."
+                  : runningRun && runningRun.id !== activeRunId
+                    ? "Start another monitor"
+                    : "Start monitor"}
               </Button>
               <Button
                 size="sm"
@@ -349,17 +383,17 @@ export function TestDashboard({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className="space-y-1">
               <span className="text-[11px] text-muted-foreground">
-                Test mode
+                Monitor mode
               </span>
               <select
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={selectedMode}
-                onChange={(e) => setModeOverride(e.target.value as TestMode)}
+                onChange={(e) => setModeOverride(e.target.value as MonitorMode)}
                 disabled={isRunning}
               >
                 <option value="health_check">Health check</option>
                 <option value="tool_call">Tool call</option>
-                <option value="full_agent">Full agent (LLM-assisted)</option>
+                <option value="full_agent">Agentic (modelo LLM)</option>
               </select>
             </label>
 
@@ -388,14 +422,18 @@ export function TestDashboard({
               ? "Checks connectivity and tool listing only — no tool calls are made."
               : selectedMode === "tool_call"
                 ? "Calls each tool with empty inputs to verify it responds without errors."
-                : "Uses an LLM to generate realistic inputs for each tool and validates the outputs."}
+                : "Usa um modelo LLM para executar chamadas encadeadas entre tools e validar os resultados."}
           </p>
 
           {run ? (
             <>
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge
-                  className={cn("capitalize", statusBadgeClass(run.status))}
+                  className={cn(
+                    "capitalize",
+                    monitorStatusBadgeClass(run.status),
+                    run.status === "running" ? "animate-pulse" : "",
+                  )}
                 >
                   {run.status}
                 </Badge>
@@ -409,7 +447,7 @@ export function TestDashboard({
                 )}
                 {isRunning && run.current_item_id && (
                   <span className="text-xs text-muted-foreground truncate max-w-64">
-                    Testing:{" "}
+                    Monitoring:{" "}
                     <span className="font-mono">{run.current_item_id}</span>
                   </span>
                 )}
@@ -464,12 +502,12 @@ export function TestDashboard({
             <div className="flex items-center gap-2">
               {isRunning && (
                 <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 animate-pulse">
-                  testing in progress
+                  monitor in progress
                 </Badge>
               )}
-              {run?.config_snapshot?.testMode && (
+              {runConfigMode && (
                 <Badge variant="outline" className="text-[10px]">
-                  mode: {run.config_snapshot.testMode.replace("_", " ")}
+                  mode: {runConfigMode.replace("_", " ")}
                 </Badge>
               )}
             </div>
@@ -504,18 +542,18 @@ export function TestDashboard({
       </div>
 
       <div className="xl:col-span-4 space-y-4 min-w-0">
-        <TestConnectionsPanel />
+        <MonitorConnectionsPanel />
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">
             Broken MCPs{" "}
-            {(brokenQuery.data?.items?.length ?? 0) > 0 && (
+            {failedResults.length > 0 && (
               <Badge variant="destructive" className="text-[10px] ml-1">
-                {brokenQuery.data?.items?.length}
+                {failedResults.length}
               </Badge>
             )}
           </h3>
-          <BrokenMCPList results={brokenQuery.data?.items ?? []} />
+          <BrokenMCPList results={failedResults} />
         </div>
 
         <details className="group rounded-lg border border-border bg-card">
@@ -526,10 +564,33 @@ export function TestDashboard({
             </span>
           </summary>
           <div className="px-4 pb-4">
-            <TestConfiguration hideTestMode borderless />
+            <MonitorConfiguration hideMonitorMode borderless />
           </div>
         </details>
       </div>
+      <AlertDialog open={confirmStartOpen} onOpenChange={setConfirmStartOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start another monitor run?</AlertDialogTitle>
+            <AlertDialogDescription>
+              There is already a run in progress
+              {runningRun ? ` (${runningRun.id})` : ""}. Starting another run
+              may increase database load and slow down both executions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmStartOpen(false);
+                void startMonitor();
+              }}
+            >
+              Start anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

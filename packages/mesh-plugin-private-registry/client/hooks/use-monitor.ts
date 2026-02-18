@@ -7,13 +7,13 @@ import {
 import { PLUGIN_ID } from "../../shared";
 import { KEYS } from "../lib/query-keys";
 import type {
-  RegistryTestConfig,
-  TestConnectionListResponse,
-  TestResultListResponse,
-  TestResultStatus,
-  TestRun,
-  TestRunListResponse,
-  TestRunStatus,
+  RegistryMonitorConfig,
+  MonitorConnectionListResponse,
+  MonitorResultListResponse,
+  MonitorResultStatus,
+  MonitorRun,
+  MonitorRunListResponse,
+  MonitorRunStatus,
 } from "../lib/types";
 
 type ToolResult<T> = { structuredContent?: T } & T;
@@ -47,7 +47,7 @@ async function callTool<T>(
   return (result.structuredContent ?? result) as T;
 }
 
-export function useTestRunStart() {
+export function useMonitorRunStart() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -56,20 +56,20 @@ export function useTestRunStart() {
   });
 
   return useMutation({
-    mutationFn: async (config?: Partial<RegistryTestConfig>) =>
-      callTool<{ run: TestRun }>(client, "REGISTRY_TEST_RUN_START", {
+    mutationFn: async (config?: Partial<RegistryMonitorConfig>) =>
+      callTool<{ run: MonitorRun }>(client, "REGISTRY_MONITOR_RUN_START", {
         config,
       }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: KEYS.testRuns() }),
-        queryClient.invalidateQueries({ queryKey: KEYS.testResults() }),
+        queryClient.invalidateQueries({ queryKey: KEYS.monitorRuns() }),
+        queryClient.invalidateQueries({ queryKey: KEYS.monitorResults() }),
       ]);
     },
   });
 }
 
-export function useTestRunCancel() {
+export function useMonitorRunCancel() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -79,17 +79,19 @@ export function useTestRunCancel() {
 
   return useMutation({
     mutationFn: async (runId: string) =>
-      callTool<{ run: TestRun }>(client, "REGISTRY_TEST_RUN_CANCEL", { runId }),
+      callTool<{ run: MonitorRun }>(client, "REGISTRY_MONITOR_RUN_CANCEL", {
+        runId,
+      }),
     onSuccess: async (_res, runId) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: KEYS.testRuns() }),
-        queryClient.invalidateQueries({ queryKey: KEYS.testRun(runId) }),
+        queryClient.invalidateQueries({ queryKey: KEYS.monitorRuns() }),
+        queryClient.invalidateQueries({ queryKey: KEYS.monitorRun(runId) }),
       ]);
     },
   });
 }
 
-export function useTestRuns(status?: TestRunStatus) {
+export function useMonitorRuns(status?: MonitorRunStatus) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -97,9 +99,9 @@ export function useTestRuns(status?: TestRunStatus) {
   });
 
   return useQuery({
-    queryKey: KEYS.testRunsList(status),
+    queryKey: KEYS.monitorRunsList(status),
     queryFn: async () =>
-      callTool<TestRunListResponse>(client, "REGISTRY_TEST_RUN_LIST", {
+      callTool<MonitorRunListResponse>(client, "REGISTRY_MONITOR_RUN_LIST", {
         status,
         limit: 100,
       }),
@@ -107,7 +109,7 @@ export function useTestRuns(status?: TestRunStatus) {
   });
 }
 
-export function useTestRun(runId?: string) {
+export function useMonitorRun(runId?: string) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -115,23 +117,23 @@ export function useTestRun(runId?: string) {
   });
 
   return useQuery({
-    queryKey: KEYS.testRun(runId),
+    queryKey: KEYS.monitorRun(runId),
     queryFn: async () =>
-      callTool<{ run: TestRun | null }>(client, "REGISTRY_TEST_RUN_GET", {
+      callTool<{ run: MonitorRun | null }>(client, "REGISTRY_MONITOR_RUN_GET", {
         runId,
       }),
     enabled: Boolean(runId),
     refetchInterval: (query) => {
       const run = query.state.data?.run;
-      return run?.status === "running" ? 3000 : false;
+      return run?.status === "running" ? 5000 : false;
     },
   });
 }
 
-export function useTestResults(
+export function useMonitorResults(
   runId?: string,
-  status?: TestResultStatus,
-  runStatus?: TestRunStatus,
+  status?: MonitorResultStatus,
+  runStatus?: MonitorRunStatus,
 ) {
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -140,21 +142,25 @@ export function useTestResults(
   });
 
   return useQuery({
-    queryKey: KEYS.testResultsList(runId, status),
+    queryKey: KEYS.monitorResultsList(runId, status),
     queryFn: async () =>
-      callTool<TestResultListResponse>(client, "REGISTRY_TEST_RESULT_LIST", {
-        runId,
-        status,
-        limit: 200,
-        offset: 0,
-      }),
+      callTool<MonitorResultListResponse>(
+        client,
+        "REGISTRY_MONITOR_RESULT_LIST",
+        {
+          runId,
+          status,
+          limit: 200,
+          offset: 0,
+        },
+      ),
     enabled: Boolean(runId),
     staleTime: 5_000,
-    refetchInterval: runStatus === "running" ? 3000 : false,
+    refetchInterval: runStatus === "running" ? 2500 : false,
   });
 }
 
-export function useTestConnections() {
+export function useMonitorConnections() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -162,18 +168,18 @@ export function useTestConnections() {
   });
 
   return useQuery({
-    queryKey: KEYS.testConnections(),
+    queryKey: KEYS.monitorConnections(),
     queryFn: async () =>
-      callTool<TestConnectionListResponse>(
+      callTool<MonitorConnectionListResponse>(
         client,
-        "REGISTRY_TEST_CONNECTION_LIST",
+        "REGISTRY_MONITOR_CONNECTION_LIST",
         {},
       ),
     staleTime: 10_000,
   });
 }
 
-export function useSyncTestConnections() {
+export function useSyncMonitorConnections() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -185,16 +191,18 @@ export function useSyncTestConnections() {
     mutationFn: async () =>
       callTool<{ created: number; updated: number }>(
         client,
-        "REGISTRY_TEST_CONNECTION_SYNC",
+        "REGISTRY_MONITOR_CONNECTION_SYNC",
         {},
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: KEYS.testConnections() });
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.monitorConnections(),
+      });
     },
   });
 }
 
-export function useUpdateTestConnectionAuth() {
+export function useUpdateMonitorConnectionAuth() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -212,11 +220,13 @@ export function useUpdateTestConnectionAuth() {
     }) =>
       callTool<{ success: boolean }>(
         client,
-        "REGISTRY_TEST_CONNECTION_UPDATE_AUTH",
+        "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
         { connectionId, authStatus },
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: KEYS.testConnections() });
+      await queryClient.invalidateQueries({
+        queryKey: KEYS.monitorConnections(),
+      });
     },
   });
 }
@@ -227,20 +237,23 @@ type PluginConfigResponse = {
   } | null;
 };
 
-const DEFAULT_TEST_SETTINGS: RegistryTestConfig = {
-  testMode: "health_check",
+const DEFAULT_MONITOR_SETTINGS: RegistryMonitorConfig = {
+  monitorMode: "health_check",
   onFailure: "none",
   schedule: "manual",
+  cronExpression: "",
+  scheduleEventId: "",
   perMcpTimeoutMs: 30_000,
   perToolTimeoutMs: 10_000,
+  maxAgentSteps: 15,
   testPublicOnly: false,
   testPrivateOnly: false,
-  agentPrompt: "",
+  agentContext: "",
   llmConnectionId: "",
   llmModelId: "",
 };
 
-export function useRegistryTestConfig() {
+export function useRegistryMonitorConfig() {
   const { org, project } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -258,33 +271,34 @@ export function useRegistryTestConfig() {
     enabled: Boolean(project.id),
   });
 
-  // Test config is stored under settings.testConfig to avoid
+  // Monitor config is stored under settings.testConfig to avoid
   // conflicting with registry settings (registryName, registryIcon, etc.)
   const rawSettings = query.data?.config?.settings;
-  const savedTestConfig =
+  const savedMonitorConfig =
     rawSettings && typeof rawSettings === "object"
       ? ((rawSettings as Record<string, unknown>).testConfig as
-          | Partial<RegistryTestConfig>
+          | Partial<RegistryMonitorConfig>
           | undefined)
       : undefined;
 
   // Also check for legacy flat keys (migrate automatically)
-  const legacyTestMode = rawSettings
-    ? (rawSettings as Record<string, unknown>).testMode
+  const legacyMonitorMode = rawSettings
+    ? ((rawSettings as Record<string, unknown>).monitorMode ??
+      (rawSettings as Record<string, unknown>).testMode)
     : undefined;
-  const hasLegacyKeys = typeof legacyTestMode === "string";
+  const hasLegacyKeys = typeof legacyMonitorMode === "string";
 
-  const settings: RegistryTestConfig = {
-    ...DEFAULT_TEST_SETTINGS,
-    ...(savedTestConfig ?? {}),
+  const settings: RegistryMonitorConfig = {
+    ...DEFAULT_MONITOR_SETTINGS,
+    ...(savedMonitorConfig ?? {}),
     // Fallback: read legacy flat keys if testConfig namespace doesn't exist yet
-    ...(hasLegacyKeys && !savedTestConfig
-      ? (rawSettings as Partial<RegistryTestConfig>)
+    ...(hasLegacyKeys && !savedMonitorConfig
+      ? (rawSettings as Partial<RegistryMonitorConfig>)
       : {}),
   };
 
   const saveMutation = useMutation({
-    mutationFn: async (patch: Partial<RegistryTestConfig>) => {
+    mutationFn: async (patch: Partial<RegistryMonitorConfig>) => {
       // Fetch the latest settings to avoid overwriting registry config
       const latestData = await callTool<PluginConfigResponse>(
         client,
@@ -307,9 +321,9 @@ export function useRegistryTestConfig() {
             ...latestSettings,
             // Store test config under a dedicated namespace
             testConfig: {
-              ...DEFAULT_TEST_SETTINGS,
+              ...DEFAULT_MONITOR_SETTINGS,
               ...((latestSettings.testConfig as
-                | Partial<RegistryTestConfig>
+                | Partial<RegistryMonitorConfig>
                 | undefined) ?? {}),
               ...patch,
             },
@@ -328,5 +342,67 @@ export function useRegistryTestConfig() {
     settings,
     isLoading: query.isLoading,
     saveMutation,
+  };
+}
+
+export function useMonitorScheduleSet() {
+  const queryClient = useQueryClient();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useMutation({
+    mutationFn: async (args: {
+      cronExpression: string;
+      config?: Partial<RegistryMonitorConfig>;
+    }) =>
+      callTool<{ scheduleEventId: string }>(
+        client,
+        "REGISTRY_MONITOR_SCHEDULE_SET",
+        args,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: KEYS.registryConfig() });
+    },
+  });
+}
+
+export function useMonitorScheduleCancel() {
+  const queryClient = useQueryClient();
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useMutation({
+    mutationFn: async (scheduleEventId: string) =>
+      callTool<{ success: boolean }>(
+        client,
+        "REGISTRY_MONITOR_SCHEDULE_CANCEL",
+        {
+          scheduleEventId,
+        },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: KEYS.registryConfig() });
+    },
+  });
+}
+
+export function useBrokenMonitorsCount() {
+  const runsQuery = useMonitorRuns("completed");
+  const latestRunId = runsQuery.data?.items?.[0]?.id;
+  const latestRunStatus = runsQuery.data?.items?.[0]?.status;
+  const failedResultsQuery = useMonitorResults(
+    latestRunId,
+    "failed",
+    latestRunStatus,
+  );
+  return {
+    brokenCount: failedResultsQuery.data?.items?.length ?? 0,
+    isLoading: runsQuery.isLoading || failedResultsQuery.isLoading,
   };
 }

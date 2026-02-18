@@ -208,6 +208,17 @@ export default function RegistryRequestsPage() {
           <div className="text-sm text-muted-foreground">
             Loading requests...
           </div>
+        ) : listQuery.isError ? (
+          <Card className="p-8 text-center">
+            <p className="text-sm text-destructive">
+              Failed to load publish requests.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {listQuery.error instanceof Error
+                ? listQuery.error.message
+                : "Unknown error"}
+            </p>
+          </Card>
         ) : requests.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-sm text-muted-foreground">

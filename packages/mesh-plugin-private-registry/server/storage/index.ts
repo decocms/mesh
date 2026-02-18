@@ -4,8 +4,8 @@ import { setPluginStorage } from "../tools/utils";
 import { RegistryItemStorage } from "./registry-item";
 import { PublishRequestStorage } from "./publish-request";
 import { PublishApiKeyStorage } from "./publish-api-key";
-import { TestRunStorage, TestResultStorage } from "./test-run";
-import { TestConnectionStorage } from "./test-connection";
+import { MonitorRunStorage, MonitorResultStorage } from "./monitor-run";
+import { MonitorConnectionStorage } from "./monitor-connection";
 import type { PrivateRegistryDatabase } from "./types";
 
 export * from "./types";
@@ -14,9 +14,9 @@ export interface PrivateRegistryPluginStorage {
   items: RegistryItemStorage;
   publishRequests: PublishRequestStorage;
   publishApiKeys: PublishApiKeyStorage;
-  testRuns: TestRunStorage;
-  testResults: TestResultStorage;
-  testConnections: TestConnectionStorage;
+  monitorRuns: MonitorRunStorage;
+  monitorResults: MonitorResultStorage;
+  monitorConnections: MonitorConnectionStorage;
 }
 
 export function createStorage(
@@ -27,9 +27,9 @@ export function createStorage(
     items: new RegistryItemStorage(db),
     publishRequests: new PublishRequestStorage(db),
     publishApiKeys: new PublishApiKeyStorage(db),
-    testRuns: new TestRunStorage(db),
-    testResults: new TestResultStorage(db),
-    testConnections: new TestConnectionStorage(db),
+    monitorRuns: new MonitorRunStorage(db),
+    monitorResults: new MonitorResultStorage(db),
+    monitorConnections: new MonitorConnectionStorage(db),
   };
   setPluginStorage(storage);
   return storage;

@@ -2,6 +2,7 @@ import { useState, type ComponentType } from "react";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { CheckCircle, Container, Settings01, Tool02 } from "@untitledui/icons";
 import { PLUGIN_ID } from "../../shared";
+import { useBrokenMonitorsCount } from "../hooks/use-monitor";
 import {
   usePublishRequestCount,
   useRegistryConfig,
@@ -9,14 +10,14 @@ import {
 import RegistryItemsPage from "./registry-items-page";
 import RegistryRequestsPage from "./registry-requests-page";
 import RegistrySettingsPage from "./registry-settings-page";
-import RegistryTestPage from "./registry-test-page";
+import RegistryMonitorPage from "./registry-monitor-page";
 
 type NavItem = {
   id: string;
   label: string;
   count?: number;
   icon: ComponentType<{ size?: number; className?: string }>;
-  tab: "items" | "requests" | "test" | "settings";
+  tab: "items" | "requests" | "monitor" | "settings";
 };
 
 function HeaderTabs({
@@ -71,6 +72,7 @@ export default function RegistryLayout() {
     requireApiToken,
   } = useRegistryConfig(PLUGIN_ID);
   const pendingQuery = usePublishRequestCount();
+  const brokenMonitors = useBrokenMonitorsCount();
 
   // Build a stable key from server config so SettingsPage re-mounts when
   // the persisted values change (e.g. after save).
@@ -83,7 +85,14 @@ export default function RegistryLayout() {
 
   const pendingCount = pendingQuery.data?.pending ?? 0;
   const navItems: NavItem[] = [
-    { id: "items", label: "Items", icon: Container, tab: "items" },
+    {
+      id: "items",
+      label: "Items",
+      icon: Container,
+      tab: "items",
+      count:
+        brokenMonitors.brokenCount > 0 ? brokenMonitors.brokenCount : undefined,
+    },
     ...(acceptPublishRequests
       ? [
           {
@@ -95,7 +104,7 @@ export default function RegistryLayout() {
           },
         ]
       : []),
-    { id: "test", label: "Test", icon: Tool02, tab: "test" },
+    { id: "monitor", label: "Monitor", icon: Tool02, tab: "monitor" },
     { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
   ];
 
@@ -139,7 +148,7 @@ export default function RegistryLayout() {
         {activeTab === "requests" && acceptPublishRequests && (
           <RegistryRequestsPage />
         )}
-        {activeTab === "test" && <RegistryTestPage />}
+        {activeTab === "monitor" && <RegistryMonitorPage />}
         {activeTab === "settings" && (
           <RegistrySettingsPage
             key={settingsKey}

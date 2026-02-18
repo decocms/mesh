@@ -3,14 +3,15 @@ import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useTestResults, useTestRun } from "../hooks/use-test-runs";
+import { useMonitorResults, useMonitorRun } from "../hooks/use-monitor";
+import { collapseLatestToolResults } from "../lib/monitor-utils";
 import type {
-  TestResult,
-  TestResultStatus,
-  TestToolResult,
+  MonitorResult,
+  MonitorResultStatus,
+  MonitorToolResult,
 } from "../lib/types";
 
-function statusColor(status: TestResultStatus) {
+function statusColor(status: MonitorResultStatus) {
   switch (status) {
     case "passed":
       return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
@@ -27,7 +28,7 @@ function statusColor(status: TestResultStatus) {
   }
 }
 
-function statusIcon(status: TestResultStatus) {
+function statusIcon(status: MonitorResultStatus) {
   switch (status) {
     case "passed":
       return "✓";
@@ -44,7 +45,7 @@ function statusIcon(status: TestResultStatus) {
   }
 }
 
-function ToolResultRow({ tool }: { tool: TestToolResult }) {
+function ToolResultRow({ tool }: { tool: MonitorToolResult }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="rounded border border-border">
@@ -114,13 +115,14 @@ function ToolResultRow({ tool }: { tool: TestToolResult }) {
   );
 }
 
-function ResultCard({ result }: { result: TestResult }) {
+function ResultCard({ result }: { result: MonitorResult }) {
   const [expanded, setExpanded] = useState(result.status !== "passed");
 
-  const isHealthCheck = result.tool_results.every(
+  const latestToolResults = collapseLatestToolResults(result.tool_results);
+  const isHealthCheck = latestToolResults.every(
     (t) => t.outputPreview === "health_check: not called",
   );
-  const realToolTests = result.tool_results.filter(
+  const realToolTests = latestToolResults.filter(
     (t) => t.outputPreview !== "health_check: not called",
   );
   const passedTools = realToolTests.filter((t) => t.success).length;
@@ -147,14 +149,14 @@ function ResultCard({ result }: { result: TestResult }) {
             <span className="text-[10px] text-muted-foreground">
               tools listed: {result.tools_listed ? "✓" : "✗"}
             </span>
-            {result.tool_results.length > 0 && (
+            {latestToolResults.length > 0 && (
               <span className="text-[10px] text-muted-foreground">
                 {hasTestedTools ? (
                   <>
                     tools: {passedTools}✓ {failedTools}✗
                   </>
                 ) : (
-                  <>{result.tool_results.length} tools found</>
+                  <>{latestToolResults.length} tools found</>
                 )}
               </span>
             )}
@@ -199,7 +201,7 @@ function ResultCard({ result }: { result: TestResult }) {
                 )}
               >
                 {result.tools_listed
-                  ? `Yes (${result.tool_results.length})`
+                  ? `Yes (${latestToolResults.length})`
                   : "No"}
               </p>
             </div>
@@ -234,24 +236,24 @@ function ResultCard({ result }: { result: TestResult }) {
                 Tool Results ({passedTools} passed, {failedTools} failed)
               </p>
               <div className="space-y-1">
-                {realToolTests.map((tool) => (
+                {realToolTests.map((tool, index) => (
                   <ToolResultRow
-                    key={`${result.id}-${tool.toolName}`}
+                    key={`${result.id}-${tool.toolName}-${index}`}
                     tool={tool}
                   />
                 ))}
               </div>
             </div>
-          ) : isHealthCheck && result.tool_results.length > 0 ? (
+          ) : isHealthCheck && latestToolResults.length > 0 ? (
             <div className="space-y-1">
               <p className="text-[10px] font-semibold text-muted-foreground">
-                Tools discovered ({result.tool_results.length}) — not
-                individually tested (health-check mode)
+                Tools discovered ({latestToolResults.length}) — not individually
+                tested (health-check mode)
               </p>
               <div className="flex flex-wrap gap-1">
-                {result.tool_results.map((tool) => (
+                {latestToolResults.map((tool, index) => (
                   <Badge
-                    key={`${result.id}-${tool.toolName}`}
+                    key={`${result.id}-${tool.toolName}-${index}`}
                     variant="outline"
                     className="text-[10px] font-mono"
                   >
@@ -283,17 +285,18 @@ function StatusFilter({
   value,
   onChange,
 }: {
-  value: TestResultStatus | "all";
-  onChange: (v: TestResultStatus | "all") => void;
+  value: MonitorResultStatus | "all";
+  onChange: (v: MonitorResultStatus | "all") => void;
 }) {
-  const options: Array<{ value: TestResultStatus | "all"; label: string }> = [
-    { value: "all", label: "All" },
-    { value: "passed", label: "Passed" },
-    { value: "failed", label: "Failed" },
-    { value: "error", label: "Error" },
-    { value: "needs_auth", label: "Needs Auth" },
-    { value: "skipped", label: "Skipped" },
-  ];
+  const options: Array<{ value: MonitorResultStatus | "all"; label: string }> =
+    [
+      { value: "all", label: "All" },
+      { value: "passed", label: "Passed" },
+      { value: "failed", label: "Failed" },
+      { value: "error", label: "Error" },
+      { value: "needs_auth", label: "Needs Auth" },
+      { value: "skipped", label: "Skipped" },
+    ];
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {options.map((opt) => (
@@ -315,13 +318,13 @@ function StatusFilter({
   );
 }
 
-export function TestRunDetail({ runId }: { runId?: string }) {
-  const [statusFilter, setStatusFilter] = useState<TestResultStatus | "all">(
+export function MonitorRunDetail({ runId }: { runId?: string }) {
+  const [statusFilter, setStatusFilter] = useState<MonitorResultStatus | "all">(
     "all",
   );
-  const runQuery = useTestRun(runId);
+  const runQuery = useMonitorRun(runId);
   const run = runQuery.data?.run;
-  const resultsQuery = useTestResults(runId, undefined, run?.status);
+  const resultsQuery = useMonitorResults(runId, undefined, run?.status);
   const allResults = resultsQuery.data?.items ?? [];
   const filteredResults =
     statusFilter === "all"
@@ -353,7 +356,7 @@ export function TestRunDetail({ runId }: { runId?: string }) {
               <Badge
                 className={cn(
                   "capitalize",
-                  statusColor(run.status as TestResultStatus),
+                  statusColor(run.status as MonitorResultStatus),
                 )}
               >
                 {run.status}
