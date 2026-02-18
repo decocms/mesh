@@ -1,27 +1,24 @@
 /**
  * Page History Panel
  *
- * Vertical timeline showing version history for a page.
- * Each entry displays timestamp, author, message, and actions (view diff, revert).
- * Revert creates a new version (non-destructive).
+ * Vertical timeline showing git commit history for a page.
+ * Clicking a commit previews that historical version in the iframe.
+ * A "Back to current" button returns to live editing mode.
  */
 
 import { useState } from "react";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loading01, RefreshCcw01, AlertCircle } from "@untitledui/icons";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, Loading01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
-import {
-  getFileHistory,
-  revertPage,
-  type HistoryEntry,
-} from "../lib/history-api";
-import PageDiff from "./page-diff";
+import { getGitLog, getGitShow, type GitLogEntry } from "../lib/history-api";
+import type { EditorMessage } from "../lib/editor-protocol";
+import type { Page } from "../lib/page-api";
 
 /**
- * Format a timestamp as a relative time string (e.g., "2 hours ago", "Yesterday").
+ * Format a date string as a relative time string (e.g., "2 hours ago", "Yesterday").
  */
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -43,48 +40,54 @@ function formatRelativeTime(timestamp: number): string {
 
 interface PageHistoryProps {
   pageId: string;
+  send: (msg: EditorMessage) => void;
+  localPage: Page | null;
 }
 
-export default function PageHistory({ pageId }: PageHistoryProps) {
+export default function PageHistory({
+  pageId,
+  send,
+  localPage,
+}: PageHistoryProps) {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
-  const queryClient = useQueryClient();
 
-  const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
-  const [revertingHash, setRevertingHash] = useState<string | null>(null);
-  const [confirmingHash, setConfirmingHash] = useState<string | null>(null);
+  const [previewingHash, setPreviewingHash] = useState<string | null>(null);
+  const [loadingHash, setLoadingHash] = useState<string | null>(null);
 
   const {
-    data: entries,
+    data: commits,
     isLoading,
     error,
   } = useQuery({
     queryKey: queryKeys.history.page(connectionId, pageId),
-    queryFn: () =>
-      getFileHistory(toolCaller, `.deco/pages/${pageId}.json`, { limit: 50 }),
+    queryFn: () => getGitLog(toolCaller, `.deco/pages/${pageId}.json`, 50),
   });
 
-  const handleRevert = async (entry: HistoryEntry) => {
-    setRevertingHash(entry.commitHash);
+  const handlePreviewCommit = async (entry: GitLogEntry) => {
+    if (loadingHash !== null) return;
+    setLoadingHash(entry.hash);
     try {
-      const success = await revertPage(toolCaller, pageId, entry.commitHash);
-      if (success) {
-        toast.success("Page reverted successfully");
-        // Invalidate both page detail and history queries
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pages.detail(connectionId, pageId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.history.page(connectionId, pageId),
-        });
-      } else {
-        toast.error("Failed to revert page");
+      const path = `.deco/pages/${pageId}.json`;
+      const content = await getGitShow(toolCaller, path, entry.hash);
+      if (!content) {
+        toast.error("Could not load historical version");
+        return;
       }
+      const historicalPage = JSON.parse(content) as Page;
+      send({ type: "deco:page-config", page: historicalPage });
+      setPreviewingHash(entry.hash);
     } catch {
-      toast.error("Failed to revert page");
+      toast.error("Could not load historical version");
     } finally {
-      setRevertingHash(null);
-      setConfirmingHash(null);
+      setLoadingHash(null);
     }
+  };
+
+  const handleBackToCurrent = () => {
+    if (localPage) {
+      send({ type: "deco:page-config", page: localPage });
+    }
+    setPreviewingHash(null);
   };
 
   if (isLoading) {
@@ -108,101 +111,91 @@ export default function PageHistory({ pageId }: PageHistoryProps) {
     );
   }
 
-  if (!entries || entries.length === 0) {
+  if (!commits || commits.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <p className="text-sm text-muted-foreground">
-          No version history available
+          No history yet for this page
         </p>
       </div>
     );
   }
 
   return (
-    <div className="p-4">
-      <h3 className="text-sm font-medium mb-4">Version History</h3>
+    <div className="flex flex-col h-full">
+      {/* Historical version banner */}
+      {previewingHash !== null && (
+        <div className="mx-4 mt-4 flex items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2">
+          <span className="font-mono text-xs text-amber-800">
+            Viewing: {previewingHash.slice(0, 7)}
+          </span>
+          <button
+            type="button"
+            onClick={handleBackToCurrent}
+            className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors"
+          >
+            Back to current
+          </button>
+        </div>
+      )}
 
-      {/* Vertical timeline */}
-      <div className="relative border-l-2 border-gray-200 ml-2 space-y-0">
-        {entries.map((entry) => {
-          const isSelected = selectedEntry === entry.commitHash;
-          const isConfirming = confirmingHash === entry.commitHash;
-          const isReverting = revertingHash === entry.commitHash;
+      <div className="p-4">
+        <h3 className="text-sm font-medium mb-4">Version History</h3>
 
-          return (
-            <div key={entry.commitHash} className="relative pl-5 pb-4">
-              {/* Timeline dot */}
-              <div className="absolute -left-[5px] top-1.5 h-2 w-2 rounded-full bg-gray-400 border-2 border-white" />
+        {/* Vertical timeline */}
+        <div className="relative border-l-2 border-gray-200 ml-2 space-y-0">
+          {commits.map((entry) => {
+            const isPreviewing = previewingHash === entry.hash;
+            const isLoadingThis = loadingHash === entry.hash;
+            const relativeDate = formatRelativeTime(
+              new Date(entry.date).getTime(),
+            );
 
-              {/* Entry content */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{formatRelativeTime(entry.timestamp)}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="truncate max-w-[120px]">{entry.author}</span>
-                </div>
+            return (
+              <div
+                key={entry.hash}
+                className={`relative pl-5 pb-4 ${isPreviewing ? "border-l-primary" : ""}`}
+              >
+                {/* Timeline dot */}
+                <div
+                  className={`absolute -left-[5px] top-1.5 h-2 w-2 rounded-full border-2 border-white ${isPreviewing ? "bg-primary" : "bg-gray-400"}`}
+                />
 
-                <p className="text-xs leading-relaxed">
-                  {entry.message.length > 60
-                    ? `${entry.message.slice(0, 60)}...`
-                    : entry.message}
-                </p>
+                {/* Entry content */}
+                <div
+                  className={`space-y-1 rounded px-2 py-1 ${isPreviewing ? "bg-primary/5" : ""}`}
+                >
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">{entry.hash.slice(0, 7)}</span>
+                    <span className="text-gray-300">|</span>
+                    <span>{relativeDate}</span>
+                  </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedEntry(isSelected ? null : entry.commitHash)
-                    }
-                    className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                  >
-                    {isSelected ? "Hide diff" : "View diff"}
-                  </button>
+                  <p className="text-xs leading-relaxed">
+                    {entry.message.length > 72
+                      ? `${entry.message.slice(0, 72)}...`
+                      : entry.message}
+                  </p>
 
-                  {isConfirming ? (
-                    <span className="flex items-center gap-1 text-xs">
-                      <span className="text-muted-foreground">
-                        Are you sure?
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRevert(entry)}
-                        disabled={isReverting}
-                        className="text-orange-600 hover:text-orange-800 font-medium transition-colors"
-                      >
-                        {isReverting ? "Reverting..." : "Revert"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingHash(null)}
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </span>
-                  ) : (
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1.5 pt-1">
                     <button
                       type="button"
-                      onClick={() => setConfirmingHash(entry.commitHash)}
-                      className="flex items-center gap-0.5 text-xs text-orange-600 hover:text-orange-800 transition-colors"
+                      onClick={() => handlePreviewCommit(entry)}
+                      disabled={loadingHash !== null}
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      <RefreshCcw01 size={10} />
-                      Revert
+                      {isLoadingThis && (
+                        <Loading01 size={12} className="animate-spin" />
+                      )}
+                      Preview
                     </button>
-                  )}
-                </div>
-
-                {/* Inline diff view */}
-                {isSelected && (
-                  <div className="mt-2">
-                    <PageDiff pageId={pageId} commitHash={entry.commitHash} />
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
