@@ -36,7 +36,7 @@ import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
-import { useNotificationSound } from "../../hooks/use-notification-sound";
+import { useNotification } from "../../hooks/use-notification";
 import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
@@ -602,8 +602,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // Tool call handler
   const onToolCall = useInvalidateCollectionsOnToolCall();
 
-  // Notification sound
-  const { playNotificationSound } = useNotificationSound();
+  // Notification (sound + browser notification)
+  const { showNotification } = useNotification();
 
   // ===========================================================================
   // 2. DERIVED VALUES - Compute values from hook state
@@ -645,16 +645,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
     const { thread_id } = message.metadata ?? {};
 
-    // Play notification sound and show browser notification if user is not viewing the app and has enabled notifications
-    if (
-      preferences.enableNotifications &&
-      typeof document !== "undefined" &&
-      !document.hasFocus() &&
-      typeof Notification !== "undefined" &&
-      Notification.permission === "granted"
-    ) {
-      playNotificationSound();
-
+    // Show notification (sound + browser popup) if enabled
+    if (preferences.enableNotifications) {
       // Find the last user message to display in notification
       const lastUserMessage = messages
         .slice()
@@ -680,18 +672,11 @@ export function ChatProvider({ children }: PropsWithChildren) {
           ? `${userMessageText.slice(0, 60)}...`
           : userMessageText;
 
-      // Show browser notification
-      const notification = new Notification("Chat Response Ready", {
+      showNotification({
+        title: "Chat Response Ready",
         body: truncatedText || "Your chat response is ready",
-        icon: "/favicon.svg",
         tag: `chat-${thread_id}`,
       });
-
-      // Focus window when notification is clicked
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
     }
 
     if (!thread_id) {
