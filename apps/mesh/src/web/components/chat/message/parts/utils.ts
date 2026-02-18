@@ -27,46 +27,54 @@ export function extractTextFromOutput(output: unknown): string | null {
   const msg = output as UIMessage;
   if (!Array.isArray(msg.parts)) return null;
 
-  let finalText = "";
+  const textParts: string[] = [];
   for (const p of msg.parts) {
-    if (p.type === "text") {
-      finalText += p.text + "\n";
+    if (p.type === "text" && typeof p.text === "string") {
+      textParts.push(p.text);
     } else if (p.type === "reasoning") {
-      finalText += `## Reasoning\n${p.text}\n\n`;
+      textParts.push(`## Reasoning\n${p.text}`);
     } else if (p.type === "source-url") {
-      finalText += `## Source URL\n${p.url}\n\n`;
+      textParts.push(`## Source URL\n${p.url}`);
     } else if (p.type === "source-document") {
-      finalText += `## Source Document\n${p.title}\n\n`;
+      textParts.push(`## Source Document\n${p.title}`);
     } else if (p.type === "file") {
-      finalText += `## File\n${p.filename ?? p.url}\n\n`;
+      textParts.push(`## File\n${p.filename ?? p.url}`);
     } else if (p.type === "step-start") {
-      finalText += ``; // noop
+      // noop
     } else if (isToolLike(p)) {
       const toolName = p.type.startsWith("tool-")
         ? p.type.slice(5)
         : (p as DynamicToolUIPart).toolName;
 
       if (p.state === "input-streaming") {
-        finalText += `## ${toolName}\nInput streaming...\n\n`;
+        textParts.push(`## ${toolName}\nInput streaming...`);
       } else if (p.state === "input-available") {
-        finalText += `## ${toolName}\n### Input\n${JSON.stringify(p.input).slice(0, 20)}...\n\n`;
+        textParts.push(
+          `## ${toolName}\n### Input\n${JSON.stringify(p.input).slice(0, 20)}...`,
+        );
       } else if (p.state === "approval-requested") {
-        finalText += `## ${toolName}\nApproval requested...\n\n`;
+        textParts.push(`## ${toolName}\nApproval requested...`);
       } else if (p.state === "approval-responded") {
-        finalText += `## ${toolName}\nApproval responded...\n\n`;
+        textParts.push(`## ${toolName}\nApproval responded...`);
       } else if (p.state === "output-available") {
-        finalText += p.output
-          ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: ${JSON.stringify(p.output).slice(0, 40)}...\n\n`
-          : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool responded with no output\n\n`;
+        textParts.push(
+          p.output
+            ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: ${JSON.stringify(p.output).slice(0, 40)}...`
+            : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool responded with no output`,
+        );
       } else if (p.state === "output-error") {
-        finalText += p.errorText
-          ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: ${p.errorText}\n\n`
-          : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: Tool responded with an error\n\n`;
+        textParts.push(
+          p.errorText
+            ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: ${p.errorText}`
+            : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: Tool responded with an error`,
+        );
       } else if (p.state === "output-denied") {
-        finalText += `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool execution was denied\n\n`;
+        textParts.push(
+          `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool execution was denied`,
+        );
       }
     }
   }
 
-  return finalText.length > 0 ? finalText : null;
+  return textParts.length > 0 ? textParts.join("\n\n") : null;
 }
