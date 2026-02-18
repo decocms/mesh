@@ -56,6 +56,27 @@ export function UserSettingsDialog({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleNotificationsChange = async (checked: boolean) => {
+    if (checked) {
+      const result = await Notification.requestPermission();
+      if (result !== "granted") {
+        toast.error(
+          "Notifications denied. Please enable them in your browser settings.",
+        );
+        setPreferences((prev) => ({
+          ...prev,
+          enableNotifications: false,
+        }));
+        return;
+      }
+    }
+
+    setPreferences((prev) => ({
+      ...prev,
+      enableNotifications: checked,
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -127,27 +148,9 @@ export function UserSettingsDialog({
               <button
                 type="button"
                 disabled={typeof Notification === "undefined"}
-                onClick={async () => {
-                  const checked = !preferences.enableNotifications;
-                  if (checked) {
-                    const result = await Notification.requestPermission();
-                    if (result !== "granted") {
-                      toast.error(
-                        "Notifications denied. Please enable them in your browser settings.",
-                      );
-                      setPreferences((prev) => ({
-                        ...prev,
-                        enableNotifications: false,
-                      }));
-                      return;
-                    }
-                  }
-
-                  setPreferences((prev) => ({
-                    ...prev,
-                    enableNotifications: checked,
-                  }));
-                }}
+                onClick={() =>
+                  handleNotificationsChange(!preferences.enableNotifications)
+                }
                 className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left w-full cursor-pointer"
               >
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -164,26 +167,7 @@ export function UserSettingsDialog({
                   <Switch
                     disabled={typeof Notification === "undefined"}
                     checked={preferences.enableNotifications}
-                    onCheckedChange={async (checked) => {
-                      if (checked) {
-                        const result = await Notification.requestPermission();
-                        if (result !== "granted") {
-                          toast.error(
-                            "Notifications denied. Please enable them in your browser settings.",
-                          );
-                          setPreferences((prev) => ({
-                            ...prev,
-                            enableNotifications: false,
-                          }));
-                          return;
-                        }
-                      }
-
-                      setPreferences((prev) => ({
-                        ...prev,
-                        enableNotifications: checked,
-                      }));
-                    }}
+                    onCheckedChange={handleNotificationsChange}
                   />
                 </div>
               </button>
