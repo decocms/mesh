@@ -7,11 +7,11 @@
 
 ### Pending Changes
 
-- [ ] **DIFF-01**: User can see deleted sections (removed from page but not committed) in the section list as greyed-out with a "(deleted)" indicator
-- [ ] **DIFF-02**: User can see newly added sections (on page but not committed) with a "(new)" badge in the section list
-- [ ] **DIFF-03**: User can see modified sections (props changed but not committed) with an "(edited)" indicator in the section list
-- [ ] **DIFF-04**: User can restore a deleted section before committing by clicking "Undelete", which removes the deletion from the working tree
-- [ ] **DIFF-05**: User can discard all pending changes to a page via a "Discard changes" action that runs git checkout on the page file
+- [x] **DIFF-01**: User can see deleted sections (removed from page but not committed) in the section list as greyed-out with a "(deleted)" indicator
+- [x] **DIFF-02**: User can see newly added sections (on page but not committed) with a "(new)" badge in the section list
+- [x] **DIFF-03**: User can see modified sections (props changed but not committed) with an "(edited)" indicator in the section list
+- [x] **DIFF-04**: User can restore a deleted section before committing by clicking "Undelete", which removes the deletion from the working tree
+- [x] **DIFF-05**: User can discard all pending changes to a page via a "Discard changes" action that runs git checkout on the page file
 
 ### Commit
 
@@ -50,11 +50,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIFF-01 | Phase 12 | Pending |
-| DIFF-02 | Phase 12 | Pending |
-| DIFF-03 | Phase 12 | Pending |
-| DIFF-04 | Phase 12 | Pending |
-| DIFF-05 | Phase 12 | Pending |
+| DIFF-01 | Phase 12 | Complete |
+| DIFF-02 | Phase 12 | Complete |
+| DIFF-03 | Phase 12 | Complete |
+| DIFF-04 | Phase 12 | Complete |
+| DIFF-05 | Phase 12 | Complete |
 | COMMIT-01 | Phase 13 | Pending |
 | COMMIT-02 | Phase 13 | Pending |
 | COMMIT-03 | Phase 13 | Pending |

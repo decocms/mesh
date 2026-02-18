@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-15)
 
 ## Current Position
 
-Phase: 11 — Git SITE_BINDING Tools
-Plan: —
-Status: Ready to plan
-Last activity: 2026-02-18 — v1.2 roadmap created (phases 11-14)
+Phase: 12 — Pending Changes UI
+Plan: 01 (complete)
+Status: Phase 12 plan 01 complete — ready for Phase 13
+Last activity: 2026-02-18 — Phase 12 plan 01 executed (pending changes UI)
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/4 phases complete)
+Progress: [█░░░░░░░░░░░░░░░░░░░] 25% (1/4 phases complete)
 
 ## Performance Metrics
 
@@ -115,6 +115,14 @@ From phase 10 plan 1:
 
 None.
 
+### Phase 12 Decisions
+
+From phase 12 plan 01:
+- XCircle icon sourced from @untitledui/icons (page-composer uses @untitledui/icons throughout)
+- usePendingChanges uses two-query pattern: status always, committed-blocks only when isDirty
+- computeSectionStatuses is a pure function comparing blocks by id + JSON.stringify(props)
+- pendingChanges query key invalidated after every save (debounced + manual) to keep badges current
+
 ### Blockers/Concerns
 
 - Phase 10 (Documentation & Validation) should complete before v1.2 begins, but phases 11-14 are independent enough to start in parallel
@@ -124,5 +132,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: v1.2 roadmap created — ready to plan Phase 11
-Resume file: .planning/ROADMAP.md (phases 11-14)
+Stopped at: Completed 12-01-PLAN.md — pending changes UI implemented
+Resume file: .planning/phases/13-commit-flow/ (Phase 13 next)
