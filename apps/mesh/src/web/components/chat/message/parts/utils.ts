@@ -16,6 +16,19 @@ export function getToolPartErrorText(
     : fallback;
 }
 
+/**
+ * Safely stringify a value for display, handling non-serializable values.
+ * Returns empty string for null/undefined, or a fallback for errors.
+ */
+export function safeStringify(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[Non-serializable value]";
+  }
+}
+
 const isToolLike = (
   p: UIMessagePart<UIDataTypes, UITools>,
 ): p is DynamicToolUIPart | ToolUIPart => {
@@ -49,28 +62,33 @@ export function extractTextFromOutput(output: unknown): string | null {
       if (p.state === "input-streaming") {
         textParts.push(`## ${toolName}\nInput streaming...`);
       } else if (p.state === "input-available") {
+        const inputStr = safeStringify(p.input).slice(0, 20);
         textParts.push(
-          `## ${toolName}\n### Input\n${JSON.stringify(p.input).slice(0, 20)}...`,
+          `## ${toolName}\n### Input\n${inputStr || "[No input]"}...`,
         );
       } else if (p.state === "approval-requested") {
         textParts.push(`## ${toolName}\nApproval requested...`);
       } else if (p.state === "approval-responded") {
         textParts.push(`## ${toolName}\nApproval responded...`);
       } else if (p.state === "output-available") {
+        const inputStr = safeStringify(p.input).slice(0, 40);
+        const outputStr = safeStringify(p.output).slice(0, 40);
         textParts.push(
           p.output != null
-            ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: ${JSON.stringify(p.output).slice(0, 40)}...`
-            : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool responded with no output`,
+            ? `## ${toolName}\nInput: ${inputStr || "[No input]"}...\nOutput: ${outputStr || "[No output]"}...`
+            : `## ${toolName}\nInput: ${inputStr || "[No input]"}...\nOutput: Tool responded with no output`,
         );
       } else if (p.state === "output-error") {
+        const inputStr = safeStringify(p.input).slice(0, 40);
         textParts.push(
           p.errorText
-            ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: ${p.errorText}`
-            : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: Tool responded with an error`,
+            ? `## ${toolName}\nInput: ${inputStr || "[No input]"}...\nError: ${p.errorText}`
+            : `## ${toolName}\nInput: ${inputStr || "[No input]"}...\nError: Tool responded with an error`,
         );
       } else if (p.state === "output-denied") {
+        const inputStr = safeStringify(p.input).slice(0, 40);
         textParts.push(
-          `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool execution was denied`,
+          `## ${toolName}\nInput: ${inputStr || "[No input]"}...\nOutput: Tool execution was denied`,
         );
       }
     }
