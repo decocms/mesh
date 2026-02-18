@@ -16,7 +16,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   experimental_projects: false,
   experimental_tasks: false,
   toolApprovalLevel: "none",
-  enableNotifications: true,
+  enableNotifications: typeof Notification !== "undefined" ? true : false,
 };
 
 export function usePreferences() {

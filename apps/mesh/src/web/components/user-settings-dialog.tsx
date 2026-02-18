@@ -126,9 +126,10 @@ export function UserSettingsDialog({
               </button>
               <button
                 type="button"
+                disabled={typeof Notification === "undefined"}
                 onClick={async () => {
                   const checked = !preferences.enableNotifications;
-                  if (checked && typeof Notification !== "undefined") {
+                  if (checked) {
                     const result = await Notification.requestPermission();
                     if (result === "denied") {
                       toast.error(
@@ -161,9 +162,10 @@ export function UserSettingsDialog({
                 </div>
                 <div onClick={(e) => e.stopPropagation()}>
                   <Switch
+                    disabled={typeof Notification === "undefined"}
                     checked={preferences.enableNotifications}
                     onCheckedChange={async (checked) => {
-                      if (checked && typeof Notification !== "undefined") {
+                      if (checked) {
                         const result = await Notification.requestPermission();
                         if (result === "denied") {
                           toast.error(
