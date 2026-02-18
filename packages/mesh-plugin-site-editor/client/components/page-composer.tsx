@@ -470,6 +470,17 @@ export default function PageComposer() {
     });
   };
 
+  // Handle revert: close history panel and invalidate page/history queries
+  const handleRevert = () => {
+    setShowHistory(false);
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.history.page(connectionId, pageId),
+    });
+  };
+
   // Restore a deleted section from the committed (HEAD) version
   const handleUndelete = (block: BlockInstance) => {
     const updatedBlocks = [...blocks, block];
@@ -765,7 +776,12 @@ export default function PageComposer() {
           )}
         >
           {showHistory ? (
-            <PageHistory pageId={pageId} send={send} localPage={localPage} />
+            <PageHistory
+              pageId={pageId}
+              send={send}
+              localPage={localPage}
+              onRevert={handleRevert}
+            />
           ) : selectedBlock && blockDef?.schema ? (
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
