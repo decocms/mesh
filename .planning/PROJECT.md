@@ -122,18 +122,16 @@ For greenfield sites (or when users want to start fresh), the default template m
 | anjo.chat as reference implementation | Every feature must work with a real app, not just unit tests | — v1.1 |
 | Blocks framework as agent-readable spec | Any AI agent should be able to make a site deco-compatible from the spec | — v1.1 |
 
-## Current Milestone: v1.1 Polish & Integration
+## Current Milestone: v1.2 Git-Native Editing
 
-**Goal:** Make v1.0 features work end-to-end, validated against anjo.chat as reference implementation.
+**Goal:** Make the editor surface a first-class git client — pending changes visible, commits intentional with AI-generated messages, and history browsable with non-destructive revert.
 
 **Target features:**
-- Streamlined site connection setup (inline wizard, not "go to settings")
-- Sections page working end-to-end (list scanned blocks, navigate to detail)
-- Loaders page working end-to-end (list loaders, detail view, clear binding UX)
-- Preview bridge fix (unified iframeRef, click-to-select, live prop editing)
-- i18n variant system as first-class feature (locale switcher, variant management)
-- Blocks framework specification (agent-readable skill doc)
-- anjo.chat validated as working reference implementation
+- Pending changes visualization in section list (deleted/new/edited vs HEAD)
+- Per-section and global discard (git checkout)
+- Explicit commit button with AI-generated commit message (Gemini Flash)
+- Git history panel per page: list commits, preview any version in iframe
+- Non-destructive revert: "Revert here" creates a new commit restoring that state
 
 ---
-*Last updated: 2026-02-15 after v1.1 milestone start*
+*Last updated: 2026-02-18 after v1.2 milestone start*

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-15)
 
 **Core value:** Any TypeScript site gets a production-grade CMS with visual editing and resilient data in minutes
-**Current focus:** v1.1 Polish & Integration — make v1.0 work end-to-end
+**Current focus:** v1.2 Git-Native Editing — editor as git client, intentional commits, history with revert
 
 ## Current Position
 
-Phase: 10 - Documentation & Validation
-Plan: 1 of 2 complete
-Status: In progress
-Last activity: 2026-02-17 — Completed 10-01-PLAN.md (blocks framework specification)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-18 — Milestone v1.2 Git-Native Editing started
 
-Progress: [███████████████████░] 95% (10.5/11 phases complete)
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/? phases complete)
 
 ## Performance Metrics
 
@@ -118,5 +118,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 10-01-PLAN.md (blocks framework specification)
-Resume file: .planning/phases/10-documentation-validation/10-01-SUMMARY.md
+Stopped at: v1.1 milestone complete — all 11 phases done
+Resume file: .planning/phases/10-documentation-validation/10-02-SUMMARY.md
