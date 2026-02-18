@@ -10,7 +10,8 @@ import { useState } from "react";
 import { SITE_BINDING } from "@decocms/bindings/site";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Loading01, RefreshCcw01 } from "@untitledui/icons";
+import { AlertCircle, Loading01 } from "@untitledui/icons";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
 import {
@@ -272,7 +273,7 @@ export default function PageHistory({
                         disabled={revertingHash !== null}
                         className="flex items-center gap-0.5 text-xs text-orange-600 hover:text-orange-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <RefreshCcw01 size={10} />
+                        <RefreshCw size={10} />
                         Revert here
                       </button>
                     )}
