@@ -23,19 +23,24 @@ export function useNotification() {
     const { title, body, icon = "/favicon.svg", tag } = options;
 
     // If notifications are not granted, request permission so next time we can show notifications
-    if (Notification?.permission !== "granted") {
-      Notification?.requestPermission().then((result) => {
-        if (result === "denied") {
-          toast.error(
-            "Notifications denied. Please enable them in your browser settings.",
-          );
-        }
-      });
+    if (
+      typeof Notification === "undefined" ||
+      Notification.permission !== "granted"
+    ) {
+      if (typeof Notification !== "undefined") {
+        Notification.requestPermission().then((result) => {
+          if (result === "denied") {
+            toast.error(
+              "Notifications denied. Please enable them in your browser settings.",
+            );
+          }
+        });
+      }
       return;
     }
 
-    // Check if we should show notifications (document must be focused)
-    if (!document?.hasFocus()) return;
+    // Only show notifications when document is unfocused (user in another tab)
+    if (document?.hasFocus()) return;
 
     // Play notification sound
     if (notificationAudio) {
@@ -45,7 +50,7 @@ export function useNotification() {
       });
     }
 
-    // Show browser notification
+    // Show browser notification (Notification is defined here due to guard above)
     const notification = new Notification(title, {
       body,
       icon,
