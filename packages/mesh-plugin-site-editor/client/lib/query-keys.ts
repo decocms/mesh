@@ -50,6 +50,10 @@ export const queryKeys = {
         commitHash,
       ] as const,
   },
+  pendingChanges: {
+    page: (connectionId: string, pageId: string) =>
+      ["site-editor", "pending-changes", connectionId, pageId] as const,
+  },
 } as const;
 
 /** Shorthand for block query keys */
