@@ -29,6 +29,7 @@ import {
   Clock,
   Globe02,
   Plus,
+  XCircle,
 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { queryKeys } from "../lib/query-keys";
@@ -45,6 +46,8 @@ import {
 } from "../lib/page-api";
 import { getBlock } from "../lib/block-api";
 import { useUndoRedo } from "../lib/use-undo-redo";
+import { usePendingChanges } from "../lib/use-pending-changes";
+import { discardPageChanges } from "../lib/pending-changes-api";
 import { PreviewPanel } from "./preview-panel";
 import { ViewportToggle, type ViewportKey } from "./viewport-toggle";
 import { PropEditor } from "./prop-editor";
@@ -145,6 +148,14 @@ export default function PageComposer() {
 
   // Build the local page object from query data + undo/redo blocks
   const localPage = page ? { ...page, blocks } : null;
+
+  // Pending changes: per-section diff status from GIT_STATUS + GIT_SHOW
+  const { sectionStatuses, isDirty: gitIsDirty } = usePendingChanges(
+    toolCaller,
+    connectionId,
+    pageId,
+    blocks,
+  );
 
   // Single bridge for all iframe communication
   const {
@@ -263,6 +274,9 @@ export default function PageComposer() {
         queryClient.invalidateQueries({
           queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
         });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pendingChanges.page(connectionId, pageId),
+        });
       } catch (err) {
         markClean();
         toast.error(
@@ -374,6 +388,35 @@ export default function PageComposer() {
     debouncedSave(updatedBlocks);
   };
 
+  // Discard all uncommitted changes to the current page via GIT_CHECKOUT
+  const handleDiscard = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pageFilePath = `.deco/pages/${pageId}.json`;
+    const success = await discardPageChanges(toolCaller, pageFilePath);
+    if (success) {
+      markClean();
+      toast.success("Changes discarded");
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.pendingChanges.page(connectionId, pageId),
+      });
+    } else {
+      toast.error("Failed to discard changes");
+    }
+  };
+
+  // Restore a deleted section from the committed (HEAD) version
+  const handleUndelete = (block: BlockInstance) => {
+    const updatedBlocks = [...blocks, block];
+    pushBlocks(updatedBlocks);
+    debouncedSave(updatedBlocks);
+  };
+
   // Manual save (flush debounce)
   const handleSave = async () => {
     if (!localPage) return;
@@ -397,6 +440,9 @@ export default function PageComposer() {
       toast.success("Page saved");
       queryClient.invalidateQueries({
         queryKey: queryKeys.pages.detail(connectionId, pageId, activeLocale),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.pendingChanges.page(connectionId, pageId),
       });
     } catch (err) {
       markClean();
@@ -569,6 +615,18 @@ export default function PageComposer() {
           >
             <Clock size={16} />
           </Button>
+          {gitIsDirty && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={handleDiscard}
+              title="Discard all uncommitted changes to this page"
+            >
+              <XCircle size={14} className="mr-1" />
+              Discard changes
+            </Button>
+          )}
           <Button size="sm" onClick={handleSave}>
             <Save01 size={14} className="mr-1" />
             Save
@@ -589,6 +647,8 @@ export default function PageComposer() {
             onDelete={handleDeleteBlock}
             onReorder={handleReorder}
             onAddClick={() => setShowBlockPicker(true)}
+            sectionStatuses={sectionStatuses}
+            onUndelete={handleUndelete}
           />
         </div>
 
