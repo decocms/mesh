@@ -9,7 +9,7 @@ import {
   getApprovalId,
   getEffectiveState,
 } from "./utils.tsx";
-import { getToolPartErrorText } from "../utils.ts";
+import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ApprovalActions } from "./approval-actions.tsx";
 
 interface GenericToolCallPartProps {
@@ -22,12 +22,13 @@ interface GenericToolCallPartProps {
   latency?: number;
 }
 
-function safeStringify(value: unknown): string {
-  if (value === undefined || value === null) return "";
+function safeStringifyFormatted(value: unknown): string {
+  const str = safeStringify(value);
+  if (str === "" || str === "[Non-serializable value]") return str;
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(JSON.parse(str), null, 2);
   } catch {
-    return "[Non-serializable value]";
+    return str;
   }
 }
 
@@ -91,7 +92,7 @@ export function GenericToolCallPart({
   // Build expanded content
   let detail = "";
   if (part.input !== undefined) {
-    detail += "# Input\n" + safeStringify(part.input);
+    detail += "# Input\n" + safeStringifyFormatted(part.input);
   }
 
   if (part.state === "output-error") {
@@ -100,7 +101,7 @@ export function GenericToolCallPart({
     detail += "# Error\n" + errorText;
   } else if (part.output !== undefined) {
     if (detail) detail += "\n\n";
-    detail += "# Output\n" + safeStringify(part.output);
+    detail += "# Output\n" + safeStringifyFormatted(part.output);
   }
 
   // Build approval actions for approval-requested state
