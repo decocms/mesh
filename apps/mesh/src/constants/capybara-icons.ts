@@ -6,10 +6,10 @@
  */
 
 /** Inclusive min index (0 = capy-0.png) */
-export const CAPYBARA_ICON_MIN = 0;
+const CAPYBARA_ICON_MIN = 0;
 
 /** Inclusive max index (38 = capy-38.png) */
-export const CAPYBARA_ICON_MAX = 38;
+const CAPYBARA_ICON_MAX = 38;
 
 /**
  * Pick a random capybara icon from the available set
