@@ -193,12 +193,14 @@ export function ChatHighlight() {
 
   if (!isStreaming && error) {
     return (
-      <StatusHighlight
-        variant="error"
-        error={error}
-        onDismiss={clearError}
-        onFixInChat={handleFixInChat}
-      />
+      <div className="absolute bottom-full left-0 right-0 bg-background">
+        <StatusHighlight
+          variant="error"
+          error={error}
+          onDismiss={clearError}
+          onFixInChat={handleFixInChat}
+        />
+      </div>
     );
   }
 
@@ -209,12 +211,14 @@ export function ChatHighlight() {
     !isWaitingForApprovals
   ) {
     return (
-      <StatusHighlight
-        variant="warning"
-        finishReason={finishReason}
-        onDismiss={clearFinishReason}
-        onContinue={handleContinue}
-      />
+      <div className="absolute bottom-full left-0 right-0 bg-background">
+        <StatusHighlight
+          variant="warning"
+          finishReason={finishReason}
+          onDismiss={clearFinishReason}
+          onContinue={handleContinue}
+        />
+      </div>
     );
   }
 
