@@ -57,13 +57,13 @@ export function extractTextFromOutput(output: unknown): string | null {
       } else if (p.state === "output-available") {
         finalText += p.output
           ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: ${JSON.stringify(p.output).slice(0, 40)}...\n\n`
-          : `## ${toolName}\nTool responded with no output\n\n`;
+          : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool responded with no output\n\n`;
       } else if (p.state === "output-error") {
         finalText += p.errorText
-          ? `## ${toolName}\nError: ${p.errorText}\n\n`
-          : `## ${toolName}\nTool responded with an error\n\n`;
+          ? `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: ${p.errorText}\n\n`
+          : `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nError: Tool responded with an error\n\n`;
       } else if (p.state === "output-denied") {
-        finalText += `## ${toolName}\nTool execution was denied\n\n`;
+        finalText += `## ${toolName}\nInput: ${JSON.stringify(p.input).slice(0, 40)}...\nOutput: Tool execution was denied\n\n`;
       }
     }
   }
