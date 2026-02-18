@@ -66,35 +66,47 @@ export interface GitLogEntry {
   message: string;
 }
 
+const GIT_BASE = "/api/plugins/site-editor/git";
+
 /**
- * Get commit history for a file using GIT_LOG.
- * Returns null if the tool is not supported by the MCP.
+ * Get commit history for a file using server-side git route.
+ * Returns null on failure.
  */
 export async function getGitLog(
-  toolCaller: ToolCaller,
+  connectionId: string,
   path: string,
   limit = 50,
 ): Promise<GitLogEntry[] | null> {
   try {
-    const result = await toolCaller("GIT_LOG", { path, limit });
-    return result.commits;
+    const params = new URLSearchParams({
+      connectionId,
+      path,
+      limit: String(limit),
+    });
+    const res = await fetch(`${GIT_BASE}/log?${params}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { commits?: GitLogEntry[] };
+    return data.commits ?? null;
   } catch {
     return null;
   }
 }
 
 /**
- * Read file content at a specific commit using GIT_SHOW.
- * Returns null if the tool is not supported.
+ * Read file content at a specific commit using server-side git route.
+ * Returns null on failure.
  */
 export async function getGitShow(
-  toolCaller: ToolCaller,
+  connectionId: string,
   path: string,
   commitHash: string,
 ): Promise<string | null> {
   try {
-    const result = await toolCaller("GIT_SHOW", { path, commitHash });
-    return result.content;
+    const params = new URLSearchParams({ connectionId, path, commitHash });
+    const res = await fetch(`${GIT_BASE}/show?${params}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string };
+    return data.content ?? null;
   } catch {
     return null;
   }
@@ -104,50 +116,44 @@ export async function getGitShow(
  * Revert a page to a previous commit.
  *
  * Steps:
- * 1. Read content at commitHash via GIT_SHOW
- * 2. Write it to the page file via PUT_FILE
- * 3. Commit the change via GIT_COMMIT with a revert message
- *
- * Returns { success, committedWithGit }.
- * If GIT_COMMIT is not supported, still returns success:true after PUT_FILE succeeds.
+ * 1. Read content at commitHash via server git/show route
+ * 2. Write it to disk via PUT_FILE (toolCaller — still works with any MCP)
+ * 3. Commit the change via server git/commit route
  */
 export async function revertToCommit(
   toolCaller: ToolCaller,
+  connectionId: string,
   pageId: string,
   commitHash: string,
 ): Promise<{ success: boolean; committedWithGit: boolean }> {
   const path = `${PAGES_PREFIX}${pageId}.json`;
   const shortHash = commitHash.slice(0, 7);
 
-  // 1. Read historical content
-  let content: string | null = null;
-  try {
-    const result = await toolCaller("GIT_SHOW", { path, commitHash });
-    content = result.content;
-  } catch {
-    return { success: false, committedWithGit: false };
-  }
+  // 1. Read historical content via server route
+  const content = await getGitShow(connectionId, path, commitHash);
+  if (!content) return { success: false, committedWithGit: false };
 
-  if (!content) {
-    return { success: false, committedWithGit: false };
-  }
-
-  // 2. Write to disk via PUT_FILE
+  // 2. Write to disk via PUT_FILE (works with @modelcontextprotocol/server-filesystem)
   try {
     await toolCaller("PUT_FILE", { path, content });
   } catch {
     return { success: false, committedWithGit: false };
   }
 
-  // 3. GIT_COMMIT (optional — graceful degrade if not supported)
+  // 3. Commit via server route
   let committedWithGit = false;
   try {
-    await toolCaller("GIT_COMMIT", {
-      message: `revert: restore page to ${shortHash}`,
+    const res = await fetch(`${GIT_BASE}/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        connectionId,
+        message: `revert: restore page to ${shortHash}`,
+      }),
     });
-    committedWithGit = true;
+    committedWithGit = res.ok;
   } catch {
-    // GIT_COMMIT not supported — PUT_FILE write still succeeded
+    // Commit failed — write still succeeded
   }
 
   return { success: true, committedWithGit };

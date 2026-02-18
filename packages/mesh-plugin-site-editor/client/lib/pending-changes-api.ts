@@ -2,16 +2,13 @@
  * Pending Changes API helpers
  *
  * Client-side git working-tree helpers for the page composer.
- * Calls GIT_STATUS, GIT_SHOW, and GIT_CHECKOUT via SITE_BINDING tools.
- * All functions gracefully degrade — returning null / false if the tool
- * throws (not supported, file untracked, network error, etc.).
+ * Calls the site-editor server routes at /api/plugins/site-editor/git/*
+ * so they work regardless of which MCP server the user connected.
  */
 
-import type { TypedToolCaller } from "@decocms/bindings";
-import type { SiteBinding } from "@decocms/bindings/site";
 import type { BlockInstance } from "./page-api";
 
-type ToolCaller = TypedToolCaller<SiteBinding>;
+const GIT_BASE = "/api/plugins/site-editor/git";
 
 export interface FileStatus {
   path: string;
@@ -21,15 +18,18 @@ export interface FileStatus {
 
 /**
  * Get the git working-tree status for a single file.
- * Returns null if the tool throws (not supported or file not tracked).
+ * Returns null if the server route fails.
  */
 export async function getGitStatus(
-  toolCaller: ToolCaller,
+  connectionId: string,
   filePath: string,
 ): Promise<FileStatus | null> {
   try {
-    const result = await toolCaller("GIT_STATUS", { path: filePath });
-    return result.files.find((f) => f.path === filePath) ?? null;
+    const params = new URLSearchParams({ connectionId, path: filePath });
+    const res = await fetch(`${GIT_BASE}/status?${params}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { files?: FileStatus[] };
+    return data.files?.find((f) => f.path === filePath) ?? null;
   } catch {
     return null;
   }
@@ -37,19 +37,23 @@ export async function getGitStatus(
 
 /**
  * Fetch the committed (HEAD) blocks array for a page file.
- * Calls GIT_SHOW and parses the JSON, returning the blocks array.
- * Returns null if the tool throws or the file is untracked / not a page JSON.
+ * Returns null if the file is untracked or the route fails.
  */
 export async function getCommittedPage(
-  toolCaller: ToolCaller,
+  connectionId: string,
   filePath: string,
 ): Promise<BlockInstance[] | null> {
   try {
-    const result = await toolCaller("GIT_SHOW", {
+    const params = new URLSearchParams({
+      connectionId,
       path: filePath,
       commitHash: "HEAD",
     });
-    const page = JSON.parse(result.content);
+    const res = await fetch(`${GIT_BASE}/show?${params}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string };
+    if (!data.content) return null;
+    const page = JSON.parse(data.content) as { blocks?: BlockInstance[] };
     return Array.isArray(page.blocks) ? page.blocks : null;
   } catch {
     return null;
@@ -58,15 +62,19 @@ export async function getCommittedPage(
 
 /**
  * Discard all uncommitted changes to a page file via GIT_CHECKOUT.
- * Returns true on success, false if the tool throws.
+ * Returns true on success.
  */
 export async function discardPageChanges(
-  toolCaller: ToolCaller,
+  connectionId: string,
   filePath: string,
 ): Promise<boolean> {
   try {
-    await toolCaller("GIT_CHECKOUT", { path: filePath, force: true });
-    return true;
+    const res = await fetch(`${GIT_BASE}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionId, path: filePath, force: true }),
+    });
+    return res.ok;
   } catch {
     return false;
   }

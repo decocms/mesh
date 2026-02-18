@@ -8,8 +8,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import type { TypedToolCaller } from "@decocms/bindings";
-import type { SiteBinding } from "@decocms/bindings/site";
 import { getGitStatus, getCommittedPage } from "./pending-changes-api";
 import { queryKeys } from "./query-keys";
 import type { BlockInstance } from "./page-api";
@@ -87,15 +85,13 @@ function computeSectionStatuses(
 }
 
 /**
- * Hook that tracks pending changes for a page using GIT_STATUS + GIT_SHOW.
+ * Hook that tracks pending changes for a page using server-side git routes.
  *
- * @param toolCaller - SITE_BINDING tool caller from usePluginContext
- * @param connectionId - current site connection id (for cache key scoping)
+ * @param connectionId - current site connection id (for cache key scoping + server route auth)
  * @param pageId - page identifier (filename without .json extension)
  * @param currentBlocks - in-memory blocks from undo/redo state
  */
 export function usePendingChanges(
-  toolCaller: TypedToolCaller<SiteBinding>,
   connectionId: string,
   pageId: string,
   currentBlocks: BlockInstance[],
@@ -105,7 +101,7 @@ export function usePendingChanges(
   // Step 1: Check if the file is dirty via GIT_STATUS
   const { data: fileStatus, isLoading: isLoadingStatus } = useQuery({
     queryKey: queryKeys.pendingChanges.page(connectionId, pageId),
-    queryFn: () => getGitStatus(toolCaller, pageFilePath),
+    queryFn: () => getGitStatus(connectionId, pageFilePath),
     staleTime: 0, // Always re-fetch when invalidated
   });
 
@@ -116,7 +112,7 @@ export function usePendingChanges(
   // Step 2: Fetch committed page blocks only when dirty
   const { data: committedBlocks, isLoading: isLoadingCommitted } = useQuery({
     queryKey: [...queryKeys.pendingChanges.page(connectionId, pageId), "head"],
-    queryFn: () => getCommittedPage(toolCaller, pageFilePath),
+    queryFn: () => getCommittedPage(connectionId, pageFilePath),
     enabled: isDirty,
     staleTime: 0,
   });

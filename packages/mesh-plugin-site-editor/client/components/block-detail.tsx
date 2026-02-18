@@ -155,11 +155,15 @@ export default function BlockDetail() {
           )}
           {/* Metadata inline */}
           <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-            <Badge variant="secondary" className="text-xs">
-              {scanMethodLabel(block.metadata.scanMethod)}
-            </Badge>
-            <span>Scanned {formatTimestamp(block.metadata.scannedAt)}</span>
-            {block.metadata.propsTypeName && (
+            {block.metadata?.scanMethod && (
+              <Badge variant="secondary" className="text-xs">
+                {scanMethodLabel(block.metadata.scanMethod)}
+              </Badge>
+            )}
+            {block.metadata?.scannedAt && (
+              <span>Scanned {formatTimestamp(block.metadata.scannedAt)}</span>
+            )}
+            {block.metadata?.propsTypeName && (
               <span className="font-mono">{block.metadata.propsTypeName}</span>
             )}
             <span>{propsCount} props</span>

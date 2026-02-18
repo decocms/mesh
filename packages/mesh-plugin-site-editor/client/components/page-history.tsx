@@ -58,6 +58,7 @@ export default function PageHistory({
   onRevert,
 }: PageHistoryProps) {
   const { toolCaller, connectionId } = usePluginContext<typeof SITE_BINDING>();
+  const connId = connectionId;
 
   const [previewingHash, setPreviewingHash] = useState<string | null>(null);
   const [loadingHash, setLoadingHash] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export default function PageHistory({
     error,
   } = useQuery({
     queryKey: queryKeys.history.page(connectionId, pageId),
-    queryFn: () => getGitLog(toolCaller, `.deco/pages/${pageId}.json`, 50),
+    queryFn: () => getGitLog(connId, `.deco/pages/${pageId}.json`, 50),
   });
 
   const handleRevert = async (entry: GitLogEntry) => {
@@ -83,6 +84,7 @@ export default function PageHistory({
     try {
       const { success, committedWithGit } = await revertToCommit(
         toolCaller,
+        connId,
         pageId,
         entry.hash,
       );
@@ -111,7 +113,7 @@ export default function PageHistory({
     setLoadingHash(entry.hash);
     try {
       const path = `.deco/pages/${pageId}.json`;
-      const content = await getGitShow(toolCaller, path, entry.hash);
+      const content = await getGitShow(connId, path, entry.hash);
       if (!content) {
         toast.error("Could not load historical version");
         return;

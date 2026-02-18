@@ -37,14 +37,17 @@ export const clientPlugin: Plugin<typeof SITE_BINDING> = {
         {
           icon: <File06 size={16} />,
           label: "Pages",
+          path: "/",
         },
         {
           icon: <LayoutAlt03 size={16} />,
           label: "Sections",
+          path: "/sections",
         },
         {
           icon: <Database01 size={16} />,
           label: "Loaders",
+          path: "/loaders",
         },
       ],
       defaultExpanded: true,

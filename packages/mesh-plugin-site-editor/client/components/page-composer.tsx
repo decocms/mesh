@@ -163,7 +163,6 @@ export default function PageComposer() {
 
   // Pending changes: per-section diff status from GIT_STATUS + GIT_SHOW
   const { sectionStatuses, isDirty: gitIsDirty } = usePendingChanges(
-    toolCaller,
     connectionId,
     pageId,
     blocks,
@@ -407,7 +406,7 @@ export default function PageComposer() {
       saveTimerRef.current = null;
     }
     const pageFilePath = `.deco/pages/${pageId}.json`;
-    const success = await discardPageChanges(toolCaller, pageFilePath);
+    const success = await discardPageChanges(connectionId, pageFilePath);
     if (success) {
       markClean();
       toast.success("Changes discarded");
@@ -427,7 +426,7 @@ export default function PageComposer() {
     setCommitState({ mode: "generating" });
 
     // 1. Get the git diff
-    const diff = await getDiff(toolCaller);
+    const diff = await getDiff(connectionId);
 
     // 2. Generate commit message (server-side Haiku call)
     // Both may fail gracefully — we fall back to empty string
@@ -447,7 +446,7 @@ export default function PageComposer() {
   const handleCommitConfirm = async (message: string) => {
     setCommitState({ mode: "committing", message });
 
-    const result = await gitCommit(toolCaller, message);
+    const result = await gitCommit(connectionId, message);
 
     if (result) {
       toast.success(

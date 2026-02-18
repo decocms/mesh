@@ -1,26 +1,27 @@
 /**
  * Git API helpers
  *
- * Client-side git operations using SITE_BINDING tools (GIT_DIFF, GIT_COMMIT).
- * These are thin wrappers around toolCaller that handle errors gracefully.
+ * Client-side git operations via server routes at /api/plugins/site-editor/git/*
+ * Works regardless of which MCP server the user connected.
  */
 
-import type { TypedToolCaller } from "@decocms/bindings";
-import type { SiteBinding } from "@decocms/bindings/site";
-
-type ToolCaller = TypedToolCaller<SiteBinding>;
+const GIT_BASE = "/api/plugins/site-editor/git";
 
 /**
  * Get the full unified diff of working-tree changes against HEAD.
- * Returns the raw diff string, or null if GIT_DIFF is not supported.
+ * Returns the raw diff string, or null on failure.
  */
 export async function getDiff(
-  toolCaller: ToolCaller,
+  connectionId: string,
   path?: string,
 ): Promise<string | null> {
   try {
-    const result = await toolCaller("GIT_DIFF", { path });
-    return result.diff;
+    const params = new URLSearchParams({ connectionId });
+    if (path) params.set("path", path);
+    const res = await fetch(`${GIT_BASE}/diff?${params}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { diff?: string };
+    return data.diff ?? null;
   } catch {
     return null;
   }
@@ -28,15 +29,20 @@ export async function getDiff(
 
 /**
  * Stage all changes and create a git commit with the given message.
- * Returns { hash, message } on success, or null if GIT_COMMIT is not supported.
+ * Returns { hash, message } on success, or null on failure.
  */
 export async function gitCommit(
-  toolCaller: ToolCaller,
+  connectionId: string,
   message: string,
 ): Promise<{ hash: string; message: string } | null> {
   try {
-    const result = await toolCaller("GIT_COMMIT", { message });
-    return result;
+    const res = await fetch(`${GIT_BASE}/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionId, message }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { hash: string; message: string };
   } catch {
     return null;
   }
@@ -44,10 +50,7 @@ export async function gitCommit(
 
 /**
  * Generate a commit message via Claude Haiku (server-side).
- *
- * Calls POST /api/plugins/site-editor/commit-message with the diff text.
  * Returns the generated message string, or null on failure.
- * Failure is non-fatal — the caller should fall back to an empty textarea.
  */
 export async function generateCommitMessage(
   diff: string,
