@@ -197,10 +197,10 @@ Plans:
   4. GIT_SHOW tool returns the contents of a file at a specific commit hash
   5. GIT_CHECKOUT tool reverts a given file to HEAD (or to a specified commit), discarding working-tree changes
   6. GIT_COMMIT tool stages and commits all tracked changes with a provided message, returning the new commit hash
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md -- Implement GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT in local-fs MCP server and extend SITE_BINDING declaration
+- [ ] 11-01-PLAN.md — All 6 git tools (GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT) in git.ts, wired into tools.ts, SITE_BINDING extended with 6 optional entries, integration tests added
 
 ### Phase 12: Pending Changes UI
 **Goal**: Users can see at a glance which sections on the current page are new, modified, or deleted relative to the last commit, and can restore or discard those changes
