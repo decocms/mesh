@@ -236,7 +236,7 @@ describe("toModelOutput", () => {
 
     expect(result).toEqual({
       type: "text",
-      value: "Subtask completed.",
+      value: "Subtask completed (no output).",
     });
   });
 
@@ -250,7 +250,7 @@ describe("toModelOutput", () => {
 
     expect(result).toEqual({
       type: "text",
-      value: "Subtask completed.",
+      value: "Subtask completed (no output).",
     });
   });
 

@@ -31,7 +31,10 @@ const queryDurationHistogram = meter.createHistogram("db.query.duration", {
   unit: "ms",
 });
 
-const WELL_KNOWN_QUERY_ERRORS = ["PRAGMA busy_timeout = ?;"];
+const WELL_KNOWN_QUERY_ERRORS = [
+  "PRAGMA busy_timeout = ?;",
+  "SELECT current_database()",
+];
 
 const SLOW_QUERY_TRESHOLD_MS = 400;
 const log = (event: LogEvent) => {
