@@ -59,6 +59,47 @@ export async function readFileAt(
   }
 }
 
+export interface GitLogEntry {
+  hash: string; // full commit hash from GIT_LOG output schema
+  author: string;
+  date: string; // ISO date string
+  message: string;
+}
+
+/**
+ * Get commit history for a file using GIT_LOG.
+ * Returns null if the tool is not supported by the MCP.
+ */
+export async function getGitLog(
+  toolCaller: ToolCaller,
+  path: string,
+  limit = 50,
+): Promise<GitLogEntry[] | null> {
+  try {
+    const result = await toolCaller("GIT_LOG", { path, limit });
+    return result.commits;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read file content at a specific commit using GIT_SHOW.
+ * Returns null if the tool is not supported.
+ */
+export async function getGitShow(
+  toolCaller: ToolCaller,
+  path: string,
+  commitHash: string,
+): Promise<string | null> {
+  try {
+    const result = await toolCaller("GIT_SHOW", { path, commitHash });
+    return result.content;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Revert a page to a previous version.
  *
