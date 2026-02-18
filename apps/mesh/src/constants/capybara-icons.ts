@@ -17,8 +17,7 @@ export const CAPYBARA_ICON_MAX = 38;
  */
 export function pickRandomCapybaraIcon(): string {
   const index =
-    Math.floor(
-      Math.random() * (CAPYBARA_ICON_MAX - CAPYBARA_ICON_MIN + 1),
-    ) + CAPYBARA_ICON_MIN;
+    Math.floor(Math.random() * (CAPYBARA_ICON_MAX - CAPYBARA_ICON_MIN + 1)) +
+    CAPYBARA_ICON_MIN;
   return `/icons/capy-${index}.png`;
 }
