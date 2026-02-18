@@ -643,7 +643,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    // Play notification sound if user is not viewing the app and has enabled notifications
+    const { thread_id } = message.metadata ?? {};
+
+    // Play notification sound and show browser notification if user is not viewing the app and has enabled notifications
     if (
       preferences.enableNotifications &&
       typeof document !== "undefined" &&
@@ -652,9 +654,45 @@ export function ChatProvider({ children }: PropsWithChildren) {
       Notification.permission === "granted"
     ) {
       playNotificationSound();
-    }
 
-    const { thread_id } = message.metadata ?? {};
+      // Find the last user message to display in notification
+      const lastUserMessage = messages
+        .slice()
+        .reverse()
+        .find((msg) => msg.role === "user");
+
+      // Extract text from the user message
+      let userMessageText = "";
+      if (lastUserMessage) {
+        const textParts = lastUserMessage.parts.filter(
+          (part) => part.type === "text",
+        );
+        if (textParts.length > 0) {
+          userMessageText = textParts
+            .map((part) => ("text" in part ? part.text : ""))
+            .join(" ");
+        }
+      }
+
+      // Truncate to 60 characters
+      const truncatedText =
+        userMessageText.length > 60
+          ? `${userMessageText.slice(0, 60)}...`
+          : userMessageText;
+
+      // Show browser notification
+      const notification = new Notification("Chat Response Ready", {
+        body: truncatedText || "Your chat response is ready",
+        icon: "/favicon.svg",
+        tag: `chat-${thread_id}`,
+      });
+
+      // Focus window when notification is clicked
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
 
     if (!thread_id) {
       return;
