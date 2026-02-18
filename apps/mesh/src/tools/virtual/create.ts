@@ -14,6 +14,7 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { VirtualMCPCreateDataSchema, VirtualMCPEntitySchema } from "./schema";
+import { pickRandomCapybaraIcon } from "../../constants/capybara-icons";
 
 /**
  * Input schema for creating virtual MCPs (wrapped in data field for collection compliance)
@@ -57,10 +58,16 @@ export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
 
     // Create the virtual MCP (input.data is already in the correct format)
     // Note: The facade creates a VIRTUAL connection in the connections table
+    // Use a random capybara icon if no icon is provided
+    const dataWithIcon = {
+      ...input.data,
+      icon: input.data.icon ?? pickRandomCapybaraIcon(),
+    };
+
     const virtualMcp = await ctx.storage.virtualMcps.create(
       organization.id,
       userId,
-      input.data,
+      dataWithIcon,
     );
 
     // Return virtual MCP entity directly (already in correct format)

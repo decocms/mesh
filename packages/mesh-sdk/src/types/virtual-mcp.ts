@@ -97,7 +97,7 @@ export const VirtualMCPCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  icon: z.string().nullable().optional().describe("Optional icon URL"),
+  icon: z.string().optional().describe("Optional icon URL"),
   status: z
     .enum(["active", "inactive"])
     .optional()
@@ -133,11 +133,7 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  icon: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("New icon URL (null to clear)"),
+  icon: z.string().optional().describe("New icon URL"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
   metadata: z
     .object({

@@ -165,20 +165,25 @@ export const ConnectionCreateDataSchema = ConnectionEntitySchema.omit({
   tools: true,
   bindings: true,
   status: true,
-}).partial({
-  id: true,
-  description: true,
-  icon: true,
-  app_name: true,
-  app_id: true,
-  connection_url: true,
-  connection_token: true,
-  connection_headers: true,
-  oauth_config: true,
-  configuration_state: true,
-  configuration_scopes: true,
-  metadata: true,
-});
+})
+  .partial({
+    id: true,
+    description: true,
+    icon: true,
+    app_name: true,
+    app_id: true,
+    connection_url: true,
+    connection_token: true,
+    connection_headers: true,
+    oauth_config: true,
+    configuration_state: true,
+    configuration_scopes: true,
+    metadata: true,
+  })
+  .extend({
+    // Override icon to make it truly optional (not nullable)
+    icon: z.string().optional(),
+  });
 
 export type ConnectionCreateData = z.infer<typeof ConnectionCreateDataSchema>;
 
