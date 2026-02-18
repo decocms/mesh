@@ -105,6 +105,16 @@ None - no external service configuration required.
 - Phase 14 complete: history panel (list + preview) and revert action both implemented
 - HIST-01, HIST-02, HIST-03 requirements fulfilled
 
+## Self-Check: PASSED
+
+- FOUND: packages/mesh-plugin-site-editor/client/lib/history-api.ts
+- FOUND: packages/mesh-plugin-site-editor/client/components/page-history.tsx
+- FOUND: packages/mesh-plugin-site-editor/client/components/page-composer.tsx
+- FOUND: .planning/phases/14-history-panel/14-02-SUMMARY.md
+- FOUND commit cf257e3cc (feat: add revertToCommit to history-api.ts)
+- FOUND commit 35e6a0d16 (feat: Revert button + confirmation in PageHistory)
+- FOUND commit f256c52f2 (feat: wire onRevert in PageComposer)
+
 ---
 *Phase: 14-history-panel*
 *Completed: 2026-02-18*
