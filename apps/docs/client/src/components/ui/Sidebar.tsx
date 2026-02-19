@@ -390,12 +390,14 @@ export default function Sidebar({
   // Version state for URL-based navigation
   const [version, setVersion] = useState(currentVersion);
 
-  // Handle version change by navigating to new URL
+  // Handle version change by navigating to the new version's root page
+  const versionRoots: Record<string, string> = {
+    latest: "introduction",
+    draft: "mcp-mesh/quickstart",
+  };
   const handleVersionChange = (newVersion: string) => {
-    const currentPath = window.location.pathname;
-    // Replace version in path: /latest/en/... -> /draft/en/...
-    const newPath = currentPath.replace(`/${version}/`, `/${newVersion}/`);
-    navigate(newPath);
+    const root = versionRoots[newVersion] ?? "mcp-mesh/quickstart";
+    navigate(`/${newVersion}/${locale}/${root}`);
   };
 
   // Initialize with default state (same on server and client for hydration match)

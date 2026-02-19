@@ -9,29 +9,35 @@ const lang = Astro.params.locale;
 const t = useTranslations(lang as keyof typeof ui);
 
 export async function getStaticPaths() {
+  const KNOWN_LOCALES = ["en", "pt-br"];
   const allDocs = await getCollection("docs");
 
   return [
-    ...Object.keys(languages).map((locale) => ({
+    ...KNOWN_LOCALES.map((locale) => ({
       params: { locale },
       props: { doc: null },
     })),
     // Legacy path redirects (keep old URLs working without keeping old docs in the sidebar)
-    ...Object.keys(languages).flatMap((locale) => [
+    ...KNOWN_LOCALES.flatMap((locale) => [
       {
         params: { locale, slug: "getting-started/context-engineers" },
         props: { doc: null },
       },
     ]),
-    ...allDocs.map((doc) => {
-      const locale = doc.id.split("/")[0];
-      const slug = doc.id.split("/").slice(1).join("/");
+    // Legacy redirect paths: generate /en/... and /pt-br/... for all latest docs
+    // so old production URLs get redirected to /latest/en/... equivalents
+    ...allDocs
+      .filter((doc) => doc.id.split("/")[0] === "latest")
+      .map((doc) => {
+        const parts = doc.id.split("/");
+        const locale = parts[1];
+        const slug = parts.slice(2).join("/");
 
-      return {
-        params: { locale, slug },
-        props: { doc },
-      };
-    }),
+        return {
+          params: { locale, slug },
+          props: { doc: null },
+        };
+      }),
   ];
 }
 
@@ -43,9 +49,13 @@ if (slug === "getting-started/context-engineers") {
   return Astro.redirect(`/${lang}/getting-started/developers`);
 }
 
-// Redirect to quickstart if no document is found (i.e., when visiting /en)
+// Redirect to introduction if no document is found (i.e., when visiting /en or /pt-br)
+// If a slug is present, preserve it so legacy /en/... URLs redirect to /latest/en/...
 if (!doc) {
-  return Astro.redirect(`/${lang}/mcp-mesh/quickstart`);
+  if (slug) {
+    return Astro.redirect(`/latest/${lang}/${slug}`);
+  }
+  return Astro.redirect(`/latest/${lang}/introduction`);
 }
 ---
 

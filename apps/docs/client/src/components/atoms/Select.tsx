@@ -1,5 +1,5 @@
 import type { SelectHTMLAttributes } from "react";
-import { Icon } from "./Icon.tsx";
+import { Icon } from "./Icon";
 
 interface SelectOption {
   value: string;

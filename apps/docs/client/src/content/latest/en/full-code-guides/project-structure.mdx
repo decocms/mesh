@@ -4,7 +4,7 @@ description: Understand the full-stack TypeScript architecture of deco applicati
 icon: Folder
 ---
 
-import Callout from "../../../components/ui/Callout.astro";
+import Callout from "../../../../components/ui/Callout.astro";
 
 Deco CMS apps are full-stack TypeScript monorepos. Backend (MCP server) and frontend (React app) share types, deploy together, and communicate via typed RPC, no REST APIs needed.
 
@@ -126,7 +126,7 @@ export const tools = [
 ];
 ```
 
-See [Building Tools](/en/full-code-guides/building-tools) for details.
+See [Building Tools](/latest/en/full-code-guides/building-tools) for details.
 
 ### `workflows/`
 
@@ -221,5 +221,5 @@ const result = await client.tools.EMAIL_SEND({
 
 TypeScript provides autocomplete and type checking for all tool inputs/outputs.
 
-See [Building Views](/en/full-code-guides/building-views) for details.
+See [Building Views](/latest/en/full-code-guides/building-views) for details.
 

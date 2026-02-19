@@ -4,7 +4,7 @@ description: Run Mesh locally, connect an Integration, create an Agent, and veri
 icon: Rocket
 ---
 
-import Callout from "../../../components/ui/Callout.astro";
+import Callout from "../../../../components/ui/Callout.astro";
 
 ## 1) Run the Mesh
 
@@ -34,7 +34,7 @@ docker compose up -d
 open http://localhost:3000
 ```
 
-**More details:** [Local: Docker Compose](/en/mcp-mesh/deploy/local-docker-compose)
+**More details:** [Local: Docker Compose](/latest/en/mcp-mesh/deploy/local-docker-compose)
 
 ### Option C: run from source
 
@@ -69,7 +69,7 @@ kubectl port-forward svc/deco-mcp-mesh 8080:80 -n deco-mcp-mesh
 
 The application will be available at `http://localhost:8080`.
 
-**More details:** [Kubernetes: Helm Chart](/en/mcp-mesh/deploy/kubernetes-helm-chart)
+**More details:** [Kubernetes: Helm Chart](/latest/en/mcp-mesh/deploy/kubernetes-helm-chart)
 
 ## 2) Create a Connection
 
@@ -94,7 +94,7 @@ The **Store** is a catalog of Connections you can connect to. By default, the St
 
 ## 5) Generate an API key for a client
 
-Create an API key with the minimum tool permissions needed (see [API Keys](/en/mcp-mesh/api-keys)).
+Create an API key with the minimum tool permissions needed (see [API Keys](/latest/en/mcp-mesh/api-keys)).
 
 ## 6) Verify monitoring
 

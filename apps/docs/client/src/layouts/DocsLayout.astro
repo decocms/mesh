@@ -166,6 +166,16 @@ const editUrl = doc
         // Apply theme immediately
         applyTheme(savedTheme);
 
+        // Preserve theme across client-side navigations: copy current data-theme
+        // to the incoming document before Astro swaps the DOM, preventing a flash
+        // caused by the new page's hardcoded data-theme="light" on <html>.
+        document.addEventListener("astro:before-swap", function (e) {
+          const currentTheme = document.documentElement.getAttribute("data-theme");
+          if (currentTheme) {
+            e.newDocument.documentElement.setAttribute("data-theme", currentTheme);
+          }
+        });
+
         // Listen for system theme changes if using auto
         if (savedTheme === "auto") {
           window

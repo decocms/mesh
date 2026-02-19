@@ -1,12 +1,17 @@
 ---
 import { getCollection } from "astro:content";
 import { ui } from "../../i18n/ui";
-import SidebarComponent from "./Sidebar.tsx";
+import SidebarComponent from "./Sidebar";
 
+const version = Astro.params.version || "latest";
 const locale = Astro.params.locale;
 
 const allDocs = await getCollection("docs");
-const docs = allDocs.filter((doc) => doc.id.split("/")[0] === locale);
+// Filter docs by version and locale: docs are organized as version/locale/...
+const docs = allDocs.filter((doc) => {
+  const parts = doc.id.split("/");
+  return parts[0] === version && parts[1] === locale;
+});
 
 interface TreeNode {
   name: string;
@@ -21,7 +26,8 @@ function buildTree(docs: any[]): TreeNode[] {
   const root: TreeNode[] = [];
 
   docs.forEach((doc) => {
-    const pathParts = doc.id.split("/").slice(1);
+    // doc.id is now version/locale/...path, so skip first 2 parts (version and locale)
+    const pathParts = doc.id.split("/").slice(2);
     let currentLevel = root;
 
     pathParts.forEach((part: string, index: number) => {
@@ -51,14 +57,6 @@ function buildTree(docs: any[]): TreeNode[] {
   // Sort the tree for consistent ordering
   const sortTree = (nodes: TreeNode[]): TreeNode[] => {
     const sorted = nodes.sort((a, b) => {
-      // Special case: api-reference should come after folders
-      if (a.name === "api-reference" && b.type === "folder") {
-        return 1; // api-reference comes after folders
-      }
-      if (b.name === "api-reference" && a.type === "folder") {
-        return -1; // folders come before api-reference
-      }
-
       // First sort by type: files before folders
       if (a.type !== b.type) {
         return a.type === "file" ? -1 : 1;
@@ -73,25 +71,39 @@ function buildTree(docs: any[]): TreeNode[] {
         if (parentPath === "mcp-mesh") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
           // Order follows: Quickstart → Overview → Core Concepts → Working with MCP → Monitoring → User Management → Reference
-          const mcpMeshOrder = [
-            // Quickstart & Overview
-            "quickstart",
-            "overview",
-            // Core Concepts
-            "concepts",
-            // Working with MCP
-            "connections",
-            "virtual-mcps",
-            "projects",
-            "agents",
-            // Monitoring & Observability
-            "monitoring",
-            // User Management
-            "api-keys",
-            "user-management",
-            // Reference
-            "api-reference",
-          ];
+
+          // Version-aware ordering
+          const mcpMeshOrder =
+            version === "latest"
+              ? [
+                  // Latest version (origin/main structure)
+                  "overview",
+                  "quickstart",
+                  "concepts",
+                  "connect-clients",
+                  "authentication",
+                  "authorization-and-roles",
+                  "mcp-servers",
+                  "mcp-gateways",
+                  "api-keys",
+                  "monitoring",
+                  "api-reference",
+                ]
+              : [
+                  // Draft version structure
+                  "quickstart",
+                  "overview",
+                  "concepts",
+                  "connections",
+                  "virtual-mcps",
+                  "projects",
+                  "agents",
+                  "monitoring",
+                  "api-keys",
+                  "user-management",
+                  "api-reference",
+                ];
+
           const aIndex = mcpMeshOrder.indexOf(a.name);
           const bIndex = mcpMeshOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -198,7 +210,11 @@ function buildTree(docs: any[]): TreeNode[] {
         // Custom order for deploy docs (now under self-hosting)
         const rootPath = a.path[0];
         if (rootPath === "mcp-mesh" && parentPath === "deploy") {
-          const deployOrder = ["docker-compose", "kubernetes"];
+          // Version-aware deploy file names
+          const deployOrder =
+            version === "latest"
+              ? ["local-docker-compose", "kubernetes-helm-chart"]
+              : ["docker-compose", "kubernetes"];
           const aIndex = deployOrder.indexOf(a.name);
           const bIndex = deployOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -257,7 +273,10 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
   const folders = nodes.filter((n) => n.type === "folder");
 
   const mcpMesh = folders.find((f) => f.name === "mcp-mesh");
-  const legacyChildren = folders.filter((f) => f.name !== "mcp-mesh");
+  const mcpStudio = folders.find((f) => f.name === "mcp-studio");
+  const legacyChildren = folders.filter(
+    (f) => f.name !== "mcp-mesh" && f.name !== "mcp-studio",
+  );
 
   const legacyFolder: TreeNode | null =
     legacyChildren.length > 0
@@ -276,13 +295,18 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
   // mcp-mesh children will be shown at the top level
   const next: TreeNode[] = [];
 
+  // Add any top-level files first (e.g. introduction.mdx)
+  next.push(...files);
+
   // Add all mcp-mesh children directly at top level (order controlled by mcpMeshOrder array)
   if (mcpMesh && mcpMesh.children.length > 0) {
     next.push(...mcpMesh.children);
   }
 
-  // Add any other top-level files
-  next.push(...files);
+  // Add mcp-studio as its own top-level section
+  if (mcpStudio) {
+    next.push(mcpStudio);
+  }
 
   // Add legacy admin section at the end
   if (legacyFolder) next.push(legacyFolder);
@@ -332,4 +356,5 @@ const flatTree = flattenTree(tree);
   tree={flatTree}
   locale={locale || "en"}
   translations={ui[locale as keyof typeof ui] || ui.en}
+  currentVersion={version}
 />
