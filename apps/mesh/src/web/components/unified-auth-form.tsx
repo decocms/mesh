@@ -14,16 +14,22 @@ interface UnifiedAuthFormProps {
   redirectUrl?: string | null;
 }
 
+type FormView = "signIn" | "signUp" | "forgotPassword";
+
 export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
-  const { emailAndPassword } = useAuthConfig();
+  const { emailAndPassword, resetPassword } = useAuthConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(() => {
+  const [view, setView] = useState<FormView>(() => {
     const hasLoggedIn = globalThis.localStorage?.getItem("hasLoggedIn");
-    return hasLoggedIn !== "true";
+    return hasLoggedIn !== "true" ? "signUp" : "signIn";
   });
   const [emailError, setEmailError] = useState("");
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+
+  const isSignUp = view === "signUp";
+  const isForgotPassword = view === "forgotPassword";
 
   const emailPasswordMutation = useMutation({
     mutationFn: async ({
@@ -54,18 +60,30 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
           return result;
         }
       } catch (err) {
-        // Re-throw to ensure React Query catches it
         throw err instanceof Error ? err : new Error("Authentication failed");
       }
     },
     onSuccess: () => {
       globalThis.localStorage?.setItem("hasLoggedIn", "true");
-      // If OAuth flow, redirect to authorize endpoint to complete the flow
       if (redirectUrl) {
         window.location.href = redirectUrl;
       }
-      // Otherwise, the session change will trigger React to re-render
-      // and the login route will handle the redirect
+    },
+  });
+
+  const forgotPasswordMutation = useMutation({
+    mutationFn: async ({ email }: { email: string }) => {
+      const result = await authClient.requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
+      });
+      if (result.error) {
+        throw new Error(result.error.message || "Failed to send reset email");
+      }
+      return result;
+    },
+    onSuccess: () => {
+      setResetEmailSent(true);
     },
   });
 
@@ -83,7 +101,6 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const handleEmailPassword = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check email validity before submitting
     if (!validateEmail(email)) {
       setEmailError("Invalid email address");
       return;
@@ -92,28 +109,52 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
     emailPasswordMutation.mutate({ email, password, name });
   };
 
+  const handleForgotPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateEmail(email)) {
+      setEmailError("Invalid email address");
+      return;
+    }
+
+    forgotPasswordMutation.mutate({ email });
+  };
+
   const handleInputChange =
     (setter: (value: string) => void) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setter(e.target.value);
-      // Clear errors when user starts typing
       if (error) {
         emailPasswordMutation.reset();
+      }
+      if (forgotPasswordError) {
+        forgotPasswordMutation.reset();
       }
       if (setter === setEmail && emailError) {
         setEmailError("");
       }
     };
 
-  const isLoading = emailPasswordMutation.isPending;
-  const error = emailPasswordMutation.error;
+  const switchView = (newView: FormView) => {
+    setView(newView);
+    setName("");
+    setEmailError("");
+    setResetEmailSent(false);
+    emailPasswordMutation.reset();
+    forgotPasswordMutation.reset();
+  };
 
-  // Show button only when fields are filled
+  const isLoading =
+    emailPasswordMutation.isPending || forgotPasswordMutation.isPending;
+  const error = emailPasswordMutation.error;
+  const forgotPasswordError = forgotPasswordMutation.error;
+
   const canSubmit = isSignUp
     ? email.trim() && password.trim() && name.trim()
-    : email.trim() && password.trim();
+    : isForgotPassword
+      ? email.trim()
+      : email.trim() && password.trim();
 
-  // Format error message
   const getErrorMessage = (error: Error | null) => {
     if (!error) return null;
 
@@ -141,6 +182,14 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
     return error.message || "An error occurred. Please try again.";
   };
 
+  const displayError = error || forgotPasswordError;
+
+  const headerText = isForgotPassword
+    ? "Reset your password"
+    : isSignUp
+      ? "Create your account"
+      : "Login or signup below";
+
   return (
     <div className="mx-auto w-full min-w-[400px] max-w-md grid gap-6 bg-card p-10 border border-primary-foreground/20">
       {/* Logo */}
@@ -150,20 +199,58 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
 
       {/* Header */}
       <div className="text-center space-y-1">
-        <p className="text-sm text-foreground/70">
-          {isSignUp ? "Create your account" : "Login or signup below"}
-        </p>
+        <p className="text-sm text-foreground/70">{headerText}</p>
       </div>
 
       {/* Error message */}
-      {error && (
+      {displayError && (
         <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive text-center">
-          {getErrorMessage(error)}
+          {getErrorMessage(displayError)}
         </div>
       )}
 
+      {/* Success message for forgot password */}
+      {resetEmailSent && (
+        <div className="rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400 text-center">
+          Check your email for a password reset link.
+        </div>
+      )}
+
+      {/* Forgot Password Form */}
+      {isForgotPassword && emailAndPassword.enabled && !resetEmailSent && (
+        <form onSubmit={handleForgotPassword} className="grid gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Email
+            </label>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={handleInputChange(setEmail)}
+              onBlur={handleEmailBlur}
+              required
+              disabled={isLoading}
+              aria-invalid={!!emailError}
+            />
+            {emailError && (
+              <p className="text-xs text-destructive mt-1.5">{emailError}</p>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isLoading || !canSubmit}
+            className="w-full font-semibold"
+            size="lg"
+          >
+            {isLoading ? "Sending..." : "Send reset link"}
+          </Button>
+        </form>
+      )}
+
       {/* Email & Password Form */}
-      {emailAndPassword.enabled && (
+      {!isForgotPassword && emailAndPassword.enabled && (
         <form onSubmit={handleEmailPassword} className="grid gap-4">
           <div
             className={cn(
@@ -207,9 +294,20 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-foreground">
+                Password
+              </label>
+              {!isSignUp && resetPassword.enabled && (
+                <button
+                  type="button"
+                  onClick={() => switchView("forgotPassword")}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <Input
               type="password"
               placeholder="••••••••"
@@ -247,24 +345,31 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
         </form>
       )}
 
-      {/* Sign up toggle */}
+      {/* View toggle links */}
       <div className="text-center">
-        <Button
-          type="button"
-          variant="link"
-          onClick={() => {
-            setIsSignUp(!isSignUp);
-            setName("");
-            setEmailError("");
-            emailPasswordMutation.reset();
-          }}
-          disabled={isLoading}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          {isSignUp
-            ? "Already have an account? Sign in"
-            : "Don't have an account? Sign up"}
-        </Button>
+        {isForgotPassword ? (
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => switchView("signIn")}
+            disabled={isLoading}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Back to sign in
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => switchView(isSignUp ? "signIn" : "signUp")}
+            disabled={isLoading}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            {isSignUp
+              ? "Already have an account? Sign in"
+              : "Don't have an account? Sign up"}
+          </Button>
+        )}
       </div>
 
       {/* Terms */}
