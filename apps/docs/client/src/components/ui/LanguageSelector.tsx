@@ -7,12 +7,14 @@ interface LanguageSelectorProps {
   locale: string;
   className?: string;
   compact?: boolean;
+  disabled?: boolean;
 }
 
 export function LanguageSelector({
   locale,
   className,
   compact,
+  disabled,
 }: LanguageSelectorProps) {
   const languageOptions = compact
     ? [
@@ -25,6 +27,7 @@ export function LanguageSelector({
       ];
 
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (disabled) return;
     const newLocale = event.target.value;
     // Path is /{version}/{locale}/{...slug} - replace only the locale segment
     const currentPath = globalThis.location.pathname;
@@ -36,9 +39,14 @@ export function LanguageSelector({
     return (
       <div className="relative">
         <select
-          value={locale}
+          value={disabled ? "en" : locale}
           onChange={handleChange}
-          className="h-8 pl-2 pr-6 text-xs bg-transparent border border-border rounded-md text-muted-foreground appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+          disabled={disabled}
+          className={`h-8 pl-2 pr-6 text-xs bg-transparent border border-border rounded-md appearance-none focus:outline-none focus:ring-1 focus:ring-ring ${
+            disabled
+              ? "text-muted opacity-50 cursor-not-allowed"
+              : "text-muted-foreground cursor-pointer"
+          }`}
         >
           {languageOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -50,7 +58,7 @@ export function LanguageSelector({
           <Icon
             name="ChevronDown"
             size={12}
-            className="text-muted-foreground"
+            className={disabled ? "text-muted opacity-50" : "text-muted-foreground"}
           />
         </div>
       </div>
@@ -60,11 +68,12 @@ export function LanguageSelector({
   return (
     <Select
       options={languageOptions}
-      value={locale}
+      value={disabled ? "en" : locale}
       icon="Languages"
       className={className}
-      selectClassName="text-muted-foreground"
+      selectClassName={disabled ? "text-muted opacity-50 cursor-not-allowed" : "text-muted-foreground"}
       onChange={handleChange}
+      disabled={disabled}
     />
   );
 }

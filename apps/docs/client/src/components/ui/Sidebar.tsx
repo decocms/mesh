@@ -538,7 +538,7 @@ export default function Sidebar({
             onVersionChange={handleVersionChange}
             inline
           />
-          <LanguageSelector locale={locale} compact />
+          <LanguageSelector locale={locale} compact disabled={version === "draft"} />
           <ThemeToggle />
         </div>
       </div>
