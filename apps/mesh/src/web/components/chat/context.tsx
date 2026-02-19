@@ -86,13 +86,15 @@ export type ChatStateAction =
 /**
  * Shape persisted in localStorage for the selected model.
  * Capabilities are stored so modelSupportsFiles works on reload
- * without a live fetch.
+ * without a live fetch. Limits are stored so the API route gets
+ * the correct maxOutputTokens on reload without a fresh model fetch.
  */
 interface StoredModelState {
   id: string;
   connectionId: string;
   provider?: string;
   capabilities?: string[];
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
 }
 
 /** Fields from useChat we pass through directly (typed via UseChatHelpers) */
@@ -228,6 +230,10 @@ const useModelState = (
   );
 
   // Reconstruct ChatModelsConfig from stored state — no fetch needed.
+  // Note: `fast` (cheapest model) is intentionally not computed here since we no
+  // longer fetch the full model list in this hook. It remains undefined until the
+  // user explicitly picks a model. The fast field is advisory; it falls back to
+  // `thinking` when absent.
   const selectedModelsConfig: ChatModelsConfig | null =
     modelState && modelsConnection
       ? {
@@ -248,6 +254,7 @@ const useModelState = (
                     : undefined,
                 }
               : undefined,
+            limits: modelState.limits,
           },
         }
       : null;
@@ -530,10 +537,14 @@ function ModelAutoSelector({
   modelsConnections,
   currentConfig,
   onAutoSelect,
+  allowAll,
+  isModelAllowed,
 }: {
   modelsConnections: ReturnType<typeof useModelConnections>;
   currentConfig: ChatModelsConfig | null;
   onAutoSelect: (state: StoredModelState) => void;
+  allowAll: boolean;
+  isModelAllowed: (connectionId: string, modelId: string) => boolean;
 }) {
   const firstConnection = modelsConnections[0];
   // This call may suspend (loading) or throw (MCP error).
@@ -544,15 +555,30 @@ function ModelAutoSelector({
   useEffect(() => {
     // Only auto-select when there is no stored model config yet.
     if (currentConfig || !firstConnection || models.length === 0) return;
-    const first = models[0];
+
+    // Filter models through the same permission check used in the manual
+    // selector so auto-selection always picks a model the user can actually use.
+    const allowedModels = allowAll
+      ? models
+      : models.filter((m) => isModelAllowed(firstConnection.id, m.id));
+
+    const first = allowedModels[0];
     if (!first) return;
     onAutoSelect({
       id: first.id,
       connectionId: firstConnection.id,
       provider: first.provider ?? undefined,
       capabilities: first.capabilities ?? undefined,
+      limits: first.limits ?? undefined,
     });
-  }, [models, currentConfig, firstConnection, onAutoSelect]);
+  }, [
+    models,
+    currentConfig,
+    firstConnection,
+    onAutoSelect,
+    allowAll,
+    isModelAllowed,
+  ]);
 
   return null;
 }
@@ -591,7 +617,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Model state — filter out connections where the user's role allows no models
   const allModelsConnections = useModelConnections();
-  const { hasConnectionModels } = useAllowedModels();
+  const { hasConnectionModels, isModelAllowed, allowAll } = useAllowedModels();
   const modelsConnections = allModelsConnections.filter((conn) =>
     hasConnectionModels(conn.id),
   );
@@ -754,6 +780,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       connectionId: model.connectionId,
       provider: model.provider,
       capabilities: model.capabilities,
+      limits: model.limits,
     });
   };
 
@@ -870,6 +897,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
             modelsConnections={modelsConnections}
             currentConfig={selectedModel}
             onAutoSelect={setModel}
+            allowAll={allowAll}
+            isModelAllowed={isModelAllowed}
           />
         </Suspense>
       </ErrorBoundary>

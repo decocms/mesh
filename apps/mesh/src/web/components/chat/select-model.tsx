@@ -561,6 +561,7 @@ export interface ModelChangePayload {
   connectionId: string;
   provider?: string;
   capabilities?: string[];
+  limits?: { contextWindow?: number; maxOutputTokens?: number };
 }
 
 /**
@@ -687,6 +688,7 @@ function ModelSelectorContent({
       connectionId: selectedConnectionId,
       provider: model.provider ?? undefined,
       capabilities: model.capabilities,
+      limits: model.limits ?? undefined,
     });
     setSearchTerm("");
     onClose();
