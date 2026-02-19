@@ -418,6 +418,20 @@ export default function Sidebar({
   useEffect(() => {
     setCurrentPath(window.location.pathname);
 
+    const getScrollContainer = (): HTMLElement | null => {
+      const sidebar = document.getElementById("sidebar");
+      return sidebar
+        ? (sidebar.querySelector(".flex-1.overflow-y-auto") as HTMLElement)
+        : null;
+    };
+
+    // Save scroll position before the DOM swap so we can restore it after
+    let savedScrollTop = 0;
+    const handleBeforeSwap = () => {
+      const container = getScrollContainer();
+      if (container) savedScrollTop = container.scrollTop;
+    };
+
     const handlePageLoad = () => {
       const path = window.location.pathname;
       setCurrentPath(path);
@@ -426,10 +440,19 @@ export default function Sidebar({
       if (urlVersion === "latest" || urlVersion === "draft") {
         setVersion(urlVersion);
       }
+      // Restore scroll after React finishes re-rendering (rAF fires after paint)
+      requestAnimationFrame(() => {
+        const container = getScrollContainer();
+        if (container) container.scrollTop = savedScrollTop;
+      });
     };
 
+    document.addEventListener("astro:before-swap", handleBeforeSwap);
     document.addEventListener("astro:page-load", handlePageLoad);
-    return () => document.removeEventListener("astro:page-load", handlePageLoad);
+    return () => {
+      document.removeEventListener("astro:before-swap", handleBeforeSwap);
+      document.removeEventListener("astro:page-load", handlePageLoad);
+    };
   }, []);
 
   // Handle version change by navigating to the new version's root page
