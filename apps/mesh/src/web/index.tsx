@@ -58,6 +58,18 @@ const loginRoute = createRoute({
   ),
 });
 
+const resetPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reset-password",
+  component: lazyRouteComponent(() => import("./routes/reset-password.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      token: z.string().optional(),
+      error: z.string().optional(),
+    }),
+  ),
+});
+
 /**
  * Better auth catchall
  */
@@ -431,6 +443,7 @@ const shellRouteTree = shellLayout.addChildren([
 const routeTree = rootRoute.addChildren([
   shellRouteTree,
   loginRoute,
+  resetPasswordRoute,
   betterAuthRoutes,
   oauthCallbackRoute,
   connectRoute,

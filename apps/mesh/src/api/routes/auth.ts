@@ -6,7 +6,7 @@
  */
 
 import { Hono } from "hono";
-import { authConfig } from "../../auth";
+import { authConfig, resetPasswordEnabled } from "../../auth";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
 
 const app = new Hono();
@@ -24,6 +24,9 @@ export type AuthConfig = {
       name: string;
       icon?: string;
     }[];
+  };
+  resetPassword: {
+    enabled: boolean;
   };
   sso:
     | {
@@ -67,6 +70,9 @@ app.get("/config", async (c) => {
       },
       magicLink: {
         enabled: authConfig.magicLinkConfig?.enabled ?? false,
+      },
+      resetPassword: {
+        enabled: resetPasswordEnabled,
       },
       socialProviders: {
         enabled: hasSocialProviders,
