@@ -56,9 +56,11 @@ function GitHubStars() {
 function VersionSelector({
   currentVersion: initialVersion,
   onVersionChange,
+  inline = false,
 }: {
   currentVersion: string;
   onVersionChange: (version: string) => void;
+  inline?: boolean;
 }) {
   // Read version from URL dynamically on client side
   const [currentVersion, setCurrentVersion] = useState(initialVersion);
@@ -83,9 +85,15 @@ function VersionSelector({
     {
       id: "latest",
       label: "Latest (Stable)",
+      shortLabel: "Stable",
       description: "Current production docs",
     },
-    { id: "draft", label: "Draft", description: "In-progress documentation" },
+    {
+      id: "draft",
+      label: "Draft",
+      shortLabel: "Draft",
+      description: "In-progress documentation",
+    },
   ];
 
   const handleVersionChange = (newVersion: string) => {
@@ -94,6 +102,31 @@ function VersionSelector({
     setCurrentVersion(newVersion);
     onVersionChange(newVersion);
   };
+
+  if (inline) {
+    return (
+      <div className="relative">
+        <select
+          value={currentVersion}
+          onChange={(e) => handleVersionChange(e.target.value)}
+          className="h-8 pl-2 pr-6 text-xs bg-transparent border border-border rounded-md text-muted-foreground appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {versions.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.shortLabel}
+            </option>
+          ))}
+        </select>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+          <Icon
+            name="ChevronDown"
+            size={12}
+            className="text-muted-foreground"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 lg:px-8 py-3">
@@ -392,7 +425,9 @@ export default function Sidebar({
   };
   const handleVersionChange = (newVersion: string) => {
     const root = versionRoots[newVersion] ?? "mcp-mesh/quickstart";
-    navigate(`/${newVersion}/${locale}/${root}`);
+    // Draft is English-only; fall back to "en" when switching to it
+    const targetLocale = newVersion === "draft" ? "en" : locale;
+    navigate(`/${newVersion}/${targetLocale}/${root}`);
   };
 
   // Initialize with default state (same on server and client for hydration match)
@@ -495,20 +530,17 @@ export default function Sidebar({
   return (
     <div className="flex flex-col h-screen bg-app-background border-r border-border w-[19rem] lg:w-[19rem] w-full max-w-[19rem]">
       {/* Header - hidden on mobile */}
-      <div className="hidden lg:flex items-center justify-between px-4 lg:px-8 py-4 shrink-0">
+      <div className="hidden lg:flex items-center justify-between px-4 lg:px-6 py-3 shrink-0 border-b border-border">
         <Logo width={67} height={28} />
-        <ThemeToggle />
-      </div>
-
-      {/* Version Selector */}
-      <VersionSelector
-        currentVersion={version}
-        onVersionChange={handleVersionChange}
-      />
-
-      {/* Language Select - hidden on mobile */}
-      <div className="hidden lg:block border-b border-border px-4 lg:px-8 py-4 shrink-0">
-        <LanguageSelector locale={locale} />
+        <div className="flex items-center gap-1.5">
+          <VersionSelector
+            currentVersion={version}
+            onVersionChange={handleVersionChange}
+            inline
+          />
+          <LanguageSelector locale={locale} compact />
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Content */}

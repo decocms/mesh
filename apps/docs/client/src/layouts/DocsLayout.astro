@@ -10,7 +10,7 @@ import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { getCollection } from "astro:content";
 import { siteConfig } from "../config/site";
 import "../styles/global.css";
-import { ClientRouter } from 'astro:transitions';
+import { ClientRouter } from "astro:transitions";
 const { title, doc } = Astro.props;
 
 // Get current path for breadcrumbs
@@ -21,7 +21,9 @@ const pathSegments = currentPath.split("/").filter((segment) => segment !== "");
 const locale = (Astro.params.locale as string) || pathSegments[0] || "en";
 const localeIndex = pathSegments.indexOf(locale);
 const pagePath =
-  localeIndex >= 0 ? pathSegments.slice(localeIndex + 1) : pathSegments.slice(1);
+  localeIndex >= 0
+    ? pathSegments.slice(localeIndex + 1)
+    : pathSegments.slice(1);
 
 // Get all docs to determine folder vs file
 const allDocs = await getCollection("docs");
