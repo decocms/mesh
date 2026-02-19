@@ -645,9 +645,6 @@ function ModelSelectorContent({
   const [hoveredModel, setHoveredModel] = useState<LLM | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<
-    string | null
-  >(selectedModel?.connectionId ?? null);
 
   const { org } = useProjectContext();
 
@@ -665,6 +662,12 @@ function ModelSelectorContent({
   const modelsConnections = allowAll
     ? allModelsConnections
     : allModelsConnections.filter((conn) => hasConnectionModels(conn.id));
+
+  // Default to the stored connection, or the first available connection so the
+  // list (and any error fallback) renders immediately without a manual selection.
+  const [selectedConnectionId, setSelectedConnectionId] = useState<
+    string | null
+  >(selectedModel?.connectionId ?? modelsConnections[0]?.id ?? null);
 
   // Focus search input when mounted
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
