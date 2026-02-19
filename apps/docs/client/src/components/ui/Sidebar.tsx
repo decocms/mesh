@@ -183,6 +183,7 @@ interface TreeItemProps {
   locale: string;
   translations: Record<string, string>;
   version: string;
+  currentPath: string;
 }
 
 function TreeItem({
@@ -193,34 +194,23 @@ function TreeItem({
   locale,
   translations,
   version,
+  currentPath,
 }: TreeItemProps) {
   if (!isVisible) return null;
-
-  // Active state: start false (matches server), update after hydration
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    if (node.type !== "file") return;
-    if (typeof window === "undefined") return;
-
-    const currentPath = window.location.pathname;
-    const docId = node.doc?.id;
-    // docId is now version/locale/path, skip first 2 parts
-    const docPath = docId ? docId.split("/").slice(2).join("/") : null;
-    const itemPath = `/${version}/${locale}/${docPath ?? node.path.join("/")}`;
-
-    setActive(currentPath === itemPath);
-  }, [node.type, node.doc?.id, node.path, locale, version]);
 
   const docId = node.doc?.id;
   // docId is now version/locale/path, skip first 2 parts
   const docPath = docId ? docId.split("/").slice(2).join("/") : null;
-
-  // Build href with version prefix
-  const href =
+  const itemPath =
     node.type === "file"
       ? `/${version}/${locale}/${docPath ?? node.path.join("/")}`
       : null;
+
+  // Active when currentPath matches — starts false (empty string) until after hydration
+  const active = node.type === "file" && currentPath === itemPath;
+
+  // href is the same path as itemPath (null for folders)
+  const href = itemPath;
 
   // A node should be collapsible if it has children, regardless of whether it's a file or folder
   const isCollapsible = node.hasChildren;
@@ -333,6 +323,7 @@ interface TreeListProps {
   locale: string;
   translations: Record<string, string>;
   version: string;
+  currentPath: string;
 }
 
 function TreeList({
@@ -342,6 +333,7 @@ function TreeList({
   locale,
   translations,
   version,
+  currentPath,
 }: TreeListProps) {
   const isNodeVisible = (node: FlatNode): boolean => {
     if (node.depth === 0) return true;
@@ -399,6 +391,7 @@ function TreeList({
               locale={locale}
               translations={translations}
               version={version}
+              currentPath={currentPath}
             />
           </React.Fragment>
         );
@@ -417,6 +410,27 @@ export default function Sidebar({
 }: SidebarProps) {
   // Version state for URL-based navigation
   const [version, setVersion] = useState(currentVersion);
+
+  // Current path state — starts empty (avoids SSR mismatch), set after hydration
+  // and updated on every Astro client-side navigation via astro:page-load
+  const [currentPath, setCurrentPath] = useState("");
+
+  useEffect(() => {
+    setCurrentPath(window.location.pathname);
+
+    const handlePageLoad = () => {
+      const path = window.location.pathname;
+      setCurrentPath(path);
+      // Keep version in sync with the URL (e.g. after browser back/forward)
+      const urlVersion = path.split("/")[1];
+      if (urlVersion === "latest" || urlVersion === "draft") {
+        setVersion(urlVersion);
+      }
+    };
+
+    document.addEventListener("astro:page-load", handlePageLoad);
+    return () => document.removeEventListener("astro:page-load", handlePageLoad);
+  }, []);
 
   // Handle version change by navigating to the new version's root page
   const versionRoots: Record<string, string> = {
@@ -450,16 +464,15 @@ export default function Sidebar({
     return initialState;
   });
 
-  // After hydration, apply localStorage state and expand ancestors of current page
+  // After hydration (and on each navigation), apply localStorage state and expand ancestors
   useEffect(() => {
+    if (!currentPath) return;
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         const savedState = JSON.parse(
           window.localStorage.getItem("sidebar-tree-state") || "{}",
         );
 
-        // Get current path to expand ancestors
-        const currentPath = window.location.pathname;
         const relativePath = currentPath.replace(`/${locale}/`, "");
         const parts = relativePath.split("/").filter(Boolean);
         const expandedAncestors = new Set<string>();
@@ -494,7 +507,7 @@ export default function Sidebar({
     } catch (error) {
       console.error("Failed to load sidebar state:", error);
     }
-  }, [tree, locale]);
+  }, [tree, locale, currentPath]);
 
   const updateFolderVisibility = (folderId: string, isExpanded: boolean) => {
     setTreeState((prev) => {
@@ -552,6 +565,7 @@ export default function Sidebar({
           locale={locale}
           translations={translations}
           version={version}
+          currentPath={currentPath}
         />
       </div>
 
