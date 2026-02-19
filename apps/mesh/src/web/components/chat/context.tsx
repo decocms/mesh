@@ -151,9 +151,8 @@ const createModelsTransport = (
       const {
         system,
         tiptapDoc: _tiptapDoc,
-        toolApprovalLevel,
         ...metadata
-      } = requestMetadata as Metadata & { toolApprovalLevel?: string };
+      } = requestMetadata as Metadata;
       const systemMessage: UIMessage<Metadata> | null = system
         ? {
             id: crypto.randomUUID(),
@@ -166,7 +165,7 @@ const createModelsTransport = (
         ? [systemMessage, ...userMessage]
         : userMessage;
 
-      // Fall back to last message metadata when requestMetadata is missing models/agent
+      // Fall back to last message metadata when requestMetadata is missing models/agent/toolApprovalLevel
       const lastMsgMeta = (messages.at(-1)?.metadata ?? {}) as Metadata;
       const mergedMetadata = {
         ...metadata,
@@ -179,7 +178,9 @@ const createModelsTransport = (
         body: {
           messages: allMessages,
           ...mergedMetadata,
-          ...(toolApprovalLevel && { toolApprovalLevel }),
+          ...(lastMsgMeta.toolApprovalLevel && {
+            toolApprovalLevel: lastMsgMeta.toolApprovalLevel,
+          }),
         },
       };
     },
@@ -768,6 +769,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
         avatar: user?.image ?? undefined,
         name: user?.name ?? "you",
       },
+      toolApprovalLevel: preferences.toolApprovalLevel,
     };
 
     const metadata: Metadata = {
