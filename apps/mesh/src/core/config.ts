@@ -46,6 +46,7 @@ export interface Config {
     magicLinkConfig?: MagicLinkConfig;
     emailProviders?: EmailProviderConfig[];
     inviteEmailProviderId?: string;
+    resetPasswordEmailProviderId?: string;
     jwt?: { secret?: string };
   };
   monitoring?: Partial<MonitoringConfig>;

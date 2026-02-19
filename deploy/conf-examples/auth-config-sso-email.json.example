@@ -27,6 +27,7 @@
     }
   ],
   "inviteEmailProviderId": "resend-primary",
+  "resetPasswordEmailProviderId": "resend-primary",
   "magicLinkConfig": {
     "enabled": true,
     "emailProviderId": "resend-primary"

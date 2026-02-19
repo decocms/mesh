@@ -12,7 +12,7 @@
 import { getToolsByCategory } from "@/tools/registry";
 import { sso } from "@better-auth/sso";
 import { organization } from "@decocms/better-auth/plugins";
-import { betterAuth } from "better-auth";
+import { betterAuth, BetterAuthOptions } from "better-auth";
 import {
   admin as adminPlugin,
   apiKey,
@@ -137,6 +137,44 @@ if (
           <h2>You've been invited!</h2>
           <p>${inviterName} has invited you to join <strong>${data.organization.name}</strong>.</p>
           <p><a href="${acceptUrl}">Click here to accept the invitation</a></p>
+        `,
+      });
+    };
+  }
+}
+
+// Configure password reset emails if provider is set
+let sendResetPassword:
+  | NonNullable<
+      BetterAuthOptions["emailAndPassword"]
+    >["sendResetPassword"]
+  | undefined = undefined;
+
+export let resetPasswordEnabled = false;
+
+if (
+  authConfig.resetPasswordEmailProviderId &&
+  authConfig.emailProviders &&
+  authConfig.emailProviders.length > 0
+) {
+  const resetProvider = findEmailProvider(
+    authConfig.emailProviders,
+    authConfig.resetPasswordEmailProviderId,
+  );
+
+  if (resetProvider) {
+    const sendEmail = createEmailSender(resetProvider);
+    resetPasswordEnabled = true;
+
+    sendResetPassword = async ({ user, url }) => {
+      void sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        html: `
+          <h2>Reset your password</h2>
+          <p>Click the link below to reset your password:</p>
+          <p><a href="${url}">Reset password</a></p>
+          <p>If you didn't request this, you can safely ignore this email.</p>
         `,
       });
     };
@@ -283,12 +321,14 @@ export const auth = betterAuth({
   // Better Auth can use the dialect directly
   database,
 
-  emailAndPassword: {
-    enabled: true,
-  },
-
   // Load optional configuration from file
   ...authConfig,
+
+  emailAndPassword: {
+    enabled: true,
+    ...authConfig.emailAndPassword,
+    ...(sendResetPassword ? { sendResetPassword } : {}),
+  },
 
   // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)
   // Must be AFTER authConfig spread to ensure it takes precedence
