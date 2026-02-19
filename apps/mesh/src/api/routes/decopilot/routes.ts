@@ -320,6 +320,9 @@ app.post("/:org/decopilot/stream", async (c) => {
                   },
                   created_at: new Date(),
                   thread_id: mem.thread.id,
+                  toolApprovalLevel,
+                  temperature,
+                  windowSize,
                 };
               }
               if (part.type === "reasoning-start") {
