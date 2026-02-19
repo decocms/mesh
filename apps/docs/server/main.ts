@@ -8,9 +8,15 @@ interface Env {
 }
 
 const rootRedirects: Record<string, string> = {
-  "/": "/en/introduction",
-  "/en": "/en/introduction",
-  "/pt-br": "/pt-br/introduction",
+  "/": "/latest/en/mcp-mesh/quickstart",
+  "/latest": "/latest/en/mcp-mesh/quickstart",
+  "/draft": "/draft/en/mcp-mesh/quickstart",
+  "/en": "/latest/en/mcp-mesh/quickstart",
+  "/pt-br": "/latest/pt-br/mcp-mesh/quickstart",
+  "/latest/en": "/latest/en/mcp-mesh/quickstart",
+  "/latest/pt-br": "/latest/pt-br/mcp-mesh/quickstart",
+  "/draft/en": "/draft/en/mcp-mesh/quickstart",
+  "/draft/pt-br": "/draft/pt-br/mcp-mesh/quickstart",
 };
 
 const runtime = withRuntime<Env>({

@@ -41,7 +41,11 @@ export default defineConfig({
   server: {
     port: 4000,
   },
-  redirects: {},
+  redirects: {
+    "/": "/latest/en/introduction",
+    "/en/[...slug]": "/latest/en/[...slug]",
+    "/pt-br/[...slug]": "/latest/pt-br/[...slug]",
+  },
   outDir: "dist/client/",
   srcDir: "client/src",
   i18n: {
@@ -57,6 +61,11 @@ export default defineConfig({
       // @ts-ignore: tailwindcss plugin type issue
       tailwindcss(),
     ],
+    server: {
+      hmr: {
+        clientPort: 4000,
+      },
+    },
   },
   markdown: {
     shikiConfig: {

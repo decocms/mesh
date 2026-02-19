@@ -1,12 +1,17 @@
 ---
 import { getCollection } from "astro:content";
 import { ui } from "../../i18n/ui";
-import SidebarComponent from "./Sidebar.tsx";
+import SidebarComponent from "./Sidebar";
 
+const version = Astro.params.version || "latest";
 const locale = Astro.params.locale;
 
 const allDocs = await getCollection("docs");
-const docs = allDocs.filter((doc) => doc.id.split("/")[0] === locale);
+// Filter docs by version and locale: docs are organized as version/locale/...
+const docs = allDocs.filter((doc) => {
+  const parts = doc.id.split("/");
+  return parts[0] === version && parts[1] === locale;
+});
 
 interface TreeNode {
   name: string;
@@ -21,7 +26,8 @@ function buildTree(docs: any[]): TreeNode[] {
   const root: TreeNode[] = [];
 
   docs.forEach((doc) => {
-    const pathParts = doc.id.split("/").slice(1);
+    // doc.id is now version/locale/...path, so skip first 2 parts (version and locale)
+    const pathParts = doc.id.split("/").slice(2);
     let currentLevel = root;
 
     pathParts.forEach((part: string, index: number) => {
@@ -58,31 +64,68 @@ function buildTree(docs: any[]): TreeNode[] {
 
       // For files only - custom ordering
       if (a.type === "file" && b.type === "file") {
-        // Force introduction to be first
-        if (a.name.includes("introduction")) return -1;
-        if (b.name.includes("introduction")) return 1;
-
         // Get parent folder to determine which order to use
         const parentPath = a.path[a.path.length - 2];
 
-        // Custom order for MCP Mesh top-level pages
+        // Custom order for decocms top-level pages
         if (parentPath === "mcp-mesh") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
-          const mcpMeshOrder = [
-            "overview",
-            "quickstart",
-            "concepts",
-            "connect-clients",
-            "authentication",
-            "authorization-and-roles",
-            "mcp-servers",
-            "mcp-gateways",
-            "api-keys",
-            "monitoring",
-            "api-reference",
-          ];
+          // Order follows: Quickstart → Overview → Core Concepts → Working with MCP → Monitoring → User Management → Reference
+
+          // Version-aware ordering
+          const mcpMeshOrder =
+            version === "latest"
+              ? [
+                  // Latest version (origin/main structure)
+                  "overview",
+                  "quickstart",
+                  "concepts",
+                  "connect-clients",
+                  "authentication",
+                  "authorization-and-roles",
+                  "mcp-servers",
+                  "mcp-gateways",
+                  "api-keys",
+                  "monitoring",
+                  "api-reference",
+                ]
+              : [
+                  // Draft version structure
+                  "quickstart",
+                  "overview",
+                  "concepts",
+                  "connections",
+                  "virtual-mcps",
+                  "projects",
+                  "agents",
+                  "monitoring",
+                  "api-keys",
+                  "user-management",
+                  "api-reference",
+                ];
+
           const aIndex = mcpMeshOrder.indexOf(a.name);
           const bIndex = mcpMeshOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for decopilot subfolder
+        if (parentPath === "decopilot") {
+          const decopilotOrder = [
+            "overview",
+            "quickstart",
+            "context",
+            "tasks-and-spawning",
+            "tools",
+            "scopes",
+            "architecture",
+          ];
+          const aIndex = decopilotOrder.indexOf(a.name);
+          const bIndex = decopilotOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
             return aIndex - bIndex;
           }
@@ -120,10 +163,58 @@ function buildTree(docs: any[]): TreeNode[] {
           if (bIndex !== -1) return 1;
         }
 
-        // Custom order for MCP Mesh deploy docs
+        // Custom order for self-hosting section
+        if (parentPath === "self-hosting") {
+          const selfHostingOrder = ["quickstart", "authentication"];
+          const aIndex = selfHostingOrder.indexOf(a.name);
+          const bIndex = selfHostingOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for api-reference section
+        if (parentPath === "api-reference") {
+          const apiRefOrder = ["built-in-tools"];
+          const aIndex = apiRefOrder.indexOf(a.name);
+          const bIndex = apiRefOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for built-in-tools section
+        if (parentPath === "built-in-tools") {
+          const builtInToolsOrder = [
+            "tool-search",
+            "tool-enable",
+            "agent-search",
+            "subtask-run",
+            "user-ask",
+            "resource-read",
+            "prompt-read",
+          ];
+          const aIndex = builtInToolsOrder.indexOf(a.name);
+          const bIndex = builtInToolsOrder.indexOf(b.name);
+          if (aIndex !== -1 && bIndex !== -1) {
+            return aIndex - bIndex;
+          }
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+        }
+
+        // Custom order for deploy docs (now under self-hosting)
         const rootPath = a.path[0];
         if (rootPath === "mcp-mesh" && parentPath === "deploy") {
-          const deployOrder = ["local-docker-compose", "kubernetes-helm-chart"];
+          // Version-aware deploy file names
+          const deployOrder =
+            version === "latest"
+              ? ["local-docker-compose", "kubernetes-helm-chart"]
+              : ["docker-compose", "kubernetes"];
           const aIndex = deployOrder.indexOf(a.name);
           const bIndex = deployOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
@@ -137,12 +228,14 @@ function buildTree(docs: any[]): TreeNode[] {
       // For folders - custom ordering
       if (a.type === "folder" && b.type === "folder") {
         const folderOrder: Record<string, number> = {
-          // Put Mesh docs first
-          "mcp-mesh": 0,
-          "getting-started": 1,
-          "no-code-guides": 2,
-          "full-code-guides": 3,
-          "mcp-studio": 4,
+          // Order follows improved information architecture
+          "mcp-mesh": 0, // decocms docs (main product)
+          "getting-started": 1, // Getting Started (after intro)
+          decopilot: 2, // Decopilot (elevated section within mcp-mesh)
+          "self-hosting": 3, // Self-hosting section
+          deploy: 4, // Deploy section (under self-hosting)
+          "no-code-guides": 5, // Legacy admin guides
+          "full-code-guides": 6, // Legacy admin guides
         };
 
         const aOrder = folderOrder[a.name] ?? Number.POSITIVE_INFINITY;
@@ -198,16 +291,26 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
         }
       : null;
 
-  // Make "Introduction" the primary entry point, then product docs.
-  const introduction = files.find((f) => f.name === "introduction");
-  const otherFiles = files.filter((f) => f.name !== "introduction");
-
+  // Flatten mcp-mesh folder - bring its children to the top level
+  // mcp-mesh children will be shown at the top level
   const next: TreeNode[] = [];
-  if (introduction) next.push(introduction);
-  if (mcpMesh) next.push(mcpMesh);
-  if (mcpStudio) next.push(mcpStudio);
-  next.push(...otherFiles);
+
+  // Add any top-level files first (e.g. introduction.mdx)
+  next.push(...files);
+
+  // Add all mcp-mesh children directly at top level (order controlled by mcpMeshOrder array)
+  if (mcpMesh && mcpMesh.children.length > 0) {
+    next.push(...mcpMesh.children);
+  }
+
+  // Add mcp-studio as its own top-level section
+  if (mcpStudio) {
+    next.push(mcpStudio);
+  }
+
+  // Add legacy admin section at the end
   if (legacyFolder) next.push(legacyFolder);
+
   return next;
 }
 
@@ -253,4 +356,5 @@ const flatTree = flattenTree(tree);
   tree={flatTree}
   locale={locale || "en"}
   translations={ui[locale as keyof typeof ui] || ui.en}
+  currentVersion={version}
 />
