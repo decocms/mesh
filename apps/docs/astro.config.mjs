@@ -43,18 +43,9 @@ export default defineConfig({
   },
   redirects: {
     "/": "/latest/en/introduction",
-    "/en/[...slug]": "/latest/en/[...slug]",
-    "/pt-br/[...slug]": "/latest/pt-br/[...slug]",
   },
   outDir: "dist/client/",
   srcDir: "client/src",
-  i18n: {
-    locales: ["en", "pt-br"],
-    defaultLocale: "en",
-    routing: {
-      prefixDefaultLocale: true,
-    },
-  },
   integrations: [mdx(), react(), patchCsrRedirect()],
   vite: {
     plugins: [
