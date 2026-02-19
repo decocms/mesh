@@ -12,14 +12,12 @@ import {
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
-import { BrokenMCPList } from "./broken-mcp-list";
-import { MonitorConfiguration } from "./monitor-configuration";
-import { MonitorConnectionsPanel } from "./monitor-connections-panel";
 import {
   useRegistryMonitorConfig,
   useMonitorResults,
   useMonitorRun,
   useMonitorRunCancel,
+  useMonitorConnections,
   useMonitorRunStart,
   useMonitorRuns,
 } from "../hooks/use-monitor";
@@ -34,6 +32,7 @@ import {
   formatMonitorDuration,
   monitorStatusBadgeClass,
 } from "../lib/monitor-utils";
+import { Play, StopSquare } from "@untitledui/icons";
 
 function pct(run: { total_items: number; tested_items: number }): number {
   if (!run.total_items) return 0;
@@ -43,9 +42,11 @@ function pct(run: { total_items: number; tested_items: number }): number {
 function ResultLogEntry({
   result: r,
   index: idx,
+  icon,
 }: {
   result: MonitorResult;
   index: number;
+  icon?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const latestToolResults = collapseLatestToolResults(r.tool_results);
@@ -58,6 +59,12 @@ function ResultLogEntry({
   const passedTools = realToolTests.filter((t) => t.success).length;
   const failedTools = realToolTests.filter((t) => !t.success).length;
   const hasToolTests = realToolTests.length > 0;
+  const testedToolsCount = realToolTests.length;
+  const discoveredToolsCount = latestToolResults.length;
+  const toolProgressLabel =
+    discoveredToolsCount > 0
+      ? `${testedToolsCount}/${discoveredToolsCount} tools tested`
+      : "0 tools";
 
   return (
     <div className="rounded border border-border overflow-hidden">
@@ -69,6 +76,20 @@ function ResultLogEntry({
         <span className="text-muted-foreground w-5 text-right shrink-0">
           {idx + 1}
         </span>
+        <div className="size-5 rounded border border-border bg-muted/20 overflow-hidden shrink-0 flex items-center justify-center">
+          {icon ? (
+            <img
+              src={icon}
+              alt={r.item_title}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-[9px] font-semibold text-muted-foreground">
+              {r.item_title.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
         <span
           className={cn(
             "shrink-0",
@@ -121,6 +142,9 @@ function ResultLogEntry({
             )}
           </span>
         )}
+        <Badge variant="outline" className="text-[9px] shrink-0">
+          {toolProgressLabel}
+        </Badge>
         <span className="text-[10px] text-muted-foreground shrink-0">
           {expanded ? "▲" : "▼"}
         </span>
@@ -286,10 +310,12 @@ export function MonitorDashboard({
   const [modeOverride, setModeOverride] = useState<MonitorMode | null>(null);
   const [confirmStartOpen, setConfirmStartOpen] = useState(false);
   const lastStartRef = useRef(0);
+  const lastAutoSelectedRunRef = useRef<string | null>(null);
   const runStartMutation = useMonitorRunStart();
   const runCancelMutation = useMonitorRunCancel();
   const runQuery = useMonitorRun(activeRunId);
   const runsQuery = useMonitorRuns();
+  const monitorConnectionsQuery = useMonitorConnections();
   const run = runQuery.data?.run ?? null;
   const runStatus = run?.status;
   const runConfigMode =
@@ -299,9 +325,19 @@ export function MonitorDashboard({
   const runningRun = (runsQuery.data?.items ?? []).find(
     (runItem) => runItem.status === "running",
   );
-  const failedResults = (allResults.data?.items ?? []).filter(
-    (result) => result.status === "failed" || result.status === "error",
-  );
+  const latestRunId = runsQuery.data?.items?.[0]?.id;
+
+  // If no run is selected, automatically show the most recent one.
+  if (
+    !activeRunId &&
+    latestRunId &&
+    lastAutoSelectedRunRef.current !== latestRunId
+  ) {
+    lastAutoSelectedRunRef.current = latestRunId;
+    queueMicrotask(() => {
+      onRunChange(latestRunId);
+    });
+  }
 
   const startMonitor = async () => {
     const now = Date.now();
@@ -339,11 +375,18 @@ export function MonitorDashboard({
     ? formatMonitorDuration(run.started_at, run.finished_at)
     : null;
   const resultItems = allResults.data?.items ?? [];
+  const iconByItemId = (monitorConnectionsQuery.data?.items ?? []).reduce(
+    (acc, entry) => {
+      acc[entry.mapping.item_id] = entry.item?.server?.icons?.[0]?.src ?? null;
+      return acc;
+    },
+    {} as Record<string, string | null>,
+  );
   const selectedMode = modeOverride ?? settings.monitorMode;
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-      <div className="xl:col-span-8 space-y-4 min-w-0">
+    <div className="space-y-4 min-w-0">
+      <div className="space-y-4 min-w-0">
         <Card className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
@@ -362,19 +405,23 @@ export function MonitorDashboard({
                 size="sm"
                 onClick={onStart}
                 disabled={runStartMutation.isPending || isRunning}
+                className="gap-1.5"
               >
+                <Play size={14} />
                 {runStartMutation.isPending
                   ? "Starting..."
                   : runningRun && runningRun.id !== activeRunId
-                    ? "Start another monitor"
-                    : "Start monitor"}
+                    ? "Start another run"
+                    : "Start test run"}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={onCancel}
                 disabled={!activeRunId || !isRunning}
+                className="gap-1.5"
               >
+                <StopSquare size={14} />
                 Cancel
               </Button>
             </div>
@@ -393,20 +440,20 @@ export function MonitorDashboard({
               >
                 <option value="health_check">Health check</option>
                 <option value="tool_call">Tool call</option>
-                <option value="full_agent">Agentic (modelo LLM)</option>
+                <option value="full_agent">Agentic (LLM model)</option>
               </select>
             </label>
 
             <label className="space-y-1">
               <span className="text-[11px] text-muted-foreground">
-                Run history
+                Run history (pick a previous run)
               </span>
               <select
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={activeRunId ?? ""}
                 onChange={(e) => onRunChange(e.target.value || undefined)}
               >
-                <option value="">Current / none selected</option>
+                <option value="">Auto-select latest run</option>
                 {(runsQuery.data?.items ?? []).map((runItem) => (
                   <option key={runItem.id} value={runItem.id}>
                     {new Date(runItem.created_at).toLocaleString()} -{" "}
@@ -422,7 +469,7 @@ export function MonitorDashboard({
               ? "Checks connectivity and tool listing only — no tool calls are made."
               : selectedMode === "tool_call"
                 ? "Calls each tool with empty inputs to verify it responds without errors."
-                : "Usa um modelo LLM para executar chamadas encadeadas entre tools e validar os resultados."}
+                : "Uses an LLM model to execute chained tool calls and validate outputs."}
           </p>
 
           {run ? (
@@ -496,13 +543,23 @@ export function MonitorDashboard({
 
         <Card className="p-4 space-y-2 min-h-[360px]">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">
-              Results Log ({resultItems.length})
-            </h3>
+            <div>
+              <h3 className="text-sm font-semibold">
+                Results log ({resultItems.length})
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                Live per-MCP test output for the selected run.
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               {isRunning && (
                 <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 animate-pulse">
-                  monitor in progress
+                  run in progress
+                </Badge>
+              )}
+              {run && (
+                <Badge variant="outline" className="text-[10px]">
+                  progress: {run.tested_items} of {run.total_items} MCPs
                 </Badge>
               )}
               {runConfigMode && (
@@ -534,44 +591,22 @@ export function MonitorDashboard({
               className="space-y-1 max-h-[60vh] overflow-auto pr-1"
             >
               {resultItems.map((r, idx) => (
-                <ResultLogEntry key={r.id} result={r} index={idx} />
+                <ResultLogEntry
+                  key={r.id}
+                  result={r}
+                  index={idx}
+                  icon={iconByItemId[r.item_id]}
+                />
               ))}
             </div>
           )}
         </Card>
       </div>
 
-      <div className="xl:col-span-4 space-y-4 min-w-0">
-        <MonitorConnectionsPanel />
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">
-            Broken MCPs{" "}
-            {failedResults.length > 0 && (
-              <Badge variant="destructive" className="text-[10px] ml-1">
-                {failedResults.length}
-              </Badge>
-            )}
-          </h3>
-          <BrokenMCPList results={failedResults} />
-        </div>
-
-        <details className="group rounded-lg border border-border bg-card">
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold flex items-center justify-between">
-            Advanced configuration
-            <span className="text-muted-foreground text-xs transition-transform group-open:rotate-180">
-              ▼
-            </span>
-          </summary>
-          <div className="px-4 pb-4">
-            <MonitorConfiguration hideMonitorMode borderless />
-          </div>
-        </details>
-      </div>
       <AlertDialog open={confirmStartOpen} onOpenChange={setConfirmStartOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Start another monitor run?</AlertDialogTitle>
+            <AlertDialogTitle>Start another test run?</AlertDialogTitle>
             <AlertDialogDescription>
               There is already a run in progress
               {runningRun ? ` (${runningRun.id})` : ""}. Starting another run

@@ -12,6 +12,12 @@ import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
+import { MessageQuestionCircle } from "@untitledui/icons";
 import { useRegistryConfig } from "../hooks/use-registry";
 import {
   useMonitorScheduleCancel,
@@ -19,12 +25,12 @@ import {
   useRegistryMonitorConfig,
 } from "../hooks/use-monitor";
 import type {
-  RegistryMonitorConfig,
   MonitorFailureAction,
   MonitorMode,
+  RegistryMonitorConfig,
 } from "../lib/types";
-import { PLUGIN_ID } from "../../shared";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT, PLUGIN_ID } from "../../shared";
+import { CronScheduleSelector } from "./cron-schedule-selector";
 
 function hasChanges(
   a: RegistryMonitorConfig,
@@ -40,19 +46,14 @@ function hasChanges(
     a.maxAgentSteps !== b.maxAgentSteps ||
     a.testPublicOnly !== b.testPublicOnly ||
     a.testPrivateOnly !== b.testPrivateOnly ||
+    a.includePendingRequests !== b.includePendingRequests ||
     (a.agentContext ?? "") !== (b.agentContext ?? "") ||
     a.schedule !== b.schedule ||
     a.cronExpression !== b.cronExpression
   );
 }
 
-export function MonitorConfiguration({
-  hideMonitorMode = false,
-  borderless = false,
-}: {
-  hideMonitorMode?: boolean;
-  borderless?: boolean;
-}) {
+export function MonitorConfiguration() {
   const { registryLLMConnectionId, registryLLMModelId } =
     useRegistryConfig(PLUGIN_ID);
   const { settings, saveMutation } = useRegistryMonitorConfig();
@@ -61,6 +62,7 @@ export function MonitorConfiguration({
   const prevSettingsRef = useRef(settings);
   const [draft, setDraft] = useState<RegistryMonitorConfig>(settings);
   const [justSaved, setJustSaved] = useState(false);
+  const [showDefaultPrompt, setShowDefaultPrompt] = useState(false);
   const { org } = useProjectContext();
   const allConnections = useConnections();
   const llmConnections = (allConnections ?? []).filter((connection) =>
@@ -139,12 +141,7 @@ export function MonitorConfiguration({
   };
 
   return (
-    <Card
-      className={cn(
-        "p-4 space-y-4",
-        borderless ? "border-0 shadow-none" : "border-dashed",
-      )}
-    >
+    <Card className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">Monitor Configuration</h3>
@@ -183,25 +180,29 @@ export function MonitorConfiguration({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {!hideMonitorMode && (
-          <div className="space-y-1">
-            <Label>Monitor mode</Label>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={draft.monitorMode}
-              onChange={(e) =>
-                setPartial({ monitorMode: e.target.value as MonitorMode })
-              }
-            >
-              <option value="health_check">Health check</option>
-              <option value="tool_call">Tool call</option>
-              <option value="full_agent">Agentic (modelo LLM)</option>
-            </select>
-          </div>
-        )}
+        <div className="space-y-1">
+          <FieldLabel
+            label="Monitor mode"
+            hint="Defines HOW each MCP is validated: connectivity only, direct tool calls, or multi-step agent execution."
+          />
+          <select
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={draft.monitorMode}
+            onChange={(e) =>
+              setPartial({ monitorMode: e.target.value as MonitorMode })
+            }
+          >
+            <option value="health_check">Health check</option>
+            <option value="tool_call">Tool call</option>
+            <option value="full_agent">Agentic (LLM model)</option>
+          </select>
+        </div>
 
         <div className="space-y-1">
-          <Label>On failure</Label>
+          <FieldLabel
+            label="On failure"
+            hint="Automatic action to apply when an MCP fails tests in a run."
+          />
           <select
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             value={draft.onFailure}
@@ -221,8 +222,88 @@ export function MonitorConfiguration({
           </select>
         </div>
 
+        <div className="space-y-1">
+          <FieldLabel
+            label="Test scope"
+            hint="Choose whether tests should run for public items, private items, or both."
+          />
+          <div className="flex items-center gap-4 rounded-md border border-input px-3 py-2">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.testPublicOnly}
+                onChange={(event) =>
+                  setPartial({
+                    testPublicOnly: event.target.checked,
+                    testPrivateOnly: event.target.checked
+                      ? false
+                      : draft.testPrivateOnly,
+                  })
+                }
+              />
+              Public only
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.testPrivateOnly}
+                onChange={(event) =>
+                  setPartial({
+                    testPrivateOnly: event.target.checked,
+                    testPublicOnly: event.target.checked
+                      ? false
+                      : draft.testPublicOnly,
+                  })
+                }
+              />
+              Private only
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <FieldLabel
+            label="Publish requests"
+            hint="Include pending publish requests in monitor runs to validate them before publishing to the store."
+          />
+          <div className="flex items-center gap-4 rounded-md border border-input px-3 py-2">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.includePendingRequests}
+                onChange={(event) =>
+                  setPartial({ includePendingRequests: event.target.checked })
+                }
+              />
+              Include pending requests in tests
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <FieldLabel
+            label="What is tested?"
+            hint="Clarifies the difference between Monitor mode and test execution output."
+          />
+          <div className="rounded-md border border-input bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <p>
+              <strong>Monitor mode</strong> defines the execution strategy.
+            </p>
+            <p>
+              <strong>Run history</strong> stores past runs.
+            </p>
+            <p>
+              <strong>Results log</strong> shows per-MCP outcomes inside one
+              run.
+            </p>
+          </div>
+        </div>
+
         <div className="space-y-1 md:col-span-2">
-          <Label>Modelo (LLM binding)</Label>
+          <FieldLabel
+            label="Model (LLM binding)"
+            hint="Used only in Agentic mode to decide and chain tool calls."
+          />
           <LLMModelSelector
             connectionId={effectiveLLMConnectionId}
             modelId={draft.llmModelId ?? ""}
@@ -248,21 +329,42 @@ export function MonitorConfiguration({
         </div>
 
         <div className="space-y-1 md:col-span-2">
-          <Label>Contexto extra para testes (prompt)</Label>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel
+              label="Additional test context (prompt)"
+              hint="Extra runtime context passed to the agent, such as valid emails, tenant IDs, or known test entities."
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => setShowDefaultPrompt((prev) => !prev)}
+            >
+              {showDefaultPrompt ? "Hide" : "View"} default system prompt
+            </Button>
+          </div>
           <Textarea
             value={draft.agentContext ?? ""}
             onChange={(e) => setPartial({ agentContext: e.target.value })}
-            placeholder='Ex: Use o email "meu-usuario@empresa.com" para testar share_file/create_permission no Google Drive.'
+            placeholder='Example: Use "my-user@company.com" as a valid email for Google Drive share/create_permission tests.'
             rows={3}
           />
           <p className="text-[11px] text-muted-foreground">
-            Use este campo para dados reais exigidos por algumas tools (email
-            válido, IDs fixos, ambiente de teste etc).
+            Use this field for real data required by some tools (valid email,
+            fixed IDs, test environment details, etc).
           </p>
+          {showDefaultPrompt && (
+            <pre className="text-[11px] bg-muted/50 border border-border rounded px-3 py-2 whitespace-pre-wrap max-h-64 overflow-auto">
+              {MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT}
+            </pre>
+          )}
         </div>
 
-        <div className="space-y-1">
-          <Label>Schedule</Label>
+        <div className="space-y-1 md:col-span-2">
+          <FieldLabel
+            label="Schedule"
+            hint="Set automatic test runs. Manual mode runs only when you click Start test run."
+          />
           <select
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             value={draft.schedule ?? "manual"}
@@ -275,20 +377,19 @@ export function MonitorConfiguration({
             <option value="manual">Manual only</option>
             <option value="cron">Cron schedule</option>
           </select>
+          {(draft.schedule ?? "manual") === "cron" && (
+            <CronScheduleSelector
+              value={draft.cronExpression ?? ""}
+              onChange={(cronExpression) => setPartial({ cronExpression })}
+            />
+          )}
         </div>
 
         <div className="space-y-1">
-          <Label>Cron expression</Label>
-          <Input
-            value={draft.cronExpression ?? ""}
-            disabled={(draft.schedule ?? "manual") !== "cron"}
-            onChange={(e) => setPartial({ cronExpression: e.target.value })}
-            placeholder="*/15 * * * *"
+          <FieldLabel
+            label="Per MCP timeout (ms)"
+            hint="Max total time allowed to validate one MCP."
           />
-        </div>
-
-        <div className="space-y-1">
-          <Label>Per MCP timeout (ms)</Label>
           <Input
             type="number"
             value={draft.perMcpTimeoutMs}
@@ -299,7 +400,10 @@ export function MonitorConfiguration({
         </div>
 
         <div className="space-y-1">
-          <Label>Per tool timeout (ms)</Label>
+          <FieldLabel
+            label="Per tool timeout (ms)"
+            hint="Max time allowed for each individual tool call."
+          />
           <Input
             type="number"
             value={draft.perToolTimeoutMs}
@@ -310,7 +414,10 @@ export function MonitorConfiguration({
         </div>
 
         <div className="space-y-1">
-          <Label>Max agent steps</Label>
+          <FieldLabel
+            label="Max agent steps"
+            hint="Maximum number of reasoning/tool steps in Agentic mode."
+          />
           <Input
             type="number"
             value={draft.maxAgentSteps}
@@ -330,5 +437,27 @@ export function MonitorConfiguration({
         </span>
       </div>
     </Card>
+  );
+}
+
+function FieldLabel({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Label>{label}</Label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={`About ${label}`}
+          >
+            <MessageQuestionCircle size={14} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-72">
+          {hint}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

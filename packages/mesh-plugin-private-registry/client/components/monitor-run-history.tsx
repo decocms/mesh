@@ -27,7 +27,12 @@ export function MonitorRunHistory({
     <Card className="p-4">
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Monitor Run History</h3>
+          <div>
+            <h3 className="text-sm font-semibold">Run history</h3>
+            <p className="text-[11px] text-muted-foreground">
+              Browse previous monitor executions and reopen their logs.
+            </p>
+          </div>
           <Button size="sm" variant="outline" onClick={() => query.refetch()}>
             Refresh
           </Button>
