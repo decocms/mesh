@@ -204,6 +204,13 @@ const editUrl = doc
         overlay.classList.add("hidden");
       }
 
+      // Register once - persists across navigations, doesn't depend on DOM elements
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+          closeMobileMenu();
+        }
+      });
+
       // Add event listeners when DOM is ready
       document.addEventListener("astro:page-load", function () {
         const menuButton = document.getElementById("mobile-menu-button");
@@ -216,13 +223,6 @@ const editUrl = doc
         if (overlay) {
           overlay.addEventListener("click", closeMobileMenu);
         }
-
-        // Close menu on escape key
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") {
-            closeMobileMenu();
-          }
-        });
 
         // Folder click functionality for breadcrumbs
         const folderButtons = document.querySelectorAll("[data-folder-click]");
