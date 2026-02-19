@@ -5,10 +5,14 @@
  * - MarkdownSection: renders markdown content
  * - MetricsSection: renders a grid of metric cards
  * - TableSection: renders a data table
+ * - CriteriaSection: renders a list of criteria
+ * - NoteSection: renders a callout note
+ * - RankedListSection: renders an ordered list with images and deltas
  */
 
 import type {
   MetricItem,
+  RankedListRow,
   ReportSection,
   ReportStatus,
 } from "@decocms/bindings";
@@ -193,6 +197,150 @@ function TableSection({
 }
 
 // ---------------------------------------------------------------------------
+// Criteria Section
+// ---------------------------------------------------------------------------
+
+function CriteriaSection({
+  title,
+  items,
+}: {
+  title?: string;
+  items: { label: string; description?: string }[];
+}) {
+  return (
+    <div className="space-y-3">
+      {title && (
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      )}
+      <ul className="space-y-2 list-none pl-0">
+        {items.map((item, i) => (
+          <li
+            key={`${item.label}-${i}`}
+            className="border-l-2 border-muted pl-3 py-1"
+          >
+            <span className="font-medium text-foreground">{item.label}</span>
+            {item.description && (
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {item.description}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Note Section
+// ---------------------------------------------------------------------------
+
+function NoteSection({ content }: { content: string }) {
+  return (
+    <div className="rounded-r-lg border-l-2 border-primary bg-muted/50 px-4 py-3 text-sm text-foreground">
+      {content}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ranked List Section
+// ---------------------------------------------------------------------------
+
+function RankedDeltaBadge({ delta }: { delta: number }) {
+  if (delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+        <Minus size={12} />—
+      </span>
+    );
+  }
+
+  const isUp = delta > 0;
+  const formatted = `${isUp ? "+" : ""}${delta}`;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 text-xs font-medium",
+        isUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500",
+      )}
+    >
+      {isUp ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+      {formatted}
+    </span>
+  );
+}
+
+function RankedListSection({
+  title,
+  columns,
+  rows,
+}: {
+  title?: string;
+  columns: string[];
+  rows: RankedListRow[];
+}) {
+  return (
+    <div className="space-y-3">
+      {title && (
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      )}
+      <div className="rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">#</TableHead>
+              <TableHead className="w-16" />
+              <TableHead>Item</TableHead>
+              {columns.map((col) => (
+                <TableHead key={col}>{col}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, rowIdx) => (
+              <TableRow key={rowIdx}>
+                <TableCell>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="font-semibold tabular-nums">
+                      {row.position}
+                    </span>
+                    <RankedDeltaBadge delta={row.delta} />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <img
+                    src={row.image}
+                    alt=""
+                    className="size-12 rounded-lg object-cover bg-muted"
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-0.5">
+                    <span className="font-medium">{row.label}</span>
+                    {row.note && (
+                      <p className="text-xs text-muted-foreground italic">
+                        {row.note}
+                      </p>
+                    )}
+                  </div>
+                </TableCell>
+                {row.values.map((val: string | number, cellIdx: number) => (
+                  <TableCell key={cellIdx} className="tabular-nums">
+                    {val}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section Renderer (dispatch by type)
 // ---------------------------------------------------------------------------
 
@@ -205,6 +353,18 @@ export function ReportSectionRenderer({ section }: { section: ReportSection }) {
     case "table":
       return (
         <TableSection
+          title={section.title}
+          columns={section.columns}
+          rows={section.rows}
+        />
+      );
+    case "criteria":
+      return <CriteriaSection title={section.title} items={section.items} />;
+    case "note":
+      return <NoteSection content={section.content} />;
+    case "ranked-list":
+      return (
+        <RankedListSection
           title={section.title}
           columns={section.columns}
           rows={section.rows}

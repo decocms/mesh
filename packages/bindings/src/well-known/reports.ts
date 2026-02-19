@@ -49,6 +49,30 @@ export const MetricItemSchema = z.object({
 export type MetricItem = z.infer<typeof MetricItemSchema>;
 
 /**
+ * A single criterion item within a criteria section.
+ */
+export const CriterionItemSchema = z.object({
+  label: z.string().describe("Short name of the criterion"),
+  description: z.string().optional().describe("Longer explanation"),
+});
+export type CriterionItem = z.infer<typeof CriterionItemSchema>;
+
+/**
+ * A single row within a ranked-list section.
+ */
+export const RankedListRowSchema = z.object({
+  position: z.number().describe("Current rank position"),
+  delta: z.number().describe("Change in position"),
+  label: z.string().describe("Item name"),
+  image: z.string().describe("URL of the item image"),
+  values: z
+    .array(z.union([z.string(), z.number()]))
+    .describe("Values matching columns"),
+  note: z.string().optional().describe("Inline annotation"),
+});
+export type RankedListRow = z.infer<typeof RankedListRowSchema>;
+
+/**
  * Report sections -- polymorphic by type.
  * Sections represent the main content blocks of a report.
  */
@@ -69,6 +93,21 @@ export const ReportSectionSchema = z.discriminatedUnion("type", [
     rows: z
       .array(z.array(z.union([z.string(), z.number(), z.null()])))
       .describe("Table rows"),
+  }),
+  z.object({
+    type: z.literal("criteria"),
+    title: z.string().optional().describe("Section title"),
+    items: z.array(CriterionItemSchema).describe("List of criteria items"),
+  }),
+  z.object({
+    type: z.literal("note"),
+    content: z.string().describe("The note text"),
+  }),
+  z.object({
+    type: z.literal("ranked-list"),
+    title: z.string().optional().describe("Section title"),
+    columns: z.array(z.string()).describe("Column headers for the values"),
+    rows: z.array(RankedListRowSchema).describe("Ranked items"),
   }),
 ]);
 export type ReportSection = z.infer<typeof ReportSectionSchema>;
