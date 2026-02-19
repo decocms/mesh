@@ -128,17 +128,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  const workflowsItem: NavigationSidebarItem = {
-    key: "workflows",
-    label: "Workflows",
-    icon: <Dataflow03 />,
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/workflows",
-        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-      }),
-  };
-
   const membersItem: NavigationSidebarItem = {
     key: "members",
     label: "Members",
@@ -155,7 +144,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const orgAdminItems: NavigationSidebarItem[] = [
     ...(preferences.experimental_tasks ? [tasksItem] : []),
     connectionsItem,
-    workflowsItem,
     ...(preferences.experimental_projects ? [projectsItem] : []),
     storeItem,
     agentsItem,
