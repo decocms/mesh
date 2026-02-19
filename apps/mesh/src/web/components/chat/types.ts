@@ -67,6 +67,10 @@ export interface Metadata {
   tiptapDoc?: TiptapDoc;
   /** Tool approval level preference */
   toolApprovalLevel?: "none" | "readonly" | "yolo";
+  /** LLM sampling temperature (0–1). Persisted so auto-sends use the same value. */
+  temperature?: number;
+  /** Conversation context window size (number of messages). Persisted so auto-sends use the same value. */
+  windowSize?: number;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

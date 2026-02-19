@@ -165,7 +165,7 @@ const createModelsTransport = (
         ? [systemMessage, ...userMessage]
         : userMessage;
 
-      // Fall back to last message metadata when requestMetadata is missing models/agent/toolApprovalLevel
+      // Fall back to last message metadata when requestMetadata is missing models/agent/toolApprovalLevel/temperature/windowSize
       const lastMsgMeta = (messages.at(-1)?.metadata ?? {}) as Metadata;
       const mergedMetadata = {
         ...metadata,
@@ -181,6 +181,16 @@ const createModelsTransport = (
           ...(lastMsgMeta.toolApprovalLevel && {
             toolApprovalLevel: lastMsgMeta.toolApprovalLevel,
           }),
+          ...(lastMsgMeta.temperature !== undefined && {
+            temperature: lastMsgMeta.temperature,
+          }),
+          ...(lastMsgMeta.windowSize !== undefined &&
+            mergedMetadata.thread_id && {
+              memory: {
+                windowSize: lastMsgMeta.windowSize,
+                thread_id: mergedMetadata.thread_id,
+              },
+            }),
         },
       };
     },
