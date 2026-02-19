@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { navigate } from "astro:transitions/client";
 import { Logo } from "../../components/atoms/Logo";
 import { Icon } from "../../components/atoms/Icon";
+import { Select } from "../../components/atoms/Select";
 import { LanguageSelector } from "./LanguageSelector";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -95,22 +96,16 @@ function VersionSelector({
   };
 
   return (
-    <div className="border-b border-divider px-4 lg:px-8 py-3">
+    <div className="px-4 lg:px-8 py-3">
       <label className="block text-xs font-medium text-muted mb-1.5">
         Documentation Version
       </label>
-      <select
+      <Select
+        options={versions.map((v) => ({ value: v.id, label: v.label }))}
         value={currentVersion}
+        icon="BookOpen"
         onChange={(e) => handleVersionChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm cursor-pointer hover:border-accent transition-colors"
-        aria-label="Select documentation version"
-      >
-        {versions.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.label}
-          </option>
-        ))}
-      </select>
+      />
       <p className="text-xs text-muted mt-1">
         {versions.find((v) => v.id === currentVersion)?.description}
       </p>
@@ -512,7 +507,7 @@ export default function Sidebar({
       />
 
       {/* Language Select - hidden on mobile */}
-      <div className="hidden lg:block px-4 lg:px-8 py-4 shrink-0">
+      <div className="hidden lg:block border-b border-border px-4 lg:px-8 py-4 shrink-0">
         <LanguageSelector locale={locale} />
       </div>
 
