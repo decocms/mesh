@@ -551,6 +551,9 @@ function ModelAutoSelector({
   // Both are handled by the ErrorBoundary + Suspense wrapping this component.
   const models = useModels(firstConnection?.id);
 
+  // useEffect is required here: writing localStorage during render would violate
+  // React's render-purity requirement. We need a side effect that fires after
+  // the component confirms models are available, then calls onAutoSelect once.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     // Only auto-select when there is no stored model config yet.
