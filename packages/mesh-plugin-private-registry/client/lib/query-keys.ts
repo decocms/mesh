@@ -41,4 +41,6 @@ export const KEYS = {
       { runId: runId ?? "none", status: status ?? "all" },
     ] as const,
   monitorConnections: () => [...KEYS.monitor(), "connections"] as const,
+  monitorConnectionAuthProbe: (connectionId: string) =>
+    [...KEYS.monitorConnections(), "auth-probe", connectionId] as const,
 };

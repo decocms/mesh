@@ -79,6 +79,7 @@ const runningControllers = new Map<string, AbortController>();
 const LOG_PREFIX = "[MONITOR-AGENT]";
 type MonitorLanguageModel = Parameters<typeof generateText>[0]["model"];
 const MONITOR_AGENT_SYSTEM_PROMPT = MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT;
+const TOOL_NOT_CALLED_OUTPUT = "health_check: not called";
 
 export function cancelMonitorRun(runId: string): boolean {
   const controller = runningControllers.get(runId);
@@ -140,6 +141,50 @@ function stringifyOutput(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function buildNotCalledToolResult(toolName: string): MonitorToolResult {
+  return {
+    toolName,
+    success: true,
+    durationMs: 0,
+    error: null,
+    outputPreview: TOOL_NOT_CALLED_OUTPUT,
+  };
+}
+
+function mergeWithDiscoveredTools(args: {
+  discoveredTools: MCPTool[];
+  executedResults: MonitorToolResult[];
+}): MonitorToolResult[] {
+  const executedByName = new Map(
+    args.executedResults.map((result) => [result.toolName, result] as const),
+  );
+  const discoveredNames = new Set(
+    args.discoveredTools.map((tool) => tool.name),
+  );
+  const merged = args.discoveredTools.map(
+    (tool) =>
+      executedByName.get(tool.name) ?? buildNotCalledToolResult(tool.name),
+  );
+  const extraResults = args.executedResults.filter(
+    (result) => !discoveredNames.has(result.toolName),
+  );
+  return [...merged, ...extraResults];
+}
+
+function upsertToolResult(
+  toolResults: MonitorToolResult[],
+  nextResult: MonitorToolResult,
+): void {
+  const index = toolResults.findIndex(
+    (result) => result.toolName === nextResult.toolName,
+  );
+  if (index >= 0) {
+    toolResults[index] = nextResult;
+    return;
+  }
+  toolResults.push(nextResult);
 }
 
 async function withTimeout<T>(
@@ -242,19 +287,6 @@ function classifyToolErrorMessage(message: string): string {
 
 function isAgentInputError(error: string | null | undefined): boolean {
   return (error ?? "").startsWith("AGENT_INPUT_ERROR:");
-}
-
-function collapseLatestToolResults(
-  toolResults: MonitorToolResult[],
-): MonitorToolResult[] {
-  const byToolName = new Map<string, MonitorToolResult>();
-  for (const result of toolResults) {
-    if (byToolName.has(result.toolName)) {
-      byToolName.delete(result.toolName);
-    }
-    byToolName.set(result.toolName, result);
-  }
-  return Array.from(byToolName.values());
 }
 
 function collapseToolResultsPreferSuccess(
@@ -877,6 +909,12 @@ async function testSingleItem(args: {
     );
     const tools = list.tools ?? [];
     toolsListed = true;
+    if (args.monitorConfig.monitorMode !== "health_check") {
+      toolResults.push(
+        ...tools.map((tool) => buildNotCalledToolResult(tool.name)),
+      );
+      await emitProgress();
+    }
 
     if (args.monitorConfig.monitorMode === "full_agent") {
       const agentRun = await runAgentTest({
@@ -888,16 +926,27 @@ async function testSingleItem(args: {
         signal: args.signal,
         onProgress: async (updatedTools) => {
           toolResults.length = 0;
-          toolResults.push(...updatedTools);
-          status = toolResults.some((result) => !result.success)
+          toolResults.push(
+            ...mergeWithDiscoveredTools({
+              discoveredTools: tools,
+              executedResults: updatedTools,
+            }),
+          );
+          status = updatedTools.some((result) => !result.success)
             ? "failed"
             : "passed";
           await emitProgress();
         },
       });
-      toolResults.push(...agentRun.toolResults);
+      toolResults.length = 0;
+      toolResults.push(
+        ...mergeWithDiscoveredTools({
+          discoveredTools: tools,
+          executedResults: agentRun.toolResults,
+        }),
+      );
       agentSummary = agentRun.agentSummary;
-      if (toolResults.some((result) => !result.success)) {
+      if (agentRun.toolResults.some((result) => !result.success)) {
         status = "failed";
       }
       if (agentRun.unexecutedTools.length > 0) {
@@ -924,7 +973,7 @@ async function testSingleItem(args: {
           );
           const success = !result.isError;
           const elapsed = Date.now() - callStart;
-          toolResults.push({
+          upsertToolResult(toolResults, {
             toolName: tool.name,
             success,
             input: toolInput,
@@ -945,7 +994,7 @@ async function testSingleItem(args: {
           const elapsed = Date.now() - callStart;
           const message =
             error instanceof Error ? error.message : String(error);
-          toolResults.push({
+          upsertToolResult(toolResults, {
             toolName: tool.name,
             success: false,
             durationMs: elapsed,
@@ -959,13 +1008,7 @@ async function testSingleItem(args: {
       }
     } else {
       for (const tool of tools) {
-        toolResults.push({
-          toolName: tool.name,
-          success: true,
-          durationMs: 0,
-          error: null,
-          outputPreview: "health_check: not called",
-        });
+        toolResults.push(buildNotCalledToolResult(tool.name));
       }
     }
 

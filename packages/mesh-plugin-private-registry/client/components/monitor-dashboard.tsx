@@ -39,6 +39,16 @@ function pct(run: { total_items: number; tested_items: number }): number {
   return Math.min(100, Math.round((run.tested_items / run.total_items) * 100));
 }
 
+function inferDiscoveredToolsCountFromSummary(
+  summary: string | null | undefined,
+): number | null {
+  if (!summary) return null;
+  const match = summary.match(/Not executed tools \((\d+)\/(\d+)\):/i);
+  if (!match) return null;
+  const total = Number(match[2]);
+  return Number.isFinite(total) && total >= 0 ? total : null;
+}
+
 function ResultLogEntry({
   result: r,
   index: idx,
@@ -60,7 +70,13 @@ function ResultLogEntry({
   const failedTools = realToolTests.filter((t) => !t.success).length;
   const hasToolTests = realToolTests.length > 0;
   const testedToolsCount = realToolTests.length;
-  const discoveredToolsCount = latestToolResults.length;
+  const inferredDiscoveredToolsCount = inferDiscoveredToolsCountFromSummary(
+    r.agent_summary,
+  );
+  const discoveredToolsCount = Math.max(
+    latestToolResults.length,
+    inferredDiscoveredToolsCount ?? 0,
+  );
   const toolProgressLabel =
     discoveredToolsCount > 0
       ? `${testedToolsCount}/${discoveredToolsCount} tools tested`
