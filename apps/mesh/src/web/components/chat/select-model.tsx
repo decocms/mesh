@@ -347,20 +347,21 @@ function ModelListErrorFallback({
   error,
   onRetry,
   connectionId,
+  orgSlug,
 }: {
   error: Error | null;
   onRetry: () => void;
   connectionId: string | null;
+  orgSlug?: string;
 }) {
-  const { org } = useProjectContext();
   const navigate = useNavigate();
 
   const handleConfigure = () => {
-    if (!connectionId) return;
+    if (!connectionId || !orgSlug) return;
     navigate({
       to: "/$org/$project/mcps/$connectionId",
       params: {
-        org: org.slug,
+        org: orgSlug,
         project: ORG_ADMIN_PROJECT_SLUG,
         connectionId,
       },
@@ -391,7 +392,7 @@ function ModelListErrorFallback({
           <RefreshCcw01 className="size-3.5" />
           Retry
         </Button>
-        {connectionId && (
+        {connectionId && orgSlug && (
           <Button
             variant="outline"
             size="sm"
@@ -647,6 +648,8 @@ function ModelSelectorContent({
     string | null
   >(selectedModel?.connectionId ?? null);
 
+  const { org } = useProjectContext();
+
   // Use provided modelsConnections or fetch from hook
   const modelsConnectionsFromHook = useModelConnections();
   const allModelsConnections =
@@ -683,7 +686,7 @@ function ModelSelectorContent({
       id: model.id,
       connectionId: selectedConnectionId,
       provider: model.provider ?? undefined,
-      capabilities: model.capabilities ?? undefined,
+      capabilities: model.capabilities,
     });
     setSearchTerm("");
     onClose();
@@ -753,6 +756,7 @@ function ModelSelectorContent({
               error={error}
               onRetry={resetError}
               connectionId={selectedConnectionId}
+              orgSlug={org.slug}
             />
           )}
         >
