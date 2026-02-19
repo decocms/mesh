@@ -3,18 +3,25 @@ import BaseHead from "../components/ui/BaseHead.astro";
 import Footer from "../components/ui/Footer.astro";
 import Sidebar from "../components/ui/Sidebar.astro";
 import TableOfContents from "../components/ui/TableOfContents.astro";
-import { Logo } from "../components/atoms/Logo.tsx";
-import { Icon } from "../components/atoms/Icon.tsx";
+import { Logo } from "../components/atoms/Logo";
+import { Icon } from "../components/atoms/Icon";
+import { LanguageSelector } from "../components/ui/LanguageSelector";
+import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { getCollection } from "astro:content";
 import { siteConfig } from "../config/site";
 import "../styles/global.css";
+import { ClientRouter } from 'astro:transitions';
 const { title, doc } = Astro.props;
 
 // Get current path for breadcrumbs
 const currentPath = Astro.url.pathname;
 const pathSegments = currentPath.split("/").filter((segment) => segment !== "");
-const locale = pathSegments[0] || "en";
-const pagePath = pathSegments.slice(1);
+// Use Astro.params.locale when available (versioned routes: /[version]/[locale]/...)
+// fallback to pathSegments[0] for legacy routes (/[locale]/...)
+const locale = (Astro.params.locale as string) || pathSegments[0] || "en";
+const localeIndex = pathSegments.indexOf(locale);
+const pagePath =
+  localeIndex >= 0 ? pathSegments.slice(localeIndex + 1) : pathSegments.slice(1);
 
 // Get all docs to determine folder vs file
 const allDocs = await getCollection("docs");
@@ -114,6 +121,7 @@ const editUrl = doc
 
 <html lang="en" data-theme="light">
   <head>
+    <ClientRouter />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -197,7 +205,7 @@ const editUrl = doc
       }
 
       // Add event listeners when DOM is ready
-      document.addEventListener("DOMContentLoaded", function () {
+      document.addEventListener("astro:page-load", function () {
         const menuButton = document.getElementById("mobile-menu-button");
         const overlay = document.getElementById("mobile-overlay");
 
@@ -265,8 +273,9 @@ const editUrl = doc
               </button>
               <Logo width={67} height={28} client:load />
             </div>
-            <div class="flex items-center gap-2" id="mobile-controls">
-              <!-- React components will be mounted here -->
+            <div class="flex items-center gap-2">
+              <LanguageSelector client:load locale={locale} className="w-32" />
+              <ThemeToggle client:load />
             </div>
           </div>
 
@@ -339,30 +348,5 @@ const editUrl = doc
       </div>
     </div>
 
-    <script>
-      import React from "react";
-      import { LanguageSelector } from "../components/ui/LanguageSelector";
-      import { ThemeToggle } from "../components/ui/ThemeToggle";
-      import { createRoot } from "react-dom/client";
-
-      // Mount language selector and theme toggle in mobile header
-      const mobileControlsContainer =
-        document.getElementById("mobile-controls");
-      if (mobileControlsContainer) {
-        const root = createRoot(mobileControlsContainer);
-        root.render(
-          React.createElement("div", { className: "flex items-center gap-2" }, [
-            React.createElement(LanguageSelector, {
-              key: "language-selector",
-              locale:
-                document.querySelector("nav")?.getAttribute("data-locale") ||
-                "en",
-              className: "w-32",
-            }),
-            React.createElement(ThemeToggle, { key: "theme-toggle" }),
-          ])
-        );
-      }
-    </script>
   </body>
 </html>

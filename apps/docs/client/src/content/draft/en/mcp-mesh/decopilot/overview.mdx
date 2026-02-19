@@ -1,0 +1,124 @@
+---
+title: Overview
+description: The agentic AI assistant that runs on deco CMS, operating through distributed MCP architecture
+icon: Sparkles
+---
+
+import Callout from "../../../../../components/ui/Callout.astro";
+
+<Callout type="info">
+  This page documents the **planned architecture** for decopilot. The implementation is in development.
+</Callout>
+
+## What is decopilot?
+
+**decopilot** is an agentic AI assistant that orchestrates work across your entire stack—from Shopify and inventory systems to email, customer service platforms, and custom services. Unlike traditional AI assistants confined to code editors, decopilot operates through the Model Context Protocol, giving it reach into the productive applications where real work happens.
+
+You interact through a **chat interface**. Start a conversation, and decopilot works autonomously in the background. Continue with other tasks—when decopilot needs your input, you'll receive a notification. This human-in-the-loop design keeps you in control while letting AI handle coordination across multiple services.
+
+The power comes from **[virtual MCPs](/en/mcp-mesh/virtual-mcps)**—decopilot can create and modify its own capabilities dynamically as it works, adapting to your needs in real-time. This programmable foundation makes decopilot not just a tool user, but a tool builder.
+
+<Callout type="tip" title="New to decopilot?">
+Start with the [Quick Start](/en/mcp-mesh/decopilot/quickstart) guide to see decopilot in action with practical workflows.
+</Callout>
+
+## The Agentic Loop
+
+Decopilot follows the same proven agentic loop pattern as [Claude Code](https://code.claude.com/docs/en/how-claude-code-works#the-agentic-loop): **gather context → take action → verify results**. This cycle runs continuously as you work, with decopilot adapting based on what it learns.
+
+The key difference is where this loop operates. While Claude Code works with local filesystems and terminal commands, decopilot orchestrates **distributed MCP servers** over HTTP. Instead of reading local files, decopilot queries Shopify, inventory systems, customer service platforms, databases, and your custom MCP servers—all through standardized MCP protocol.
+
+Each phase uses MCP tools:
+- **Gather context**: Read from connected MCP servers to understand current state
+- **Take action**: Execute tools across multiple services in a coordinated workflow
+- **Verify results**: Check outcomes, spawn specialized agents for review, adapt approach
+
+The distributed nature means decopilot can orchestrate complex workflows spanning multiple services in a single loop—processing orders in Shopify, managing inventory across warehouses, and sending customer notifications, all while operating on editable virtual MCPs.
+
+## Models
+
+Unlike solutions like [Claude Code](https://code.claude.com/docs/en/how-claude-code-works#models) that are tied to a single provider, decopilot is **multi-model**—it works with various AI model providers to understand your architecture, reason about MCP orchestration, and coordinate distributed workflows.
+
+You can use:
+- **Anthropic models**: Claude Sonnet handles most orchestration tasks well, while Opus provides stronger reasoning for complex multi-service workflows
+- **Other providers**: OpenAI, Google, and other commercial model providers
+- **Free and open source models**: Self-hosted models via compatible APIs
+
+Model choice affects reasoning quality, speed, and cost. Configure which model decopilot uses based on your needs—stronger models for complex coordination, faster models for simple operations, or open source models for full control and privacy.
+
+When this documentation says "decopilot chooses" or "decopilot decides," it's the model doing the reasoning—selecting which MCP servers to query, which tools to enable, and how to coordinate work across distributed systems.
+
+## Context
+
+Context is critical in decopilot. Your conversation history, tool definitions, resources, and MCP server configurations all compete for space in the model's limited token window. The more MCP servers you connect and tools you enable, the more context you consume.
+
+When decopilot starts a task, it loads context based on your current scope—org-level instructions, project-specific guidelines, and agent instructions are all layered according to the scope levels described above. Resources and tools are loaded strategically to keep context usage under control.
+
+Decopilot manages context through:
+- **Strategic tool filtering**: Only enabled tools consume context. Use the discover → enable → use pattern to keep overhead low.
+- **Agent spawning for isolation**: Spawn agents with fresh context for focused work. They return summaries instead of full conversation history.
+- **Reserved token slots**: Decopilot reserves slots for certain operations, ensuring room for critical work even when context is full.
+
+You can always check your current context usage in the decopilot UI to understand what's consuming space and when to spawn an agent for complex work. See [Context](/en/mcp-mesh/decopilot/context) for token budgets, optimization strategies, and practical examples.
+
+## Tasks
+
+As you work, decopilot can delegate specialized work to **[agents](/en/mcp-mesh/agents)**—focused assistants optimized for specific tasks like customer support, research, or data analysis. When you spawn an agent, it gets its own fresh context to work independently, then reports back with a summary.
+
+This lets you handle complex work in parallel. For example, spawn a support agent to answer a customer question about product compatibility while you continue building the checkout flow. The agent works separately with clean context, preventing your main conversation from getting bloated with support details.
+
+Learn more about when to spawn agents and spawning patterns in [Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning).
+
+## Scopes
+
+Decopilot always operates within a **scope**—the virtual MCP context that determines which tools, resources, and instructions are available. Scopes let you work at different levels of focus, from organization-wide operations to project-specific tasks to individual agent work.
+
+Your current scope is determined by where you are in the deco CMS UI, and decopilot automatically loads the appropriate capabilities for that context. The three scope levels are:
+
+- **Org scope**: The default level with organization-wide [connections](/en/mcp-mesh/connections), resources, and [agents](/en/mcp-mesh/agents). Always available as the foundation.
+- **Project scope**: Adds project-specific tools, resources, and prompts from the [project's virtual MCP](/en/mcp-mesh/virtual-mcps). Inherits org scope.
+- **Agent scope**: Adds specialized instructions and bounded tools when working with a specific [agent](/en/mcp-mesh/agents). Inherits org or project scope.
+
+### How Scopes Layer
+
+Scopes layer naturally as you navigate:
+
+- **Org scope alone**: Access org-wide capabilities
+- **Org + Project scope**: Access org capabilities plus project-specific context
+- **Org + Agent scope**: Access org capabilities plus agent-specific instructions
+
+This layered approach means you're never locked into a narrow view—org-level tools remain available even when working in focused project or agent contexts. See [Context](/en/mcp-mesh/decopilot/context#scope-specific-context-loading) for technical details on what context loads at each scope level, and [Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning) to understand how spawned agents create isolated task scopes with fresh context.
+
+## Built-in Tools
+
+Decopilot comes with built-in tools that enable meta-level operations:
+- **`agent_spawn`**: Create child tasks with specialized agents
+- **`agent_search`**: Discover available agents in your organization
+- **`tools_search`**: Find tools in the current scope's virtual MCP
+- **`tool_enable`**: Activate tools in the current scope before use
+- **`resource_read` / `resource_edit`**: Manage project documentation and resources
+- **`prompt_read` / `prompt_edit`**: Create reusable prompt templates
+
+These built-in tools are always available and provide the foundation for working with virtual MCPs. Beyond these, you discover and enable tools from your connected MCP servers (Shopify, inventory systems, customer service platforms, etc.) as needed.
+
+See [Tools](/en/mcp-mesh/decopilot/tools) for complete specifications, usage patterns, and examples of coordinating tools across multiple services.
+
+## Next Steps
+
+Ready to learn more? Explore these guides to understand how decopilot works:
+
+**[Quick Start](/en/mcp-mesh/decopilot/quickstart)**: See decopilot in action with step-by-step workflows. Start here for hands-on examples.
+
+**[Context](/en/mcp-mesh/decopilot/context)**: Learn strategies for managing token usage, when to spawn agents, and how to optimize context.
+
+**[Tasks](/en/mcp-mesh/decopilot/tasks-and-spawning)**: Understand task lifecycles, agent selection, and patterns for parallel execution.
+
+**[Tools](/en/mcp-mesh/decopilot/tools)**: Complete reference for built-in tools and working with target virtual MCP tools.
+
+**[Scopes](/en/mcp-mesh/decopilot/scopes)**: Deep-dive into scope-based routing and how org/project/agent contexts work.
+
+**[Architecture](/en/mcp-mesh/decopilot/architecture)**: Technical implementation details and distributed coordination patterns.
+
+---
+
+Decopilot brings proven agentic patterns to MCP orchestration. By coordinating work across distributed MCP servers while operating on editable virtual MCPs, decopilot enables complex workflows that span multiple services—all through standardized MCP protocol. This is the agentic assistant that runs on deco CMS.
