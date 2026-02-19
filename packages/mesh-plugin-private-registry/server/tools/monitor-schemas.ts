@@ -43,6 +43,7 @@ export const RegistryMonitorConfigSchema = z
     maxAgentSteps: z.number().int().min(1).max(30).default(15),
     testPublicOnly: z.boolean().default(false),
     testPrivateOnly: z.boolean().default(false),
+    includePendingRequests: z.boolean().default(false),
     agentContext: z.string().max(2000).optional(),
     llmConnectionId: z.string().optional(),
     llmModelId: z.string().optional(),
@@ -162,6 +163,7 @@ export const RegistryMonitorConnectionListOutputSchema = z.object({
       mapping: MonitorConnectionSchema,
       item: RegistryItemSchema.nullable(),
       remoteUrl: z.string().nullable(),
+      source: z.enum(["store", "request"]),
     }),
   ),
 });

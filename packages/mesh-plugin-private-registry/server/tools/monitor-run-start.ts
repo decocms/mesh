@@ -13,11 +13,16 @@ import {
   type ToolSet,
 } from "ai";
 import { z } from "zod";
-import { PLUGIN_ID } from "../../shared";
+import {
+  MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT,
+  PLUGIN_ID,
+  PUBLISH_REQUEST_TARGET_PREFIX,
+} from "../../shared";
 import type {
   MonitorResultStatus,
   MonitorRunConfigSnapshot,
   MonitorToolResult,
+  PublishRequestEntity,
   PrivateRegistryItemEntity,
 } from "../storage";
 import {
@@ -73,29 +78,7 @@ type MonitorToolContext = ServerPluginToolContext & {
 const runningControllers = new Map<string, AbortController>();
 const LOG_PREFIX = "[MONITOR-AGENT]";
 type MonitorLanguageModel = Parameters<typeof generateText>[0]["model"];
-const MONITOR_AGENT_SYSTEM_PROMPT = `
-You are an MCP tool tester running automated integration checks.
-
-Goal:
-- Validate that this MCP and its tools work end-to-end.
-- Prefer realistic sequences where one tool output feeds the next tool input.
-- Example chain: list -> pick id -> get/update/delete.
-
-Rules:
-- Try to execute as many tools as possible.
-- If a tool requires context, first call discovery/list tools to obtain valid IDs.
-- If you create test data, clean it up when possible.
-- If one tool fails, continue testing the remaining tools.
-- If a tool returns input validation errors, fix the arguments and retry that tool.
-- For tools that require identifiers (fileId, folderId, etc), always get IDs from previous list/get calls.
-- Keep calls focused and safe.
-
-At the end, provide a concise summary of:
-- What passed
-- What failed
-- What could not be tested and why
-- If some tool needs user-specific context (email/account/tenant), explicitly output a "CONTEXT_REQUIRED" note with what is needed.
-`.trim();
+const MONITOR_AGENT_SYSTEM_PROMPT = MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT;
 
 export function cancelMonitorRun(runId: string): boolean {
   const controller = runningControllers.get(runId);
@@ -257,6 +240,10 @@ function classifyToolErrorMessage(message: string): string {
   return message;
 }
 
+function isAgentInputError(error: string | null | undefined): boolean {
+  return (error ?? "").startsWith("AGENT_INPUT_ERROR:");
+}
+
 function collapseLatestToolResults(
   toolResults: MonitorToolResult[],
 ): MonitorToolResult[] {
@@ -268,6 +255,32 @@ function collapseLatestToolResults(
     byToolName.set(result.toolName, result);
   }
   return Array.from(byToolName.values());
+}
+
+function collapseToolResultsPreferSuccess(
+  toolResults: MonitorToolResult[],
+): MonitorToolResult[] {
+  const byToolName = new Map<string, MonitorToolResult[]>();
+  for (const result of toolResults) {
+    const current = byToolName.get(result.toolName) ?? [];
+    current.push(result);
+    byToolName.set(result.toolName, current);
+  }
+  return Array.from(byToolName.entries()).map(([, results]) => {
+    const latest = results.at(-1);
+    if (!latest) {
+      return {
+        toolName: "unknown",
+        success: false,
+        durationMs: 0,
+        error: "Missing tool result",
+      } satisfies MonitorToolResult;
+    }
+    const latestSuccess = [...results]
+      .reverse()
+      .find((result) => result.success);
+    return latestSuccess ?? latest;
+  });
 }
 
 function parseModelResponse(payload: {
@@ -551,7 +564,7 @@ function mcpToolsToAISDK(args: {
                 : classifyToolErrorMessage(errorText ?? "Tool returned error"),
             });
             await args.onToolUpdate?.(
-              collapseLatestToolResults([...args.executions]),
+              collapseToolResultsPreferSuccess([...args.executions]),
             );
             return callResult;
           } catch (error) {
@@ -565,7 +578,7 @@ function mcpToolsToAISDK(args: {
               error: classifyToolErrorMessage(message),
             });
             await args.onToolUpdate?.(
-              collapseLatestToolResults([...args.executions]),
+              collapseToolResultsPreferSuccess([...args.executions]),
             );
             return {
               isError: true,
@@ -640,7 +653,7 @@ async function runAgentTest(args: {
       executions,
       onToolUpdate: args.onProgress,
     });
-    const prompt = [
+    const basePrompt = [
       `MCP ID: ${args.item.id}`,
       `MCP Title: ${args.item.title}`,
       `MCP Description: ${args.item.description ?? "n/a"}`,
@@ -648,30 +661,57 @@ async function runAgentTest(args: {
       `User test context: ${args.monitorConfig.agentContext?.trim() || "none provided"}`,
       "Execute the tests now.",
     ].join("\n");
+    const summaryParts: string[] = [];
+    const maxRecoveryPasses = 2;
+    for (let pass = 0; pass <= maxRecoveryPasses; pass++) {
+      const collapsedSoFar = collapseToolResultsPreferSuccess(executions);
+      const recoverableFailures = collapsedSoFar.filter(
+        (execution) => !execution.success && isAgentInputError(execution.error),
+      );
+      const retryPrompt =
+        recoverableFailures.length > 0
+          ? [
+              basePrompt,
+              "",
+              `Recovery pass ${pass}/${maxRecoveryPasses}: retry only tools with AGENT_INPUT_ERROR and fix arguments using IDs/context from previous successful calls.`,
+              `Tools with AGENT_INPUT_ERROR: ${recoverableFailures.map((item) => item.toolName).join(", ")}`,
+            ].join("\n")
+          : basePrompt;
+      const result = await withTimeout(
+        generateText({
+          model,
+          system: MONITOR_AGENT_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: retryPrompt }],
+          tools: aiTools,
+          toolChoice: "auto",
+          stopWhen: stepCountIs(args.monitorConfig.maxAgentSteps ?? 15),
+          temperature: 0,
+          abortSignal: args.signal,
+        }),
+        resolveAgentTimeoutMs(args.monitorConfig),
+        `agent run ${args.item.id} pass ${pass + 1}`,
+      );
+      const trimmedSummary = (result.text ?? "").trim();
+      if (trimmedSummary.length > 0) {
+        summaryParts.push(trimmedSummary);
+      }
+      const collapsedAfterPass = collapseToolResultsPreferSuccess(executions);
+      const stillRecoverableFailures = collapsedAfterPass.filter(
+        (execution) => !execution.success && isAgentInputError(execution.error),
+      );
+      if (stillRecoverableFailures.length === 0) {
+        break;
+      }
+    }
 
-    const result = await withTimeout(
-      generateText({
-        model,
-        system: MONITOR_AGENT_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: prompt }],
-        tools: aiTools,
-        toolChoice: "auto",
-        stopWhen: stepCountIs(args.monitorConfig.maxAgentSteps ?? 15),
-        temperature: 0,
-        abortSignal: args.signal,
-      }),
-      resolveAgentTimeoutMs(args.monitorConfig),
-      `agent run ${args.item.id}`,
-    );
-
-    const collapsedExecutions = collapseLatestToolResults(executions);
+    const collapsedExecutions = collapseToolResultsPreferSuccess(executions);
     const testedToolNames = new Set(
       collapsedExecutions.map((execution) => execution.toolName),
     );
     const unexecutedTools = args.tools
       .map((tool) => tool.name)
       .filter((toolName) => !testedToolNames.has(toolName));
-    const summaryBase = (result.text ?? "").trim();
+    const summaryBase = summaryParts.join("\n\n").trim();
     const skippedSummary =
       unexecutedTools.length > 0
         ? `Not executed tools (${unexecutedTools.length}/${args.tools.length}): ${unexecutedTools.join(", ")}`
@@ -778,6 +818,7 @@ async function testSingleItem(args: {
   item: PrivateRegistryItemEntity;
   monitorConfig: RegistryMonitorConfig;
   signal: AbortSignal;
+  canApplyFailureAction: boolean;
   onProgress?: (partial: {
     status: MonitorResultStatus;
     connectionOk: boolean;
@@ -928,7 +969,11 @@ async function testSingleItem(args: {
       }
     }
 
-    if (status === "failed" && args.monitorConfig.onFailure !== "none") {
+    if (
+      args.canApplyFailureAction &&
+      status === "failed" &&
+      args.monitorConfig.onFailure !== "none"
+    ) {
       actionTaken = await applyFailureAction({
         organizationId: args.organizationId,
         item: args.item,
@@ -983,7 +1028,28 @@ async function runMonitorLoop(args: {
     return true;
   });
 
-  if (items.length === 0) {
+  const requestTargets: PrivateRegistryItemEntity[] = args.monitorConfig
+    .includePendingRequests
+    ? (
+        await storage.publishRequests.list(args.organizationId, {
+          status: "pending",
+          limit: 500,
+        })
+      ).items.map((request) => publishRequestToMonitorTarget(request))
+    : [];
+
+  const targets: Array<{
+    item: PrivateRegistryItemEntity;
+    source: "registry_item" | "publish_request";
+  }> = [
+    ...items.map((item) => ({ item, source: "registry_item" as const })),
+    ...requestTargets.map((item) => ({
+      item,
+      source: "publish_request" as const,
+    })),
+  ];
+
+  if (targets.length === 0) {
     await storage.monitorRuns.update(args.organizationId, args.runId, {
       total_items: 0,
       status: "completed",
@@ -1003,7 +1069,7 @@ async function runMonitorLoop(args: {
   }
 
   await storage.monitorRuns.update(args.organizationId, args.runId, {
-    total_items: items.length,
+    total_items: targets.length,
     status: "running",
     started_at: new Date().toISOString(),
   });
@@ -1013,8 +1079,9 @@ async function runMonitorLoop(args: {
   let failed = 0;
   let skipped = 0;
 
-  for (let idx = 0; idx < items.length; idx++) {
-    const item = items[idx];
+  for (let idx = 0; idx < targets.length; idx++) {
+    const target = targets[idx];
+    const item = target?.item;
     if (!item || args.signal.aborted) {
       await storage.monitorRuns.update(args.organizationId, args.runId, {
         status: "cancelled",
@@ -1080,6 +1147,7 @@ async function runMonitorLoop(args: {
       item,
       monitorConfig: args.monitorConfig,
       signal: args.signal,
+      canApplyFailureAction: target.source === "registry_item",
       onProgress: persistItemProgress,
     });
 
@@ -1144,6 +1212,22 @@ async function runMonitorLoop(args: {
       durationMs: totalElapsed,
     },
   });
+}
+
+function publishRequestToMonitorTarget(
+  request: PublishRequestEntity,
+): PrivateRegistryItemEntity {
+  return {
+    id: `${PUBLISH_REQUEST_TARGET_PREFIX}${request.id}`,
+    title: request.title,
+    description: request.description,
+    _meta: request._meta,
+    server: request.server,
+    is_public: false,
+    is_unlisted: true,
+    created_at: request.created_at,
+    updated_at: request.updated_at,
+  };
 }
 
 async function startMonitorRun(

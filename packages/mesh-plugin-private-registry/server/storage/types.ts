@@ -323,6 +323,7 @@ export interface MonitorRunConfigSnapshot {
   llmModelId?: string;
   testPublicOnly?: boolean;
   testPrivateOnly?: boolean;
+  includePendingRequests?: boolean;
   schedule?: "manual" | "cron";
   cronExpression?: string;
   scheduleEventId?: string;

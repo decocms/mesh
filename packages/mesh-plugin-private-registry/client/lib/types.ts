@@ -172,6 +172,7 @@ export interface RegistryMonitorConfig {
   maxAgentSteps: number;
   testPublicOnly: boolean;
   testPrivateOnly: boolean;
+  includePendingRequests: boolean;
   agentContext?: string;
   llmConnectionId?: string;
   llmModelId?: string;
@@ -243,6 +244,7 @@ export interface MonitorConnectionListItem {
   mapping: MonitorConnectionMapping;
   item: RegistryItem | null;
   remoteUrl: string | null;
+  source: "store" | "request";
 }
 
 export interface MonitorConnectionListResponse {

@@ -248,6 +248,7 @@ const DEFAULT_MONITOR_SETTINGS: RegistryMonitorConfig = {
   maxAgentSteps: 15,
   testPublicOnly: false,
   testPrivateOnly: false,
+  includePendingRequests: false,
   agentContext: "",
   llmConnectionId: "",
   llmModelId: "",
