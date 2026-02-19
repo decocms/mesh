@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Logo } from "../../components/atoms/Logo.tsx";
-import { Icon } from "../../components/atoms/Icon.tsx";
-import { LanguageSelector } from "./LanguageSelector.tsx";
-import { ThemeToggle } from "./ThemeToggle.tsx";
+import { navigate } from "astro:transitions/client";
+import { Logo } from "../../components/atoms/Logo";
+import { Icon } from "../../components/atoms/Icon";
+import { Select } from "../../components/atoms/Select";
+import { LanguageSelector } from "./LanguageSelector";
+import { ThemeToggle } from "./ThemeToggle";
 
 // GitHub Stars Component
 function GitHubStars() {
@@ -13,7 +15,7 @@ function GitHubStars() {
     const fetchStars = async () => {
       try {
         const response = await fetch(
-          "https://api.github.com/repos/deco-cx/chat",
+          "https://api.github.com/repos/decocms/mesh",
         );
         if (response.ok) {
           const data = await response.json();
@@ -50,6 +52,100 @@ function GitHubStars() {
   );
 }
 
+// Version Selector Component
+function VersionSelector({
+  currentVersion: initialVersion,
+  onVersionChange,
+  inline = false,
+}: {
+  currentVersion: string;
+  onVersionChange: (version: string) => void;
+  inline?: boolean;
+}) {
+  // Read version from URL dynamically on client side
+  const [currentVersion, setCurrentVersion] = useState(initialVersion);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const version = params.get("version") || "latest";
+      setCurrentVersion(version);
+      onVersionChange(version);
+    };
+
+    // Listen for URL changes (for browser back/forward)
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only setup listener once
+
+  const versions = [
+    {
+      id: "latest",
+      label: "Latest (Stable)",
+      shortLabel: "Stable",
+      description: "Current production docs",
+    },
+    {
+      id: "draft",
+      label: "Draft",
+      shortLabel: "Draft",
+      description: "In-progress documentation",
+    },
+  ];
+
+  const handleVersionChange = (newVersion: string) => {
+    if (newVersion === currentVersion) return;
+
+    setCurrentVersion(newVersion);
+    onVersionChange(newVersion);
+  };
+
+  if (inline) {
+    return (
+      <div className="relative">
+        <select
+          value={currentVersion}
+          onChange={(e) => handleVersionChange(e.target.value)}
+          className="h-8 pl-2 pr-6 text-xs bg-transparent border border-border rounded-md text-muted-foreground appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {versions.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.shortLabel}
+            </option>
+          ))}
+        </select>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+          <Icon
+            name="ChevronDown"
+            size={12}
+            className="text-muted-foreground"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 lg:px-8 py-3">
+      <label className="block text-xs font-medium text-muted mb-1.5">
+        Documentation Version
+      </label>
+      <Select
+        options={versions.map((v) => ({ value: v.id, label: v.label }))}
+        value={currentVersion}
+        icon="BookOpen"
+        onChange={(e) => handleVersionChange(e.target.value)}
+      />
+      <p className="text-xs text-muted mt-1">
+        {versions.find((v) => v.id === currentVersion)?.description}
+      </p>
+    </div>
+  );
+}
+
 interface DocData {
   title?: string;
   icon?: string;
@@ -76,6 +172,7 @@ interface SidebarProps {
   tree: FlatNode[];
   locale: string;
   translations: Record<string, string>;
+  currentVersion: string;
 }
 
 interface TreeItemProps {
@@ -85,6 +182,8 @@ interface TreeItemProps {
   onToggle: (folderId: string) => void;
   locale: string;
   translations: Record<string, string>;
+  version: string;
+  currentPath: string;
 }
 
 function TreeItem({
@@ -94,102 +193,125 @@ function TreeItem({
   onToggle,
   locale,
   translations,
+  version,
+  currentPath,
 }: TreeItemProps) {
   if (!isVisible) return null;
 
-  // Check if this item is active (current page) - client-side only
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    if (node.type !== "file") return;
-
-    const currentPath = globalThis.location.pathname;
-    const docId = node.doc?.id;
-    const docPath = docId ? docId.split("/").slice(1).join("/") : null;
-    const itemPath = `/${locale}/${docPath ?? node.path.join("/")}`;
-
-    setActive(currentPath === itemPath);
-  }, [node.type, node.path, locale, node.doc?.id]);
-
   const docId = node.doc?.id;
-  const docPath = docId ? docId.split("/").slice(1).join("/") : null;
-  const href =
+  // docId is now version/locale/path, skip first 2 parts
+  const docPath = docId ? docId.split("/").slice(2).join("/") : null;
+  const itemPath =
     node.type === "file"
-      ? `/${locale}/${docPath ?? node.path.join("/")}`
+      ? `/${version}/${locale}/${docPath ?? node.path.join("/")}`
       : null;
+
+  // Active when currentPath matches — starts false (empty string) until after hydration
+  const active = node.type === "file" && currentPath === itemPath;
+
+  // href is the same path as itemPath (null for folders)
+  const href = itemPath;
+
+  // A node should be collapsible if it has children, regardless of whether it's a file or folder
+  const isCollapsible = node.hasChildren;
+  const isFolder = node.type === "folder";
+
+  // Shared icon rendering logic
+  const renderIcon = () => {
+    if (isFolder || (isCollapsible && !node.doc?.data?.icon)) {
+      return (
+        <Icon
+          name={
+            node.id === "mcp-mesh/self-hosting"
+              ? "Database"
+              : node.id === "mcp-mesh/self-hosting/deploy"
+                ? "Rocket"
+                : node.id === "mcp-mesh/decopilot"
+                  ? "Cpu"
+                  : "Folder"
+          }
+          size={16}
+          className={`shrink-0 ${active ? "text-primary" : ""}`}
+        />
+      );
+    }
+    if (node.doc?.data?.icon) {
+      return (
+        <Icon
+          name={node.doc.data.icon}
+          size={16}
+          className={`shrink-0 ${active ? "text-primary" : ""}`}
+        />
+      );
+    }
+    return (
+      <Icon
+        name="FileText"
+        size={16}
+        className={`shrink-0 ${active ? "text-primary" : ""}`}
+      />
+    );
+  };
+
+  const sharedClasses = `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+    active
+      ? "bg-primary/5 text-primary" // Active state
+      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  }`;
 
   return (
     <li>
-      <div
-        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-          active
-            ? "bg-primary/5 text-primary" // Active state
-            : node.type === "folder"
-              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-        }`}
-      >
-        {/* Indentation spacer for nested items */}
-        {node.depth > 0 && (
-          <div className="shrink-0" style={{ width: `${node.depth * 24}px` }} />
-        )}
+      {isCollapsible ? (
+        <div className={`${sharedClasses} cursor-pointer`}>
+          {/* Indentation spacer for nested items */}
+          {node.depth > 0 && (
+            <div
+              className="shrink-0"
+              style={{ width: `${node.depth * 24}px` }}
+            />
+          )}
 
-        {/* Icon */}
-        {node.type === "folder" ? (
-          <Icon
-            name={
-              node.id === "mcp-mesh"
-                ? "Network"
-                : node.id === "mcp-studio"
-                  ? "LayoutDashboard"
-                  : node.id === "mcp-mesh/deploy"
-                    ? "Rocket"
-                    : "Folder"
-            }
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        ) : node.doc?.data?.icon ? (
-          <Icon
-            name={node.doc.data.icon}
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        ) : (
-          <Icon
-            name="FileText"
-            size={16}
-            className={`shrink-0 ${active ? "text-primary" : ""}`}
-          />
-        )}
+          {/* Icon */}
+          {renderIcon()}
 
-        {/* Content */}
-        {node.type === "folder" ? (
+          {/* Content */}
           <button
             type="button"
             className="flex items-center justify-between w-full text-left"
             onClick={() => onToggle(node.id)}
           >
             <span className="flex-1">
-              {translations[`sidebar.section.${node.name}`] || node.name}
+              {node.doc?.data?.title ||
+                translations[`sidebar.section.${node.name}`] ||
+                node.name}
             </span>
-            {node.hasChildren && (
-              <Icon
-                name={isExpanded ? "ChevronDown" : "ChevronRight"}
-                size={16}
-                className={`shrink-0 ${active ? "text-primary" : ""}`}
-              />
-            )}
+            <Icon
+              name={isExpanded ? "ChevronDown" : "ChevronRight"}
+              size={16}
+              className={`shrink-0 ${active ? "text-primary" : ""}`}
+            />
           </button>
-        ) : (
-          <a
-            href={href ?? `/${locale}/${node.path.join("/")}`}
-            className="flex-1"
-          >
-            {node.doc?.data?.title || node.name}
-          </a>
-        )}
-      </div>
+        </div>
+      ) : (
+        <a
+          href={href ?? `/${locale}/${node.path.join("/")}`}
+          className={sharedClasses}
+        >
+          {/* Indentation spacer for nested items */}
+          {node.depth > 0 && (
+            <div
+              className="shrink-0"
+              style={{ width: `${node.depth * 24}px` }}
+            />
+          )}
+
+          {/* Icon */}
+          {renderIcon()}
+
+          {/* Content */}
+          <span className="flex-1">{node.doc?.data?.title || node.name}</span>
+        </a>
+      )}
     </li>
   );
 }
@@ -200,6 +322,8 @@ interface TreeListProps {
   onToggle: (folderId: string) => void;
   locale: string;
   translations: Record<string, string>;
+  version: string;
+  currentPath: string;
 }
 
 function TreeList({
@@ -208,6 +332,8 @@ function TreeList({
   onToggle,
   locale,
   translations,
+  version,
+  currentPath,
 }: TreeListProps) {
   const isNodeVisible = (node: FlatNode): boolean => {
     if (node.depth === 0) return true;
@@ -222,12 +348,6 @@ function TreeList({
     return true;
   };
 
-  // Group nodes to determine when to add separators
-  const getNodeGroup = (node: FlatNode): "root-files" | "root-folders" => {
-    if (node.depth === 0 && node.type === "file") return "root-files";
-    return "root-folders";
-  };
-
   return (
     <ul className="space-y-0.5">
       {tree.map((node, index) => {
@@ -235,16 +355,24 @@ function TreeList({
         const isExpanded = treeState.get(node.id) !== false;
         const prevNode = tree[index - 1];
 
-        // Add separator when switching between different groups at root level
+        // Add separator logic:
+        // 1. After "overview" file (before concepts and other content)
+        // 2. Before "Legacy Admin" section
         let needsSeparator = false;
-        if (prevNode && node.depth === 0 && prevNode.depth === 0) {
-          const currentGroup = getNodeGroup(node);
-          const prevGroup = getNodeGroup(prevNode);
-          needsSeparator = currentGroup !== prevGroup;
+
+        // Check if previous node is "overview" file at root level
+        if (
+          prevNode &&
+          prevNode.depth === 0 &&
+          prevNode.type === "file" &&
+          prevNode.name === "overview" &&
+          node.depth === 0
+        ) {
+          needsSeparator = true;
         }
 
-        // Also add separator when going from nested items back to root level
-        if (prevNode && node.depth === 0 && prevNode.depth > 0) {
+        // Add separator before Legacy Admin section
+        if (node.depth === 0 && node.id === "admin-decocms-com") {
           needsSeparator = true;
         }
 
@@ -262,6 +390,8 @@ function TreeList({
               onToggle={onToggle}
               locale={locale}
               translations={translations}
+              version={version}
+              currentPath={currentPath}
             />
           </React.Fragment>
         );
@@ -270,50 +400,137 @@ function TreeList({
   );
 }
 
-export default function Sidebar({ tree, locale, translations }: SidebarProps) {
-  const [treeState, setTreeState] = useState<Map<string, boolean>>(new Map());
+// No filtering needed - separate content folders per version
+
+export default function Sidebar({
+  tree,
+  locale,
+  translations,
+  currentVersion,
+}: SidebarProps) {
+  // Version state for URL-based navigation
+  const [version, setVersion] = useState(currentVersion);
+
+  // Current path state — starts empty (avoids SSR mismatch), set after hydration
+  // and updated on every Astro client-side navigation via astro:page-load
+  const [currentPath, setCurrentPath] = useState("");
 
   useEffect(() => {
-    // Load saved state from localStorage
-    const savedState = JSON.parse(
-      localStorage.getItem("sidebar-tree-state") || "{}",
-    );
+    setCurrentPath(window.location.pathname);
+
+    const getScrollContainer = (): HTMLElement | null => {
+      const sidebar = document.getElementById("sidebar");
+      return sidebar
+        ? (sidebar.querySelector(".flex-1.overflow-y-auto") as HTMLElement)
+        : null;
+    };
+
+    // Save scroll position before the DOM swap so we can restore it after
+    let savedScrollTop = 0;
+    const handleBeforeSwap = () => {
+      const container = getScrollContainer();
+      if (container) savedScrollTop = container.scrollTop;
+    };
+
+    const handlePageLoad = () => {
+      const path = window.location.pathname;
+      setCurrentPath(path);
+      // Keep version in sync with the URL (e.g. after browser back/forward)
+      const urlVersion = path.split("/")[1];
+      if (urlVersion === "latest" || urlVersion === "draft") {
+        setVersion(urlVersion);
+      }
+      // Restore scroll after React finishes re-rendering (rAF fires after paint)
+      requestAnimationFrame(() => {
+        const container = getScrollContainer();
+        if (container) container.scrollTop = savedScrollTop;
+      });
+    };
+
+    document.addEventListener("astro:before-swap", handleBeforeSwap);
+    document.addEventListener("astro:page-load", handlePageLoad);
+    return () => {
+      document.removeEventListener("astro:before-swap", handleBeforeSwap);
+      document.removeEventListener("astro:page-load", handlePageLoad);
+    };
+  }, []);
+
+  // Handle version change by navigating to the new version's root page
+  const versionRoots: Record<string, string> = {
+    latest: "introduction",
+    draft: "mcp-mesh/quickstart",
+  };
+  const handleVersionChange = (newVersion: string) => {
+    const root = versionRoots[newVersion] ?? "mcp-mesh/quickstart";
+    // Draft is English-only; fall back to "en" when switching to it
+    const targetLocale = newVersion === "draft" ? "en" : locale;
+    navigate(`/${newVersion}/${targetLocale}/${root}`);
+  };
+
+  // Initialize with default state (same on server and client for hydration match)
+  const [treeState, setTreeState] = useState<Map<string, boolean>>(() => {
     const initialState = new Map();
 
-    // If the current page is inside a folder, ensure its ancestor folders are expanded
-    // so the active item is visible (even if the default is collapsed).
-    const currentPath = globalThis.location.pathname;
-    const relativePath = currentPath.replace(`/${locale}/`, "");
-    const parts = relativePath.split("/").filter(Boolean);
-    const expandedAncestors = new Set<string>();
-    for (let i = 1; i <= parts.length - 1; i++) {
-      expandedAncestors.add(parts.slice(0, i).join("/"));
-    }
+    // Default: most sections expanded, some collapsed
+    const collapsedByDefault = new Set<string>([
+      "admin-decocms-com/getting-started",
+      "admin-decocms-com/no-code-guides",
+      "admin-decocms-com/full-code-guides",
+    ]);
 
-    // Initialize tree state - default to expanded (with a few collapsed-by-default sections)
     tree.forEach((node) => {
-      if (node.type === "folder") {
-        const saved = savedState[node.id];
-        // Default: show "Legacy Admin" open, but keep its sections closed (as a compact TOC).
+      if (node.hasChildren) {
+        initialState.set(node.id, !collapsedByDefault.has(node.id));
+      }
+    });
+
+    return initialState;
+  });
+
+  // After hydration (and on each navigation), apply localStorage state and expand ancestors
+  useEffect(() => {
+    if (!currentPath) return;
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const savedState = JSON.parse(
+          window.localStorage.getItem("sidebar-tree-state") || "{}",
+        );
+
+        const relativePath = currentPath.replace(`/${locale}/`, "");
+        const parts = relativePath.split("/").filter(Boolean);
+        const expandedAncestors = new Set<string>();
+        for (let i = 1; i <= parts.length - 1; i++) {
+          expandedAncestors.add(parts.slice(0, i).join("/"));
+        }
+
+        // Build new state with saved values and expanded ancestors
+        const newState = new Map();
         const collapsedByDefault = new Set<string>([
           "admin-decocms-com/getting-started",
           "admin-decocms-com/no-code-guides",
           "admin-decocms-com/full-code-guides",
         ]);
-        const defaultExpanded = collapsedByDefault.has(node.id) ? false : true;
 
-        const shouldExpand =
-          typeof saved === "boolean" ? saved : defaultExpanded;
+        tree.forEach((node) => {
+          if (node.hasChildren) {
+            const saved = savedState[node.id];
+            const defaultExpanded = !collapsedByDefault.has(node.id);
+            const shouldExpand =
+              typeof saved === "boolean" ? saved : defaultExpanded;
 
-        initialState.set(
-          node.id,
-          expandedAncestors.has(node.id) ? true : shouldExpand,
-        );
+            newState.set(
+              node.id,
+              expandedAncestors.has(node.id) ? true : shouldExpand,
+            );
+          }
+        });
+
+        setTreeState(newState);
       }
-    });
-
-    setTreeState(initialState);
-  }, [tree]);
+    } catch (error) {
+      console.error("Failed to load sidebar state:", error);
+    }
+  }, [tree, locale, currentPath]);
 
   const updateFolderVisibility = (folderId: string, isExpanded: boolean) => {
     setTreeState((prev) => {
@@ -322,13 +539,23 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
       return newState;
     });
 
-    // Save state to localStorage
-    const stateToSave: Record<string, boolean> = {};
-    treeState.forEach((value, key) => {
-      stateToSave[key] = value;
-    });
-    stateToSave[folderId] = isExpanded;
-    localStorage.setItem("sidebar-tree-state", JSON.stringify(stateToSave));
+    // Save state to localStorage (client-side only)
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const stateToSave: Record<string, boolean> = {};
+        treeState.forEach((value, key) => {
+          stateToSave[key] = value;
+        });
+        stateToSave[folderId] = isExpanded;
+        window.localStorage.setItem(
+          "sidebar-tree-state",
+          JSON.stringify(stateToSave),
+        );
+      }
+    } catch (error) {
+      // Ignore localStorage errors
+      console.error("Failed to save sidebar state to localStorage:", error);
+    }
   };
 
   const handleFolderToggle = (folderId: string) => {
@@ -339,14 +566,21 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
   return (
     <div className="flex flex-col h-screen bg-app-background border-r border-border w-[19rem] lg:w-[19rem] w-full max-w-[19rem]">
       {/* Header - hidden on mobile */}
-      <div className="hidden lg:flex items-center justify-between px-4 lg:px-8 py-4 shrink-0">
+      <div className="hidden lg:flex items-center justify-between px-4 lg:px-6 py-3 shrink-0 border-b border-border">
         <Logo width={67} height={28} />
-        <ThemeToggle />
-      </div>
-
-      {/* Language Select - hidden on mobile */}
-      <div className="hidden lg:block px-4 lg:px-8 py-4 shrink-0">
-        <LanguageSelector locale={locale} />
+        <div className="flex items-center gap-1.5">
+          <VersionSelector
+            currentVersion={version}
+            onVersionChange={handleVersionChange}
+            inline
+          />
+          <LanguageSelector
+            locale={locale}
+            compact
+            disabled={version === "draft"}
+          />
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Content */}
@@ -357,6 +591,8 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
           onToggle={handleFolderToggle}
           locale={locale}
           translations={translations}
+          version={version}
+          currentPath={currentPath}
         />
       </div>
 

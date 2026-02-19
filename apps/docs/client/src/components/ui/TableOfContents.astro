@@ -1,5 +1,5 @@
 ---
-import { Icon } from "../../components/atoms/Icon.tsx";
+import { Icon } from "../../components/atoms/Icon";
 ---
 
 <div class="max-h-[calc(100vh-2rem)] overflow-y-auto w-full max-w-80">
@@ -92,13 +92,22 @@ import { Icon } from "../../components/atoms/Icon.tsx";
     startScrollTracking();
   }
 
-  function startScrollTracking() {
-    let scrollTimeout;
+  let _scrollCleanup = null;
 
-    window.addEventListener("scroll", () => {
+  function startScrollTracking() {
+    // Remove previous listener to avoid accumulation across navigations
+    if (_scrollCleanup) {
+      _scrollCleanup();
+    }
+
+    let scrollTimeout;
+    const handler = () => {
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(updateActiveOnScroll, 100);
-    });
+    };
+
+    window.addEventListener("scroll", handler);
+    _scrollCleanup = () => window.removeEventListener("scroll", handler);
   }
 
   function updateActiveOnScroll() {
@@ -141,16 +150,8 @@ import { Icon } from "../../components/atoms/Icon.tsx";
     }
   }
 
-  // Run when ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", buildToc);
-  } else {
-    buildToc();
-  }
-
-  // Fallback
-  setTimeout(buildToc, 100);
-  setTimeout(buildToc, 500);
+  // Run on initial load and after every client-side navigation
+  document.addEventListener("astro:page-load", buildToc);
 </script>
 
 <style>
