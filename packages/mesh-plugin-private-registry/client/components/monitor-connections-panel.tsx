@@ -19,6 +19,7 @@ import {
   useMonitorRuns,
   useUpdateMonitorConnectionAuth,
 } from "../hooks/use-monitor";
+import { KEYS } from "../lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useRegistryMutations } from "../hooks/use-registry";
 import type {
@@ -71,13 +72,12 @@ function ConnectionRow({
   const connectionId = entry.mapping.connection_id;
   const authStatus = entry.mapping.auth_status;
   const title = entry.item?.title ?? entry.mapping.item_id;
-  const isAuthenticated = authStatus === "authenticated";
   const icon = entry.item?.server?.icons?.[0]?.src ?? null;
   const isPublic = entry.item?.is_public ?? false;
   const isUnlisted = entry.item?.is_unlisted ?? false;
   const isRequestSource = entry.source === "request";
   const probeQuery = useQuery({
-    queryKey: ["registry-monitor-connection-auth-probe", connectionId],
+    queryKey: KEYS.monitorConnectionAuthProbe(connectionId),
     queryFn: async () =>
       isConnectionAuthenticated({
         url: `/mcp/${connectionId}`,
