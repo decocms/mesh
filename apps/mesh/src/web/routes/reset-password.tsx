@@ -68,11 +68,7 @@ export default function ResetPasswordRoute() {
         <div className="mx-auto w-full min-w-[400px] max-w-md grid gap-6 bg-card p-10 border border-primary-foreground/20">
           {/* Logo */}
           <div className="flex justify-center">
-            <img
-              src="/logos/deco logo.svg"
-              alt="Deco"
-              className="h-12 w-12"
-            />
+            <img src="/logos/deco logo.svg" alt="Deco" className="h-12 w-12" />
           </div>
 
           {/* Header */}

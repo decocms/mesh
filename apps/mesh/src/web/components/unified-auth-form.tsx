@@ -78,9 +78,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
         redirectTo: "/reset-password",
       });
       if (result.error) {
-        throw new Error(
-          result.error.message || "Failed to send reset email",
-        );
+        throw new Error(result.error.message || "Failed to send reset email");
       }
       return result;
     },

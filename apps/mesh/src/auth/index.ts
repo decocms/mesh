@@ -145,9 +145,7 @@ if (
 
 // Configure password reset emails if provider is set
 let sendResetPassword:
-  | NonNullable<
-      BetterAuthOptions["emailAndPassword"]
-    >["sendResetPassword"]
+  | NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"]
   | undefined = undefined;
 
 export let resetPasswordEnabled = false;
