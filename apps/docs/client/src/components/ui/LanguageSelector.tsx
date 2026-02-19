@@ -58,7 +58,9 @@ export function LanguageSelector({
           <Icon
             name="ChevronDown"
             size={12}
-            className={disabled ? "text-muted opacity-50" : "text-muted-foreground"}
+            className={
+              disabled ? "text-muted opacity-50" : "text-muted-foreground"
+            }
           />
         </div>
       </div>
@@ -71,7 +73,11 @@ export function LanguageSelector({
       value={disabled ? "en" : locale}
       icon="Languages"
       className={className}
-      selectClassName={disabled ? "text-muted opacity-50 cursor-not-allowed" : "text-muted-foreground"}
+      selectClassName={
+        disabled
+          ? "text-muted opacity-50 cursor-not-allowed"
+          : "text-muted-foreground"
+      }
       onChange={handleChange}
       disabled={disabled}
     />
