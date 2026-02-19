@@ -181,8 +181,7 @@ export const ConnectionCreateDataSchema = ConnectionEntitySchema.omit({
     metadata: true,
   })
   .extend({
-    // Override icon to make it truly optional (not nullable)
-    icon: z.string().optional(),
+    icon: z.string().nullish(),
   });
 
 export type ConnectionCreateData = z.infer<typeof ConnectionCreateDataSchema>;

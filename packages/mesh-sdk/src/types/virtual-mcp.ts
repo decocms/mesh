@@ -98,7 +98,7 @@ export const VirtualMCPCreateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("Optional description"),
-  icon: z.string().optional().describe("Optional icon URL"),
+  icon: z.string().nullish().describe("Optional icon URL"),
   status: z
     .enum(["active", "inactive"])
     .optional()
