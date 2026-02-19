@@ -17,7 +17,7 @@ type NavItem = {
   label: string;
   count?: number;
   icon: ComponentType<{ size?: number; className?: string }>;
-  tab: "items" | "requests" | "monitor" | "settings";
+  tab: "items" | "requests" | "qa" | "settings";
 };
 
 function HeaderTabs({
@@ -104,7 +104,7 @@ export default function RegistryLayout() {
           },
         ]
       : []),
-    { id: "monitor", label: "Monitor", icon: Tool02, tab: "monitor" },
+    { id: "qa", label: "QA", icon: Tool02, tab: "qa" },
     { id: "settings", label: "Settings", icon: Settings01, tab: "settings" },
   ];
 
@@ -148,7 +148,7 @@ export default function RegistryLayout() {
         {activeTab === "requests" && acceptPublishRequests && (
           <RegistryRequestsPage />
         )}
-        {activeTab === "monitor" && <RegistryMonitorPage />}
+        {activeTab === "qa" && <RegistryMonitorPage />}
         {activeTab === "settings" && (
           <RegistrySettingsPage
             key={settingsKey}
