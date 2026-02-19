@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Logo } from "../../components/atoms/Logo.tsx";
-import { Icon } from "../../components/atoms/Icon.tsx";
-import { LanguageSelector } from "./LanguageSelector.tsx";
-import { ThemeToggle } from "./ThemeToggle.tsx";
+import { navigate } from "astro:transitions/client";
+import { Logo } from "../../components/atoms/Logo";
+import { Icon } from "../../components/atoms/Icon";
+import { LanguageSelector } from "./LanguageSelector";
+import { ThemeToggle } from "./ThemeToggle";
 
 // GitHub Stars Component
 function GitHubStars() {
@@ -50,6 +51,73 @@ function GitHubStars() {
   );
 }
 
+// Version Selector Component
+function VersionSelector({
+  currentVersion: initialVersion,
+  onVersionChange,
+}: {
+  currentVersion: string;
+  onVersionChange: (version: string) => void;
+}) {
+  // Read version from URL dynamically on client side
+  const [currentVersion, setCurrentVersion] = useState(initialVersion);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const version = params.get("version") || "latest";
+      setCurrentVersion(version);
+      onVersionChange(version);
+    };
+
+    // Listen for URL changes (for browser back/forward)
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only setup listener once
+
+  const versions = [
+    {
+      id: "latest",
+      label: "Latest (Stable)",
+      description: "Current production docs",
+    },
+    { id: "draft", label: "Draft", description: "In-progress documentation" },
+  ];
+
+  const handleVersionChange = (newVersion: string) => {
+    if (newVersion === currentVersion) return;
+
+    setCurrentVersion(newVersion);
+    onVersionChange(newVersion);
+  };
+
+  return (
+    <div className="border-b border-divider px-4 lg:px-8 py-3">
+      <label className="block text-xs font-medium text-muted mb-1.5">
+        Documentation Version
+      </label>
+      <select
+        value={currentVersion}
+        onChange={(e) => handleVersionChange(e.target.value)}
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm cursor-pointer hover:border-accent transition-colors"
+        aria-label="Select documentation version"
+      >
+        {versions.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.label}
+          </option>
+        ))}
+      </select>
+      <p className="text-xs text-muted mt-1">
+        {versions.find((v) => v.id === currentVersion)?.description}
+      </p>
+    </div>
+  );
+}
+
 interface DocData {
   title?: string;
   icon?: string;
@@ -76,6 +144,7 @@ interface SidebarProps {
   tree: FlatNode[];
   locale: string;
   translations: Record<string, string>;
+  currentVersion: string;
 }
 
 interface TreeItemProps {
@@ -85,6 +154,7 @@ interface TreeItemProps {
   onToggle: (folderId: string) => void;
   locale: string;
   translations: Record<string, string>;
+  version: string;
 }
 
 function TreeItem({
@@ -94,6 +164,7 @@ function TreeItem({
   onToggle,
   locale,
   translations,
+  version,
 }: TreeItemProps) {
   if (!isVisible) return null;
 
@@ -106,18 +177,21 @@ function TreeItem({
 
     const currentPath = window.location.pathname;
     const docId = node.doc?.id;
-    const docPath = docId ? docId.split("/").slice(1).join("/") : null;
-    const itemPath = `/${locale}/${docPath ?? node.path.join("/")}`;
+    // docId is now version/locale/path, skip first 2 parts
+    const docPath = docId ? docId.split("/").slice(2).join("/") : null;
+    const itemPath = `/${version}/${locale}/${docPath ?? node.path.join("/")}`;
 
     setActive(currentPath === itemPath);
-  }, [node.type, node.doc?.id, node.path, locale]);
+  }, [node.type, node.doc?.id, node.path, locale, version]);
 
   const docId = node.doc?.id;
-  const docPath = docId ? docId.split("/").slice(1).join("/") : null;
+  // docId is now version/locale/path, skip first 2 parts
+  const docPath = docId ? docId.split("/").slice(2).join("/") : null;
 
+  // Build href with version prefix
   const href =
     node.type === "file"
-      ? `/${locale}/${docPath ?? node.path.join("/")}`
+      ? `/${version}/${locale}/${docPath ?? node.path.join("/")}`
       : null;
 
   // A node should be collapsible if it has children, regardless of whether it's a file or folder
@@ -230,6 +304,7 @@ interface TreeListProps {
   onToggle: (folderId: string) => void;
   locale: string;
   translations: Record<string, string>;
+  version: string;
 }
 
 function TreeList({
@@ -238,6 +313,7 @@ function TreeList({
   onToggle,
   locale,
   translations,
+  version,
 }: TreeListProps) {
   const isNodeVisible = (node: FlatNode): boolean => {
     if (node.depth === 0) return true;
@@ -294,6 +370,7 @@ function TreeList({
               onToggle={onToggle}
               locale={locale}
               translations={translations}
+              version={version}
             />
           </React.Fragment>
         );
@@ -302,7 +379,25 @@ function TreeList({
   );
 }
 
-export default function Sidebar({ tree, locale, translations }: SidebarProps) {
+// No filtering needed - separate content folders per version
+
+export default function Sidebar({
+  tree,
+  locale,
+  translations,
+  currentVersion,
+}: SidebarProps) {
+  // Version state for URL-based navigation
+  const [version, setVersion] = useState(currentVersion);
+
+  // Handle version change by navigating to new URL
+  const handleVersionChange = (newVersion: string) => {
+    const currentPath = window.location.pathname;
+    // Replace version in path: /latest/en/... -> /draft/en/...
+    const newPath = currentPath.replace(`/${version}/`, `/${newVersion}/`);
+    navigate(newPath);
+  };
+
   // Initialize with default state (same on server and client for hydration match)
   const [treeState, setTreeState] = useState<Map<string, boolean>>(() => {
     const initialState = new Map();
@@ -408,6 +503,12 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
         <ThemeToggle />
       </div>
 
+      {/* Version Selector */}
+      <VersionSelector
+        currentVersion={version}
+        onVersionChange={handleVersionChange}
+      />
+
       {/* Language Select - hidden on mobile */}
       <div className="hidden lg:block px-4 lg:px-8 py-4 shrink-0">
         <LanguageSelector locale={locale} />
@@ -421,6 +522,7 @@ export default function Sidebar({ tree, locale, translations }: SidebarProps) {
           onToggle={handleFolderToggle}
           locale={locale}
           translations={translations}
+          version={version}
         />
       </div>
 
