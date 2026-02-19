@@ -134,7 +134,7 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .nullable()
     .optional()
     .describe("New description (null to clear)"),
-  icon: z.string().optional().describe("New icon URL"),
+  icon: z.string().nullish().describe("New icon URL"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
   metadata: z
     .object({
