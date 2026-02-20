@@ -46,7 +46,7 @@ import {
   type TiptapInputHandle,
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
-import { UsageStats } from "./usage-stats";
+import { ThreadUsageStats } from "./usage-stats";
 
 // ============================================================================
 // DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
@@ -384,7 +384,7 @@ export function ChatInput() {
                       disabled={isStreaming}
                     />
                   )}
-                  <UsageStats usage={usage} />
+                  <ThreadUsageStats usage={usage} />
                   {contextWindow && lastTotalTokens > 0 && (
                     <ContextWindow
                       totalTokens={lastTotalTokens}

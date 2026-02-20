@@ -14,7 +14,7 @@ import type { ToolUIPart } from "ai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { MemoizedMarkdown } from "../markdown.tsx";
 import type { ChatMessage } from "../types.ts";
-import { UsageStats } from "../usage-stats.tsx";
+import { MessageUsageStats } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import {
   GenericToolCallPart,
@@ -407,7 +407,7 @@ export function MessageAssistant({
                 key={`${message.id}-${index}`}
                 part={part}
                 id={message.id}
-                usageStats={isLastPart && <UsageStats usage={usage} />}
+                usageStats={isLastPart && <MessageUsageStats usage={usage} />}
                 dataParts={dataParts}
               />
             );
