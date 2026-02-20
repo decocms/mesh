@@ -367,7 +367,7 @@ export const pluginSidebarGroups: {
   pluginId: string;
   id: string;
   label: string;
-  items: { icon: ReactNode; label: string }[];
+  items: { icon: ReactNode; label: string; path?: string }[];
   defaultExpanded?: boolean;
 }[] = [];
 

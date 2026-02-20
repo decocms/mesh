@@ -193,20 +193,18 @@ export function useProjectSidebarItems(): SidebarSection[] {
       group: {
         id: `${group.pluginId}-${group.id}`,
         label: group.label,
-        items: group.items.map((item, index) => ({
-          key: `${group.pluginId}-${group.id}-${index}`,
-          label: item.label,
-          icon: item.icon,
-          onClick: () =>
-            navigate({
-              to: "/$org/$project/$pluginId",
-              params: {
-                org,
-                project,
-                pluginId: group.pluginId,
-              },
-            }),
-        })),
+        items: group.items.map((item, index) => {
+          const subPath = item.path && item.path !== "/" ? item.path : "";
+          return {
+            key: `${group.pluginId}-${group.id}-${index}`,
+            label: item.label,
+            icon: item.icon,
+            onClick: () =>
+              navigate({
+                to: `/${org}/${project}/${group.pluginId}${subPath}`,
+              }),
+          };
+        }),
         defaultExpanded: group.defaultExpanded ?? true,
       },
     }),

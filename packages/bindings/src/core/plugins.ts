@@ -16,6 +16,8 @@ export interface ToolViewItem {
 export interface RegisterRootSidebarItemParams {
   icon: ReactNode;
   label: string;
+  /** Sub-path within the plugin (e.g. "/sections"). Defaults to "/" (plugin root). */
+  path?: string;
 }
 
 export interface RegisterSidebarGroupParams {
