@@ -65,7 +65,18 @@ export type CriterionItem = z.infer<typeof CriterionItemSchema>;
  */
 export const RankedListRowSchema = z.object({
   position: z.number().describe("Current rank position"),
-  delta: z.number().describe("Change in position"),
+  reference_position: z
+    .number()
+    .optional()
+    .describe(
+      "Previous rank position before reordering. Used to compute delta automatically (delta = reference_position - position).",
+    ),
+  delta: z
+    .number()
+    .optional()
+    .describe(
+      "Explicit change in position. Ignored when reference_position is provided.",
+    ),
   label: z.string().describe("Item name"),
   image: z.string().describe("URL of the item image"),
   values: z

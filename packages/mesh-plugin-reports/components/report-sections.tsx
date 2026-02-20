@@ -296,6 +296,10 @@ function RankedListSection({
               const isExpanded = expanded[rowIdx] ?? false;
               const hasNote = Boolean(row.note);
               const isHighlighted = hasNote;
+              const delta =
+                row.reference_position !== undefined
+                  ? row.reference_position - row.position
+                  : (row.delta ?? 0);
 
               return (
                 <>
@@ -315,7 +319,7 @@ function RankedListSection({
 
                     {/* Delta */}
                     <TableCell>
-                      <DeltaBadge delta={row.delta} />
+                      <DeltaBadge delta={delta} />
                     </TableCell>
 
                     {/* Product */}
