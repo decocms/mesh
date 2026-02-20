@@ -6,7 +6,7 @@
  */
 
 import { Chat, useChat } from "@/web/components/chat/index";
-import { ThreadsSidebar } from "@/web/components/chat/threads-sidebar.tsx";
+import { TasksPanel } from "@/web/components/chat/tasks-panel";
 import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
@@ -15,24 +15,11 @@ import { Page } from "@/web/components/page";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
-import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import {
-  ClockRewind,
-  MessageChatSquare,
-  Pin01,
-  Plus,
-  Share07,
-  Users03,
-} from "@untitledui/icons";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
+import { MessageChatSquare, Users03 } from "@untitledui/icons";
+import { Suspense } from "react";
 
 /**
  * Get time-based greeting
@@ -54,13 +41,10 @@ function HomeContent() {
     modelsConnections,
     isChatEmpty,
     activeThreadId,
-    createThread,
-    switchToThread,
     threads,
     selectedVirtualMcp,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
-  const [isThreadsSidebarOpen, setIsThreadsSidebarOpen] = useState(false);
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
@@ -72,157 +56,81 @@ function HomeContent() {
   // Show empty state when no LLM binding is found
   if (modelsConnections.length === 0) {
     return (
-      <div className="flex flex-col size-full bg-background items-center justify-center">
-        <Chat.NoLlmBindingEmptyState org={org} />
+      <div className="flex size-full">
+        <TasksPanel />
+        <div className="flex flex-col flex-1 min-w-0 bg-background items-center justify-center">
+          <Chat.NoLlmBindingEmptyState org={org} />
+        </div>
       </div>
     );
   }
 
   return (
-    <Chat className="bg-background">
-      <Page.Header className="flex-none z-10 bg-background">
-        <Page.Header.Left className="gap-2">
-          {activeThread?.title && (
-            <TypewriterTitle
-              text={activeThread.title}
-              className="text-sm font-medium text-foreground"
-            />
-          )}
-        </Page.Header.Left>
-        <Page.Header.Right className="gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                onClick={() => createThread()}
-                disabled={isChatEmpty}
-                aria-label="New chat"
-              >
-                <Plus size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New chat</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                onClick={() => setIsThreadsSidebarOpen(true)}
-                aria-label="Chat history"
-              >
-                <ClockRewind size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Chat history</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                onClick={() => {
-                  // TODO: Implement thread pinning functionality
-                  toast.info("Pin feature coming soon");
-                }}
-                disabled={isChatEmpty}
-                aria-label="Pin chat"
-              >
-                <Pin01 size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Pin chat</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7 border border-input"
-                onClick={() => {
-                  // TODO: Implement share functionality
-                  toast.info("Share feature coming soon");
-                }}
-                disabled={isChatEmpty}
-                aria-label="Share chat"
-              >
-                <Share07 size={16} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Share chat</TooltipContent>
-          </Tooltip>
-        </Page.Header.Right>
-      </Page.Header>
-
-      {!isChatEmpty ? (
-        <>
-          <Chat.Main>
-            <Chat.Messages />
-          </Chat.Main>
-          <Chat.Footer>
-            <Chat.Input />
-          </Chat.Footer>
-        </>
-      ) : (
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
-          <div className="flex flex-col items-center gap-3 w-full max-w-[600px]">
-            {/* Agent Image */}
-            <div className="flex justify-center">
-              <IntegrationIcon
-                icon={displayAgent.icon}
-                name={displayAgent.title}
-                size="md"
-                fallbackIcon={<Users03 size={20} />}
-                className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
+    <div className="flex size-full">
+      <TasksPanel />
+      <Chat className="flex-1 min-w-0 bg-background">
+        <Page.Header className="flex-none z-10 bg-background">
+          <Page.Header.Left className="gap-2">
+            {activeThread?.title && (
+              <TypewriterTitle
+                text={activeThread.title}
+                className="text-sm font-medium text-foreground"
               />
-            </div>
+            )}
+          </Page.Header.Left>
+          <Page.Header.Right />
+        </Page.Header>
 
-            {/* Greeting */}
-            <div className="text-center">
-              <p className="text-lg font-medium text-foreground">
-                {greeting} {userName},
-              </p>
-              <p className="text-base text-muted-foreground opacity-50 mb-0">
-                What are we building today?
-              </p>
-            </div>
-
-            {/* Chat Input */}
-            <div className="w-full -mt-1">
+        {!isChatEmpty ? (
+          <>
+            <Chat.Main>
+              <Chat.Messages />
+            </Chat.Main>
+            <Chat.Footer>
               <Chat.Input />
+            </Chat.Footer>
+          </>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
+            <div className="flex flex-col items-center gap-3 w-full max-w-[600px]">
+              {/* Agent Image */}
+              <div className="flex justify-center">
+                <IntegrationIcon
+                  icon={displayAgent.icon}
+                  name={displayAgent.title}
+                  size="md"
+                  fallbackIcon={<Users03 size={20} />}
+                  className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
+                />
+              </div>
+
+              {/* Greeting */}
+              <div className="text-center">
+                <p className="text-lg font-medium text-foreground">
+                  {greeting} {userName},
+                </p>
+                <p className="text-base text-muted-foreground opacity-50 mb-0">
+                  What are we building today?
+                </p>
+              </div>
+
+              {/* Chat Input */}
+              <div className="w-full -mt-1">
+                <Chat.Input />
+              </div>
+
+              {/* Ice breakers for selected agent */}
+              <Chat.IceBreakers className="w-full" />
             </div>
 
-            {/* Ice breakers for selected agent */}
-            <Chat.IceBreakers className="w-full" />
+            {/* Agents List - Separate container to allow wider width */}
+            <div className="flex flex-col items-center w-full mt-4">
+              <AgentsList />
+            </div>
           </div>
-
-          {/* Agents List - Separate container to allow wider width */}
-          <div className="flex flex-col items-center w-full mt-4">
-            <AgentsList />
-          </div>
-        </div>
-      )}
-
-      {/* Threads Sidebar */}
-      <ThreadsSidebar
-        open={isThreadsSidebarOpen}
-        onOpenChange={setIsThreadsSidebarOpen}
-        threads={threads}
-        activeThreadId={activeThreadId}
-        onThreadSelect={async (threadId) => {
-          await switchToThread(threadId);
-          setIsThreadsSidebarOpen(false);
-        }}
-      />
-    </Chat>
+        )}
+      </Chat>
+    </div>
   );
 }
 

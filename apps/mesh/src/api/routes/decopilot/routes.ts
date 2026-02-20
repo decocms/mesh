@@ -39,6 +39,7 @@ import {
 } from "./model-permissions";
 import { createModelProviderFromClient } from "./model-provider";
 import { StreamRequestSchema } from "./schemas";
+import { generateDescriptionInBackground } from "./description-generator";
 import { resolveThreadStatus } from "./status";
 import { genTitle } from "./title-generator";
 import type { ChatMessage } from "./types";
@@ -412,6 +413,36 @@ app.post("/:org/decopilot/stream", async (c) => {
                     error,
                   );
                 });
+
+              // Generate description from assistant response (fire-and-forget)
+              const assistantText = (responseMessage?.parts ?? [])
+                .filter(
+                  (p): p is { type: "text"; text: string } =>
+                    "type" in p && p.type === "text" && "text" in p,
+                )
+                .map((p) => p.text)
+                .join(" ")
+                .trim();
+
+              if (assistantText) {
+                generateDescriptionInBackground({
+                  model: modelProvider.fastModel ?? modelProvider.thinkingModel,
+                  assistantText,
+                })
+                  .then(async (description) => {
+                    if (description) {
+                      await ctx.storage.threads.update(mem.thread.id, {
+                        description,
+                      });
+                    }
+                  })
+                  .catch((error) => {
+                    console.error(
+                      "[decopilot:stream] Error generating description",
+                      error,
+                    );
+                  });
+              }
             },
           }),
         );

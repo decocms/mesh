@@ -6,7 +6,7 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { ClockRewind, Plus, Users03, X } from "@untitledui/icons";
+import { CheckDone01, Plus, Users03, X } from "@untitledui/icons";
 import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
@@ -22,7 +22,6 @@ function ChatPanelContent() {
     isChatEmpty,
     activeThreadId,
     createThread,
-    switchToThread,
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
@@ -115,9 +114,9 @@ function ChatPanelContent() {
               type="button"
               onClick={() => setShowThreadsOverlay(true)}
               className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
-              title="Chat history"
+              title="Tasks"
             >
-              <ClockRewind
+              <CheckDone01
                 size={16}
                 className="text-muted-foreground group-hover:text-foreground transition-colors"
               />
@@ -169,7 +168,7 @@ function ChatPanelContent() {
         </Chat.Footer>
       </div>
 
-      {/* Threads view */}
+      {/* Tasks view */}
       <div
         className={cn(
           "absolute inset-0 flex flex-col transition-all duration-300 ease-in-out",
@@ -178,12 +177,7 @@ function ChatPanelContent() {
             : "opacity-0 translate-x-4 pointer-events-none",
         )}
       >
-        <ThreadsView
-          threads={threads}
-          activeThreadId={activeThreadId}
-          onThreadSelect={switchToThread}
-          onClose={() => setShowThreadsOverlay(false)}
-        />
+        <ThreadsView onClose={() => setShowThreadsOverlay(false)} />
       </div>
     </Chat>
   );
