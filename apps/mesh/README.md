@@ -90,10 +90,10 @@ brew install nats-server
 # Other platforms — see https://docs.nats.io/running-a-nats-service/introduction/installation
 ```
 
-**Start NATS (from the repo root):**
+**Start NATS:**
 
 ```bash
-bun run nats
+nats-server
 ```
 
 **Add to your `.env` file:**
