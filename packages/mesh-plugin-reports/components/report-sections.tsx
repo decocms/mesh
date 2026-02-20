@@ -26,7 +26,7 @@ import {
   Minus,
   Rows03,
 } from "@untitledui/icons";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -302,11 +302,8 @@ function RankedListSection({
                   : (row.delta ?? 0);
 
               return (
-                <>
-                  <TableRow
-                    key={`row-${rowIdx}`}
-                    className={cn(isHighlighted && "bg-muted/25")}
-                  >
+                <Fragment key={rowIdx}>
+                  <TableRow className={cn(isHighlighted && "bg-muted/25")}>
                     {/* Position */}
                     <TableCell>
                       <div className="flex items-center gap-1 opacity-50">
@@ -392,7 +389,7 @@ function RankedListSection({
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </TableBody>
