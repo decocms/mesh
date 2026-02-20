@@ -113,8 +113,20 @@ export function createEventBus(
   let notifyStrategy;
   switch (strategyName) {
     case "nats": {
-      const natsUrl = process.env.NATS_URL ?? "nats://localhost:4222";
-      console.log(`[EventBus] Using NATS notify strategy (${natsUrl})`);
+      const natsUrl = process.env.NATS_URL;
+      if (!natsUrl) {
+        throw new Error(
+          "[EventBus] NOTIFY_STRATEGY=nats requires NATS_URL to be set",
+        );
+      }
+      const natsHost = (() => {
+        try {
+          return new URL(natsUrl).host;
+        } catch {
+          return "unknown";
+        }
+      })();
+      console.log(`[EventBus] Using NATS notify strategy (${natsHost})`);
       notifyStrategy = compose(
         polling,
         new NatsNotifyStrategy({ servers: natsUrl }),
