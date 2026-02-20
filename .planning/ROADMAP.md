@@ -39,21 +39,23 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 - [ ] **Phase 15: local-dev daemon** - MCP server for local filesystem, object storage, git, and dev server management
 - [ ] **Phase 16: plugin-deco-blocks** - Standalone deco blocks framework: scanners, DECO_BLOCKS_BINDING, Claude skill
 - [ ] **Phase 17: site-editor plugin** - Full site editor UI with visual composer and git UX
-- [ ] **Phase 18: local-setup** - Zero-config `npx @decocms/mesh ./folder` experience
+- [ ] **Phase 18: deco link command** - `deco link ./folder` in packages/cli connects local project to Mesh
 
 ## Phase Details
 
 ### Phase 15: local-dev daemon
-**Goal**: Developers can point local-dev at any folder and get a fully-featured MCP server covering filesystem, object storage, git, and dev server management — all runnable as a daemon from a single command
+**Goal**: Developers can point local-dev at any folder and get a fully-featured MCP server covering filesystem, object storage, and unrestricted bash execution — all runnable as a daemon from a single command
 **Depends on**: Nothing (standalone package, no mesh UI changes)
-**Requirements**: LDV-01, LDV-02, LDV-03, LDV-04, LDV-05, LDV-06, LDV-07, LDV-08, LDV-09
+**Requirements**: LDV-01, LDV-02, LDV-03, LDV-04, LDV-05, LDV-06, LDV-07
 **Success Criteria** (what must be TRUE):
   1. Developer runs a single command pointing at a folder and gets a running MCP daemon — no config files required
   2. Mesh (or any MCP client) can call filesystem tools: read, write, edit, list, tree, search, delete, copy — all scoped to the target folder
-  3. Mesh can call OBJECT_STORAGE_BINDING tools (LIST_OBJECTS, GET/PUT_PRESIGNED_URL, DELETE_OBJECT, GET_ROOT) and they resolve to local files
-  4. Mesh can call git tools (GIT_STATUS, GIT_DIFF, GIT_LOG, GIT_SHOW, GIT_CHECKOUT, GIT_COMMIT) against the folder's git repository
-  5. Dev server spawns on request, its stdout/stderr streams live over SSE, and the daemon forwards SIGTERM cleanly on shutdown
+  3. Mesh can call OBJECT_STORAGE_BINDING tools (LIST_OBJECTS, GET/PUT_PRESIGNED_URL, DELETE_OBJECT, GET_ROOT) and they resolve to local files with an embedded HTTP server for presigned URLs
+  4. Mesh can run any bash command scoped to the project folder (git, bun, deno, arbitrary scripts) — unrestricted, like Claude Code's bash tool
+  5. Daemon responds to `/_ready`, forwards SIGTERM cleanly, and streams filesystem change events via SSE `/watch`
 **Plans**: TBD
+
+> **Amended 2026-02-20:** Removed git-specific tools (superseded by bash tool). Removed dev server management as separate feature (covered by bash). Added unrestricted bash execution.
 
 ### Phase 16: plugin-deco-blocks
 **Goal**: A standalone package exports block/loader/section scanners, defines DECO_BLOCKS_BINDING, and ships the canonical framework documentation and Claude skill — ready to be consumed by site-editor and any future tool
@@ -78,16 +80,19 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
   5. User can view the git history for a page, see a diff preview per commit, and revert to any previous commit with a confirmation dialog
 **Plans**: TBD
 
-### Phase 18: local-setup
-**Goal**: A developer can run `npx @decocms/mesh ./my-folder` and land in a fully configured Mesh project with browser open and already logged in — no manual configuration, no separate commands
+### Phase 18: deco link command
+**Goal**: A developer can run `deco link ./my-folder` (from the existing deco-cli) and immediately see their local project in a running Mesh instance — browser opens, project ready, no manual wiring
 **Depends on**: Phase 15 (local-dev daemon), Phase 17 (site-editor plugin for auto-enable detection)
-**Requirements**: LSP-01, LSP-02, LSP-03, LSP-04, LSP-05, LSP-06, LSP-07
+**Requirements**: LNK-01, LNK-02, LNK-03, LNK-04, LNK-05, LNK-06, LNK-07, LNK-08
 **Success Criteria** (what must be TRUE):
-  1. Running `npx @decocms/mesh ./my-folder` with no prior setup creates the admin account, default org, and a project wired to local-dev for that folder — then opens the browser already logged in
-  2. If the folder is a deco site, the site-editor plugin is automatically enabled on the project and the user lands on the site editor view
-  3. Running the same command again on an existing setup reuses the existing project and opens the browser — nothing is duplicated or reset
-  4. Running `npx @decocms/mesh` with no folder argument opens Mesh to a landing page explaining how to link a local project
+  1. Running `deco link ./my-folder` starts local-dev, registers it as a Connection in Mesh, creates a Project, and opens the browser to the project — already logged in
+  2. If the folder is a deco site (`.deco/` present), the site-editor plugin is automatically enabled and the user lands on the site editor
+  3. Running the same command again on an existing setup reuses the existing Connection and Project — nothing is duplicated
+  4. Pressing Ctrl+C shuts down local-dev cleanly — the project goes offline in Mesh
+  5. The Mesh URL is configurable so the same `deco link` command can target a remote Mesh instance (tunnel wiring deferred to v1.4, but the config surface is ready)
 **Plans**: TBD
+
+> **Amended 2026-02-20:** Replaced `npx @decocms/mesh ./folder` with `deco link` in packages/cli (deco-cli). CLI is the portable piece — Mesh can be local or remote. Auto-setup (admin/admin) remains needed for local Mesh but lives in Mesh startup, not in the CLI.
 
 ## Progress
 
@@ -98,4 +103,4 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 | 15. local-dev daemon | v1.3 | 0/? | Not started | - |
 | 16. plugin-deco-blocks | v1.3 | 0/? | Not started | - |
 | 17. site-editor plugin | v1.3 | 0/? | Not started | - |
-| 18. local-setup | v1.3 | 0/? | Not started | - |
+| 18. deco link command | v1.3 | 0/? | Not started | - |

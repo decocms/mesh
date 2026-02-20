@@ -43,8 +43,13 @@ Recent decisions affecting current work:
 - local-dev lives in mesh monorepo as packages/local-dev/ (not in mcps/ companion repo)
 - plugin-deco-blocks is separate from site-editor so other tools can consume it too
 - site-editor checks connection capabilities at runtime — does not directly depend on local-dev package
-- Dev server management (spawn + SSE log stream) is in scope for Phase 15 v1 (confirmed by user)
-- Zero-config auto-opens browser on first run (best DX)
+- **AMENDED**: Git tools removed from local-dev — bash tool (unrestricted) covers git + dev server + everything
+- **AMENDED**: Entry point is `deco link` in packages/cli (deco-cli), not `npx @decocms/mesh`
+- **AMENDED**: CLI is portable/separate from Mesh — Mesh can be local or remote (tunnel = v1.4)
+- **AMENDED**: Projects as virtual MCPs with local proxy deferred to v1.4
+- Bash tool is unrestricted, scoped to project folder — like Claude Code's bash
+- deco-cli (packages/cli) already exists with login; `deco link` is a new command added to it
+- Browser auto-opens on `deco link` (best DX, confirmed)
 
 ### Pending Todos
 
