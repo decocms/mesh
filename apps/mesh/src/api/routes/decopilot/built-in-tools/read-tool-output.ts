@@ -42,13 +42,7 @@ export function createReadToolOutputTool(params: ReadToolOutputParams) {
           `Tool output not found for tool call id: ${tool_call_id}`,
         );
       }
-      const input = toolOutputMap.get(tool_call_id);
-
-      if (!input) {
-        throw new Error(
-          `Tool output not found for tool call id: ${tool_call_id}`,
-        );
-      }
+      const input = toolOutputMap.get(tool_call_id)!;
 
       const result = await runTransform({
         input,
