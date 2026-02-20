@@ -136,12 +136,12 @@ export function createSubtaskTool(
       );
 
       // ── 3. Load tools, excluding ones that shouldn't nest ──────────
-      const subagentToolOutputMap = new Map<string, string>();
       const mcpTools = await toolsFromMCP(
         mcpClient,
-        subagentToolOutputMap,
+        new Map(),
         writer,
         "yolo",
+        { disableOutputTruncation: true },
       );
       const subagentTools = Object.fromEntries(
         Object.entries(mcpTools).filter(

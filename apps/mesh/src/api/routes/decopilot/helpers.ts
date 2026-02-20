@@ -67,7 +67,9 @@ export async function toolsFromMCP(
   toolOutputMap: Map<string, string>,
   writer?: UIMessageStreamWriter,
   toolApprovalLevel: ToolApprovalLevel = "none",
+  options?: { disableOutputTruncation?: boolean },
 ): Promise<ToolSet> {
+  const truncate = !options?.disableOutputTruncation;
   const list = await client.listTools();
 
   const toolEntries = list.tools.map((t) => {
@@ -98,15 +100,6 @@ export async function toolsFromMCP(
                 timeout: MCP_TOOL_CALL_TIMEOUT_MS,
               },
             );
-            const tokens = estimateJsonTokens(
-              result.structuredContent ?? result.content,
-            );
-            if (tokens > 4000) {
-              toolOutputMap.set(
-                options.toolCallId,
-                JSON.stringify(result.structuredContent ?? result.content),
-              );
-            }
             return result as unknown as CallToolResult;
           } finally {
             if (writer) {
@@ -123,14 +116,21 @@ export async function toolsFromMCP(
           }
         },
         toModelOutput: async ({ output, toolCallId }) => {
-          const tokens = estimateJsonTokens(
-            output.structuredContent ?? output.content,
-          );
-          if (tokens > 4000) {
-            return {
-              type: "text",
-              value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool`,
-            };
+          if (truncate) {
+            const tokens = estimateJsonTokens(
+              output.structuredContent ?? output.content,
+            );
+            if (tokens > 4000) {
+              toolOutputMap.set(
+                toolCallId,
+                JSON.stringify(output.structuredContent ?? output.content),
+              );
+
+              return {
+                type: "text",
+                value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool`,
+              };
+            }
           }
           if (output.isError) {
             const textContent = output.content

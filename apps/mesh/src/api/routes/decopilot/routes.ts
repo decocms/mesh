@@ -260,9 +260,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       );
 
     const toolOutputMap = new Map<string, string>();
-    allTools.flat().forEach(({ id, output }) => {
-      toolOutputMap.set(id, output);
-    });
     // 4. Create stream with writer access for data parts
     // IMPORTANT: Do NOT pass onFinish/onStepFinish to createUIMessageStream when
     // using writer.merge with toUIMessageStream that has originalMessages.
