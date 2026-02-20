@@ -303,7 +303,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     
     // Require authentication (user session or API key)
     const user = ctx.auth.user;
-    if(!user) {
+    if (!user) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
