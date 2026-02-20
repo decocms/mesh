@@ -110,6 +110,44 @@ function reportToMarkdown(report: Report): string {
         lines.push("");
         break;
       }
+
+      case "criteria": {
+        if (section.title) {
+          lines.push(`## ${section.title}`);
+          lines.push("");
+        }
+        for (const item of section.items) {
+          const desc = item.description ? `: ${item.description}` : "";
+          lines.push(`- **${item.label}**${desc}`);
+        }
+        lines.push("");
+        break;
+      }
+
+      case "note": {
+        lines.push(`> ${section.content}`);
+        lines.push("");
+        break;
+      }
+
+      case "ranked-list": {
+        if (section.title) {
+          lines.push(`## ${section.title}`);
+          lines.push("");
+        }
+        const rankCols = ["#", "Item", ...section.columns];
+        lines.push(`| ${rankCols.join(" | ")} |`);
+        lines.push(`| ${rankCols.map(() => "---").join(" | ")} |`);
+        for (const row of section.rows) {
+          const deltaStr =
+            row.delta !== 0 ? ` (${row.delta > 0 ? "+" : ""}${row.delta})` : "";
+          const rankCell = `${row.position}${deltaStr}`;
+          const valueCells = row.values.map((v) => `${v}`).join(" | ");
+          lines.push(`| ${rankCell} | ${row.label} | ${valueCells} |`);
+        }
+        lines.push("");
+        break;
+      }
     }
   }
 
@@ -187,7 +225,7 @@ export default function ReportDetail({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto pb-6">
       {/* Header */}
       <div className="border-b border-border px-6 py-4 space-y-3">
         {/* Breadcrumb + dismiss */}
