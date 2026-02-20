@@ -233,31 +233,6 @@ app.post("/:org/decopilot/stream", async (c) => {
       allSystemMessages,
       windowSize,
     );
-    const allTools = allMessages
-      .filter(
-        (m) =>
-          m.role === "assistant" &&
-          m.parts.some(
-            (p) =>
-              p.type.startsWith("tool-") &&
-              (p as { state?: string }).state === "output-available",
-          ),
-      )
-      .map((m) =>
-        m.parts.filter(
-          (p) =>
-            p.type.startsWith("tool-") &&
-            (p as { state?: string }).state === "output-available",
-        ),
-      )
-      .map((p) =>
-        p.map((ip) => {
-          return {
-            id: (ip as { toolCallId?: string }).toolCallId ?? "",
-            output: (ip as { output?: string }).output ?? "",
-          };
-        }),
-      );
 
     const toolOutputMap = new Map<string, string>();
     // 4. Create stream with writer access for data parts
