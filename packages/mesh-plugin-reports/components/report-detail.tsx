@@ -264,7 +264,7 @@ export default function ReportDetail({
 
       {/* Sections */}
       <div className="flex-1 px-6 py-6 space-y-8">
-        {report.sections.map((section, idx) => (
+        {(report.sections ?? []).map((section, idx) => (
           <ReportSectionRenderer key={idx} section={section} />
         ))}
       </div>
