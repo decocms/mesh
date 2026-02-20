@@ -32,7 +32,8 @@
     "exorcise": "bun run clean && bun install --force",
     "knip": "knip",
     "benchmark": "bun run --cwd=apps/benchmark benchmark",
-    "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick"
+    "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick",
+    "nats": "nats-server"
   },
   "type": "module",
   "workspaces": [

@@ -77,6 +77,41 @@ bun run migrate
 bun run dev
 ```
 
+### Run with NATS (Optional)
+
+By default, the event bus uses polling to wake up workers. For lower latency and better multi-replica coordination, you can run a local [NATS](https://nats.io) server instead.
+
+**Install nats-server:**
+
+```bash
+# macOS
+brew install nats-server
+
+# Other platforms — see https://docs.nats.io/running-a-nats-service/introduction/installation
+```
+
+**Start NATS (from the repo root):**
+
+```bash
+bun run nats
+```
+
+**Set the env var before starting mesh:**
+
+```bash
+NATS_URL=nats://localhost:4222 bun run dev
+```
+
+Or add it to your `.env` file:
+
+```bash
+NATS_URL=nats://localhost:4222
+```
+
+When `NATS_URL` is set, mesh automatically switches to the NATS notify strategy. Polling remains active as a safety net.
+
+---
+
 The server starts at `http://localhost:3000` with:
 - 📋 Health check: `http://localhost:3000/health`
 - 🔐 Auth endpoints: `http://localhost:3000/api/auth/*`
