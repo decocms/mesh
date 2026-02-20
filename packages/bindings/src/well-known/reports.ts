@@ -54,6 +54,9 @@ export type MetricItem = z.infer<typeof MetricItemSchema>;
 export const CriterionItemSchema = z.object({
   label: z.string().describe("Short name of the criterion"),
   description: z.string().optional().describe("Longer explanation"),
+  status: ReportStatusSchema.optional().describe(
+    "Status of this individual criterion (passing/warning/failing/info)",
+  ),
 });
 export type CriterionItem = z.infer<typeof CriterionItemSchema>;
 

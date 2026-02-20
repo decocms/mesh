@@ -225,7 +225,7 @@ export default function ReportDetail({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto pb-6">
       {/* Header */}
       <div className="border-b border-border px-6 py-4 space-y-3">
         {/* Breadcrumb + dismiss */}
