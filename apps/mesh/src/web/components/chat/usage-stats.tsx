@@ -35,7 +35,9 @@ export function UsageStats({ usage }: UsageStatsProps) {
           <span className="text-muted">in</span>
           <span>{inputTokens.toLocaleString()}</span>
           <span className="text-muted">out</span>
-          <span>{outputTokens.toLocaleString()}</span>
+          <span>
+            {(outputTokens - (usage.reasoningTokens ?? 0)).toLocaleString()}
+          </span>
           {cost > 0 && (
             <>
               <span className="text-muted">cost</span>
