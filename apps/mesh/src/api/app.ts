@@ -300,6 +300,12 @@ export async function createApp(options: CreateAppOptions = {}) {
       ctx = await ContextFactory.create(c.req.raw);
       c.set("meshContext", ctx);
     }
+    
+    // Require authentication (user session or API key)
+    const user = ctx.auth.user;
+    if(!user) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
 
     // Get connection URL
     const connection = await ctx.storage.connections.findById(connectionId);
