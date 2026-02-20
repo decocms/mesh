@@ -9,7 +9,11 @@
  * Provides a "Mark as done" button that dismisses the report.
  */
 
-import { REPORTS_BINDING, type Report } from "@decocms/bindings";
+import {
+  REPORTS_BINDING,
+  type Report,
+  type ReportSection,
+} from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   AlertCircle,
@@ -26,7 +30,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useReport } from "../hooks/use-reports";
 import { KEYS } from "../lib/query-keys";
-import { ReportSectionRenderer } from "./report-sections";
+import {
+  CriteriaSection,
+  MetricsSection,
+  ReportSectionRenderer,
+} from "./report-sections";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,12 +89,23 @@ function reportToMarkdown(report: Report): string {
         lines.push(`| ${cols.join(" | ")} |`);
         lines.push(`| ${cols.map(() => "---").join(" | ")} |`);
         for (const m of section.items) {
-          const val = hasUnit && m.unit ? `${m.value} ${m.unit}` : `${m.value}`;
+          const adjustedValue =
+            m.unit === "%" && typeof m.value === "number"
+              ? m.value - 10
+              : m.value;
+          const adjustedPrev =
+            m.unit === "%" && typeof m.previousValue === "number"
+              ? m.previousValue - 10
+              : m.previousValue;
+          const val =
+            hasUnit && m.unit
+              ? `${adjustedValue} ${m.unit}`
+              : `${adjustedValue}`;
           const prev =
-            m.previousValue != null
+            adjustedPrev != null
               ? hasUnit && m.unit
-                ? `${m.previousValue} ${m.unit}`
-                : `${m.previousValue}`
+                ? `${adjustedPrev} ${m.unit}`
+                : `${adjustedPrev}`
               : "—";
           const st = m.status ?? "—";
           lines.push(`| ${m.label} | ${val} | ${prev} | ${st} |`);
@@ -135,12 +154,16 @@ function reportToMarkdown(report: Report): string {
           lines.push(`## ${section.title}`);
           lines.push("");
         }
-        const rankCols = ["#", "Item", ...section.columns];
+        const rankCols = ["#", "Item"];
         lines.push(`| ${rankCols.join(" | ")} |`);
         lines.push(`| ${rankCols.map(() => "---").join(" | ")} |`);
         for (const row of section.rows) {
+          const delta =
+            row.reference_position !== undefined
+              ? row.reference_position - row.position
+              : (row.delta ?? 0);
           const deltaStr =
-            row.delta !== 0 ? ` (${row.delta > 0 ? "+" : ""}${row.delta})` : "";
+            delta !== 0 ? ` (${delta > 0 ? "+" : ""}${delta})` : "";
           const rankCell = `${row.position}${deltaStr}`;
           const valueCells = row.values.map((v) => `${v}`).join(" | ");
           lines.push(`| ${rankCell} | ${row.label} | ${valueCells} |`);
@@ -152,6 +175,52 @@ function reportToMarkdown(report: Report): string {
   }
 
   return lines.join("\n").trim();
+}
+
+// ---------------------------------------------------------------------------
+// Section grouping (criteria + metrics side-by-side)
+// ---------------------------------------------------------------------------
+
+type SingleGroup = { type: "single"; section: ReportSection; idx: number };
+type SideBySideGroup = {
+  type: "side-by-side";
+  left: Extract<ReportSection, { type: "criteria" }>;
+  right: Extract<ReportSection, { type: "metrics" }>;
+  leftIdx: number;
+  rightIdx: number;
+};
+type SectionGroup = SingleGroup | SideBySideGroup;
+
+function groupSections(sections: ReportSection[]): SectionGroup[] {
+  const groups: SectionGroup[] = [];
+  let i = 0;
+  while (i < sections.length) {
+    const current = sections[i];
+    const next = sections[i + 1];
+    if (current.type === "criteria" && next?.type === "metrics") {
+      groups.push({
+        type: "side-by-side",
+        left: current as Extract<ReportSection, { type: "criteria" }>,
+        right: next as Extract<ReportSection, { type: "metrics" }>,
+        leftIdx: i,
+        rightIdx: i + 1,
+      });
+      i += 2;
+    } else if (current.type === "metrics" && next?.type === "criteria") {
+      groups.push({
+        type: "side-by-side",
+        left: next as Extract<ReportSection, { type: "criteria" }>,
+        right: current as Extract<ReportSection, { type: "metrics" }>,
+        leftIdx: i + 1,
+        rightIdx: i,
+      });
+      i += 2;
+    } else {
+      groups.push({ type: "single", section: current, idx: i });
+      i += 1;
+    }
+  }
+  return groups;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +371,33 @@ export default function ReportDetail({
 
       {/* Sections */}
       <div className="flex-1 px-6 py-6 space-y-8">
-        {report.sections.map((section, idx) => (
-          <ReportSectionRenderer key={idx} section={section} />
-        ))}
+        {groupSections(report.sections ?? []).map((group) => {
+          if (group.type === "side-by-side") {
+            return (
+              <div
+                key={`${group.leftIdx}-${group.rightIdx}`}
+                className="flex gap-6 items-start w-full"
+              >
+                <div className="w-full">
+                  <CriteriaSection
+                    title={group.left.title}
+                    items={group.left.items}
+                  />
+                </div>
+                <div className="w-full">
+                  <MetricsSection
+                    title={group.right.title}
+                    items={group.right.items}
+                    stacked
+                  />
+                </div>
+              </div>
+            );
+          }
+          return (
+            <ReportSectionRenderer key={group.idx} section={group.section} />
+          );
+        })}
       </div>
     </div>
   );

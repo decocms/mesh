@@ -82,7 +82,13 @@ export const RankedListRowSchema = z.object({
   values: z
     .array(z.union([z.string(), z.number()]))
     .describe("Values matching columns"),
-  note: z.string().optional().describe("Inline annotation"),
+  note: z
+    .union([
+      z.string(),
+      z.record(z.string(), z.union([z.string(), z.number()])),
+    ])
+    .optional()
+    .describe("Inline annotation or structured key-value metrics"),
 });
 export type RankedListRow = z.infer<typeof RankedListRowSchema>;
 
@@ -120,7 +126,6 @@ export const ReportSectionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("ranked-list"),
     title: z.string().optional().describe("Section title"),
-    columns: z.array(z.string()).describe("Column headers for the values"),
     rows: z.array(RankedListRowSchema).describe("Ranked items"),
   }),
 ]);

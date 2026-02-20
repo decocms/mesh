@@ -19,14 +19,11 @@ import {
   ArrowDown,
   ArrowUp,
   CheckVerified02,
-  ChevronDown,
-  ChevronRight,
   File02,
   Hash02,
   Minus,
   Rows03,
 } from "@untitledui/icons";
-import { Fragment, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -98,17 +95,24 @@ function MetricCard({ metric }: { metric: MetricItem }) {
   );
 }
 
-function MetricsSection({
+export function MetricsSection({
   title,
   items,
+  stacked = false,
 }: {
   title?: string;
   items: MetricItem[];
+  stacked?: boolean;
 }) {
   return (
     <div className="space-y-4">
       {title && <SectionHeader icon={Rows03} title={title} />}
-      <div className="flex gap-4 items-stretch">
+      <div
+        className={cn(
+          "flex gap-4",
+          stacked ? "flex-col items-stretch" : "items-stretch",
+        )}
+      >
         {items.map((metric, i) => (
           <MetricCard key={`${metric.label}-${i}`} metric={metric} />
         ))}
@@ -168,7 +172,7 @@ function TableSection({
 // Criteria Section
 // ---------------------------------------------------------------------------
 
-function CriteriaSection({
+export function CriteriaSection({
   title,
   items,
 }: {
@@ -255,14 +259,19 @@ function DeltaBadge({ delta }: { delta: number }) {
 
 function RankedListSection({
   title,
-  columns,
   rows,
 }: {
   title?: string;
-  columns: string[];
   rows: RankedListRow[];
 }) {
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const noteKeys: string[] = (() => {
+    for (const row of rows) {
+      if (row.note && typeof row.note === "object") {
+        return Object.keys(row.note);
+      }
+    }
+    return [];
+  })();
 
   return (
     <div className="space-y-6">
@@ -280,116 +289,92 @@ function RankedListSection({
               <TableHead className="font-mono text-xs uppercase text-muted-foreground">
                 PRODUTO
               </TableHead>
-              {columns.map((col) => (
+              <TableHead className="font-mono text-xs uppercase text-muted-foreground">
+                SCORE
+              </TableHead>
+              <TableHead className="font-mono text-xs uppercase text-muted-foreground">
+                GRADE
+              </TableHead>
+              {noteKeys.map((key) => (
                 <TableHead
-                  key={col}
+                  key={key}
                   className="font-mono text-xs uppercase text-muted-foreground"
                 >
-                  {col}
+                  {key}
                 </TableHead>
               ))}
-              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row, rowIdx) => {
-              const isExpanded = expanded[rowIdx] ?? false;
-              const hasNote = Boolean(row.note);
-              const isHighlighted = hasNote;
               const delta =
                 row.reference_position !== undefined
                   ? row.reference_position - row.position
                   : (row.delta ?? 0);
+              const noteObj =
+                row.note && typeof row.note === "object" ? row.note : null;
 
               return (
-                <Fragment key={rowIdx}>
-                  <TableRow className={cn(isHighlighted && "bg-muted/25")}>
-                    {/* Position */}
-                    <TableCell>
-                      <div className="flex items-center gap-1 opacity-50">
-                        <Hash02 size={16} className="text-muted-foreground" />
-                        <span className="text-sm font-medium text-muted-foreground tabular-nums">
-                          {row.position}
-                        </span>
-                      </div>
-                    </TableCell>
+                <TableRow key={rowIdx}>
+                  {/* Position */}
+                  <TableCell>
+                    <div className="flex items-center gap-1 opacity-50">
+                      <Hash02 size={16} className="text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground tabular-nums">
+                        {row.position}
+                      </span>
+                    </div>
+                  </TableCell>
 
-                    {/* Delta */}
-                    <TableCell>
-                      <DeltaBadge delta={delta} />
-                    </TableCell>
+                  {/* Delta */}
+                  <TableCell>
+                    <DeltaBadge delta={delta} />
+                  </TableCell>
 
-                    {/* Product */}
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {row.image && (
-                          <img
-                            src={row.image}
-                            alt=""
-                            className="h-12 w-8 object-cover rounded-sm shrink-0 bg-muted"
-                          />
-                        )}
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {row.label}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* Values */}
-                    {row.values.map((val, cellIdx) => (
-                      <TableCell key={cellIdx} className="text-sm tabular-nums">
-                        {val}
-                      </TableCell>
-                    ))}
-
-                    {/* Expand chevron */}
-                    <TableCell>
-                      {hasNote && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpanded((prev) => ({
-                              ...prev,
-                              [rowIdx]: !prev[rowIdx],
-                            }))
-                          }
-                          className="flex items-center justify-center size-6 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {isExpanded ? (
-                            <ChevronDown size={16} />
-                          ) : (
-                            <ChevronRight size={16} />
-                          )}
-                        </button>
-                      )}
-                      {!hasNote && (
-                        <ChevronRight
-                          size={16}
-                          className="text-muted-foreground"
+                  {/* Product */}
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {row.image && (
+                        <img
+                          src={row.image}
+                          alt=""
+                          className="h-12 w-8 object-cover rounded-sm shrink-0 bg-muted"
                         />
                       )}
-                    </TableCell>
-                  </TableRow>
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {row.label}
+                      </span>
+                    </div>
+                  </TableCell>
 
-                  {/* Expanded note row */}
-                  {hasNote && isExpanded && (
-                    <TableRow
-                      key={`note-${rowIdx}`}
-                      className={cn(isHighlighted && "bg-muted/25")}
-                    >
-                      <TableCell colSpan={3 + columns.length + 1}>
-                        <div className="pl-8 pb-2 flex flex-col gap-1.5">
-                          <span className="text-xs font-medium text-muted-foreground uppercase opacity-50 tracking-wide">
-                            MUDANÇA
-                          </span>
-                          <p className="text-sm text-foreground opacity-80 leading-5">
-                            {row.note}
-                          </p>
-                        </div>
+                  {/* Values (SCORE, GRADE) */}
+                  {row.values.map((val, cellIdx) => {
+                    const isGrade = cellIdx === 1;
+                    const display =
+                      isGrade && typeof val === "string" && val.endsWith("%")
+                        ? `${parseFloat(val) - 10}%`
+                        : val;
+                    return (
+                      <TableCell key={cellIdx} className="text-sm tabular-nums">
+                        {display}
                       </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
+                    );
+                  })}
+
+                  {/* Note object columns */}
+                  {noteKeys.map((key) => {
+                    const val = noteObj?.[key] ?? null;
+                    return (
+                      <TableCell key={key} className="text-sm tabular-nums">
+                        {val !== null && val !== undefined ? (
+                          val
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
               );
             })}
           </TableBody>
@@ -422,13 +407,7 @@ export function ReportSectionRenderer({ section }: { section: ReportSection }) {
     case "note":
       return <NoteSection content={section.content} />;
     case "ranked-list":
-      return (
-        <RankedListSection
-          title={section.title}
-          columns={section.columns}
-          rows={section.rows}
-        />
-      );
+      return <RankedListSection title={section.title} rows={section.rows} />;
     default:
       return null;
   }
