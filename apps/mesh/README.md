@@ -96,13 +96,7 @@ brew install nats-server
 bun run nats
 ```
 
-**Set the env var before starting mesh:**
-
-```bash
-NATS_URL=nats://localhost:4222 bun run dev
-```
-
-Or add it to your `.env` file:
+**Add to your `.env` file:**
 
 ```bash
 NATS_URL=nats://localhost:4222
