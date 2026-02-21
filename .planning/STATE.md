@@ -5,31 +5,31 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Developers can connect any MCP server to Mesh and get auth, routing, observability, and a visual site editor for Deco sites.
-**Current focus:** Milestone v1.3 — Phase 15: local-dev daemon (ready to plan)
+**Current focus:** Milestone v1.3 — Phase 16: plugin-deco-blocks (executing)
 
 ## Current Position
 
-Phase: 15 of 18 (local-dev daemon)
-Plan: — of — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-20 — Roadmap created, v1.3 phases 15–18 defined
+Phase: 16 of 18 (plugin-deco-blocks)
+Plan: 1 of 4 complete
+Status: Executing
+Last activity: 2026-02-21 — Plan 16-01 complete: scaffolded mesh-plugin-deco-blocks and defined DECO_BLOCKS_BINDING
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1
+- Average duration: 2 min
+- Total execution time: 2 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 16-plugin-deco-blocks | 1 | 2 min | 2 min |
 
-**Recent Trend:** No data yet
+**Recent Trend:** Phase 16 plan 1 executed in 2 min
 
 *Updated after each plan completion*
 
@@ -50,6 +50,8 @@ Recent decisions affecting current work:
 - Bash tool is unrestricted, scoped to project folder — like Claude Code's bash
 - deco-cli (packages/cli) already exists with login; `deco link` is a new command added to it
 - Browser auto-opens on `deco link` (best DX, confirmed)
+- z.record(z.string(), z.unknown()) required for Zod v4 — two-arg form, single-arg deprecated
+- DECO_BLOCKS_BINDING lives in packages/bindings/ not in the plugin — enables site-editor import without plugin dependency
 
 ### Pending Todos
 
@@ -63,6 +65,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Roadmap written, all 35 v1.3 requirements mapped to phases 15–18
+Last session: 2026-02-21
+Stopped at: Completed 16-01-PLAN.md — DECO_BLOCKS_BINDING defined and workspace package scaffolded
 Resume file: None
