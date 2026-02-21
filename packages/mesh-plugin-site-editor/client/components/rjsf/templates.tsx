@@ -23,9 +23,7 @@ export function FieldTemplate({
 
 export function DescriptionField({ description }: DescriptionFieldProps) {
   if (!description) return null;
-  return (
-    <p className="text-xs text-muted-foreground -mt-1">{description}</p>
-  );
+  return <p className="text-xs text-muted-foreground -mt-1">{description}</p>;
 }
 
 export const customTemplates = {
