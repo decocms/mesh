@@ -14,6 +14,7 @@ import type {
 import { lazy } from "react";
 import { LayoutAlt03 } from "@untitledui/icons";
 import { PLUGIN_ID, PLUGIN_DESCRIPTION } from "../shared";
+import { siteEditorRouter } from "./lib/router";
 
 const PluginHeader = lazy(() => import("./components/plugin-header"));
 const PluginEmptyState = lazy(() => import("./components/plugin-empty-state"));
@@ -29,7 +30,7 @@ export const clientPlugin: ClientPlugin<typeof DECO_BLOCKS_BINDING> = {
       icon: <LayoutAlt03 size={16} />,
       label: "Site Editor",
     });
-    // Routes will be registered here in plan 17-04 when the router exists
-    context.registerPluginRoutes([]);
+    const routes = siteEditorRouter.createRoutes(context);
+    context.registerPluginRoutes(routes);
   },
 };
