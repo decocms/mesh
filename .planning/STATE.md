@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 17 of 18 (site-editor-plugin)
-Plan: 4 of 6 complete
+Plan: 5 of 6 complete
 Status: In Progress
-Last activity: 2026-02-21 — Plan 17-04 complete: pages list UI and routing layer (router + pages-list + page-modal)
+Last activity: 2026-02-21 — Plan 17-05 complete: visual composer (page-composer, section-list-sidebar, prop-editor, preview-panel, block-picker, loader-drawer, rjsf widgets/templates)
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -38,6 +38,7 @@ Progress: [███░░░░░░░] 30%
 | Phase 17-site-editor-plugin P02 | 3 | 2 tasks | 4 files |
 | Phase 17-site-editor-plugin P03 | 2 | 2 tasks | 3 files |
 | Phase 17-site-editor-plugin P04 | 3 | 2 tasks | 5 files |
+| Phase 17-site-editor-plugin P05 | 3 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 17-site-editor-plugin]: @deco/ui imports require .tsx extension — bundler moduleResolution doesn't auto-resolve for workspace packages
 - [Phase 17-site-editor-plugin]: usePluginContext uses typeof DECO_BLOCKS_BINDING (runtime value) as generic, not DecoBlocksBinding type alias
 - [Phase 17-site-editor-plugin]: page-composer.tsx stub created in plan 17-04 to satisfy TS lazy import resolution in router.ts
+- [Phase 17-site-editor-plugin]: Module-level keyboard store (_undoFn/_redoFn + kbStore singleton) with useSyncExternalStore — avoids useEffect ban for Cmd+Z/Cmd+Shift+Z keyboard shortcuts
+- [Phase 17-site-editor-plugin]: typedCaller cast pattern — toolCaller cast to TypedToolCaller<DecoBlocksBinding> for block/loader tools and GenericToolCaller for filesystem tools
+- [Phase 17-site-editor-plugin]: resetTrackerRef inline ref pattern — { current: '' } created in render body to detect pageId changes and call useUndoRedo.reset() without useEffect
 
 ### Pending Todos
 
@@ -87,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 17-04-PLAN.md — pages list UI, plugin router, page-modal
+Stopped at: Completed 17-05-PLAN.md — visual composer (page-composer, section-list-sidebar, prop-editor, preview-panel, block-picker, loader-drawer, rjsf widgets/templates)
 Resume file: None
