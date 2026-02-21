@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Developers can connect any MCP server to Mesh and get auth, routing, observability, and a visual site editor for Deco sites.
-**Current focus:** Milestone v1.3 — Phase 16: plugin-deco-blocks (executing)
+**Current focus:** Milestone v1.3 — Phase 17: site-editor-plugin (executing)
 
 ## Current Position
 
-Phase: 16 of 18 (plugin-deco-blocks)
-Plan: 4 of 4 complete
-Status: Complete
-Last activity: 2026-02-21 — Plan 16-04 complete: isDecoSite(), public API index.ts, and 18 passing scanner unit tests
+Phase: 17 of 18 (site-editor-plugin)
+Plan: 1 of 6 complete
+Status: In Progress
+Last activity: 2026-02-21 — Plan 17-01 complete: mesh-plugin-site-editor scaffold with ClientPlugin<DECO_BLOCKS_BINDING>, plugin header, empty state, and server stub
 
-Progress: [██░░░░░░░░] 22%
+Progress: [██░░░░░░░░] 24%
 
 ## Performance Metrics
 
@@ -34,6 +34,7 @@ Progress: [██░░░░░░░░] 22%
 *Updated after each plan completion*
 | Phase 16 P03 | 2 | 2 tasks | 3 files |
 | Phase 16-plugin-deco-blocks P04 | 4 | 2 tasks | 4 files |
+| Phase 17-site-editor-plugin P01 | 2 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,9 @@ Recent decisions affecting current work:
 - [Phase 16-plugin-deco-blocks]: RootlessError (not NoRootTypeError) is the actual error class in ts-json-schema-generator — caught for Props-not-named-Props fallback
 - [Phase 16-plugin-deco-blocks]: index.ts re-exports DECO_BLOCKS_BINDING for consumers who don't want to import @decocms/bindings directly
 - [Phase 16-plugin-deco-blocks]: extractReturnTypeSchema handles T[] return types by stripping suffix, generating element schema, wrapping in array schema
+- [Phase 17-site-editor-plugin]: Plugin uses ClientPlugin<typeof DECO_BLOCKS_BINDING> for binding-filtered activation — tab hides automatically for projects without the binding
+- [Phase 17-site-editor-plugin]: server/index.ts stub with empty routes() — extended in plan 17-06 with commit-message route
+- [Phase 17-site-editor-plugin]: registerPluginRoutes([]) in plan 01 setup — routes wired in plan 17-04 when TanStack Router setup exists
 
 ### Pending Todos
 
@@ -72,5 +76,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 16-04-PLAN.md — isDecoSite(), public API index.ts, and 18 passing scanner unit tests
+Stopped at: Completed 17-01-PLAN.md — mesh-plugin-site-editor scaffold with ClientPlugin<DECO_BLOCKS_BINDING>
 Resume file: None
