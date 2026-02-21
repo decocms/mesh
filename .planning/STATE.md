@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 17 of 18 (site-editor-plugin)
-Plan: 1 of 6 complete
+Plan: 2 of 6 complete
 Status: In Progress
-Last activity: 2026-02-21 — Plan 17-01 complete: mesh-plugin-site-editor scaffold with ClientPlugin<DECO_BLOCKS_BINDING>, plugin header, empty state, and server stub
+Last activity: 2026-02-21 — Plan 17-02 complete: data access layer (page-api, block-api, git-api, query-keys)
 
 Progress: [██░░░░░░░░] 24%
 
@@ -35,6 +35,7 @@ Progress: [██░░░░░░░░] 24%
 | Phase 16 P03 | 2 | 2 tasks | 3 files |
 | Phase 16-plugin-deco-blocks P04 | 4 | 2 tasks | 4 files |
 | Phase 17-site-editor-plugin P01 | 2 | 2 tasks | 7 files |
+| Phase 17-site-editor-plugin P02 | 3 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,9 @@ Recent decisions affecting current work:
 - [Phase 17-site-editor-plugin]: Plugin uses ClientPlugin<typeof DECO_BLOCKS_BINDING> for binding-filtered activation — tab hides automatically for projects without the binding
 - [Phase 17-site-editor-plugin]: server/index.ts stub with empty routes() — extended in plan 17-06 with commit-message route
 - [Phase 17-site-editor-plugin]: registerPluginRoutes([]) in plan 01 setup — routes wired in plan 17-04 when TanStack Router setup exists
+- [Phase 17-site-editor-plugin]: GenericToolCaller separate from TypedToolCaller — filesystem/bash tools not in DECO_BLOCKS_BINDING
+- [Phase 17-site-editor-plugin]: listPages handles both { entries: [...] } and bare array response shapes defensively
+- [Phase 17-site-editor-plugin]: hasBashTool gates git UI at runtime by checking connection.tools array for bash
 
 ### Pending Todos
 
@@ -76,5 +80,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 17-01-PLAN.md — mesh-plugin-site-editor scaffold with ClientPlugin<DECO_BLOCKS_BINDING>
+Stopped at: Completed 17-02-PLAN.md — data access layer: page-api, block-api, git-api, query-keys
 Resume file: None

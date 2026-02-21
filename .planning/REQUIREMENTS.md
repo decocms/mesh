@@ -29,21 +29,21 @@
 
 ### Site Editor Plugin (`packages/mesh-plugin-site-editor/`)
 
-- [ ] **EDT-01**: User can view and navigate all pages in a deco site project
-- [ ] **EDT-02**: User can create, rename, and delete pages
-- [ ] **EDT-03**: User can view all available blocks and their prop schemas
-- [ ] **EDT-04**: User can view all available loaders and their prop schemas
+- [x] **EDT-01**: User can view and navigate all pages in a deco site project
+- [x] **EDT-02**: User can create, rename, and delete pages
+- [x] **EDT-03**: User can view all available blocks and their prop schemas
+- [x] **EDT-04**: User can view all available loaders and their prop schemas
 - [ ] **EDT-05**: User can open the visual composer for any page
 - [ ] **EDT-06**: User can add, remove, and reorder sections on a page via drag-and-drop
 - [ ] **EDT-07**: User can edit section props via auto-generated form (RJSF)
 - [ ] **EDT-08**: User can bind a loader to a section prop
 - [ ] **EDT-09**: User can preview the page live in an iframe with edit/interact mode toggle
 - [ ] **EDT-10**: User can undo and redo changes in the composer
-- [ ] **EDT-11**: User sees pending changes (sections added/modified/deleted vs git HEAD) with diff badges — powered by bash git calls via local-dev
-- [ ] **EDT-12**: User can commit pending changes from Mesh UI with a Claude-generated commit message — via bash git commit
-- [ ] **EDT-13**: User can view git history for the current page with commit list and diff preview — via bash git log/show
-- [ ] **EDT-14**: User can revert to a previous commit with a confirmation dialog — via bash git checkout
-- [ ] **EDT-15**: Site editor activates automatically when the project connection implements DECO_BLOCKS_BINDING
+- [x] **EDT-11**: User sees pending changes (sections added/modified/deleted vs git HEAD) with diff badges — powered by bash git calls via local-dev
+- [x] **EDT-12**: User can commit pending changes from Mesh UI with a Claude-generated commit message — via bash git commit
+- [x] **EDT-13**: User can view git history for the current page with commit list and diff preview — via bash git log/show
+- [x] **EDT-14**: User can revert to a previous commit with a confirmation dialog — via bash git checkout
+- [x] **EDT-15**: Site editor activates automatically when the project connection implements DECO_BLOCKS_BINDING
 
 > **Note:** EDT-11 through EDT-14 (git UX) activate only when the connection also exposes the bash tool. No direct dependency on local-dev package — capability-checked at runtime.
 
@@ -103,21 +103,21 @@
 | BLK-04 | Phase 16 | Complete |
 | BLK-05 | Phase 16 | Complete |
 | BLK-06 | Phase 16 | Complete |
-| EDT-01 | Phase 17 | Pending |
-| EDT-02 | Phase 17 | Pending |
-| EDT-03 | Phase 17 | Pending |
-| EDT-04 | Phase 17 | Pending |
+| EDT-01 | Phase 17 | Complete |
+| EDT-02 | Phase 17 | Complete |
+| EDT-03 | Phase 17 | Complete |
+| EDT-04 | Phase 17 | Complete |
 | EDT-05 | Phase 17 | Pending |
 | EDT-06 | Phase 17 | Pending |
 | EDT-07 | Phase 17 | Pending |
 | EDT-08 | Phase 17 | Pending |
 | EDT-09 | Phase 17 | Pending |
 | EDT-10 | Phase 17 | Pending |
-| EDT-11 | Phase 17 | Pending |
-| EDT-12 | Phase 17 | Pending |
-| EDT-13 | Phase 17 | Pending |
-| EDT-14 | Phase 17 | Pending |
-| EDT-15 | Phase 17 | Pending |
+| EDT-11 | Phase 17 | Complete |
+| EDT-12 | Phase 17 | Complete |
+| EDT-13 | Phase 17 | Complete |
+| EDT-14 | Phase 17 | Complete |
+| EDT-15 | Phase 17 | Complete |
 | LNK-01 | Phase 18 | Pending |
 | LNK-02 | Phase 18 | Pending |
 | LNK-03 | Phase 18 | Pending |
