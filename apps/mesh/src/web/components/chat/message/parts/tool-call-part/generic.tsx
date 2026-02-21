@@ -2,7 +2,8 @@
 
 import type { ToolUIPart, DynamicToolUIPart } from "ai";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
-import { Atom02 } from "@untitledui/icons";
+import { Atom02, LayersTwo01 } from "@untitledui/icons";
+import { Suspense } from "react";
 import { ToolCallShell } from "./common.tsx";
 import {
   getFriendlyToolName,
@@ -11,6 +12,10 @@ import {
 } from "./utils.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ApprovalActions } from "./approval-actions.tsx";
+import { useProjectContext } from "@decocms/mesh-sdk";
+import { useChat } from "../../context.tsx";
+import { getUIResourceUri } from "@/mcp-apps/types.ts";
+import { MCPAppLoader } from "../mcp-app-loader.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -89,6 +94,41 @@ export function GenericToolCallPart({
   // Derive UI state for ToolCallShell
   const effectiveState = getEffectiveState(part.state);
 
+  // Get project context and virtual MCP from chat context
+  const { org } = useProjectContext();
+  const { selectedVirtualMcp } = useChat();
+
+  // Extract UI resource URI from tool output's _meta (if present)
+  const toolOutput = part.state === "output-available" ? part.output : null;
+  const uiResourceUri = getUIResourceUri(
+    toolOutput && typeof toolOutput === "object" && "_meta" in toolOutput
+      ? (toolOutput as Record<string, unknown>)._meta
+      : undefined,
+  );
+
+  // Get connectionId from the tool output's _meta as well
+  const toolConnectionId =
+    toolOutput &&
+    typeof toolOutput === "object" &&
+    "_meta" in toolOutput &&
+    typeof (toolOutput as Record<string, unknown>)._meta === "object" &&
+    (toolOutput as Record<string, unknown>)._meta !== null &&
+    "connectionId" in
+      ((toolOutput as Record<string, unknown>)._meta as Record<string, unknown>)
+      ? String(
+          (
+            (toolOutput as Record<string, unknown>)._meta as Record<
+              string,
+              unknown
+            >
+          ).connectionId,
+        )
+      : (selectedVirtualMcp?.id ?? null);
+
+  // Check if this tool has an MCP App and output is available
+  const hasMCPApp = !!uiResourceUri && part.state === "output-available";
+  const canRenderMCPApp = hasMCPApp && !!toolConnectionId && !!org?.id;
+
   // Build expanded content
   let detail = "";
   if (part.input !== undefined) {
@@ -99,7 +139,7 @@ export function GenericToolCallPart({
     const errorText = getToolPartErrorText(part);
     if (detail) detail += "\n\n";
     detail += "# Error\n" + errorText;
-  } else if (part.output !== undefined) {
+  } else if (part.output !== undefined && !hasMCPApp) {
     if (detail) detail += "\n\n";
     detail += "# Output\n" + safeStringifyFormatted(part.output);
   }
@@ -111,9 +151,15 @@ export function GenericToolCallPart({
   ) : undefined;
 
   return (
-    <div className="my-2">
+    <div className="my-2 flex flex-col gap-2">
       <ToolCallShell
-        icon={<Atom02 className="size-4 text-muted-foreground" />}
+        icon={
+          hasMCPApp ? (
+            <LayersTwo01 className="size-4 text-primary" />
+          ) : (
+            <Atom02 className="size-4 text-muted-foreground" />
+          )
+        }
         title={title}
         annotations={annotations}
         latency={latency}
@@ -122,6 +168,31 @@ export function GenericToolCallPart({
         detail={detail || null}
         actions={actions}
       />
+      {canRenderMCPApp && (
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-32 border border-border rounded-lg">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Loading app...</span>
+              </div>
+            </div>
+          }
+        >
+          <MCPAppLoader
+            uiResourceUri={uiResourceUri!}
+            connectionId={toolConnectionId!}
+            orgId={org!.id}
+            toolName={toolName}
+            friendlyName={friendlyName}
+            toolInput={part.input}
+            toolResult={part.output}
+            minHeight={150}
+            maxHeight={400}
+            className="border border-border rounded-lg"
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

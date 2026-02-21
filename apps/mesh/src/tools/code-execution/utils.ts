@@ -375,13 +375,20 @@ export function describeTools(
     .filter((t): t is ToolWithConnection => t !== undefined);
 
   return {
-    tools: foundTools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      connection: t._meta?.connectionTitle ?? "",
-      inputSchema: t.inputSchema,
-      outputSchema: t.outputSchema,
-    })),
+    tools: foundTools.map((t) => {
+      const meta = t._meta as Record<string, unknown>;
+      return {
+        name: t.name,
+        description: t.description,
+        connection: t._meta.connectionTitle,
+        inputSchema: t.inputSchema,
+        outputSchema: t.outputSchema,
+        // Include UI resource URI if the tool has an associated MCP App
+        ...(meta?.["ui/resourceUri"]
+          ? { uiResourceUri: meta["ui/resourceUri"] as string }
+          : {}),
+      };
+    }),
     notFound: names.filter((n) => !toolMap.has(n)),
   };
 }
