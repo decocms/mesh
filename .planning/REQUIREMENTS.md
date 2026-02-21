@@ -34,9 +34,9 @@
 - [x] **EDT-03**: User can view all available blocks and their prop schemas
 - [x] **EDT-04**: User can view all available loaders and their prop schemas
 - [x] **EDT-05**: User can open the visual composer for any page
-- [ ] **EDT-06**: User can add, remove, and reorder sections on a page via drag-and-drop
-- [ ] **EDT-07**: User can edit section props via auto-generated form (RJSF)
-- [ ] **EDT-08**: User can bind a loader to a section prop
+- [x] **EDT-06**: User can add, remove, and reorder sections on a page via drag-and-drop
+- [x] **EDT-07**: User can edit section props via auto-generated form (RJSF)
+- [x] **EDT-08**: User can bind a loader to a section prop
 - [x] **EDT-09**: User can preview the page live in an iframe with edit/interact mode toggle
 - [x] **EDT-10**: User can undo and redo changes in the composer
 - [x] **EDT-11**: User sees pending changes (sections added/modified/deleted vs git HEAD) with diff badges — powered by bash git calls via local-dev
@@ -108,9 +108,9 @@
 | EDT-03 | Phase 17 | Complete |
 | EDT-04 | Phase 17 | Complete |
 | EDT-05 | Phase 17 | Complete |
-| EDT-06 | Phase 17 | Pending |
-| EDT-07 | Phase 17 | Pending |
-| EDT-08 | Phase 17 | Pending |
+| EDT-06 | Phase 17 | Complete |
+| EDT-07 | Phase 17 | Complete |
+| EDT-08 | Phase 17 | Complete |
 | EDT-09 | Phase 17 | Complete |
 | EDT-10 | Phase 17 | Complete |
 | EDT-11 | Phase 17 | Complete |
