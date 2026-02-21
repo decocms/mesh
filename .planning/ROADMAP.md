@@ -101,6 +101,6 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 15. local-dev daemon | v1.3 | 0/? | Not started | - |
-| 16. plugin-deco-blocks | 2/4 | In Progress|  | - |
+| 16. plugin-deco-blocks | 3/4 | In Progress|  | - |
 | 17. site-editor plugin | v1.3 | 0/? | Not started | - |
 | 18. deco link command | v1.3 | 0/? | Not started | - |
