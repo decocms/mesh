@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 16 of 18 (plugin-deco-blocks)
-Plan: 2 of 4 complete
+Plan: 3 of 4 complete
 Status: Executing
-Last activity: 2026-02-21 — Plan 16-02 complete: BLOCKS_FRAMEWORK.md and Claude skills enable-blocks and create-block created
+Last activity: 2026-02-21 — Plan 16-03 complete: scanner.ts and schema-extractor.ts implementing block/loader discovery with JSON Schema extraction
 
 Progress: [██░░░░░░░░] 20%
 
@@ -32,6 +32,7 @@ Progress: [██░░░░░░░░] 20%
 **Recent Trend:** Phase 16 plans 1-2 each executed in 2 min
 
 *Updated after each plan completion*
+| Phase 16 P03 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -53,6 +54,7 @@ Recent decisions affecting current work:
 - z.record(z.string(), z.unknown()) required for Zod v4 — two-arg form, single-arg deprecated
 - DECO_BLOCKS_BINDING lives in packages/bindings/ not in the plugin — enables site-editor import without plugin dependency
 - [Phase 16-plugin-deco-blocks]: Skills placed at packages/mesh-plugin-deco-blocks/.claude/commands/deco/ satisfying BLK-06 in-package requirement
+- [Phase 16-plugin-deco-blocks]: RootlessError (not NoRootTypeError) is the actual error class in ts-json-schema-generator — caught for Props-not-named-Props fallback
 
 ### Pending Todos
 
@@ -67,5 +69,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 16-02-PLAN.md — BLOCKS_FRAMEWORK.md and Claude skills enable-blocks and create-block created
+Stopped at: Completed 16-03-PLAN.md — scanner.ts and schema-extractor.ts implementing block/loader discovery with JSON Schema extraction
 Resume file: None

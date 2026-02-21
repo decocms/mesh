@@ -20,8 +20,8 @@
 
 ### Deco Blocks Plugin (`packages/mesh-plugin-deco-blocks/`)
 
-- [ ] **BLK-01**: plugin-deco-blocks scans a folder and returns all block definitions (name, props schema, file path)
-- [ ] **BLK-02**: plugin-deco-blocks scans a folder and returns all loader definitions (name, props schema, return type)
+- [x] **BLK-01**: plugin-deco-blocks scans a folder and returns all block definitions (name, props schema, file path)
+- [x] **BLK-02**: plugin-deco-blocks scans a folder and returns all loader definitions (name, props schema, return type)
 - [x] **BLK-03**: plugin-deco-blocks defines DECO_BLOCKS_BINDING — the binding a connection must implement to be treated as a deco site
 - [ ] **BLK-04**: plugin-deco-blocks provides `isDecoSite(connection)` binding checker usable by other plugins and flows
 - [x] **BLK-05**: plugin-deco-blocks ships with the canonical BLOCKS_FRAMEWORK.md spec as a package asset
@@ -97,8 +97,8 @@
 | LDV-05 | Phase 15 | Pending |
 | LDV-06 | Phase 15 | Pending |
 | LDV-07 | Phase 15 | Pending |
-| BLK-01 | Phase 16 | Pending |
-| BLK-02 | Phase 16 | Pending |
+| BLK-01 | Phase 16 | Complete |
+| BLK-02 | Phase 16 | Complete |
 | BLK-03 | Phase 16 | Complete |
 | BLK-04 | Phase 16 | Pending |
 | BLK-05 | Phase 16 | Complete |
