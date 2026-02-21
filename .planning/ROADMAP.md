@@ -36,7 +36,7 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 
 ## Phases
 
-- [ ] **Phase 15: local-dev daemon** - MCP server for local filesystem, object storage, git, and dev server management
+- [x] **Phase 15: local-dev daemon** - MCP server for local filesystem, object storage, git, and dev server management (completed 2026-02-20, on feat/local-dev-daemon branch)
 - [x] **Phase 16: plugin-deco-blocks** - Standalone deco blocks framework: scanners, DECO_BLOCKS_BINDING, Claude skill (completed 2026-02-21)
 - [ ] **Phase 17: site-editor plugin** - Full site editor UI with visual composer and git UX
 - [ ] **Phase 18: deco link command** - `deco link ./folder` in packages/cli connects local project to Mesh
@@ -78,7 +78,15 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
   3. User can preview the page live in an iframe and toggle between edit mode and interact mode
   4. User sees pending changes (additions, edits, deletions vs git HEAD) with diff badges, and can commit them from the UI with a Claude-generated commit message
   5. User can view the git history for a page, see a diff preview per commit, and revert to any previous commit with a confirmation dialog
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — Package scaffold + plugin shell (package.json, shared.ts, ClientPlugin, ServerPlugin stub)
+- [ ] 17-02-PLAN.md — Data layer: page-api, block-api, git-api, query-keys
+- [ ] 17-03-PLAN.md — TDD: useUndoRedo hook (tested) + useIframeBridge hook
+- [ ] 17-04-PLAN.md — Pages UI: pages list, create/rename/delete modals, plugin router
+- [ ] 17-05-PLAN.md — Composer: section list DnD, RJSF prop editor, loader drawer, preview iframe, undo/redo
+- [ ] 17-06-PLAN.md — Git UX footer, commit message server route, apps/mesh plugin registration
 
 ### Phase 18: deco link command
 **Goal**: A developer can run `deco link ./my-folder` (from the existing deco-cli) and immediately see their local project in a running Mesh instance — browser opens, project ready, no manual wiring
@@ -100,7 +108,7 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 15. local-dev daemon | v1.3 | 0/? | Not started | - |
-| 16. plugin-deco-blocks | 4/4 | Complete   | 2026-02-21 | - |
+| 15. local-dev daemon | v1.3 | 5/5 | Complete | 2026-02-20 |
+| 16. plugin-deco-blocks | 4/4 | Complete    | 2026-02-21 | - |
 | 17. site-editor plugin | v1.3 | 0/? | Not started | - |
 | 18. deco link command | v1.3 | 0/? | Not started | - |
