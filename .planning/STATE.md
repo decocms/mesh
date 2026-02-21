@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 17 of 18 (site-editor-plugin)
-Plan: 2 of 6 complete
+Plan: 3 of 6 complete
 Status: In Progress
-Last activity: 2026-02-21 — Plan 17-02 complete: data access layer (page-api, block-api, git-api, query-keys)
+Last activity: 2026-02-21 — Plan 17-03 complete: useUndoRedo and useIframeBridge hooks (TDD)
 
 Progress: [██░░░░░░░░] 24%
 
@@ -36,6 +36,7 @@ Progress: [██░░░░░░░░] 24%
 | Phase 16-plugin-deco-blocks P04 | 4 | 2 tasks | 4 files |
 | Phase 17-site-editor-plugin P01 | 2 | 2 tasks | 7 files |
 | Phase 17-site-editor-plugin P02 | 3 | 2 tasks | 4 files |
+| Phase 17-site-editor-plugin P03 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 17-site-editor-plugin]: GenericToolCaller separate from TypedToolCaller — filesystem/bash tools not in DECO_BLOCKS_BINDING
 - [Phase 17-site-editor-plugin]: listPages handles both { entries: [...] } and bare array response shapes defensively
 - [Phase 17-site-editor-plugin]: hasBashTool gates git UI at runtime by checking connection.tools array for bash
+- [Phase 17-site-editor-plugin]: Page/BlockInstance types defined inline in use-iframe-bridge.ts pending plan 17-02 page-api.ts completion
+- [Phase 17-site-editor-plugin]: undoRedoReducer exported as named export to enable direct (non-renderHook) testing
 
 ### Pending Todos
 
@@ -80,5 +83,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 17-02-PLAN.md — data access layer: page-api, block-api, git-api, query-keys
+Stopped at: Completed 17-03-PLAN.md — useUndoRedo and useIframeBridge hooks (TDD)
 Resume file: None

@@ -37,8 +37,8 @@
 - [ ] **EDT-06**: User can add, remove, and reorder sections on a page via drag-and-drop
 - [ ] **EDT-07**: User can edit section props via auto-generated form (RJSF)
 - [ ] **EDT-08**: User can bind a loader to a section prop
-- [ ] **EDT-09**: User can preview the page live in an iframe with edit/interact mode toggle
-- [ ] **EDT-10**: User can undo and redo changes in the composer
+- [x] **EDT-09**: User can preview the page live in an iframe with edit/interact mode toggle
+- [x] **EDT-10**: User can undo and redo changes in the composer
 - [x] **EDT-11**: User sees pending changes (sections added/modified/deleted vs git HEAD) with diff badges — powered by bash git calls via local-dev
 - [x] **EDT-12**: User can commit pending changes from Mesh UI with a Claude-generated commit message — via bash git commit
 - [x] **EDT-13**: User can view git history for the current page with commit list and diff preview — via bash git log/show
@@ -111,8 +111,8 @@
 | EDT-06 | Phase 17 | Pending |
 | EDT-07 | Phase 17 | Pending |
 | EDT-08 | Phase 17 | Pending |
-| EDT-09 | Phase 17 | Pending |
-| EDT-10 | Phase 17 | Pending |
+| EDT-09 | Phase 17 | Complete |
+| EDT-10 | Phase 17 | Complete |
 | EDT-11 | Phase 17 | Complete |
 | EDT-12 | Phase 17 | Complete |
 | EDT-13 | Phase 17 | Complete |
