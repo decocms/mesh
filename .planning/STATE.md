@@ -10,26 +10,26 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 16 of 18 (plugin-deco-blocks)
-Plan: 1 of 4 complete
+Plan: 2 of 4 complete
 Status: Executing
-Last activity: 2026-02-21 — Plan 16-01 complete: scaffolded mesh-plugin-deco-blocks and defined DECO_BLOCKS_BINDING
+Last activity: 2026-02-21 — Plan 16-02 complete: BLOCKS_FRAMEWORK.md and Claude skills enable-blocks and create-block created
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 2 min
-- Total execution time: 2 min
+- Total execution time: 4 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 16-plugin-deco-blocks | 1 | 2 min | 2 min |
+| 16-plugin-deco-blocks | 2 | 4 min | 2 min |
 
-**Recent Trend:** Phase 16 plan 1 executed in 2 min
+**Recent Trend:** Phase 16 plans 1-2 each executed in 2 min
 
 *Updated after each plan completion*
 
@@ -52,6 +52,7 @@ Recent decisions affecting current work:
 - Browser auto-opens on `deco link` (best DX, confirmed)
 - z.record(z.string(), z.unknown()) required for Zod v4 — two-arg form, single-arg deprecated
 - DECO_BLOCKS_BINDING lives in packages/bindings/ not in the plugin — enables site-editor import without plugin dependency
+- [Phase 16-plugin-deco-blocks]: Skills placed at packages/mesh-plugin-deco-blocks/.claude/commands/deco/ satisfying BLK-06 in-package requirement
 
 ### Pending Todos
 
@@ -66,5 +67,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 16-01-PLAN.md — DECO_BLOCKS_BINDING defined and workspace package scaffolded
+Stopped at: Completed 16-02-PLAN.md — BLOCKS_FRAMEWORK.md and Claude skills enable-blocks and create-block created
 Resume file: None
