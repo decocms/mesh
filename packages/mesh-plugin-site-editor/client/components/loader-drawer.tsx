@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Button } from "@deco/ui/components/button.tsx";
-import type { TypedToolCaller, DecoBlocksBinding, LoaderDefinition } from "@decocms/bindings";
+import type {
+  TypedToolCaller,
+  DecoBlocksBinding,
+  LoaderDefinition,
+} from "@decocms/bindings";
 import { listLoaders } from "../lib/block-api";
 import { QUERY_KEYS } from "../lib/query-keys";
 

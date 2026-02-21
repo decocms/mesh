@@ -8,7 +8,11 @@ import {
 } from "@deco/ui/components/dialog.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import type { TypedToolCaller, DecoBlocksBinding, BlockDefinition } from "@decocms/bindings";
+import type {
+  TypedToolCaller,
+  DecoBlocksBinding,
+  BlockDefinition,
+} from "@decocms/bindings";
 import { listBlocks } from "../lib/block-api";
 import { QUERY_KEYS } from "../lib/query-keys";
 
@@ -36,9 +40,7 @@ export function BlockPicker({
   });
 
   const filtered = search
-    ? blocks.filter((b) =>
-        b.name.toLowerCase().includes(search.toLowerCase()),
-      )
+    ? blocks.filter((b) => b.name.toLowerCase().includes(search.toLowerCase()))
     : blocks;
 
   return (

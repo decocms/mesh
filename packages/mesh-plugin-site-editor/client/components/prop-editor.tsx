@@ -66,7 +66,8 @@ export function PropEditor({
           {block.loaderBinding ? (
             <div className="flex items-center justify-between text-xs">
               <span className="text-foreground">
-                {block.loaderBinding.loaderName} &rarr; {block.loaderBinding.prop}
+                {block.loaderBinding.loaderName} &rarr;{" "}
+                {block.loaderBinding.prop}
               </span>
               <Button
                 variant="ghost"
