@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+import { resolve } from "node:path";
+import { createLocalDevServer } from "./server.ts";
+
+function parseArgs(): { rootPath: string; port: number } {
+  const args = process.argv.slice(2);
+  let rootPath = process.env.MCP_LOCAL_DEV_PATH ?? process.cwd();
+  let port = parseInt(process.env.PORT ?? "3456", 10);
+
+  const skipNext = new Set<number>();
+  for (let i = 0; i < args.length; i++) {
+    if (skipNext.has(i)) continue;
+    if ((args[i] === "--port" || args[i] === "-p") && args[i + 1]) {
+      port = parseInt(args[i + 1], 10);
+      skipNext.add(i + 1);
+      continue;
+    }
+    if (!args[i].startsWith("-")) {
+      rootPath = args[i];
+    }
+  }
+
+  return { rootPath: resolve(rootPath), port };
+}
+
+const { rootPath, port } = parseArgs();
+const server = createLocalDevServer({ rootPath, port });
+
+await server.start();
+
+process.stderr.write(`
+[local-dev] MCP daemon running
+  Root:    ${rootPath}
+  Port:    ${port}
+  MCP:     http://localhost:${port}/mcp
+  Ready:   http://localhost:${port}/_ready
+  Watch:   http://localhost:${port}/watch
+`);
