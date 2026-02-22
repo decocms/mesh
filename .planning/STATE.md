@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 18 of 18 (deco-link-command)
-Plan: 1 of 2 complete
-Status: Executing
-Last activity: 2026-02-22 — Plan 18-01 complete: four foundation lib modules for deco link command (mesh-url, mesh-auth, mesh-client, local-dev-manager)
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-02-22 — Plan 18-02 complete: deco link command — meshLinkCommand with full orchestration (Connection + Project creation, site-editor auto-enable, idempotency, SIGINT teardown)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [█████░░░░░] 50%
 | Phase 17-site-editor-plugin P05 | 3 | 2 tasks | 8 files |
 | Phase 17-site-editor-plugin P06 | 3 | 2 tasks | 8 files |
 | Phase 18-deco-link-command P01 | 3 | 2 tasks | 4 files |
+| Phase 18 P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 18-deco-link-command]: startLocalDev() returns null when daemon already running — null signals no child to manage
 - [Phase 18-deco-link-command]: getOrganizationId() tries /api/auth/get-session then /api/auth/organization/list for resilience
 - [Phase 18-deco-link-command]: OAuth callback supports both cookie-based sessions and token query param strategy
+- [Phase 18]: Browser opens to plain project URL — no auto-login token per CONTEXT.md locked decision
+- [Phase 18]: isDecoSite() evaluated before writeLinkState so .deco detection is pre-create (no false positives)
 
 ### Pending Todos
 
@@ -99,5 +102,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 18-01-PLAN.md — four foundation lib modules for deco link command (mesh-url, mesh-auth, mesh-client, local-dev-manager)
+Stopped at: Completed 18-02-PLAN.md — deco link command (mesh link mode + CLI registration)
 Resume file: None

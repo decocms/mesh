@@ -27,10 +27,7 @@ import {
   callMeshTool,
   getOrganizationId,
 } from "../../lib/mesh-client.js";
-import {
-  startLocalDev,
-  stopLocalDev,
-} from "../../lib/local-dev-manager.js";
+import { startLocalDev, stopLocalDev } from "../../lib/local-dev-manager.js";
 import { slugify } from "../../lib/slugify.js";
 import type { ChildProcess } from "node:child_process";
 
@@ -243,7 +240,9 @@ export async function meshLinkCommand(
     console.log("");
     console.log(`  ${chalk.dim("Project:")}  ${folderName}`);
     console.log(`  ${chalk.dim("Mesh:")}     ${meshUrl}`);
-    console.log(`  ${chalk.dim("local-dev:")} http://localhost:${LOCAL_DEV_PORT}`);
+    console.log(
+      `  ${chalk.dim("local-dev:")} http://localhost:${LOCAL_DEV_PORT}`,
+    );
     console.log(`  ${chalk.dim("URL:")}      ${projectUrl}`);
     console.log("");
 

@@ -180,7 +180,10 @@ async function createMeshApiKey(
     throw new Error(`Failed to create API key: ${res.status} ${text}`);
   }
 
-  const data = (await res.json()) as { key?: string; apiKey?: { key?: string } };
+  const data = (await res.json()) as {
+    key?: string;
+    apiKey?: { key?: string };
+  };
   // Better Auth may return the key directly or nested under apiKey
   const key = data.key ?? data.apiKey?.key;
   if (!key) {
@@ -293,9 +296,7 @@ async function runBrowserOAuthFlow(meshUrl: string): Promise<string> {
         res.end("Authentication error — check terminal for details.");
         clearTimeout(timeoutHandle);
         server.close(() =>
-          reject(
-            err instanceof Error ? err : new Error(String(err)),
-          ),
+          reject(err instanceof Error ? err : new Error(String(err))),
         );
       }
     });
