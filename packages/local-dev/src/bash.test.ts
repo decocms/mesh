@@ -39,12 +39,14 @@ afterAll(async () => {
   await rm(tmpDir, { recursive: true, force: true });
 });
 
+type TextContent = { type: string; text: string };
+
 function parseOutput(result: Awaited<ReturnType<typeof client.callTool>>): {
   stdout: string;
   stderr: string;
   exitCode: number;
 } {
-  const text = (result.content[0] as { type: string; text: string }).text;
+  const text = ((result.content as TextContent[])[0]).text;
   return JSON.parse(text);
 }
 
