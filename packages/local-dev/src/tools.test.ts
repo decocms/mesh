@@ -58,7 +58,7 @@ describe("write_file", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const text = ((result.content as TextContent[])[0]).text;
+    const text = (result.content as TextContent[])[0].text;
     expect(text).toContain("Successfully wrote");
     expect(text).toContain("test.txt");
   });
@@ -78,7 +78,7 @@ describe("read_file", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const text = ((result.content as TextContent[])[0]).text;
+    const text = (result.content as TextContent[])[0].text;
     expect(text).toBe("hello");
   });
 
@@ -107,7 +107,7 @@ describe("list_directory", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const text = ((result.content as TextContent[])[0]).text;
+    const text = (result.content as TextContent[])[0].text;
     // Should have at least one [FILE] or [DIR] entry
     expect(text).toMatch(/\[(FILE|DIR)\]/);
   });
@@ -120,7 +120,7 @@ describe("list_directory", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const text = ((result.content as TextContent[])[0]).text;
+    const text = (result.content as TextContent[])[0].text;
     expect(text).toContain("[DIR]");
   });
 });
@@ -139,8 +139,7 @@ describe("delete_file", () => {
     });
 
     expect(deleteResult.isError).toBeFalsy();
-    const text = ((deleteResult.content as TextContent[])[0])
-      .text;
+    const text = (deleteResult.content as TextContent[])[0].text;
     expect(text).toContain("Successfully deleted");
 
     // Verify it's gone
@@ -170,9 +169,7 @@ describe("LIST_OBJECTS", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(
-      ((result.content as TextContent[])[0]).text,
-    );
+    const parsed = JSON.parse((result.content as TextContent[])[0].text);
 
     expect(parsed).toHaveProperty("objects");
     expect(Array.isArray(parsed.objects)).toBe(true);
@@ -203,9 +200,7 @@ describe("GET_PRESIGNED_URL", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(
-      ((result.content as TextContent[])[0]).text,
-    );
+    const parsed = JSON.parse((result.content as TextContent[])[0].text);
 
     expect(parsed.url).toMatch(/^http:\/\/localhost:/);
     expect(parsed.url).toContain(`/files/`);
@@ -220,9 +215,7 @@ describe("GET_PRESIGNED_URL", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(
-      ((result.content as TextContent[])[0]).text,
-    );
+    const parsed = JSON.parse((result.content as TextContent[])[0].text);
 
     expect(parsed.url).toContain(`localhost:${TEST_PORT}`);
   });
@@ -239,9 +232,7 @@ describe("GET_PRESIGNED_URL", () => {
     // The HTTP server's /files/ handler also calls resolvePath() before serving.
     // We just verify the call did not throw and returns a localhost URL.
     if (!result.isError) {
-      const parsed = JSON.parse(
-        ((result.content as TextContent[])[0]).text,
-      );
+      const parsed = JSON.parse((result.content as TextContent[])[0].text);
       expect(parsed.url).toMatch(/^http:\/\/localhost:/);
     }
     // isError is also acceptable if the implementation opts to reject traversal
@@ -256,9 +247,7 @@ describe("GET_ROOT", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(
-      ((result.content as TextContent[])[0]).text,
-    );
+    const parsed = JSON.parse((result.content as TextContent[])[0].text);
 
     expect(parsed.root).toBe(tmpDir);
   });

@@ -31,7 +31,7 @@ export function createLocalDevServer(
   options: LocalDevServerOptions,
 ): LocalDevServer {
   const { rootPath } = options;
-  const port = options.port ?? parseInt(process.env.PORT ?? "3456", 10);
+  const port = options.port ?? parseInt(process.env.PORT ?? "4201", 10);
 
   const storage = new LocalFileStorage(rootPath);
   const transports = new Map<
@@ -170,16 +170,37 @@ export function createLocalDevServer(
     res.end();
   });
 
+  let actualPort = port;
+
   return {
-    port,
+    get port() {
+      return actualPort;
+    },
     rootPath,
     start: () =>
-      new Promise<void>((resolve) => {
+      new Promise<void>((resolve, reject) => {
         setupSigtermForwarding();
-        httpServer.listen(port, () => {
-          logOp("server:start", rootPath);
-          resolve();
-        });
+
+        const maxAttempts = 10;
+        let attempt = 0;
+
+        const tryListen = (p: number) => {
+          attempt++;
+          httpServer.once("error", (err: NodeJS.ErrnoException) => {
+            if (err.code === "EADDRINUSE" && attempt < maxAttempts) {
+              tryListen(p + 1);
+            } else {
+              reject(err);
+            }
+          });
+          httpServer.listen(p, () => {
+            actualPort = p;
+            logOp("server:start", rootPath);
+            resolve();
+          });
+        };
+
+        tryListen(port);
       }),
     stop: () =>
       new Promise<void>((resolve) => {

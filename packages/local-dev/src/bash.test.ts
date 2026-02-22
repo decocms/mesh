@@ -46,7 +46,7 @@ function parseOutput(result: Awaited<ReturnType<typeof client.callTool>>): {
   stderr: string;
   exitCode: number;
 } {
-  const text = ((result.content as TextContent[])[0]).text;
+  const text = (result.content as TextContent[])[0].text;
   return JSON.parse(text);
 }
 

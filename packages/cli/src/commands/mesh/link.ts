@@ -140,7 +140,7 @@ export async function meshLinkCommand(
   }
 
   let localDevChild: ChildProcess | null = null;
-  const LOCAL_DEV_PORT = 3456;
+  const LOCAL_DEV_PORT = 4201;
 
   try {
     // Step 1: Resolve Mesh URL

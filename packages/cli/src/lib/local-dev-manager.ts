@@ -10,7 +10,7 @@
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 
-const DEFAULT_PORT = 3456;
+const DEFAULT_PORT = 4201;
 const READY_POLL_INTERVAL_MS = 500;
 const READY_TIMEOUT_MS = 10_000;
 
