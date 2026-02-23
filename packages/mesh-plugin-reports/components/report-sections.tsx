@@ -273,7 +273,7 @@ function buildMockedPreviousRows(rows: RankedListRow[]): RankedListRow[] {
         i + (i % 3 === 0 ? -2 : i % 2 === 0 ? 1 : -1),
       ),
     );
-    [shuffled[i], shuffled[swapWith]] = [shuffled[swapWith], shuffled[i]];
+    [shuffled[i], shuffled[swapWith]] = [shuffled[swapWith]!, shuffled[i]!];
   }
 
   return shuffled.map((row, idx) => ({

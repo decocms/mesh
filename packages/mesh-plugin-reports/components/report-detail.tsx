@@ -195,7 +195,7 @@ function groupSections(sections: ReportSection[]): SectionGroup[] {
   const groups: SectionGroup[] = [];
   let i = 0;
   while (i < sections.length) {
-    const current = sections[i];
+    const current = sections[i]!;
     const next = sections[i + 1];
     if (current.type === "criteria" && next?.type === "metrics") {
       groups.push({
