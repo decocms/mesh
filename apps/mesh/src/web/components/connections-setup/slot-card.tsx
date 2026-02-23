@@ -46,17 +46,21 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
     (poller.isTimedOut || poller.connection?.status === "error")
   ) {
     const connectionId = pollingConnectionId;
+    // Capture the fetched connection entity so auth phases can use its id
+    if (poller.connection) setSelectedConnection(poller.connection);
     setPollingConnectionId(null);
 
     // Async: check auth status to determine next phase
     const url = new URL(`/mcp/${connectionId}`, window.location.origin).href;
-    isConnectionAuthenticated({ url, token: null }).then((authStatus) => {
-      if (authStatus.supportsOAuth) {
-        setPhase("auth-oauth");
-      } else {
-        setPhase("auth-token");
-      }
-    });
+    isConnectionAuthenticated({ url, token: null })
+      .then((authStatus) => {
+        if (authStatus.supportsOAuth) {
+          setPhase("auth-oauth");
+        } else {
+          setPhase("auth-token");
+        }
+      })
+      .catch(() => setPhase("auth-token"));
   }
 
   const handleInstalled = (connectionId: string) => {
@@ -108,7 +112,9 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
 
   return (
     <div className="rounded-lg border bg-card px-4 py-4 space-y-3">
-      <p className="text-sm font-medium text-foreground">{slot.label}</p>
+      {effectivePhase !== "done" && (
+        <p className="text-sm font-medium text-foreground">{slot.label}</p>
+      )}
 
       {effectivePhase === "done" && resolvedConnection && (
         <SlotDone
