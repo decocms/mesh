@@ -101,25 +101,31 @@ function ShellLayoutInner({
       }
     >
       <MeshSidebar onCreateProject={onCreateProject} />
-      {/* SidebarInset is just a flex container — card styling lives on the inner panels */}
-      <SidebarInset className="overflow-hidden">
+      {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
+          through the rounded corners of the inner card */}
+      <SidebarInset
+        className="overflow-hidden"
+        style={{ background: "transparent" }}
+      >
         <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* Main content card — border + rounding scoped to this panel only */}
-          <ResizablePanel
-            className={cn(
-              "flex flex-col min-w-0 bg-card overflow-hidden",
-              "border-t border-l border-sidebar-border",
-              "rounded-tl-xl rounded-tr-xl",
-              "transition-[border-radius] duration-300",
-              chatOpen && "border-r",
-            )}
-          >
-            <TopbarPortalProvider>
-              <ProjectTopbar />
-              <div className="flex-1 overflow-hidden">
-                <Outlet />
-              </div>
-            </TopbarPortalProvider>
+          {/* ResizablePanel provides sizing; inner div is the visible card */}
+          <ResizablePanel className="min-w-0 flex flex-col">
+            <div
+              className={cn(
+                "flex flex-col flex-1 min-h-0 bg-card overflow-hidden",
+                "border-t border-l border-sidebar-border",
+                "rounded-tl-xl rounded-tr-xl",
+                "transition-[border-radius] duration-300",
+                chatOpen && "border-r",
+              )}
+            >
+              <TopbarPortalProvider>
+                <ProjectTopbar />
+                <div className="flex-1 overflow-hidden">
+                  <Outlet />
+                </div>
+              </TopbarPortalProvider>
+            </div>
           </ResizablePanel>
 
           {/* Chat card — separate floating card, no shared border with main content */}
