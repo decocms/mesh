@@ -28,9 +28,11 @@ Current line 1:
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
 ```
 
-Replace with (Inter **Variable** — note the `+Variable` in the URL):
+Replace with the official Inter CDN (Google Fonts hosts an outdated version; `rsms.me` is canonical). The variable font family name from this CDN is `'Inter var'`:
 ```css
-@import url("https://fonts.googleapis.com/css2?family=Inter+Variable:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+/* Inter — official CDN (latest version, variable font)
+   TODO: migrate to self-hosted once validated */
+@import url("https://rsms.me/inter/inter.css");
 ```
 
 **Step 2: Replace the `:root` color tokens**
@@ -75,7 +77,7 @@ Replace the entire `:root { ... }` block (lines 35–96) with:
   --sidebar-primary: oklch(0.205 0.012 60);
   --sidebar-primary-foreground: oklch(0.98 0.005 60);
 
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter var", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono:
     "CommitMono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
