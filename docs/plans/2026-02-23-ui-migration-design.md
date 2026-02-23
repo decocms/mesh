@@ -52,8 +52,8 @@ All dark mode tokens updated analogously (warm neutral base, hue ~60).
 
 ### Typography
 
-- `--font-sans`: replace system font stack with `"Inter Variable", ui-sans-serif, system-ui, sans-serif`
-- Add Google Fonts import for Inter Variable (already in demo's CSS)
+- `--font-sans`: replace system font stack with `"Inter var", "Inter", ui-sans-serif, system-ui, sans-serif`
+- Import from official CDN `https://rsms.me/inter/inter.css` (Google Fonts hosts an outdated version). Variable font family name is `'Inter var'`. TODO: self-host once validated.
 - `--font-mono`: keep CommitMono (already good)
 - Body: `font-weight: 450` + `font-feature-settings: "cv01", "cv02", "cv03", "cv04", "cv08", "cv10", "ss08"`
 
