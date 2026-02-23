@@ -137,7 +137,7 @@ app.post("/add-project", async (c) => {
     slug,
     name,
     description: `Local development project (${root})`,
-    enabledPlugins: ["object-storage", "preview"],
+    enabledPlugins: ["object-storage", "preview", "site-editor"],
     ui: {
       banner: null,
       bannerColor: "#10B981",
@@ -151,6 +151,9 @@ app.post("/add-project", async (c) => {
     connectionId: connection.id,
   });
   await ctx.storage.projectPluginConfigs.upsert(project.id, "preview", {
+    connectionId: connection.id,
+  });
+  await ctx.storage.projectPluginConfigs.upsert(project.id, "site-editor", {
     connectionId: connection.id,
   });
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { DECO_BLOCKS_BINDING } from "@decocms/bindings";
+import { SITE_EDITOR_BINDING } from "../../lib/binding";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -25,7 +25,7 @@ import { PageModal } from "./page-modal";
 
 export default function PagesList() {
   const { toolCaller, connection } =
-    usePluginContext<typeof DECO_BLOCKS_BINDING>();
+    usePluginContext<typeof SITE_EDITOR_BINDING>();
   const genericCaller = toolCaller as unknown as GenericToolCaller;
   const { org, project } = useParams({ strict: false }) as {
     org: string;

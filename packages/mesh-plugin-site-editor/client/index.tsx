@@ -6,7 +6,6 @@
  * implement the binding.
  */
 
-import { DECO_BLOCKS_BINDING } from "@decocms/bindings";
 import type {
   ClientPlugin,
   PluginSetupContext,
@@ -14,15 +13,16 @@ import type {
 import { lazy } from "react";
 import { LayoutAlt03 } from "@untitledui/icons";
 import { PLUGIN_ID, PLUGIN_DESCRIPTION } from "../shared";
+import { SITE_EDITOR_BINDING } from "../lib/binding";
 import { siteEditorRouter } from "./lib/router";
 
 const PluginHeader = lazy(() => import("./components/plugin-header"));
 const PluginEmptyState = lazy(() => import("./components/plugin-empty-state"));
 
-export const clientPlugin: ClientPlugin<typeof DECO_BLOCKS_BINDING> = {
+export const clientPlugin: ClientPlugin<typeof SITE_EDITOR_BINDING> = {
   id: PLUGIN_ID,
   description: PLUGIN_DESCRIPTION,
-  binding: DECO_BLOCKS_BINDING,
+  binding: SITE_EDITOR_BINDING,
   renderHeader: (props) => <PluginHeader {...props} />,
   renderEmptyState: () => <PluginEmptyState />,
   setup: (context: PluginSetupContext) => {

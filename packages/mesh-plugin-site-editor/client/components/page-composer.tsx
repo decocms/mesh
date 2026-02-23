@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
-import { DECO_BLOCKS_BINDING } from "@decocms/bindings";
+import { SITE_EDITOR_BINDING } from "../../lib/binding";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { toast } from "sonner";
@@ -74,7 +74,7 @@ export default function PageComposer() {
     project: string;
   };
   const { toolCaller, connection } =
-    usePluginContext<typeof DECO_BLOCKS_BINDING>();
+    usePluginContext<typeof SITE_EDITOR_BINDING>();
   const typedCaller = toolCaller as unknown as
     | import("@decocms/bindings").TypedToolCaller<DecoBlocksBinding>
     | null;
