@@ -94,13 +94,57 @@ function ChatPanels({ disableChat = false }: { disableChat?: boolean }) {
         <>
           <ResizableHandle withHandle={chatOpen} />
           <PersistentResizablePanel
-            className={cn(chatOpen ? "max-w-none" : "max-w-0")}
+            className={cn(chatOpen ? "max-w-none bg-sidebar" : "max-w-0")}
           >
-            <ChatPanel />
+            <div className="h-full pl-1.5 pr-[5px] pb-[5px]">
+              <div className="h-full bg-card rounded-xl overflow-hidden border border-sidebar-border shadow-sm">
+                <ChatPanel />
+              </div>
+            </div>
           </PersistentResizablePanel>
         </>
       )}
     </ResizablePanelGroup>
+  );
+}
+
+function ShellLayoutInner({
+  isStudio,
+  isHomeRoute,
+  onCreateProject,
+}: {
+  isStudio: boolean;
+  isHomeRoute: boolean;
+  onCreateProject: () => void;
+}) {
+  const [chatOpen] = useDecoChatOpen();
+
+  return (
+    <SidebarLayout
+      className="flex-1 bg-sidebar pt-1.5"
+      data-studio={isStudio ? "" : undefined}
+      style={
+        {
+          "--sidebar-width": "13rem",
+          "--sidebar-width-mobile": "11rem",
+        } as Record<string, string>
+      }
+    >
+      <MeshSidebar onCreateProject={onCreateProject} />
+      <SidebarInset
+        className={cn(
+          "flex flex-col rounded-tl-xl overflow-hidden border-t border-l border-sidebar-border transition-[border-radius] duration-300",
+          chatOpen && "rounded-tr-xl border-r",
+        )}
+      >
+        <TopbarPortalProvider>
+          <ProjectTopbar />
+          <div className="flex-1 overflow-hidden">
+            <ChatPanels disableChat={isHomeRoute} />
+          </div>
+        </TopbarPortalProvider>
+      </SidebarInset>
+    </SidebarLayout>
   );
 }
 
@@ -185,28 +229,11 @@ function ShellLayoutContent() {
             }
           `}</style>
           <Chat.Provider>
-            <SidebarLayout
-              className="flex-1 bg-sidebar pt-1.5"
-              data-studio={isStudio ? "" : undefined}
-              style={
-                {
-                  "--sidebar-width": "13rem",
-                  "--sidebar-width-mobile": "11rem",
-                } as Record<string, string>
-              }
-            >
-              <MeshSidebar
-                onCreateProject={() => setCreateProjectDialogOpen(true)}
-              />
-              <SidebarInset className="flex flex-col rounded-tl-xl overflow-hidden border-t border-l border-sidebar-border">
-                <TopbarPortalProvider>
-                  <ProjectTopbar />
-                  <div className="flex-1 overflow-hidden">
-                    <ChatPanels disableChat={isHomeRoute} />
-                  </div>
-                </TopbarPortalProvider>
-              </SidebarInset>
-            </SidebarLayout>
+            <ShellLayoutInner
+              isStudio={isStudio}
+              isHomeRoute={isHomeRoute}
+              onCreateProject={() => setCreateProjectDialogOpen(true)}
+            />
           </Chat.Provider>
         </div>
       </PersistentSidebarProvider>
