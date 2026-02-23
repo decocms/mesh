@@ -7,7 +7,6 @@ import {
   SidebarMenuButton,
 } from "@deco/ui/components/sidebar.tsx";
 import { Settings02 } from "@untitledui/icons";
-import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 
 export function SidebarSettingsFooter() {
   const { locator } = useProjectContext();
@@ -39,9 +38,6 @@ export function SidebarSettingsFooter() {
             </span>
             <span className="truncate">Settings</span>
           </SidebarMenuButton>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <MeshUserMenu />
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>
