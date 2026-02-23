@@ -25,7 +25,7 @@ export function SidebarSettingsFooter() {
   };
 
   return (
-    <SidebarFooter className="py-2 border-r">
+    <SidebarFooter className="py-2">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton

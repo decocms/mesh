@@ -93,7 +93,7 @@ export function NavigationSidebar({
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden font-medium border-r pb-2",
+          "flex flex-col flex-1 overflow-x-hidden font-medium pb-2",
           contentClassName,
         )}
       >

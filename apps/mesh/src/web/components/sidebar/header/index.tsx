@@ -34,7 +34,7 @@ export function MeshSidebarHeader({ onCreateProject }: MeshSidebarHeaderProps) {
   };
 
   return (
-    <SidebarHeaderUI className="h-12 gap-0 pt-0 border-r border-sidebar-border">
+    <SidebarHeaderUI className="h-12 gap-0 pt-0">
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center justify-between w-full h-12">
