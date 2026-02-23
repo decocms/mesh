@@ -125,7 +125,7 @@ function ShellLayoutInner({
           {/* Chat card — separate floating card, no shared border with main content */}
           {!isHomeRoute && (
             <>
-              <ResizableHandle withHandle={chatOpen} />
+              <ResizableHandle withHandle={chatOpen} className="bg-sidebar" />
               <PersistentResizablePanel
                 className={cn(chatOpen ? "max-w-none bg-sidebar" : "max-w-0")}
               >
