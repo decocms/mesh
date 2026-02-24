@@ -26,6 +26,7 @@ import { UserProjectItems, ProjectListSkeleton } from "./project-panel";
 import { useProject } from "@/web/hooks/use-project";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { useState } from "react";
+import { usePreferences } from "@/web/hooks/use-preferences";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -59,6 +60,9 @@ export function MeshAccountSwitcher({
   const currentOrg = organizations?.find((o) => o.slug === orgParam);
 
   const [creatingOrganization, setCreatingOrganization] = useState(false);
+
+  const [preferences] = usePreferences();
+  const experimentalProjects = preferences.experimental_projects;
 
   const isStudio = projectParam === ORG_ADMIN_PROJECT_SLUG;
 
@@ -183,14 +187,22 @@ export function MeshAccountSwitcher({
             {!isCollapsed && (
               <>
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <span className="block text-[11px] text-sidebar-foreground/50 leading-tight truncate">
-                    {currentOrg?.name ?? "Select org"}
-                  </span>
-                  <span className="block text-sm font-semibold text-sidebar-foreground truncate leading-tight">
-                    {isStudio
-                      ? "Studio"
-                      : (currentProjectData?.name ?? projectParam ?? "")}
-                  </span>
+                  {experimentalProjects ? (
+                    <>
+                      <span className="block text-[11px] text-sidebar-foreground/50 leading-tight truncate">
+                        {currentOrg?.name ?? "Select org"}
+                      </span>
+                      <span className="block text-sm font-semibold text-sidebar-foreground truncate leading-tight">
+                        {isStudio
+                          ? "Studio"
+                          : (currentProjectData?.name ?? projectParam ?? "")}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="block text-sm font-semibold text-sidebar-foreground truncate leading-tight">
+                      {currentOrg?.name ?? "Select org"}
+                    </span>
+                  )}
                 </div>
                 <ChevronSelectorVertical
                   size={16}
@@ -244,11 +256,8 @@ export function MeshAccountSwitcher({
           )}
 
           {handleCreateProject && (
-            <DropdownMenuItem
-              className="gap-2 text-muted-foreground"
-              onClick={handleCreateProject}
-            >
-              <Plus size={14} className="shrink-0" />
+            <DropdownMenuItem className="gap-2.5" onClick={handleCreateProject}>
+              <Plus size={14} className="shrink-0 text-muted-foreground" />
               <span>Create project</span>
             </DropdownMenuItem>
           )}
@@ -257,8 +266,11 @@ export function MeshAccountSwitcher({
 
           {/* Footer actions — equal weight */}
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="gap-2 text-muted-foreground">
-              <Building02 size={14} className="shrink-0" />
+            <DropdownMenuSubTrigger className="gap-2.5">
+              <Building02
+                size={14}
+                className="shrink-0 text-muted-foreground"
+              />
               <span>Switch organization</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-48 flex flex-col gap-0.5">
@@ -289,20 +301,17 @@ export function MeshAccountSwitcher({
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="gap-2 text-muted-foreground"
+                className="gap-2.5"
                 onClick={() => setCreatingOrganization(true)}
               >
-                <Plus size={14} className="shrink-0 opacity-50" />
+                <Plus size={14} className="shrink-0 text-muted-foreground" />
                 <span>Create organization</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
-          <DropdownMenuItem
-            className="gap-2 text-muted-foreground"
-            onClick={handleSettings}
-          >
-            <Settings04 size={14} className="shrink-0" />
+          <DropdownMenuItem className="gap-2.5" onClick={handleSettings}>
+            <Settings04 size={14} className="shrink-0 text-muted-foreground" />
             <span>Settings</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
