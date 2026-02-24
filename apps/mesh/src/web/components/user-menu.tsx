@@ -15,6 +15,7 @@ import {
   File06,
   Shield01,
   Users03,
+  Globe01,
 } from "@untitledui/icons";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { authClient } from "@/web/lib/auth-client";
@@ -104,13 +105,13 @@ function MeshUserMenuBase({
               href="https://www.decocms.com/terms-of-use"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5"
+              className="flex items-center gap-2.5 group"
             >
               <File06 size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1">Terms of Use</span>
               <LinkExternal01
                 size={14}
-                className="shrink-0 text-muted-foreground"
+                className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </a>
           </DropdownMenuItem>
@@ -120,13 +121,13 @@ function MeshUserMenuBase({
               href="https://www.decocms.com/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5"
+              className="flex items-center gap-2.5 group"
             >
               <Shield01 size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1">Privacy Policy</span>
               <LinkExternal01
                 size={14}
-                className="shrink-0 text-muted-foreground"
+                className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </a>
           </DropdownMenuItem>
@@ -136,13 +137,13 @@ function MeshUserMenuBase({
               href="https://github.com/decocms/mesh"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5"
+              className="flex items-center gap-2.5 group"
             >
               <GitHubIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
               <span className="flex-1">decocms/mesh</span>
               <LinkExternal01
                 size={14}
-                className="shrink-0 text-muted-foreground"
+                className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </a>
           </DropdownMenuItem>
@@ -152,13 +153,29 @@ function MeshUserMenuBase({
               href="https://decocms.com/discord"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5"
+              className="flex items-center gap-2.5 group"
             >
               <Users03 size={14} className="shrink-0 text-muted-foreground" />
               <span className="flex-1">Community</span>
               <LinkExternal01
                 size={14}
-                className="shrink-0 text-muted-foreground"
+                className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </a>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem asChild>
+            <a
+              href="https://decocms.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 group"
+            >
+              <Globe01 size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">Homepage</span>
+              <LinkExternal01
+                size={14}
+                className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </a>
           </DropdownMenuItem>
