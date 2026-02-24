@@ -181,7 +181,7 @@ describe("MCP OAuth Proxy E2E", () => {
 
   describe("Access Control", () => {
     test("returns 401 for unauthenticated requests", async () => {
-      const connectionId = connectionMap.get(MCP_SERVERS[0].url)!;
+      const connectionId = connectionMap.get(MCP_SERVERS[0]!.url)!;
 
       // Temporarily override the mock to simulate unauthenticated request
       const verifyMock = spyOn(auth.api, "verifyApiKey").mockResolvedValue({
