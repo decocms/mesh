@@ -35,6 +35,7 @@ import {
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { MessageChatSquare } from "@untitledui/icons";
+import { useSidebar } from "@deco/ui/components/sidebar.tsx";
 import { PropsWithChildren, Suspense, useRef, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 
@@ -140,6 +141,39 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
       {children}
     </SidebarProvider>
   );
+}
+
+/**
+ * Manages sidebar and chat panel state based on the current route.
+ * - Home: sidebar collapsed, chat disabled (tasks panel replaces it)
+ * - Other pages: sidebar expanded, chat panel open
+ */
+function RouteAwareSidebarManager({ isHomeRoute }: { isHomeRoute: boolean }) {
+  const { open, setOpen } = useSidebar();
+  const [chatOpen, setChatOpen] = useDecoChatOpen();
+  const prevIsHomeRef = useRef<boolean | null>(null);
+
+  // Render-phase state derivation (useEffect is banned — React 19 compiler
+  // handles memoization). Guards prevent no-op updates that would trigger
+  // unnecessary re-renders.
+  if (prevIsHomeRef.current === null) {
+    // First render — collapse sidebar on home
+    prevIsHomeRef.current = isHomeRoute;
+    if (isHomeRoute && open) {
+      setOpen(false);
+    }
+  } else if (prevIsHomeRef.current !== isHomeRoute) {
+    // Route changed
+    prevIsHomeRef.current = isHomeRoute;
+    if (isHomeRoute) {
+      if (open) setOpen(false);
+    } else {
+      if (!open) setOpen(true);
+      if (!chatOpen) setChatOpen(true);
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -267,6 +301,7 @@ function ShellLayoutContent() {
                 } as Record<string, string>
               }
             >
+              <RouteAwareSidebarManager isHomeRoute={isHomeRoute} />
               <MeshSidebar
                 onCreateProject={() => setCreateProjectDialogOpen(true)}
               />
