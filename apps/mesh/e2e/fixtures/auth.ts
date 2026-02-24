@@ -31,28 +31,15 @@ export async function signUp(page: Page) {
   });
 
   await page.goto("/login");
-  // Wait a few seconds for React + all data fetches to settle, then snapshot
-  await page.waitForTimeout(5000);
-  console.log("URL after 5s:", page.url());
-  console.log("Page text:", await page.locator("body").innerText());
-  await page.screenshot({ path: "test-results/debug-login.png" });
 
-  // Wait for the form to be ready before doing anything else.
-  await page.getByRole("button", { name: "Continue" }).waitFor({ state: "visible" });
-
-  // The form may start in sign-in or sign-up mode depending on localStorage.
-  // "Don't have an account? Sign up" is only visible in sign-in mode — click it if present.
-  const toggleLink = page.getByText("Don't have an account? Sign up");
-  if (await toggleLink.isVisible()) {
-    await toggleLink.click();
-  }
-
-  // The name field animates in — wait until it's visible and enabled.
-  const nameInput = page.getByPlaceholder("Your name");
-  await nameInput.waitFor({ state: "visible" });
-  await nameInput.fill(user.name);
+  // Wait for the name input — the form is in sign-up mode by default in a fresh context.
+  // The button has aria-hidden when the form is empty, so fill fields first then click.
+  await page.getByPlaceholder("Your name").waitFor({ state: "visible" });
+  await page.getByPlaceholder("Your name").fill(user.name);
   await page.getByPlaceholder("you@example.com").fill(user.email);
   await page.getByPlaceholder("••••••••").fill(user.password);
+
+  // Button becomes aria-visible once canSubmit is true (all fields filled)
   await page.getByRole("button", { name: "Continue" }).click();
 
   // Wait for redirect away from /login — org is auto-created on signup
