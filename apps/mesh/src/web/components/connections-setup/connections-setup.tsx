@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { SlotCard } from "./slot-card";
 import type { ConnectionSlot } from "./use-slot-resolution";
 
@@ -9,21 +9,30 @@ export interface ConnectionsSetupProps {
 
 export function ConnectionsSetup({ slots, onComplete }: ConnectionsSetupProps) {
   const [completed, setCompleted] = useState<Record<string, string>>({});
+  const wasAllDoneRef = useRef(false);
 
   const handleSlotComplete = (slotId: string, connectionId: string) => {
-    const next = { ...completed };
-    if (connectionId === "") {
-      delete next[slotId];
-    } else {
-      next[slotId] = connectionId;
-    }
-    setCompleted(next);
-
-    const allDone = Object.keys(slots).every((id) => next[id]);
-    if (allDone) {
-      onComplete(next);
-    }
+    setCompleted((prev) => {
+      const next = { ...prev };
+      if (connectionId === "") {
+        delete next[slotId];
+      } else {
+        next[slotId] = connectionId;
+      }
+      return next;
+    });
   };
+
+  const allSlotIds = Object.keys(slots);
+  const allDone =
+    allSlotIds.length > 0 && allSlotIds.every((id) => completed[id]);
+
+  if (allDone && !wasAllDoneRef.current) {
+    wasAllDoneRef.current = true;
+    onComplete(completed);
+  } else if (!allDone) {
+    wasAllDoneRef.current = false;
+  }
 
   return (
     <div className="space-y-3">

@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Loader2 } from "lucide-react";
 import {
   isConnectionAuthenticated,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
+import { KEYS } from "@/web/lib/query-keys";
 import { useSlotResolution, type ConnectionSlot } from "./use-slot-resolution";
 import { useConnectionPoller } from "./use-connection-poller";
 import { type SlotPhase } from "./slot-resolution";
@@ -26,41 +28,56 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
   );
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntity | null>(null);
+  // Tracks which connection needs an auth check after polling times out/errors
+  const [authCheckId, setAuthCheckId] = useState<string | null>(null);
+  // Prevents onComplete from firing more than once per unique connection
+  const completedIdRef = useRef<string | null>(null);
 
   const poller = useConnectionPoller(pollingConnectionId);
+
+  const authUrl = authCheckId
+    ? new URL(`/mcp/${authCheckId}`, window.location.origin).href
+    : "";
+
+  const { data: authStatus } = useQuery({
+    queryKey: KEYS.isMCPAuthenticated(authUrl, null),
+    queryFn: () => isConnectionAuthenticated({ url: authUrl, token: null }),
+    enabled: Boolean(authCheckId),
+    staleTime: Infinity,
+  });
 
   // Derive effective phase: explicit override takes priority, else from resolution
   const effectivePhase: SlotPhase = phase ?? resolution.initialPhase;
 
   // React to poller becoming active
   if (pollingConnectionId && poller.isActive && poller.connection) {
-    setPollingConnectionId(null);
-    setSelectedConnection(poller.connection);
-    setPhase("done");
-    onComplete(poller.connection.id);
+    if (completedIdRef.current !== poller.connection.id) {
+      completedIdRef.current = poller.connection.id;
+      setPollingConnectionId(null);
+      setSelectedConnection(poller.connection);
+      setPhase("done");
+      onComplete(poller.connection.id);
+    }
   }
 
-  // React to poller timeout/error — determine auth type needed
+  // React to poller timeout/error — queue an auth check instead of firing async in render
   if (
     pollingConnectionId &&
     (poller.isTimedOut || poller.connection?.status === "error")
   ) {
-    const connectionId = pollingConnectionId;
-    // Capture the fetched connection entity so auth phases can use its id
     if (poller.connection) setSelectedConnection(poller.connection);
+    setAuthCheckId(pollingConnectionId);
     setPollingConnectionId(null);
+  }
 
-    // Async: check auth status to determine next phase
-    const url = new URL(`/mcp/${connectionId}`, window.location.origin).href;
-    isConnectionAuthenticated({ url, token: null })
-      .then((authStatus) => {
-        if (authStatus.supportsOAuth) {
-          setPhase("auth-oauth");
-        } else {
-          setPhase("auth-token");
-        }
-      })
-      .catch(() => setPhase("auth-token"));
+  // React to auth check result — set the appropriate auth phase
+  if (
+    authCheckId &&
+    authStatus &&
+    phase !== "auth-oauth" &&
+    phase !== "auth-token"
+  ) {
+    setPhase(authStatus.supportsOAuth ? "auth-oauth" : "auth-token");
   }
 
   const handleInstalled = (connectionId: string) => {
@@ -69,8 +86,10 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
   };
 
   const handleAuthed = () => {
-    const id = pollingConnectionId ?? selectedConnection?.id ?? null;
+    const id =
+      pollingConnectionId ?? selectedConnection?.id ?? authCheckId ?? null;
     if (id) {
+      setAuthCheckId(null);
       setPollingConnectionId(id);
       setPhase("polling");
     }
@@ -81,11 +100,16 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
     setPhase(hasExisting ? "picker" : "install");
     setSelectedConnection(null);
     setPollingConnectionId(null);
+    setAuthCheckId(null);
+    completedIdRef.current = null;
     onComplete("");
   };
 
   const resolvedConnection =
     selectedConnection ?? resolution.satisfiedConnection ?? null;
+
+  // Fallback to authCheckId when connection entity wasn't fetched before timeout
+  const authConnectionId = selectedConnection?.id ?? authCheckId;
 
   if (effectivePhase === "loading") {
     return (
@@ -177,17 +201,17 @@ export function SlotCard({ slot, onComplete }: SlotCardProps) {
         </div>
       )}
 
-      {effectivePhase === "auth-oauth" && selectedConnection && (
+      {effectivePhase === "auth-oauth" && authConnectionId && (
         <SlotAuthOAuth
-          connectionId={selectedConnection.id}
+          connectionId={authConnectionId}
           providerName={resolution.registryItem?.title ?? slot.label}
           onAuthed={handleAuthed}
         />
       )}
 
-      {effectivePhase === "auth-token" && selectedConnection && (
+      {effectivePhase === "auth-token" && authConnectionId && (
         <SlotAuthToken
-          connectionId={selectedConnection.id}
+          connectionId={authConnectionId}
           onAuthed={handleAuthed}
         />
       )}

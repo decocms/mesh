@@ -23,12 +23,11 @@ export function useConnectionPoller(
 ): ConnectionPollerResult {
   const { org } = useProjectContext();
   const startTimeRef = useRef<number>(0);
+  const prevConnectionIdRef = useRef<string | null>(null);
 
-  if (connectionId && startTimeRef.current === 0) {
-    startTimeRef.current = Date.now();
-  }
-  if (!connectionId) {
-    startTimeRef.current = 0;
+  if (connectionId !== prevConnectionIdRef.current) {
+    prevConnectionIdRef.current = connectionId;
+    startTimeRef.current = connectionId ? Date.now() : 0;
   }
 
   const { data: connection } = useQuery({
