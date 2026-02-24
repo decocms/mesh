@@ -5,7 +5,12 @@
  * header, metrics, criteria, and ranked-list sections.
  */
 
-import type { Report, ReportSection } from "@decocms/bindings";
+import {
+  type Report,
+  type ReportSection,
+  type SectionGroup,
+  groupSections,
+} from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
 import { AlertCircle, ArrowLeft, Clock, Loading01 } from "@untitledui/icons";
 import { StatusBadge } from "./status-badge";
@@ -22,49 +27,6 @@ function formatDate(iso: string): string {
     timeStyle: "short",
   });
 }
-
-type SingleGroup = { type: "single"; section: ReportSection; idx: number };
-type SideBySideGroup = {
-  type: "side-by-side";
-  left: Extract<ReportSection, { type: "criteria" }>;
-  right: Extract<ReportSection, { type: "metrics" }>;
-  leftIdx: number;
-  rightIdx: number;
-};
-type SectionGroup = SingleGroup | SideBySideGroup;
-
-function groupSections(sections: ReportSection[]): SectionGroup[] {
-  const groups: SectionGroup[] = [];
-  let i = 0;
-  while (i < sections.length) {
-    const current = sections[i]!;
-    const next = sections[i + 1];
-    if (current.type === "criteria" && next?.type === "metrics") {
-      groups.push({
-        type: "side-by-side",
-        left: current as Extract<ReportSection, { type: "criteria" }>,
-        right: next as Extract<ReportSection, { type: "metrics" }>,
-        leftIdx: i,
-        rightIdx: i + 1,
-      });
-      i += 2;
-    } else if (current.type === "metrics" && next?.type === "criteria") {
-      groups.push({
-        type: "side-by-side",
-        left: next as Extract<ReportSection, { type: "criteria" }>,
-        right: current as Extract<ReportSection, { type: "metrics" }>,
-        leftIdx: i + 1,
-        rightIdx: i,
-      });
-      i += 2;
-    } else {
-      groups.push({ type: "single", section: current, idx: i });
-      i += 1;
-    }
-  }
-  return groups;
-}
-
 
 export default function RankingDetail({
   reportId,
@@ -108,7 +70,6 @@ export default function RankingDetail({
   return (
     <div className="flex flex-col h-full overflow-y-auto py-6 px-64">
       <div className="border-b border-border py-4 space-y-3">
-
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <h1 className="text-xl font-semibold leading-tight">
