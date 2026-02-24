@@ -9,11 +9,7 @@
  * Provides a "Mark as done" button that dismisses the report.
  */
 
-import {
-  REPORTS_BINDING,
-  type Report,
-  groupSections,
-} from "@decocms/bindings";
+import { REPORTS_BINDING, type Report, groupSections } from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   AlertCircle,
