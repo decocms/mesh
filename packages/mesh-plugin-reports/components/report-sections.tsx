@@ -500,10 +500,7 @@ function RankedListSection({
       {showComparison ? (
         <div className="flex gap-4 items-start">
           <RankedTable rows={rows} label="Ordenação Proposta" />
-          <RankedTable
-            rows={mockedPreviousRows}
-            label="Ordenação Atual"
-          />
+          <RankedTable rows={mockedPreviousRows} label="Ordenação Atual" />
         </div>
       ) : (
         <RankedTable rows={rows} />

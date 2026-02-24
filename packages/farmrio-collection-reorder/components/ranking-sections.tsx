@@ -346,7 +346,9 @@ function RankedTable({
                     const allValues: (string | number | null)[] = Array.from(
                       { length: valueColCount },
                       (_, i) =>
-                        noteObj?.[columnNoteKeys[i] ?? ""] ?? row.values[i] ?? null,
+                        noteObj?.[columnNoteKeys[i] ?? ""] ??
+                        row.values[i] ??
+                        null,
                     );
                     return allValues.map((val, cellIdx) => (
                       <TableCell key={cellIdx} className="text-sm tabular-nums">
