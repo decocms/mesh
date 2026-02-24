@@ -6,6 +6,7 @@ import { MeshSidebar } from "@/web/components/sidebar";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -91,11 +92,14 @@ function ShellLayoutInner({
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
     30,
   );
+  const [preferences] = usePreferences();
 
   return (
     <SidebarLayout
       className="flex-1 bg-sidebar"
-      data-studio={isStudio ? "" : undefined}
+      data-studio={
+        isStudio && preferences.experimental_projects ? "" : undefined
+      }
       style={
         {
           "--sidebar-width": "13.5rem",
