@@ -21,6 +21,7 @@ export async function signUp(page: Page) {
   const user = generateTestUser();
 
   await page.goto("/login");
+  await page.screenshot({ path: "test-results/debug-login.png" });
 
   // Wait for the form to be ready before doing anything else.
   await page.getByRole("button", { name: "Continue" }).waitFor({ state: "visible" });
