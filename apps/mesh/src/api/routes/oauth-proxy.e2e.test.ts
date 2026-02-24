@@ -267,17 +267,14 @@ describe("MCP OAuth Proxy E2E", () => {
     });
 
     test("returns 403 for cross-org token endpoint access", async () => {
-      const res = await app.request(
-        `/oauth-proxy/conn_cross_org/token`,
-        {
-          method: "POST",
-          headers: {
-            ...TEST_AUTH_HEADERS,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: "grant_type=authorization_code&code=test_code",
+      const res = await app.request(`/oauth-proxy/conn_cross_org/token`, {
+        method: "POST",
+        headers: {
+          ...TEST_AUTH_HEADERS,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-      );
+        body: "grant_type=authorization_code&code=test_code",
+      });
 
       expect(res.status).toBe(403);
       const body = await res.json();
@@ -287,20 +284,17 @@ describe("MCP OAuth Proxy E2E", () => {
     });
 
     test("returns 403 for cross-org register endpoint access", async () => {
-      const res = await app.request(
-        `/oauth-proxy/conn_cross_org/register`,
-        {
-          method: "POST",
-          headers: {
-            ...TEST_AUTH_HEADERS,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            client_name: "malicious-client",
-            redirect_uris: ["https://evil.com/callback"],
-          }),
+      const res = await app.request(`/oauth-proxy/conn_cross_org/register`, {
+        method: "POST",
+        headers: {
+          ...TEST_AUTH_HEADERS,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          client_name: "malicious-client",
+          redirect_uris: ["https://evil.com/callback"],
+        }),
+      });
 
       expect(res.status).toBe(403);
       const body = await res.json();

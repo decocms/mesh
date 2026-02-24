@@ -314,7 +314,10 @@ export async function createApp(options: CreateAppOptions = {}) {
     }
 
     if (connection.organization_id !== ctx.organization?.id) {
-      return c.json({ error: "Connection does not belong to your organization" }, 403);
+      return c.json(
+        { error: "Connection does not belong to your organization" },
+        403,
+      );
     }
 
     // Get origin auth server - tries Protected Resource Metadata first, then falls back to origin root
