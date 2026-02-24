@@ -6,7 +6,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
@@ -116,8 +115,7 @@ function ProjectsSectionContent() {
 
   return (
     <>
-      <SidebarSeparator className="my-2" />
-      <div className="group/projects-section">
+      <div className="group/projects-section mt-2">
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <SidebarGroup className="py-0 px-0">
             <SidebarGroupContent>

@@ -45,13 +45,20 @@ function MeshUserMenuBase({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Avatar
-            url={userImage}
-            fallback={user.name || user.email || "U"}
-            shape="circle"
-            size="sm"
-            className="cursor-pointer hover:ring-2 ring-muted-foreground transition-all h-7 w-7"
-          />
+          <button className="flex w-full h-8 items-center gap-2 rounded-md px-1 hover:bg-sidebar-accent transition-colors text-left min-w-0">
+            <Avatar
+              url={userImage}
+              fallback={user.name || user.email || "U"}
+              shape="circle"
+              size="2xs"
+              className="shrink-0 size-5"
+            />
+            <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+              <div className="text-sm font-medium truncate text-sidebar-foreground leading-none">
+                {user.name || "User"}
+              </div>
+            </div>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side="top"
