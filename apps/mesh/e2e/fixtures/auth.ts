@@ -20,16 +20,6 @@ export function generateTestUser() {
 export async function signUp(page: Page) {
   const user = generateTestUser();
 
-  // Log all requests and their status to diagnose hangs
-  page.on("requestfailed", (req) =>
-    console.error("FAILED:", req.url(), req.failure()?.errorText),
-  );
-  page.on("response", (res) => {
-    if (res.url().includes("/api/auth") || res.url().includes("/api/")) {
-      console.log("RESPONSE:", res.status(), res.url());
-    }
-  });
-
   await page.goto("/login");
 
   // Wait for the name input — the form is in sign-up mode by default in a fresh context.
