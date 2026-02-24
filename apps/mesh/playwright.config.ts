@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:4000",
+    baseURL: "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -20,7 +20,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "bun run dev",
-    url: "http://localhost:4000",
+    url: "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 120_000,
     stdout: "ignore",
