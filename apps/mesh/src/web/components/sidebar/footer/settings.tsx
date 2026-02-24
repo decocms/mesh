@@ -24,19 +24,20 @@ export function SidebarSettingsFooter() {
   };
 
   return (
-    <SidebarFooter className="py-2">
+    <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-2">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
-            className="group/nav-item cursor-pointer text-foreground/90 hover:text-foreground"
             onClick={handleClick}
             isActive={isActive}
             tooltip="Settings"
           >
-            <span className="text-muted-foreground group-hover/nav-item:text-foreground transition-colors [&>svg]:size-4">
+            <span className="[&>svg]:size-4">
               <Settings02 />
             </span>
-            <span className="truncate">Settings</span>
+            <span className="truncate group-data-[collapsible=icon]:hidden">
+              Settings
+            </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

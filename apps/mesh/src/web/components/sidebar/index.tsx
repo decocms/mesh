@@ -49,7 +49,6 @@ export function MeshSidebar({ onCreateProject }: MeshSidebarProps) {
           </Suspense>
         </ErrorBoundary>
       }
-      contentClassName={!isOrgAdmin ? "pt-3" : undefined}
     />
   );
 }

@@ -1,5 +1,4 @@
 import { authClient } from "@/web/lib/auth-client";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Plus } from "@untitledui/icons";
 import { OrgItem } from "./org-item";
 
@@ -40,26 +39,11 @@ export function OrgPanel({
 
   return (
     <div className="flex flex-col min-w-[240px] border-l border-border">
-      {/* Header */}
-      <div className="flex items-center justify-between h-10 px-3 border-b border-border">
-        <span className="text-xs text-muted-foreground truncate">
-          Your Organizations
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-5"
-          onClick={() => {
-            onPopoverClose();
-            onCreateOrganization();
-          }}
-        >
-          <Plus size={16} className="text-muted-foreground" />
-        </Button>
-      </div>
-
       {/* Org list */}
       <div className="flex flex-col gap-0.5 p-1 flex-1 overflow-y-auto">
+        <p className="px-2 pt-1.5 pb-0.5 text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+          Organizations
+        </p>
         {sortedOrganizations.map((organization) => (
           <OrgItem
             key={organization.slug}
@@ -71,6 +55,21 @@ export function OrgPanel({
             onHover={onOrgHover}
           />
         ))}
+      </div>
+
+      {/* Footer — create org */}
+      <div className="border-t px-1.5 py-1.5">
+        <button
+          type="button"
+          className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-left text-muted-foreground hover:bg-accent transition-colors"
+          onClick={() => {
+            onPopoverClose();
+            onCreateOrganization();
+          }}
+        >
+          <Plus size={14} className="shrink-0 opacity-50" />
+          <span className="text-[13px]">Create organization</span>
+        </button>
       </div>
     </div>
   );

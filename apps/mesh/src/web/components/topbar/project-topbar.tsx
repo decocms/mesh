@@ -1,12 +1,12 @@
 import { Locator, useProjectContext } from "@decocms/mesh-sdk";
 import { useTopbarPortalTargets } from "@decocms/mesh-sdk/plugins";
+import { SidebarTrigger } from "@deco/ui/components/sidebar.tsx";
 
 /**
  * Project-aware topbar component
  *
- * - For org-admin: Not shown (handled by shell layout)
- * - For regular projects: Dark background with portal target slots
- *   for left, center, and right content.
+ * Always renders a sidebar toggle. For regular projects, also includes
+ * portal target slots for left, center, and right content.
  *
  * Content is rendered into these slots via <TopbarPortal side="left|center|right">
  * from anywhere in the component tree (including plugin routes).
@@ -21,8 +21,11 @@ export function ProjectTopbar() {
   if (isOrgAdmin) return null;
 
   return (
-    <header className="sticky top-0 z-50 h-11 bg-background flex items-center px-4 shrink-0 border-b border-border/40 [&:not(:has(>div:not(:empty)))]:hidden">
-      {/* Left Section - portal target */}
+    <header className="sticky top-0 z-50 h-11 bg-background flex items-center px-2 shrink-0 border-b border-border/40">
+      {/* Sidebar toggle */}
+      <SidebarTrigger className="text-muted-foreground" />
+
+      {/* Left Section - portal target (breadcrumbs etc.) */}
       <div
         ref={portalTargets?.leftRef}
         className="flex items-center gap-2 flex-1 min-w-0"
