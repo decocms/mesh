@@ -581,13 +581,18 @@ export default function RegistryRequestsPage() {
               size="sm"
               variant="outline"
               className="h-7 text-xs px-2"
-              onClick={
-                allVisiblePendingSelected
-                  ? clearSelection
-                  : selectVisiblePending
-              }
+              onClick={selectVisiblePending}
+              disabled={allVisiblePendingSelected}
             >
-              {allVisiblePendingSelected ? "Clear selection" : "Select all"}
+              Select all
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={clearSelection}
+            >
+              Clear selection
             </Button>
             <Button
               size="sm"
