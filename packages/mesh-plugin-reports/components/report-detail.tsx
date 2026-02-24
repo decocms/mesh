@@ -12,8 +12,6 @@
 import {
   REPORTS_BINDING,
   type Report,
-  type ReportSection,
-  type SectionGroup,
   groupSections,
 } from "@decocms/bindings";
 import { Button } from "@deco/ui/components/button.tsx";
