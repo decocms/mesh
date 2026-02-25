@@ -233,4 +233,8 @@ export const KEYS = {
 
   // Interview allowed models (scoped by org slug, used on onboard-interview page)
   interviewModels: (org: string) => ["interview", "models", org] as const,
+
+  // Onboarding agent recommendations (scoped by diagnostic token)
+  onboardingRecommendations: (token: string) =>
+    ["onboarding", "recommendations", token] as const,
 } as const;
