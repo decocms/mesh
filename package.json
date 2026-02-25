@@ -23,7 +23,7 @@
     "check": "bun run --workspaces check",
     "check:ci": "bun run --workspaces check",
     "fmt:check": "biome format",
-    "test": "bun test",
+    "test": "bun test apps/mesh/src packages",
     "docs:dev": "bun run --cwd=apps/docs dev:client",
     "docs:deploy": "bun run --cwd=apps/docs deploy",
     "build:runtime": "bun run --filter=@decocms/runtime build",
