@@ -19,6 +19,8 @@ import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import type { AgentRecommendation } from "@/diagnostic/types";
 
 // ============================================================================
 // Onboarding System Prompt
@@ -215,6 +217,268 @@ function UserMessage({ text }: { text: string }) {
     <div className="flex justify-end">
       <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-brand px-4 py-3 text-sm text-brand-foreground">
         {text}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Recommendation card components
+// ============================================================================
+
+function RecommendationCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 shadow-sm animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 rounded-lg bg-muted" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-1/3 rounded bg-muted" />
+          <div className="h-3 w-2/3 rounded bg-muted" />
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        <div className="h-3 w-full rounded bg-muted" />
+        <div className="h-3 w-4/5 rounded bg-muted" />
+      </div>
+      <div className="mt-4 space-y-2">
+        <div className="h-3 w-1/4 rounded bg-muted" />
+        <div className="h-3 w-1/2 rounded bg-muted" />
+      </div>
+      <div className="mt-5 h-10 w-full rounded-lg bg-muted" />
+    </div>
+  );
+}
+
+function AgentRecommendationCard({
+  recommendation,
+  org,
+}: {
+  recommendation: AgentRecommendation;
+  org: string;
+}) {
+  const connectionsUrl = `/${org}/org-admin/connections?add=true`;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="shrink-0">
+          <IntegrationIcon
+            icon={recommendation.agentIcon}
+            name={recommendation.agentTitle}
+            size="sm"
+            fallbackIcon={
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </div>
+            }
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-foreground">
+            {recommendation.agentTitle}
+          </h3>
+          {recommendation.agentDescription && (
+            <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+              {recommendation.agentDescription}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Recommendation reason */}
+      <div className="mt-4 flex items-start gap-2">
+        <svg
+          className="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+          />
+        </svg>
+        <p className="text-sm text-foreground">{recommendation.reason}</p>
+      </div>
+
+      {/* Required connections */}
+      {recommendation.requiredConnections.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Connections needed
+          </p>
+          <ul className="mt-1.5 space-y-1.5">
+            {recommendation.requiredConnections.map((conn) => (
+              <li key={conn.connectionId} className="flex items-center gap-2">
+                {conn.isConfigured ? (
+                  <>
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                    <span className="text-sm text-muted-foreground">
+                      {conn.title}
+                    </span>
+                    <span className="text-xs text-green-600">Connected</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                    <span className="text-sm text-muted-foreground">
+                      {conn.title}
+                    </span>
+                    <a
+                      href={connectionsUrl}
+                      className="text-xs font-medium text-brand underline-offset-2 hover:underline"
+                    >
+                      Connect
+                    </a>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Hire button */}
+      <div className="mt-5">
+        <a
+          href={connectionsUrl}
+          className="block w-full rounded-lg bg-brand px-4 py-2.5 text-center text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90"
+        >
+          Hire this agent
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Recommendations view
+// ============================================================================
+
+function RecommendationsView({
+  org,
+  token,
+  organizationId,
+}: {
+  org: string;
+  token: string;
+  organizationId: string | null | undefined;
+}) {
+  const { data: recommendations, isLoading } = useQuery<AgentRecommendation[]>({
+    queryKey: KEYS.onboardingRecommendations(token),
+    queryFn: () =>
+      fetch(
+        `/api/onboarding/recommendations?token=${encodeURIComponent(token)}&organizationId=${encodeURIComponent(organizationId ?? "")}`,
+      )
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(
+          (data) =>
+            (data as { recommendations: AgentRecommendation[] })
+              .recommendations,
+        ),
+    enabled: !!token && !!organizationId,
+  });
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Header */}
+      <div className="border-b border-border bg-background px-4 py-6">
+        <div className="mx-auto max-w-2xl text-center">
+          <h1 className="text-2xl font-bold text-foreground">
+            Recommended agents for your store
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Based on your diagnostic results and goals, we recommend hiring
+            these agents:
+          </p>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 px-4 py-8">
+        <div className="mx-auto max-w-2xl">
+          {isLoading ? (
+            <div className="space-y-4">
+              <RecommendationCardSkeleton />
+              <RecommendationCardSkeleton />
+              <RecommendationCardSkeleton />
+            </div>
+          ) : !recommendations || recommendations.length === 0 ? (
+            // Empty state
+            <div className="rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <svg
+                  className="h-6 w-6 text-muted-foreground"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-base font-semibold text-foreground">
+                No agent recommendations yet
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Your team doesn&apos;t have any agents configured. You can add
+                agents later from the dashboard.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = `/${org}`;
+                }}
+                className="mt-6 inline-flex items-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90"
+              >
+                Go to dashboard
+              </button>
+            </div>
+          ) : (
+            // Recommendation cards
+            <div className="space-y-4">
+              {recommendations.map((rec) => (
+                <AgentRecommendationCard
+                  key={rec.agentId}
+                  recommendation={rec}
+                  org={org}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Skip / footer */}
+          <div className="mt-8 text-center">
+            <a
+              href={`/${org}`}
+              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Skip for now
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -497,22 +761,11 @@ export default function OnboardInterviewPage() {
   // ── Recommendations view (plan 03) ────────────────────────────────────────
   if (step === "recommendations") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-        <div className="max-w-lg text-center">
-          <h1 className="text-2xl font-bold text-foreground">
-            Your recommendations are being prepared
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Agent recommendations will appear here in the next phase.
-          </p>
-          <a
-            href={`/${org}`}
-            className="mt-6 inline-flex items-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition-opacity hover:opacity-90"
-          >
-            Go to dashboard
-          </a>
-        </div>
-      </div>
+      <RecommendationsView
+        org={org ?? ""}
+        token={token ?? ""}
+        organizationId={activeOrgId}
+      />
     );
   }
 
