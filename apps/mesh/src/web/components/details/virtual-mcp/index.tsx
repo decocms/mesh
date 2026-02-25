@@ -41,7 +41,7 @@ import {
   Loading01,
   Play,
   Plus,
-  Link01,
+  ZapCircle,
   Tool01,
   Users03,
 } from "@untitledui/icons";
@@ -316,7 +316,7 @@ function VirtualMcpDetailViewWithData({
             dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: true })
           }
         >
-          <Link01 size={14} />
+          <ZapCircle size={14} />
           Connect
         </Button>
 
