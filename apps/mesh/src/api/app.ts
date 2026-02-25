@@ -40,6 +40,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createDiagnosticRoutes } from "./routes/diagnostic";
 import publicConfigRoutes from "./routes/public-config";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
@@ -278,6 +279,13 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Public Configuration (no auth required)
   // ============================================================================
   app.route("/api/config", publicConfigRoutes);
+
+  // ============================================================================
+  // Public Diagnostic Routes (no auth required)
+  // Must be mounted BEFORE the MeshContext middleware below.
+  // shouldSkipMeshContext already excludes /api/diagnostic/* from context injection.
+  // ============================================================================
+  app.route("/api/diagnostic", createDiagnosticRoutes(database.db));
 
   // ============================================================================
   // Better Auth Routes
