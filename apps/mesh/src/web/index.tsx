@@ -182,11 +182,7 @@ const projectSettingsRoute = createRoute({
     throw redirect({
       to: "/$org/$project",
       params,
-      search: {
-        settings: isOrgAdmin
-          ? "org.general"
-          : `project:${params.project}:general`,
-      },
+      search: { settings: isOrgAdmin ? "org.general" : "project.general" },
     });
   },
   component: () => null,
