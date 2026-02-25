@@ -34,12 +34,27 @@ function SaveChangesToolbarButton({
   client: Client;
   connectionId: string;
 }) {
-  const [isOpen, setIsOpen] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(GIT_PANEL_KEY) ?? "false");
-    } catch {
-      return false;
-    }
+  const queryClient = useQueryClient();
+
+  // Read git panel open state from the same TanStack Query key as useLocalStorage
+  const panelQueryKey = ["localStorage", GIT_PANEL_KEY] as const;
+  const { data: isOpen = false } = useQuery({
+    queryKey: panelQueryKey,
+    queryFn: () => {
+      try {
+        return JSON.parse(localStorage.getItem(GIT_PANEL_KEY) ?? "false");
+      } catch {
+        return false;
+      }
+    },
+    initialData: () => {
+      try {
+        return JSON.parse(localStorage.getItem(GIT_PANEL_KEY) ?? "false");
+      } catch {
+        return false;
+      }
+    },
+    staleTime: Infinity,
   });
 
   const { data: changeCount = 0 } = useQuery({
@@ -63,8 +78,9 @@ function SaveChangesToolbarButton({
 
   const toggle = () => {
     const next = !isOpen;
-    setIsOpen(next);
     localStorage.setItem(GIT_PANEL_KEY, JSON.stringify(next));
+    queryClient.setQueryData(panelQueryKey, next);
+    // Dispatch for any other listeners (e.g. cross-tab)
     window.dispatchEvent(
       new StorageEvent("storage", {
         key: GIT_PANEL_KEY,
