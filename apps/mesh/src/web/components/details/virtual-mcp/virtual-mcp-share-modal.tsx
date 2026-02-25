@@ -392,7 +392,7 @@ export function VirtualMCPShareModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Share Agent</DialogTitle>
+          <DialogTitle>Connect</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-6">
           {/* Mode Selection */}
