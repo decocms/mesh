@@ -8,18 +8,18 @@
 
 ### Diagnostic Backend (DIAG)
 
-- [ ] **DIAG-01**: User can enter a storefront URL on a public page (no login required) and trigger a diagnostic scan
-- [ ] **DIAG-02**: System crawls the homepage HTML and extracts platform (VTEX, Shopify, etc.), SEO signals (title, meta, OG, schema markup), and page content
-- [ ] **DIAG-03**: System calls PageSpeed Insights API for Core Web Vitals (LCP, INP, CLS) and performance scores (mobile + desktop)
-- [ ] **DIAG-04**: System calls CrUX API for real user experience data, with fallback to PSI field data for low-traffic sites
-- [ ] **DIAG-05**: System detects tech stack from HTML/headers: analytics (GA4, GTM), CDN (Cloudflare), payment providers, review widgets, chat tools
-- [ ] **DIAG-06**: System generates AI company context from crawled data — what the store sells, who it targets, positioning (one paragraph via LLM)
+- [x] **DIAG-01**: User can enter a storefront URL on a public page (no login required) and trigger a diagnostic scan
+- [x] **DIAG-02**: System crawls the homepage HTML and extracts platform (VTEX, Shopify, etc.), SEO signals (title, meta, OG, schema markup), and page content
+- [x] **DIAG-03**: System calls PageSpeed Insights API for Core Web Vitals (LCP, INP, CLS) and performance scores (mobile + desktop)
+- [x] **DIAG-04**: System calls CrUX API for real user experience data, with fallback to PSI field data for low-traffic sites
+- [x] **DIAG-05**: System detects tech stack from HTML/headers: analytics (GA4, GTM), CDN (Cloudflare), payment providers, review widgets, chat tools
+- [x] **DIAG-06**: System generates AI company context from crawled data — what the store sells, who it targets, positioning (one paragraph via LLM)
 - [ ] **DIAG-07**: System shows traffic volume and competitor comparison sections (mocked data for v1.4, real API integration in future)
 - [ ] **DIAG-08**: System shows SEO ranking/backlink data sections (mocked data for v1.4)
 - [ ] **DIAG-09**: System shows brand/visual identity extraction section (mocked data for v1.4)
 - [ ] **DIAG-10**: System shows percentile comparison vs other storefronts (mocked data for v1.4)
-- [ ] **DIAG-11**: System validates URL input and prevents SSRF attacks (blocks private/internal IPs after DNS resolution)
-- [ ] **DIAG-12**: All diagnostic agents run in parallel with timeout handling; report renders with partial results if any agent fails
+- [x] **DIAG-11**: System validates URL input and prevents SSRF attacks (blocks private/internal IPs after DNS resolution)
+- [x] **DIAG-12**: All diagnostic agents run in parallel with timeout handling; report renders with partial results if any agent fails
 
 ### Report (RPT)
 
@@ -95,18 +95,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIAG-01 | Phase 19 | Pending |
-| DIAG-02 | Phase 19 | Pending |
-| DIAG-03 | Phase 19 | Pending |
-| DIAG-04 | Phase 19 | Pending |
-| DIAG-05 | Phase 19 | Pending |
-| DIAG-06 | Phase 19 | Pending |
+| DIAG-01 | Phase 19 | Complete |
+| DIAG-02 | Phase 19 | Complete |
+| DIAG-03 | Phase 19 | Complete |
+| DIAG-04 | Phase 19 | Complete |
+| DIAG-05 | Phase 19 | Complete |
+| DIAG-06 | Phase 19 | Complete |
 | DIAG-07 | Phase 20 | Pending |
 | DIAG-08 | Phase 20 | Pending |
 | DIAG-09 | Phase 20 | Pending |
 | DIAG-10 | Phase 20 | Pending |
-| DIAG-11 | Phase 19 | Pending |
-| DIAG-12 | Phase 19 | Pending |
+| DIAG-11 | Phase 19 | Complete |
+| DIAG-12 | Phase 19 | Complete |
 | RPT-01 | Phase 20 | Pending |
 | RPT-02 | Phase 20 | Pending |
 | RPT-03 | Phase 20 | Pending |
