@@ -107,9 +107,16 @@ export function MeshAccountSwitcher({
 
   const handleSettings = () => {
     if (!orgParam || !projectParam) return;
+    const isOrgAdmin = projectParam === ORG_ADMIN_PROJECT_SLUG;
     navigate({
-      to: "/$org/$project/settings",
+      to: "/$org/$project",
       params: { org: orgParam, project: projectParam },
+      search: (prev: { settings?: string }) => ({
+        ...prev,
+        settings: isOrgAdmin
+          ? "org.general"
+          : `project:${projectParam}:general`,
+      }),
     });
   };
 
