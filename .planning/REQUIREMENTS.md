@@ -39,9 +39,9 @@
 
 ### Interview + Goals (INTV)
 
-- [ ] **INTV-01**: Post-login user enters a chat-based interview (max 3 focused questions) about their goals and challenges
-- [ ] **INTV-02**: Interview uses existing decopilot chat infrastructure with a structured system prompt
-- [ ] **INTV-03**: Interview results (goals, challenges, priorities) are persisted to the org's company context
+- [x] **INTV-01**: Post-login user enters a chat-based interview (max 3 focused questions) about their goals and challenges
+- [x] **INTV-02**: Interview uses existing decopilot chat infrastructure with a structured system prompt
+- [x] **INTV-03**: Interview results (goals, challenges, priorities) are persisted to the org's company context
 
 ### Agent Recommendations (AGNT)
 
@@ -117,9 +117,9 @@
 | AUTH-02 | Phase 21 | Complete |
 | AUTH-03 | Phase 21 | Complete |
 | AUTH-04 | Phase 21 | Complete |
-| INTV-01 | Phase 22 | Pending |
-| INTV-02 | Phase 22 | Pending |
-| INTV-03 | Phase 22 | Pending |
+| INTV-01 | Phase 22 | Complete |
+| INTV-02 | Phase 22 | Complete |
+| INTV-03 | Phase 22 | Complete |
 | AGNT-01 | Phase 22 | Pending |
 | AGNT-02 | Phase 22 | Pending |
 | AGNT-03 | Phase 22 | Pending |

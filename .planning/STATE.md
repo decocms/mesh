@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** E-commerce teams get an instant storefront diagnostic and guided onboarding into a team of AI agents that optimize their store.
-**Current focus:** Milestone v1.4 — Storefront Onboarding (Phase 21 in progress: auth handoff)
+**Current focus:** Milestone v1.4 — Storefront Onboarding (Phase 22 in progress: interview + recommendations)
 
 ## Current Position
 
-Phase: 21 of 22 in v1.4 (Auth Handoff) — In Progress
-Plan: 3 of 3 done
-Status: Complete
-Last activity: 2026-02-25 — completed 21-03 (post-login onboard-setup page with org resolution and claim flow)
+Phase: 22 of 22 in v1.4 (Interview + Recommendations) — In Progress
+Plan: 1 of 3 done
+Status: In Progress
+Last activity: 2026-02-25 — completed 22-01 (post-login interview page with decopilot chat integration)
 
-Progress: [█████░░░░░] 21% (v1.4, 7/? plans done)
+Progress: [█████░░░░░] 24% (v1.4, 8/? plans done)
 
 ## Performance Metrics
 
@@ -36,8 +36,9 @@ Progress: [█████░░░░░] 21% (v1.4, 7/? plans done)
 | Phase 21 P01 | 1 | 3 min | 3 min |
 | Phase 21 P02 | 1 | 1 min | 1 min |
 | Phase 21 P03 | 1 | 2 min | 2 min |
+| Phase 22 P01 | 1 | 7 min | 7 min |
 
-**Recent Trend:** 2 min/plan
+**Recent Trend:** 7 min/plan
 
 *Updated after each plan completion*
 
@@ -77,6 +78,10 @@ Recent decisions affecting current work:
 - [Phase 21-auth-handoff]: ?next= param encodes /onboard-setup?token=<token> — post-login redirect lands on setup page with token in URL, sessionStorage serves as OAuth redirect fallback
 - [Phase 21-auth-handoff 21-03]: Per-mutation-variable loading state pattern — claimMutation.variables?.action comparison targets specific buttons without shared loading state
 - [Phase 21-auth-handoff 21-03]: onboardSetupRoute is a public route outside shellLayout — auth check is internal in the component, consistent with /onboarding and /report/$token
+- [Phase 22-interview 22-01]: Interview chat uses DefaultChatTransport directly (not ChatProvider) — avoids Virtual MCP selection, thread management, and model selection UI complexity
+- [Phase 22-interview 22-01]: INTERVIEW_COMPLETE marker + JSON payload in assistant response for reliable structured data extraction without function calling
+- [Phase 22-interview 22-01]: interviewResults stored in diagnostic session via updateResults() with 'interviewResults' key — extends DiagnosticResult without DB migration
+- [Phase 22-interview 22-01]: ChatOnFinishCallback receives { message, messages, ... } object not just message — destructure { message } from callback parameter
 
 ### Pending Todos
 
@@ -91,5 +96,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 21-03-PLAN.md — post-login onboard-setup page completing the full auth handoff flow (AUTH-01 through AUTH-04)
+Stopped at: Completed 22-01-PLAN.md — post-login interview page with decopilot chat integration (INTV-01 through INTV-03)
 Resume file: None
