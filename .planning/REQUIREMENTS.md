@@ -1,137 +1,135 @@
 # Requirements: MCP Mesh
 
 **Defined:** 2026-02-20
-**Amended:** 2026-02-20 — lead engineer feedback: bash over git tools, deco-cli as entry point, projects as virtual MCPs
-**Core Value:** Developers can connect any MCP server to Mesh and get auth, routing, observability, and a polished admin UI — including a full visual site editor for Deco-compatible sites.
+**Amended:** 2026-02-25 — v1.4 Storefront Onboarding milestone added
+**Core Value:** E-commerce teams get an instant storefront diagnostic and guided onboarding into a team of AI agents that optimize their store.
 
-## v1.3 Requirements
+## v1.4 Requirements
+
+### Diagnostic Backend (DIAG)
+
+- [ ] **DIAG-01**: User can enter a storefront URL on a public page (no login required) and trigger a diagnostic scan
+- [ ] **DIAG-02**: System crawls the homepage HTML and extracts platform (VTEX, Shopify, etc.), SEO signals (title, meta, OG, schema markup), and page content
+- [ ] **DIAG-03**: System calls PageSpeed Insights API for Core Web Vitals (LCP, INP, CLS) and performance scores (mobile + desktop)
+- [ ] **DIAG-04**: System calls CrUX API for real user experience data, with fallback to PSI field data for low-traffic sites
+- [ ] **DIAG-05**: System detects tech stack from HTML/headers: analytics (GA4, GTM), CDN (Cloudflare), payment providers, review widgets, chat tools
+- [ ] **DIAG-06**: System generates AI company context from crawled data — what the store sells, who it targets, positioning (one paragraph via LLM)
+- [ ] **DIAG-07**: System shows traffic volume and competitor comparison sections (mocked data for v1.4, real API integration in future)
+- [ ] **DIAG-08**: System shows SEO ranking/backlink data sections (mocked data for v1.4)
+- [ ] **DIAG-09**: System shows brand/visual identity extraction section (mocked data for v1.4)
+- [ ] **DIAG-10**: System shows percentile comparison vs other storefronts (mocked data for v1.4)
+- [ ] **DIAG-11**: System validates URL input and prevents SSRF attacks (blocks private/internal IPs after DNS resolution)
+- [ ] **DIAG-12**: All diagnostic agents run in parallel with timeout handling; report renders with partial results if any agent fails
+
+### Report (RPT)
+
+- [ ] **RPT-01**: Diagnostic results render as a structured report with sections: performance, SEO, tech stack, company context, traffic, competitors, brand
+- [ ] **RPT-02**: Report is accessible at a public URL without login (`/report/<token>`)
+- [ ] **RPT-03**: Mocked sections show data with a visual "Pro" or "upgrade" indicator
+- [ ] **RPT-04**: Report is shareable via link copy button
+- [ ] **RPT-05**: Company context section is editable after login
+- [ ] **RPT-06**: Report is stored and persisted (survives page refresh)
+
+### Authentication Flow (AUTH)
+
+- [ ] **AUTH-01**: User sees a login/signup prompt after viewing the initial diagnostic report
+- [ ] **AUTH-02**: After login, system creates or joins an org derived from the user's email domain
+- [ ] **AUTH-03**: Pre-auth diagnostic state (URL + report token) is preserved through the login/signup flow
+- [ ] **AUTH-04**: After login, the diagnostic report is associated with the user's org and visible in the Reports plugin
+
+### Interview + Goals (INTV)
+
+- [ ] **INTV-01**: Post-login user enters a chat-based interview (max 3 focused questions) about their goals and challenges
+- [ ] **INTV-02**: Interview uses existing decopilot chat infrastructure with a structured system prompt
+- [ ] **INTV-03**: Interview results (goals, challenges, priorities) are persisted to the org's company context
+
+### Agent Recommendations (AGNT)
+
+- [ ] **AGNT-01**: After interview, system recommends 2-3 agents based on diagnostic results + declared goals
+- [ ] **AGNT-02**: Each recommendation shows the agent's purpose, why it's recommended, and what connections it needs
+- [ ] **AGNT-03**: User can initiate connection setup directly from an agent recommendation card
+- [ ] **AGNT-04**: Connection setup pre-populates the connection type from the agent's requirements
+
+## v1.3 Requirements (previous milestone)
+
+<details>
+<summary>Local Dev Daemon, Deco Blocks Plugin, Site Editor Plugin, deco link</summary>
 
 ### Local Dev Daemon (`packages/local-dev/`)
 
 - [ ] **LDV-01**: Developer can start the local-dev MCP daemon pointing at a folder with a single command
-- [ ] **LDV-02**: local-dev exposes full filesystem tools (read, write, edit, list, tree, search, delete, copy) scoped to the target folder
-- [ ] **LDV-03**: local-dev exposes OBJECT_STORAGE_BINDING tools (LIST_OBJECTS, GET/PUT_PRESIGNED_URL, DELETE_OBJECT, GET_ROOT) backed by local filesystem with embedded HTTP server for presigned URLs
-- [ ] **LDV-04**: local-dev exposes an unrestricted bash execution tool scoped to the project folder (covers git, dev server, build commands, etc. — like Claude Code's bash)
-- [ ] **LDV-05**: local-dev exposes a readiness endpoint (`/_ready`) that Mesh polls before marking the project online
-- [ ] **LDV-06**: local-dev forwards SIGTERM to any spawned processes for clean shutdown
-- [ ] **LDV-07**: local-dev exposes SSE `/watch` stream for filesystem change events (real-time file edits visible in Mesh UI)
-
-> **Note:** Git-specific tools (GIT_STATUS, GIT_DIFF, etc.) were removed — all git operations go through **LDV-04** (bash). Dev server management is also covered by bash (e.g. `bash("bun dev")`).
+- [ ] **LDV-02**: local-dev exposes full filesystem tools scoped to the target folder
+- [ ] **LDV-03**: local-dev exposes OBJECT_STORAGE_BINDING tools backed by local filesystem
+- [ ] **LDV-04**: local-dev exposes an unrestricted bash execution tool scoped to the project folder
+- [ ] **LDV-05**: local-dev exposes a readiness endpoint (`/_ready`)
+- [ ] **LDV-06**: local-dev forwards SIGTERM to spawned processes for clean shutdown
+- [ ] **LDV-07**: local-dev exposes SSE `/watch` stream for filesystem change events
 
 ### Deco Blocks Plugin (`packages/mesh-plugin-deco-blocks/`)
 
-- [ ] **BLK-01**: plugin-deco-blocks scans a folder and returns all block definitions (name, props schema, file path)
-- [ ] **BLK-02**: plugin-deco-blocks scans a folder and returns all loader definitions (name, props schema, return type)
-- [ ] **BLK-03**: plugin-deco-blocks defines DECO_BLOCKS_BINDING — the binding a connection must implement to be treated as a deco site
-- [ ] **BLK-04**: plugin-deco-blocks provides `isDecoSite(connection)` binding checker usable by other plugins and flows
-- [ ] **BLK-05**: plugin-deco-blocks ships with the canonical BLOCKS_FRAMEWORK.md spec as a package asset
-- [ ] **BLK-06**: plugin-deco-blocks includes the Claude skill for implementing deco blocks (`.claude/commands/deco/blocks-framework.md`)
+- [ ] **BLK-01** through **BLK-06**: Block/loader scanning, DECO_BLOCKS_BINDING, Claude skill
 
 ### Site Editor Plugin (`packages/mesh-plugin-site-editor/`)
 
-- [ ] **EDT-01**: User can view and navigate all pages in a deco site project
-- [ ] **EDT-02**: User can create, rename, and delete pages
-- [ ] **EDT-03**: User can view all available blocks and their prop schemas
-- [ ] **EDT-04**: User can view all available loaders and their prop schemas
-- [ ] **EDT-05**: User can open the visual composer for any page
-- [ ] **EDT-06**: User can add, remove, and reorder sections on a page via drag-and-drop
-- [ ] **EDT-07**: User can edit section props via auto-generated form (RJSF)
-- [ ] **EDT-08**: User can bind a loader to a section prop
-- [ ] **EDT-09**: User can preview the page live in an iframe with edit/interact mode toggle
-- [ ] **EDT-10**: User can undo and redo changes in the composer
-- [ ] **EDT-11**: User sees pending changes (sections added/modified/deleted vs git HEAD) with diff badges — powered by bash git calls via local-dev
-- [ ] **EDT-12**: User can commit pending changes from Mesh UI with a Claude-generated commit message — via bash git commit
-- [ ] **EDT-13**: User can view git history for the current page with commit list and diff preview — via bash git log/show
-- [ ] **EDT-14**: User can revert to a previous commit with a confirmation dialog — via bash git checkout
-- [ ] **EDT-15**: Site editor activates automatically when the project connection implements DECO_BLOCKS_BINDING
-
-> **Note:** EDT-11 through EDT-14 (git UX) activate only when the connection also exposes the bash tool. No direct dependency on local-dev package — capability-checked at runtime.
+- [ ] **EDT-01** through **EDT-15**: Pages CRUD, visual composer, preview, git UX
 
 ### `deco link` command (`packages/cli/`)
 
-- [ ] **LNK-01**: Developer can run `deco link ./my-folder` to register a local project folder with a running Mesh instance
-- [ ] **LNK-02**: `deco link` starts a local-dev daemon for the given folder (or connects to an already-running one)
-- [ ] **LNK-03**: `deco link` creates (or reuses) a Connection in Mesh pointing at the local-dev daemon
-- [ ] **LNK-04**: `deco link` creates (or reuses) a Project in Mesh wired to that Connection
-- [ ] **LNK-05**: If the folder is a deco site (`.deco/` present), `deco link` auto-enables the site-editor plugin on the project
-- [ ] **LNK-06**: `deco link` opens the browser to the project URL in Mesh, already logged in
-- [ ] **LNK-07**: `deco link` keeps running as a daemon — when Ctrl+C is pressed, local-dev shuts down cleanly
-- [ ] **LNK-08**: `deco link` is designed for both local Mesh (v1.3) and remote Mesh via tunnel (v1.4) — the Mesh URL is configurable
+- [ ] **LNK-01** through **LNK-08**: Local project linking to Mesh
 
-> **Note:** deco-cli (`packages/cli`) already exists with login support. `deco link` is a new command added to it. The CLI is the portable piece; Mesh can be local or remote.
+</details>
 
-## v2 Requirements
-
-### Projects as Virtual MCPs (v1.4)
-
-- **PRJ-01**: Projects expose themselves as MCP servers (virtual MCP with all project tools)
-- **PRJ-02**: `deco link` creates a local proxy so developer can call the project's virtual MCP tools from their local machine
-- **PRJ-03**: Developer can write local code that calls project tools via the CLI proxy
-
-### Remote & Collaboration (v1.4)
-
-- **RMT-01**: `deco link` can connect local folder to a remote Mesh instance via tunnel
-- **RMT-02**: Project can be linked to a GitHub repository
-- **RMT-03**: User can switch between "local" and "branch on GitHub" views in a project
-
-## Out of Scope
+## Out of Scope (v1.4)
 
 | Feature | Reason |
 |---------|--------|
-| Kubernetes / remote daemon | Local-first only for this milestone |
-| GitHub integration | Deferred to v1.4 |
-| Tunnel / remote Mesh | Deferred to v1.4 |
-| Projects as virtual MCPs (local proxy) | Deferred to v1.4 |
-| Multi-user local setup | Single developer workflow only |
-| Mobile / responsive site editor | Desktop workflow only |
-| `npx @decocms/mesh` as entry point | Replaced by `deco link` via packages/cli |
+| SimilarWeb/DataForSEO/ReclameAqui real API integration | Paid APIs — mocked for now, real in future |
+| Email nurture sequences | Marketing automation, not product onboarding |
+| WhatsApp report sharing | Shareable URL is sufficient |
+| VTEX Day booth/kiosk mode | Separate concern |
+| Full page-by-page crawl (all product/collection pages) | Homepage scan is sufficient for wow moment |
+| WCAG accessibility audit | Separate audit type, defer |
+| Multi-step wizard with 10+ questions | Research shows max 3 questions for conversion |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LDV-01 | Phase 15 | Pending |
-| LDV-02 | Phase 15 | Pending |
-| LDV-03 | Phase 15 | Pending |
-| LDV-04 | Phase 15 | Pending |
-| LDV-05 | Phase 15 | Pending |
-| LDV-06 | Phase 15 | Pending |
-| LDV-07 | Phase 15 | Pending |
-| BLK-01 | Phase 16 | Pending |
-| BLK-02 | Phase 16 | Pending |
-| BLK-03 | Phase 16 | Pending |
-| BLK-04 | Phase 16 | Pending |
-| BLK-05 | Phase 16 | Pending |
-| BLK-06 | Phase 16 | Pending |
-| EDT-01 | Phase 17 | Pending |
-| EDT-02 | Phase 17 | Pending |
-| EDT-03 | Phase 17 | Pending |
-| EDT-04 | Phase 17 | Pending |
-| EDT-05 | Phase 17 | Pending |
-| EDT-06 | Phase 17 | Pending |
-| EDT-07 | Phase 17 | Pending |
-| EDT-08 | Phase 17 | Pending |
-| EDT-09 | Phase 17 | Pending |
-| EDT-10 | Phase 17 | Pending |
-| EDT-11 | Phase 17 | Pending |
-| EDT-12 | Phase 17 | Pending |
-| EDT-13 | Phase 17 | Pending |
-| EDT-14 | Phase 17 | Pending |
-| EDT-15 | Phase 17 | Pending |
-| LNK-01 | Phase 18 | Pending |
-| LNK-02 | Phase 18 | Pending |
-| LNK-03 | Phase 18 | Pending |
-| LNK-04 | Phase 18 | Pending |
-| LNK-05 | Phase 18 | Pending |
-| LNK-06 | Phase 18 | Pending |
-| LNK-07 | Phase 18 | Pending |
-| LNK-08 | Phase 18 | Pending |
+| DIAG-01 | TBD | Pending |
+| DIAG-02 | TBD | Pending |
+| DIAG-03 | TBD | Pending |
+| DIAG-04 | TBD | Pending |
+| DIAG-05 | TBD | Pending |
+| DIAG-06 | TBD | Pending |
+| DIAG-07 | TBD | Pending |
+| DIAG-08 | TBD | Pending |
+| DIAG-09 | TBD | Pending |
+| DIAG-10 | TBD | Pending |
+| DIAG-11 | TBD | Pending |
+| DIAG-12 | TBD | Pending |
+| RPT-01 | TBD | Pending |
+| RPT-02 | TBD | Pending |
+| RPT-03 | TBD | Pending |
+| RPT-04 | TBD | Pending |
+| RPT-05 | TBD | Pending |
+| RPT-06 | TBD | Pending |
+| AUTH-01 | TBD | Pending |
+| AUTH-02 | TBD | Pending |
+| AUTH-03 | TBD | Pending |
+| AUTH-04 | TBD | Pending |
+| INTV-01 | TBD | Pending |
+| INTV-02 | TBD | Pending |
+| INTV-03 | TBD | Pending |
+| AGNT-01 | TBD | Pending |
+| AGNT-02 | TBD | Pending |
+| AGNT-03 | TBD | Pending |
+| AGNT-04 | TBD | Pending |
 
 **Coverage:**
-- v1.3 requirements: 36 total (7 LDV + 6 BLK + 15 EDT + 8 LNK)
-- Mapped to phases: 36
-- Unmapped: 0 ✓
+- v1.4 requirements: 29 total (12 DIAG + 6 RPT + 4 AUTH + 3 INTV + 4 AGNT)
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 29
 
 ---
-*Requirements defined: 2026-02-20*
-*Last updated: 2026-02-20 — amended per lead engineer: bash replaces git tools, deco link in packages/cli replaces npx @decocms/mesh, projects-as-MCPs deferred to v1.4*
+*Requirements defined: 2026-02-25*
+*Last updated: 2026-02-25 — v1.4 Storefront Onboarding*
