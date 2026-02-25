@@ -269,8 +269,8 @@ function TypegenSectionInner({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
         </p>
       )}
 
-      <div className="flex items-center gap-2 rounded-md border border-input bg-muted/50 px-3 py-2.5">
-        <code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2.5">
+        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-muted-foreground">
           {command}
         </code>
         <Button
@@ -341,7 +341,7 @@ export function VirtualMCPShareModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Share Agent</DialogTitle>
         </DialogHeader>
