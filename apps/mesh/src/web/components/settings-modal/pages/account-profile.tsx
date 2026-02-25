@@ -18,9 +18,10 @@ export function AccountProfilePage() {
 
   const handleCopyUserId = () => {
     if (!user?.id) return;
-    navigator.clipboard.writeText(user.id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(user.id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   return (

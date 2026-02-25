@@ -29,6 +29,17 @@ function SettingRow({
       className="flex items-center justify-between gap-6 py-4 border-b border-border last:border-0"
       onClick={disabled ? undefined : onClick}
       role={onClick ? "button" : undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined}
+      onKeyDown={
+        onClick && !disabled
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       style={{ cursor: onClick && !disabled ? "pointer" : undefined }}
     >
       <div className="flex items-start gap-3 min-w-0 flex-1">

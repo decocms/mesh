@@ -17,6 +17,28 @@ export function projectSection(
   return `project:${slug}:${sub}` as SettingsSection;
 }
 
+const STATIC_SECTIONS = new Set([
+  "account.profile",
+  "account.preferences",
+  "account.experimental",
+  "org.general",
+  "org.plugins",
+]);
+
+function isValidSettingsSection(
+  value: string | undefined,
+): value is SettingsSection {
+  if (!value) return false;
+  if (STATIC_SECTIONS.has(value)) return true;
+  const parts = value.split(":");
+  return (
+    parts.length === 3 &&
+    parts[0] === "project" &&
+    !!parts[1] &&
+    (parts[2] === "general" || parts[2] === "plugins" || parts[2] === "danger")
+  );
+}
+
 export function parseProjectSection(section: SettingsSection): {
   slug: string;
   sub: "general" | "plugins" | "danger";
@@ -35,7 +57,9 @@ export function useSettingsModal() {
     project?: string;
   };
 
-  const activeSection = search.settings as SettingsSection | undefined;
+  const activeSection = isValidSettingsSection(search.settings)
+    ? search.settings
+    : undefined;
   const isOpen = !!activeSection;
 
   const open = (section: SettingsSection) => {
