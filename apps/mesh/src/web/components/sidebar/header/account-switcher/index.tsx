@@ -113,9 +113,7 @@ export function MeshAccountSwitcher({
       params: { org: orgParam, project: projectParam },
       search: (prev: { settings?: string }) => ({
         ...prev,
-        settings: isOrgAdmin
-          ? "org.general"
-          : `project:${projectParam}:general`,
+        settings: isOrgAdmin ? "org.general" : "project.general",
       }),
     });
   };
