@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 20 of 22 in v1.4 (Public Report UI) — In Progress
-Plan: 1 of 3 done (plan 02 next)
+Plan: 2 of 3 done (plan 03 next)
 Status: In Progress
-Last activity: 2026-02-25 — completed 20-01 (/onboarding page with URL input, agent checklist, route registration)
+Last activity: 2026-02-25 — completed 20-02 (/report/:token page with CWV, SEO, tech stack, company context sections)
 
-Progress: [████░░░░░░] 15% (v1.4, 4/? plans done)
+Progress: [█████░░░░░] 18% (v1.4, 5/? plans done)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 5 min
-- Total execution time: 20 min
+- Total execution time: 24 min
 
 **By Phase:**
 
@@ -31,8 +31,9 @@ Progress: [████░░░░░░] 15% (v1.4, 4/? plans done)
 | Phase 19 P02 | 1 | 7 min | 7 min |
 | Phase 19 P03 | 1 | 2 min | 2 min |
 | Phase 20 P01 | 1 | 5 min | 5 min |
+| Phase 20 P02 | 1 | 4 min | 4 min |
 
-**Recent Trend:** 5 min/plan
+**Recent Trend:** 4 min/plan
 
 *Updated after each plan completion*
 
@@ -59,6 +60,9 @@ Recent decisions affecting current work:
 - [Phase 19]: Session always reaches "completed" even if all agents fail — homepage crawl failure is the only "failed" path
 - [Phase 20-public-report-ui]: Use <Navigate> component (not useNavigate hook) for report redirect — avoids banned useEffect pattern
 - [Phase 20-public-report-ui]: refetchInterval as callback function stops polling declaratively when session completes/fails
+- [Phase 20-public-report-ui]: No refetchInterval on report page — session is already completed when navigated to, single fetch is correct
+- [Phase 20-public-report-ui]: CompanyContextSection reads token via useParams rather than prop drilling
+- [Phase 20-public-report-ui]: Edit affordance uses plain <a href> not router Link — preserves full ?next= URL construction
 
 ### Pending Todos
 
@@ -73,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 20-01-PLAN.md — /onboarding page with URL input, agent checklist, and route registration
+Stopped at: Completed 20-02-PLAN.md — /report/:token page with CWV, SEO, tech stack, company context sections
 Resume file: None

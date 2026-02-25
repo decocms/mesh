@@ -23,11 +23,11 @@
 
 ### Report (RPT)
 
-- [ ] **RPT-01**: Diagnostic results render as a structured report with sections: performance, SEO, tech stack, company context, traffic, competitors, brand
+- [x] **RPT-01**: Diagnostic results render as a structured report with sections: performance, SEO, tech stack, company context, traffic, competitors, brand
 - [x] **RPT-02**: Report is accessible at a public URL without login (`/report/<token>`)
 - [ ] **RPT-03**: Mocked sections show data with a visual "Pro" or "upgrade" indicator
-- [ ] **RPT-04**: Report is shareable via link copy button
-- [ ] **RPT-05**: Company context section is editable after login
+- [x] **RPT-04**: Report is shareable via link copy button
+- [x] **RPT-05**: Company context section is editable after login
 - [x] **RPT-06**: Report is stored and persisted (survives page refresh)
 
 ### Authentication Flow (AUTH)
@@ -107,11 +107,11 @@
 | DIAG-10 | Phase 20 | Pending |
 | DIAG-11 | Phase 19 | Complete |
 | DIAG-12 | Phase 19 | Complete |
-| RPT-01 | Phase 20 | Pending |
+| RPT-01 | Phase 20 | Complete |
 | RPT-02 | Phase 20 | Complete |
 | RPT-03 | Phase 20 | Pending |
-| RPT-04 | Phase 20 | Pending |
-| RPT-05 | Phase 20 | Pending |
+| RPT-04 | Phase 20 | Complete |
+| RPT-05 | Phase 20 | Complete |
 | RPT-06 | Phase 20 | Complete |
 | AUTH-01 | Phase 21 | Pending |
 | AUTH-02 | Phase 21 | Pending |
