@@ -45,8 +45,8 @@
 
 ### Agent Recommendations (AGNT)
 
-- [ ] **AGNT-01**: After interview, system recommends 2-3 agents based on diagnostic results + declared goals
-- [ ] **AGNT-02**: Each recommendation shows the agent's purpose, why it's recommended, and what connections it needs
+- [x] **AGNT-01**: After interview, system recommends 2-3 agents based on diagnostic results + declared goals
+- [x] **AGNT-02**: Each recommendation shows the agent's purpose, why it's recommended, and what connections it needs
 - [ ] **AGNT-03**: User can initiate connection setup directly from an agent recommendation card
 - [ ] **AGNT-04**: Connection setup pre-populates the connection type from the agent's requirements
 
@@ -120,8 +120,8 @@
 | INTV-01 | Phase 22 | Complete |
 | INTV-02 | Phase 22 | Complete |
 | INTV-03 | Phase 22 | Complete |
-| AGNT-01 | Phase 22 | Pending |
-| AGNT-02 | Phase 22 | Pending |
+| AGNT-01 | Phase 22 | Complete |
+| AGNT-02 | Phase 22 | Complete |
 | AGNT-03 | Phase 22 | Pending |
 | AGNT-04 | Phase 22 | Pending |
 
