@@ -1,88 +1,37 @@
-import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 
 export type SettingsSection =
   | "account.profile"
   | "account.preferences"
   | "account.experimental"
   | "org.general"
-  | "org.plugins"
-  | `project:${string}:general`
-  | `project:${string}:plugins`
-  | `project:${string}:danger`;
-
-export function projectSection(
-  slug: string,
-  sub: "general" | "plugins" | "danger",
-): SettingsSection {
-  return `project:${slug}:${sub}` as SettingsSection;
-}
-
-const STATIC_SECTIONS = new Set([
-  "account.profile",
-  "account.preferences",
-  "account.experimental",
-  "org.general",
-  "org.plugins",
-]);
-
-function isValidSettingsSection(
-  value: string | undefined,
-): value is SettingsSection {
-  if (!value) return false;
-  if (STATIC_SECTIONS.has(value)) return true;
-  const parts = value.split(":");
-  return (
-    parts.length === 3 &&
-    parts[0] === "project" &&
-    !!parts[1] &&
-    (parts[2] === "general" || parts[2] === "plugins" || parts[2] === "danger")
-  );
-}
-
-export function parseProjectSection(section: SettingsSection): {
-  slug: string;
-  sub: "general" | "plugins" | "danger";
-} | null {
-  if (!section.startsWith("project:")) return null;
-  const [, slug, sub] = section.split(":");
-  if (!slug || !sub) return null;
-  return { slug, sub: sub as "general" | "plugins" | "danger" };
-}
+  | "project.general"
+  | "project.plugins"
+  | "project.danger";
 
 export function useSettingsModal() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { settings?: string };
-  const { org, project } = useParams({ strict: false }) as {
-    org?: string;
-    project?: string;
-  };
 
-  const activeSection = isValidSettingsSection(search.settings)
-    ? search.settings
-    : undefined;
+  const activeSection = search.settings as SettingsSection | undefined;
   const isOpen = !!activeSection;
 
   const open = (section: SettingsSection) => {
-    if (!org || !project) return;
-    navigate({
-      to: "/$org/$project",
-      params: { org, project },
-      search: { settings: section },
-    });
+    navigate({ search: (prev) => ({ ...prev, settings: section }) });
   };
 
   const close = () => {
-    if (!org || !project) return;
     navigate({
-      to: "/$org/$project",
-      params: { org, project },
-      search: {},
+      search: (prev) => {
+        const { settings: _s, ...rest } = prev as Record<string, unknown>;
+        return rest as Record<string, string>;
+      },
     });
   };
 
   return {
     isOpen,
-    activeSection: activeSection ?? ("account.preferences" as SettingsSection),
+    activeSection: activeSection ?? "account.preferences",
     open,
     close,
   };
