@@ -289,6 +289,47 @@ function TypegenSectionInner({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
           </Button>
         </div>
       </div>
+
+      <EnvVarsBlock apiKey={apiKey} />
+    </div>
+  );
+}
+
+function EnvVarsBlock({ apiKey }: { apiKey: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const meshUrl = window.location.origin;
+  const keyLine = apiKey ? `MESH_API_KEY=${apiKey}` : `MESH_API_KEY=<api-key>`;
+  const urlLine = `MESH_BASE_URL=${meshUrl}`;
+  const envBlock = `${keyLine}\n${urlLine}`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(envBlock);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-md border border-input bg-muted/50 px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <code className="min-w-0 flex-1 font-mono text-xs text-muted-foreground">
+          <span className={apiKey ? "" : "opacity-50"}>{keyLine}</span>
+          <br />
+          <span>{urlLine}</span>
+        </code>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-6 shrink-0"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check size={12} className="text-green-600" />
+          ) : (
+            <Copy01 size={12} />
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
