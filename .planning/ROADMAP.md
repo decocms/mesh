@@ -42,7 +42,7 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 - [ ] **Phase 17: site-editor plugin** - Full site editor UI with visual composer and git UX
 - [ ] **Phase 18: deco link command** - `deco link ./folder` in packages/cli connects local project to Mesh
 - [x] **Phase 19: Diagnostic Backend** - DB schema + parallel diagnostic service functions (real data: PSI, CrUX, HTML crawl, tech detection, AI context) (completed 2026-02-25)
-- [ ] **Phase 20: Public Report UI** - Public Hono routes + React report page with all sections (real + mocked)
+- [x] **Phase 20: Public Report UI** - Public Hono routes + React report page with all sections (real + mocked) (completed 2026-02-25)
 - [ ] **Phase 21: Auth Handoff** - Login gate after report, token preservation through OAuth, org creation + report association
 - [ ] **Phase 22: Interview + Recommendations** - Post-login chat interview, agent recommendation engine, connection setup from recommendation cards
 
@@ -130,7 +130,7 @@ Plans:
   3. Traffic, competitor comparison, SEO rankings/backlinks, and brand/visual identity sections are visible with realistic data, each marked with a "Pro" or upgrade indicator
   4. Clicking the share button copies the report URL to clipboard — the same URL loads the full report for anyone with the link, with no login required
   5. The AI company context section has an edit affordance visible on the report page (edit requires login, but the affordance is present pre-login)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 20-01-PLAN.md — Routes + URL input page + loading state with agent checklist + polling
 - [ ] 20-02-PLAN.md — Report page scaffold + real data sections (performance, SEO, tech stack, company context) + share button + edit affordance
@@ -168,6 +168,6 @@ Plans:
 | 17. site-editor plugin | v1.3 | 0/? | Not started | - |
 | 18. deco link command | v1.3 | 0/? | Not started | - |
 | 19. Diagnostic Backend | v1.4 | Complete    | 2026-02-25 | 2026-02-25 |
-| 20. Public Report UI | 2/3 | In Progress|  | - |
+| 20. Public Report UI | 3/3 | Complete   | 2026-02-25 | - |
 | 21. Auth Handoff | v1.4 | 0/? | Not started | - |
 | 22. Interview + Recommendations | v1.4 | 0/? | Not started | - |

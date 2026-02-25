@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** E-commerce teams get an instant storefront diagnostic and guided onboarding into a team of AI agents that optimize their store.
-**Current focus:** Milestone v1.4 — Storefront Onboarding (Phase 20 in progress, plan 1/3 done)
+**Current focus:** Milestone v1.4 — Storefront Onboarding (Phase 20 complete, Phase 21 next)
 
 ## Current Position
 
-Phase: 20 of 22 in v1.4 (Public Report UI) — In Progress
-Plan: 2 of 3 done (plan 03 next)
+Phase: 20 of 22 in v1.4 (Public Report UI) — Complete
+Plan: 3 of 3 done (phase complete)
 Status: In Progress
-Last activity: 2026-02-25 — completed 20-02 (/report/:token page with CWV, SEO, tech stack, company context sections)
+Last activity: 2026-02-25 — completed 20-03 (mocked Pro sections: traffic, SEO rankings, brand, percentile)
 
 Progress: [█████░░░░░] 18% (v1.4, 5/? plans done)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 5 min
-- Total execution time: 24 min
+- Total execution time: 27 min
 
 **By Phase:**
 
@@ -32,8 +32,9 @@ Progress: [█████░░░░░] 18% (v1.4, 5/? plans done)
 | Phase 19 P03 | 1 | 2 min | 2 min |
 | Phase 20 P01 | 1 | 5 min | 5 min |
 | Phase 20 P02 | 1 | 4 min | 4 min |
+| Phase 20 P03 | 1 | 3 min | 3 min |
 
-**Recent Trend:** 4 min/plan
+**Recent Trend:** 3 min/plan
 
 *Updated after each plan completion*
 
@@ -63,6 +64,9 @@ Recent decisions affecting current work:
 - [Phase 20-public-report-ui]: No refetchInterval on report page — session is already completed when navigated to, single fetch is correct
 - [Phase 20-public-report-ui]: CompanyContextSection reads token via useParams rather than prop drilling
 - [Phase 20-public-report-ui]: Edit affordance uses plain <a href> not router Link — preserves full ?next= URL construction
+- [Phase 20]: All mocked Pro section data is static constants at top of each file — no props needed, sections are self-contained
+- [Phase 20]: opacity-70 on mocked data content hints at locked content while ProBadge is the primary upgrade indicator
+- [Phase 20]: violet-100 border accent on mocked sections provides subtle visual distinction from real data sections
 
 ### Pending Todos
 
@@ -77,5 +81,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 20-02-PLAN.md — /report/:token page with CWV, SEO, tech stack, company context sections
+Stopped at: Completed 20-03-PLAN.md — mocked Pro sections (traffic, SEO rankings, brand, percentile) integrated into report page
 Resume file: None

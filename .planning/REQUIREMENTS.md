@@ -14,10 +14,10 @@
 - [x] **DIAG-04**: System calls CrUX API for real user experience data, with fallback to PSI field data for low-traffic sites
 - [x] **DIAG-05**: System detects tech stack from HTML/headers: analytics (GA4, GTM), CDN (Cloudflare), payment providers, review widgets, chat tools
 - [x] **DIAG-06**: System generates AI company context from crawled data — what the store sells, who it targets, positioning (one paragraph via LLM)
-- [ ] **DIAG-07**: System shows traffic volume and competitor comparison sections (mocked data for v1.4, real API integration in future)
-- [ ] **DIAG-08**: System shows SEO ranking/backlink data sections (mocked data for v1.4)
-- [ ] **DIAG-09**: System shows brand/visual identity extraction section (mocked data for v1.4)
-- [ ] **DIAG-10**: System shows percentile comparison vs other storefronts (mocked data for v1.4)
+- [x] **DIAG-07**: System shows traffic volume and competitor comparison sections (mocked data for v1.4, real API integration in future)
+- [x] **DIAG-08**: System shows SEO ranking/backlink data sections (mocked data for v1.4)
+- [x] **DIAG-09**: System shows brand/visual identity extraction section (mocked data for v1.4)
+- [x] **DIAG-10**: System shows percentile comparison vs other storefronts (mocked data for v1.4)
 - [x] **DIAG-11**: System validates URL input and prevents SSRF attacks (blocks private/internal IPs after DNS resolution)
 - [x] **DIAG-12**: All diagnostic agents run in parallel with timeout handling; report renders with partial results if any agent fails
 
@@ -25,7 +25,7 @@
 
 - [x] **RPT-01**: Diagnostic results render as a structured report with sections: performance, SEO, tech stack, company context, traffic, competitors, brand
 - [x] **RPT-02**: Report is accessible at a public URL without login (`/report/<token>`)
-- [ ] **RPT-03**: Mocked sections show data with a visual "Pro" or "upgrade" indicator
+- [x] **RPT-03**: Mocked sections show data with a visual "Pro" or "upgrade" indicator
 - [x] **RPT-04**: Report is shareable via link copy button
 - [x] **RPT-05**: Company context section is editable after login
 - [x] **RPT-06**: Report is stored and persisted (survives page refresh)
@@ -101,15 +101,15 @@
 | DIAG-04 | Phase 19 | Complete |
 | DIAG-05 | Phase 19 | Complete |
 | DIAG-06 | Phase 19 | Complete |
-| DIAG-07 | Phase 20 | Pending |
-| DIAG-08 | Phase 20 | Pending |
-| DIAG-09 | Phase 20 | Pending |
-| DIAG-10 | Phase 20 | Pending |
+| DIAG-07 | Phase 20 | Complete |
+| DIAG-08 | Phase 20 | Complete |
+| DIAG-09 | Phase 20 | Complete |
+| DIAG-10 | Phase 20 | Complete |
 | DIAG-11 | Phase 19 | Complete |
 | DIAG-12 | Phase 19 | Complete |
 | RPT-01 | Phase 20 | Complete |
 | RPT-02 | Phase 20 | Complete |
-| RPT-03 | Phase 20 | Pending |
+| RPT-03 | Phase 20 | Complete |
 | RPT-04 | Phase 20 | Complete |
 | RPT-05 | Phase 20 | Complete |
 | RPT-06 | Phase 20 | Complete |
