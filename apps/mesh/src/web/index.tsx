@@ -107,6 +107,20 @@ const reportRoute = createRoute({
 });
 
 /**
+ * Post-login onboarding setup (requires auth, resolves org from diagnostic token)
+ */
+const onboardSetupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/onboard-setup",
+  component: lazyRouteComponent(() => import("./routes/onboard-setup.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      token: z.string().optional(),
+    }),
+  ),
+});
+
+/**
  * Store invite route - deep links to store apps without knowing the org slug
  * After login, redirects to the user's first org and first registry
  */
@@ -479,6 +493,7 @@ const routeTree = rootRoute.addChildren([
   storeInviteRoute,
   onboardingRoute,
   reportRoute,
+  onboardSetupRoute,
 ]);
 
 const router = createRouter({
