@@ -18,6 +18,10 @@ import { SeoSection } from "@/web/components/report/seo-section";
 import { TechStackSection } from "@/web/components/report/tech-stack-section";
 import { CompanyContextSection } from "@/web/components/report/company-context-section";
 import { ShareButton } from "@/web/components/report/share-button";
+import { TrafficSection } from "@/web/components/report/traffic-section";
+import { SeoRankingsSection } from "@/web/components/report/seo-rankings-section";
+import { BrandSection } from "@/web/components/report/brand-section";
+import { PercentileSection } from "@/web/components/report/percentile-section";
 
 // ============================================================================
 // Loading skeleton
@@ -163,7 +167,10 @@ export default function ReportPage() {
             <CompanyContextSection data={session.results?.companyContext} />
           </div>
 
-          {/* Mocked Pro sections — added by Plan 03 */}
+          <TrafficSection />
+          <SeoRankingsSection />
+          <BrandSection />
+          <PercentileSection />
         </div>
 
         {/* Footer */}
