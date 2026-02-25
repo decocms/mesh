@@ -269,23 +269,25 @@ function TypegenSectionInner({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
         </p>
       )}
 
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-input bg-muted/50 px-3 py-2.5">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {command}
-        </code>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-6 shrink-0"
-          onClick={handleCopy}
-        >
-          {copied ? (
-            <Check size={12} className="text-green-600" />
-          ) : (
-            <Copy01 size={12} />
-          )}
-        </Button>
+      <div className="rounded-md border border-input bg-muted/50 px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <code className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">
+            {command}
+          </code>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <Check size={12} className="text-green-600" />
+            ) : (
+              <Copy01 size={12} />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
