@@ -12,6 +12,7 @@ import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,11 +100,12 @@ function PillToggle<T extends string>({
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
-          className={`relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
+          className={cn(
+            "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
             value === option.value
               ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+              : "text-muted-foreground hover:text-foreground",
+          )}
         >
           {option.label}
         </button>
