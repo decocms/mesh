@@ -33,6 +33,7 @@ import {
   Lightbulb02,
   Loading01,
 } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
@@ -318,7 +319,7 @@ function EnvVarsBlock({ apiKey }: { apiKey: string | null }) {
     <div className="rounded-md border border-input bg-muted/50 px-3 py-2.5">
       <div className="flex items-start gap-2">
         <code className="min-w-0 flex-1 font-mono text-xs text-muted-foreground">
-          <span className={apiKey ? "" : "opacity-50"}>{keyLine}</span>
+          <span className={cn({ "opacity-50": !apiKey })}>{keyLine}</span>
           <br />
           <span>{urlLine}</span>
         </code>

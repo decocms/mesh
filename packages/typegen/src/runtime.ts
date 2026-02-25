@@ -11,26 +11,34 @@ const DEFAULT_BASE_URL = "https://mesh-admin.decocms.com";
 export function createMeshClient<T extends ToolMap>(
   opts: MeshClientOptions,
 ): MeshClientInstance<T> {
-  let mcpClient: Client | null = null;
+  // Shared promise prevents concurrent calls from creating multiple connections
+  let connectPromise: Promise<Client> | null = null;
 
-  async function getClient(): Promise<Client> {
-    if (mcpClient) return mcpClient;
+  function getClient(): Promise<Client> {
+    if (connectPromise) return connectPromise;
 
-    const baseUrl = opts.baseUrl ?? DEFAULT_BASE_URL;
-    const apiKey = opts.apiKey ?? process.env.MESH_API_KEY;
-    const url = new URL(`/mcp/virtual-mcp/${opts.mcpId}`, baseUrl);
+    connectPromise = (async () => {
+      const base = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+      const apiKey = opts.apiKey ?? process.env.MESH_API_KEY;
+      // Build URL with string concat so a path-prefixed baseUrl is preserved,
+      // and encode mcpId to guard against special characters in the ID.
+      const url = new URL(
+        `${base}/mcp/virtual-mcp/${encodeURIComponent(opts.mcpId)}`,
+      );
 
-    const client = new Client({ name: "@decocms/typegen", version: "1.0.0" });
-    await client.connect(
-      new StreamableHTTPClientTransport(url, {
-        requestInit: {
-          headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-        },
-      }),
-    );
+      const client = new Client({ name: "@decocms/typegen", version: "1.0.0" });
+      await client.connect(
+        new StreamableHTTPClientTransport(url, {
+          requestInit: {
+            headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+          },
+        }),
+      );
 
-    mcpClient = client;
-    return client;
+      return client;
+    })();
+
+    return connectPromise;
   }
 
   return new Proxy({} as MeshClientInstance<T>, {
