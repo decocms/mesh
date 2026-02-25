@@ -431,13 +431,13 @@ describe("Organization Tools", () => {
       });
     });
 
-    it("should allow explicit organizationId", async () => {
+    it("should allow explicit organizationId matching context", async () => {
       const mockAuth = createMockAuth();
       const ctx = createMockContext(mockAuth);
 
       await ORGANIZATION_MEMBER_ADD.execute(
         {
-          organizationId: "org_456",
+          organizationId: "org_123",
           userId: "user_456",
           role: ["user"],
         },
@@ -446,9 +446,29 @@ describe("Organization Tools", () => {
 
       expect(mockAuth.api.addMember).toHaveBeenCalledWith({
         body: expect.objectContaining({
-          organizationId: "org_456",
+          organizationId: "org_123",
         }),
       });
+    });
+
+    it("should reject organizationId that does not match context", async () => {
+      const mockAuth = createMockAuth();
+      const ctx = createMockContext(mockAuth);
+
+      await expect(
+        ORGANIZATION_MEMBER_ADD.execute(
+          {
+            organizationId: "org_456",
+            userId: "user_456",
+            role: ["user"],
+          },
+          ctx,
+        ),
+      ).rejects.toThrow(
+        "Organization ID does not match authenticated organization",
+      );
+
+      expect(mockAuth.api.addMember).not.toHaveBeenCalled();
     });
   });
 
