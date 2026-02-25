@@ -33,9 +33,10 @@ Progress: [█████░░░░░] 21% (v1.4, 7/? plans done)
 | Phase 20 P01 | 1 | 5 min | 5 min |
 | Phase 20 P02 | 1 | 4 min | 4 min |
 | Phase 20 P03 | 1 | 3 min | 3 min |
+| Phase 21 P01 | 1 | 3 min | 3 min |
 | Phase 21 P02 | 1 | 1 min | 1 min |
 
-**Recent Trend:** 1 min/plan
+**Recent Trend:** 2 min/plan
 
 *Updated after each plan completion*
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 20]: All mocked Pro section data is static constants at top of each file — no props needed, sections are self-contained
 - [Phase 20]: opacity-70 on mocked data content hints at locked content while ProBadge is the primary upgrade indicator
 - [Phase 20]: violet-100 border accent on mocked sections provides subtle visual distinction from real data sections
+- [Phase 21-auth-handoff 21-01]: slugify duplicated locally in onboarding.ts — importing from auth/index.ts triggers complex initialization side effects (Better Auth config, plugins)
+- [Phase 21-auth-handoff 21-01]: createOnboardingRoutes(db, auth) factory pattern for auth-aware pre-MeshContext routes — user may not have active org yet
+- [Phase 21-auth-handoff 21-01]: Project creation on claim is non-fatal — session associated with org even if project slug conflicts
 - [Phase 21-auth-handoff]: SignupCTA uses authClient.useSession() and synchronous sessionStorage write during render — no useEffect, fully React 19 compatible
 - [Phase 21-auth-handoff]: ?next= param encodes /onboard-setup?token=<token> — post-login redirect lands on setup page with token in URL, sessionStorage serves as OAuth redirect fallback
 
@@ -84,5 +88,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 21-02-PLAN.md — login CTA with sessionStorage token fallback on report page
+Stopped at: Completed 21-01-PLAN.md — onboarding API routes (resolve + claim endpoints with org/project creation)
 Resume file: None
