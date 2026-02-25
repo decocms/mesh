@@ -19,10 +19,12 @@ export const TRIGGER_UPDATE = defineTool({
     requireOrganization(ctx);
     await ctx.access.check();
 
+    const userId = ctx.auth.user?.id;
+
     const { id, ...updates } = input;
     const trigger = await ctx.storage.triggers.update(id, {
       ...updates,
-      updatedBy: ctx.user.id,
+      updatedBy: userId,
     });
     return trigger;
   },

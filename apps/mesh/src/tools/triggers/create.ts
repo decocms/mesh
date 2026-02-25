@@ -43,6 +43,11 @@ export const TRIGGER_CREATE = defineTool({
       );
     }
 
+    const userId = ctx.auth.user?.id;
+    if (!userId) {
+      throw new Error("User authentication required");
+    }
+
     const trigger = await ctx.storage.triggers.create({
       id: `trig_${crypto.randomUUID()}`,
       organizationId: organization.id,
@@ -57,7 +62,7 @@ export const TRIGGER_CREATE = defineTool({
       toolArguments: input.toolArguments,
       agentId: input.agentId,
       agentPrompt: input.agentPrompt,
-      createdBy: ctx.user.id,
+      createdBy: userId,
     });
 
     return trigger;
