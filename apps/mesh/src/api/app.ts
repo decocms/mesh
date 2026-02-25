@@ -41,6 +41,7 @@ import oauthProxyRoutes, {
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
 import { createDiagnosticRoutes } from "./routes/diagnostic";
+import { createOnboardingRoutes } from "./routes/onboarding";
 import publicConfigRoutes from "./routes/public-config";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
@@ -286,6 +287,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   // shouldSkipMeshContext already excludes /api/diagnostic/* from context injection.
   // ============================================================================
   app.route("/api/diagnostic", createDiagnosticRoutes(database.db));
+
+  // ============================================================================
+  // Public/Pre-MeshContext Onboarding Routes (auth checked manually)
+  // Requires a valid Better Auth session — but NOT a full MeshContext since the
+  // user may not have an active organization yet.
+  // shouldSkipMeshContext already excludes /api/onboarding/* from context injection.
+  // ============================================================================
+  app.route("/api/onboarding", createOnboardingRoutes(database.db, auth));
 
   // ============================================================================
   // Better Auth Routes
