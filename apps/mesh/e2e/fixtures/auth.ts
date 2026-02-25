@@ -4,7 +4,7 @@ import { type Page } from "@playwright/test";
  * Generates a unique test user for each test run.
  * Using a timestamp suffix avoids conflicts between parallel runs or re-runs.
  */
-export function generateTestUser() {
+function generateTestUser() {
   const suffix = Date.now();
   return {
     name: `Test User ${suffix}`,
