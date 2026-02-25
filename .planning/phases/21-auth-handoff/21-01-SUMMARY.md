@@ -105,6 +105,18 @@ None - no external service configuration required.
 - Claim flow requires the user to have a valid Better Auth session (post-login)
 - Join flow requires user to already be a member of the target org (no self-join — invite flow not implemented yet)
 
+## Self-Check: PASSED
+
+- FOUND: apps/mesh/src/api/routes/onboarding.ts (459 lines, exceeds 120 min_lines)
+- FOUND: .planning/phases/21-auth-handoff/21-01-SUMMARY.md
+- FOUND: commit b936c9760 (Task 1)
+- FOUND: commit 441309e5c (Task 2)
+- FOUND: createOnboardingRoutes exported from onboarding.ts
+- FOUND: API_ONBOARDING in paths.ts
+- TypeScript check: 0 errors
+- Lint: 0 warnings, 0 errors
+- Format: no fixes needed
+
 ---
 *Phase: 21-auth-handoff*
 *Completed: 2026-02-25*
