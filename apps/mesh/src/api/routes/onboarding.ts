@@ -20,7 +20,14 @@ import { z } from "zod";
 import type { Kysely } from "kysely";
 import type { auth } from "../../auth";
 import type { Database } from "../../storage/types";
-import type { DiagnosticResult } from "../../diagnostic/types";
+import type {
+  DiagnosticResult,
+  InterviewResults,
+  AgentRecommendation,
+  WebPerformanceResult,
+  SeoResult,
+  TechStackResult,
+} from "../../diagnostic/types";
 import { DiagnosticSessionStorage } from "../../storage/diagnostic-sessions";
 import { ProjectsStorage } from "../../storage/projects";
 
@@ -119,6 +126,11 @@ const InterviewResultsBodySchema = z.object({
   goals: z.array(z.string()),
   challenges: z.array(z.string()),
   priorities: z.array(z.string()),
+});
+
+const RecommendationsQuerySchema = z.object({
+  token: z.string().min(1),
+  organizationId: z.string().min(1),
 });
 
 // ============================================================================
@@ -536,6 +548,336 @@ export function createOnboardingRoutes(
 
     // 6. Return success
     return c.json({ success: true }, 200);
+  });
+
+  // --------------------------------------------------------------------------
+  // GET /recommendations?token=...&organizationId=... — Score Virtual MCPs
+  // --------------------------------------------------------------------------
+
+  app.get("/recommendations", async (c) => {
+    // 1. Validate query params
+    const parsed = RecommendationsQuerySchema.safeParse({
+      token: c.req.query("token"),
+      organizationId: c.req.query("organizationId"),
+    });
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: "Invalid query parameters",
+          details: parsed.error.flatten().fieldErrors,
+        },
+        400,
+      );
+    }
+    const { token, organizationId } = parsed.data;
+
+    // 2. Auth check
+    const user = await getSessionUser(c);
+    if (!user) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // 3. Load diagnostic session
+    const diagnosticSession = await sessionStorage.findByToken(token);
+    if (!diagnosticSession) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    // 4. Load Virtual MCPs (stored as connections with type VIRTUAL) and their aggregations
+    const virtualMcpRows = await db
+      .selectFrom("connections")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("connection_type", "=", "VIRTUAL")
+      .where("status", "=", "active")
+      .execute();
+
+    if (virtualMcpRows.length === 0) {
+      return c.json({ recommendations: [] }, 200);
+    }
+
+    const virtualMcpIds = virtualMcpRows.map((r) => r.id);
+
+    // Load connection aggregations for all virtual MCPs in one query (only direct deps)
+    const aggregationRows = await db
+      .selectFrom("connection_aggregations")
+      .selectAll()
+      .where("parent_connection_id", "in", virtualMcpIds)
+      .where("dependency_mode", "=", "direct")
+      .execute();
+
+    // Group aggregations by parent ID
+    const aggsByParent = new Map<
+      string,
+      Array<{ child_connection_id: string }>
+    >();
+    for (const agg of aggregationRows) {
+      const existing = aggsByParent.get(agg.parent_connection_id) ?? [];
+      existing.push({ child_connection_id: agg.child_connection_id });
+      aggsByParent.set(agg.parent_connection_id, existing);
+    }
+
+    // Collect all unique child connection IDs to batch-load connection details
+    const allChildConnectionIds = new Set<string>();
+    for (const agg of aggregationRows) {
+      allChildConnectionIds.add(agg.child_connection_id);
+    }
+
+    // Load child connection details in one query
+    const childConnectionRows =
+      allChildConnectionIds.size > 0
+        ? await db
+            .selectFrom("connections")
+            .select([
+              "id",
+              "title",
+              "connection_url",
+              "connection_headers",
+              "status",
+            ])
+            .where("id", "in", Array.from(allChildConnectionIds))
+            .execute()
+        : [];
+
+    const childConnectionMap = new Map(
+      childConnectionRows.map((c) => [c.id, c]),
+    );
+
+    // 5. Score each Virtual MCP against diagnostic results + interview results
+    const diagnosticResults = diagnosticSession.results;
+    const interviewResults =
+      "interviewResults" in diagnosticResults
+        ? (diagnosticResults as Record<string, unknown>).interviewResults
+        : null;
+
+    type ScoredAgent = {
+      agentId: string;
+      agentTitle: string;
+      agentDescription: string | null;
+      agentIcon: string | null;
+      score: number;
+      reasons: string[];
+      requiredConnections: AgentRecommendation["requiredConnections"];
+    };
+
+    const scored: ScoredAgent[] = virtualMcpRows
+      .map((vmcp) => {
+        // Filter out Decopilot (its ID starts with "decopilot_")
+        if (vmcp.id.startsWith("decopilot_")) {
+          return null;
+        }
+
+        // Parse metadata for instructions (metadata may be a string or object depending on DB driver)
+        let instructions: string | null = null;
+        if (vmcp.metadata) {
+          try {
+            const raw = vmcp.metadata;
+            const meta =
+              typeof raw === "string"
+                ? (JSON.parse(raw) as { instructions?: string | null })
+                : (raw as { instructions?: string | null });
+            instructions = meta.instructions ?? null;
+          } catch {
+            // ignore parse errors
+          }
+        }
+
+        // Build searchable text from the Virtual MCP
+        const searchText = [
+          vmcp.title,
+          vmcp.description ?? "",
+          instructions ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        let score = 0;
+        const reasons: string[] = [];
+
+        // ---- Diagnostic signal matching ----
+
+        const webPerf = (diagnosticResults as DiagnosticResult).webPerformance;
+        const seo = (diagnosticResults as DiagnosticResult).seo;
+        const techStack = (diagnosticResults as DiagnosticResult).techStack;
+
+        // Performance/speed keywords
+        const perfKeywords =
+          /\b(performance|speed|lcp|cwv|core.web|loading|lighthouse|pagespeed|optimization|optim)\b/i;
+        if (perfKeywords.test(searchText)) {
+          const hasPoorPerf =
+            (webPerf as WebPerformanceResult | null | undefined)?.lcp
+              ?.rating === "poor" ||
+            (webPerf as WebPerformanceResult | null | undefined)?.lcp
+              ?.rating === "needs-improvement" ||
+            ((webPerf as WebPerformanceResult | null | undefined)
+              ?.mobileScore ?? 100) < 70 ||
+            ((webPerf as WebPerformanceResult | null | undefined)
+              ?.desktopScore ?? 100) < 70;
+
+          if (hasPoorPerf) {
+            score += 30;
+            const lcpRating = (
+              webPerf as WebPerformanceResult | null | undefined
+            )?.lcp?.rating;
+            if (lcpRating === "poor" || lcpRating === "needs-improvement") {
+              reasons.push(
+                `Your site's LCP is rated '${lcpRating}' — this agent can help optimize loading performance`,
+              );
+            } else {
+              reasons.push(
+                "Your site's performance scores need improvement — this agent can help optimize speed",
+              );
+            }
+          }
+        }
+
+        // SEO keywords
+        const seoKeywords =
+          /\b(seo|meta|search|ranking|sitemap|robots|og.tag|opengraph|canonical|heading|schema|structured.data)\b/i;
+        if (seoKeywords.test(searchText)) {
+          const seoResult = seo as SeoResult | null | undefined;
+          const hasSeoIssues =
+            !seoResult?.metaDescription ||
+            !seoResult?.hasRobotsTxt ||
+            !seoResult?.hasSitemap ||
+            (seoResult?.ogTags && Object.keys(seoResult.ogTags).length === 0);
+
+          if (hasSeoIssues) {
+            score += 30;
+            const issues: string[] = [];
+            if (!seoResult?.metaDescription)
+              issues.push("missing meta description");
+            if (!seoResult?.hasRobotsTxt) issues.push("no robots.txt");
+            if (!seoResult?.hasSitemap) issues.push("no sitemap");
+            if (issues.length > 0) {
+              reasons.push(
+                `Your site has SEO issues (${issues.slice(0, 2).join(", ")}) — this agent can help improve search visibility`,
+              );
+            } else {
+              reasons.push(
+                "Your site has SEO opportunities — this agent can help improve search rankings",
+              );
+            }
+          }
+        }
+
+        // Content/copy keywords
+        const contentKeywords =
+          /\b(content|copy|description|text|blog|article|product.description|copywriting|writing)\b/i;
+        if (contentKeywords.test(searchText)) {
+          const companyCtx = (diagnosticResults as DiagnosticResult)
+            .companyContext;
+          const hasShortDescription =
+            !companyCtx?.description || companyCtx.description.length < 100;
+
+          if (hasShortDescription) {
+            score += 30;
+            reasons.push(
+              "Your site's company description is incomplete — this agent can help create compelling content",
+            );
+          }
+        }
+
+        // Platform-specific keywords
+        const techStackResult = techStack as TechStackResult | null | undefined;
+        const platformName =
+          techStackResult?.platform?.name?.toLowerCase() ?? "";
+        if (platformName) {
+          const platformPattern = new RegExp(
+            `\\b${platformName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+            "i",
+          );
+          if (platformPattern.test(searchText)) {
+            score += 25;
+            reasons.push(
+              `This agent is optimized for ${techStackResult?.platform?.name} — your detected platform`,
+            );
+          }
+        }
+
+        // E-commerce base relevance (mild positive for all storefront users)
+        const ecommerceKeywords =
+          /\b(e.commerce|ecommerce|store|shop|product|catalog|cart|checkout|order|vtex|shopify|commerce)\b/i;
+        if (ecommerceKeywords.test(searchText)) {
+          score += 10;
+        }
+
+        // ---- Interview goal matching ----
+
+        if (interviewResults && typeof interviewResults === "object") {
+          const ir = interviewResults as InterviewResults;
+          const allGoalStrings = [
+            ...(ir.goals ?? []),
+            ...(ir.challenges ?? []),
+            ...(ir.priorities ?? []),
+          ];
+
+          for (const goalStr of allGoalStrings) {
+            const words = goalStr
+              .toLowerCase()
+              .split(/\W+/)
+              .filter((w) => w.length > 3);
+
+            for (const word of words) {
+              if (searchText.includes(word)) {
+                score += 20;
+                // Only add one reason per goal string to avoid verbosity
+                reasons.push(
+                  `Matches your stated goal: "${goalStr.slice(0, 60)}${goalStr.length > 60 ? "..." : ""}"`,
+                );
+                break; // One reason per goal string
+              }
+            }
+          }
+        }
+
+        // Build required connections list from aggregations
+        const agentAggs = aggsByParent.get(vmcp.id) ?? [];
+        const requiredConnections: AgentRecommendation["requiredConnections"] =
+          agentAggs.map((agg) => {
+            const conn = childConnectionMap.get(agg.child_connection_id);
+            const isConfigured =
+              !!conn &&
+              conn.status === "active" &&
+              (!!conn.connection_url || !!conn.connection_headers);
+
+            return {
+              title: conn?.title ?? agg.child_connection_id,
+              connectionId: agg.child_connection_id,
+              isConfigured,
+            };
+          });
+
+        return {
+          agentId: vmcp.id,
+          agentTitle: vmcp.title,
+          agentDescription: vmcp.description ?? null,
+          agentIcon: vmcp.icon ?? null,
+          score,
+          reasons,
+          requiredConnections,
+        };
+      })
+      .filter((item): item is ScoredAgent => item !== null && item.score > 0);
+
+    // 6. Sort by score descending, take top 3
+    scored.sort((a, b) => b.score - a.score);
+    const top3 = scored.slice(0, 3);
+
+    // 7. Build response
+    const recommendations: AgentRecommendation[] = top3.map((item) => ({
+      agentId: item.agentId,
+      agentTitle: item.agentTitle,
+      agentDescription: item.agentDescription,
+      agentIcon: item.agentIcon,
+      reason:
+        item.reasons.slice(0, 2).join(" Also, ") ||
+        "This agent is relevant to your storefront goals.",
+      score: Math.min(100, item.score),
+      requiredConnections: item.requiredConnections,
+    }));
+
+    return c.json({ recommendations }, 200);
   });
 
   return app;
