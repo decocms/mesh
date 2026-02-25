@@ -2,13 +2,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 
 // Mock the MCP SDK before importing runtime
 const mockCallTool = mock(
-  async ({
-    name,
-    arguments: args,
-  }: {
-    name: string;
-    arguments: unknown;
-  }) => ({
+  async ({ name, arguments: args }: { name: string; arguments: unknown }) => ({
     isError: false,
     structuredContent: { tool: name, args },
   }),
@@ -95,7 +89,9 @@ describe("createMeshClient", () => {
     };
     const client = createMeshClient<Tools>({ mcpId: "vmc_test", apiKey: "sk" });
 
-    await expect(client.FAIL_TOOL({})).rejects.toThrow("Tool failed: bad input");
+    await expect(client.FAIL_TOOL({})).rejects.toThrow(
+      "Tool failed: bad input",
+    );
   });
 
   test("builds URL with correct mcpId and baseUrl", async () => {
