@@ -8,15 +8,17 @@ MCP Mesh is an open-source control plane for Model Context Protocol (MCP) traffi
 
 Developers can connect any MCP server to Mesh and immediately get auth, routing, observability, and a polished admin UI — including a full visual site editor for Deco-compatible sites.
 
-## Current Milestone: v1.3 — Local-First Development
+## Current Milestone: v1.4 — Storefront Onboarding
 
-**Goal:** Ship the site editor and local development experience as clean, reviewable PRs from a well-structured set of new packages.
+**Goal:** Build the self-service onboarding flow for e-commerce users — enter a storefront URL, get an instant diagnostic report with real data, then guided setup into the platform.
 
 **Target features:**
-- `packages/local-dev/` — MCP daemon for local development (fs + object storage + git + dev server management)
-- `packages/mesh-plugin-deco-blocks/` — Standalone blocks framework plugin (scanner, binding, Claude skill)
-- `packages/mesh-plugin-site-editor/` — Full site editor UI with git UX, depends on deco-blocks
-- Zero-config local setup: `npx mesh ./my-folder` → browser opens, project ready
+- Pre-auth storefront diagnostic: user enters URL, system crawls public data (HTML, PageSpeed, tech stack, AI company context)
+- Public shareable report page with real diagnostic results
+- Login gate after initial value delivery — org creation from email domain
+- Post-login chat interview to understand user goals and objectives
+- Agent recommendations based on company context + declared goals
+- Connection requests driven by recommended agents (VTEX, GA, etc.)
 
 ## Requirements
 
@@ -32,26 +34,31 @@ Developers can connect any MCP server to Mesh and immediately get auth, routing,
 
 ### Active
 
-- [ ] local-dev MCP daemon with filesystem, object storage, git, and dev server tools
-- [ ] Deco blocks framework as a standalone plugin package (scanner, binding definition, Claude skill)
-- [ ] Site editor plugin: pages CRUD, block/loader discovery, visual composer, preview bridge
-- [ ] Site editor git UX: pending changes, commit dialog, history panel, revert
-- [ ] Zero-config local setup: single command, auto-login, browser opens to project
+- [ ] Pre-auth public page with storefront URL input
+- [ ] Backend diagnostic agents: HTML crawl, PageSpeed, tech stack detection, AI company context
+- [ ] Public shareable report page (decocms.com/storefront-report/<domain>)
+- [ ] Login gate + org creation from email domain
+- [ ] Post-login chat interview for user goals/objectives
+- [ ] Agent recommendation engine based on context + goals
+- [ ] Connection setup driven by recommended agents
 
 ### Out of Scope
 
-- Remote hosting / Kubernetes daemon — local-first only for this milestone
-- GitHub integration for projects — deferred to v1.4
-- Tunnel / deco link for remote Mesh — deferred to v1.4
-- Multi-user local setup — single developer workflow only
+- Paid API integrations (SimilarWeb, DataForSEO, ReclameAqui) — free/public data only for v1.4
+- E-mail nurture sequences / marketing automation
+- VTEX Day booth/kiosk mode
+- WhatsApp integration for report sharing
 
 ## Context
 
-- The site editor work already exists on branch `gui/site-builder` (phases 1–14 of v1.1/v1.2 milestones) — this milestone re-delivers it as clean, mergeable PRs
-- `mcps/local-fs` in the companion `mcps` repo is the source for `local-dev` — to be moved into this monorepo
-- `admin-cx` repo has a reference daemon implementation with well-thought-out patterns: readiness polling, SSE file watch, SIGTERM forwarding, patch-based file updates
-- Projects already have `enabledPlugins` — plugins activate automatically when enabled on a project
-- The plugin router supports sidebar groups with sub-paths
+- Onboarding is e-commerce focused (storefront vertical) — not a general-purpose onboarding
+- The diagnostic is the "hook" — like PageSpeed Insights but for storefronts
+- `storefront-skills` repo (github.com/decocms/storefront-skills) has performance and SEO skill definitions
+- Reports plugin (`packages/mesh-plugin-reports/`) exists with REPORTS_BINDING — diagnostic results can leverage this
+- Chat UI already exists with AI streaming via decopilot routes
+- MCP tools via `defineTool()` for diagnostic agents; public API endpoint wraps them for pre-auth access
+- Stila (stilaai.com) is a reference for onboarding UX — asks for company info, builds context, then becomes useful
+- MyStoryBrand.com is a reference for the interview/wizard pattern
 
 ## Constraints
 
@@ -65,11 +72,12 @@ Developers can connect any MCP server to Mesh and immediately get auth, routing,
 
 | Decision | Rationale | Outcome |
 |----------|-----------|------------|
-| local-dev in mesh repo (not mcps/) | Core to mesh DX, should ship with mesh | — Pending |
-| plugin-deco-blocks separate from site-editor | site-editor depends on it; other tools can too | — Pending |
-| Git UX activates based on connection capabilities | site-editor doesn't depend on local-dev directly | — Pending |
-| Dev server management in local-dev v1 | User confirmed: spawn + stream logs from day one | — Pending |
-| Zero-config auto-opens browser | Best DX: run one command, see result | — Pending |
+| Pre-auth diagnostic before login | Show value first, reduce friction — PageSpeed Insights pattern | Confirmed |
+| Public PageSpeed API (no key) | Free, rate-limited but fine for dev/demo — add key later | Confirmed |
+| Diagnostic agents as MCP tools | Aligned with agent architecture, reusable by other agents | Confirmed |
+| Public API endpoint wraps MCP tools | Pre-auth needs a thin Hono route that runs tools internally | Confirmed |
+| E-commerce vertical only | Focused on storefronts — not general-purpose onboarding | Confirmed |
+| Report page is public + shareable | Can be shared via link, login required to edit/expand | Confirmed |
 
 ---
-*Last updated: 2026-02-20 — Milestone v1.3 started*
+*Last updated: 2026-02-25 — Milestone v1.4 started*

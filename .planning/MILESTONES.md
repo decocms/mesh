@@ -30,8 +30,16 @@ Git site binding tools, pending changes UI, commit dialog with Claude-generated 
 
 ---
 
-## v1.3 — Local-First Development (current)
+## v1.3 — Local-First Development
 
 **Goal:** Ship v1.1/v1.2 work as clean PRs + add local-dev daemon + zero-config setup.
 
-**Phases:** 15–18 (this milestone)
+**Phases:** 15–18
+
+---
+
+## v1.4 — Storefront Onboarding (current)
+
+**Goal:** Self-service onboarding for e-commerce users — enter storefront URL, get instant diagnostic with real data, guided setup into platform.
+
+**Phases:** 19+ (this milestone)
