@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from "bun:test";
+import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
 
 // Mock the MCP SDK before importing runtime
 const mockCallTool = mock(
@@ -29,6 +29,10 @@ mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
 const { createMeshClient } = await import("./runtime.js");
 
 describe("createMeshClient", () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockCallTool.mockClear();
     mockConnect.mockClear();
