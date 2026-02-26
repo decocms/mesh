@@ -41,10 +41,10 @@ export function ShareButton() {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
     >
       <LinkIcon />
-      {copied ? "Link copied!" : "Share"}
+      {copied ? "Link copied!" : "Share report"}
     </button>
   );
 }

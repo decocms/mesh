@@ -120,6 +120,17 @@ const onboardSetupRoute = createRoute({
   ),
 });
 
+const onboardAutoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/onboard-auto",
+  component: lazyRouteComponent(() => import("./routes/onboard-auto.tsx")),
+  validateSearch: z.lazy(() =>
+    z.object({
+      token: z.string().optional(),
+    }),
+  ),
+});
+
 /**
  * Post-org-setup interview page (requires auth, runs 3-question chat interview)
  */
@@ -412,6 +423,13 @@ const workflowsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
+// Diagnostic (available for all projects)
+const diagnosticRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/diagnostic",
+  component: lazyRouteComponent(() => import("./routes/orgs/diagnostic.tsx")),
+});
+
 // ============================================
 // PLUGIN ROUTES
 // ============================================
@@ -488,6 +506,7 @@ const projectRoutes = [
   agentsRoute,
   agentDetailRoute,
   workflowsRoute,
+  diagnosticRoute,
   pluginLayoutWithChildren,
 ];
 
@@ -510,6 +529,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   reportRoute,
   onboardSetupRoute,
+  onboardAutoRoute,
   onboardInterviewRoute,
 ]);
 

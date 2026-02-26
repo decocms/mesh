@@ -6,6 +6,7 @@
  */
 
 import { Chat, useChat } from "@/web/components/chat/index";
+import { OnboardingMessages } from "@/web/components/chat/onboarding-messages.tsx";
 import { ThreadsSidebar } from "@/web/components/chat/threads-sidebar.tsx";
 import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -31,6 +32,7 @@ import {
   Share07,
   Users03,
 } from "@untitledui/icons";
+import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
@@ -50,6 +52,10 @@ function getTimeBasedGreeting(): string {
 function HomeContent() {
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
+  const navigate = useNavigate();
+  const onboarding = new URLSearchParams(window.location.search).has(
+    "onboarding",
+  );
   const {
     modelsConnections,
     isChatEmpty,
@@ -61,6 +67,14 @@ function HomeContent() {
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
   const [isThreadsSidebarOpen, setIsThreadsSidebarOpen] = useState(false);
+
+  function handleOnboardingComplete() {
+    navigate({
+      to: "/$org/$project",
+      params: { org: org.slug, project: "org-admin" },
+      search: {},
+    });
+  }
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
   const greeting = getTimeBasedGreeting();
@@ -166,6 +180,18 @@ function HomeContent() {
         <>
           <Chat.Main>
             <Chat.Messages />
+          </Chat.Main>
+          <Chat.Footer>
+            <Chat.Input />
+          </Chat.Footer>
+        </>
+      ) : onboarding ? (
+        <>
+          <Chat.Main>
+            <OnboardingMessages
+              orgName={org.slug}
+              onComplete={handleOnboardingComplete}
+            />
           </Chat.Main>
           <Chat.Footer>
             <Chat.Input />

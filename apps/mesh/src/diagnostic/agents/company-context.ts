@@ -161,29 +161,88 @@ function extractProductSignals(html: string): string[] {
 }
 
 /**
- * Create LLM provider model based on environment configuration.
- * Returns null if no API key is configured.
+ * Detect available LLM provider from environment.
+ * Priority: OPENROUTER_API_KEY > PERPLEXITY_API_KEY > DIAGNOSTIC_LLM_* > OPENAI_API_KEY > ANTHROPIC_API_KEY
  */
-async function createLlmModel(): Promise<unknown | null> {
-  const provider = process.env["DIAGNOSTIC_LLM_PROVIDER"] ?? "openai";
-  const apiKey = process.env["DIAGNOSTIC_LLM_API_KEY"];
-  const model = process.env["DIAGNOSTIC_LLM_MODEL"] ?? "gpt-4o-mini";
+function detectLlmConfig(): {
+  provider: string;
+  apiKey: string;
+  model: string;
+  baseURL?: string;
+} | null {
+  // OpenRouter (OpenAI-compatible) — preferred, routes to Perplexity Sonar
+  const openrouterKey = process.env["OPENROUTER_API_KEY"];
+  if (openrouterKey) {
+    return {
+      provider: "openai",
+      apiKey: openrouterKey,
+      model: "perplexity/sonar-pro-search",
+      baseURL: "https://openrouter.ai/api/v1",
+    };
+  }
 
-  if (!apiKey) {
+  // Perplexity direct
+  const perplexityKey = process.env["PERPLEXITY_API_KEY"];
+  if (perplexityKey) {
+    return {
+      provider: "openai",
+      apiKey: perplexityKey,
+      model: "sonar-pro-search",
+      baseURL: "https://api.perplexity.ai",
+    };
+  }
+
+  // Explicit diagnostic config
+  const explicitKey = process.env["DIAGNOSTIC_LLM_API_KEY"];
+  if (explicitKey) {
+    return {
+      provider: process.env["DIAGNOSTIC_LLM_PROVIDER"] ?? "openai",
+      apiKey: explicitKey,
+      model: process.env["DIAGNOSTIC_LLM_MODEL"] ?? "gpt-4o-mini",
+    };
+  }
+
+  // Auto-discover from standard AI SDK env vars
+  const openaiKey = process.env["OPENAI_API_KEY"];
+  if (openaiKey) {
+    return { provider: "openai", apiKey: openaiKey, model: "gpt-4o-mini" };
+  }
+
+  const anthropicKey = process.env["ANTHROPIC_API_KEY"];
+  if (anthropicKey) {
+    return {
+      provider: "anthropic",
+      apiKey: anthropicKey,
+      model: "claude-3-haiku-20240307",
+    };
+  }
+
+  return null;
+}
+
+async function createLlmModel(): Promise<unknown | null> {
+  const config = detectLlmConfig();
+
+  if (!config) {
     console.warn(
-      "[diagnostic:company-context] No LLM API key configured, skipping AI company description",
+      "[diagnostic:company-context] No LLM API key found (checked PERPLEXITY_API_KEY, DIAGNOSTIC_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY), skipping AI company description",
     );
     return null;
   }
 
-  type CreateFn = (opts: { apiKey: string }) => (model: string) => unknown;
+  const { provider, apiKey, model, baseURL } = config;
+
+  type CreateFn = (opts: {
+    apiKey: string;
+    baseURL?: string;
+  }) => (model: string) => unknown;
 
   try {
     if (provider === "openai") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mod = await import("@ai-sdk/openai" as any);
       const { createOpenAI } = mod as { createOpenAI: CreateFn };
-      return createOpenAI({ apiKey })(model);
+      return createOpenAI({ apiKey, baseURL })(model);
     }
 
     if (provider === "anthropic") {
@@ -208,7 +267,7 @@ async function createLlmModel(): Promise<unknown | null> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mod = await import("@ai-sdk/openai" as any);
     const { createOpenAI } = mod as { createOpenAI: CreateFn };
-    return createOpenAI({ apiKey })(model);
+    return createOpenAI({ apiKey, baseURL })(model);
   } catch (error) {
     console.warn(
       `[diagnostic:company-context] Failed to create LLM provider ${provider}: ${(error as Error).message}`,

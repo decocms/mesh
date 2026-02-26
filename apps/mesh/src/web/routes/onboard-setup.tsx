@@ -34,6 +34,8 @@ interface ResolveData {
 interface ClaimResult {
   organizationSlug: string;
   organizationId: string;
+  projectSlug: string | null;
+  projectId: string | null;
 }
 
 // ============================================================================
@@ -255,8 +257,9 @@ export default function OnboardSetupPage() {
       if (typeof window !== "undefined") {
         sessionStorage.removeItem(LOCALSTORAGE_KEYS.onboardingToken());
       }
-      // Redirect to the interview page (instead of org dashboard)
-      window.location.href = `/onboard-interview?org=${data.organizationSlug}&token=${token}`;
+      // Redirect into the project with the onboarding flow active
+      const projectSlug = data.projectSlug ?? "storefront";
+      window.location.href = `/${data.organizationSlug}/${projectSlug}?onboarding=true`;
     },
     onError: (err) => {
       setClaimError(err.message ?? "Something went wrong. Please try again.");

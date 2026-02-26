@@ -231,6 +231,10 @@ export const KEYS = {
   onboardingResolve: (token: string) =>
     ["onboarding", "resolve", token] as const,
 
+  // Onboarding auto-claim (fires once after login, no UI)
+  onboardingAutoClaim: (token: string) =>
+    ["onboarding", "auto-claim", token] as const,
+
   // Interview allowed models (scoped by org slug, used on onboard-interview page)
   interviewModels: (org: string) => ["interview", "models", org] as const,
 

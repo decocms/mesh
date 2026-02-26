@@ -416,15 +416,9 @@ export function createOnboardingRoutes(
       organizationSlug = orgRow.slug;
     }
 
-    // 6. Create project for the storefront URL
-    const projectSlugBase = urlToSlug(diagnosticSession.url);
-    const projectName = (() => {
-      try {
-        return new URL(diagnosticSession.url).hostname;
-      } catch {
-        return diagnosticSession.url;
-      }
-    })();
+    // 6. Create "Storefront" project
+    const projectSlugBase = "storefront";
+    const projectName = "Storefront";
 
     let projectId: string | undefined;
     let projectSlug: string | undefined;
@@ -704,21 +698,16 @@ export function createOnboardingRoutes(
         const perfKeywords =
           /\b(performance|speed|lcp|cwv|core.web|loading|lighthouse|pagespeed|optimization|optim)\b/i;
         if (perfKeywords.test(searchText)) {
+          const perfData = webPerf as WebPerformanceResult | null | undefined;
           const hasPoorPerf =
-            (webPerf as WebPerformanceResult | null | undefined)?.lcp
-              ?.rating === "poor" ||
-            (webPerf as WebPerformanceResult | null | undefined)?.lcp
-              ?.rating === "needs-improvement" ||
-            ((webPerf as WebPerformanceResult | null | undefined)
-              ?.mobileScore ?? 100) < 70 ||
-            ((webPerf as WebPerformanceResult | null | undefined)
-              ?.desktopScore ?? 100) < 70;
+            perfData?.mobile?.lcp?.rating === "poor" ||
+            perfData?.mobile?.lcp?.rating === "needs-improvement" ||
+            (perfData?.mobile?.performanceScore ?? 100) < 70 ||
+            (perfData?.desktop?.performanceScore ?? 100) < 70;
 
           if (hasPoorPerf) {
             score += 30;
-            const lcpRating = (
-              webPerf as WebPerformanceResult | null | undefined
-            )?.lcp?.rating;
+            const lcpRating = perfData?.mobile?.lcp?.rating;
             if (lcpRating === "poor" || lcpRating === "needs-improvement") {
               reasons.push(
                 `Your site's LCP is rated '${lcpRating}' — this agent can help optimize loading performance`,

@@ -11,10 +11,10 @@ import {
   Building02,
   CheckDone01,
   Container,
-  Dataflow03,
   FaceSmile,
   Folder,
   Home02,
+  SearchMd,
   Settings01,
   Users03,
 } from "@untitledui/icons";
@@ -275,28 +275,28 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  const projectWorkflowsItem: NavigationSidebarItem = {
-    key: "workflows",
-    label: "Workflows",
-    icon: <Dataflow03 />,
-    isActive: isActiveRoute("workflows"),
+  const diagnosticItem: NavigationSidebarItem = {
+    key: "diagnostic",
+    label: "Diagnostic",
+    icon: <SearchMd />,
+    isActive: isActiveRoute("diagnostic"),
     onClick: () =>
       navigate({
-        to: "/$org/$project/workflows",
+        to: "/$org/$project/diagnostic",
         params: { org, project },
       }),
   };
 
-  // Regular project sidebar layout (matching Figma):
-  // - Home, Tasks, Workflows
+  // Regular project sidebar layout:
+  // - Home, Tasks, Diagnostic
   // - [Divider] (if enabled plugins exist)
   // - Plugin items (flat)
   // - Plugin groups
   // (Settings is in the footer)
   const projectItems: NavigationSidebarItem[] = [
     homeItem,
-    ...(preferences.experimental_tasks ? [projectTasksItem] : []),
-    projectWorkflowsItem,
+    projectTasksItem,
+    diagnosticItem,
   ];
 
   const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
