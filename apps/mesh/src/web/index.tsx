@@ -251,6 +251,45 @@ const projectConnectionsRoute = createRoute({
   ),
 });
 
+// Context pages (storefront diagnostic domains)
+const performanceRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/performance",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/context/performance.tsx"),
+  ),
+});
+
+const seoRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/seo",
+  component: lazyRouteComponent(() => import("./routes/orgs/context/seo.tsx")),
+});
+
+const reputationRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/reputation",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/context/reputation.tsx"),
+  ),
+});
+
+const benchmarkRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/benchmark",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/context/benchmark.tsx"),
+  ),
+});
+
+const brandRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/brand",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/context/brand.tsx"),
+  ),
+});
+
 // Agents marketplace (storefront onboarding — available for all projects)
 const agentsMarketplaceRoute = createRoute({
   getParentRoute: () => projectLayout,
@@ -532,6 +571,11 @@ const projectRoutes = [
   tasksRoute,
   blogRoute,
   projectConnectionsRoute,
+  performanceRoute,
+  seoRoute,
+  reputationRoute,
+  benchmarkRoute,
+  brandRoute,
   agentsMarketplaceRoute,
   agentStoreDetailRoute,
   projectSettingsRoute,

@@ -299,26 +299,57 @@ export function useProjectSidebarItems(): SidebarSection[] {
       navigate({ to: "/$org/$project/connections", params: { org, project } }),
   };
 
-  // [Context] group — links to diagnostic sections
-  const mkDiagnosticItem = (
-    key: string,
-    label: string,
-    icon: React.ReactNode,
-  ): NavigationSidebarItem => ({
-    key,
-    label,
-    icon,
-    isActive: isActiveRoute("diagnostic"),
-    onClick: () =>
-      navigate({ to: "/$org/$project/diagnostic", params: { org, project } }),
-  });
-
+  // [Context] group — individual routes per domain
   const contextItems: NavigationSidebarItem[] = [
-    mkDiagnosticItem("performance", "Performance", <BarChart10 />),
-    mkDiagnosticItem("seo", "SEO", <SearchMd />),
-    mkDiagnosticItem("reputation", "Reputation", <Globe02 />),
-    mkDiagnosticItem("benchmark", "Benchmark", <TrendUp01 />),
-    mkDiagnosticItem("brand", "Brand", <FaceSmile />),
+    {
+      key: "performance",
+      label: "Performance",
+      icon: <BarChart10 />,
+      isActive: isActiveRoute("performance"),
+      onClick: () =>
+        navigate({
+          to: "/$org/$project/performance",
+          params: { org, project },
+        }),
+    },
+    {
+      key: "seo",
+      label: "SEO",
+      icon: <SearchMd />,
+      isActive: isActiveRoute("seo"),
+      onClick: () =>
+        navigate({ to: "/$org/$project/seo", params: { org, project } }),
+    },
+    {
+      key: "reputation",
+      label: "Reputation",
+      icon: <Globe02 />,
+      isActive: isActiveRoute("reputation"),
+      onClick: () =>
+        navigate({
+          to: "/$org/$project/reputation",
+          params: { org, project },
+        }),
+    },
+    {
+      key: "benchmark",
+      label: "Benchmark",
+      icon: <TrendUp01 />,
+      isActive: isActiveRoute("benchmark"),
+      onClick: () =>
+        navigate({
+          to: "/$org/$project/benchmark",
+          params: { org, project },
+        }),
+    },
+    {
+      key: "brand",
+      label: "Brand",
+      icon: <FaceSmile />,
+      isActive: isActiveRoute("brand"),
+      onClick: () =>
+        navigate({ to: "/$org/$project/brand", params: { org, project } }),
+    },
   ];
 
   // [Content] group — only show hired plugins
