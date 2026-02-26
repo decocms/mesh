@@ -36,7 +36,6 @@ export interface ProcessedConversation {
   originalMessages: ChatMessage[];
 }
 
-
 export function denyPendingApprovals(messages: ChatMessage[]): ChatMessage[] {
   // Only the last assistant message can have pending approvals
   let lastAssistantIdx = -1;
