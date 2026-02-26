@@ -1,5 +1,6 @@
 import { useChat } from "@/web/components/chat";
-import { BlogPostThread } from "@/web/components/chat/blog-post-thread.tsx";
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
@@ -35,7 +36,7 @@ import {
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 
 // ─── Mocked blog task ─────────────────────────────────────────────────────────
 
@@ -110,7 +111,11 @@ function TasksContent() {
   });
   const navigate = useNavigate();
   const { switchToThread } = useChat();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [, setDecoChatOpen] = useDecoChatOpen();
+  const [, setBlogThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:blog-thread-active",
+    false,
+  );
 
   const blogHired =
     typeof localStorage !== "undefined" &&
@@ -166,8 +171,8 @@ function TasksContent() {
 
   const onRowClick = async (thread: ThreadEntity) => {
     if (thread.id === MOCK_BLOG_TASK_ID) {
-      // Open chat panel on the right — no navigation
-      setSelectedTaskId(MOCK_BLOG_TASK_ID);
+      setBlogThreadActive(true);
+      setDecoChatOpen(true);
       return;
     }
     await switchToThread(thread.id);
@@ -257,58 +262,41 @@ function TasksContent() {
         }}
       />
 
-      <Page.Content className="flex-1 overflow-hidden">
-        <div
-          className={`h-full flex overflow-hidden ${selectedTaskId ? "divide-x divide-border" : ""}`}
-        >
-          {/* ── Task list ── */}
-          <div
-            className={`flex flex-col overflow-hidden ${selectedTaskId ? "w-[420px] shrink-0" : "flex-1"}`}
-          >
-            <CollectionTableWrapper
-              columns={columns}
-              data={threads}
-              isLoading={false}
-              sortKey={listState.sortKey}
-              sortDirection={listState.sortDirection}
-              onSort={listState.handleSort}
-              onRowClick={onRowClick}
-              emptyState={
-                listState.search ? (
-                  <EmptyState
-                    image={
+      <Page.Content>
+        <div className="h-full flex flex-col overflow-hidden">
+          <CollectionTableWrapper
+            columns={columns}
+            data={threads}
+            isLoading={false}
+            sortKey={listState.sortKey}
+            sortDirection={listState.sortDirection}
+            onSort={listState.handleSort}
+            onRowClick={onRowClick}
+            emptyState={
+              listState.search ? (
+                <EmptyState
+                  image={
+                    <CheckDone01 size={36} className="text-muted-foreground" />
+                  }
+                  title="No tasks found"
+                  description={`No tasks match "${listState.search}"`}
+                />
+              ) : (
+                <EmptyState
+                  image={
+                    <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted">
                       <CheckDone01
-                        size={36}
+                        size={32}
                         className="text-muted-foreground"
                       />
-                    }
-                    title="No tasks found"
-                    description={`No tasks match "${listState.search}"`}
-                  />
-                ) : (
-                  <EmptyState
-                    image={
-                      <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted">
-                        <CheckDone01
-                          size={32}
-                          className="text-muted-foreground"
-                        />
-                      </div>
-                    }
-                    title="No tasks yet"
-                    description="Tasks will appear here when agents start processing work."
-                  />
-                )
-              }
-            />
-          </div>
-
-          {/* ── Chat panel (opens when a task is selected) ── */}
-          {selectedTaskId === MOCK_BLOG_TASK_ID && (
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <BlogPostThread />
-            </div>
-          )}
+                    </div>
+                  }
+                  title="No tasks yet"
+                  description="Tasks will appear here when agents start processing work."
+                />
+              )
+            }
+          />
         </div>
       </Page.Content>
     </Page>

@@ -1,6 +1,7 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -10,12 +11,17 @@ import { ClockRewind, Plus, Users03, X } from "@untitledui/icons";
 import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
+import { BlogPostMessages } from "./blog-post-thread.tsx";
 import { ThreadsView } from "./threads-sidebar";
 import { TypewriterTitle } from "./typewriter-title";
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
+  const [blogThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:blog-thread-active",
+    false,
+  );
   const {
     selectedVirtualMcp,
     modelsConnections,
@@ -137,7 +143,9 @@ function ChatPanelContent() {
         </Page.Header>
 
         <Chat.Main>
-          {isChatEmpty ? (
+          {blogThreadActive ? (
+            <BlogPostMessages />
+          ) : isChatEmpty ? (
             <Chat.EmptyState>
               <div className="flex flex-col items-center gap-6 w-full px-4">
                 <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
