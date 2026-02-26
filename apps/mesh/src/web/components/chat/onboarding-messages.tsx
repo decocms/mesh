@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
-import { MemoizedMarkdown } from "./markdown.tsx";
+import { StreamingMessage } from "./streaming-message.tsx";
 import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -23,7 +23,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Stage = "recommend" | "proposed" | "approved";
+type Stage = "loading" | "recommend" | "proposed" | "approved";
 
 const ALREADY_KNOWS = [
   "Brand colors & visual identity",
@@ -33,18 +33,6 @@ const ALREADY_KNOWS = [
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function AssistantRow({ content }: { content: string }) {
-  return (
-    <div className="w-full min-w-0 group relative flex items-start z-20 text-foreground flex-row px-4">
-      <div className="flex flex-col min-w-0 w-full items-start">
-        <div className="w-full min-w-0 text-[15px] bg-transparent">
-          <MemoizedMarkdown id={content.slice(0, 12)} text={content} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function DiagnosticCard({ domain }: { domain: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -282,7 +270,7 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
   const domain = orgName.replace(/-/g, ".").toLowerCase();
   const navigate = useNavigate();
 
-  const [stage, setStage] = useState<Stage>("recommend");
+  const [stage, setStage] = useState<Stage>("loading");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const welcomeText = `I've analyzed **${domain}** and found a few things worth addressing — including a slow LCP on mobile (4.2s), 67% of product pages missing meta descriptions, and real SEO opportunities in the content gap.\n\nBased on this, I have a recommendation.`;
@@ -303,25 +291,41 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
   return (
     <>
       <div className="flex flex-col min-h-full max-w-2xl mx-auto w-full py-8 gap-6">
-        {/* Welcome message */}
-        <AssistantRow content={welcomeText} />
-
-        {/* Diagnostic card — always visible */}
-        <DiagnosticCard domain={domain} />
-
-        {/* Stage: recommend — show agent card */}
-        {stage === "recommend" && (
-          <AgentRecommendationCard
-            domain={domain}
-            onHire={() => setDrawerOpen(true)}
+        {/* Welcome — streams in on mount */}
+        <div className="px-4">
+          <StreamingMessage
+            id="onboarding-welcome"
+            text={welcomeText}
+            thinkingMs={300}
+            onDone={() => setStage("recommend")}
           />
-        )}
+        </div>
 
-        {/* Stage: proposed — agent task card */}
-        {stage === "proposed" && (
+        {/* Everything below only appears after welcome finishes */}
+        {stage !== "loading" && (
           <>
-            <AssistantRow content="Blog Post Generator is on your team. It's already drafted your first post — click the task below to review and approve it:" />
-            <AgentTaskCard onOpen={handleOpenTask} />
+            <DiagnosticCard domain={domain} />
+
+            {stage === "recommend" && (
+              <AgentRecommendationCard
+                domain={domain}
+                onHire={() => setDrawerOpen(true)}
+              />
+            )}
+
+            {stage === "proposed" && (
+              <>
+                <div className="px-4">
+                  <StreamingMessage
+                    id="onboarding-post-hire"
+                    text="Blog Post Generator is on your team. It's already drafted your first post — click the task below to review and approve it:"
+                    thinkingMs={400}
+                    onDone={() => {}}
+                  />
+                </div>
+                <AgentTaskCard onOpen={handleOpenTask} />
+              </>
+            )}
           </>
         )}
 

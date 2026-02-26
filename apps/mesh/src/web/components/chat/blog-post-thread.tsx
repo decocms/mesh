@@ -1,20 +1,19 @@
 /**
- * BlogPostThread
+ * BlogPostMessages
  *
- * Mocked chat thread for the Blog Post Generator task.
- * Uses the real Chat shell (Chat, Chat.Main, Chat.Footer, Chat.Input)
- * so it looks identical to any other thread in the product.
- * The message content is mocked — includes an embedded blog draft artifact.
+ * Mocked message content for the Blog Post Generator task.
+ * Rendered inside the existing ChatPanel shell (side-panel-chat.tsx).
+ * Shows thinking → streaming message 1 → thinking → streaming message 2 → artifact.
  */
 
-import { Chat } from "@/web/components/chat/index";
-import { MemoizedMarkdown } from "./markdown.tsx";
+import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
+import { StreamingMessage } from "./streaming-message.tsx";
 import { ArrowRight, ArrowUpRight, Check, File06 } from "@untitledui/icons";
 
-// ─── Blog post artifact ───────────────────────────────────────────────────────
+// ─── Blog artifact ────────────────────────────────────────────────────────────
 
 function BlogArtifact() {
   const { org, project } = useProjectContext();
@@ -30,7 +29,6 @@ function BlogArtifact() {
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden mt-2">
-      {/* Artifact header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <File06 size={13} className="text-violet-500" />
@@ -48,7 +46,6 @@ function BlogArtifact() {
         </button>
       </div>
 
-      {/* Preview */}
       <div className="px-4 py-3 flex flex-col gap-2">
         <p className="text-sm font-semibold text-foreground leading-snug">
           Best Smart Home Accessories Under $50
@@ -70,7 +67,6 @@ function BlogArtifact() {
         </div>
       </div>
 
-      {/* CTA */}
       <div className="px-4 py-3 border-t border-border bg-muted/10">
         <Button size="sm" className="w-full" onClick={handleOpen}>
           Review & approve draft
@@ -81,49 +77,42 @@ function BlogArtifact() {
   );
 }
 
-// ─── Mocked messages ─────────────────────────────────────────────────────────
+// ─── Message sequence ─────────────────────────────────────────────────────────
 
-function MockedMessages() {
+type Step = "msg1" | "msg2" | "artifact";
+
+const MSG1 = `I'll write a blog post targeting **"best smart home accessories under $50"** — 18K monthly searches, low competition. Your brand voice is clear from the site analysis so I'll match the tone.`;
+
+const MSG2 = "Done. Here's your draft:";
+
+export function BlogPostMessages() {
+  const [step, setStep] = useState<Step>("msg1");
+
   return (
-    <div className="flex flex-col gap-6 py-8 max-w-2xl mx-auto w-full">
+    <div className="flex flex-col gap-6 py-6 w-full">
       {/* Message 1 */}
-      <div className="w-full min-w-0 flex items-start text-foreground flex-row px-4">
-        <div className="flex flex-col min-w-0 w-full items-start">
-          <div className="w-full min-w-0 text-[15px]">
-            <MemoizedMarkdown
-              id="blog-msg-1"
-              text={`I'll write a blog post targeting **"best smart home accessories under $50"** — 18K monthly searches, low competition. Your brand voice is clear from the site analysis so I'll match the tone.`}
-            />
-          </div>
-        </div>
+      <div className="w-full min-w-0 flex items-start text-foreground px-4">
+        <StreamingMessage
+          id="blog-msg-1"
+          text={MSG1}
+          thinkingMs={500}
+          onDone={() => setStep("msg2")}
+        />
       </div>
 
-      {/* Message 2 with artifact */}
-      <div className="w-full min-w-0 flex items-start text-foreground flex-row px-4">
-        <div className="flex flex-col min-w-0 w-full items-start gap-0">
-          <div className="w-full min-w-0 text-[15px]">
-            <MemoizedMarkdown id="blog-msg-2" text="Done. Here's your draft:" />
-          </div>
-          <div className="w-full">
-            <BlogArtifact />
-          </div>
+      {/* Message 2 — appears after msg1 done */}
+      {(step === "msg2" || step === "artifact") && (
+        <div className="w-full min-w-0 px-4 flex flex-col gap-0">
+          <StreamingMessage
+            id="blog-msg-2"
+            text={MSG2}
+            thinkingMs={400}
+            charsPerTick={6}
+            onDone={() => setStep("artifact")}
+          />
+          {step === "artifact" && <BlogArtifact />}
         </div>
-      </div>
+      )}
     </div>
-  );
-}
-
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export function BlogPostThread() {
-  return (
-    <Chat>
-      <Chat.Main>
-        <MockedMessages />
-      </Chat.Main>
-      <Chat.Footer>
-        <Chat.Input />
-      </Chat.Footer>
-    </Chat>
   );
 }
