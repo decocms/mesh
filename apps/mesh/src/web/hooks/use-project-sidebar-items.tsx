@@ -20,6 +20,7 @@ import {
   Settings01,
   TrendUp01,
   Users03,
+  Zap,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { useProject } from "./use-project";
@@ -299,6 +300,15 @@ export function useProjectSidebarItems(): SidebarSection[] {
       navigate({ to: "/$org/$project/connections", params: { org, project } }),
   };
 
+  const triggersItem: NavigationSidebarItem = {
+    key: "triggers",
+    label: "Triggers",
+    icon: <Zap />,
+    isActive: isActiveRoute("triggers"),
+    onClick: () =>
+      navigate({ to: "/$org/$project/triggers", params: { org, project } }),
+  };
+
   // [Context] group — individual routes per domain
   const contextItems: NavigationSidebarItem[] = [
     {
@@ -375,6 +385,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
         projectTasksItem,
         projectAgentsItem,
         projectConnectionsItem,
+        triggersItem,
       ],
     },
     // Context group

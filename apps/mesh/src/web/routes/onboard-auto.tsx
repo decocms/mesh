@@ -105,10 +105,28 @@ export default function OnboardAutoPage() {
     return <Spinner />;
   }
 
-  // No token — use first org's storefront project directly
+  // No token — ensure storefront project exists, then navigate
   const firstOrg = organizations?.[0];
   if (firstOrg) {
-    window.location.href = `/${firstOrg.slug}/storefront?onboarding=true`;
+    if (stage === "idle") {
+      setStage("claiming");
+      fetch("/api/onboarding/ensure-storefront", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          const orgSlug = data.organizationSlug ?? firstOrg.slug;
+          const projectSlug = data.projectSlug ?? "storefront";
+          setDest(`/${orgSlug}/${projectSlug}?onboarding=true`);
+          setStage("done");
+        })
+        .catch(() => {
+          // Fallback: navigate anyway, project might already exist
+          setDest(`/${firstOrg.slug}/storefront?onboarding=true`);
+          setStage("done");
+        });
+    }
   } else {
     window.location.href = "/onboard-setup";
   }

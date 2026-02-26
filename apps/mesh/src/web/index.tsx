@@ -251,6 +251,13 @@ const projectConnectionsRoute = createRoute({
   ),
 });
 
+// Triggers (storefront — schedule and event-based triggers for agents)
+const triggersRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/triggers",
+  component: lazyRouteComponent(() => import("./routes/orgs/triggers.tsx")),
+});
+
 // Context pages (storefront diagnostic domains)
 const performanceRoute = createRoute({
   getParentRoute: () => projectLayout,
@@ -571,6 +578,7 @@ const projectRoutes = [
   tasksRoute,
   blogRoute,
   projectConnectionsRoute,
+  triggersRoute,
   performanceRoute,
   seoRoute,
   reputationRoute,

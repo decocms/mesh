@@ -49,7 +49,6 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-
 /**
  * Extract a human-readable company name from an AI-generated description.
  * Heuristic: descriptions typically start with "CompanyName is ..." —
@@ -452,6 +451,129 @@ export function createOnboardingRoutes(
       },
       200,
     );
+  });
+
+  // --------------------------------------------------------------------------
+  // POST /ensure-storefront — Create "storefront" project if it doesn't exist
+  // Used by onboard-auto when there's no diagnostic token
+  // --------------------------------------------------------------------------
+
+  app.post("/ensure-storefront", async (c) => {
+    // 1. Auth check
+    const user = await getSessionUser(c);
+    if (!user) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    // 2. Get user's active org via the session
+    const session = await authInstance.api.getSession({
+      headers: c.req.raw.headers,
+    });
+
+    const activeOrgId = session?.session?.activeOrganizationId;
+    if (!activeOrgId) {
+      // Try to fall back to first org membership
+      const memberships = await (db as Kysely<Database>)
+        .selectFrom("member")
+        .innerJoin("organization", "organization.id", "member.organizationId")
+        .select(["organization.id", "organization.slug"])
+        .where("member.userId", "=", user.id)
+        .limit(1)
+        .executeTakeFirst();
+
+      if (!memberships) {
+        return c.json({ error: "No active organization" }, 404);
+      }
+
+      const organizationId = memberships.id;
+      const organizationSlug = memberships.slug;
+
+      // Check if storefront already exists
+      const existing = await db
+        .selectFrom("projects")
+        .select(["id", "slug"])
+        .where("organization_id", "=", organizationId)
+        .where("slug", "=", "storefront")
+        .executeTakeFirst();
+
+      if (existing) {
+        return c.json({ organizationSlug, projectSlug: existing.slug });
+      }
+
+      try {
+        const project = await projectsStorage.create({
+          organizationId,
+          slug: "storefront",
+          name: "Storefront",
+          description: "Storefront project",
+        });
+        return c.json({ organizationSlug, projectSlug: project.slug });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const isConflict =
+          message.includes("already exists") ||
+          message.includes("unique") ||
+          message.includes("duplicate") ||
+          message.includes("UNIQUE");
+
+        if (!isConflict) {
+          console.error("[onboarding/ensure-storefront] error:", err);
+          return c.json({ error: "Failed to create project" }, 500);
+        }
+        return c.json({ organizationSlug, projectSlug: "storefront" });
+      }
+    }
+
+    // 3. Look up org slug from the active org id
+    const orgRow = await (db as Kysely<Database>)
+      .selectFrom("organization")
+      .select(["id", "slug"])
+      .where("id", "=", activeOrgId)
+      .executeTakeFirst();
+
+    if (!orgRow) {
+      return c.json({ error: "Organization not found" }, 404);
+    }
+
+    const organizationId = orgRow.id;
+    const organizationSlug = orgRow.slug;
+
+    // 4. Check if storefront already exists
+    const existing = await db
+      .selectFrom("project")
+      .select(["id", "slug"])
+      .where("organizationId", "=", organizationId)
+      .where("slug", "=", "storefront")
+      .executeTakeFirst();
+
+    if (existing) {
+      return c.json({ organizationSlug, projectSlug: existing.slug });
+    }
+
+    // 5. Create it
+    try {
+      const project = await projectsStorage.create({
+        organizationId,
+        slug: "storefront",
+        name: "Storefront",
+        description: "Storefront project",
+      });
+      return c.json({ organizationSlug, projectSlug: project.slug });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const isConflict =
+        message.includes("already exists") ||
+        message.includes("unique") ||
+        message.includes("duplicate") ||
+        message.includes("UNIQUE");
+
+      if (!isConflict) {
+        console.error("[onboarding/ensure-storefront] error:", err);
+        return c.json({ error: "Failed to create project" }, 500);
+      }
+      // Conflict means it already exists — proceed
+      return c.json({ organizationSlug, projectSlug: "storefront" });
+    }
   });
 
   // --------------------------------------------------------------------------
