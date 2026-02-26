@@ -8,10 +8,12 @@
 
 import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { MemoizedMarkdown } from "./markdown.tsx";
 import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   ChevronDown,
@@ -22,40 +24,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Stage = "recommend" | "proposed" | "approved";
-
-interface BlogTask {
-  id: string;
-  title: string;
-  keyword: string;
-  volume: string;
-  competition: "low" | "medium" | "high";
-}
-
-// ─── Static data ──────────────────────────────────────────────────────────────
-
-const BLOG_TASKS: BlogTask[] = [
-  {
-    id: "bp-1",
-    title: "Best smart home accessories under $50",
-    keyword: "best smart home accessories under $50",
-    volume: "18K/mo",
-    competition: "low",
-  },
-  {
-    id: "bp-2",
-    title: "How to set up a smart home in 2026",
-    keyword: "how to set up a smart home",
-    volume: "41K/mo",
-    competition: "medium",
-  },
-  {
-    id: "bp-3",
-    title: "VTEX vs Shopify for DTC brands",
-    keyword: "vtex vs shopify dtc brands",
-    volume: "6K/mo",
-    competition: "high",
-  },
-];
 
 const ALREADY_KNOWS = [
   "Brand colors & visual identity",
@@ -255,99 +223,50 @@ function AgentRecommendationCard({
   );
 }
 
-function CompetitionBadge({ level }: { level: "low" | "medium" | "high" }) {
-  const styles = {
-    low: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    medium: "bg-amber-50 text-amber-700 border-amber-200",
-    high: "bg-rose-50 text-rose-700 border-rose-200",
-  };
+/**
+ * AgentTaskCard
+ *
+ * Renders a single task the way the normal /tasks list renders rows —
+ * same status badge, same structure — so the user recognises it as a
+ * real task. Clicking opens the blog workspace.
+ */
+function AgentTaskCard({ onOpen }: { onOpen: () => void }) {
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${styles[level]}`}
-    >
-      {level}
-    </span>
-  );
-}
-
-function TaskProposalCards({
-  onApprove,
-}: {
-  onApprove: (task: BlogTask) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-2 mx-4">
-      {BLOG_TASKS.map((task) => (
-        <button
-          key={task.id}
-          type="button"
-          onClick={() => onApprove(task)}
-          className="flex items-start gap-4 rounded-2xl border border-border bg-card px-4 py-3.5 text-left hover:bg-muted/20 transition-colors group"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-foreground">
-                {task.title}
-              </p>
-              <CompetitionBadge level={task.competition} />
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-muted-foreground font-mono">
-                {task.keyword}
-              </span>
-              <span className="text-xs text-muted-foreground">·</span>
-              <span className="text-xs font-medium text-foreground">
-                {task.volume}
-              </span>
-            </div>
-          </div>
-          <ArrowRight
-            size={14}
-            className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0 mt-1"
-          />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function DoneState({ orgName }: { orgName: string }) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="mx-4 flex flex-col gap-3">
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 flex items-start gap-3">
-        <div className="shrink-0 flex items-center justify-center size-8 rounded-full bg-emerald-100 text-emerald-600 mt-0.5">
-          <Check size={16} />
+    <div className="mx-4">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left hover:bg-muted/20 transition-colors group"
+      >
+        {/* Agent icon */}
+        <div className="flex items-center justify-center size-8 rounded-lg bg-violet-100 text-violet-600 shrink-0">
+          <File06 size={15} />
         </div>
-        <div>
-          <p className="text-sm font-semibold text-emerald-800">
-            Blog Post Generator hired successfully
+
+        {/* Title + agent name */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            Write: "Best smart home accessories under $50"
           </p>
-          <p className="text-xs text-emerald-700 mt-0.5">
-            Your first draft is being written now. You&apos;ll find it in the
-            Blog workspace.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Blog Post Generator · 18K searches/mo · low competition
           </p>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          className="flex-1"
-          onClick={() => {
-            navigate({
-              to: "/$org/$project/blog",
-              params: { org: orgName, project: "storefront" },
-            });
-          }}
+        {/* Status badge — same as tasks.tsx requires_action */}
+        <Badge
+          variant="outline"
+          className="gap-1 text-blue-600 border-blue-600/40 shrink-0"
         >
-          Go to Blog workspace
-          <ArrowRight size={14} />
-        </Button>
-        <Button variant="outline" className="flex-1">
-          Invite your team
-        </Button>
-      </div>
+          <AlertCircle size={11} />
+          Review draft
+        </Badge>
+
+        <ArrowRight
+          size={14}
+          className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0"
+        />
+      </button>
     </div>
   );
 }
@@ -374,15 +293,12 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
     setStage("proposed");
   }
 
-  function handleApprove(task: BlogTask) {
-    setStage("approved");
-    setTimeout(() => {
-      navigate({
-        to: "/$org/$project/blog",
-        params: { org: orgName, project: "storefront" },
-        search: { taskId: task.id },
-      });
-    }, 1200);
+  function handleOpenTask() {
+    navigate({
+      to: "/$org/$project/blog",
+      params: { org: orgName, project: "storefront" },
+      search: { taskId: "bp-1" },
+    });
   }
 
   return (
@@ -402,19 +318,11 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
           />
         )}
 
-        {/* Stage: proposed — show task proposals */}
+        {/* Stage: proposed — agent task card */}
         {stage === "proposed" && (
           <>
-            <AssistantRow content="Blog Post Generator is ready. Here are the top content opportunities it identified for your store — click one to kick off the first draft:" />
-            <TaskProposalCards onApprove={handleApprove} />
-          </>
-        )}
-
-        {/* Stage: approved — writing + done state */}
-        {stage === "approved" && (
-          <>
-            <AssistantRow content="Writing your first draft now..." />
-            <DoneState orgName={orgName} />
+            <AssistantRow content="Blog Post Generator is on your team. It's already drafted your first post — click the task below to review and approve it:" />
+            <AgentTaskCard onOpen={handleOpenTask} />
           </>
         )}
 
