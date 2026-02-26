@@ -3,6 +3,9 @@
  *
  * GET  /discover     — probe localhost ports for running local-dev daemons
  * POST /add-project  — create connection + project + bind object-storage plugin
+ *
+ * Also exports reconcileLocalDevConnection() for use by the MCP proxy
+ * to fix port drift on-the-fly when a connection is accessed.
  */
 
 import { Hono } from "hono";
@@ -26,6 +29,121 @@ interface DiscoveredInstance {
 const PORT_START = 4201;
 const PORT_END = 4210;
 const PROBE_TIMEOUT_MS = 500;
+
+// ---- Port drift reconciliation (used by proxy + discovery) ----
+
+/**
+ * TTL cache for reconciliation results. Prevents probing all ports
+ * on every single MCP request. Keyed by connection ID.
+ */
+const reconcileCache = new Map<string, { url: string; expiresAt: number }>();
+const RECONCILE_TTL_MS = 30_000; // 30 seconds
+
+/**
+ * Reconcile a local-dev connection's port. Called by the MCP proxy before
+ * proxying a request to ensure the connection_url points to the right daemon.
+ *
+ * For connections with metadata.localDevRoot:
+ * 1. Quick-check: is the stored port serving the expected root?
+ * 2. If yes, return as-is (cache hit path is instant)
+ * 3. If no, probe all ports to find the correct daemon and update the DB
+ * 4. If daemon not found on any port, return null (don't proxy to wrong project)
+ *
+ * Returns the (possibly updated) connection_url, or null if the daemon
+ * is offline. Non-local-dev connections pass through unchanged.
+ */
+export async function reconcileLocalDevConnection(
+  connection: {
+    id: string;
+    connection_url: string | null;
+    metadata: Record<string, unknown> | null;
+  },
+  storage: {
+    connections: {
+      update: (
+        id: string,
+        data: { connection_url: string },
+      ) => Promise<unknown>;
+    };
+  },
+): Promise<{ connection_url: string | null }> {
+  const meta = connection.metadata as { localDevRoot?: string } | null;
+  if (!meta?.localDevRoot || !connection.connection_url) {
+    return { connection_url: connection.connection_url };
+  }
+
+  // Check cache first
+  const cached = reconcileCache.get(connection.id);
+  if (cached && cached.expiresAt > Date.now()) {
+    // Empty string means daemon was confirmed offline
+    if (cached.url === "") {
+      return { connection_url: null };
+    }
+    if (cached.url === connection.connection_url) {
+      return { connection_url: connection.connection_url };
+    }
+    // Cache says URL should be different — return updated URL
+    return { connection_url: cached.url };
+  }
+
+  const expectedRoot = meta.localDevRoot;
+  const currentPortMatch = connection.connection_url.match(
+    /^https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)/,
+  );
+  const currentPort = currentPortMatch?.[1]
+    ? parseInt(currentPortMatch[1], 10)
+    : null;
+
+  // Quick-check: is the current port serving the expected root?
+  if (currentPort) {
+    const instance = await probePort(currentPort);
+    if (instance?.root === expectedRoot) {
+      // Port is correct — cache and return
+      reconcileCache.set(connection.id, {
+        url: connection.connection_url,
+        expiresAt: Date.now() + RECONCILE_TTL_MS,
+      });
+      return { connection_url: connection.connection_url };
+    }
+  }
+
+  // Port is wrong or unreachable — probe all ports to find the right daemon
+  const probes = [];
+  for (let port = PORT_START; port <= PORT_END; port++) {
+    probes.push(probePort(port));
+  }
+  const results = await Promise.all(probes);
+  const correctInstance = results.find(
+    (r): r is DiscoveredInstance => r !== null && r.root === expectedRoot,
+  );
+
+  if (correctInstance) {
+    const newUrl = `http://localhost:${correctInstance.port}/mcp`;
+    if (newUrl !== connection.connection_url) {
+      console.log(
+        `[local-dev] Port drift detected for connection ${connection.id}: ` +
+          `${currentPort} → ${correctInstance.port}, updating connection_url`,
+      );
+      await storage.connections.update(connection.id, {
+        connection_url: newUrl,
+      });
+    }
+    reconcileCache.set(connection.id, {
+      url: newUrl,
+      expiresAt: Date.now() + RECONCILE_TTL_MS,
+    });
+    return { connection_url: newUrl };
+  }
+
+  // Daemon not found on any port. Return null so the proxy refuses to
+  // connect rather than silently routing to the wrong project's daemon.
+  // Use a very short TTL so we re-probe quickly once the daemon starts.
+  reconcileCache.set(connection.id, {
+    url: "",
+    expiresAt: Date.now() + 2_000, // 2s — retry fast when offline
+  });
+  return { connection_url: null };
+}
 
 const app = new Hono<Env>();
 
@@ -69,6 +187,10 @@ app.get("/discover", async (c) => {
     const meta = conn.metadata as { localDevRoot?: string } | null;
     if (meta?.localDevRoot) {
       linkedRoots.add(meta.localDevRoot);
+
+      // Reconcile port drift for this connection
+      await reconcileLocalDevConnection(conn, meshContext.storage);
+
       continue;
     }
     if (conn.connection_url) {
