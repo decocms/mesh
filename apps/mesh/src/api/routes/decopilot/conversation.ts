@@ -36,6 +36,46 @@ export interface ProcessedConversation {
   originalMessages: ChatMessage[];
 }
 
+/**
+ * Marks any tool parts still in "approval-requested" state as "output-denied".
+ * This happens when the user sends a new message without approving/rejecting
+ * pending tool calls. convertToModelMessages then produces the correct
+ * assistant(tool-call) → tool(tool-result) pairing automatically.
+ */
+function denyPendingApprovals(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((msg) => {
+    if (msg.role !== "assistant") return msg;
+
+    const hasPending = msg.parts.some(
+      (part) => "state" in part && part.state === "approval-requested",
+    );
+    if (!hasPending) return msg;
+
+    return {
+      ...msg,
+      parts: msg.parts.map((part) => {
+        if (
+          !("state" in part) ||
+          part.state !== "approval-requested" ||
+          !("approval" in part) ||
+          !part.approval
+        ) {
+          return part;
+        }
+        return {
+          ...part,
+          state: "output-denied",
+          approval: {
+            ...part.approval,
+            approved: false as const,
+            reason: "User sent a new message without approving this tool call.",
+          },
+        };
+      }),
+    } as ChatMessage;
+  });
+}
+
 function splitMessages(messages: ModelMessage[]): {
   systemMessages: Extract<ModelMessage, { role: "system" }>[];
   messages: Extract<ModelMessage, { role: "user" | "assistant" | "tool" }>[];
@@ -98,8 +138,9 @@ export async function processConversation(
     messages: allMessages,
   });
 
-  // Convert to model messages
-  const modelMessages = await convertToModelMessages(validUIMessages, {
+  const patchedUIMessages = denyPendingApprovals(validUIMessages);
+
+  const modelMessages = await convertToModelMessages(patchedUIMessages, {
     tools: config.tools,
     ignoreIncompleteToolCalls: true,
   });
@@ -109,8 +150,6 @@ export async function processConversation(
     messages: nonSystemModelMessages,
   } = splitMessages(modelMessages);
 
-  // Build system messages from input systemMessages + system from model (thread history)
-  // Filter and prune non-system messages (system messages are SystemModelMessage by construction)
   const prunedModelMessages = pruneMessages({
     messages: nonSystemModelMessages,
     reasoning: "all",
