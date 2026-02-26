@@ -168,24 +168,24 @@ function TriggerCard({
       className="w-full text-left rounded-xl border border-border bg-card p-4 transition-colors duration-150 hover:bg-accent/50 cursor-pointer"
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {trigger.triggerType === "cron" ? (
             <Clock size={16} className="shrink-0 text-muted-foreground" />
           ) : (
             <Lightning01 size={16} className="shrink-0 text-muted-foreground" />
           )}
-          <span className="text-sm font-medium text-foreground truncate">
-            {trigger.triggerType === "cron" && trigger.cronExpression
-              ? cronToHuman(trigger.cronExpression)
-              : trigger.eventType
-                ? `On "${trigger.eventType}" event`
-                : "Unknown trigger"}
-          </span>
-          {trigger.title && (
-            <span className="text-xs text-muted-foreground truncate">
-              — {trigger.title}
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-medium text-foreground truncate">
+              {trigger.title || "Untitled trigger"}
             </span>
-          )}
+            <span className="text-xs text-muted-foreground truncate">
+              {trigger.triggerType === "cron" && trigger.cronExpression
+                ? cronToHuman(trigger.cronExpression)
+                : trigger.eventType
+                  ? `On "${trigger.eventType}" event`
+                  : "Not configured"}
+            </span>
+          </div>
         </div>
         <div
           onClick={(e) => e.stopPropagation()}
@@ -199,27 +199,19 @@ function TriggerCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-1.5 ml-[26px]">
+      <div className="flex items-center gap-2 mt-2 ml-[26px]">
         <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground truncate">
+        <span className="text-xs text-muted-foreground truncate">
           {describeAction(trigger)}
         </span>
-      </div>
-
-      <div className="flex items-center gap-3 mt-1.5 ml-[26px] text-xs text-muted-foreground">
-        {trigger.lastRunAt && (
-          <span className="flex items-center gap-1">
-            Last run: {formatTimeAgo(new Date(trigger.lastRunAt))}
-            {trigger.lastRunStatus === "success" && (
-              <span className="text-green-500">&#10003;</span>
-            )}
-            {trigger.lastRunStatus === "failed" && (
-              <span className="text-destructive">&#10007;</span>
-            )}
-          </span>
+        {nextRun && (
+          <>
+            <span className="text-muted-foreground/40">&#183;</span>
+            <span className="text-xs text-muted-foreground">
+              Next: {nextRun}
+            </span>
+          </>
         )}
-        {nextRun && <span>Next: {nextRun}</span>}
-        {!trigger.lastRunAt && !nextRun && <span>Never run</span>}
       </div>
     </button>
   );
