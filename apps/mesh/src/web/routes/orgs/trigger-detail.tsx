@@ -16,7 +16,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -42,6 +41,7 @@ import {
 } from "@decocms/mesh-sdk";
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -61,7 +61,62 @@ import { formatTimeAgo } from "@/web/lib/format-time";
 
 // ---- Activity Panel ----
 
-function TriggerActivityPanel({ trigger }: { trigger: TriggerEntity }) {
+interface TriggerRun {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function RunStatusIcon({ status }: { status: string }) {
+  if (status === "in_progress") {
+    return <Loading01 size={14} className="animate-spin text-blue-500" />;
+  }
+  if (status === "completed") {
+    return (
+      <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[9px] font-bold">
+        &#10003;
+      </div>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <div className="w-3.5 h-3.5 rounded-full bg-destructive flex items-center justify-center text-white text-[9px] font-bold">
+        &#10007;
+      </div>
+    );
+  }
+  return <div className="w-3.5 h-3.5 rounded-full bg-muted-foreground/30" />;
+}
+
+function TriggerActivityPanel({
+  trigger,
+  triggerId,
+}: {
+  trigger: TriggerEntity;
+  triggerId: string;
+}) {
+  const { org, locator } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const navigate = useNavigate();
+
+  const runsQuery = useQuery({
+    queryKey: KEYS.triggerRuns(locator, triggerId),
+    queryFn: async () => {
+      const result = (await client.callTool({
+        name: "TRIGGER_RUNS_LIST",
+        arguments: { triggerId, limit: 20 },
+      })) as { structuredContent?: { runs: TriggerRun[] } };
+      return result.structuredContent?.runs ?? [];
+    },
+  });
+
+  const runs = runsQuery.data ?? [];
+
   const nextRun = (() => {
     if (trigger.triggerType !== "cron" || !trigger.cronExpression) return null;
     try {
@@ -73,42 +128,8 @@ function TriggerActivityPanel({ trigger }: { trigger: TriggerEntity }) {
   })();
 
   return (
-    <div className="flex flex-col gap-4 h-full p-5 max-w-md mx-auto">
+    <div className="flex flex-col gap-4 h-full p-5">
       <h3 className="text-sm font-semibold text-foreground">Activity</h3>
-
-      {/* Last run */}
-      {trigger.lastRunAt ? (
-        <div className="rounded-xl border border-border p-4 flex flex-col gap-2.5 bg-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Last run
-            </span>
-            <Badge
-              variant={
-                trigger.lastRunStatus === "success" ? "success" : "destructive"
-              }
-            >
-              {trigger.lastRunStatus === "success" ? "Success" : "Failed"}
-            </Badge>
-          </div>
-          <p className="text-sm text-foreground">
-            {formatTimeAgo(new Date(trigger.lastRunAt))}
-          </p>
-          {trigger.lastRunError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2">
-              <p className="text-xs text-destructive">{trigger.lastRunError}</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border p-6 flex flex-col items-center gap-3 text-muted-foreground bg-muted/20">
-          <Clock size={28} className="opacity-40" />
-          <div className="text-center">
-            <p className="text-sm font-medium">No runs yet</p>
-            <p className="text-xs mt-0.5">This trigger hasn't fired yet</p>
-          </div>
-        </div>
-      )}
 
       {/* Next run (cron only) */}
       {nextRun && (
@@ -128,10 +149,50 @@ function TriggerActivityPanel({ trigger }: { trigger: TriggerEntity }) {
         </div>
       )}
 
-      {/* Placeholder */}
-      <div className="rounded-xl border border-dashed border-border p-4 flex items-center justify-center text-xs text-muted-foreground mt-auto bg-muted/10">
-        Run history coming soon
-      </div>
+      {/* Recent runs */}
+      {runsQuery.isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loading01 size={20} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : runs.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-6 flex flex-col items-center gap-3 text-muted-foreground bg-muted/20">
+          <Clock size={28} className="opacity-40" />
+          <div className="text-center">
+            <p className="text-sm font-medium">No runs yet</p>
+            <p className="text-xs mt-0.5">This trigger hasn't fired yet</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            Recent runs
+          </span>
+          {runs.map((run) => (
+            <button
+              key={run.id}
+              type="button"
+              onClick={() =>
+                navigate({
+                  to: "/$org/$project/triggers",
+                  params: {
+                    org: org.slug,
+                    project: ORG_ADMIN_PROJECT_SLUG,
+                  },
+                })
+              }
+              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors text-left cursor-pointer"
+            >
+              <RunStatusIcon status={run.status} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground truncate">{run.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatTimeAgo(new Date(run.createdAt))}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -388,7 +449,7 @@ function TriggerDetailContent() {
           {/* Right panel: activity */}
           <ResizablePanel defaultSize={45} minSize={25}>
             <div className="h-full overflow-auto border-l border-border">
-              <TriggerActivityPanel trigger={trigger} />
+              <TriggerActivityPanel trigger={trigger} triggerId={triggerId} />
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
