@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 
 type CronFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 
@@ -162,7 +163,6 @@ export function CronScheduleSelector({
   disabled = false,
 }: CronScheduleSelectorProps) {
   const parsed = parseCronExpression(value);
-  const isCustom = parsed.frequency === "custom";
 
   const updateFrequency = (frequency: CronFrequency) => {
     if (frequency === "custom") {
@@ -199,119 +199,116 @@ export function CronScheduleSelector({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <div className="space-y-1">
-          <Label>Frequency</Label>
-          <Select
-            value={parsed.frequency}
-            onValueChange={(v) => updateFrequency(v as CronFrequency)}
-            disabled={disabled}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="biweekly">Every 2 weeks</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="custom">Custom (raw cron)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-2",
+        parsed.frequency === "daily" || parsed.frequency === "biweekly"
+          ? "md:grid-cols-2"
+          : "md:grid-cols-3",
+      )}
+    >
+      <div className="space-y-1">
+        <Label>Frequency</Label>
+        <Select
+          value={parsed.frequency}
+          onValueChange={(v) => updateFrequency(v as CronFrequency)}
+          disabled={disabled}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="daily">Daily</SelectItem>
+            <SelectItem value="weekly">Weekly</SelectItem>
+            <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+            <SelectItem value="monthly">Monthly</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
+      {parsed.frequency !== "custom" && (
         <div className="space-y-1">
           <Label>Time</Label>
           <Input
             type="time"
             value={formatTime(parsed.hour, parsed.minute)}
             onChange={(event) => updateTime(event.target.value)}
-            disabled={disabled || isCustom}
+            disabled={disabled}
           />
         </div>
+      )}
 
-        {parsed.frequency === "weekly" ? (
-          <div className="space-y-1">
-            <Label>Day of week</Label>
-            <Select
-              value={String(parsed.weekDay)}
-              onValueChange={(v) =>
-                onChange(
-                  buildCron({
-                    frequency: "weekly",
-                    hour: parsed.hour,
-                    minute: parsed.minute,
-                    weekDay: Number(v),
-                    dayOfMonth: parsed.dayOfMonth,
-                    currentValue: value,
-                  }),
-                )
+      {parsed.frequency === "weekly" ? (
+        <div className="space-y-1">
+          <Label>Day of week</Label>
+          <Select
+            value={String(parsed.weekDay)}
+            onValueChange={(v) =>
+              onChange(
+                buildCron({
+                  frequency: "weekly",
+                  hour: parsed.hour,
+                  minute: parsed.minute,
+                  weekDay: Number(v),
+                  dayOfMonth: parsed.dayOfMonth,
+                  currentValue: value,
+                }),
+              )
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEEK_DAYS.map((day) => (
+                <SelectItem key={day.value} value={day.value}>
+                  {day.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : parsed.frequency === "monthly" ? (
+        <div className="space-y-1">
+          <Label>Day of month</Label>
+          <Input
+            type="number"
+            min={1}
+            max={31}
+            value={parsed.dayOfMonth}
+            onChange={(event) => {
+              const nextDay = Number(event.target.value);
+              if (!Number.isInteger(nextDay) || nextDay < 1 || nextDay > 31) {
+                return;
               }
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {WEEK_DAYS.map((day) => (
-                  <SelectItem key={day.value} value={day.value}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : parsed.frequency === "monthly" ? (
-          <div className="space-y-1">
-            <Label>Day of month</Label>
-            <Input
-              type="number"
-              min={1}
-              max={31}
-              value={parsed.dayOfMonth}
-              onChange={(event) => {
-                const nextDay = Number(event.target.value);
-                if (!Number.isInteger(nextDay) || nextDay < 1 || nextDay > 31) {
-                  return;
-                }
-                onChange(
-                  buildCron({
-                    frequency: "monthly",
-                    hour: parsed.hour,
-                    minute: parsed.minute,
-                    weekDay: parsed.weekDay,
-                    dayOfMonth: nextDay,
-                    currentValue: value,
-                  }),
-                );
-              }}
-              disabled={disabled}
-            />
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <Label>Schedule notes</Label>
-            <div className="h-9 rounded-md border border-input bg-muted/20 px-3 text-xs text-muted-foreground flex items-center">
-              {parsed.frequency === "biweekly"
-                ? "Biweekly uses an every-14-days cron approximation."
-                : parsed.frequency === "custom"
-                  ? "Edit raw cron directly below."
-                  : "Runs in your server timezone."}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <label className="space-y-1 block">
-        <Label>Raw cron expression</Label>
-        <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-          placeholder="*/15 * * * *"
-        />
-      </label>
+              onChange(
+                buildCron({
+                  frequency: "monthly",
+                  hour: parsed.hour,
+                  minute: parsed.minute,
+                  weekDay: parsed.weekDay,
+                  dayOfMonth: nextDay,
+                  currentValue: value,
+                }),
+              );
+            }}
+            disabled={disabled}
+          />
+        </div>
+      ) : parsed.frequency === "custom" ? (
+        <div className="space-y-1 md:col-span-2">
+          <Label>Cron expression</Label>
+          <Input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            disabled={disabled}
+            placeholder="*/15 * * * *"
+            className="font-mono text-sm"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
