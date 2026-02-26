@@ -32,7 +32,7 @@ import {
   Users03,
 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
-import type { UseFormReturn } from "react-hook-form";
+import { useWatch, type UseFormReturn } from "react-hook-form";
 import { Cron } from "croner";
 
 // ---- Shared types ----
@@ -441,10 +441,18 @@ export function TriggerFormFields({
 }: {
   form: UseFormReturn<FormValues>;
 }) {
-  const triggerType = form.watch("triggerType");
-  const actionType = form.watch("actionType");
-  const cronExpression = form.watch("cronExpression");
-  const connectionId = form.watch("connectionId");
+  const triggerType = useWatch({ control: form.control, name: "triggerType" });
+  const actionType = useWatch({ control: form.control, name: "actionType" });
+  const cronExpression = useWatch({
+    control: form.control,
+    name: "cronExpression",
+  });
+  const connectionId = useWatch({
+    control: form.control,
+    name: "connectionId",
+  });
+  const toolName = useWatch({ control: form.control, name: "toolName" });
+  const agentId = useWatch({ control: form.control, name: "agentId" });
 
   return (
     <div className="flex flex-col gap-6">
@@ -526,7 +534,7 @@ export function TriggerFormFields({
                 <Suspense fallback={<SelectorFallback />}>
                   <ToolSelector
                     connectionId={connectionId}
-                    value={form.watch("toolName")}
+                    value={toolName}
                     onChange={(v) => form.setValue("toolName", v, SET_OPTS)}
                   />
                 </Suspense>
@@ -551,7 +559,7 @@ export function TriggerFormFields({
               <Label>Agent</Label>
               <Suspense fallback={<SelectorFallback />}>
                 <AgentSelector
-                  value={form.watch("agentId")}
+                  value={agentId}
                   onChange={(v) => form.setValue("agentId", v, SET_OPTS)}
                 />
               </Suspense>
