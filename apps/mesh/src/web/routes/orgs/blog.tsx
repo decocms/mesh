@@ -23,6 +23,15 @@ import { Check, Edit01, Edit05, File06, Plus } from "@untitledui/icons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface SeoMetrics {
+  score: number;
+  keywordDensity: string;
+  keywordInTitle: boolean;
+  readability: number;
+  metaLength: number;
+  internalLinks: number;
+}
+
 interface Draft {
   id: string;
   title: string;
@@ -33,6 +42,7 @@ interface Draft {
   readTime: number;
   category: string;
   content: Block[];
+  seo: SeoMetrics;
 }
 
 type Block =
@@ -53,6 +63,14 @@ const DRAFTS: Record<string, Draft> = {
     wordCount: 1180,
     readTime: 5,
     category: "Style Guide",
+    seo: {
+      score: 84,
+      keywordDensity: "1.4%",
+      keywordInTitle: true,
+      readability: 72,
+      metaLength: 152,
+      internalLinks: 2,
+    },
     content: [
       {
         type: "h2",
@@ -95,6 +113,14 @@ const DRAFTS: Record<string, Draft> = {
     wordCount: 1420,
     readTime: 6,
     category: "Behind the Brand",
+    seo: {
+      score: 61,
+      keywordDensity: "0.6%",
+      keywordInTitle: false,
+      readability: 58,
+      metaLength: 168,
+      internalLinks: 0,
+    },
     content: [
       { type: "h2", text: "Where Every Print Begins" },
       {
@@ -129,6 +155,14 @@ const DRAFTS: Record<string, Draft> = {
     wordCount: 1860,
     readTime: 7,
     category: "Brand Story",
+    seo: {
+      score: 78,
+      keywordDensity: "1.1%",
+      keywordInTitle: true,
+      readability: 65,
+      metaLength: 144,
+      internalLinks: 1,
+    },
     content: [
       {
         type: "h2",
@@ -214,6 +248,128 @@ function BlogEditor({ draft }: { draft: Draft }) {
           >
             {draft.metaDescription}
           </p>
+        </div>
+
+        {/* SEO metrics */}
+        <div className="mb-8 grid grid-cols-3 gap-2">
+          {/* Score */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              SEO Score
+            </p>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-lg font-bold ${draft.seo.score >= 75 ? "text-emerald-600" : draft.seo.score >= 50 ? "text-amber-500" : "text-red-500"}`}
+              >
+                {draft.seo.score}
+              </span>
+              <span className="text-xs text-muted-foreground">/100</span>
+              <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${draft.seo.score >= 75 ? "bg-emerald-500" : draft.seo.score >= 50 ? "bg-amber-400" : "bg-red-500"}`}
+                  style={{ width: `${draft.seo.score}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          {/* Keyword density */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              Keyword density
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-foreground">
+                {draft.seo.keywordDensity}
+              </span>
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${parseFloat(draft.seo.keywordDensity) >= 1 && parseFloat(draft.seo.keywordDensity) <= 2 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                {parseFloat(draft.seo.keywordDensity) >= 1 &&
+                parseFloat(draft.seo.keywordDensity) <= 2
+                  ? "Good"
+                  : "Low"}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                · target 1–2%
+              </span>
+            </div>
+          </div>
+          {/* Readability */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              Readability
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-foreground">
+                {draft.seo.readability}
+              </span>
+              <span className="text-[10px] text-muted-foreground">Flesch</span>
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${draft.seo.readability >= 60 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                {draft.seo.readability >= 70
+                  ? "Easy"
+                  : draft.seo.readability >= 60
+                    ? "OK"
+                    : "Complex"}
+              </span>
+            </div>
+          </div>
+          {/* Meta length */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              Meta length
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-foreground">
+                {draft.seo.metaLength}
+              </span>
+              <span className="text-[10px] text-muted-foreground">chars</span>
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${draft.seo.metaLength >= 120 && draft.seo.metaLength <= 160 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                {draft.seo.metaLength >= 120 && draft.seo.metaLength <= 160
+                  ? "Good"
+                  : draft.seo.metaLength > 160
+                    ? "Too long"
+                    : "Short"}
+              </span>
+            </div>
+          </div>
+          {/* Keyword in title */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              Keyword in title
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`text-sm font-semibold ${draft.seo.keywordInTitle ? "text-emerald-600" : "text-amber-500"}`}
+              >
+                {draft.seo.keywordInTitle ? "Yes" : "No"}
+              </span>
+              {!draft.seo.keywordInTitle && (
+                <span className="text-[10px] text-amber-600">
+                  — add to title
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Internal links */}
+          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">
+              Internal links
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`text-sm font-semibold ${draft.seo.internalLinks > 0 ? "text-foreground" : "text-amber-500"}`}
+              >
+                {draft.seo.internalLinks}
+              </span>
+              {draft.seo.internalLinks === 0 && (
+                <span className="text-[10px] text-amber-600">— add some</span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Article body */}

@@ -12,6 +12,10 @@ import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { BlogPostMessages } from "./blog-post-thread.tsx";
+import { PerformanceReviewMessages } from "./performance-review-thread.tsx";
+import { SeoReviewMessages } from "./seo-review-thread.tsx";
+import { ReputationReviewMessages } from "./reputation-review-thread.tsx";
+import { BenchmarkReviewMessages } from "./benchmark-review-thread.tsx";
 import { ThreadsView } from "./threads-sidebar";
 import { TypewriterTitle } from "./typewriter-title";
 
@@ -22,6 +26,23 @@ function ChatPanelContent() {
     "mesh:onboarding:blog-thread-active",
     false,
   );
+  const [performanceThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:performance-thread-active",
+    false,
+  );
+  const [seoThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:seo-thread-active",
+    false,
+  );
+  const [reputationThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:reputation-thread-active",
+    false,
+  );
+  const [benchmarkThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:benchmark-thread-active",
+    false,
+  );
+
   const {
     selectedVirtualMcp,
     modelsConnections,
@@ -145,6 +166,14 @@ function ChatPanelContent() {
         <Chat.Main>
           {blogThreadActive ? (
             <BlogPostMessages />
+          ) : performanceThreadActive ? (
+            <PerformanceReviewMessages />
+          ) : seoThreadActive ? (
+            <SeoReviewMessages />
+          ) : reputationThreadActive ? (
+            <ReputationReviewMessages />
+          ) : benchmarkThreadActive ? (
+            <BenchmarkReviewMessages />
           ) : isChatEmpty ? (
             <Chat.EmptyState>
               <div className="flex flex-col items-center gap-6 w-full px-4">

@@ -10,7 +10,10 @@ import { useState } from "react";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { StreamingMessage } from "./streaming-message.tsx";
-import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
+import {
+  HireAgentModal,
+  BLOG_AGENT_CONFIG,
+} from "@/web/components/onboarding/hire-agent-modal.tsx";
 import { authClient } from "@/web/lib/auth-client.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -342,6 +345,7 @@ export function OnboardingMessages({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onHire={handleHire}
+        agent={BLOG_AGENT_CONFIG}
       />
     </>
   );

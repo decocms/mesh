@@ -13,13 +13,14 @@ import {
 } from "lucide-react";
 
 type OnboardingState = "idle" | "unskewing" | "loading" | "done";
-type Tab = "overview" | "performance" | "seo" | "reputation";
+type Tab = "brand" | "performance" | "seo" | "reputation" | "benchmark";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "overview", label: "Overview" },
+  { key: "brand", label: "Brand" },
   { key: "performance", label: "Performance" },
   { key: "seo", label: "SEO" },
   { key: "reputation", label: "Reputation" },
+  { key: "benchmark", label: "Benchmark" },
 ];
 
 const AGENTS = [
@@ -215,7 +216,7 @@ function StatusBadge({ status }: { status: "good" | "needs" | "poor" }) {
   );
 }
 
-function OverviewTab({ domain: _domain }: { domain: string }) {
+function BrandTab({ domain: _domain }: { domain: string }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -278,6 +279,24 @@ function OverviewTab({ domain: _domain }: { domain: string }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function BenchmarkTab() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="rounded-lg border border-border bg-muted/50 px-4 py-3">
+        <p className="text-xs font-medium text-foreground">
+          Your site:{" "}
+          <span className="font-semibold">{COMPANY.traffic.monthly}</span>{" "}
+          visits/mo &middot;{" "}
+          <span className="font-semibold">{COMPANY.traffic.bounce}</span> bounce
+          &middot;{" "}
+          <span className="font-semibold">{COMPANY.traffic.pagesPerVisit}</span>{" "}
+          pages/visit
+        </p>
+      </div>
       <div className="flex flex-col gap-2">
         <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
           Competitors
@@ -322,6 +341,15 @@ function OverviewTab({ domain: _domain }: { domain: string }) {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-2">
+        <Info className="size-3.5 text-amber-600 mt-0.5 shrink-0" />
+        <p className="text-xs text-amber-800 leading-relaxed">
+          <span className="font-semibold">amaro.com</span> and{" "}
+          <span className="font-semibold">roupas.com.br</span> are growing
+          faster than farmrio.com.br this month. Consider monitoring their
+          traffic patterns and content strategy.
+        </p>
       </div>
     </div>
   );
@@ -583,7 +611,7 @@ export default function OnboardingRoute() {
   const [url, setUrl] = useState("");
   const [state, setState] = useState<OnboardingState>("idle");
   const [domain, setDomain] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = useState<Tab>("brand");
   const [completedAgents, setCompletedAgents] = useState<number[]>([]);
   const [diagnosticToken, setDiagnosticToken] = useState<string | null>(null);
 
@@ -788,7 +816,7 @@ export default function OnboardingRoute() {
                     {TABS.map(({ key, label }) => (
                       <div
                         key={key}
-                        className={`px-3 py-3 text-sm font-medium border-b-2 -mb-px select-none ${key === "overview" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}
+                        className={`px-3 py-3 text-sm font-medium border-b-2 -mb-px select-none ${key === "brand" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}
                       >
                         {label}
                       </div>
@@ -863,53 +891,14 @@ export default function OnboardingRoute() {
                       </div>
                       <div className="flex flex-col gap-2">
                         <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
-                          Competitors
+                          Benchmark
                         </p>
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b border-border/50">
-                              <th className="pb-2 text-left text-xs font-medium text-muted-foreground">
-                                Site
-                              </th>
-                              <th className="pb-2 text-right text-xs font-medium text-muted-foreground">
-                                Traffic/mo
-                              </th>
-                              <th className="pb-2 text-right text-xs font-medium text-muted-foreground">
-                                vs you
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ACME.competitors.map((c) => (
-                              <tr
-                                key={c.domain}
-                                className="border-b border-border/30"
-                              >
-                                <td className="py-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <img
-                                      src={`https://www.google.com/s2/favicons?domain=${c.domain}&sz=32`}
-                                      className="size-4 rounded-sm"
-                                      alt=""
-                                    />
-                                    <span className="text-xs font-medium">
-                                      {c.domain}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="py-2.5 text-xs text-right text-muted-foreground">
-                                  {c.traffic}
-                                </td>
-                                <td
-                                  className={`py-2.5 text-xs text-right font-semibold ${c.delta > 0 ? "text-red-500" : "text-green-600"}`}
-                                >
-                                  {c.delta > 0 ? "+" : ""}
-                                  {c.delta}%
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div className="rounded-lg border border-border bg-muted/50 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">
+                            Traffic vs competitors and market position — see the
+                            Benchmark tab for full comparison.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1062,12 +1051,11 @@ export default function OnboardingRoute() {
                     className="flex-1 overflow-y-auto p-6 min-h-0"
                     style={{ animation: "slideUpFade 0.4s ease-out both" }}
                   >
-                    {activeTab === "overview" && (
-                      <OverviewTab domain={domain} />
-                    )}
+                    {activeTab === "brand" && <BrandTab domain={domain} />}
                     {activeTab === "performance" && <PerformanceTab />}
                     {activeTab === "seo" && <SeoTab />}
                     {activeTab === "reputation" && <ReputationTab />}
+                    {activeTab === "benchmark" && <BenchmarkTab />}
                   </div>
 
                   {/* CTA footer */}

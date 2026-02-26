@@ -15,8 +15,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
-import { Globe02 } from "@untitledui/icons";
+import { Globe02, Lock01, Check, ArrowRight } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useState } from "react";
+import { toast } from "sonner";
+import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
+import type { AgentConfig } from "@/web/components/onboarding/hire-agent-modal.tsx";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -35,11 +39,80 @@ const REP = {
   ],
 };
 
+// ─── Agent config ─────────────────────────────────────────────────────────────
+
+const REPUTATION_AGENT_CONFIG: AgentConfig = {
+  name: "Reputation Monitor",
+  description:
+    "Tracks reviews, flags sentiment drops, and escalates unresolved complaints automatically.",
+  icon: <Globe02 size={26} />,
+  iconBgClass: "bg-green-100 text-green-600",
+  installsName: "Reputation",
+  installsDescription: "Review tracking & alerts",
+  connections: [
+    {
+      name: "Trustpilot",
+      description: "Review monitoring",
+      iconUrl: "https://www.google.com/s2/favicons?domain=trustpilot.com&sz=32",
+      requiredFor: [],
+    },
+    {
+      name: "Google Business",
+      description: "Google review responses",
+      iconUrl:
+        "https://www.google.com/s2/favicons?domain=business.google.com&sz=32",
+      requiredFor: ["autonomous"],
+    },
+  ],
+};
+
+// ─── Locked section ───────────────────────────────────────────────────────────
+
+function LockedSection({
+  title,
+  description,
+  onHire,
+}: {
+  title: string;
+  description: string;
+  onHire: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 flex flex-col items-center gap-3">
+        <div className="size-8 rounded-full bg-muted flex items-center justify-center">
+          <Lock01 size={14} className="text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">
+            Data unavailable
+          </p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
+            {description}
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onHire} className="mt-1">
+          Hire agent to unlock
+          <ArrowRight size={13} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function ReputationPage() {
   const { org, project } = useProjectContext();
   const navigate = useNavigate();
+  const [hireModalOpen, setHireModalOpen] = useState(false);
+  const agentHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_reputation_hired") === "true";
+
   return (
     <Page>
       <Page.Header>
@@ -69,7 +142,29 @@ export default function ReputationPage() {
           >
             Last checked 2h ago →
           </button>
-          <Button variant="outline" size="sm" className="h-7 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              if (!agentHired) {
+                setHireModalOpen(true);
+                return;
+              }
+              toast("Reputation Monitor is scanning review platforms", {
+                description: "Checking reviews and brand mentions...",
+                action: {
+                  label: "View task",
+                  onClick: () =>
+                    navigate({
+                      to: "/$org/$project/tasks",
+                      params: { org: org.slug, project: project.slug },
+                    }),
+                },
+                duration: 6000,
+              });
+            }}
+          >
             Run check
           </Button>
         </Page.Header.Right>
@@ -168,11 +263,25 @@ export default function ReputationPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Locked: Brand Mentions */}
+            <LockedSection
+              title="Brand Mentions"
+              description="Hire the Reputation Monitor to track brand mentions across social media, forums, and news outlets."
+              onHire={() => setHireModalOpen(true)}
+            />
+
+            {/* Locked: NPS Score */}
+            <LockedSection
+              title="NPS Score"
+              description="Hire the Reputation Monitor to track Net Promoter Score from post-purchase surveys and customer feedback."
+              onHire={() => setHireModalOpen(true)}
+            />
           </div>
 
           {/* Right column */}
           <div className="flex flex-col gap-4">
-            {/* Agent Monitor card — placeholder */}
+            {/* Agent Monitor card */}
             <div className="rounded-xl border border-border p-4 flex flex-col gap-3">
               <div className="flex items-start gap-3">
                 <div className="size-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0">
@@ -180,33 +289,114 @@ export default function ReputationPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">Reputation Monitor</p>
-                  <p className="text-xs text-muted-foreground">No agent yet</p>
+                  <p className="text-xs text-muted-foreground">
+                    Review tracking & sentiment alerts
+                  </p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                No agent is currently monitoring your reputation. An agent could
-                track reviews, flag sentiment drops, and escalate unresolved
-                complaints automatically.
+                Tracks reviews, flags sentiment drops, and escalates unresolved
+                complaints automatically across all major platforms.
               </p>
-              <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-                <p className="text-xs text-muted-foreground text-center">
-                  Coming soon
-                </p>
-              </div>
+              {agentHired ? (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <Check size={12} />
+                    Active — monitoring reputation
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/$project/tasks",
+                        params: { org: org.slug, project: project.slug },
+                      })
+                    }
+                  >
+                    View tasks
+                    <ArrowRight size={13} />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setHireModalOpen(true)}
+                >
+                  Hire this agent
+                  <ArrowRight size={13} />
+                </Button>
+              )}
             </div>
 
-            {/* Reports timeline — empty */}
+            {/* Reports timeline */}
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Recent reports
               </p>
-              <p className="text-xs text-muted-foreground">
-                No reports yet. Hire an agent to start monitoring.
-              </p>
+              {agentHired ? (
+                [
+                  {
+                    date: "Just now",
+                    title: "Reputation scan started",
+                    dot: "bg-blue-500",
+                  },
+                ].map((r) => (
+                  <div
+                    key={r.date}
+                    className="flex items-start gap-2.5 py-2 border-b border-border/40 last:border-0"
+                  >
+                    <div
+                      className={cn(
+                        "size-1.5 rounded-full mt-1.5 shrink-0",
+                        r.dot,
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground">
+                        {r.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{r.date}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No reports yet. Hire an agent to start monitoring.
+                </p>
+              )}
             </div>
           </div>
         </div>
       </Page.Content>
+
+      <HireAgentModal
+        open={hireModalOpen}
+        onOpenChange={setHireModalOpen}
+        onHire={() => {
+          localStorage.setItem("mesh_reputation_hired", "true");
+          window.dispatchEvent(new Event("mesh_reputation_hired"));
+          setHireModalOpen(false);
+          setTimeout(() => {
+            toast("Reputation Monitor is scanning review platforms", {
+              description: "Checking reviews and brand mentions...",
+              action: {
+                label: "View task",
+                onClick: () =>
+                  navigate({
+                    to: "/$org/$project/tasks",
+                    params: { org: org.slug, project: project.slug },
+                  }),
+              },
+              duration: 6000,
+            });
+          }, 800);
+        }}
+        agent={REPUTATION_AGENT_CONFIG}
+      />
     </Page>
   );
 }

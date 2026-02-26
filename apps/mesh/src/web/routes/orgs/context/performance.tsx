@@ -4,6 +4,7 @@
  * Shows Core Web Vitals, performance findings, and an Agent Monitor card.
  */
 
+import { useState } from "react";
 import { Page } from "@/web/components/page";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -20,8 +21,41 @@ import {
   ArrowRight,
   BarChart10,
   InfoCircle,
+  Lock01,
+  Check,
 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { toast } from "sonner";
+import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
+import type { AgentConfig } from "@/web/components/onboarding/hire-agent-modal.tsx";
+
+// ─── Agent Config ──────────────────────────────────────────────────────────────
+
+const PERFORMANCE_AGENT_CONFIG: AgentConfig = {
+  name: "Performance Monitor",
+  description:
+    "Runs daily Core Web Vitals checks and surfaces regressions before they hurt conversions.",
+  icon: <BarChart10 size={26} />,
+  iconBgClass: "bg-orange-100 text-orange-600",
+  installsName: "Performance",
+  installsDescription: "Dashboard for metrics & reports",
+  connections: [
+    {
+      name: "Google Analytics",
+      description: "Real user monitoring data",
+      iconUrl:
+        "https://www.google.com/s2/favicons?domain=analytics.google.com&sz=32",
+      requiredFor: [],
+    },
+    {
+      name: "Google Search Console",
+      description: "CrUX field data",
+      iconUrl:
+        "https://www.google.com/s2/favicons?domain=search.google.com&sz=32",
+      requiredFor: [],
+    },
+  ],
+};
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -126,11 +160,50 @@ function SeverityIcon({ severity }: { severity: Severity }) {
   );
 }
 
+function LockedSection({
+  title,
+  description,
+  onHire,
+}: {
+  title: string;
+  description: string;
+  onHire: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 flex flex-col items-center gap-3">
+        <div className="size-8 rounded-full bg-muted flex items-center justify-center">
+          <Lock01 size={14} className="text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">
+            Data unavailable
+          </p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
+            {description}
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onHire} className="mt-1">
+          Hire agent to unlock
+          <ArrowRight size={13} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
   const { org, project } = useProjectContext();
   const navigate = useNavigate();
+  const [hireModalOpen, setHireModalOpen] = useState(false);
+  const agentHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_performance_hired") === "true";
 
   return (
     <Page>
@@ -161,7 +234,29 @@ export default function PerformancePage() {
           >
             Last checked 2h ago →
           </button>
-          <Button variant="outline" size="sm" className="h-7 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              if (!agentHired) {
+                setHireModalOpen(true);
+                return;
+              }
+              toast("Performance Monitor is running a check", {
+                description: "Analyzing Core Web Vitals and server metrics...",
+                action: {
+                  label: "View task",
+                  onClick: () =>
+                    navigate({
+                      to: "/$org/$project/tasks",
+                      params: { org: org.slug, project: project.slug },
+                    }),
+                },
+                duration: 6000,
+              });
+            }}
+          >
             Run check
           </Button>
         </Page.Header.Right>
@@ -269,6 +364,20 @@ export default function PerformancePage() {
                 ))}
               </div>
             </div>
+
+            {/* Locked: Cache & Server Metrics */}
+            <LockedSection
+              title="Cache & Server Metrics"
+              description="Hire the Performance Monitor to access server-side data like cache hit rate, TTFB, and server response time."
+              onHire={() => setHireModalOpen(true)}
+            />
+
+            {/* Locked: Lighthouse Scores */}
+            <LockedSection
+              title="Lighthouse Scores"
+              description="Hire the Performance Monitor to run automated Lighthouse audits across all key pages."
+              onHire={() => setHireModalOpen(true)}
+            />
           </div>
 
           {/* Right column */}
@@ -290,24 +399,38 @@ export default function PerformancePage() {
                 Watches LCP, CLS, and INP daily. Surfaces regressions before
                 they hurt conversions and auto-files tasks for fixes.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                  navigate({
-                    to: "/$org/$project/hire/$agentId",
-                    params: {
-                      org: org.slug,
-                      project: project,
-                      agentId: "performance-monitor",
-                    },
-                  })
-                }
-              >
-                Hire this agent
-                <ArrowRight size={13} />
-              </Button>
+              {agentHired ? (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <Check size={12} />
+                    Active — running daily checks
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/$project/tasks",
+                        params: { org: org.slug, project: project.slug },
+                      })
+                    }
+                  >
+                    View tasks
+                    <ArrowRight size={13} />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setHireModalOpen(true)}
+                >
+                  Hire this agent
+                  <ArrowRight size={13} />
+                </Button>
+              )}
             </div>
 
             {/* Reports timeline */}
@@ -338,6 +461,31 @@ export default function PerformancePage() {
           </div>
         </div>
       </Page.Content>
+
+      <HireAgentModal
+        open={hireModalOpen}
+        onOpenChange={setHireModalOpen}
+        onHire={() => {
+          localStorage.setItem("mesh_performance_hired", "true");
+          window.dispatchEvent(new Event("mesh_performance_hired"));
+          setHireModalOpen(false);
+          setTimeout(() => {
+            toast("Performance Monitor is running a check", {
+              description: "Analyzing Core Web Vitals and server metrics...",
+              action: {
+                label: "View task",
+                onClick: () =>
+                  navigate({
+                    to: "/$org/$project/tasks",
+                    params: { org: org.slug, project: project.slug },
+                  }),
+              },
+              duration: 6000,
+            });
+          }, 800);
+        }}
+        agent={PERFORMANCE_AGENT_CONFIG}
+      />
     </Page>
   );
 }

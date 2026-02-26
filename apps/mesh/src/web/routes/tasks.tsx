@@ -38,7 +38,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense } from "react";
 
-// ─── Mocked blog task ─────────────────────────────────────────────────────────
+// ─── Mocked tasks ─────────────────────────────────────────────────────────────
 
 const MOCK_BLOG_TASK_ID = "mock-blog-post-generator";
 
@@ -46,6 +46,46 @@ const MOCK_BLOG_TASK = {
   id: MOCK_BLOG_TASK_ID,
   title: 'Write: "Best smart home accessories under $50"',
   status: "requires_action",
+  hidden: false,
+  created_by: "",
+  updated_at: new Date().toISOString(),
+} as ThreadEntity;
+
+const MOCK_PERFORMANCE_TASK_ID = "mock-performance-monitor";
+const MOCK_PERFORMANCE_TASK = {
+  id: MOCK_PERFORMANCE_TASK_ID,
+  title: "Performance review of farmrio.com.br",
+  status: "in_progress",
+  hidden: false,
+  created_by: "",
+  updated_at: new Date().toISOString(),
+} as ThreadEntity;
+
+const MOCK_SEO_TASK_ID = "mock-seo-optimizer";
+const MOCK_SEO_TASK = {
+  id: MOCK_SEO_TASK_ID,
+  title: "SEO audit of farmrio.com.br",
+  status: "in_progress",
+  hidden: false,
+  created_by: "",
+  updated_at: new Date().toISOString(),
+} as ThreadEntity;
+
+const MOCK_REPUTATION_TASK_ID = "mock-reputation-monitor";
+const MOCK_REPUTATION_TASK = {
+  id: MOCK_REPUTATION_TASK_ID,
+  title: "Reputation scan across review platforms",
+  status: "in_progress",
+  hidden: false,
+  created_by: "",
+  updated_at: new Date().toISOString(),
+} as ThreadEntity;
+
+const MOCK_BENCHMARK_TASK_ID = "mock-competitor-tracker";
+const MOCK_BENCHMARK_TASK = {
+  id: MOCK_BENCHMARK_TASK_ID,
+  title: "Competitor intelligence report",
+  status: "in_progress",
   hidden: false,
   created_by: "",
   updated_at: new Date().toISOString(),
@@ -116,10 +156,42 @@ function TasksContent() {
     "mesh:onboarding:blog-thread-active",
     false,
   );
+  const [, setPerformanceThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:performance-thread-active",
+    false,
+  );
+  const [, setSeoThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:seo-thread-active",
+    false,
+  );
+  const [, setReputationThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:reputation-thread-active",
+    false,
+  );
+  const [, setBenchmarkThreadActive] = useLocalStorage<boolean>(
+    "mesh:onboarding:benchmark-thread-active",
+    false,
+  );
 
   const blogHired =
     typeof localStorage !== "undefined" &&
     localStorage.getItem("mesh_blog_hired") === "true";
+
+  const performanceHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_performance_hired") === "true";
+
+  const seoHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_seo_hired") === "true";
+
+  const reputationHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_reputation_hired") === "true";
+
+  const benchmarkHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_benchmark_hired") === "true";
 
   // useListState and ThreadEntity both use snake_case for audit fields
   const listState = useListState({
@@ -164,14 +236,52 @@ function TasksContent() {
     return sortDirection === "asc" ? cmp : -cmp;
   });
 
-  // 4. Prepend mocked blog task when blog agent has been hired
-  const threads: ThreadEntity[] = blogHired
-    ? [MOCK_BLOG_TASK, ...sorted]
-    : sorted;
+  // 4. Prepend mocked tasks when respective agents have been hired
+  const threads: ThreadEntity[] = [
+    ...(blogHired ? [MOCK_BLOG_TASK] : []),
+    ...(performanceHired ? [MOCK_PERFORMANCE_TASK] : []),
+    ...(seoHired ? [MOCK_SEO_TASK] : []),
+    ...(reputationHired ? [MOCK_REPUTATION_TASK] : []),
+    ...(benchmarkHired ? [MOCK_BENCHMARK_TASK] : []),
+    ...sorted,
+  ];
+
+  function clearMockThreads() {
+    setBlogThreadActive(false);
+    setPerformanceThreadActive(false);
+    setSeoThreadActive(false);
+    setReputationThreadActive(false);
+    setBenchmarkThreadActive(false);
+  }
 
   const onRowClick = async (thread: ThreadEntity) => {
     if (thread.id === MOCK_BLOG_TASK_ID) {
+      clearMockThreads();
       setBlogThreadActive(true);
+      setDecoChatOpen(true);
+      return;
+    }
+    if (thread.id === MOCK_PERFORMANCE_TASK_ID) {
+      clearMockThreads();
+      setPerformanceThreadActive(true);
+      setDecoChatOpen(true);
+      return;
+    }
+    if (thread.id === MOCK_SEO_TASK_ID) {
+      clearMockThreads();
+      setSeoThreadActive(true);
+      setDecoChatOpen(true);
+      return;
+    }
+    if (thread.id === MOCK_REPUTATION_TASK_ID) {
+      clearMockThreads();
+      setReputationThreadActive(true);
+      setDecoChatOpen(true);
+      return;
+    }
+    if (thread.id === MOCK_BENCHMARK_TASK_ID) {
+      clearMockThreads();
+      setBenchmarkThreadActive(true);
       setDecoChatOpen(true);
       return;
     }

@@ -15,8 +15,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
-import { TrendUp01 } from "@untitledui/icons";
+import { TrendUp01, Lock01, Check, ArrowRight } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useState } from "react";
+import { toast } from "sonner";
+import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
+import type { AgentConfig } from "@/web/components/onboarding/hire-agent-modal.tsx";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -49,11 +53,79 @@ const COMPETITORS = [
 
 const OWN_STATS = { traffic: "2.1M", bounce: "41%", pagesPerVisit: "4.2" };
 
+// ─── Agent Config ──────────────────────────────────────────────────────────────
+
+const BENCHMARK_AGENT_CONFIG: AgentConfig = {
+  name: "Competitor Tracker",
+  description:
+    "Monitors competitor pricing, content launches, and traffic trends. Alerts you when rivals make moves that could impact your market position.",
+  icon: <TrendUp01 size={26} />,
+  iconBgClass: "bg-violet-100 text-violet-600",
+  installsName: "Benchmark",
+  installsDescription: "Competitive intelligence reports",
+  connections: [
+    {
+      name: "Ahrefs",
+      description: "Competitor traffic data",
+      iconUrl: "https://www.google.com/s2/favicons?domain=ahrefs.com&sz=32",
+      requiredFor: [],
+    },
+    {
+      name: "SimilarWeb",
+      description: "Audience & engagement data",
+      iconUrl: "https://www.google.com/s2/favicons?domain=similarweb.com&sz=32",
+      requiredFor: [],
+    },
+  ],
+};
+
+// ─── LockedSection ─────────────────────────────────────────────────────────────
+
+function LockedSection({
+  title,
+  description,
+  onHire,
+}: {
+  title: string;
+  description: string;
+  onHire: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 flex flex-col items-center gap-3">
+        <div className="size-8 rounded-full bg-muted flex items-center justify-center">
+          <Lock01 size={14} className="text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">
+            Data unavailable
+          </p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
+            {description}
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onHire} className="mt-1">
+          Hire agent to unlock
+          <ArrowRight size={13} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function BenchmarkPage() {
   const { org, project } = useProjectContext();
   const navigate = useNavigate();
+  const [hireModalOpen, setHireModalOpen] = useState(false);
+  const agentHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_benchmark_hired") === "true";
+
   return (
     <Page>
       <Page.Header>
@@ -83,7 +155,29 @@ export default function BenchmarkPage() {
           >
             Last checked 2h ago →
           </button>
-          <Button variant="outline" size="sm" className="h-7 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              if (!agentHired) {
+                setHireModalOpen(true);
+                return;
+              }
+              toast("Competitor Tracker is running an analysis", {
+                description: "Monitoring competitor moves and market trends...",
+                action: {
+                  label: "View task",
+                  onClick: () =>
+                    navigate({
+                      to: "/$org/$project/tasks",
+                      params: { org: org.slug, project: project.slug },
+                    }),
+                },
+                duration: 6000,
+              });
+            }}
+          >
             Run check
           </Button>
         </Page.Header.Right>
@@ -184,23 +278,32 @@ export default function BenchmarkPage() {
                 faster than farmrio.com.br this month.
               </p>
             </div>
+
+            {/* Locked: Ad Intelligence */}
+            <LockedSection
+              title="Ad Intelligence"
+              description="Hire the Competitor Tracker to estimate ad spend and monitor paid search activity across your competitors."
+              onHire={() => setHireModalOpen(true)}
+            />
+
+            {/* Locked: Social Presence */}
+            <LockedSection
+              title="Social Presence"
+              description="Hire the Competitor Tracker to compare social media following, engagement rates, and content publishing frequency."
+              onHire={() => setHireModalOpen(true)}
+            />
           </div>
 
           {/* Right column */}
           <div className="flex flex-col gap-4">
-            {/* Agent Monitor card — coming soon */}
+            {/* Agent Monitor card */}
             <div className="rounded-xl border border-border p-4 flex flex-col gap-3">
               <div className="flex items-start gap-3">
                 <div className="size-9 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
                   <TrendUp01 size={17} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">Competitor Tracker</p>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Coming soon
-                    </span>
-                  </div>
+                  <p className="text-sm font-semibold">Competitor Tracker</p>
                   <p className="text-xs text-muted-foreground">
                     Weekly competitive intelligence
                   </p>
@@ -211,6 +314,38 @@ export default function BenchmarkPage() {
                 trends. Alerts you when rivals make moves that could impact your
                 market position.
               </p>
+              {agentHired ? (
+                <>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <Check size={12} />
+                    Active — tracking competitors
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      navigate({
+                        to: "/$org/$project/tasks",
+                        params: { org: org.slug, project: project.slug },
+                      })
+                    }
+                  >
+                    View tasks
+                    <ArrowRight size={13} />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setHireModalOpen(true)}
+                >
+                  Hire this agent
+                  <ArrowRight size={13} />
+                </Button>
+              )}
             </div>
 
             {/* Reports timeline */}
@@ -252,6 +387,31 @@ export default function BenchmarkPage() {
           </div>
         </div>
       </Page.Content>
+
+      <HireAgentModal
+        open={hireModalOpen}
+        onOpenChange={setHireModalOpen}
+        onHire={() => {
+          localStorage.setItem("mesh_benchmark_hired", "true");
+          window.dispatchEvent(new Event("mesh_benchmark_hired"));
+          setHireModalOpen(false);
+          setTimeout(() => {
+            toast("Competitor Tracker is running an analysis", {
+              description: "Monitoring competitor moves and market trends...",
+              action: {
+                label: "View task",
+                onClick: () =>
+                  navigate({
+                    to: "/$org/$project/tasks",
+                    params: { org: org.slug, project: project.slug },
+                  }),
+              },
+              duration: 6000,
+            });
+          }, 800);
+        }}
+        agent={BENCHMARK_AGENT_CONFIG}
+      />
     </Page>
   );
 }
