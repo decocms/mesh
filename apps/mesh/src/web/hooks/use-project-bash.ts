@@ -7,6 +7,7 @@ import {
 } from "@decocms/mesh-sdk";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { useQuery } from "@tanstack/react-query";
+import { useProject } from "@/web/hooks/use-project";
 import { KEYS } from "@/web/lib/query-keys";
 
 /** Plugin IDs that use a local-dev bash connection, in priority order */
@@ -30,6 +31,10 @@ export function useProjectBash(): {
   const { org, project } = useProjectContext();
   const allConnections = useConnections();
 
+  // Fetch project data to get the ID (likely cached by ProjectLayout)
+  const { data: projectData } = useProject(org.id, project.slug);
+  const projectId = projectData?.id;
+
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -37,16 +42,16 @@ export function useProjectBash(): {
 
   // Fetch plugin configs to find the project-specific connection
   const { data: projectConnectionId } = useQuery({
-    queryKey: KEYS.projectPluginConfigs(project.id ?? ""),
+    queryKey: KEYS.projectPluginConfigs(projectId ?? ""),
     queryFn: async () => {
-      if (!project.id) return null;
+      if (!projectId) return null;
 
       // Check each plugin for a configured connection
       for (const pluginId of BASH_PLUGIN_IDS) {
         try {
           const result = await selfClient.callTool({
             name: "PROJECT_PLUGIN_CONFIG_GET",
-            arguments: { projectId: project.id, pluginId },
+            arguments: { projectId, pluginId },
           });
           const data = (result.structuredContent ??
             result) as PluginConfigOutput;
@@ -59,7 +64,7 @@ export function useProjectBash(): {
       }
       return null;
     },
-    enabled: !!project.id,
+    enabled: !!projectId,
     staleTime: 30_000,
   });
 
