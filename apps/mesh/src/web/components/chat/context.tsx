@@ -31,7 +31,10 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
 } from "react";
+import { useDecopilotEvents } from "../../hooks/use-decopilot-events";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useModelConnections } from "../../hooks/collections/use-llm";
 import { useAllowedModels } from "../../hooks/use-allowed-models";
@@ -42,6 +45,7 @@ import { ErrorBoundary } from "../error-boundary";
 import { useNotification } from "../../hooks/use-notification";
 import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
+import { KEYS } from "../../lib/query-keys";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { type ModelChangePayload, useModels } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
@@ -51,37 +55,19 @@ import type {
   ChatMessage,
   ChatModelsConfig,
   Metadata,
-  ParentThread,
   Thread,
 } from "./types.ts";
-
+import {
+  chatStateReducer,
+  initialChatState,
+  type ChatState,
+  type ChatStateAction,
+} from "./chat-state";
 // ============================================================================
 // Type Definitions
 // ============================================================================
 
-/**
- * State shape for chat state (reducer-managed)
- */
-export interface ChatState {
-  /** Tiptap document representing the current input (source of truth) */
-  tiptapDoc: Metadata["tiptapDoc"];
-  /** Active parent thread if branching is in progress */
-  parentThread: ParentThread | null;
-  /** Finish reason from the last chat completion */
-  finishReason: string | null;
-}
-
-/**
- * Actions for the chat state reducer
- */
-export type ChatStateAction =
-  | { type: "SET_TIPTAP_DOC"; payload: Metadata["tiptapDoc"] }
-  | { type: "CLEAR_TIPTAP_DOC" }
-  | { type: "START_BRANCH"; payload: ParentThread }
-  | { type: "CLEAR_BRANCH" }
-  | { type: "SET_FINISH_REASON"; payload: string | null }
-  | { type: "CLEAR_FINISH_REASON" }
-  | { type: "RESET" };
+export type { ChatState, ChatStateAction };
 
 /**
  * Shape persisted in localStorage for the selected model.
@@ -114,10 +100,9 @@ type ChatFromUseChat = Pick<
  * Combined context value including interaction state, thread management, and session state
  */
 interface ChatContextValue extends ChatFromUseChat {
-  // Interaction state
-  tiptapDoc: Metadata["tiptapDoc"];
-  setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
-  clearTiptapDoc: () => void;
+  // Interaction state (tiptapDoc lives in ChatInput local state)
+  /** Ref to the current tiptapDoc — for non-rendering reads (e.g. IceBreakers) */
+  tiptapDocRef: React.RefObject<Metadata["tiptapDoc"]>;
   resetInteraction: () => void;
 
   // Thread management
@@ -152,6 +137,13 @@ interface ChatContextValue extends ChatFromUseChat {
   isChatEmpty: boolean;
   finishReason: string | null;
   clearFinishReason: () => void;
+  /** Derived from chat.messages (AI SDK state) to avoid stale reads during message source switches */
+  isWaitingForApprovals: boolean;
+
+  // Background run control (run survives client disconnect)
+  /** True when thread is in_progress but we have no active local stream */
+  isRunInProgress: boolean;
+  cancelRun: () => Promise<void>;
 }
 
 // ============================================================================
@@ -164,6 +156,9 @@ const createModelsTransport = (
   new DefaultChatTransport<UIMessage<Metadata>>({
     api: `/api/${org}/decopilot/stream`,
     credentials: "include",
+    prepareReconnectToStreamRequest: ({ id }) => ({
+      api: `/api/${org}/decopilot/attach/${id}`,
+    }),
     prepareSendMessagesRequest: ({ messages, requestMetadata = {} }) => {
       const {
         system,
@@ -261,42 +256,6 @@ const useModelState = (
 
   return [selectedModelsConfig, setModelState] as const;
 };
-
-/**
- * Initial chat state
- */
-const initialChatState: ChatState = {
-  tiptapDoc: undefined,
-  parentThread: null,
-  finishReason: null,
-};
-
-/**
- * Reducer for chat state
- */
-function chatStateReducer(
-  state: ChatState,
-  action: ChatStateAction,
-): ChatState {
-  switch (action.type) {
-    case "SET_TIPTAP_DOC":
-      return { ...state, tiptapDoc: action.payload };
-    case "CLEAR_TIPTAP_DOC":
-      return { ...state, tiptapDoc: undefined };
-    case "START_BRANCH":
-      return { ...state, parentThread: action.payload };
-    case "CLEAR_BRANCH":
-      return { ...state, parentThread: null };
-    case "SET_FINISH_REASON":
-      return { ...state, finishReason: action.payload };
-    case "CLEAR_FINISH_REASON":
-      return { ...state, finishReason: null };
-    case "RESET":
-      return initialChatState;
-    default:
-      return state;
-  }
-}
 
 /**
  * Converts resource contents to UI message parts
@@ -596,6 +555,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   const { locator, org } = useProjectContext();
+  const queryClient = useQueryClient();
 
   // Unified thread manager hook handles all thread state and operations
   const threadManager = useThreadManager();
@@ -611,6 +571,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     chatStateReducer,
     initialChatState,
   );
+
+  // Shared ref for tiptapDoc — ChatInput owns the state, others read the ref.
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(undefined);
 
   // Virtual MCP state
   const virtualMcps = useVirtualMCPs();
@@ -749,7 +712,120 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const isStreaming =
     chat.status === "submitted" || chat.status === "streaming";
 
-  const isChatEmpty = chat.messages.length === 0;
+  // Computed from chat.messages (AI SDK's stable internal state) rather than
+  // the source-switched `messages` which briefly becomes stale between
+  // auto-send cycles, causing the warning banner to flicker.
+  const isWaitingForApprovals = (() => {
+    const last = chat.messages.at(-1);
+    if (!last || last.role !== "assistant") return false;
+    return last.parts.some(
+      (part) => "state" in part && part.state === "approval-requested",
+    );
+  })();
+
+  const isChatEmpty =
+    chat.messages.length === 0 && threadManager.messages.length === 0;
+
+  const activeThread = threadManager.threads.find(
+    (t) => t.id === threadManager.activeThreadId,
+  );
+  const isRunInProgress =
+    (activeThread?.status === "in_progress" ||
+      activeThread?.status === "expired") &&
+    !isStreaming;
+
+  // Ref so the SSE subscription handler can call resumeStream without
+  // being re-created when `chat` changes (avoids unstable closure deps).
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
+  const hasResumedRef = useRef<string | null>(null);
+  const resumeFailCountRef = useRef(0);
+  const MAX_RESUME_RETRIES = 3;
+
+  const invalidateThreadData = () => {
+    queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
+    const tid = threadManager.activeThreadId;
+    if (tid) {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (key[3] !== "collection" || key[4] !== "THREAD_MESSAGES") {
+            return false;
+          }
+          const serialized = typeof key[6] === "string" ? key[6] : "";
+          return serialized.includes(tid);
+        },
+      });
+    }
+  };
+
+  // Resume an in-progress stream via the AI SDK's transport.reconnectToStream
+  // (GET /attach/:threadId → JetStream replay).  The SDK handles all internal
+  // message state: status flips to "streaming", chat.messages updates live.
+  const tryResumeStream = (reason: string) => {
+    const tid = threadManager.activeThreadId;
+    if (!tid || hasResumedRef.current === tid) return;
+    if (resumeFailCountRef.current >= MAX_RESUME_RETRIES) return;
+    hasResumedRef.current = tid;
+
+    console.log(`[chat] resumeStream (${reason})`, tid);
+    chatRef.current.resumeStream().catch((err: unknown) => {
+      console.error("[chat] resumeStream error", err);
+      resumeFailCountRef.current++;
+      hasResumedRef.current = null;
+      invalidateThreadData();
+    });
+  };
+
+  const invalidateThreadDataRef = useRef(invalidateThreadData);
+  invalidateThreadDataRef.current = invalidateThreadData;
+
+  const tryResumeStreamRef = useRef(tryResumeStream);
+  tryResumeStreamRef.current = tryResumeStream;
+
+  useDecopilotEvents({
+    orgId: org.id,
+    threadId: threadManager.activeThreadId,
+    onStep: () => tryResumeStream("sse-step"),
+    onFinish: () => {
+      hasResumedRef.current = null;
+      resumeFailCountRef.current = 0;
+      if (!isStreaming) {
+        invalidateThreadData();
+      }
+    },
+    onThreadStatus: () => {
+      if (!isStreaming) {
+        invalidateThreadData();
+      }
+    },
+  });
+
+  // Trigger resume on page load / thread switch when a background run is active.
+  // Also safety-net poll in case SSE events are missed (NATS at-most-once).
+  const SAFETY_NET_POLL_MS = 30_000;
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!isRunInProgress) return;
+
+    tryResumeStreamRef.current("page-load");
+
+    invalidateThreadDataRef.current();
+    const safetyId = setInterval(
+      () => invalidateThreadDataRef.current(),
+      SAFETY_NET_POLL_MS,
+    );
+
+    return () => {
+      clearInterval(safetyId);
+    };
+  }, [isRunInProgress]);
+
+  // Show real-time chat.messages during active streaming (local or resumed);
+  // otherwise use server-sourced threadManager.messages.
+  const messages = isStreaming
+    ? chat.messages
+    : (threadManager.messages as ChatMessage[]);
 
   // ===========================================================================
   // 6. RETURNED FUNCTIONS - Functions exposed via context
@@ -764,11 +840,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const hideThread = threadManager.hideThread;
 
   // Chat state functions
-  const setTiptapDoc = (doc: Metadata["tiptapDoc"]) =>
-    chatDispatch({ type: "SET_TIPTAP_DOC", payload: doc });
-
-  const clearTiptapDoc = () => chatDispatch({ type: "CLEAR_TIPTAP_DOC" });
-
   const resetInteraction = () => chatDispatch({ type: "RESET" });
 
   // Virtual MCP functions
@@ -800,6 +871,12 @@ export function ChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
+    // Sync server-sourced messages into useAIChat before sending so its
+    // internal state is current (needed for onFinish cache write-back and
+    // sendAutomaticallyWhen checks on the response).
+    if (threadManager.messages.length > 0) {
+      chat.setMessages(threadManager.messages);
+    }
     resetInteraction();
 
     const messageMetadata: Metadata = {
@@ -833,7 +910,43 @@ export function ChatProvider({ children }: PropsWithChildren) {
     await chat.sendMessage(userMessage, { metadata });
   };
 
-  const stop = () => chat.stop();
+  const cancelRun = async () => {
+    const threadId = threadManager.activeThreadId;
+    if (!threadId) return;
+    hasResumedRef.current = null;
+    resumeFailCountRef.current = 0;
+    chat.stop();
+    try {
+      const res = await fetch(`/api/${org.slug}/decopilot/cancel/${threadId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(data.message ?? `Cancel failed: ${res.status}`);
+      }
+      await queryClient.invalidateQueries({ queryKey: KEYS.threads(locator) });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to cancel";
+      toast.error(msg);
+      console.error("[chat] cancelRun", err);
+    }
+  };
+
+  const stop = (): void => {
+    if (isStreaming) {
+      void cancelRun();
+    }
+    chat.stop();
+  };
+
+  // Wrap for context: UseChatHelpers may expect () => Promise<void>
+  const stopForContext = (): Promise<void> => {
+    stop();
+    return Promise.resolve();
+  };
 
   const clearFinishReason = () => chatDispatch({ type: "CLEAR_FINISH_REASON" });
 
@@ -842,10 +955,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // ===========================================================================
 
   const value: ChatContextValue = {
-    // Chat state
-    tiptapDoc: chatState.tiptapDoc,
-    setTiptapDoc,
-    clearTiptapDoc,
+    // Chat state (tiptapDoc managed locally in ChatInput)
+    tiptapDocRef,
     resetInteraction,
 
     // Thread management (using threadManager)
@@ -874,13 +985,13 @@ export function ChatProvider({ children }: PropsWithChildren) {
     selectedMode,
     setSelectedMode,
 
-    // Chat session state (from useChat)
-    messages: chat.messages,
+    // Chat session state (from useChat, or server-polled during background runs)
+    messages,
     status: chat.status,
     setMessages: chat.setMessages,
     error: chat.error,
     clearError: chat.clearError,
-    stop,
+    stop: stopForContext,
     addToolOutput: chat.addToolOutput,
     addToolApprovalResponse: chat.addToolApprovalResponse,
     sendMessage,
@@ -888,6 +999,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     isChatEmpty,
     finishReason: chatState.finishReason,
     clearFinishReason,
+    isWaitingForApprovals,
+    isRunInProgress,
+    cancelRun,
   };
 
   return (

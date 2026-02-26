@@ -238,7 +238,7 @@ function iceBreakerReducer(
  * @param connectionId - The connection ID, or null for the management MCP
  */
 function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
-  const { tiptapDoc, sendMessage } = useChat();
+  const { tiptapDocRef, sendMessage } = useChat();
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId,
@@ -263,7 +263,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
 
       // Append prompt to current tiptapDoc and send
       // Wrap mention in a paragraph since it's an inline node
-      const newTiptapDoc = appendToTiptapDoc(tiptapDoc, {
+      const newTiptapDoc = appendToTiptapDoc(tiptapDocRef.current, {
         type: "paragraph",
         content: [
           createMentionDoc({
