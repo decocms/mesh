@@ -29,7 +29,7 @@ export interface ReportsStorage {
 
   upsert(
     organizationId: string,
-    data: Omit<Report, "updatedAt"> & { id?: string },
+    data: Omit<Report, "updatedAt" | "id"> & { id?: string },
   ): Promise<Report>;
 
   updateLifecycleStatus(
@@ -81,7 +81,7 @@ export class KyselyReportsStorage implements ReportsStorage {
 
   async upsert(
     organizationId: string,
-    data: Omit<Report, "updatedAt"> & { id?: string },
+    data: Omit<Report, "updatedAt" | "id"> & { id?: string },
   ): Promise<Report> {
     const now = new Date().toISOString();
     const id = data.id ?? generatePrefixedId("rpt");

@@ -539,7 +539,8 @@ export type ReportLifecycleStatus = "unread" | "read" | "dismissed";
 /**
  * Report section - polymorphic by type (markdown, metrics, table, criteria, note, ranked-list)
  */
-export type ReportSection = Record<string, unknown>;
+import type { ReportSection as BindingsReportSection } from "@decocms/bindings";
+export type ReportSection = BindingsReportSection;
 
 /**
  * Report table definition
@@ -553,7 +554,7 @@ export interface ReportTable {
   status: string;
   summary: string;
   source: string | null;
-  tags: JsonArray<string[]> | null;
+  tags: JsonArray<string> | null;
   lifecycle_status: string | null;
   sections: JsonObject<ReportSection[]>;
   created_at: ColumnType<Date, Date | string, never>;

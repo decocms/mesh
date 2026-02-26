@@ -14,7 +14,8 @@ type IdPrefixes =
   | "mtag"
   | "proj"
   | "ppc"
-  | "dash";
+  | "dash"
+  | "rpt";
 
 export function generatePrefixedId(prefix: IdPrefixes) {
   return `${prefix}_${nanoid()}`;

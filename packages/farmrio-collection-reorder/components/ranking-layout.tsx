@@ -14,6 +14,7 @@ import {
 } from "@decocms/bindings";
 import {
   SELF_MCP_ALIAS_ID,
+  type ConnectionEntity,
   useConnections,
   useMCPClient,
   useMCPClientOptional,
