@@ -295,9 +295,8 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
 
   function handleOpenTask() {
     navigate({
-      to: "/$org/$project/blog",
+      to: "/$org/$project/tasks",
       params: { org: orgName, project: "storefront" },
-      search: { taskId: "bp-1" },
     });
   }
 

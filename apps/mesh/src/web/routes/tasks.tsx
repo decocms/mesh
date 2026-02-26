@@ -1,4 +1,5 @@
 import { useChat } from "@/web/components/chat";
+import { BlogPostThread } from "@/web/components/chat/blog-post-thread.tsx";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
@@ -34,7 +35,20 @@ import {
 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
+
+// ─── Mocked blog task ─────────────────────────────────────────────────────────
+
+const MOCK_BLOG_TASK_ID = "mock-blog-post-generator";
+
+const MOCK_BLOG_TASK = {
+  id: MOCK_BLOG_TASK_ID,
+  title: 'Write: "Best smart home accessories under $50"',
+  status: "requires_action",
+  hidden: false,
+  created_by: "",
+  updated_at: new Date().toISOString(),
+} as ThreadEntity;
 
 function TaskStatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -96,6 +110,11 @@ function TasksContent() {
   });
   const navigate = useNavigate();
   const { switchToThread } = useChat();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const blogHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_blog_hired") === "true";
 
   // useListState and ThreadEntity both use snake_case for audit fields
   const listState = useListState({
@@ -120,8 +139,7 @@ function TasksContent() {
     staleTime: 30_000,
   });
 
-  // 1. Filter hidden (defensive -- storage already filters WHERE hidden = false,
-  //    but protects against optimistic cache updates from chat's hideThread)
+  // 1. Filter hidden
   const visible = data.filter((t) => !t.hidden);
 
   // 2. Filter by search
@@ -131,8 +149,8 @@ function TasksContent() {
       )
     : visible;
 
-  // 3. Sort by sortKey (ThreadEntity uses snake_case)
-  const threads = [...searched].sort((a, b) => {
+  // 3. Sort
+  const sorted = [...searched].sort((a, b) => {
     const { sortKey, sortDirection } = listState;
     if (!sortKey || !sortDirection) return 0;
     const aVal = String((a as Record<string, unknown>)[sortKey] ?? "");
@@ -141,7 +159,17 @@ function TasksContent() {
     return sortDirection === "asc" ? cmp : -cmp;
   });
 
+  // 4. Prepend mocked blog task when blog agent has been hired
+  const threads: ThreadEntity[] = blogHired
+    ? [MOCK_BLOG_TASK, ...sorted]
+    : sorted;
+
   const onRowClick = async (thread: ThreadEntity) => {
+    if (thread.id === MOCK_BLOG_TASK_ID) {
+      // Open chat panel on the right — no navigation
+      setSelectedTaskId(MOCK_BLOG_TASK_ID);
+      return;
+    }
     await switchToThread(thread.id);
     navigate({
       to: "/$org/$project",
@@ -229,41 +257,58 @@ function TasksContent() {
         }}
       />
 
-      <Page.Content>
-        <div className="h-full flex flex-col overflow-hidden">
-          <CollectionTableWrapper
-            columns={columns}
-            data={threads}
-            isLoading={false}
-            sortKey={listState.sortKey}
-            sortDirection={listState.sortDirection}
-            onSort={listState.handleSort}
-            onRowClick={onRowClick}
-            emptyState={
-              listState.search ? (
-                <EmptyState
-                  image={
-                    <CheckDone01 size={36} className="text-muted-foreground" />
-                  }
-                  title="No tasks found"
-                  description={`No tasks match "${listState.search}"`}
-                />
-              ) : (
-                <EmptyState
-                  image={
-                    <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted">
+      <Page.Content className="flex-1 overflow-hidden">
+        <div
+          className={`h-full flex overflow-hidden ${selectedTaskId ? "divide-x divide-border" : ""}`}
+        >
+          {/* ── Task list ── */}
+          <div
+            className={`flex flex-col overflow-hidden ${selectedTaskId ? "w-[420px] shrink-0" : "flex-1"}`}
+          >
+            <CollectionTableWrapper
+              columns={columns}
+              data={threads}
+              isLoading={false}
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
+              onRowClick={onRowClick}
+              emptyState={
+                listState.search ? (
+                  <EmptyState
+                    image={
                       <CheckDone01
-                        size={32}
+                        size={36}
                         className="text-muted-foreground"
                       />
-                    </div>
-                  }
-                  title="No tasks yet"
-                  description="Tasks will appear here when agents start processing work."
-                />
-              )
-            }
-          />
+                    }
+                    title="No tasks found"
+                    description={`No tasks match "${listState.search}"`}
+                  />
+                ) : (
+                  <EmptyState
+                    image={
+                      <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted">
+                        <CheckDone01
+                          size={32}
+                          className="text-muted-foreground"
+                        />
+                      </div>
+                    }
+                    title="No tasks yet"
+                    description="Tasks will appear here when agents start processing work."
+                  />
+                )
+              }
+            />
+          </div>
+
+          {/* ── Chat panel (opens when a task is selected) ── */}
+          {selectedTaskId === MOCK_BLOG_TASK_ID && (
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <BlogPostThread />
+            </div>
+          )}
         </div>
       </Page.Content>
     </Page>
