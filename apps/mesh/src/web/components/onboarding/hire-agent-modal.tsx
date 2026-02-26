@@ -1,9 +1,10 @@
 /**
  * HireAgentModal
  *
- * Two-column Dialog modal for hiring the Blog Post Generator agent.
- * Left column: agent identity, "already knows", installs.
- * Right column: optional connections, autonomy selector, hire CTA.
+ * Two-column Dialog. Left: agent identity + installs.
+ * Right: autonomy selector first, then connections that adapt to the selected mode.
+ * — Review/Monitor: no connections required, all optional
+ * — Autonomous: publishing connection (GitHub) becomes required before hire
  */
 
 import { useState } from "react";
@@ -14,7 +15,7 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { Check, File06, Package } from "@untitledui/icons";
+import { AlertCircle, Check, File06, Package } from "@untitledui/icons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,26 +27,7 @@ export interface HireAgentModalProps {
   onHire: (mode: AutonomyMode) => void;
 }
 
-// ─── Static data ──────────────────────────────────────────────────────────────
-
-const CONNECTIONS = [
-  {
-    name: "Google Search Console",
-    description: "Keyword data & search performance",
-    iconUrl:
-      "https://www.google.com/s2/favicons?domain=search.google.com&sz=32",
-  },
-  {
-    name: "Shopify",
-    description: "Product catalog & store data",
-    iconUrl: "https://www.google.com/s2/favicons?domain=shopify.com&sz=32",
-  },
-  {
-    name: "GitHub",
-    description: "Content versioning & publishing",
-    iconUrl: "https://www.google.com/s2/favicons?domain=github.com&sz=32",
-  },
-];
+// ─── Data ──────────────────────────────────────────────────────────────────────
 
 const AUTONOMY_OPTIONS: {
   mode: AutonomyMode;
@@ -55,42 +37,81 @@ const AUTONOMY_OPTIONS: {
 }[] = [
   {
     mode: "review",
-    label: "Review mode",
-    description: "Drafts wait for your approval before publishing.",
+    label: "Review",
+    description: "Generates drafts. You approve and publish each one.",
     recommended: true,
   },
   {
     mode: "monitor",
-    label: "Monitor mode",
-    description: "Agent acts, but you get notified for every change.",
+    label: "Monitor",
+    description: "Suggests topics and improvements. Never publishes.",
   },
   {
     mode: "autonomous",
     label: "Autonomous",
-    description: "Agent operates independently. Maximum output.",
+    description:
+      "Writes and publishes independently. Requires a publishing connection.",
   },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// Connections with metadata about when they're required vs optional
+const CONNECTIONS = [
+  {
+    name: "GitHub",
+    description: "Where your posts get published",
+    iconUrl: "https://www.google.com/s2/favicons?domain=github.com&sz=32",
+    requiredFor: ["autonomous"] as AutonomyMode[],
+  },
+  {
+    name: "Google Search Console",
+    description: "Keyword targeting & search data",
+    iconUrl:
+      "https://www.google.com/s2/favicons?domain=search.google.com&sz=32",
+    requiredFor: [] as AutonomyMode[],
+  },
+  {
+    name: "Shopify",
+    description: "Product data for richer posts",
+    iconUrl: "https://www.google.com/s2/favicons?domain=shopify.com&sz=32",
+    requiredFor: [] as AutonomyMode[],
+  },
+];
+
+// ─── ConnectionRow ────────────────────────────────────────────────────────────
 
 function ConnectionRow({
   conn,
+  required,
   connected,
   connecting,
   onConnect,
 }: {
   conn: (typeof CONNECTIONS)[number];
+  required: boolean;
   connected: boolean;
   connecting: boolean;
   onConnect: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+    <div
+      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+        required && !connected
+          ? "border-amber-300 bg-amber-50/50"
+          : "border-border bg-muted/20"
+      }`}
+    >
       <IntegrationIcon icon={conn.iconUrl} name={conn.name} size="xs" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground leading-tight">
-          {conn.name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-foreground leading-tight">
+            {conn.name}
+          </p>
+          {required && !connected && (
+            <span className="text-[10px] font-semibold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+              Required
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground leading-tight mt-0.5">
           {conn.description}
         </p>
@@ -103,7 +124,7 @@ function ConnectionRow({
       ) : (
         <Button
           size="sm"
-          variant="outline"
+          variant={required ? "default" : "outline"}
           className="h-7 text-xs shrink-0"
           disabled={connecting}
           onClick={onConnect}
@@ -139,13 +160,30 @@ export function HireAgentModal({
     onOpenChange(false);
   }
 
+  // Compute which connections are required for current autonomy mode
+  const requiredConnections = CONNECTIONS.filter((c) =>
+    c.requiredFor.includes(autonomy),
+  );
+  const missingRequired = requiredConnections.filter(
+    (c) => !connected.has(c.name),
+  );
+  const canHire = missingRequired.length === 0;
+
+  // Section label changes based on mode
+  const connectionsSectionLabel =
+    autonomy === "autonomous" ? "Connections" : "Connections";
+
+  const connectionsSectionNote =
+    autonomy === "autonomous"
+      ? "GitHub is required to publish autonomously."
+      : "Optional — connect later to enrich content.";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!w-[860px] !max-w-[860px] p-0 gap-0 overflow-hidden">
         <div className="grid grid-cols-[260px_1fr] min-h-[520px]">
           {/* ── Left column ──────────────────────────────────────────── */}
           <div className="flex flex-col gap-5 bg-muted/20 border-r border-border p-6">
-            {/* Agent icon + identity */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-center size-14 rounded-2xl bg-violet-100 text-violet-600">
                 <File06 size={26} />
@@ -161,7 +199,6 @@ export function HireAgentModal({
               </div>
             </div>
 
-            {/* Installs */}
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Installs
@@ -182,30 +219,7 @@ export function HireAgentModal({
 
           {/* ── Right column ─────────────────────────────────────────── */}
           <div className="flex flex-col gap-5 p-6">
-            {/* Optional connections */}
-            <div className="flex flex-col gap-2">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Optional connections
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Connect later to unlock more.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {CONNECTIONS.map((conn) => (
-                  <ConnectionRow
-                    key={conn.name}
-                    conn={conn}
-                    connected={connected.has(conn.name)}
-                    connecting={connecting === conn.name}
-                    onConnect={() => handleConnect(conn.name)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Autonomy selector */}
+            {/* Autonomy — first */}
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 How autonomous should it be?
@@ -224,7 +238,6 @@ export function HireAgentModal({
                           : "border-border bg-transparent hover:bg-muted/20"
                       }`}
                     >
-                      {/* Manual radio circle */}
                       <div
                         className={`shrink-0 mt-0.5 size-4 rounded-full border-2 flex items-center justify-center transition-colors ${
                           isSelected
@@ -257,12 +270,49 @@ export function HireAgentModal({
               </div>
             </div>
 
-            {/* Spacer */}
+            {/* Connections — adapts to autonomy mode */}
+            <div className="flex flex-col gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {connectionsSectionLabel}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {connectionsSectionNote}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {CONNECTIONS.map((conn) => (
+                  <ConnectionRow
+                    key={conn.name}
+                    conn={conn}
+                    required={conn.requiredFor.includes(autonomy)}
+                    connected={connected.has(conn.name)}
+                    connecting={connecting === conn.name}
+                    onConnect={() => handleConnect(conn.name)}
+                  />
+                ))}
+              </div>
+            </div>
+
             <div className="flex-1" />
 
-            {/* Hire CTA */}
-            <Button className="w-full" onClick={handleHire}>
-              Hire Blog Post Generator
+            {/* Blocking message when autonomous + missing required */}
+            {!canHire && (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
+                <AlertCircle
+                  size={14}
+                  className="text-amber-500 shrink-0 mt-0.5"
+                />
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Connect GitHub to let this agent publish posts directly.
+                </p>
+              </div>
+            )}
+
+            <Button className="w-full" onClick={handleHire} disabled={!canHire}>
+              {canHire
+                ? "Hire Blog Post Generator"
+                : "Connect GitHub to continue"}
             </Button>
           </div>
         </div>
