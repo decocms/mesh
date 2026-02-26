@@ -11,12 +11,15 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { StreamingMessage } from "./streaming-message.tsx";
 import { HireAgentModal } from "@/web/components/onboarding/hire-agent-modal.tsx";
+import { authClient } from "@/web/lib/auth-client.ts";
 import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   AlertCircle,
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  FaceSmile,
   File06,
 } from "@untitledui/icons";
 
@@ -248,16 +251,34 @@ export function OnboardingMessages({
 }: OnboardingMessagesProps) {
   const domain = orgName.replace(/-/g, ".").toLowerCase();
   const navigate = useNavigate();
+  const { data: session } = authClient.useSession();
+  const firstName = session?.user?.name?.split(" ")[0] || "there";
 
   const [stage, setStage] = useState<Stage>("loading");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const welcomeText = `I've analyzed **${domain}** and found a few things worth addressing — including a slow LCP on mobile (4.2s), 67% of product pages missing meta descriptions, and real SEO opportunities in the content gap.\n\nBased on this, I have a recommendation.`;
+  const welcomeText = `Welcome, ${firstName}! I've analyzed **${domain}** and found a few things worth addressing — including a slow LCP on mobile (4.2s), 67% of product pages missing meta descriptions, and real SEO opportunities in the content gap.\n\nBased on this, I have a recommendation.`;
 
   function handleHire() {
     localStorage.setItem("mesh_blog_hired", "true");
     window.dispatchEvent(new Event("mesh_blog_hired"));
     setStage("proposed");
+
+    setTimeout(() => {
+      toast("Blog Post Generator started working", {
+        description: 'Write: "Best smart home accessories under $50"',
+        action: {
+          label: "View task",
+          onClick: () => {
+            navigate({
+              to: "/$org/$project/tasks",
+              params: { org: orgName, project: projectSlug },
+            });
+          },
+        },
+        duration: 6000,
+      });
+    }, 800);
   }
 
   function handleOpenTask() {
@@ -271,7 +292,8 @@ export function OnboardingMessages({
     <>
       <div className="flex flex-col min-h-full max-w-2xl mx-auto w-full py-8 gap-6">
         {/* Welcome — streams in on mount */}
-        <div className="px-4">
+        <div className="px-4 flex flex-col gap-2">
+          <FaceSmile size={28} className="text-chart-1" />
           <StreamingMessage
             id="onboarding-welcome"
             text={welcomeText}

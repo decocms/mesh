@@ -240,31 +240,36 @@ const AGENT_EXTRA: Record<string, AgentExtra> = {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function TasksTab({ agent }: { agent: CatalogAgent }) {
-  if (!agent.hired) {
+function TasksTab({
+  agent,
+  isBlogHired,
+}: {
+  agent: CatalogAgent;
+  isBlogHired: boolean;
+}) {
+  const isHired =
+    agent.id === "blog-post-generator" ? isBlogHired : agent.hired;
+
+  if (!isHired) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
-        <p className="text-sm text-muted-foreground">No tasks yet.</p>
+      <div className="py-12 text-center">
+        <p className="text-sm text-muted-foreground/60">
+          No tasks yet. This agent hasn't generated any tasks.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-3 rounded-lg border border-border px-4 py-3">
-        <div className="size-2 shrink-0 rounded-full bg-amber-400" />
-        <span className="flex-1 text-sm text-foreground">
-          Write: Best smart home accessories under $50
-        </span>
-        <Badge
-          variant="outline"
-          className="text-amber-600 border-amber-400/50 text-[11px]"
-        >
-          Needs Action
-        </Badge>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          2h ago
-        </span>
+      <div className="flex items-start gap-3 px-2 py-2.5 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer">
+        <div className="size-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-foreground truncate">
+            Write: "Best smart home accessories under $50"
+          </p>
+          <p className="text-xs text-muted-foreground">Needs Action · 2h ago</p>
+        </div>
       </div>
     </div>
   );
@@ -323,10 +328,15 @@ function SystemPromptTab({ extra }: { extra: AgentExtra }) {
 function MetricsTab({
   agent,
   extra,
+  isBlogHired,
 }: {
   agent: CatalogAgent;
   extra: AgentExtra;
+  isBlogHired: boolean;
 }) {
+  const isHired =
+    agent.id === "blog-post-generator" ? isBlogHired : agent.hired;
+
   const stats = [
     { label: "Total Tasks Run", value: extra.metrics.totalTasks },
     { label: "Approval Rate", value: extra.metrics.approvalRate },
@@ -348,7 +358,7 @@ function MetricsTab({
           </div>
         ))}
       </div>
-      {!agent.hired && (
+      {!isHired && (
         <p className="text-xs text-muted-foreground text-center">
           Hire this agent to see metrics.
         </p>
@@ -360,12 +370,16 @@ function MetricsTab({
 function ApprovalRatePanel({
   agent,
   extra,
+  isBlogHired,
 }: {
   agent: CatalogAgent;
   extra: AgentExtra;
+  isBlogHired: boolean;
 }) {
   const barColor = AVATAR_BAR_COLORS[agent.id] ?? "bg-muted-foreground";
-  const pct = agent.hired ? agent.approvalPct : 0;
+  const isHired =
+    agent.id === "blog-post-generator" ? isBlogHired : agent.hired;
+  const pct = isHired ? agent.approvalPct : 0;
 
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-4 flex flex-col gap-3">
@@ -373,7 +387,7 @@ function ApprovalRatePanel({
         Approval Rate
       </span>
       <span className="text-4xl font-bold text-foreground tabular-nums">
-        {agent.hired ? `${agent.approvalPct}%` : "—"}
+        {isHired ? `${agent.approvalPct}%` : "—"}
       </span>
       <div className="w-full rounded-full bg-muted h-1.5 overflow-hidden">
         <div
@@ -382,7 +396,7 @@ function ApprovalRatePanel({
         />
       </div>
       <span className="text-xs text-muted-foreground">
-        {extra.metrics.approvedOf}
+        {isHired ? extra.metrics.approvedOf : "No tasks yet"}
       </span>
     </div>
   );
@@ -391,10 +405,15 @@ function ApprovalRatePanel({
 function SettingsPanel({
   agent,
   extra,
+  isBlogHired,
 }: {
   agent: CatalogAgent;
   extra: AgentExtra;
+  isBlogHired: boolean;
 }) {
+  const isHired =
+    agent.id === "blog-post-generator" ? isBlogHired : agent.hired;
+
   const rows = [
     { label: "Autonomy", value: extra.autonomy },
     { label: "Notifications", value: "All notifications" },
@@ -417,7 +436,7 @@ function SettingsPanel({
             key={label}
             className={cn(
               "flex items-center justify-between gap-2",
-              !agent.hired && "opacity-40",
+              !isHired && "opacity-40",
             )}
           >
             <span className="text-xs text-muted-foreground">{label}</span>
@@ -425,7 +444,7 @@ function SettingsPanel({
           </div>
         ))}
       </div>
-      {!agent.hired && (
+      {!isHired && (
         <div className="absolute inset-0 flex items-end justify-center pb-3 bg-gradient-to-t from-card/80 to-transparent">
           <span className="text-xs text-muted-foreground">
             Hire to configure
@@ -488,6 +507,11 @@ export default function AgentStoreDetailPage() {
     <span className="text-base font-bold">{agent.name[0]}</span>
   );
 
+  const isBlogHired =
+    agent.id === "blog-post-generator" &&
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_blog_hired") === "true";
+
   return (
     <Page>
       <Page.Header>
@@ -544,11 +568,24 @@ export default function AgentStoreDetailPage() {
                 {agent.description}
               </p>
             </div>
-            {!agent.hired && (
-              <Button size="sm" className="shrink-0 gap-1.5" onClick={() => {}}>
-                Hire this agent
-                <ArrowRight size={14} />
-              </Button>
+            {isBlogHired ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                  <div className="size-2 rounded-full bg-emerald-500" />
+                  Active
+                </div>
+              </div>
+            ) : (
+              !agent.hired && (
+                <Button
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => {}}
+                >
+                  Hire this agent
+                  <ArrowRight size={14} />
+                </Button>
+              )
             )}
           </div>
 
@@ -603,7 +640,7 @@ export default function AgentStoreDetailPage() {
                 </TabsList>
 
                 <TabsContent value="tasks" className="pt-4">
-                  <TasksTab agent={agent} />
+                  <TasksTab agent={agent} isBlogHired={isBlogHired} />
                 </TabsContent>
 
                 <TabsContent value="connections" className="pt-4">
@@ -615,15 +652,27 @@ export default function AgentStoreDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="metrics" className="pt-4">
-                  <MetricsTab agent={agent} extra={extra} />
+                  <MetricsTab
+                    agent={agent}
+                    extra={extra}
+                    isBlogHired={isBlogHired}
+                  />
                 </TabsContent>
               </Tabs>
             </div>
 
             {/* RIGHT: sidebar panels */}
             <div className="flex flex-col gap-4">
-              <ApprovalRatePanel agent={agent} extra={extra} />
-              <SettingsPanel agent={agent} extra={extra} />
+              <ApprovalRatePanel
+                agent={agent}
+                extra={extra}
+                isBlogHired={isBlogHired}
+              />
+              <SettingsPanel
+                agent={agent}
+                extra={extra}
+                isBlogHired={isBlogHired}
+              />
               <ConnectionsSummaryPanel agent={agent} />
             </div>
           </div>
