@@ -50,7 +50,7 @@ function getTimeBasedGreeting(): string {
 // ---------- Main Content ----------
 
 function HomeContent() {
-  const { org } = useProjectContext();
+  const { org, project } = useProjectContext();
   const { data: session } = authClient.useSession();
   const navigate = useNavigate();
   const onboarding = new URLSearchParams(window.location.search).has(
@@ -190,6 +190,7 @@ function HomeContent() {
           <Chat.Main>
             <OnboardingMessages
               orgName={org.slug}
+              projectSlug={project.slug}
               onComplete={handleOnboardingComplete}
             />
           </Chat.Main>

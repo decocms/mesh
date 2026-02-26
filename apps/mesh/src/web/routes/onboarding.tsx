@@ -1097,7 +1097,7 @@ export default function OnboardingRoute() {
                         className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                       >
                         <ArrowRight className="size-4" />
-                        See full diagnostic
+                        Fix these issues
                       </a>
                     </div>
                   </div>

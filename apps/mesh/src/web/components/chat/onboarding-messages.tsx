@@ -238,10 +238,14 @@ function AgentTaskCard({ onOpen }: { onOpen: () => void }) {
 
 export interface OnboardingMessagesProps {
   orgName: string;
+  projectSlug: string;
   onComplete: () => void;
 }
 
-export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
+export function OnboardingMessages({
+  orgName,
+  projectSlug,
+}: OnboardingMessagesProps) {
   const domain = orgName.replace(/-/g, ".").toLowerCase();
   const navigate = useNavigate();
 
@@ -259,7 +263,7 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
   function handleOpenTask() {
     navigate({
       to: "/$org/$project/tasks",
-      params: { org: orgName, project: "storefront" },
+      params: { org: orgName, project: projectSlug },
     });
   }
 
@@ -287,7 +291,7 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
                 onHireOthers={() =>
                   navigate({
                     to: "/$org/$project/hire",
-                    params: { org: orgName, project: "storefront" },
+                    params: { org: orgName, project: projectSlug },
                   })
                 }
               />
