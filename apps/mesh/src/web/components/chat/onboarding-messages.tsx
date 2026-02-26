@@ -155,9 +155,11 @@ function DiagnosticCard({ domain }: { domain: string }) {
 function AgentRecommendationCard({
   domain,
   onHire,
+  onHireOthers,
 }: {
   domain: string;
   onHire: () => void;
+  onHireOthers: () => void;
 }) {
   return (
     <div className="mx-4 rounded-2xl border border-border bg-card p-5 flex flex-col gap-4">
@@ -201,12 +203,13 @@ function AgentRecommendationCard({
         <ArrowRight size={14} />
       </Button>
 
-      <p className="text-xs text-muted-foreground text-center">
-        Looking for something else?{" "}
-        <span className="underline underline-offset-2 cursor-pointer">
-          Browse agent store →
-        </span>
-      </p>
+      <button
+        type="button"
+        onClick={onHireOthers}
+        className="text-xs text-muted-foreground text-center hover:text-foreground transition-colors"
+      >
+        Hire other agents →
+      </button>
     </div>
   );
 }
@@ -310,6 +313,12 @@ export function OnboardingMessages({ orgName }: OnboardingMessagesProps) {
               <AgentRecommendationCard
                 domain={domain}
                 onHire={() => setDrawerOpen(true)}
+                onHireOthers={() =>
+                  navigate({
+                    to: "/$org/$project/hire",
+                    params: { org: orgName, project: "storefront" },
+                  })
+                }
               />
             )}
 

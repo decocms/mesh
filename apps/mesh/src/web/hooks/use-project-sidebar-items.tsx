@@ -14,9 +14,11 @@ import {
   FaceSmile,
   File06,
   Folder,
+  Globe02,
   Home02,
   SearchMd,
   Settings01,
+  TrendUp01,
   Users03,
 } from "@untitledui/icons";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
@@ -263,84 +265,113 @@ export function useProjectSidebarItems(): SidebarSection[] {
     return sections;
   }
 
-  // Project-specific items (for regular projects, not org-admin)
+  // ── Project sidebar (storefront / non-org-admin) ────────────────────────────
+
+  const blogHired =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("mesh_blog_hired") === "true";
+
+  // Top-level items (no group)
   const projectTasksItem: NavigationSidebarItem = {
     key: "tasks",
     label: "Tasks",
     icon: <CheckDone01 />,
     isActive: isActiveRoute("tasks"),
     onClick: () =>
-      navigate({
-        to: "/$org/$project/tasks",
-        params: { org, project },
-      }),
+      navigate({ to: "/$org/$project/tasks", params: { org, project } }),
   };
 
-  const diagnosticItem: NavigationSidebarItem = {
-    key: "diagnostic",
-    label: "Diagnostic",
-    icon: <SearchMd />,
-    isActive: isActiveRoute("diagnostic"),
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/diagnostic",
-        params: { org, project },
-      }),
-  };
-
-  const blogHired =
-    typeof localStorage !== "undefined" &&
-    localStorage.getItem("mesh_blog_hired") === "true";
-
-  const blogItem: NavigationSidebarItem = {
-    key: "blog",
-    label: "Blog",
-    icon: <File06 />,
-    isActive: isActiveRoute("blog"),
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/blog",
-        params: { org, project },
-      }),
-  };
-
-  const agentsMarketplaceItem: NavigationSidebarItem = {
+  const projectAgentsItem: NavigationSidebarItem = {
     key: "hire",
     label: "Agents",
     icon: <Users03 />,
     isActive: isActiveRoute("hire"),
     onClick: () =>
+      navigate({ to: "/$org/$project/hire", params: { org, project } }),
+  };
+
+  const projectConnectionsItem: NavigationSidebarItem = {
+    key: "connections",
+    label: "Connections",
+    icon: <Container />,
+    isActive: isActiveRoute("mcps"),
+    onClick: () =>
       navigate({
-        to: "/$org/$project/hire",
-        params: { org, project },
+        to: "/$org/$project/mcps",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
       }),
   };
 
-  // Regular project sidebar layout:
-  // - Home, Tasks, Diagnostic
-  // - [Divider] (if enabled plugins exist)
-  // - Plugin items (flat)
-  // - Plugin groups
-  // (Settings is in the footer)
-  const projectItems: NavigationSidebarItem[] = [
-    homeItem,
-    projectTasksItem,
-    diagnosticItem,
-    agentsMarketplaceItem,
-    ...(blogHired ? [blogItem] : []),
+  // [Context] group — links to diagnostic sections
+  const mkDiagnosticItem = (
+    key: string,
+    label: string,
+    icon: React.ReactNode,
+  ): NavigationSidebarItem => ({
+    key,
+    label,
+    icon,
+    isActive: isActiveRoute("diagnostic"),
+    onClick: () =>
+      navigate({ to: "/$org/$project/diagnostic", params: { org, project } }),
+  });
+
+  const contextItems: NavigationSidebarItem[] = [
+    mkDiagnosticItem("performance", "Performance", <BarChart10 />),
+    mkDiagnosticItem("seo", "SEO", <SearchMd />),
+    mkDiagnosticItem("reputation", "Reputation", <Globe02 />),
+    mkDiagnosticItem("benchmark", "Benchmark", <TrendUp01 />),
+    mkDiagnosticItem("brand", "Brand", <FaceSmile />),
   ];
 
-  const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
+  // [Content] group — only show hired plugins
+  const contentItems: NavigationSidebarItem[] = blogHired
+    ? [
+        {
+          key: "blog",
+          label: "Blog",
+          icon: <File06 />,
+          isActive: isActiveRoute("blog"),
+          onClick: () =>
+            navigate({ to: "/$org/$project/blog", params: { org, project } }),
+        },
+      ]
+    : [];
 
-  // Add flat plugin items if any
-  if (pluginItems.length > 0) {
-    sections.push({ type: "divider" });
-    sections.push({ type: "items", items: pluginItems });
-  }
+  const sections: SidebarSection[] = [
+    // Top-level — no group label
+    {
+      type: "items",
+      items: [
+        homeItem,
+        projectTasksItem,
+        projectAgentsItem,
+        projectConnectionsItem,
+      ],
+    },
+    // Context group
+    {
+      type: "group",
+      group: {
+        id: "context",
+        label: "Context",
+        items: contextItems,
+        defaultExpanded: true,
+      },
+    },
+  ];
 
-  // Add plugin groups
-  if (pluginGroupSections.length > 0) {
-    sections.push(...pluginGroupSections);
+  // Content group — only if there's something to show
+  if (contentItems.length > 0) {
+    sections.push({
+      type: "group",
+      group: {
+        id: "content",
+        label: "Content",
+        items: contentItems,
+        defaultExpanded: true,
+      },
+    });
   }
 
   return sections;
