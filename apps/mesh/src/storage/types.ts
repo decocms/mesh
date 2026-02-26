@@ -741,6 +741,7 @@ export interface ThreadTable {
   description: string | null;
   hidden: boolean | null;
   status: ThreadStatus;
+  trigger_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -758,6 +759,7 @@ export interface Thread {
   updated_by: string | null;
   hidden: boolean | null;
   status: ThreadStatus;
+  trigger_id: string | null;
 }
 
 export interface ThreadMessageTable {
