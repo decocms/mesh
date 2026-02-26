@@ -1,4 +1,3 @@
-import { useChatStable } from "@/web/components/chat";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
@@ -37,6 +36,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { useDecopilotEvents } from "@/web/hooks/use-decopilot-events";
+import { useChatStable } from "../components/chat/context";
 
 function TaskStatusBadge({
   status,
