@@ -181,7 +181,7 @@ export default function BenchmarkPage() {
               <p className="text-xs text-amber-800 leading-relaxed">
                 <span className="font-semibold">amaro.com</span> and{" "}
                 <span className="font-semibold">roupas.com.br</span> are growing
-                faster than you this month.
+                faster than farmrio.com.br this month.
               </p>
             </div>
           </div>

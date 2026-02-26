@@ -21,17 +21,17 @@ import { cn } from "@deco/ui/lib/utils.ts";
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const REP = {
-  score: 7.2,
-  reviews: 1234,
-  responseRate: 89,
-  avgResolution: "2.1 days",
-  sentiment: { positive: 62, neutral: 24, negative: 14 },
+  score: 7.8,
+  reviews: 3241,
+  responseRate: 92,
+  avgResolution: "1.8 days",
+  sentiment: { positive: 71, neutral: 19, negative: 10 },
   themes: [
-    { label: "Shipping delays", pct: 34 },
-    { label: "Return process", pct: 22 },
-    { label: "Product quality", pct: 18 },
-    { label: "Customer support", pct: 15 },
-    { label: "Other", pct: 11 },
+    { label: "Shipping delays", pct: 28 },
+    { label: "Sizing inconsistency", pct: 24 },
+    { label: "Return process", pct: 18 },
+    { label: "Product quality", pct: 20 },
+    { label: "Other", pct: 10 },
   ],
 };
 

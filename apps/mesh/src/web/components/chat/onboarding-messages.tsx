@@ -94,22 +94,20 @@ function DiagnosticCard({ domain }: { domain: string }) {
             </p>
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-amber-500">
-                  67%
-                </span>
+                <span className="text-xs font-semibold text-amber-500">23</span>
                 <span className="text-xs text-muted-foreground">
-                  meta descriptions missing
+                  product pages missing meta descriptions
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-foreground">
-                  1,240
+                  12.4K
                 </span>
                 <span className="text-xs text-muted-foreground">backlinks</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-foreground">
-                  ~1.1M
+                  380K
                 </span>
                 <span className="text-xs text-muted-foreground">
                   organic visits/mo
@@ -125,12 +123,12 @@ function DiagnosticCard({ domain }: { domain: string }) {
             </p>
             <div className="flex flex-wrap gap-1.5">
               {[
-                "Shopify Plus",
-                "Klaviyo",
-                "Gorgias",
-                "Google Ads",
-                "Meta Pixel",
+                "Deco",
+                "Google Tag Manager",
                 "Hotjar",
+                "Facebook Pixel",
+                "Google Ads",
+                "Zendesk Chat",
               ].map((t) => (
                 <span
                   key={t}
@@ -212,10 +210,10 @@ function AgentTaskCard({ onOpen }: { onOpen: () => void }) {
         {/* Title + agent name */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
-            Write: "Best smart home accessories under $50"
+            Write: "Como usar estampas tropicais no dia a dia"
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Blog Post Generator · 18K searches/mo · low competition
+            Blog Post Generator · 22K searches/mo · medium competition
           </p>
         </div>
 
@@ -257,7 +255,7 @@ export function OnboardingMessages({
   const [stage, setStage] = useState<Stage>("loading");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const welcomeText = `Welcome, ${firstName}! I've analyzed **${domain}** and found a few things worth addressing — including a slow LCP on mobile (4.2s), 67% of product pages missing meta descriptions, and real SEO opportunities in the content gap.\n\nBased on this, I have a recommendation.`;
+  const welcomeText = `Welcome, ${firstName}! I've analyzed **${domain}** and found a few things worth addressing — including slow LCP on mobile collection pages (4.2s), 23 product pages missing meta descriptions, and content opportunities in high-volume fashion keywords.\n\nBased on this, I have a recommendation.`;
 
   function handleHire() {
     localStorage.setItem("mesh_blog_hired", "true");
@@ -266,7 +264,7 @@ export function OnboardingMessages({
 
     setTimeout(() => {
       toast("Blog Post Generator started working", {
-        description: 'Write: "Best smart home accessories under $50"',
+        description: 'Write: "Como usar estampas tropicais no dia a dia"',
         action: {
           label: "View task",
           onClick: () => {

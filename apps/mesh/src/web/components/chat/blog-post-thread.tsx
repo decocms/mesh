@@ -48,16 +48,16 @@ function BlogArtifact() {
 
       <div className="px-4 py-3 flex flex-col gap-2">
         <p className="text-sm font-semibold text-foreground leading-snug">
-          Best Smart Home Accessories Under $50
+          Como usar estampas tropicais no dia a dia
         </p>
         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-          The smart home revolution is here — and it doesn&apos;t require a
-          five-figure budget. With the right accessories, you can automate your
-          home for under $50 per device and still get a seamless experience.
+          As estampas tropicais da FARM Rio são mais do que uma tendência — são
+          uma celebração da natureza e da alegria carioca. Descubra como
+          incorporá-las no seu look cotidiano.
         </p>
         <div className="flex items-center gap-3 pt-0.5">
           <span className="text-xs text-muted-foreground">
-            1,240 words · 5 min read
+            1,180 words · 5 min read
           </span>
           <span className="text-xs text-muted-foreground">·</span>
           <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
@@ -81,7 +81,7 @@ function BlogArtifact() {
 
 type Step = "msg1" | "msg2" | "artifact";
 
-const MSG1 = `I'll write a blog post targeting **"best smart home accessories under $50"** — 18K monthly searches, low competition. Your brand voice is clear from the site analysis so I'll match the tone.`;
+const MSG1 = `I'll write a blog post targeting **"vestidos estampados"** — 34K monthly searches, medium competition. Your brand voice is clear from the site — vibrant, joyful, Brazilian.`;
 
 const MSG2 = "Done. Here's your draft:";
 

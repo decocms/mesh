@@ -47,18 +47,18 @@ const SEO_ISSUES: {
     severity: "warning",
   },
   {
-    text: "404 on /collections/winter-sale — receiving 230 hits/hr from Google organic",
+    text: "404 on /colecao/verao-2025 — receiving 340 hits/hr from Google organic",
     impact: "~$45K/yr",
     severity: "warning",
   },
   {
-    text: "Newsletter popup fires immediately on mobile — 62% close rate, 18% exit rate",
-    impact: "~$45K/yr",
+    text: "Newsletter popup fires immediately on mobile — 62% close rate",
+    impact: "",
     severity: "info",
   },
   {
-    text: "Hero images not optimized — adding 2.1s to load time on landing pages",
-    impact: "~$45K/yr",
+    text: "Hero images not optimized — adding 2.1s to load on collection pages",
+    impact: "",
     severity: "info",
   },
 ];

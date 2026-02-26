@@ -21,10 +21,10 @@ import { Edit01, FaceSmile } from "@untitledui/icons";
 
 const BRAND = {
   description:
-    "Brazilian fashion brand known for bold tropical prints and sustainable sourcing. Direct-to-consumer e-commerce with strong presence across Brazil, US, and Europe. Seasonal collections averaging 200+ SKUs.",
-  colors: ["#1B5E20", "#F4E9D1", "#C8102E", "#2C2C2C"],
+    "Brazilian fashion brand from Rio de Janeiro, known for bold tropical prints and vibrant women's clothing. Direct-to-consumer e-commerce with 100+ stores across Brazil and international presence in the US and Europe. Weekly new collections with 200+ SKUs per season.",
+  colors: ["#E8612C", "#2D5B4E", "#FAF5E4", "#1A2744"],
   techStack: [
-    "VTEX",
+    "Deco",
     "Google Tag Manager",
     "Hotjar",
     "TrustVox",

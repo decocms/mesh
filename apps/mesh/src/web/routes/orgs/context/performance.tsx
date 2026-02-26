@@ -49,38 +49,38 @@ const ISSUES: {
   {
     id: 1,
     severity: "critical",
-    text: "38% drop-off between shipping → payment — industry avg is 22%",
+    text: "LCP on mobile collection pages: 4.2s — hero images loading unoptimized product shots",
     impact: "~$45K/yr",
   },
   {
     id: 2,
     severity: "critical",
-    text: "Purchase event missing transaction_id on 23% of checkouts",
+    text: "Cart abandonment at 78% on mobile — checkout flow has 6 steps vs industry avg 3",
     impact: "~$45K/yr",
   },
   {
     id: 3,
     severity: "warning",
-    text: "23 product pages missing meta descriptions",
+    text: "Product page images averaging 2.8MB — should be under 200KB",
     impact: "-$29K/yr",
   },
   {
     id: 4,
     severity: "warning",
-    text: "404 on /collections/winter-sale — receiving 230 hits/hr",
+    text: "No lazy loading on collection grid — 80+ images loaded on initial paint",
     impact: "~$45K/yr",
   },
   {
     id: 5,
     severity: "info",
-    text: "Newsletter popup fires immediately on mobile — 62% close rate",
-    impact: "~$45K/yr",
+    text: "Font files blocking render — 3 custom typefaces loaded synchronously",
+    impact: "",
   },
   {
     id: 6,
     severity: "info",
-    text: "Hero images not optimized — adding 2.1s to load time",
-    impact: "~$45K/yr",
+    text: "Third-party scripts (GTM, Hotjar, Facebook Pixel) adding 1.4s to TTI",
+    impact: "",
   },
 ];
 
@@ -182,7 +182,7 @@ export default function PerformancePage() {
                   Needs attention
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Slower than 72% of e-commerce sites
+                  Slower than 68% of fashion e-commerce sites in Brazil
                 </p>
               </div>
             </div>
