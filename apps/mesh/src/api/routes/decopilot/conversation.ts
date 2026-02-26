@@ -36,44 +36,52 @@ export interface ProcessedConversation {
   originalMessages: ChatMessage[];
 }
 
-/**
- * Marks any tool parts still in "approval-requested" state as "output-denied".
- * This happens when the user sends a new message without approving/rejecting
- * pending tool calls. convertToModelMessages then produces the correct
- * assistant(tool-call) → tool(tool-result) pairing automatically.
- */
-function denyPendingApprovals(messages: ChatMessage[]): ChatMessage[] {
-  return messages.map((msg) => {
-    if (msg.role !== "assistant") return msg;
 
-    const hasPending = msg.parts.some(
-      (part) => "state" in part && part.state === "approval-requested",
-    );
-    if (!hasPending) return msg;
+export function denyPendingApprovals(messages: ChatMessage[]): ChatMessage[] {
+  // Only the last assistant message can have pending approvals
+  let lastAssistantIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "assistant") {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+  if (lastAssistantIdx === -1) return messages;
 
-    return {
-      ...msg,
-      parts: msg.parts.map((part) => {
-        if (
-          !("state" in part) ||
-          part.state !== "approval-requested" ||
-          !("approval" in part) ||
-          !part.approval
-        ) {
-          return part;
-        }
-        return {
-          ...part,
-          state: "output-denied",
-          approval: {
-            ...part.approval,
-            approved: false as const,
-            reason: "User sent a new message without approving this tool call.",
-          },
-        };
-      }),
-    } as ChatMessage;
-  });
+  const msg = messages[lastAssistantIdx];
+  const hasPending = msg?.parts.some(
+    (part) => "state" in part && part.state === "approval-requested",
+  );
+  if (!hasPending) return messages;
+
+  const patchedMessage = {
+    ...msg,
+    parts: msg?.parts.map((part) => {
+      if (
+        !("state" in part) ||
+        part.state !== "approval-requested" ||
+        !("approval" in part) ||
+        !part.approval
+      ) {
+        return part;
+      }
+      return {
+        ...part,
+        state: "output-denied",
+        approval: {
+          ...part.approval,
+          approved: false as const,
+          reason: "User sent a new message without approving this tool call.",
+        },
+      };
+    }),
+  } as ChatMessage;
+
+  return [
+    ...messages.slice(0, lastAssistantIdx),
+    patchedMessage,
+    ...messages.slice(lastAssistantIdx + 1),
+  ];
 }
 
 function splitMessages(messages: ModelMessage[]): {
