@@ -61,14 +61,7 @@ function DiscoveryCard({ instance }: { instance: DiscoveredInstance }) {
       );
 
       queryClient.cancelQueries({ queryKey: KEYS.localDevDiscovery() });
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: KEYS.projects(org.id),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: KEYS.projectPluginConfigs(result.project.id),
-        }),
-      ]);
+      await queryClient.invalidateQueries();
       navigate({
         to: "/$org/$project",
         params: { org: org.slug, project: result.project.slug },

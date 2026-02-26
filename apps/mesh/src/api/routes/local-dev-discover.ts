@@ -57,24 +57,33 @@ app.get("/discover", async (c) => {
     return c.json({ instances: [] });
   }
 
-  // Get existing connections to filter out already-linked instances
+  // Get existing connections and determine which discovered instances are already linked.
+  // New connections store metadata.localDevRoot (set by /add-project) — match by root.
+  // Legacy connections without it fall back to port matching.
   const connections =
     await meshContext.storage.connections.list(organizationId);
-  const linkedPorts = new Set<number>();
+  const linkedRoots = new Set<string>();
+  const legacyLinkedPorts = new Set<number>();
 
   for (const conn of connections) {
+    const meta = conn.metadata as { localDevRoot?: string } | null;
+    if (meta?.localDevRoot) {
+      linkedRoots.add(meta.localDevRoot);
+      continue;
+    }
     if (conn.connection_url) {
-      // Match localhost or 127.0.0.1 with any port, regardless of path
       const match = conn.connection_url.match(
         /^https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)/,
       );
       if (match?.[1]) {
-        linkedPorts.add(parseInt(match[1], 10));
+        legacyLinkedPorts.add(parseInt(match[1], 10));
       }
     }
   }
 
-  const unlinked = discovered.filter((inst) => !linkedPorts.has(inst.port));
+  const unlinked = discovered.filter(
+    (inst) => !linkedRoots.has(inst.root) && !legacyLinkedPorts.has(inst.port),
+  );
 
   return c.json({ instances: unlinked });
 });
@@ -132,6 +141,7 @@ app.post("/add-project", async (c) => {
     organization_id: organizationId,
     created_by: userId,
     tools: tools?.length ? tools : null,
+    metadata: { localDevRoot: root },
   });
 
   // 3. Create project with object-storage and preview enabled

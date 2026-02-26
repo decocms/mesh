@@ -18,18 +18,19 @@ export interface LocalDevServer {
 /**
  * Start the local-dev MCP server inline for the given folder.
  *
- * If local-dev is already running on the port, returns null
- * (caller should treat null as "already running, nothing to manage").
+ * If local-dev is already running on the port **for the same folder**,
+ * returns null (caller should treat null as "already running, nothing to manage").
  *
- * Otherwise, creates and starts the server, returning the instance.
+ * If a different folder owns this port, proceeds to start anyway —
+ * the server will auto-find the next available port via EADDRINUSE retry.
  */
 export async function startLocalDev(
   folder: string,
   port: number = DEFAULT_PORT,
 ): Promise<LocalDevServer | null> {
-  // If already running on this port, nothing to do
-  const alive = await probeLocalDev(port);
-  if (alive) {
+  // If already running on this port for the same folder, nothing to do
+  const existingRoot = await probeLocalDev(port);
+  if (existingRoot === folder) {
     return null;
   }
 
@@ -59,16 +60,19 @@ export async function stopLocalDev(
 
 /**
  * Probe whether a local-dev daemon is alive on the given port.
+ * Returns the root path of the running instance, or null if nothing is running.
  */
 export async function probeLocalDev(
   port: number = DEFAULT_PORT,
-): Promise<boolean> {
+): Promise<string | null> {
   try {
     const res = await fetch(`http://localhost:${port}/_ready`, {
       signal: AbortSignal.timeout(500),
     });
-    return res.ok;
+    if (!res.ok) return null;
+    const data = (await res.json()) as { root?: string };
+    return data.root ?? null;
   } catch {
-    return false;
+    return null;
   }
 }
