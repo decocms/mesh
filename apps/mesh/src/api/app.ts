@@ -115,7 +115,7 @@ import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
 import { Env } from "./env";
 import { devLogger } from "./utils/dev-logger";
 import { streamSSE } from "hono/streaming";
-import { SSEEvent, sseHub } from "@/event-bus/sse-hub";
+import { type SSEEvent, sseHub } from "../event-bus";
 const getHandleOAuthProtectedResourceMetadata = () =>
   oAuthProtectedResourceMetadata(auth);
 const getHandleOAuthDiscoveryMetadata = () => oAuthDiscoveryMetadata(auth);
@@ -147,13 +147,19 @@ export interface CreateAppOptions {
 export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
 
-  // Stop any existing event bus worker (cleanup during HMR)
+  // Stop any existing event bus worker and SSE hub (cleanup during HMR)
   if (currentEventBus && currentEventBus.isRunning()) {
     console.log("[EventBus] Stopping previous worker (HMR cleanup)");
     // Fire and forget - don't block app creation
     // The stop is mostly synchronous, async part is just UNLISTEN cleanup
     Promise.resolve(currentEventBus.stop()).catch((error) => {
       console.error("[EventBus] Error stopping previous worker:", error);
+    });
+    sseHub.stop().catch((error) => {
+      console.error(
+        "[SSEHub] Error stopping previous broadcast (HMR cleanup):",
+        error,
+      );
     });
   }
 
@@ -164,6 +170,12 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   if (options.eventBus) {
     eventBus = options.eventBus;
+    sseHub.start().catch((error) => {
+      console.error(
+        "[SSEHub] Error starting broadcast (custom eventBus):",
+        error,
+      );
+    });
   } else {
     // Create notify function that uses the context factory
     // This is called by the worker to deliver events to subscribers
