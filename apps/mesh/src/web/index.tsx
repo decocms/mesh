@@ -109,12 +109,6 @@ const oauthCallbackRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/oauth-callback.tsx")),
 });
 
-const onboardingRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/onboarding",
-  component: lazyRouteComponent(() => import("./routes/onboarding.tsx")),
-});
-
 // ============================================
 // SHELL LAYOUT (authenticated wrapper)
 // ============================================
@@ -487,7 +481,6 @@ const routeTree = rootRoute.addChildren([
   oauthCallbackRoute,
   connectRoute,
   storeInviteRoute,
-  onboardingRoute,
 ]);
 
 const router = createRouter({
