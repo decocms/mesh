@@ -66,7 +66,7 @@ export class UIResourceLoader {
         throw new UIResourceLoadError(uri, "No content returned from resource");
       }
 
-      const content = result.contents[0];
+      const content = result.contents[0]!;
       if (!content.text) {
         throw new UIResourceLoadError(uri, "Resource content has no text");
       }
