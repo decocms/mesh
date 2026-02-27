@@ -14,9 +14,16 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Check, Coins01, Inbox01, XClose } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
-import { useContext, useState } from "react";
+import { Component, Suspense, useContext, useState } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  useConnections,
+  useMCPClient,
+  useMCPToolCallQuery,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 
 interface Invitation {
   id: string;
@@ -120,11 +127,53 @@ function usePendingInvitations() {
   );
 }
 
-// TODO: replace with real credit balance from API
-const MOCK_CREDIT = 357.7;
+class SilentErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-function CreditChip() {
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  override componentDidCatch(_error: Error, _info: ErrorInfo): void {
+    // Silently catch errors in the credit chip
+  }
+
+  override render(): ReactNode {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+const DECO_AI_GATEWAY_HOSTS = [
+  "sites-deco-ai-gateway.decocache.com",
+];
+
+interface GatewayUsageResult {
+  limit: { remaining: number | null; total: number | null };
+}
+
+function CreditChip({ connectionId }: { connectionId: string }) {
   const { open } = useSettingsModal();
+  const { org } = useProjectContext();
+
+  const client = useMCPClient({ connectionId, orgId: org.id });
+
+  const { data } = useMCPToolCallQuery<GatewayUsageResult | undefined>({
+    client,
+    toolName: "GATEWAY_USAGE",
+    toolArguments: {},
+    staleTime: 60_000,
+    select: (result) =>
+      (result as { structuredContent?: GatewayUsageResult }).structuredContent,
+  });
+
+  const credits = data?.limit.remaining ?? 0;
 
   return (
     <button
@@ -137,10 +186,31 @@ function CreditChip() {
         <span className="text-xs text-muted-foreground">Credits</span>
       </div>
       <span className="text-xs font-medium tabular-nums text-foreground/70">
-        ${MOCK_CREDIT.toFixed(2)}
+        ${credits.toFixed(2)}
       </span>
     </button>
   );
+}
+
+function CreditChipConditional() {
+  const connections = useConnections();
+
+  const gatewayConnection = connections.find((c) => {
+    try {
+      return (
+        !!c.connection_url &&
+        DECO_AI_GATEWAY_HOSTS.includes(new URL(c.connection_url).host)
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  if (!gatewayConnection?.id) {
+    return null;
+  }
+
+  return <CreditChip connectionId={gatewayConnection.id} />;
 }
 
 export function SidebarInboxFooter() {
@@ -148,7 +218,11 @@ export function SidebarInboxFooter() {
 
   return (
     <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-2">
-      <CreditChip />
+      <SilentErrorBoundary>
+        <Suspense fallback={null}>
+          <CreditChipConditional />
+        </Suspense>
+      </SilentErrorBoundary>
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center w-full gap-1">
