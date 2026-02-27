@@ -1,5 +1,6 @@
 import { authClient } from "@/web/lib/auth-client";
 import { MeshUserMenu } from "@/web/components/user-menu";
+import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Popover,
@@ -11,7 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@deco/ui/components/sidebar.tsx";
-import { Check, Inbox01, XClose } from "@untitledui/icons";
+import { Check, Coins01, Inbox01, XClose } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { useContext, useState } from "react";
 import { toast } from "sonner";
@@ -119,11 +120,35 @@ function usePendingInvitations() {
   );
 }
 
+// TODO: replace with real credit balance from API
+const MOCK_CREDIT = 357.7;
+
+function CreditChip() {
+  const { open } = useSettingsModal();
+
+  return (
+    <button
+      type="button"
+      onClick={() => open("org.billing")}
+      className="group-data-[collapsible=icon]:hidden flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
+    >
+      <div className="flex items-center gap-1.5">
+        <Coins01 size={13} className="text-muted-foreground/60 shrink-0" />
+        <span className="text-xs text-muted-foreground">Credits</span>
+      </div>
+      <span className="text-xs font-medium tabular-nums text-foreground/70">
+        ${MOCK_CREDIT.toFixed(2)}
+      </span>
+    </button>
+  );
+}
+
 export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
   return (
     <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-2">
+      <CreditChip />
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center w-full gap-1">
