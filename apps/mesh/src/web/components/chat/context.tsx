@@ -670,7 +670,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     }
 
     // Show notification (sound + browser popup) if enabled
-    if (preferences.enableNotifications && finishReason === "stop") {
+    if (preferences.enableNotifications) {
       showNotification({
         tag: `chat-${threadId}`,
         title: "Decopilot is waiting for your input at",
