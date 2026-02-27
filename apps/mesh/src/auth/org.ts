@@ -130,16 +130,19 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
           connectionToken = key?.key;
         }
         // Get tools either from the lazy getter or by fetching from MCP
+        const fetchResult = await fetchToolsFromMCP({
+          id: "pending",
+          title: mcpConfig.data.title,
+          connection_type: mcpConfig.data.connection_type,
+          connection_url: mcpConfig.data.connection_url,
+          connection_token: mcpConfig.data.connection_token,
+          connection_headers: mcpConfig.data.connection_headers,
+        }).catch(() => null);
         const tools =
-          (await mcpConfig.getTools?.()) ??
-          (await fetchToolsFromMCP({
-            id: "pending",
-            title: mcpConfig.data.title,
-            connection_type: mcpConfig.data.connection_type,
-            connection_url: mcpConfig.data.connection_url,
-            connection_token: mcpConfig.data.connection_token,
-            connection_headers: mcpConfig.data.connection_headers,
-          }).catch(() => null));
+          (await mcpConfig.getTools?.()) ?? fetchResult?.tools ?? null;
+        const configuration_scopes = fetchResult?.scopes?.length
+          ? fetchResult.scopes
+          : null;
 
         // Add org prefix only if ID doesn't already have it
         // (e.g., Deco Store already includes org prefix via WellKnownOrgMCPId)
@@ -153,6 +156,7 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
           ...mcpConfig.data,
           id: connectionId,
           tools,
+          configuration_scopes,
           organization_id: organizationId,
           created_by: createdBy,
           connection_token: mcpConfig.data.connection_token ?? connectionToken,

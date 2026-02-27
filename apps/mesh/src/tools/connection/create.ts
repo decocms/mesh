@@ -93,9 +93,9 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       connectionData.connection_url = buildVirtualUrl(virtualMcpId);
     }
 
-    // Fetch tools from the MCP server before creating the connection
+    // Fetch tools and configuration scopes from the MCP server before creating the connection
     // VIRTUAL connections return null since tools are fetched dynamically
-    const fetchedTools = await fetchToolsFromMCP({
+    const fetchResult = await fetchToolsFromMCP({
       id: `pending-${Date.now()}`,
       title: connectionData.title,
       connection_type: connectionData.connection_type,
@@ -103,12 +103,16 @@ export const COLLECTION_CONNECTIONS_CREATE = defineTool({
       connection_token: connectionData.connection_token,
       connection_headers: connectionData.connection_headers,
     }).catch(() => null);
-    const tools = fetchedTools?.length ? fetchedTools : null;
+    const tools = fetchResult?.tools?.length ? fetchResult.tools : null;
+    const configuration_scopes = fetchResult?.scopes?.length
+      ? fetchResult.scopes
+      : null;
 
-    // Create the connection with the fetched tools
+    // Create the connection with the fetched tools and scopes
     const connection = await ctx.storage.connections.create({
       ...connectionData,
       tools,
+      configuration_scopes,
     });
 
     await ctx.eventBus.publish(

@@ -186,13 +186,16 @@ describe("Connection Tools", () => {
         .spyOn(fetchToolsModule, "fetchToolsFromMCP")
         .mockImplementation(async (input) => {
           expect(input.connection_token).toBe("oauth-access-token");
-          return [
-            {
-              name: "COLLECTION_LLM_LIST",
-              description: "List models",
-              inputSchema: {},
-            },
-          ];
+          return {
+            tools: [
+              {
+                name: "COLLECTION_LLM_LIST",
+                description: "List models",
+                inputSchema: {},
+              },
+            ],
+            scopes: null,
+          };
         });
 
       const result = await COLLECTION_CONNECTIONS_UPDATE.execute(
