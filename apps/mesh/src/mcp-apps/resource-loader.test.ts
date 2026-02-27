@@ -1,10 +1,18 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { UIResourceLoader, UIResourceLoadError } from "./resource-loader.ts";
+import type { ReadResourceFn } from "./resource-loader.ts";
 
 function createMockReadResource(
-  response: { uri: string; text?: string; mimeType?: string }[] | null = null,
+  response:
+    | {
+        uri: string;
+        text?: string;
+        mimeType?: string;
+        _meta?: { ui?: { csp?: Record<string, unknown> } };
+      }[]
+    | null = null,
   shouldThrow = false,
-) {
+): ReadResourceFn {
   return async (_uri: string) => {
     if (shouldThrow) throw new Error("Network error");
     return { contents: response ?? [] };
@@ -72,7 +80,7 @@ describe("UIResourceLoader", () => {
 
   it("loads different URIs separately", async () => {
     let callCount = 0;
-    const readResource = async (uri: string) => {
+    const readResource: ReadResourceFn = async (uri: string) => {
       callCount++;
       return {
         contents: [{ uri, text: `<html>${uri}</html>`, mimeType: "text/html" }],
@@ -86,11 +94,93 @@ describe("UIResourceLoader", () => {
   });
 });
 
+describe("UIResourceLoader CSP extraction", () => {
+  let loader: UIResourceLoader;
+
+  beforeEach(() => {
+    loader = new UIResourceLoader({ cacheTTL: 0 });
+  });
+
+  it("extracts _meta.ui.csp from resource response", async () => {
+    const readResource = createMockReadResource([
+      {
+        uri: "ui://dashboard",
+        text: "<html>dashboard</html>",
+        mimeType: "text/html",
+        _meta: {
+          ui: {
+            csp: {
+              resourceDomains: ["https://cdn.example.com"],
+              connectDomains: ["https://api.example.com"],
+            },
+          },
+        },
+      },
+    ]);
+    const result = await loader.load("ui://dashboard", readResource);
+    expect(result.csp).toBeDefined();
+    expect(result.csp!.resourceDomains).toEqual(["https://cdn.example.com"]);
+    expect(result.csp!.connectDomains).toEqual(["https://api.example.com"]);
+  });
+
+  it("returns undefined csp when _meta is absent", async () => {
+    const readResource = createMockReadResource([
+      {
+        uri: "ui://simple",
+        text: "<html>simple</html>",
+        mimeType: "text/html",
+      },
+    ]);
+    const result = await loader.load("ui://simple", readResource);
+    expect(result.csp).toBeUndefined();
+  });
+
+  it("returns undefined csp when _meta.ui has no csp", async () => {
+    const readResource = createMockReadResource([
+      {
+        uri: "ui://nocsp",
+        text: "<html>nocsp</html>",
+        mimeType: "text/html",
+        _meta: { ui: {} },
+      },
+    ]);
+    const result = await loader.load("ui://nocsp", readResource);
+    expect(result.csp).toBeUndefined();
+  });
+
+  it("caches csp along with content", async () => {
+    const cachedLoader = new UIResourceLoader({ cacheTTL: 60000 });
+    let callCount = 0;
+    const readResource: ReadResourceFn = async (uri: string) => {
+      callCount++;
+      return {
+        contents: [
+          {
+            uri,
+            text: "<html>cached</html>",
+            mimeType: "text/html",
+            _meta: {
+              ui: {
+                csp: { connectDomains: ["https://api.example.com"] },
+              },
+            },
+          },
+        ],
+      };
+    };
+    const r1 = await cachedLoader.load("ui://test", readResource);
+    const r2 = await cachedLoader.load("ui://test", readResource);
+    expect(callCount).toBe(1);
+    expect(r1.csp).toEqual(r2.csp);
+    expect(r2.csp!.connectDomains).toEqual(["https://api.example.com"]);
+  });
+});
+
 describe("UIResourceLoader caching", () => {
   it("caches resources when cacheTTL > 0", async () => {
     const loader = new UIResourceLoader({ cacheTTL: 60000 });
     let callCount = 0;
-    const readResource = async (uri: string) => {
+    const readResource: ReadResourceFn = async (uri: string) => {
       callCount++;
       return {
         contents: [{ uri, text: "<html>cached</html>", mimeType: "text/html" }],
@@ -104,7 +194,7 @@ describe("UIResourceLoader caching", () => {
   it("clearCache clears all entries", async () => {
     const loader = new UIResourceLoader({ cacheTTL: 60000 });
     let callCount = 0;
-    const readResource = async (uri: string) => {
+    const readResource: ReadResourceFn = async (uri: string) => {
       callCount++;
       return {
         contents: [{ uri, text: "<html>data</html>", mimeType: "text/html" }],
@@ -122,7 +212,7 @@ describe("UIResourceLoader caching", () => {
       maxCacheSize: 0,
     });
     let callCount = 0;
-    const readResource = async (uri: string) => {
+    const readResource: ReadResourceFn = async (uri: string) => {
       callCount++;
       return {
         contents: [{ uri, text: "<html>data</html>", mimeType: "text/html" }],
