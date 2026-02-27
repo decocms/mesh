@@ -188,8 +188,12 @@ app.get("/discover", async (c) => {
     if (meta?.localDevRoot) {
       linkedRoots.add(meta.localDevRoot);
 
-      // Reconcile port drift for this connection
-      await reconcileLocalDevConnection(conn, meshContext.storage);
+      // Reconcile port drift for this connection (best-effort, don't block discovery)
+      try {
+        await reconcileLocalDevConnection(conn, meshContext.storage);
+      } catch {
+        // Non-critical — discovery continues for other connections
+      }
 
       continue;
     }
