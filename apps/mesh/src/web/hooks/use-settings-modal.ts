@@ -6,6 +6,7 @@ export type SettingsSection =
   | "account.experimental"
   | "org.general"
   | "org.plugins"
+  | "org.billing"
   | `project:${string}:general`
   | `project:${string}:plugins`
   | `project:${string}:danger`;
@@ -23,6 +24,7 @@ const STATIC_SECTIONS = new Set([
   "account.experimental",
   "org.general",
   "org.plugins",
+  "org.billing",
 ]);
 
 function isValidSettingsSection(

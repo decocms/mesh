@@ -1,7 +1,13 @@
 import { Suspense } from "react";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Beaker01, Building02, Settings01, Zap } from "@untitledui/icons";
+import {
+  Beaker01,
+  Building02,
+  Coins01,
+  Settings01,
+  Zap,
+} from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
@@ -151,6 +157,11 @@ export function SettingsSidebar({
       key: "org.plugins" as SettingsSection,
       label: "Plugins",
       icon: <Zap size={14} />,
+    },
+    {
+      key: "org.billing" as SettingsSection,
+      label: "Billing",
+      icon: <Coins01 size={14} />,
     },
   ];
 
