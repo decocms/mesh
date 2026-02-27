@@ -29,16 +29,24 @@ export interface ConnectionForToolFetch {
 }
 
 /**
- * Fetches tools from an MCP connection server.
+ * Result of fetching data from an MCP connection
+ */
+export interface FetchedMCPData {
+  tools: ToolDefinition[] | null;
+  scopes: string[] | null;
+}
+
+/**
+ * Fetches tools and configuration scopes from an MCP connection server.
  * Supports HTTP, SSE, and STDIO transports based on connection_type.
  * VIRTUAL connections return null since tools are fetched dynamically at runtime.
  *
  * @param connection - Connection details for connecting to MCP
- * @returns Array of tool definitions, or null if fetch failed or not applicable
+ * @returns Fetched tools and scopes, or null if fetch failed or not applicable
  */
 export async function fetchToolsFromMCP(
   connection: ConnectionForToolFetch,
-): Promise<ToolDefinition[] | null> {
+): Promise<FetchedMCPData | null> {
   switch (connection.connection_type) {
     case "STDIO":
       return fetchToolsFromStdioMCP(connection);
@@ -57,11 +65,41 @@ export async function fetchToolsFromMCP(
 }
 
 /**
+ * Try to fetch configuration scopes from the MCP_CONFIGURATION tool.
+ * Returns null if the tool is not implemented or the call fails.
+ */
+async function fetchScopesFromMCP(client: Client): Promise<string[] | null> {
+  try {
+    const configTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("MCP_CONFIGURATION timeout")), 5_000),
+    );
+    const configResult = await Promise.race([
+      client.callTool({ name: "MCP_CONFIGURATION", arguments: {} }),
+      configTimeout,
+    ]);
+    if (!configResult.isError && Array.isArray(configResult.content)) {
+      const textContent = configResult.content.find(
+        (c: { type: string }) => c.type === "text",
+      );
+      if (textContent && "text" in textContent) {
+        const config = JSON.parse(String(textContent.text));
+        if (Array.isArray(config.scopes) && config.scopes.length > 0) {
+          return config.scopes as string[];
+        }
+      }
+    }
+  } catch {
+    // MCP_CONFIGURATION not implemented or failed — not all MCPs support it
+  }
+  return null;
+}
+
+/**
  * Fetch tools from an HTTP-based MCP connection
  */
 async function fetchToolsFromHttpMCP(
   connection: ConnectionForToolFetch,
-): Promise<ToolDefinition[] | null> {
+): Promise<FetchedMCPData | null> {
   if (!connection.connection_url) {
     console.error(`HTTP connection ${connection.id} missing URL`);
     return null;
@@ -103,21 +141,24 @@ async function fetchToolsFromHttpMCP(
     await Promise.race([client.connect(transport), timeoutPromise]);
     const result = await Promise.race([client.listTools(), timeoutPromise]);
 
-    if (!result.tools || result.tools.length === 0) {
-      return null;
-    }
+    const tools =
+      result.tools && result.tools.length > 0
+        ? result.tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description ?? undefined,
+            inputSchema: tool.inputSchema ?? {},
+            outputSchema: tool.outputSchema
+              ? // We strive to have lenient output schemas, so allow additional properties
+                { ...tool.outputSchema, additionalProperties: true }
+              : undefined,
+            annotations: tool.annotations ?? undefined,
+            _meta: tool._meta ?? undefined,
+          }))
+        : null;
 
-    return result.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description ?? undefined,
-      inputSchema: tool.inputSchema ?? {},
-      outputSchema: tool.outputSchema
-        ? // We strive to have lenient output schemas, so allow additional properties
-          { ...tool.outputSchema, additionalProperties: true }
-        : undefined,
-      annotations: tool.annotations ?? undefined,
-      _meta: tool._meta ?? undefined,
-    }));
+    const scopes = await fetchScopesFromMCP(client);
+
+    return { tools, scopes };
   } catch (error) {
     console.error(
       `Failed to fetch tools from HTTP connection ${connection.id}:`,
@@ -140,7 +181,7 @@ async function fetchToolsFromHttpMCP(
  */
 async function fetchToolsFromSSEMCP(
   connection: ConnectionForToolFetch,
-): Promise<ToolDefinition[] | null> {
+): Promise<FetchedMCPData | null> {
   if (!connection.connection_url) {
     console.error(`SSE connection ${connection.id} missing URL`);
     return null;
@@ -177,18 +218,23 @@ async function fetchToolsFromSSEMCP(
     await Promise.race([client.connect(transport), timeoutPromise]);
     const result = await Promise.race([client.listTools(), timeoutPromise]);
 
-    if (!result.tools || result.tools.length === 0) return null;
+    const tools =
+      result.tools && result.tools.length > 0
+        ? result.tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description ?? undefined,
+            inputSchema: tool.inputSchema ?? {},
+            outputSchema: tool.outputSchema
+              ? { ...tool.outputSchema, additionalProperties: true }
+              : undefined,
+            annotations: tool.annotations ?? undefined,
+            _meta: tool._meta ?? undefined,
+          }))
+        : null;
 
-    return result.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description ?? undefined,
-      inputSchema: tool.inputSchema ?? {},
-      outputSchema: tool.outputSchema
-        ? { ...tool.outputSchema, additionalProperties: true }
-        : undefined,
-      annotations: tool.annotations ?? undefined,
-      _meta: tool._meta ?? undefined,
-    }));
+    const scopes = await fetchScopesFromMCP(client);
+
+    return { tools, scopes };
   } catch (error) {
     console.error(
       `Failed to fetch tools from SSE connection ${connection.id}:`,
@@ -209,7 +255,7 @@ async function fetchToolsFromSSEMCP(
  */
 async function fetchToolsFromStdioMCP(
   connection: ConnectionForToolFetch,
-): Promise<ToolDefinition[] | null> {
+): Promise<FetchedMCPData | null> {
   const stdioParams = isStdioParameters(connection.connection_headers)
     ? connection.connection_headers
     : null;
@@ -242,18 +288,21 @@ async function fetchToolsFromStdioMCP(
     await Promise.race([client.connect(transport), timeoutPromise]);
     const result = await Promise.race([client.listTools(), timeoutPromise]);
 
-    if (!result.tools || result.tools.length === 0) {
-      return null;
-    }
+    const tools =
+      result.tools && result.tools.length > 0
+        ? result.tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description ?? undefined,
+            inputSchema: tool.inputSchema ?? {},
+            outputSchema: tool.outputSchema ?? undefined,
+            annotations: tool.annotations ?? undefined,
+            _meta: tool._meta ?? undefined,
+          }))
+        : null;
 
-    return result.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description ?? undefined,
-      inputSchema: tool.inputSchema ?? {},
-      outputSchema: tool.outputSchema ?? undefined,
-      annotations: tool.annotations ?? undefined,
-      _meta: tool._meta ?? undefined,
-    }));
+    const scopes = await fetchScopesFromMCP(client);
+
+    return { tools, scopes };
   } catch (error) {
     console.error(
       `Failed to fetch tools from STDIO connection ${connection.id}:`,
