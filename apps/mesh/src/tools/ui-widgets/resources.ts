@@ -29,7 +29,7 @@ const baseCSS = `
 `;
 
 function notifySize(): string {
-  return `parent.postMessage(JSON.stringify({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:document.body.scrollHeight}}),'*');`;
+  return `parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:document.body.scrollHeight}},'*');`;
 }
 
 function widgetScript(
@@ -44,10 +44,10 @@ ${applyBody}
   ${notifySize()}
 }
 window.addEventListener('message', function(e) {
-  var msg;
-  try { msg = JSON.parse(e.data); } catch(err) { return; }
+  var msg = e.data;
+  if (!msg || typeof msg !== 'object' || msg.jsonrpc !== '2.0') return;
   if (msg.id === 1 && msg.result) {
-    parent.postMessage(JSON.stringify({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}}),'*');
+    parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');
   }
   if (msg.method === 'ui/notifications/tool-input') {
     applyArguments(msg.params && msg.params.arguments ? msg.params.arguments : {});
@@ -56,7 +56,7 @@ window.addEventListener('message', function(e) {
     ${toolResultBody ?? ""}
   }
 });
-parent.postMessage(JSON.stringify({jsonrpc:'2.0',id:requestId++,method:'ui/initialize',params:{protocolVersion:'2026-01-26',appInfo:{name:'${widgetName}',version:'1.0.0'},appCapabilities:{}}}),'*');
+parent.postMessage({jsonrpc:'2.0',id:requestId++,method:'ui/initialize',params:{protocolVersion:'2026-01-26',appInfo:{name:'${widgetName}',version:'1.0.0'},appCapabilities:{}}},'*');
 </script>`;
 }
 

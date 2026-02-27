@@ -7,7 +7,6 @@ export const DEFAULT_CSP = [
   "img-src * data: blob:",
   "font-src data:",
   "connect-src 'none'",
-  "frame-ancestors 'none'",
   "form-action 'none'",
 ].join("; ");
 
@@ -114,7 +113,6 @@ function buildCSPPolicy(options: CSPInjectorOptions): string {
     hasFrameDomains
       ? `frame-src ${frameDomains.join(" ")}`
       : "frame-src 'none'",
-    "frame-ancestors 'none'",
     "form-action 'none'",
     hasBaseUriDomains
       ? `base-uri ${baseUriDomains.join(" ")}`

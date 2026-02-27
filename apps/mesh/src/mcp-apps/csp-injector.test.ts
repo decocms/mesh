@@ -14,8 +14,8 @@ describe("DEFAULT_CSP", () => {
   it("allows inline styles", () => {
     expect(DEFAULT_CSP).toContain("style-src 'unsafe-inline'");
   });
-  it("prevents framing", () => {
-    expect(DEFAULT_CSP).toContain("frame-ancestors 'none'");
+  it("does not include frame-ancestors (invalid in meta tags, enforced by srcdoc sandbox)", () => {
+    expect(DEFAULT_CSP).not.toContain("frame-ancestors");
   });
   it("does not include self in font-src", () => {
     expect(DEFAULT_CSP).not.toContain("font-src 'self'");
@@ -193,7 +193,7 @@ describe("injectCSP with resourceCsp", () => {
     expect(result).toContain("connect-src 'none'");
   });
 
-  it("always keeps frame-ancestors none", () => {
+  it("never includes frame-ancestors (invalid in meta tags)", () => {
     const result = injectCSP(html, {
       resourceCsp: {
         resourceDomains: ["https://cdn.example.com"],
@@ -201,7 +201,7 @@ describe("injectCSP with resourceCsp", () => {
         frameDomains: ["https://embed.example.com"],
       },
     });
-    expect(result).toContain("frame-ancestors 'none'");
+    expect(result).not.toContain("frame-ancestors");
   });
 
   it("always keeps form-action none", () => {
