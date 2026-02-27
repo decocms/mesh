@@ -151,7 +151,7 @@ export interface MeshClientOptions {
   mcpId: string;
   /** Falls back to process.env.MESH_API_KEY */
   apiKey?: string;
-  /** Falls back to https://mesh-admin.decocms.com */
+  /** Falls back to https://studio.decocms.com */
   baseUrl?: string;
 }
 
@@ -292,7 +292,7 @@ describe("createMeshClient", () => {
     );
   });
 
-  test("defaults baseUrl to https://mesh-admin.decocms.com", async () => {
+  test("defaults baseUrl to https://studio.decocms.com", async () => {
     type Tools = { TOOL: { input: Record<string, never>; output: unknown } };
     const client = createMeshClient<Tools>({ mcpId: "vmc_abc", apiKey: "sk" });
 
@@ -300,7 +300,7 @@ describe("createMeshClient", () => {
 
     const transportArg = MockTransport.mock.calls[0][0] as URL;
     expect(transportArg.toString()).toBe(
-      "https://mesh-admin.decocms.com/mcp/virtual-mcp/vmc_abc"
+      "https://studio.decocms.com/mcp/virtual-mcp/vmc_abc"
     );
   });
 });
@@ -321,7 +321,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { MeshClientInstance, MeshClientOptions, ToolMap } from "./index.js";
 
-const DEFAULT_BASE_URL = "https://mesh-admin.decocms.com";
+const DEFAULT_BASE_URL = "https://studio.decocms.com";
 
 export function createMeshClient<T extends ToolMap>(
   opts: MeshClientOptions,
@@ -620,7 +620,7 @@ import { writeFile } from "node:fs/promises";
 import process from "node:process";
 import { generateClientCode } from "./codegen.js";
 
-const DEFAULT_BASE_URL = "https://mesh-admin.decocms.com";
+const DEFAULT_BASE_URL = "https://studio.decocms.com";
 
 function parseArgs(argv: string[]): {
   mcpId: string;

@@ -79,7 +79,7 @@ const result = await client.SEARCH_TOOL({ query: "hello", limit: 10 });
 |------|----------|---------|-------------|
 | `--mcp` | yes | — | Virtual MCP ID |
 | `--key` | no | `MESH_API_KEY` env var | Mesh API key |
-| `--url` | no | `https://mesh-admin.decocms.com` | Mesh base URL |
+| `--url` | no | `https://studio.decocms.com` | Mesh base URL |
 | `--output` | no | `client.ts` | Output file path |
 
 ## Codegen Logic (`codegen.ts`)
@@ -105,7 +105,7 @@ export type MeshClientInstance<T extends ToolMap> = {
 export interface MeshClientOptions {
   mcpId: string;
   apiKey?: string;   // falls back to process.env.MESH_API_KEY
-  baseUrl?: string;  // falls back to https://mesh-admin.decocms.com
+  baseUrl?: string;  // falls back to https://studio.decocms.com
 }
 
 export function createMeshClient<T extends ToolMap>(
