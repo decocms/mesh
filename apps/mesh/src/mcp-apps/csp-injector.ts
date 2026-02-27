@@ -1,9 +1,11 @@
+import type { McpUiResourceCsp } from "./types.ts";
+
 export const DEFAULT_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline'",
   "img-src * data: blob:",
-  "font-src 'self' data:",
+  "font-src data:",
   "connect-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'none'",
@@ -11,8 +13,7 @@ export const DEFAULT_CSP = [
 
 export interface CSPInjectorOptions {
   csp?: string;
-  allowExternalConnections?: boolean;
-  allowedHosts?: string[];
+  resourceCsp?: McpUiResourceCsp;
 }
 
 export function injectCSP(
@@ -61,22 +62,64 @@ export function injectCSP(
   return "<head>\n" + metaTag + "\n</head>\n" + html;
 }
 
+const DOMAIN_RE = /^https?:\/\/[a-zA-Z0-9._-]+(:\d+)?$/;
+
+function validateDomains(domains: string[] | undefined): string[] {
+  if (!domains || domains.length === 0) return [];
+  return domains.filter((d) => DOMAIN_RE.test(d));
+}
+
 function buildCSPPolicy(options: CSPInjectorOptions): string {
   if (options.csp) return options.csp;
 
-  if (!options.allowExternalConnections) return DEFAULT_CSP;
+  const rc = options.resourceCsp;
+  if (!rc) return DEFAULT_CSP;
 
-  const hosts = options.allowedHosts;
-  const connectSrc = !hosts || hosts.length === 0 ? "*" : hosts.join(" ");
+  const resourceDomains = validateDomains(rc.resourceDomains);
+  const connectDomains = validateDomains(rc.connectDomains);
+  const frameDomains = validateDomains(rc.frameDomains);
+  const baseUriDomains = validateDomains(rc.baseUriDomains);
 
-  return [
+  const hasResourceDomains = resourceDomains.length > 0;
+  const hasConnectDomains = connectDomains.length > 0;
+  const hasFrameDomains = frameDomains.length > 0;
+  const hasBaseUriDomains = baseUriDomains.length > 0;
+
+  if (
+    !hasResourceDomains &&
+    !hasConnectDomains &&
+    !hasFrameDomains &&
+    !hasBaseUriDomains
+  ) {
+    return DEFAULT_CSP;
+  }
+
+  const rd = resourceDomains.join(" ");
+
+  const directives = [
     "default-src 'none'",
-    "script-src 'unsafe-inline'",
-    "style-src 'unsafe-inline'",
-    "img-src * data: blob:",
-    "font-src 'self' data:",
-    `connect-src ${connectSrc}`,
+    hasResourceDomains
+      ? `script-src 'unsafe-inline' ${rd}`
+      : "script-src 'unsafe-inline'",
+    hasResourceDomains
+      ? `style-src 'unsafe-inline' ${rd}`
+      : "style-src 'unsafe-inline'",
+    hasResourceDomains
+      ? `img-src * data: blob: ${rd}`
+      : "img-src * data: blob:",
+    hasResourceDomains ? `font-src data: ${rd}` : "font-src data:",
+    hasConnectDomains
+      ? `connect-src ${connectDomains.join(" ")}`
+      : "connect-src 'none'",
+    hasFrameDomains
+      ? `frame-src ${frameDomains.join(" ")}`
+      : "frame-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'none'",
-  ].join("; ");
+    hasBaseUriDomains
+      ? `base-uri ${baseUriDomains.join(" ")}`
+      : "base-uri 'none'",
+  ];
+
+  return directives.join("; ");
 }

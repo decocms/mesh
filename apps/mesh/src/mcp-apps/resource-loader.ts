@@ -1,9 +1,11 @@
+import type { McpUiResourceCsp } from "./types.ts";
 import { RESOURCE_MIME_TYPE } from "./types.ts";
 
 export interface UIResourceContent {
   html: string;
   mimeType: string;
   uri: string;
+  csp?: McpUiResourceCsp;
 }
 
 export class UIResourceLoadError extends Error {
@@ -29,14 +31,27 @@ interface CacheEntry {
   timestamp: number;
 }
 
-type ReadResourceFn = (uri: string) => Promise<{
+export type ReadResourceFn = (uri: string) => Promise<{
   contents: Array<{
     uri: string;
     mimeType?: string;
     text?: string;
     blob?: string;
+    _meta?: {
+      ui?: {
+        csp?: McpUiResourceCsp;
+      };
+    };
   }>;
 }>;
+
+function extractCsp(
+  meta: { ui?: { csp?: McpUiResourceCsp } } | undefined,
+): McpUiResourceCsp | undefined {
+  const csp = meta?.ui?.csp;
+  if (!csp || typeof csp !== "object") return undefined;
+  return csp;
+}
 
 export class UIResourceLoader {
   private cache = new Map<string, CacheEntry>();
@@ -75,6 +90,7 @@ export class UIResourceLoader {
         html: content.text,
         mimeType: content.mimeType ?? RESOURCE_MIME_TYPE,
         uri: content.uri ?? uri,
+        csp: extractCsp(content._meta),
       };
 
       if (this.cacheTTL > 0 && this.maxCacheSize > 0) {

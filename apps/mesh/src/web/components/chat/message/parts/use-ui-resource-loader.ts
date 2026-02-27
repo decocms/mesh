@@ -1,15 +1,9 @@
 import { injectCSP } from "@/mcp-apps/csp-injector.ts";
-import { UIResourceLoader } from "@/mcp-apps/resource-loader.ts";
+import {
+  UIResourceLoader,
+  type ReadResourceFn,
+} from "@/mcp-apps/resource-loader.ts";
 import { useRef, useState } from "react";
-
-type ReadResourceFn = (uri: string) => Promise<{
-  contents: Array<{
-    uri: string;
-    mimeType?: string;
-    text?: string;
-    blob?: string;
-  }>;
-}>;
 
 const sharedLoader = new UIResourceLoader();
 
@@ -26,7 +20,7 @@ export function useUIResourceLoader(uri: string, readResource: ReadResourceFn) {
       (async () => {
         try {
           const content = await sharedLoader.load(uri, readResource);
-          setHtml(injectCSP(content.html));
+          setHtml(injectCSP(content.html, { resourceCsp: content.csp }));
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to load app");
         } finally {
