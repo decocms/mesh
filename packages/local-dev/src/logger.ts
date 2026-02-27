@@ -101,6 +101,27 @@ export function logOp(
 }
 
 /**
+ * Log server startup
+ */
+export function logStart(rootPath: string): void {
+  console.error(
+    `\n${prefix} ${colors.cyan}${colors.bold}mcp-local-dev${colors.reset} ${colors.dim}started${colors.reset}`,
+  );
+  console.error(
+    `${prefix} ${colors.dim}root:${colors.reset} ${colors.white}${rootPath}${colors.reset}\n`,
+  );
+}
+
+/**
+ * Log an error (still uses red, but with the prefix)
+ */
+export function logError(op: string, path: string, error: Error): void {
+  console.error(
+    `${prefix} ${timestamp()} ${colors.yellow}${colors.bold}ERR${colors.reset} ${formatOp(op)} ${formatPath(path)} ${colors.dim}${error.message}${colors.reset}`,
+  );
+}
+
+/**
  * Log a tool call
  */
 export function logTool(

@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { extname } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, extname } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { LocalFileStorage } from "./storage.ts";
@@ -61,7 +62,10 @@ export function createLocalDevServer(
 
     // CORS
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    );
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, mcp-session-id",
@@ -95,6 +99,21 @@ export function createLocalDevServer(
       try {
         const absolutePath = storage.resolvePath(key);
         // resolvePath() already throws if path escapes root
+
+        // PUT: upload file content
+        if (req.method === "PUT") {
+          await mkdir(dirname(absolutePath), { recursive: true });
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) {
+            chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+          }
+          await writeFile(absolutePath, Buffer.concat(chunks));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, key }));
+          return;
+        }
+
+        // GET: serve file content
         const mimeTypes: Record<string, string> = {
           ".html": "text/html",
           ".css": "text/css",

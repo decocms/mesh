@@ -136,21 +136,15 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Reconcile local-dev port drift before connecting (only for local-dev connections)
-  const meta = connection.metadata as { localDevRoot?: string } | null;
-  if (meta?.localDevRoot) {
-    const reconciled = await reconcileLocalDevConnection(
-      connection,
-      ctx.storage,
+  // Reconcile local-dev port drift before connecting
+  const reconciled = await reconcileLocalDevConnection(connection, ctx.storage);
+  if (reconciled.connection_url === null) {
+    throw new Error(
+      "Local dev server is not running. Start it with `deco link` and try again.",
     );
-    if (reconciled.connection_url === null) {
-      throw new Error(
-        "Local dev server is not running. Start it with `deco link` and try again.",
-      );
-    }
-    if (reconciled.connection_url !== connection.connection_url) {
-      connection.connection_url = reconciled.connection_url;
-    }
+  }
+  if (reconciled.connection_url !== connection.connection_url) {
+    connection.connection_url = reconciled.connection_url;
   }
 
   // Create base client with auth + monitoring transports

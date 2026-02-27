@@ -1172,13 +1172,13 @@ export function registerTools(
     }),
   );
 
-  // PUT_PRESIGNED_URL - Return upload instructions for local filesystem
+  // PUT_PRESIGNED_URL - Return URL for uploading a file via HTTP PUT
   server.registerTool(
     "PUT_PRESIGNED_URL",
     {
       title: "Put Presigned URL",
       description:
-        "Get a URL for uploading a file. For local filesystem, returns instructions to use write_file tool.",
+        "Get a URL for uploading a file. Returns an HTTP URL that accepts PUT requests.",
       inputSchema: {
         key: z.string().describe("Object key/path for the upload"),
         expiresIn: z
@@ -1190,13 +1190,10 @@ export function registerTools(
       annotations: { readOnlyHint: true },
     },
     withLogging("PUT_PRESIGNED_URL", async (args): Promise<CallToolResult> => {
-      // For local filesystem we serve files via HTTP, but PUT is not supported
-      // Instruct callers to use write_file tool instead
       const encodedKey = encodeURIComponent(args.key);
       const result = {
         url: `http://localhost:${port}/files/${encodedKey}`,
         expiresIn: 3600,
-        _note: "Use write_file tool to upload content to this path",
       };
 
       return {

@@ -65,6 +65,8 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
   defaultSortKey?: keyof T;
   /** Page size for pagination (default: 100) */
   pageSize?: number;
+  /** Additional arguments to pass to the collection list tool */
+  extraArgs?: Record<string, unknown>;
 }
 
 /**
@@ -254,6 +256,7 @@ export function useCollectionList<T extends CollectionEntity>(
     searchFields = ["title", "description"] satisfies (keyof T)[],
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
+    extraArgs,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -271,6 +274,7 @@ export function useCollectionList<T extends CollectionEntity>(
     ...(orderBy && { orderBy }),
     limit: pageSize,
     offset: 0,
+    ...extraArgs,
   };
 
   const argsKey = JSON.stringify(toolArguments);

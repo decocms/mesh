@@ -64,7 +64,9 @@ export function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  const allConnections = useConnections();
+  const allConnections = useConnections({
+    extraArgs: { include_virtual: true },
+  });
 
   // Filter connections based on binding type
   // Use the hook for string bindings

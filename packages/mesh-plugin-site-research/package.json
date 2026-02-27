@@ -1,0 +1,20 @@
+{
+  "name": "mesh-plugin-site-research",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.tsx",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@decocms/bindings": "workspace:*",
+    "@decocms/mesh-sdk": "workspace:*",
+    "@deco/ui": "workspace:*",
+    "@tanstack/react-query": "5.90.11",
+    "@untitledui/icons": "^0.0.19",
+    "mesh-plugin-reports": "workspace:*",
+    "react": "^19.2.0"
+  }
+}
