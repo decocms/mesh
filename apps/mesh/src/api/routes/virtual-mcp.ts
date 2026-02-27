@@ -23,7 +23,6 @@ import {
   parseStrategyFromMode,
 } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../env";
-import { ct } from "node_modules/better-auth/dist/index-COnelCGa.d.mts";
 
 // Define Hono variables type
 const app = new Hono<Env>();
