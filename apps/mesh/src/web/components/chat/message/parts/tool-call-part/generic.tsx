@@ -1,8 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import type { ToolUIPart, DynamicToolUIPart } from "ai";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
-import { Atom02 } from "@untitledui/icons";
+import { useProjectContext } from "@decocms/mesh-sdk";
+import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { Atom02, LayersTwo01 } from "@untitledui/icons";
+import { useChatStable } from "@/web/components/chat/context.tsx";
 import { ToolCallShell } from "./common.tsx";
 import {
   getFriendlyToolName,
@@ -11,6 +16,7 @@ import {
 } from "./utils.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ApprovalActions } from "./approval-actions.tsx";
+import { MCPAppLoader } from "../mcp-app-loader.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -82,6 +88,35 @@ export function GenericToolCallPart({
         : part.type.replace("tool-", "") || "Tool";
   const friendlyName = getFriendlyToolName(toolName);
 
+  const { selectedVirtualMcp } = useChatStable();
+  const { org } = useProjectContext();
+
+  const toolOutput = part.output;
+  const uiResourceUri =
+    toolOutput != null
+      ? getToolUiResourceUri(toolOutput as Partial<Tool>)
+      : undefined;
+
+  const toolMeta =
+    toolOutput != null &&
+    typeof toolOutput === "object" &&
+    "_meta" in (toolOutput as Record<string, unknown>)
+      ? ((toolOutput as Record<string, unknown>)._meta as
+          | Record<string, unknown>
+          | undefined)
+      : undefined;
+
+  const connectionId =
+    toolMeta &&
+    typeof toolMeta === "object" &&
+    toolMeta !== null &&
+    "connectionId" in toolMeta
+      ? String(toolMeta.connectionId)
+      : (selectedVirtualMcp?.id ?? null);
+
+  const hasMCPApp = !!uiResourceUri && part.state === "output-available";
+  const canRenderMCPApp = hasMCPApp && !!connectionId && !!org?.id;
+
   // Compute state-dependent props
   const title = getTitle(part.state, friendlyName);
   const summary = getSummary(part.state);
@@ -99,7 +134,7 @@ export function GenericToolCallPart({
     const errorText = getToolPartErrorText(part);
     if (detail) detail += "\n\n";
     detail += "# Error\n" + errorText;
-  } else if (part.output !== undefined) {
+  } else if (part.output !== undefined && !hasMCPApp) {
     if (detail) detail += "\n\n";
     detail += "# Output\n" + safeStringifyFormatted(part.output);
   }
@@ -113,7 +148,13 @@ export function GenericToolCallPart({
   return (
     <div className="my-2">
       <ToolCallShell
-        icon={<Atom02 className="size-4 text-muted-foreground" />}
+        icon={
+          hasMCPApp ? (
+            <LayersTwo01 className="size-4 text-muted-foreground" />
+          ) : (
+            <Atom02 className="size-4 text-muted-foreground" />
+          )
+        }
         title={title}
         annotations={annotations}
         latency={latency}
@@ -122,6 +163,33 @@ export function GenericToolCallPart({
         detail={detail || null}
         actions={actions}
       />
+      {canRenderMCPApp && (
+        <div className="mt-2">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-32 border border-border rounded-lg">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Loading app...</span>
+                </div>
+              </div>
+            }
+          >
+            <MCPAppLoader
+              uiResourceUri={uiResourceUri!}
+              connectionId={connectionId!}
+              orgId={org!.id}
+              toolName={toolName}
+              friendlyName={friendlyName}
+              toolInput={part.input}
+              toolResult={part.output}
+              minHeight={150}
+              maxHeight={400}
+              className="border border-border rounded-lg"
+            />
+          </Suspense>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,14 +1,23 @@
+import { isUIResourceUri, MCP_APP_DISPLAY_MODES } from "@/mcp-apps/types.ts";
+import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
+import { getUIWidgetResource } from "@/tools/ui-widgets/resources.ts";
+import { useUIResourceLoader } from "@/web/components/chat/message/parts/use-ui-resource-loader.ts";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
-import { useConnection } from "@decocms/mesh-sdk";
+import { ViewActions } from "@/web/components/details/layout";
+import { useConnection, useMCPClient } from "@decocms/mesh-sdk";
 import { Card } from "@deco/ui/components/card.tsx";
 import { useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
-import { ViewActions } from "@/web/components/details/layout";
+import { LayersTwo01, XClose } from "@untitledui/icons";
+import { Suspense, useState } from "react";
+import type {
+  CallToolResult,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 
 /** Resource type for display - compatible with MCP Resource but with optional name */
 interface McpResource {
@@ -260,6 +269,135 @@ function ResourcesList({
   );
 }
 
+function UIAppsSection({
+  uiResources,
+  onAppClick,
+}: {
+  uiResources: McpResource[];
+  onAppClick: (resource: McpResource) => void;
+}) {
+  if (uiResources.length === 0) return null;
+
+  return (
+    <div className="border-b border-border pb-4 mb-4">
+      <div className="flex items-center gap-2 mb-3 px-5 pt-4">
+        <LayersTwo01 className="size-4 text-muted-foreground" />
+        <h3 className="text-sm font-medium text-foreground">UI Apps</h3>
+        <span className="text-xs text-muted-foreground">
+          ({uiResources.length})
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 px-5">
+        {uiResources.map((resource) => (
+          <Card
+            key={resource.uri}
+            className="cursor-pointer transition-colors hover:bg-accent/50"
+            onClick={() => onAppClick(resource)}
+          >
+            <div className="flex flex-col gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <LayersTwo01 className="size-4 text-primary" />
+                <span className="text-sm font-medium text-foreground truncate">
+                  {resource.name || resource.uri.replace("ui://mesh/", "")}
+                </span>
+              </div>
+              {resource.description && (
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {resource.description}
+                </p>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UIAppPreview({
+  resource,
+  connectionId,
+  orgId,
+  onClose,
+}: {
+  resource: McpResource;
+  connectionId: string;
+  orgId: string;
+  onClose: () => void;
+}) {
+  const mcpClient = useMCPClient({ connectionId, orgId });
+
+  const handleReadResource = async (
+    uri: string,
+  ): Promise<ReadResourceResult> => {
+    const result = await mcpClient.readResource({ uri });
+    return result as ReadResourceResult;
+  };
+
+  const handleCallTool = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<CallToolResult> => {
+    const result = await mcpClient.callTool({ name, arguments: args });
+    return result as CallToolResult;
+  };
+
+  const { html, loading, error } = useUIResourceLoader(
+    resource.uri,
+    handleReadResource,
+  );
+
+  const exampleInput = getUIWidgetResource(resource.uri)?.exampleInput;
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <LayersTwo01 className="size-4 text-primary" />
+          <h3 className="text-sm font-medium text-foreground">
+            {resource.name || resource.uri.replace("ui://mesh/", "")}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <XClose className="size-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto p-5">
+        {loading && (
+          <div className="flex items-center justify-center h-48">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm">Loading app...</span>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-center h-48 text-destructive">
+            <span className="text-sm">Failed to load app: {error}</span>
+          </div>
+        )}
+        {html && (
+          <MCPAppRenderer
+            html={html}
+            uri={resource.uri}
+            displayMode="fullscreen"
+            minHeight={MCP_APP_DISPLAY_MODES.view.minHeight}
+            maxHeight={MCP_APP_DISPLAY_MODES.view.maxHeight}
+            callTool={handleCallTool}
+            readResource={handleReadResource}
+            toolInput={exampleInput}
+            className="border border-border rounded-lg"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface ResourcesTabProps {
   resources: McpResource[] | undefined;
   connectionId: string;
@@ -272,14 +410,51 @@ export function ResourcesTab({
   org,
 }: ResourcesTabProps) {
   const connection = useConnection(connectionId);
+  const [previewApp, setPreviewApp] = useState<McpResource | null>(null);
+
+  const uiResources = resources?.filter((r) => isUIResourceUri(r.uri)) ?? [];
+  const regularResources =
+    resources?.filter((r) => !isUIResourceUri(r.uri)) ?? [];
+
+  if (previewApp) {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-48">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm">Loading...</span>
+            </div>
+          </div>
+        }
+      >
+        <UIAppPreview
+          resource={previewApp}
+          connectionId={connectionId}
+          orgId={org}
+          onClose={() => setPreviewApp(null)}
+        />
+      </Suspense>
+    );
+  }
 
   return (
-    <ResourcesList
-      resources={resources}
-      connectionId={connectionId}
-      org={org}
-      connectionTitle={connection?.title}
-      connectionIcon={connection?.icon}
-    />
+    <>
+      {uiResources.length > 0 && (
+        <UIAppsSection uiResources={uiResources} onAppClick={setPreviewApp} />
+      )}
+      <ResourcesList
+        resources={regularResources}
+        connectionId={connectionId}
+        org={org}
+        connectionTitle={connection?.title}
+        connectionIcon={connection?.icon}
+        emptyMessage={
+          uiResources.length > 0
+            ? "No other resources available."
+            : "This connection doesn't have any resources yet."
+        }
+      />
+    </>
   );
 }
