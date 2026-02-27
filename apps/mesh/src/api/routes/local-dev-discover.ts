@@ -188,12 +188,8 @@ app.get("/discover", async (c) => {
     if (meta?.localDevRoot) {
       linkedRoots.add(meta.localDevRoot);
 
-      // Reconcile port drift for this connection (best-effort, don't block discovery)
-      try {
-        await reconcileLocalDevConnection(conn, meshContext.storage);
-      } catch {
-        // Non-critical — discovery continues for other connections
-      }
+      // Reconcile port drift for this connection
+      await reconcileLocalDevConnection(conn, meshContext.storage);
 
       continue;
     }
@@ -276,7 +272,7 @@ app.post("/add-project", async (c) => {
     slug,
     name,
     description: `Local development project (${root})`,
-    enabledPlugins: ["object-storage", "preview"],
+    enabledPlugins: ["object-storage", "preview", "declare"],
     ui: {
       banner: null,
       bannerColor: "#10B981",
@@ -290,6 +286,9 @@ app.post("/add-project", async (c) => {
     connectionId: connection.id,
   });
   await ctx.storage.projectPluginConfigs.upsert(project.id, "preview", {
+    connectionId: connection.id,
+  });
+  await ctx.storage.projectPluginConfigs.upsert(project.id, "declare", {
     connectionId: connection.id,
   });
 

@@ -5,9 +5,6 @@
  * instead of spawning a separate binary.
  */
 
-// Static type import so knip detects the dependency (runtime uses dynamic import)
-import type {} from "@decocms/local-dev";
-
 const DEFAULT_PORT = 4201;
 
 /** Minimal interface matching LocalDevServer from @decocms/local-dev */
@@ -65,7 +62,7 @@ export async function stopLocalDev(
  * Probe whether a local-dev daemon is alive on the given port.
  * Returns the root path of the running instance, or null if nothing is running.
  */
-async function probeLocalDev(
+export async function probeLocalDev(
   port: number = DEFAULT_PORT,
 ): Promise<string | null> {
   try {
