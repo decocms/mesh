@@ -179,7 +179,7 @@ function AddCreditDialog({
           if (payload?.checkout_url) {
             setCheckoutUrl(payload.checkout_url);
           } else if (payload?.billing_mode === "postpaid") {
-            onOpenChange(false);
+            handleClose();
           }
         },
         onError: (err) => {
@@ -313,7 +313,9 @@ function CreditCard({
   onAddCredit: () => void;
 }) {
   const usedPct =
-    total > 0 ? Math.min(100, ((total - available) / total) * 100) : 0;
+    total > 0
+      ? Math.max(0, Math.min(100, ((total - available) / total) * 100))
+      : 0;
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-card via-card to-muted/30 p-6">
