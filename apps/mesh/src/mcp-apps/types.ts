@@ -9,12 +9,9 @@ export type {
   McpUiTheme,
 } from "@modelcontextprotocol/ext-apps";
 
-export {
-  RESOURCE_MIME_TYPE,
-  RESOURCE_URI_META_KEY,
-} from "@modelcontextprotocol/ext-apps";
+export { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps";
 
-import { RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps";
+import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
 
 export const MCP_APP_DISPLAY_MODES = {
   collapsed: { minHeight: 150, maxHeight: 300 },
@@ -31,17 +28,15 @@ export interface ToolMetaWithUI {
   [key: string]: unknown;
 }
 
-export function hasUIResource(meta: unknown): meta is ToolMetaWithUI {
-  if (meta == null || typeof meta !== "object") return false;
-  const obj = meta as Record<string, unknown>;
-  return typeof obj[RESOURCE_URI_META_KEY] === "string";
-}
-
 export function getUIResourceUri(meta: unknown): string | undefined {
-  if (!hasUIResource(meta)) return undefined;
-  return (meta as Record<string, unknown>)[RESOURCE_URI_META_KEY] as string;
+  if (meta == null || typeof meta !== "object") return undefined;
+  try {
+    return getToolUiResourceUri({ _meta: meta as Record<string, unknown> });
+  } catch {
+    return undefined;
+  }
 }
 
 export function isUIResourceUri(uri: string): boolean {
-  return uri.startsWith(UI_RESOURCE_URI_SCHEME) || uri.startsWith("/_widgets/");
+  return uri.startsWith(UI_RESOURCE_URI_SCHEME);
 }
