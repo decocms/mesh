@@ -13,8 +13,6 @@ import { auth } from "./index";
 const LOCAL_ADMIN_EMAIL = "admin@localhost.mesh";
 const LOCAL_ADMIN_PASSWORD = "admin@mesh";
 const LOCAL_ADMIN_NAME = "Local Admin";
-const LOCAL_ORG_NAME = "Local";
-const LOCAL_ORG_SLUG = "local";
 
 /**
  * Check if the database already has users.
@@ -31,7 +29,10 @@ async function isDatabaseFresh(): Promise<boolean> {
 
 /**
  * Seed the local mode environment.
- * Creates an admin user and "Local" organization if the database is fresh.
+ * Creates an admin user and a default organization if the database is fresh.
+ *
+ * The signup triggers Better Auth's databaseHooks.user.create.after hook
+ * which automatically creates a default organization with seeded connections.
  *
  * Returns true if seeding was performed, false if skipped (already set up).
  */
@@ -41,7 +42,9 @@ export async function seedLocalMode(): Promise<boolean> {
     return false;
   }
 
-  // Create admin user via Better Auth
+  // Create admin user via Better Auth signup.
+  // The databaseHooks.user.create.after hook in auth/index.ts will
+  // automatically create a default organization for this user.
   const signUpResult = await auth.api.signUpEmail({
     body: {
       email: LOCAL_ADMIN_EMAIL,
@@ -56,23 +59,13 @@ export async function seedLocalMode(): Promise<boolean> {
 
   const userId = signUpResult.user.id;
 
-  // Set user as admin
-  await auth.api.setRole({
-    body: {
-      userId,
-      role: "admin",
-    },
-    headers: new Headers(),
-  });
-
-  // Create the "Local" organization
-  await auth.api.createOrganization({
-    body: {
-      name: LOCAL_ORG_NAME,
-      slug: LOCAL_ORG_SLUG,
-      userId,
-    },
-  });
+  // Set user as admin directly in the database (avoids needing auth headers)
+  const database = getDb();
+  await database.db
+    .updateTable("user")
+    .set({ role: "admin" })
+    .where("id", "=", userId)
+    .execute();
 
   return true;
 }

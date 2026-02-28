@@ -1,13 +1,21 @@
 import { OrganizationsHome } from "@/web/components/organizations-home";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
+import { authClient } from "@/web/lib/auth-client";
 import { Navigate } from "@tanstack/react-router";
+import { SplashScreen } from "@/web/components/splash-screen";
 
 export default function App() {
   const authConfig = useAuthConfig();
+  const { data: organizations, isPending } = authClient.useListOrganizations();
 
-  // In local mode, skip the org selection and go directly to the Local org
+  // In local mode, skip org selection — go straight to the first (only) org
   if (authConfig.localMode) {
-    return <Navigate to="/local/org-admin" replace />;
+    if (isPending) return <SplashScreen />;
+
+    const firstOrg = organizations?.[0];
+    if (firstOrg?.slug) {
+      return <Navigate to={`/${firstOrg.slug}/org-admin`} replace />;
+    }
   }
 
   return (
