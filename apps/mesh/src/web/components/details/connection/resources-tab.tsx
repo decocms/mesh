@@ -350,7 +350,7 @@ function UIAppPreview({
     return result as CallToolResult;
   };
 
-  const { html, loading, error } = useUIResourceLoader(
+  const { html, url, loading, error } = useUIResourceLoader(
     resource.uri,
     handleReadResource,
   );
@@ -388,9 +388,10 @@ function UIAppPreview({
             <span className="text-sm">Failed to load app: {error}</span>
           </div>
         )}
-        {html && (
+        {(html || url) && (
           <MCPAppRenderer
-            html={html}
+            html={html ?? undefined}
+            url={url ?? undefined}
             uri={resource.uri}
             displayMode="fullscreen"
             minHeight={MCP_APP_DISPLAY_MODES.view.minHeight}
