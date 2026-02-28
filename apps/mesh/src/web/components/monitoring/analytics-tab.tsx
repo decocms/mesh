@@ -6,7 +6,7 @@
 
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Suspense, useState } from "react";
-import { TopTools, type TopChartMetric } from "./analytics-top-tools";
+import { TopTools } from "./analytics-top-tools";
 import { TopServers, type MetricsMode } from "./analytics-top-servers";
 import { TopAgents } from "./analytics-top-agents";
 
@@ -29,7 +29,9 @@ export function AnalyticsTab() {
               metricsMode={
                 metricsMode === "requests"
                   ? "calls"
-                  : (metricsMode as TopChartMetric)
+                  : metricsMode === "latency"
+                    ? "latency-avg"
+                    : "errors"
               }
             />
           </Suspense>

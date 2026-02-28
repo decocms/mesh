@@ -172,28 +172,49 @@ function getMetricValue(m: ServerMetric, mode: LeaderboardMode): number {
   return m.avgLatencyMs;
 }
 
+function formatDuration(ms: number): string {
+  if (ms >= 10000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
 function formatMetric(m: ServerMetric, mode: LeaderboardMode): string {
   if (mode === "requests") return m.requests.toLocaleString();
   if (mode === "errors") return `${m.errorRate.toFixed(1)}%`;
-  return `${Math.round(m.avgLatencyMs)}ms`;
+  return formatDuration(m.avgLatencyMs);
 }
 
-const STAT_KPI_CONFIG: Array<{
-  label: string;
-  dataKey: "calls" | "errors" | "avg" | "p50" | "p95";
+type StatKPIConfig = {
+  id: string;
+  dataKey:
+    | "calls"
+    | "errors"
+    | "avg"
+    | "p50"
+    | "p95"
+    | ((
+        selected: TopChartMetric,
+      ) => "calls" | "errors" | "avg" | "p50" | "p95");
   colorNum: number;
   barColor: string;
   leaderboardMode: LeaderboardMode;
-  chartMetric: TopChartMetric;
-  renderTitle: (s: MonitoringStatsData) => ReactNode;
-}> = [
+  /** Which TopChartMetric values this card "owns" */
+  chartMetrics: TopChartMetric[];
+  renderTitle: (
+    s: MonitoringStatsData,
+    selectedMetric: TopChartMetric,
+  ) => ReactNode;
+  /** Determine next metric when clicked */
+  getNextMetric: (current: TopChartMetric) => TopChartMetric;
+};
+
+const STAT_KPI_CONFIG: StatKPIConfig[] = [
   {
-    label: "Tool Calls",
+    id: "calls",
     dataKey: "calls",
     colorNum: 1,
     barColor: "bg-chart-1",
     leaderboardMode: "requests",
-    chartMetric: "calls",
+    chartMetrics: ["calls"],
     renderTitle: (s) => (
       <div className="flex flex-col gap-0.5 md:gap-1">
         <p className="text-xs md:text-sm text-muted-foreground">Tool Calls</p>
@@ -202,29 +223,44 @@ const STAT_KPI_CONFIG: Array<{
         </p>
       </div>
     ),
+    getNextMetric: () => "calls",
   },
   {
-    label: "Latency",
-    dataKey: "p95",
+    id: "latency",
+    dataKey: (selected) => (selected === "latency-avg" ? "avg" : "p95"),
     colorNum: 4,
     barColor: "bg-chart-4",
     leaderboardMode: "latency",
-    chartMetric: "latency",
-    renderTitle: (s) => (
+    chartMetrics: ["latency-avg", "latency-p95"],
+    renderTitle: (s, selectedMetric) => (
       <div className="flex flex-col gap-0.5 md:gap-1">
         <p className="text-xs md:text-sm text-muted-foreground">Latency</p>
         <div className="flex items-baseline gap-3">
-          <div>
+          <div
+            className={cn(
+              "pb-0.5",
+              selectedMetric === "latency-avg"
+                ? "border-b-2 border-chart-4"
+                : "border-b-2 border-transparent",
+            )}
+          >
             <span className="text-sm md:text-lg font-medium">
-              {Math.round(s.avgDurationMs)}ms
+              {formatDuration(s.avgDurationMs)}
             </span>
             <span className="text-[10px] md:text-xs text-muted-foreground ml-1">
               avg
             </span>
           </div>
-          <div>
+          <div
+            className={cn(
+              "pb-0.5",
+              selectedMetric === "latency-p95"
+                ? "border-b-2 border-chart-4"
+                : "border-b-2 border-transparent",
+            )}
+          >
             <span className="text-sm md:text-lg font-medium">
-              {Math.round(s.p95DurationMs)}ms
+              {formatDuration(s.p95DurationMs)}
             </span>
             <span className="text-[10px] md:text-xs text-muted-foreground ml-1">
               p95
@@ -233,14 +269,16 @@ const STAT_KPI_CONFIG: Array<{
         </div>
       </div>
     ),
+    getNextMetric: (current) =>
+      current === "latency-avg" ? "latency-p95" : "latency-avg",
   },
   {
-    label: "Errors",
+    id: "errors",
     dataKey: "errors",
     colorNum: 3,
     barColor: "bg-chart-3",
     leaderboardMode: "errors",
-    chartMetric: "errors",
+    chartMetrics: ["errors"],
     renderTitle: (s) => (
       <div className="flex flex-col gap-0.5 md:gap-1">
         <p className="text-xs md:text-sm text-muted-foreground">Errors</p>
@@ -249,6 +287,7 @@ const STAT_KPI_CONFIG: Array<{
         </p>
       </div>
     ),
+    getNextMetric: () => "errors",
   },
 ];
 
@@ -333,50 +372,64 @@ function MonitoringStatsContent({
 
   return (
     <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0 border-b border-border">
-      {STAT_KPI_CONFIG.map(
-        ({
+      {STAT_KPI_CONFIG.map((config) => {
+        const {
+          id,
           dataKey,
           colorNum,
           barColor,
           leaderboardMode,
-          chartMetric,
+          chartMetrics,
           renderTitle,
-        }) => {
-          const isSelected = selectedMetric === chartMetric;
-          return (
-            <div
-              key={dataKey}
-              className="bg-background relative cursor-pointer"
-              onClick={() => onMetricSelect(chartMetric)}
-            >
-              {isSelected && (
-                <div
-                  className="absolute top-0 left-0 right-0 h-0.5 z-10"
-                  style={{
-                    backgroundColor: `var(--chart-${colorNum})`,
-                  }}
+          getNextMetric,
+        } = config;
+        const isSelected = chartMetrics.includes(selectedMetric);
+        const handleClick = () => {
+          if (isSelected) {
+            // Already selected — cycle sub-metrics
+            onMetricSelect(getNextMetric(selectedMetric));
+          } else {
+            // First click — select the first metric for this card
+            onMetricSelect(chartMetrics[0]!);
+          }
+        };
+        return (
+          <div
+            key={id}
+            className="bg-background relative cursor-pointer"
+            onClick={handleClick}
+          >
+            {isSelected && (
+              <div
+                className="absolute top-0 left-0 right-0 h-0.5 z-10"
+                style={{
+                  backgroundColor: `var(--chart-${colorNum})`,
+                }}
+              />
+            )}
+            <HomeGridCell title={renderTitle(stats, selectedMetric)}>
+              <div className="flex flex-col w-full">
+                <KPIChart
+                  data={stats.data}
+                  dataKey={
+                    typeof dataKey === "function"
+                      ? dataKey(selectedMetric)
+                      : dataKey
+                  }
+                  colorNum={colorNum}
+                  chartHeight="h-[30px] md:h-[40px]"
                 />
-              )}
-              <HomeGridCell title={renderTitle(stats)}>
-                <div className="flex flex-col w-full">
-                  <KPIChart
-                    data={stats.data}
-                    dataKey={dataKey}
-                    colorNum={colorNum}
-                    chartHeight="h-[30px] md:h-[40px]"
-                  />
-                  <ConnectionLeaderboard
-                    logs={logs}
-                    connections={connections}
-                    mode={leaderboardMode}
-                    barColor={barColor}
-                  />
-                </div>
-              </HomeGridCell>
-            </div>
-          );
-        },
-      )}
+                <ConnectionLeaderboard
+                  logs={logs}
+                  connections={connections}
+                  mode={leaderboardMode}
+                  barColor={barColor}
+                />
+              </div>
+            </HomeGridCell>
+          </div>
+        );
+      })}
     </div>
   );
 }
