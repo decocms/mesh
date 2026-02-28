@@ -1197,14 +1197,14 @@ ${widgetScript(
   var grid = yTicks.map(function(v) {
     var gy = padT + chartH - ((v - yMin) / yRange) * chartH;
     return '<line x1="'+LM+'" y1="'+gy.toFixed(1)+'" x2="'+TW+'" y2="'+gy.toFixed(1)+'" stroke="${tokens.gray200}" stroke-width="0.5"/>' +
-      '<text x="'+(LM-4)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-size="7.5" fill="${tokens.gray300}">'+v+'</text>';
+      '<text x="'+(LM-4)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-size="7.5" fill="${tokens.gray500}">'+v+'</text>';
   }).join('');
   var linePath = pts.map(function(p){return p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' L');
   var areaPath = 'M'+LM+','+xAxisY+' L'+linePath+' L'+pts[pts.length-1].x.toFixed(1)+','+xAxisY+' Z';
   var last = data.length - 1;
   var xLabels = data.map(function(d, i) {
     var a = i===0?'start':i===last?'end':'middle';
-    return '<text x="'+(LM+i*step).toFixed(1)+'" y="'+(TH-1)+'" text-anchor="'+a+'" font-size="7.5" fill="${tokens.gray300}">'+escH(d.label||'')+'</text>';
+    return '<text x="'+(LM+i*step).toFixed(1)+'" y="'+(TH-1)+'" text-anchor="'+a+'" font-size="7.5" fill="${tokens.gray500}">'+escH(d.label||'')+'</text>';
   }).join('');
   var circles = pts.map(function(p,i){
     return '<circle class="dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="${tokens.primary}" stroke="white" stroke-width="1.5" opacity="0" data-i="'+i+'"/>';
@@ -1231,7 +1231,7 @@ ${widgetScript(
     vline.setAttribute('x1', pts[closest].x.toFixed(1));
     vline.setAttribute('x2', pts[closest].x.toFixed(1));
     vline.setAttribute('opacity', '1');
-    tip.textContent = (data[closest].label ? data[closest].label + ': ' : '') + vals[closest];
+    tip.textContent = vals[closest];
     tip.style.display = 'block';
     var pr = document.getElementById('wrap').getBoundingClientRect();
     var px = pts[closest].x / TW * rect.width + rect.left - pr.left;
