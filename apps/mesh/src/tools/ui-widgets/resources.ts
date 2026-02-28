@@ -365,11 +365,11 @@ ${widgetScript(
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .sparkline { padding: 4px 0; }
 .sparkline .label { font-size: 13px; color: ${tokens.gray700}; margin-bottom: 8px; }
-.sparkline svg { display: block; width: 100%; }
+.sparkline svg { display: block; width: 100%; height: 48px; }
 </style></head><body>
 <div class="sparkline">
   <div class="label" id="lbl">Trend</div>
-  <svg id="svg" viewBox="0 0 200 50" preserveAspectRatio="none" height="50"></svg>
+  <svg id="svg"></svg>
 </div>
 ${widgetScript(
   "Sparkline",
@@ -377,14 +377,20 @@ ${widgetScript(
   if (args.label) document.getElementById('lbl').textContent = args.label;
   var vals = args.values || [];
   if (!vals.length) return;
+  var svg = document.getElementById('svg');
+  var W = svg.clientWidth || svg.getBoundingClientRect().width || 300;
+  var H = 48;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
   var range = mx - mn || 1;
-  var step = 200 / (vals.length - 1 || 1);
-  var pts = vals.map(function(v, i) { return (i * step).toFixed(1) + ',' + (50 - ((v - mn) / range) * 46 - 2).toFixed(1); });
-  var svg = document.getElementById('svg');
-  var areaPath = 'M0,50 L' + pts.join(' L') + ' L200,50 Z';
+  var pad = 2;
+  var step = (W - pad * 2) / (vals.length - 1 || 1);
+  var pts = vals.map(function(v, i) {
+    return (pad + i * step).toFixed(1) + ',' + (H - pad - ((v - mn) / range) * (H - pad * 2)).toFixed(1);
+  });
+  var areaPath = 'M' + pad + ',' + H + ' L' + pts.join(' L') + ' L' + (pad + (vals.length-1)*step).toFixed(1) + ',' + H + ' Z';
   var linePath = 'M' + pts.join(' L');
-  svg.innerHTML = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${tokens.primary}" stop-opacity="0.3"/><stop offset="100%" stop-color="${tokens.primary}" stop-opacity="0"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#g)"/><path d="' + linePath + '" fill="none" stroke="${tokens.primary}" stroke-width="2"/>';
+  svg.innerHTML = '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${tokens.primary}" stop-opacity="0.2"/><stop offset="100%" stop-color="${tokens.primary}" stop-opacity="0"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#g)"/><path d="' + linePath + '" fill="none" stroke="${tokens.primary}" stroke-width="1.5"/>';
 `,
 )}
 </body></html>`,
@@ -397,7 +403,8 @@ ${widgetScript(
   "ui://mesh/code": {
     name: "Code",
     description: "Code snippet display with language label",
-    html: `<!DOCTYPE html><html><head><style>${baseCSS}
+    html:
+      `<!DOCTYPE html><html><head><style>${baseCSS}
 .code-block { background: ${tokens.gray100}; border-radius: ${tokens.borderRadius}; overflow: hidden; }
 .code-block .header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid ${tokens.gray200}; }
 .code-block .lang { font-size: 11px; color: ${tokens.gray700}; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -425,23 +432,25 @@ ${widgetScript(
   el.innerHTML = highlightCode(code);
 `,
 )}
-<script>
+<scr` +
+      `ipt>
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function highlightCode(code) {
-  return escH(code)
-    .replace(/(\/\/.*)$/gm, '<span class="cm">$1</span>')
-    .replace(/(\/\\*[\\s\\S]*?\\*\/)/g, '<span class="cm">$1</span>')
-    .replace(/\\b(const|let|var|function|return|if|else|for|while|import|export|from|async|await|new|class|extends|default|try|catch|throw|typeof|instanceof)\\b/g, '<span class="kw">$1</span>')
-    .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;|&amp;quot;.*?&amp;quot;)/g, '<span class="str">$1</span>')
-    .replace(/(["'][^"']*?["'])/g, '<span class="str">$1</span>')
-    .replace(/(\\b\\d+\\.?\\d*\\b)/g, '<span class="num">$1</span>')
-    .replace(/(=&gt;|===|!==|&&|\\|\\||\\+|-|\\*|=)/g, '<span class="op">$1</span>');
+  var h = escH(code);
+  var S = '<' + 'span class="';
+  var E = '<' + '/span>';
+  h = h.replace(/(\\/\\/.*)$/gm, S + 'cm">' + '$1' + E);
+  h = h.replace(/\\b(const|let|var|function|return|if|else|for|while|import|export|from|async|await|new|class|extends|default|try|catch|throw|typeof|instanceof)\\b/g, S + 'kw">' + '$1' + E);
+  h = h.replace(/(&quot;[^&]*?&quot;)/g, S + 'str">' + '$1' + E);
+  h = h.replace(/(\\b\\d+\\.?\\d*\\b)/g, S + 'num">' + '$1' + E);
+  return h;
 }
 function copyCode() {
   var t = document.getElementById('code').textContent;
-  navigator.clipboard.writeText(t).catch(function(){});
+  if (navigator.clipboard) navigator.clipboard.writeText(t);
 }
-</script>
+</scr` +
+      `ipt>
 </body></html>`,
     exampleInput: {
       code: "console.log('Hello, World!');",
@@ -1166,8 +1175,10 @@ ${widgetScript(
   var line = pts.map(function(p){return p.x+','+p.y;}).join(' L');
   var area = 'M0,' + H + ' L' + line + ' L' + W + ',' + H + ' Z';
   var svg = document.getElementById('svg');
+  var last = data.length - 1;
   var labels = data.map(function(d, i) {
-    return '<text x="' + (i * step).toFixed(1) + '" y="115" text-anchor="middle" font-size="9" fill="${tokens.gray700}">' + escH(d.label||'') + '</text>';
+    var anchor = i === 0 ? 'start' : i === last ? 'end' : 'middle';
+    return '<text x="' + (i * step).toFixed(1) + '" y="115" text-anchor="' + anchor + '" font-size="9" fill="${tokens.gray700}">' + escH(d.label||'') + '</text>';
   }).join('');
   svg.innerHTML = '<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${tokens.primary}" stop-opacity="0.4"/><stop offset="100%" stop-color="${tokens.primary}" stop-opacity="0.05"/></linearGradient></defs>' +
     '<path d="' + area + '" fill="url(#ag)"/>' +
