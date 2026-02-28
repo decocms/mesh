@@ -23,7 +23,7 @@ const tokens = {
 const baseCSS = `
   :root { color-scheme: light only; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: ${tokens.fontFamily}; font-size: ${tokens.fontSize}; color: ${tokens.gray900}; background: transparent; padding: 4px 0; line-height: 1.5; }
+  body { font-family: ${tokens.fontFamily}; font-size: ${tokens.fontSize}; color: ${tokens.gray900}; background: transparent; padding: 0; line-height: 1.5; }
 `;
 
 function notifySize(): string {
@@ -1185,10 +1185,11 @@ ${widgetScript(
   for (var y = yMin; y <= yMax; y += niceStep) yTicks.push(Math.round(y*1e6)/1e6);
   if (yTicks.length > 5) yTicks = [yTicks[0], yTicks[Math.round(yTicks.length/2)], yTicks[yTicks.length-1]];
   var maxLen = Math.max.apply(null, yTicks.map(function(v){return String(v).length;}));
-  var LM = maxLen * 6 + 6;
-  var TW = 340, padT = 6, chartH = 80, xAxisY = padT + chartH, TH = xAxisY + 16;
-  var chartW = TW - LM;
   var svg = document.getElementById('svg');
+  var TW = svg.clientWidth || svg.getBoundingClientRect().width || 500;
+  var LM = maxLen * 8 + 8;
+  var padT = 6, chartH = Math.min(TW * 0.28, 120), xAxisY = padT + chartH, TH = xAxisY + 20;
+  var chartW = TW - LM;
   svg.setAttribute('viewBox', '0 0 ' + TW + ' ' + TH);
   var step = chartW / (vals.length - 1 || 1);
   var pts = vals.map(function(v, i) {
@@ -1197,14 +1198,14 @@ ${widgetScript(
   var grid = yTicks.map(function(v) {
     var gy = padT + chartH - ((v - yMin) / yRange) * chartH;
     return '<line x1="'+LM+'" y1="'+gy.toFixed(1)+'" x2="'+TW+'" y2="'+gy.toFixed(1)+'" stroke="${tokens.gray200}" stroke-width="0.5"/>' +
-      '<text x="'+(LM-4)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-size="7.5" fill="${tokens.gray500}">'+v+'</text>';
+      '<text x="'+(LM-4)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-size="11" fill="${tokens.gray500}">'+v+'</text>';
   }).join('');
   var linePath = pts.map(function(p){return p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' L');
   var areaPath = 'M'+LM+','+xAxisY+' L'+linePath+' L'+pts[pts.length-1].x.toFixed(1)+','+xAxisY+' Z';
   var last = data.length - 1;
   var xLabels = data.map(function(d, i) {
     var a = i===0?'start':i===last?'end':'middle';
-    return '<text x="'+(LM+i*step).toFixed(1)+'" y="'+(TH-1)+'" text-anchor="'+a+'" font-size="7.5" fill="${tokens.gray500}">'+escH(d.label||'')+'</text>';
+    return '<text x="'+(LM+i*step).toFixed(1)+'" y="'+(TH-1)+'" text-anchor="'+a+'" font-size="11" fill="${tokens.gray500}">'+escH(d.label||'')+'</text>';
   }).join('');
   var circles = pts.map(function(p,i){
     return '<circle class="dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="${tokens.primary}" stroke="white" stroke-width="1.5" opacity="0" data-i="'+i+'"/>';
