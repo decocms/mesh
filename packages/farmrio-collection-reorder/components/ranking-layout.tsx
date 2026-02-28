@@ -3,7 +3,7 @@
  *
  * Self-contained layout for the collection reorder ranking plugin.
  * Uses one connection for reports and an optional second VTEX connection for apply.
- * Uses URL search params (?reportId=...) for copyable report URLs.
+ * Uses URL search params (?collectionId=...&reportId=...) for copyable URLs.
  */
 
 import {
@@ -22,9 +22,12 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { PluginContextProvider } from "@decocms/mesh-sdk/plugins";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@deco/ui/components/button.tsx";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loading01, Settings01 } from "@untitledui/icons";
 import { KEYS } from "../lib/query-keys";
+import type { Collection } from "../lib/types";
+import CollectionsList from "./collections-list";
 import RankingDetail from "./ranking-detail";
 import RankingEmptyState from "./ranking-empty-state";
 import RankingsList from "./rankings-list";
@@ -49,20 +52,63 @@ type PluginConfigOutput = {
   } | null;
 };
 
+type SearchParams = {
+  collectionId?: string;
+  reportId?: string;
+};
+
+function parseCollections(
+  settings: Record<string, unknown> | null,
+): Collection[] {
+  const rawCollections = settings?.collections;
+  if (!Array.isArray(rawCollections)) return [];
+
+  return rawCollections.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const maybeCollection = item as Record<string, unknown>;
+
+    if (
+      typeof maybeCollection.id !== "string" ||
+      typeof maybeCollection.name !== "string" ||
+      typeof maybeCollection.vtexCollectionId !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: maybeCollection.id,
+        name: maybeCollection.name,
+        vtexCollectionId: maybeCollection.vtexCollectionId,
+      },
+    ];
+  });
+}
+
 export default function RankingLayout() {
   const { org, project } = useProjectContext();
-  const search = useSearch({ strict: false }) as { reportId?: string };
+  const search = useSearch({ strict: false }) as SearchParams;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const allConnections = useConnections();
 
+  const collectionId = search.collectionId ?? null;
   const reportId = search.reportId ?? null;
   const pluginId = "collection-reorder-ranking";
 
-  const setReportId = (id: string | null) => {
+  const setCollectionId = (id: string | null) => {
     navigate({
-      search: id ? { reportId: id } : {},
+      search: id ? { collectionId: id } : {},
       replace: true,
-    } as Parameters<typeof navigate>[0]);
+    } as unknown as Parameters<typeof navigate>[0]);
+  };
+
+  const setReportId = (id: string | null) => {
+    if (!collectionId) return;
+    navigate({
+      search: id ? { collectionId, reportId: id } : { collectionId },
+      replace: true,
+    } as unknown as Parameters<typeof navigate>[0]);
   };
 
   const selfClient = useMCPClient({
@@ -92,6 +138,7 @@ export default function RankingLayout() {
     typeof pluginConfig.config.settings === "object"
       ? (pluginConfig.config.settings as Record<string, unknown>)
       : null;
+  const collections = parseCollections(settings);
   const configuredVtexConnectionId =
     typeof settings?.vtexConnectionId === "string"
       ? settings.vtexConnectionId
@@ -112,8 +159,58 @@ export default function RankingLayout() {
     connectionId: configuredVtexConnection?.id,
     orgId: org.id,
   });
+  const selectedCollection = collectionId
+    ? (collections.find((collection) => collection.id === collectionId) ?? null)
+    : null;
 
   const orgContext = { id: org.id, slug: org.slug, name: org.name };
+
+  const saveCollections = async (nextCollections: Collection[]) => {
+    if (!project.id) {
+      throw new Error("Project is not available");
+    }
+
+    await selfClient.callTool({
+      name: "PROJECT_PLUGIN_CONFIG_UPDATE",
+      arguments: {
+        projectId: project.id,
+        pluginId,
+        connectionId: configuredConnection?.id ?? null,
+        settings: {
+          ...(settings ?? {}),
+          collections: nextCollections,
+        },
+      },
+    });
+
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.pluginConfig(project.id, pluginId),
+    });
+  };
+
+  const handleAddCollection = async (input: {
+    name: string;
+    vtexCollectionId: string;
+  }) => {
+    await saveCollections([
+      ...collections,
+      {
+        id: crypto.randomUUID(),
+        name: input.name,
+        vtexCollectionId: input.vtexCollectionId,
+      },
+    ]);
+  };
+
+  const handleDeleteCollection = async (id: string) => {
+    if (collectionId === id) {
+      setCollectionId(null);
+    }
+
+    await saveCollections(
+      collections.filter((collection) => collection.id !== id),
+    );
+  };
 
   if (isLoadingConfig) {
     return (
@@ -142,6 +239,22 @@ export default function RankingLayout() {
             project settings to select which integration to use.
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (collectionId && !selectedCollection) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-8">
+        <div className="flex flex-col items-center gap-2 text-center max-w-md">
+          <h2 className="text-lg font-semibold">Collection Not Found</h2>
+          <p className="text-sm text-muted-foreground">
+            The selected collection was not found in this project settings.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setCollectionId(null)}>
+          Back to collections
+        </Button>
       </div>
     );
   }
@@ -205,14 +318,25 @@ export default function RankingLayout() {
       <VtexConnectionProvider value={vtexContext}>
         <div className="flex flex-col h-full overflow-hidden">
           <div className="flex-1 overflow-hidden">
-            {reportId ? (
+            {!collectionId ? (
+              <CollectionsList
+                collections={collections}
+                onSelectCollection={setCollectionId}
+                onAddCollection={handleAddCollection}
+                onDeleteCollection={handleDeleteCollection}
+              />
+            ) : reportId && selectedCollection ? (
               <RankingDetail
                 reportId={reportId}
                 onBack={() => setReportId(null)}
               />
-            ) : (
-              <RankingsList onSelectReport={setReportId} />
-            )}
+            ) : selectedCollection ? (
+              <RankingsList
+                collection={selectedCollection}
+                onBack={() => setCollectionId(null)}
+                onSelectReport={setReportId}
+              />
+            ) : null}
           </div>
         </div>
       </VtexConnectionProvider>

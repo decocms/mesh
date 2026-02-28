@@ -146,6 +146,9 @@ export type ReportLifecycleStatus = z.infer<typeof ReportLifecycleStatusSchema>;
  */
 export const ReportSummarySchema = z.object({
   id: z.string().describe("Unique report identifier"),
+  collectionId: z
+    .string()
+    .describe("Collection identifier used to scope reports"),
   title: z.string().describe("Report title"),
   category: z
     .string()

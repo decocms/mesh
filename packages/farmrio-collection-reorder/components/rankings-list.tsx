@@ -11,7 +11,9 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   Card,
   CardContent,
@@ -27,10 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deco/ui/components/select.tsx";
-import { Clock } from "@untitledui/icons";
+import { ArrowLeft, Clock } from "@untitledui/icons";
 import { AlertCircle, BarChart01, Loading01 } from "@untitledui/icons";
 import { useState } from "react";
 import { useRankingReportsList } from "../hooks/use-ranking-reports";
+import type { Collection } from "../lib/types";
 import { STATUS_CONFIG, StatusBadge } from "./status-badge";
 
 function formatDate(iso: string): string {
@@ -125,13 +128,29 @@ function matchesSearch(report: ReportSummary, q: string): boolean {
   );
 }
 
+function isReportFromCollection(
+  report: ReportSummary,
+  collection: Collection,
+): boolean {
+  const collectionId = collection.vtexCollectionId.trim().toLowerCase();
+  if (!collectionId) return false;
+
+  return report.collectionId.trim().toLowerCase() === collectionId;
+}
+
 export default function RankingsList({
+  collection,
+  onBack,
   onSelectReport,
 }: {
+  collection: Collection;
+  onBack: () => void;
   onSelectReport: (id: string) => void;
 }) {
   const { data, isLoading, error } = useRankingReportsList();
-  const reports = data?.reports ?? [];
+  const reports = (data?.reports ?? []).filter((report) =>
+    isReportFromCollection(report, collection),
+  );
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReportStatus | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -172,10 +191,20 @@ export default function RankingsList({
       {/* Page Header - same pattern as Agents, Connections, Monitor */}
       <div className="shrink-0 w-full border-b border-border h-12 overflow-x-auto flex items-center justify-between gap-3 px-4 min-w-max">
         <div className="flex items-center gap-2 shrink-0 overflow-hidden">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft size={14} className="mr-1" />
+            Back
+          </Button>
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Collection Ranking</BreadcrumbPage>
+                <span className="text-muted-foreground truncate">
+                  Collection Ranking
+                </span>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{collection.name}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
