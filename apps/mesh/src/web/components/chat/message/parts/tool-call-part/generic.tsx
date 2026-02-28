@@ -93,7 +93,6 @@ export function GenericToolCallPart({
   const friendlyName = getFriendlyToolName(toolName);
 
   const { selectedVirtualMcp } = useChatStable();
-  const { org } = useProjectContext();
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 
@@ -106,11 +105,6 @@ export function GenericToolCallPart({
       : (selectedVirtualMcp?.id ?? null);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
-  const canRenderMCPApp = hasMCPApp && !!connectionId && !!org?.id;
-  const isBorderless =
-    canRenderMCPApp &&
-    !!uiResourceUri &&
-    !!getUIWidgetResource(uiResourceUri)?.borderless;
 
   // Compute state-dependent props
   const title = getTitle(part.state, friendlyName);
@@ -158,35 +152,67 @@ export function GenericToolCallPart({
         detail={detail || null}
         actions={actions}
       />
-      {canRenderMCPApp && (
-        <div
-          className={cn(
-            "mt-2",
-            !isBorderless &&
-              "border border-border/75 rounded-lg overflow-hidden p-3",
-          )}
-        >
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-32">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Loading app...</span>
-                </div>
-              </div>
-            }
-          >
-            <MCPAppLoader
-              uiResourceUri={uiResourceUri!}
-              connectionId={connectionId!}
-              orgId={org!.id}
-              toolName={toolName}
-              toolInput={part.input}
-              toolResult={part.output}
-            />
-          </Suspense>
-        </div>
+      {hasMCPApp && uiResourceUri && connectionId && (
+        <MCPAppRenderer
+          uiResourceUri={uiResourceUri}
+          connectionId={connectionId}
+          toolName={toolName}
+          toolInput={part.input}
+          toolResult={part.output}
+        />
       )}
+    </div>
+  );
+}
+
+interface MCPAppRendererProps {
+  uiResourceUri: string;
+  connectionId: string;
+  toolName: string;
+  toolInput: unknown;
+  toolResult: unknown;
+}
+
+function MCPAppRenderer({
+  uiResourceUri,
+  connectionId,
+  toolName,
+  toolInput,
+  toolResult,
+}: MCPAppRendererProps) {
+  const { org } = useProjectContext();
+
+  if (!org?.id) return null;
+
+  const isBorderless = !!getUIWidgetResource(uiResourceUri)?.borderless;
+
+  return (
+    <div
+      className={cn(
+        "mt-2",
+        !isBorderless &&
+          "border border-border/75 rounded-lg overflow-hidden p-3",
+      )}
+    >
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-32">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm">Loading app...</span>
+            </div>
+          </div>
+        }
+      >
+        <MCPAppLoader
+          uiResourceUri={uiResourceUri}
+          connectionId={connectionId}
+          orgId={org.id}
+          toolName={toolName}
+          toolInput={toolInput}
+          toolResult={toolResult}
+        />
+      </Suspense>
     </div>
   );
 }
