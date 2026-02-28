@@ -126,11 +126,20 @@ app.post("/local-session", async (c) => {
 
   try {
     const { auth } = await import("../../auth");
+    const { getLocalAdminUser } = await import("../../auth/local-mode");
+
+    const adminUser = await getLocalAdminUser();
+    if (!adminUser) {
+      return c.json(
+        { success: false, error: "Local admin user not found" },
+        500,
+      );
+    }
 
     // Sign in as the local admin user
     const result = await auth.api.signInEmail({
       body: {
-        email: "admin@localhost.mesh",
+        email: adminUser.email,
         password: "admin@mesh",
       },
       asResponse: true,

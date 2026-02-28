@@ -8,11 +8,22 @@
  */
 
 import { getDb } from "@/database";
+import { userInfo } from "os";
 import { auth } from "./index";
 
-const LOCAL_ADMIN_EMAIL = "admin@localhost.mesh";
 const LOCAL_ADMIN_PASSWORD = "admin@mesh";
-const LOCAL_ADMIN_NAME = "Local Admin";
+
+function getLocalUserName(): string {
+  try {
+    return userInfo().username || "local";
+  } catch {
+    return "local";
+  }
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 /**
  * Check if the database already has users.
@@ -42,14 +53,18 @@ export async function seedLocalMode(): Promise<boolean> {
     return false;
   }
 
+  const username = getLocalUserName();
+  const email = `${username}@localhost.mesh`;
+  const displayName = capitalize(username);
+
   // Create admin user via Better Auth signup.
   // The databaseHooks.user.create.after hook in auth/index.ts will
   // automatically create a default organization for this user.
   const signUpResult = await auth.api.signUpEmail({
     body: {
-      email: LOCAL_ADMIN_EMAIL,
+      email,
       password: LOCAL_ADMIN_PASSWORD,
-      name: LOCAL_ADMIN_NAME,
+      name: displayName,
     },
   });
 
@@ -58,13 +73,27 @@ export async function seedLocalMode(): Promise<boolean> {
   }
 
   const userId = signUpResult.user.id;
+  const database = getDb();
 
   // Set user as admin directly in the database (avoids needing auth headers)
-  const database = getDb();
   await database.db
     .updateTable("user")
     .set({ role: "admin" })
     .where("id", "=", userId)
+    .execute();
+
+  // Rename the auto-created org to {username}-local
+  const orgSlug = `${username}-local`;
+  const orgName = `${displayName} Local`;
+  await database.db
+    .updateTable("organization")
+    .set({ name: orgName, slug: orgSlug })
+    .where("id", "in", (qb) =>
+      qb
+        .selectFrom("member")
+        .select("organizationId")
+        .where("userId", "=", userId),
+    )
     .execute();
 
   return true;
@@ -76,9 +105,10 @@ export async function seedLocalMode(): Promise<boolean> {
  */
 export async function getLocalAdminUser() {
   const database = getDb();
+  const email = `${getLocalUserName()}@localhost.mesh`;
   return database.db
     .selectFrom("user")
-    .where("email", "=", LOCAL_ADMIN_EMAIL)
+    .where("email", "=", email)
     .selectAll()
     .executeTakeFirst();
 }
