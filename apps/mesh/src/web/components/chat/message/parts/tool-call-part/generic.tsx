@@ -5,6 +5,7 @@ import type { ToolUIPart, DynamicToolUIPart } from "ai";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
+import { getUIWidgetResource } from "@/tools/ui-widgets/resources.ts";
 import { Atom02, LayersTwo01 } from "@untitledui/icons";
 import { useChatStable } from "@/web/components/chat/context.tsx";
 import { ToolCallShell } from "./common.tsx";
@@ -122,6 +123,10 @@ export function GenericToolCallPart({
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const canRenderMCPApp = hasMCPApp && !!connectionId && !!org?.id;
+  const isBorderless =
+    canRenderMCPApp &&
+    !!uiResourceUri &&
+    !!getUIWidgetResource(uiResourceUri)?.borderless;
 
   // Compute state-dependent props
   const title = getTitle(part.state, friendlyName);
@@ -170,7 +175,13 @@ export function GenericToolCallPart({
         actions={actions}
       />
       {canRenderMCPApp && (
-        <div className="mt-2 border border-border/75 rounded-lg overflow-hidden p-3">
+        <div
+          className={
+            isBorderless
+              ? "mt-2"
+              : "mt-2 border border-border/75 rounded-lg overflow-hidden p-3"
+          }
+        >
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-32">

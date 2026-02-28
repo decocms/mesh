@@ -63,6 +63,8 @@ interface UIWidgetResource {
   description: string;
   html: string;
   exampleInput: Record<string, unknown>;
+  /** If true, widget has its own visual container and should render without an outer border/padding wrapper */
+  borderless?: boolean;
 }
 
 const UI_WIDGET_RESOURCES: Record<string, UIWidgetResource> = {
@@ -335,6 +337,7 @@ ${widgetScript(
   "ui://mesh/quote": {
     name: "Quote",
     description: "Quote display with author attribution",
+    borderless: true,
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .quote { padding: 16px 20px; border-left: 3px solid ${tokens.primary}; background: ${tokens.gray100}; border-radius: 0 ${tokens.borderRadius} ${tokens.borderRadius} 0; }
 .quote .text { font-size: 16px; font-style: italic; line-height: 1.6; color: ${tokens.gray900}; }
@@ -365,7 +368,7 @@ ${widgetScript(
     description: "Compact sparkline chart for trend visualization",
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .sparkline { padding: 4px 0; }
-.sparkline .label { font-size: 13px; color: ${tokens.gray700}; margin-bottom: 8px; }
+.sparkline .label { font-size: 14px; font-weight: 600; color: ${tokens.gray900}; margin-bottom: 12px; }
 .sparkline svg { display: block; width: 100%; height: 48px; }
 </style></head><body>
 <div class="sparkline">
@@ -404,6 +407,7 @@ ${widgetScript(
   "ui://mesh/code": {
     name: "Code",
     description: "Code snippet display with language label",
+    borderless: true,
     html:
       `<!DOCTYPE html><html><head><style>${baseCSS}
 .code-block { background: ${tokens.gray100}; border-radius: ${tokens.borderRadius}; overflow: hidden; }
@@ -844,6 +848,7 @@ ${widgetScript(
   "ui://mesh/error": {
     name: "Error",
     description: "Error message display with code and details",
+    borderless: true,
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .error-widget { padding: 12px 16px; border-radius: ${tokens.borderRadius}; border: 1px solid #fca5a5; background: #fef2f2; }
 .error-widget .header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -880,6 +885,7 @@ ${widgetScript(
   "ui://mesh/notification": {
     name: "Notification",
     description: "Notification banner with type styling",
+    borderless: true,
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .notif { padding: 12px 16px; border-radius: ${tokens.borderRadius}; display: flex; align-items: flex-start; gap: 10px; }
 .notif.success { background: #f0fdf4; border: 1px solid #bbf7d0; }
@@ -1113,6 +1119,7 @@ ${widgetScript(
   "ui://mesh/stats-grid": {
     name: "Stats Grid",
     description: "Dashboard grid of stat cards with trends",
+    borderless: true,
     html: `<!DOCTYPE html><html><head><style>${baseCSS}
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .stats-grid .card { padding: 14px; background: ${tokens.gray100}; border-radius: ${tokens.borderRadius}; }
@@ -1162,7 +1169,7 @@ ${widgetScript(
     html:
       `<!DOCTYPE html><html><head><style>${baseCSS}
 .area-chart { padding: 4px 0; position: relative; }
-.area-chart .title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.area-chart .title { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
 .area-chart svg { display: block; width: 100%; cursor: crosshair; }
 .area-chart .tip { position: absolute; pointer-events: none; background: ${tokens.gray900}; color: white; font-size: 11px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; display: none; z-index: 10; transform: translate(-50%, 0); }
 </style></head><body>
