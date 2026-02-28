@@ -297,7 +297,10 @@ const KPI_CONFIG = [
     label: "Latency",
     dataKey: "p95",
     colorNum: 4,
-    getValue: (s: MonitoringStatsData) => `${Math.round(s.avgDurationMs)}ms`,
+    getValue: (s: MonitoringStatsData) =>
+      s.avgDurationMs >= 10000
+        ? `${(s.avgDurationMs / 1000).toFixed(1)}s`
+        : `${Math.round(s.avgDurationMs)}ms`,
   },
 ] as const;
 

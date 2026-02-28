@@ -18,7 +18,17 @@ import { Line, LineChart, XAxis } from "recharts";
 import { useMonitoringLogs } from "./hooks";
 import type { BaseMonitoringLog } from "./index";
 
-export type TopChartMetric = "calls" | "latency" | "errors";
+export type TopChartMetric = "calls" | "latency-avg" | "latency-p95" | "errors";
+
+function toolPercentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.max(
+    0,
+    Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1),
+  );
+  return Math.round(sorted[idx] ?? 0);
+}
 
 interface BucketData {
   t: string;
@@ -38,7 +48,8 @@ function buildToolBuckets(
   topN: number = 10,
 ): {
   callsBuckets: BucketData[];
-  latencyBuckets: BucketData[];
+  latencyAvgBuckets: BucketData[];
+  latencyP95Buckets: BucketData[];
   errorsBuckets: BucketData[];
   topTools: Array<{ name: string; connectionId?: string }>;
   chartConfig: Record<string, { label: string; color: string }>;
@@ -111,30 +122,34 @@ function buildToolBuckets(
 
   // Build final bucket arrays
   const callsBuckets: BucketData[] = [];
-  const latencyBuckets: BucketData[] = [];
+  const latencyAvgBuckets: BucketData[] = [];
+  const latencyP95Buckets: BucketData[] = [];
   const errorsBuckets: BucketData[] = [];
 
   for (const raw of rawBuckets) {
     const base = { t: raw.t, ts: raw.ts, label: raw.label };
     const calls: BucketData = { ...base };
-    const latency: BucketData = { ...base };
+    const latAvg: BucketData = { ...base };
+    const latP95: BucketData = { ...base };
     const errors: BucketData = { ...base };
 
     for (const name of toolNames) {
       const entry = raw.tools.get(name)!;
       calls[name] = entry.calls;
       errors[name] = entry.errors;
-      latency[name] =
+      latAvg[name] =
         entry.durations.length > 0
           ? Math.round(
               entry.durations.reduce((a, b) => a + b, 0) /
                 entry.durations.length,
             )
           : 0;
+      latP95[name] = toolPercentile(entry.durations, 0.95);
     }
 
     callsBuckets.push(calls);
-    latencyBuckets.push(latency);
+    latencyAvgBuckets.push(latAvg);
+    latencyP95Buckets.push(latP95);
     errorsBuckets.push(errors);
   }
 
@@ -150,7 +165,8 @@ function buildToolBuckets(
 
   return {
     callsBuckets,
-    latencyBuckets,
+    latencyAvgBuckets,
+    latencyP95Buckets,
     errorsBuckets,
     topTools,
     chartConfig,
@@ -160,15 +176,19 @@ function buildToolBuckets(
 
 const METRIC_LABELS: Record<TopChartMetric, string> = {
   calls: "Top Tools — Calls",
-  latency: "Top Tools — Latency",
+  "latency-avg": "Top Tools — Avg Latency",
+  "latency-p95": "Top Tools — P95 Latency",
   errors: "Top Tools — Errors",
 };
 
-const METRIC_UNIT_SUFFIX: Record<TopChartMetric, string> = {
-  calls: "",
-  latency: "ms",
-  errors: "",
-};
+function formatTooltipValue(value: number, metric: TopChartMetric): string {
+  if (metric === "latency-avg" || metric === "latency-p95") {
+    return value >= 10000
+      ? `${(value / 1000).toFixed(1)}s`
+      : `${Math.round(value)}ms`;
+  }
+  return String(value);
+}
 
 interface TopToolsContentProps {
   metricsMode: TopChartMetric;
@@ -191,7 +211,8 @@ function TopToolsContent({
 
   const {
     callsBuckets,
-    latencyBuckets,
+    latencyAvgBuckets,
+    latencyP95Buckets,
     errorsBuckets,
     topTools,
     chartConfig,
@@ -199,13 +220,13 @@ function TopToolsContent({
   } = buildToolBuckets(logs, start, end, 10);
 
   const buckets =
-    metricsMode === "latency"
-      ? latencyBuckets
-      : metricsMode === "errors"
-        ? errorsBuckets
-        : callsBuckets;
-
-  const unitSuffix = METRIC_UNIT_SUFFIX[metricsMode];
+    metricsMode === "latency-avg"
+      ? latencyAvgBuckets
+      : metricsMode === "latency-p95"
+        ? latencyP95Buckets
+        : metricsMode === "errors"
+          ? errorsBuckets
+          : callsBuckets;
 
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
@@ -325,12 +346,11 @@ function TopToolsContent({
                                   fallbackIcon={<Container />}
                                   className="shrink-0"
                                 />
-                                <span className="text-xs font-medium">
+                                <span className="text-xs text-muted-foreground">
                                   {dataKey}:
                                 </span>
-                                <span className="text-xs font-bold">
-                                  {value}
-                                  {unitSuffix}
+                                <span className="text-xs font-medium">
+                                  {formatTooltipValue(value, metricsMode)}
                                 </span>
                               </div>
                             );
