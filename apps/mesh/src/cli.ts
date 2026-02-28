@@ -176,13 +176,9 @@ if (values.home) {
 
 process.env.MESH_HOME = meshHome;
 
-// Ensure NODE_ENV defaults to production when running via CLI.
-// However, when running from source (not the bundled dist), use development
-// so the asset server proxies to the Vite dev server instead of serving
-// from a nonexistent dist/client/ directory.
+// Ensure NODE_ENV defaults to production when running via CLI
 if (!process.env.NODE_ENV) {
-  const isRunningFromSource = import.meta.url.includes("/src/cli.ts");
-  process.env.NODE_ENV = isRunningFromSource ? "development" : "production";
+  process.env.NODE_ENV = "production";
 }
 
 // Determine if local mode should be active
@@ -280,6 +276,41 @@ if (betterAuthFromFile || encryptionKeyFromFile) {
     `${dim}For production, set BETTER_AUTH_SECRET and ENCRYPTION_KEY env vars.${reset}`,
   );
   console.log("");
+}
+
+// ============================================================================
+// Build frontend if needed (when running from source)
+// ============================================================================
+
+{
+  const scriptDir = new URL(".", import.meta.url).pathname;
+  const clientDistDir = join(scriptDir, "../dist/client");
+  const clientIndexPath = join(clientDistDir, "index.html");
+
+  if (!existsSync(clientIndexPath)) {
+    console.log(`${dim}Building frontend (first run)...${reset}`);
+    const { execSync } = await import("child_process");
+    // Resolve apps/mesh directory — works whether running from src/ or dist/server/
+    const meshAppDir = existsSync(join(scriptDir, "../vite.config.ts"))
+      ? join(scriptDir, "..")
+      : existsSync(join(scriptDir, "../../vite.config.ts"))
+        ? join(scriptDir, "../..")
+        : null;
+
+    if (meshAppDir) {
+      try {
+        execSync("bun --bun vite build", {
+          cwd: meshAppDir,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        console.log(`${dim}Frontend build complete.${reset}`);
+      } catch (error) {
+        console.warn(
+          `${yellow}Warning: Could not build frontend. UI may not be available.${reset}`,
+        );
+      }
+    }
+  }
 }
 
 // ============================================================================
