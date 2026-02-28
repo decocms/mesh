@@ -771,7 +771,12 @@ ${widgetScript(
   `
   var c = document.getElementById('container');
   if (args.src) {
-    c.innerHTML = '<img src="' + args.src.replace(/"/g, '&quot;') + '" alt="' + (args.alt || '').replace(/"/g, '&quot;') + '">';
+    var img = document.createElement('img');
+    img.src = args.src;
+    img.alt = args.alt || '';
+    img.onload = function() { parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/size-changed',params:{height:document.body.scrollHeight}},'*'); };
+    c.innerHTML = '';
+    c.appendChild(img);
   } else {
     c.innerHTML = '<div class="alt">' + (args.alt || 'No image') + '</div>';
   }
@@ -1237,6 +1242,8 @@ ${widgetScript(
     var pr = document.getElementById('wrap').getBoundingClientRect();
     var px = pts[closest].x / TW * rect.width + rect.left - pr.left;
     var py = pts[closest].y / TH * rect.height + rect.top - pr.top - 24;
+    var pctX = pts[closest].x / TW;
+    tip.style.transform = pctX < 0.15 ? 'translate(0, 0)' : pctX > 0.85 ? 'translate(-100%, 0)' : 'translate(-50%, 0)';
     tip.style.left = px + 'px';
     tip.style.top = py + 'px';
   });
