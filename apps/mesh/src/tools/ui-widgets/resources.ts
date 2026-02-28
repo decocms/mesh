@@ -369,7 +369,7 @@ ${widgetScript(
 </style></head><body>
 <div class="sparkline">
   <div class="label" id="lbl">Trend</div>
-  <svg id="svg" viewBox="0 0 200 50" preserveAspectRatio="xMidYMid meet" height="50"></svg>
+  <svg id="svg" viewBox="0 0 200 50" preserveAspectRatio="none" height="50"></svg>
 </div>
 ${widgetScript(
   "Sparkline",
@@ -397,18 +397,14 @@ ${widgetScript(
   "ui://mesh/code": {
     name: "Code",
     description: "Code snippet display with language label",
-    html: `<!DOCTYPE html><html><head>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"><\/script>
-<style>${baseCSS}
-.code-block { background: #0d1117; border-radius: ${tokens.borderRadius}; overflow: hidden; }
-.code-block .header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #161b22; }
-.code-block .lang { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
-.code-block .copy { font-size: 11px; color: #8b949e; background: none; border: 1px solid #30363d; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
-.code-block .copy:hover { background: #30363d; color: #c9d1d9; }
+    html: `<!DOCTYPE html><html><head><style>${baseCSS}
+.code-block { background: ${tokens.gray100}; border-radius: ${tokens.borderRadius}; overflow: hidden; }
+.code-block .header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid ${tokens.gray200}; }
+.code-block .lang { font-size: 11px; color: ${tokens.gray700}; text-transform: uppercase; letter-spacing: 0.05em; }
+.code-block .copy { font-size: 11px; color: ${tokens.gray700}; background: none; border: 1px solid ${tokens.gray300}; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+.code-block .copy:hover { background: ${tokens.gray200}; }
 .code-block pre { padding: 12px 16px; overflow-x: auto; margin: 0; }
-.code-block code { font-family: ${tokens.fontMono}; font-size: 13px; line-height: 1.6; white-space: pre; }
-.code-block pre code.hljs { background: transparent; padding: 0; }
+.code-block code { font-family: ${tokens.fontMono}; font-size: 13px; color: ${tokens.gray900}; line-height: 1.6; white-space: pre; }
 </style></head><body>
 <div class="code-block">
   <div class="header"><span class="lang" id="lang">code</span><button class="copy" onclick="copyCode()">Copy</button></div>
@@ -417,12 +413,8 @@ ${widgetScript(
 ${widgetScript(
   "Code",
   `
-  var el = document.getElementById('code');
-  el.textContent = args.code || '';
-  var lang = args.language || 'text';
-  document.getElementById('lang').textContent = lang;
-  el.className = 'language-' + lang;
-  if (typeof hljs !== 'undefined') { hljs.highlightElement(el); }
+  document.getElementById('code').textContent = args.code || '';
+  document.getElementById('lang').textContent = args.language || 'text';
 `,
 )}
 <script>
@@ -430,7 +422,7 @@ function copyCode() {
   var t = document.getElementById('code').textContent;
   navigator.clipboard.writeText(t).catch(function(){});
 }
-<\/script>
+</script>
 </body></html>`,
     exampleInput: {
       code: "console.log('Hello, World!');",
@@ -683,6 +675,8 @@ ${widgetScript(
 .md .content strong { font-weight: 600; }
 .md .content em { font-style: italic; }
 .md .content code { font-family: ${tokens.fontMono}; background: ${tokens.gray100}; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+.md .content pre { background: #0d1117; color: #c9d1d9; padding: 12px 16px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+.md .content pre code { background: none; padding: 0; color: inherit; font-size: 13px; line-height: 1.6; }
 .md .content ul, .md .content ol { padding-left: 24px; margin: 8px 0; }
 .md .content li { margin: 4px 0; }
 .md .content blockquote { border-left: 3px solid ${tokens.primary}; padding-left: 12px; color: ${tokens.gray700}; margin: 8px 0; }
@@ -1132,7 +1126,7 @@ ${widgetScript(
 </style></head><body>
 <div class="area-chart">
   <div class="title" id="title">Chart</div>
-  <svg id="svg" viewBox="0 0 300 100" preserveAspectRatio="xMidYMid meet" height="100"></svg>
+  <svg id="svg" viewBox="0 0 300 100" preserveAspectRatio="none" height="100"></svg>
   <div class="labels" id="labels"></div>
 </div>
 ${widgetScript(
