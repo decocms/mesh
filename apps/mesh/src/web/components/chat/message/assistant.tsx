@@ -265,6 +265,7 @@ function MessagePart({ part, id, usageStats, dataParts }: MessagePartProps) {
           part={part}
           annotations={getMeta(part.toolCallId)?.annotations}
           latency={getMeta(part.toolCallId)?.latencySeconds}
+          toolMeta={getMeta(part.toolCallId)?._meta}
         />
       );
     case "tool-user_ask":
@@ -307,11 +308,13 @@ function MessagePart({ part, id, usageStats, dataParts }: MessagePartProps) {
       if (fallback.type.startsWith("tool-")) {
         const toolCallId = (fallback as ToolUIPart).toolCallId;
         const meta = dataParts.toolMetadata.get(toolCallId);
+        console.log("meta", meta);
         return (
           <GenericToolCallPart
             part={fallback}
             annotations={meta?.annotations}
             latency={meta?.latencySeconds}
+            toolMeta={meta?._meta}
           />
         );
       }

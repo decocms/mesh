@@ -27,6 +27,8 @@ interface GenericToolCallPartProps {
   annotations?: ToolDefinition["annotations"];
   /** Latency in seconds from data-tool-metadata part */
   latency?: number;
+  /** Tool _meta from data-tool-metadata part */
+  toolMeta?: ToolDefinition["_meta"];
 }
 
 function safeStringifyFormatted(value: unknown): string {
@@ -79,6 +81,7 @@ export function GenericToolCallPart({
   part,
   annotations,
   latency,
+  toolMeta,
 }: GenericToolCallPartProps) {
   // Extract tool name with proper dynamic-tool handling
   const toolName =
@@ -91,26 +94,6 @@ export function GenericToolCallPart({
 
   const { selectedVirtualMcp } = useChatStable();
   const { org } = useProjectContext();
-
-  const toolOutput = part.output;
-  // Extract _meta from tool output. The output may be either:
-  // 1. A CallToolResult with structuredContent containing _meta
-  // 2. The raw structured content directly with _meta at top level
-  const toolMeta = (() => {
-    if (toolOutput == null || typeof toolOutput !== "object") return undefined;
-    const out = toolOutput as Record<string, unknown>;
-    // Check structuredContent first (CallToolResult wrapper)
-    if (
-      out.structuredContent != null &&
-      typeof out.structuredContent === "object"
-    ) {
-      const sc = out.structuredContent as Record<string, unknown>;
-      if ("_meta" in sc) return sc._meta as Record<string, unknown> | undefined;
-    }
-    // Fall back to top-level _meta
-    if ("_meta" in out) return out._meta as Record<string, unknown> | undefined;
-    return undefined;
-  })();
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 
