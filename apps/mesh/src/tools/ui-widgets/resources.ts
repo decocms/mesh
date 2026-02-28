@@ -1157,14 +1157,14 @@ ${widgetScript(
     html:
       `<!DOCTYPE html><html><head><style>${baseCSS}
 .area-chart { padding: 4px 0; position: relative; }
-.area-chart .title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
-.area-chart svg { display: block; width: 100%; }
-.area-chart .tooltip { position: absolute; pointer-events: none; background: ${tokens.gray900}; color: white; font-size: 11px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; display: none; z-index: 10; transform: translate(-50%, -100%); margin-top: -8px; }
+.area-chart .title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.area-chart svg { display: block; width: 100%; cursor: crosshair; }
+.area-chart .tip { position: absolute; pointer-events: none; background: ${tokens.gray900}; color: white; font-size: 11px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; display: none; z-index: 10; transform: translate(-50%, 0); }
 </style></head><body>
-<div class="area-chart">
+<div class="area-chart" id="wrap">
   <div class="title" id="title">Chart</div>
   <svg id="svg"></svg>
-  <div class="tooltip" id="tip"></div>
+  <div class="tip" id="tip"></div>
 </div>
 ${widgetScript(
   "Area Chart",
@@ -1175,67 +1175,75 @@ ${widgetScript(
   var vals = data.map(function(d){return d.value||0;});
   var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
   var range = mx - mn || 1;
-  var TARGET_TICKS = 4;
-  var rawStep = range / TARGET_TICKS;
+  var rawStep = range / 3;
   var mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-  var nice = [1, 2, 5, 10];
-  var niceStep = nice.reduce(function(best, n) {
-    var s = n * mag;
-    return Math.abs(range / s - TARGET_TICKS) < Math.abs(range / best - TARGET_TICKS) ? s : best;
-  }, mag) || 1;
-  var yMin = Math.floor(mn / niceStep) * niceStep;
-  var yMax = Math.ceil(mx / niceStep) * niceStep;
+  var niceStep = [1,2,5,10].reduce(function(b,n){var s=n*mag;return Math.abs(range/s-3)<Math.abs(range/b-3)?s:b;},mag)||1;
+  var yMin = Math.floor(mn/niceStep)*niceStep;
+  var yMax = Math.ceil(mx/niceStep)*niceStep;
   var yRange = yMax - yMin || 1;
   var yTicks = [];
-  for (var y = yMin; y <= yMax; y += niceStep) yTicks.push(Math.round(y * 1e6) / 1e6);
-  if (yTicks.length > 6) { yTicks = [yTicks[0], yTicks[Math.floor(yTicks.length/2)], yTicks[yTicks.length-1]]; }
-  var maxLabelLen = Math.max.apply(null, yTicks.map(function(v){return String(v).length;}));
-  var LM = maxLabelLen * 7 + 8;
-  var TW = 340, TH = 130, padT = 10, chartH = 90, xAxisY = padT + chartH;
+  for (var y = yMin; y <= yMax; y += niceStep) yTicks.push(Math.round(y*1e6)/1e6);
+  if (yTicks.length > 5) yTicks = [yTicks[0], yTicks[Math.round(yTicks.length/2)], yTicks[yTicks.length-1]];
+  var maxLen = Math.max.apply(null, yTicks.map(function(v){return String(v).length;}));
+  var LM = maxLen * 6 + 6;
+  var TW = 340, padT = 6, chartH = 80, xAxisY = padT + chartH, TH = xAxisY + 16;
   var chartW = TW - LM;
-  document.getElementById('svg').setAttribute('viewBox', '0 0 ' + TW + ' ' + TH);
+  var svg = document.getElementById('svg');
+  svg.setAttribute('viewBox', '0 0 ' + TW + ' ' + TH);
   var step = chartW / (vals.length - 1 || 1);
   var pts = vals.map(function(v, i) {
     return { x: LM + i * step, y: padT + chartH - ((v - yMin) / yRange) * chartH };
   });
-  var gridLines = yTicks.map(function(v) {
+  var grid = yTicks.map(function(v) {
     var gy = padT + chartH - ((v - yMin) / yRange) * chartH;
-    return '<line x1="' + LM + '" y1="' + gy.toFixed(1) + '" x2="' + TW + '" y2="' + gy.toFixed(1) + '" stroke="${tokens.gray200}" stroke-width="0.5" stroke-dasharray="3,3"/>' +
-      '<text x="' + (LM - 6) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" font-size="8" fill="${tokens.gray700}" opacity="0.7">' + v + '</text>';
+    return '<line x1="'+LM+'" y1="'+gy.toFixed(1)+'" x2="'+TW+'" y2="'+gy.toFixed(1)+'" stroke="${tokens.gray200}" stroke-width="0.5"/>' +
+      '<text x="'+(LM-4)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-size="7.5" fill="${tokens.gray300}">'+v+'</text>';
   }).join('');
-  var line = pts.map(function(p){return p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' L');
-  var area = 'M' + LM + ',' + xAxisY + ' L' + line + ' L' + pts[pts.length-1].x.toFixed(1) + ',' + xAxisY + ' Z';
+  var linePath = pts.map(function(p){return p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' L');
+  var areaPath = 'M'+LM+','+xAxisY+' L'+linePath+' L'+pts[pts.length-1].x.toFixed(1)+','+xAxisY+' Z';
   var last = data.length - 1;
   var xLabels = data.map(function(d, i) {
-    var anchor = i === 0 ? 'start' : i === last ? 'end' : 'middle';
-    return '<text x="' + (LM + i * step).toFixed(1) + '" y="' + (TH - 2) + '" text-anchor="' + anchor + '" font-size="9" fill="${tokens.gray700}">' + escH(d.label||'') + '</text>';
+    var a = i===0?'start':i===last?'end':'middle';
+    return '<text x="'+(LM+i*step).toFixed(1)+'" y="'+(TH-1)+'" text-anchor="'+a+'" font-size="7.5" fill="${tokens.gray300}">'+escH(d.label||'')+'</text>';
   }).join('');
-  var circles = pts.map(function(p, i) {
-    return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3.5" fill="${tokens.primary}" stroke="white" stroke-width="1.5" style="cursor:pointer" data-i="' + i + '"/>';
+  var circles = pts.map(function(p,i){
+    return '<circle class="dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3" fill="${tokens.primary}" stroke="white" stroke-width="1.5" opacity="0" data-i="'+i+'"/>';
   }).join('');
-  var svg = document.getElementById('svg');
-  svg.innerHTML = '<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${tokens.primary}" stop-opacity="0.3"/><stop offset="100%" stop-color="${tokens.primary}" stop-opacity="0.02"/></linearGradient></defs>' +
-    gridLines +
-    '<line x1="' + LM + '" y1="' + xAxisY + '" x2="' + TW + '" y2="' + xAxisY + '" stroke="${tokens.gray200}" stroke-width="0.5"/>' +
-    '<path d="' + area + '" fill="url(#ag)"/>' +
-    '<path d="M' + line + '" fill="none" stroke="${tokens.primary}" stroke-width="2"/>' +
-    circles + xLabels;
+  svg.innerHTML = '<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${tokens.primary}" stop-opacity="0.15"/><stop offset="100%" stop-color="${tokens.primary}" stop-opacity="0.01"/></linearGradient></defs>' +
+    grid +
+    '<path d="'+areaPath+'" fill="url(#ag)"/>' +
+    '<path d="M'+linePath+'" fill="none" stroke="${tokens.primary}" stroke-width="1.5"/>' +
+    '<line id="vline" x1="0" y1="'+padT+'" x2="0" y2="'+xAxisY+'" stroke="${tokens.gray300}" stroke-width="0.5" stroke-dasharray="2,2" opacity="0"/>' +
+    circles + xLabels +
+    '<rect x="'+LM+'" y="0" width="'+chartW+'" height="'+xAxisY+'" fill="transparent" id="hover"/>';
   var tip = document.getElementById('tip');
-  svg.addEventListener('mouseover', function(e) {
-    var c = e.target.closest ? e.target.closest('circle') : null;
-    if (c && c.dataset.i !== undefined) {
-      var i = Number(c.dataset.i);
-      var d = data[i];
-      tip.textContent = (d.label ? d.label + ': ' : '') + vals[i];
-      tip.style.display = 'block';
-      var r = c.getBoundingClientRect();
-      var pr = svg.closest('.area-chart').getBoundingClientRect();
-      tip.style.left = (r.left - pr.left + r.width/2) + 'px';
-      tip.style.top = (r.top - pr.top) + 'px';
-    }
+  var vline = document.getElementById('vline');
+  var dots = svg.querySelectorAll('.dot');
+  var activeI = -1;
+  document.getElementById('hover').addEventListener('mousemove', function(e) {
+    var rect = svg.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) / rect.width * TW;
+    var closest = 0, minD = Infinity;
+    pts.forEach(function(p,i){ var d = Math.abs(p.x - sx); if(d < minD){minD=d;closest=i;} });
+    if (closest === activeI) return;
+    activeI = closest;
+    dots.forEach(function(d,i){d.setAttribute('opacity', i===closest?'1':'0');});
+    vline.setAttribute('x1', pts[closest].x.toFixed(1));
+    vline.setAttribute('x2', pts[closest].x.toFixed(1));
+    vline.setAttribute('opacity', '1');
+    tip.textContent = (data[closest].label ? data[closest].label + ': ' : '') + vals[closest];
+    tip.style.display = 'block';
+    var pr = document.getElementById('wrap').getBoundingClientRect();
+    var px = pts[closest].x / TW * rect.width + rect.left - pr.left;
+    var py = pts[closest].y / TH * rect.height + rect.top - pr.top - 24;
+    tip.style.left = px + 'px';
+    tip.style.top = py + 'px';
   });
-  svg.addEventListener('mouseout', function(e) {
-    if (e.target.tagName === 'circle') tip.style.display = 'none';
+  document.getElementById('hover').addEventListener('mouseleave', function() {
+    activeI = -1;
+    dots.forEach(function(d){d.setAttribute('opacity','0');});
+    vline.setAttribute('opacity', '0');
+    tip.style.display = 'none';
   });
 `,
 )}
