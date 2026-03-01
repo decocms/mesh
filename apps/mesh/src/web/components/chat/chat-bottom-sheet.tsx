@@ -10,6 +10,7 @@ export function ChatBottomSheet() {
       <SheetContent
         side="bottom"
         className="h-[calc(100svh-1.25rem)] p-0 rounded-t-xl border-0"
+        hideCloseButton
       >
         <ChatPanel />
       </SheetContent>
