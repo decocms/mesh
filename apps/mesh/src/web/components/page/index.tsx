@@ -78,8 +78,8 @@ function PageRoot({
 function PageHeader({
   children,
   className,
-  hideSidebarTrigger,
-}: PropsWithChildren<{ className?: string; hideSidebarTrigger?: boolean }>) {
+  hideChat,
+}: PropsWithChildren<{ className?: string; hideChat?: boolean }>) {
   const left = findChild(children, PageHeaderLeft);
   const right = findChild(children, PageHeaderRight);
 
@@ -97,7 +97,7 @@ function PageHeader({
       </div>
       <div className="flex items-center">
         {right}
-        {!hideSidebarTrigger && (
+        {!hideChat && (
           <div className="flex items-center border-l border-border/50 pl-2 ml-1">
             <ChatToggleButton />
           </div>
