@@ -1,13 +1,16 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # WorktreeCreate hook script
-# Reads JSON from stdin: { "name": "<worktree-name>", "cwd": "<repo-root>" }
+# Reads JSON from stdin: { "name": "...", "cwd": "..." }
 # Must print the new worktree directory path as the last line of stdout.
 # All other output must go to stderr (>&2).
 
-NAME=$(jq -r .name)
-CWD=$(jq -r .cwd)
+# Read stdin once into a variable (stdin can only be consumed once)
+INPUT=$(cat)
+
+NAME=$(echo "$INPUT" | jq -r .name)
+CWD=$(echo "$INPUT" | jq -r .cwd)
 DIR="$CWD/.claude/worktrees/$NAME"
 BRANCH="claude/$NAME"
 

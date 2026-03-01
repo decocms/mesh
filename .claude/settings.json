@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/setup-worktree.sh"
+            "command": "sh .claude/setup-worktree.sh"
           }
         ]
       }
