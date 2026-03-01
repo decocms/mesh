@@ -411,9 +411,12 @@ function OrgMcpsContent() {
   const { stdioEnabled } = useAuthConfig();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
+  // Using "connections-v2" resource key to reset persisted view mode preference
+  // to "cards" now that the accordion design is the primary list view.
   const listState = useListState<ConnectionEntity>({
     namespace: org.slug,
-    resource: "connections",
+    resource: "connections-v2",
+    defaultViewMode: "cards",
   });
 
   const actions = useConnectionActions();
