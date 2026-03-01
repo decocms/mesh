@@ -3,7 +3,7 @@ import { CollectionDisplayButton } from "@/web/components/collections/collection
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
-import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
+import { ConnectionServiceGroup } from "@/web/components/connections/connection-service-group.tsx";
 import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -15,6 +15,7 @@ import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
+import { groupConnections } from "@/web/utils/group-connections.ts";
 import {
   extractItemsFromResponse,
   findListToolName,
@@ -1518,82 +1519,22 @@ function OrgMcpsContent() {
                 }
               />
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                {connections.map((connection) => (
-                  <ConnectionCard
-                    key={connection.id}
-                    connection={connection}
-                    fallbackIcon={<Container />}
-                    onClick={() =>
+              <div className="flex flex-col gap-2">
+                {groupConnections(connections).map((group) => (
+                  <ConnectionServiceGroup
+                    key={group.key}
+                    serviceName={group.serviceName}
+                    icon={group.icon}
+                    instances={group.instances}
+                    onInstanceClick={(id) =>
                       navigate({
                         to: "/$org/$project/mcps/$connectionId",
                         params: {
                           org: org.slug,
                           project: ORG_ADMIN_PROJECT_SLUG,
-                          connectionId: connection.id,
+                          connectionId: id,
                         },
                       })
-                    }
-                    headerActions={
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <DotsVertical size={20} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate({
-                                to: "/$org/$project/mcps/$connectionId",
-                                params: {
-                                  org: org.slug,
-                                  project: ORG_ADMIN_PROJECT_SLUG,
-                                  connectionId: connection.id,
-                                },
-                              });
-                            }}
-                          >
-                            <Eye size={16} />
-                            Open
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              dispatch({ type: "delete", connection });
-                            }}
-                          >
-                            <Trash01 size={16} />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    }
-                    body={<ConnectionStatus status={connection.status} />}
-                    footer={
-                      <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
-                        <div className="flex-1 min-w-0">
-                          <User
-                            id={connection.updated_by ?? connection.created_by}
-                            size="3xs"
-                          />
-                        </div>
-                        <span className="shrink-0 ml-2">
-                          {connection.updated_at
-                            ? formatTimeAgo(new Date(connection.updated_at))
-                            : "—"}
-                        </span>
-                      </div>
                     }
                   />
                 ))}
