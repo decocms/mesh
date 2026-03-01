@@ -29,7 +29,7 @@ export interface AssetServerConfig {
   isServerPath?: (path: string) => boolean;
 }
 
-const DEFAULT_DEV_SERVER_URL = "http://localhost:4000";
+const DEFAULT_DEV_SERVER_URL = `http://localhost:${process.env.VITE_PORT || "4000"}`;
 const DEFAULT_CLIENT_DIR = "./dist/client";
 
 /**
