@@ -5,12 +5,7 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
-import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { SaveActions } from "@/web/components/save-actions";
-import {
-  useBindingConnections,
-  useCollectionBindings,
-} from "@/web/hooks/use-binding";
+import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
@@ -23,7 +18,22 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@deco/ui/components/form.tsx";
+import { Input } from "@deco/ui/components/input.tsx";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@deco/ui/components/sheet.tsx";
 import {
   isStdioParameters,
   ORG_ADMIN_PROJECT_SLUG,
@@ -41,29 +51,23 @@ import {
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Loading01 } from "@untitledui/icons";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { ViewActions, ViewLayout } from "../layout";
-import { CollectionTab } from "./collection-tab";
-import { ConnectionSidebar } from "./connection-sidebar";
-import { PromptsTab } from "./prompts-tab";
-import { ReadmeTab } from "./readme-tab";
-import { ResourcesTab } from "./resources-tab";
+import { ViewLayout } from "../layout";
+import { ConnectionActivity } from "./connection-activity.tsx";
+import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
+import { ConnectionCapabilities } from "./connection-capabilities.tsx";
+import { ConnectionDetailHeader } from "./connection-detail-header.tsx";
+import { ConnectionInfoCard } from "./connection-info-card.tsx";
+import { ConnectionFields } from "./connection-sidebar.tsx";
 import { SettingsTab } from "./settings-tab";
 import {
   connectionFormSchema,
   type ConnectionFormData,
 } from "./settings-tab/schema";
-import { ToolsTab } from "./tools-tab";
-import { UiTab } from "./ui-tab";
 
 /**
  * Check if STDIO params look like an NPX command
@@ -256,14 +260,9 @@ function ConnectionInspectorViewWithConnection({
   connection,
   connectionId,
   org,
-  requestedTabId,
-  collections,
   onUpdate,
   isUpdating,
-  prompts,
-  resources,
   tools,
-  isLoadingTools,
 }: {
   connection: ConnectionEntity;
   connectionId: string;
@@ -293,6 +292,8 @@ function ConnectionInspectorViewWithConnection({
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
   });
@@ -307,12 +308,6 @@ function ConnectionInspectorViewWithConnection({
     binding: "MCP",
   });
   const hasMcpBinding = mcpBindingConnections.length > 0;
-
-  // Check if connection has repository info for README tab (stored in metadata)
-  const repository = connection?.metadata?.repository as
-    | { url?: string; source?: string; subfolder?: string }
-    | undefined;
-  const hasRepository = !!repository?.url;
 
   // Form state lifted to parent
   const form = useForm<ConnectionFormData>({
@@ -441,61 +436,19 @@ function ConnectionInspectorViewWithConnection({
     }
   };
 
-  const toolsCount = tools.length;
-  const promptsCount = prompts.length;
-  const resourcesCount = resources.length;
-  const uiToolsCount = tools.filter((t) => !!getUIResourceUri(t._meta)).length;
-
-  // Show Tools tab if we have tools OR if we're still loading them
-  // This handles VIRTUAL connections and others that fetch tools dynamically
-  const showToolsTab = toolsCount > 0 || isLoadingTools;
-
-  const tabs = [
-    { id: "settings", label: "Settings" },
-    ...(isMCPAuthenticated && showToolsTab
-      ? [
-          {
-            id: "tools",
-            label: "Tools",
-            count: isLoadingTools ? undefined : toolsCount,
-          },
-        ]
-      : []),
-    ...(isMCPAuthenticated && promptsCount > 0
-      ? [{ id: "prompts", label: "Prompts", count: promptsCount }]
-      : []),
-    ...(isMCPAuthenticated && resourcesCount > 0
-      ? [{ id: "resources", label: "Resources", count: resourcesCount }]
-      : []),
-    ...(isMCPAuthenticated && uiToolsCount > 0
-      ? [{ id: "ui", label: "UI", count: uiToolsCount }]
-      : []),
-    ...(isMCPAuthenticated
-      ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
-      : []),
-    ...(hasRepository ? [{ id: "readme", label: "README" }] : []),
-  ];
-
-  // Default to "tools" when authenticated (if tools tab exists), otherwise "settings"
-  const defaultTab =
-    isMCPAuthenticated && tabs.some((t) => t.id === "tools")
-      ? "tools"
-      : "settings";
-
-  const activeTabId = tabs.some((t) => t.id === requestedTabId)
-    ? requestedTabId
-    : defaultTab;
-
-  const handleTabChange = (tabId: string) => {
+  const handleDisconnect = async () => {
+    if (
+      !window.confirm(
+        `Disconnect "${connection.title}"? This cannot be undone.`,
+      )
+    )
+      return;
+    await connectionActions.delete.mutateAsync(connection.id);
     navigate({
-      search: (prev: { tab?: string }) => ({ ...prev, tab: tabId }),
-      replace: true,
+      to: "/$org/$project/mcps",
+      params: { org, project: ORG_ADMIN_PROJECT_SLUG },
     });
   };
-
-  const activeCollection = (collections || []).find(
-    (c) => c.name === activeTabId,
-  );
 
   const breadcrumb = (
     <Breadcrumb>
@@ -519,110 +472,112 @@ function ConnectionInspectorViewWithConnection({
   );
 
   return (
-    <ViewLayout breadcrumb={breadcrumb}>
-      <ViewActions>
-        <SaveActions
-          onSave={handleSave}
-          onUndo={handleUndo}
-          isDirty={hasAnyChanges}
-          isSaving={isUpdating}
-        />
-      </ViewActions>
-      <div className="flex h-full w-full bg-background overflow-hidden">
-        {/* Fixed left sidebar */}
-        <div className="w-100 shrink-0 border-r border-border bg-background">
-          <ConnectionSidebar
-            form={form}
-            connection={connection}
-            isMCPAuthenticated={isMCPAuthenticated}
-            hasOAuthToken={authStatus.hasOAuthToken}
-            onReauthenticate={handleAuthenticate}
-            onRemoveOAuth={handleRemoveOAuth}
-          />
-        </div>
-
-        {/* Right side - Tabs + Content */}
-        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
-          {/* Tabs header */}
-          <div className="shrink-0 flex items-center gap-4 px-5 py-3 border-b border-border">
-            <CollectionTabs
-              tabs={tabs}
-              activeTab={activeTabId}
-              onTabChange={handleTabChange}
-              className="flex-1"
-            />
-          </div>
-
-          {/* Tab content */}
-          <div className="flex-1 overflow-auto">
-            <ErrorBoundary key={activeTabId}>
-              <Suspense
-                fallback={
-                  <div className="flex h-full items-center justify-center">
-                    <Loading01
-                      size={32}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
-              >
-                {activeTabId === "tools" ? (
-                  <ToolsTab
-                    tools={tools}
-                    connectionId={connectionId}
-                    org={org}
-                    isLoading={isLoadingTools}
-                  />
-                ) : activeTabId === "ui" ? (
-                  <UiTab tools={tools} connectionId={connectionId} org={org} />
-                ) : activeTabId === "prompts" ? (
-                  <PromptsTab
-                    prompts={prompts}
-                    connectionId={connectionId}
-                    org={org}
-                  />
-                ) : activeTabId === "resources" ? (
-                  <ResourcesTab
-                    resources={resources}
-                    connectionId={connectionId}
-                    org={org}
-                  />
-                ) : activeTabId === "settings" ? (
-                  <SettingsTab
-                    connection={connection}
-                    form={form}
-                    hasMcpBinding={hasMcpBinding}
-                    isMCPAuthenticated={isMCPAuthenticated}
-                    supportsOAuth={authStatus.supportsOAuth}
-                    isServerError={authStatus.isServerError}
-                    onAuthenticate={handleAuthenticate}
-                    onViewReadme={
-                      hasRepository
-                        ? () => handleTabChange("readme")
-                        : undefined
-                    }
-                  />
-                ) : activeTabId === "readme" && hasRepository ? (
-                  <ReadmeTab repository={repository} />
-                ) : activeCollection && isMCPAuthenticated ? (
-                  <CollectionTab
-                    key={activeTabId}
-                    connectionId={connectionId}
-                    org={org}
-                    activeCollection={activeCollection}
-                  />
-                ) : (
-                  <EmptyState
-                    title="Collection not found"
-                    description="This collection may have been deleted or you may not have access."
-                  />
+    <>
+      {/* Settings Sheet */}
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent className="w-[460px] sm:w-[460px] overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle>Configure connection</SheetTitle>
+            <SheetDescription>
+              Update the URL, authentication, and other technical settings.
+            </SheetDescription>
+          </SheetHeader>
+          <Form {...form}>
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <ConnectionFields
+                form={form}
+                connection={connection}
+                hasOAuthToken={authStatus.hasOAuthToken}
+                onReauthenticate={handleAuthenticate}
+                onRemoveOAuth={handleRemoveOAuth}
+              />
+              {hasMcpBinding && (
+                <SettingsTab
+                  connection={connection}
+                  form={form}
+                  hasMcpBinding={hasMcpBinding}
+                  isMCPAuthenticated={isMCPAuthenticated}
+                  supportsOAuth={authStatus.supportsOAuth}
+                  isServerError={authStatus.isServerError}
+                  onAuthenticate={handleAuthenticate}
+                  onViewReadme={undefined}
+                />
+              )}
+              <div className="flex gap-2 pt-2 border-t border-border">
+                <Button
+                  onClick={handleSave}
+                  disabled={!hasAnyChanges || isUpdating}
+                  className="flex-1"
+                >
+                  {isUpdating ? "Saving…" : "Save changes"}
+                </Button>
+                {hasAnyChanges && (
+                  <Button variant="outline" onClick={handleUndo}>
+                    Undo
+                  </Button>
                 )}
-              </Suspense>
-            </ErrorBoundary>
+              </div>
+            </div>
+          </Form>
+        </SheetContent>
+      </Sheet>
+
+      {/* Main page */}
+      <ViewLayout breadcrumb={breadcrumb}>
+        <div className="flex flex-col h-full overflow-hidden">
+          <ConnectionDetailHeader
+            connection={connection}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onDisconnect={handleDisconnect}
+          />
+          <div className="flex-1 overflow-auto">
+            <div className="flex gap-6 p-6">
+              {/* Left column */}
+              <div className="flex-1 min-w-0 flex flex-col gap-5">
+                <ConnectionActivity />
+                <ConnectionCapabilities tools={tools} />
+              </div>
+              {/* Right column */}
+              <div className="w-72 shrink-0 flex flex-col gap-5">
+                <ConnectionAgentsPanel connection={connection} />
+                <ConnectionInfoCard
+                  connection={connection}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </ViewLayout>
+      </ViewLayout>
+    </>
   );
 }
 
