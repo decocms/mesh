@@ -60,10 +60,10 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function isPortFree(port: number): Promise<boolean> {
+function probePort(hostname: string, port: number): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     Bun.connect({
-      hostname: "127.0.0.1",
+      hostname,
       port,
       socket: {
         open(socket) {
@@ -72,14 +72,23 @@ function isPortFree(port: number): Promise<boolean> {
         },
         data() {},
         error() {
-          resolve(true); // ECONNREFUSED → port is free
+          resolve(true);
         },
         connectError() {
-          resolve(true); // connection refused → port is free
+          resolve(true);
         },
       },
     }).catch(() => resolve(true));
   });
+}
+
+async function isPortFree(port: number): Promise<boolean> {
+  // Check both IPv4 and IPv6 — macOS servers may bind to either
+  const [v4, v6] = await Promise.all([
+    probePort("127.0.0.1", port),
+    probePort("::1", port),
+  ]);
+  return v4 && v6;
 }
 
 async function findFreePort(
