@@ -14,8 +14,29 @@ export const DECO_STORE_URL = "https://api.decocms.com/mcp/registry";
 export const OPENROUTER_MCP_URL = "https://sites-openrouter.decocache.com/mcp";
 
 /** Deco AI Gateway MCP URL (deco-hosted) */
-export const DECO_AI_GATEWAY_MCP_URL =
+const DECO_AI_GATEWAY_MCP_URL =
   "https://sites-deco-ai-gateway.decocache.com/mcp";
+
+const AI_GATEWAY_URLS = [DECO_AI_GATEWAY_MCP_URL];
+
+/** Tolerant check: matches the AI Gateway even with trailing slash or query params. */
+export function isDecoAIGatewayUrl(
+  connectionUrl: string | null | undefined,
+): boolean {
+  if (!connectionUrl) return false;
+  try {
+    const url = new URL(connectionUrl);
+    return AI_GATEWAY_URLS.some((candidate) => {
+      const expected = new URL(candidate);
+      return (
+        url.origin === expected.origin &&
+        url.pathname.replace(/\/$/, "") === expected.pathname
+      );
+    });
+  } catch {
+    return false;
+  }
+}
 
 /** OpenRouter icon URL */
 export const OPENROUTER_ICON_URL =
