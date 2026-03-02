@@ -88,17 +88,33 @@ async function ensureCaddyServer(): Promise<void> {
   );
   if (res.ok) return;
 
-  const bootstrapRes = await fetch(
-    `${CADDY_ADMIN}/config/apps/http/servers/${CADDY_SERVER_ID}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ listen: [":80"], routes: [] }),
-    },
-  );
+  // Intermediate paths may not exist yet (fresh Caddy with empty config).
+  // Use /load to merge our server into the top-level config safely.
+  const currentRes = await fetch(`${CADDY_ADMIN}/config/`);
+  const current = currentRes.ok ? await currentRes.json() : {};
 
-  if (!bootstrapRes.ok) {
-    const text = await bootstrapRes.text();
+  const merged = {
+    ...current,
+    apps: {
+      ...(current.apps ?? {}),
+      http: {
+        ...(current.apps?.http ?? {}),
+        servers: {
+          ...(current.apps?.http?.servers ?? {}),
+          [CADDY_SERVER_ID]: { listen: [":80"], routes: [] },
+        },
+      },
+    },
+  };
+
+  const loadRes = await fetch(`${CADDY_ADMIN}/load`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(merged),
+  });
+
+  if (!loadRes.ok) {
+    const text = await loadRes.text();
     throw new Error(`Failed to bootstrap Caddy server: ${text}`);
   }
 
