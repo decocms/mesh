@@ -4,7 +4,7 @@
  * A right-side sliding panel that displays chat thread history.
  */
 
-import { Input } from "@deco/ui/components/input.tsx";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import {
   Sheet,
   SheetContent,
@@ -12,8 +12,9 @@ import {
   SheetTitle,
 } from "@deco/ui/components/sheet.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { MessageChatSquare, SearchMd } from "@untitledui/icons";
+import { Check, Edit01, MessageChatSquare } from "@untitledui/icons";
 import { useState } from "react";
+import { useChatStable } from "./context";
 import type { Thread } from "./types.ts";
 
 /**
@@ -40,6 +41,10 @@ function ThreadsViewContent({
   showBackButton = false,
 }: ThreadsViewContentProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const { renameThread } = useChatStable();
+
   const filteredThreads = !searchQuery.trim()
     ? threads
     : threads.filter((thread) =>
@@ -52,6 +57,32 @@ function ThreadsViewContent({
     onThreadSelect(threadId);
     if (onClose) {
       onClose();
+    }
+  };
+
+  const startEditing = (thread: Thread, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingThreadId(thread.id);
+    setEditingTitle(thread.title || "");
+  };
+
+  const commitEdit = async (threadId: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed) {
+      await renameThread(threadId, trimmed);
+    }
+    setEditingThreadId(null);
+  };
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    threadId: string,
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEdit(threadId);
+    } else if (e.key === "Escape") {
+      setEditingThreadId(null);
     }
   };
 
@@ -73,21 +104,17 @@ function ThreadsViewContent({
         </div>
       )}
 
-      <div className={cn("px-3 py-3 border-b", "shrink-0")}>
-        <div className="relative">
-          <SearchMd
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-sm"
-          />
-        </div>
-      </div>
+      <CollectionSearch
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search conversations..."
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setSearchQuery("");
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
 
       {/* Threads list */}
       <div className="flex-1 overflow-y-auto">
@@ -111,40 +138,84 @@ function ThreadsViewContent({
           <div className="flex flex-col py-2">
             {filteredThreads.map((thread) => {
               const isActive = thread.id === activeThreadId;
+              const isEditing = editingThreadId === thread.id;
               return (
-                <button
+                <div
                   key={thread.id}
-                  type="button"
-                  onClick={() => handleThreadSelect(thread.id)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50",
+                    "group flex items-center gap-2 px-4 py-3 transition-colors hover:bg-accent/50 cursor-pointer",
                     isActive && "bg-accent/50",
                   )}
+                  onClick={() => !isEditing && handleThreadSelect(thread.id)}
                 >
                   <div className="flex-1 min-w-0">
-                    <p
-                      className={cn(
-                        "text-sm truncate",
-                        isActive
-                          ? "font-medium text-foreground"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {thread.title || "New chat"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(thread.updated_at).toLocaleDateString(
-                        undefined,
-                        {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        },
-                      )}
-                    </p>
+                    {isEditing ? (
+                      <div
+                        className="flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          autoFocus
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => commitEdit(thread.id)}
+                          onKeyDown={(e) => handleKeyDown(e, thread.id)}
+                          className="flex-1 text-sm bg-transparent border-b border-foreground/30 focus:border-foreground outline-none pb-0.5 min-w-0"
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => commitEdit(thread.id)}
+                          className="p-1 hover:bg-accent rounded shrink-0"
+                        >
+                          <Check
+                            size={12}
+                            className="text-muted-foreground hover:text-foreground"
+                          />
+                        </button>
+                      </div>
+                    ) : (
+                      <p
+                        className={cn(
+                          "text-sm truncate",
+                          isActive
+                            ? "font-medium text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {thread.title || "New chat"}
+                      </p>
+                    )}
+                    {!isEditing && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(thread.updated_at).toLocaleDateString(
+                          undefined,
+                          {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
+                      </p>
+                    )}
                   </div>
-                </button>
+                  {!isEditing && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => startEditing(thread, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded transition-opacity"
+                        title="Rename thread"
+                      >
+                        <Edit01
+                          size={13}
+                          className="text-muted-foreground hover:text-foreground"
+                        />
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -173,7 +244,7 @@ export function ThreadsSidebar({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-[320px] sm:w-[380px] p-0 flex flex-col"
+        className="w-[480px] sm:w-[540px] p-0 flex flex-col"
       >
         <SheetHeader className="h-12 px-4 flex flex-row items-center justify-between border-b shrink-0">
           <SheetTitle className="text-sm font-medium">Chat History</SheetTitle>
