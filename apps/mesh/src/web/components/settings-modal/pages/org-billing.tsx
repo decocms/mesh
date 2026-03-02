@@ -210,7 +210,7 @@ function LimitDialog({
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitPeriod, setLimitPeriod] = useState<LimitPeriod | "none">(
-    currentLimitPeriod ?? "monthly",
+    currentLimitPeriod ?? "none",
   );
 
   const client = useMCPClient({ connectionId, orgId: org.id });
@@ -292,6 +292,7 @@ function LimitDialog({
     setCustomAmount("");
     setCheckoutUrl(null);
     setError(null);
+    setLimitPeriod(currentLimitPeriod ?? "none");
     onOpenChange(false);
   };
 
