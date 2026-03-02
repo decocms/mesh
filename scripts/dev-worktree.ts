@@ -70,6 +70,7 @@ function isPortFree(port: number): Promise<boolean> {
           socket.end();
           resolve(false); // something is listening → port is in use
         },
+        data() {},
         error() {
           resolve(true); // ECONNREFUSED → port is free
         },
