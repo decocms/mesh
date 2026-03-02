@@ -2,7 +2,6 @@
  * Status badge for report status indicators.
  */
 
-import type { ReportStatus } from "@decocms/bindings";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   AlertCircle,
@@ -11,7 +10,9 @@ import {
   XCircle,
 } from "@untitledui/icons";
 
-export const STATUS_CONFIG: Record<
+type ReportStatus = "passing" | "warning" | "failing" | "info";
+
+const STATUS_CONFIG: Record<
   ReportStatus,
   { label: string; color: string; icon: typeof CheckCircle }
 > = {
@@ -43,10 +44,10 @@ export function StatusBadge({
   status,
   size = "default",
 }: {
-  status: ReportStatus;
+  status: string;
   size?: "sm" | "default";
 }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.info;
+  const cfg = STATUS_CONFIG[status as ReportStatus] ?? STATUS_CONFIG.info;
   const Icon = cfg.icon;
   const isSmall = size === "sm";
   return (

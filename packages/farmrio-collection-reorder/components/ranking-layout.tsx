@@ -2,39 +2,44 @@
  * Ranking Layout
  *
  * Self-contained layout for the collection reorder ranking plugin.
- * Uses the same Reports MCP connection as the reports plugin.
- * Uses URL search params (?reportId=...) for copyable report URLs.
+ * Collections are loaded directly from the MCP via collection_list.
+ * An optional VTEX connection handles the reorder apply action.
+ * Uses URL search params (?collectionId=...&reportId=...) for copyable URLs.
  */
 
 import {
-  type Binder,
+  FARMRIO_REORDER_BINDING,
+  VTEX_REORDER_COLLECTION_BINDING,
   connectionImplementsBinding,
   type PluginContext,
-  REPORTS_BINDING,
+  type FarmrioCollectionItem,
 } from "@decocms/bindings";
+import { useNavigate, useSearch } from "@decocms/bindings/plugin-router";
 import {
   SELF_MCP_ALIAS_ID,
+  type ConnectionEntity,
   useConnections,
   useMCPClient,
   useMCPClientOptional,
   useProjectContext,
-  type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { PluginContextProvider } from "@decocms/mesh-sdk/plugins";
-import { useNavigate, useSearch } from "@decocms/bindings/plugin-router";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@deco/ui/components/button.tsx";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loading01, Settings01 } from "@untitledui/icons";
 import { KEYS } from "../lib/query-keys";
-import RankingEmptyState from "./ranking-empty-state";
+import CollectionsList from "./collections-list";
 import RankingDetail from "./ranking-detail";
+import RankingEmptyState from "./ranking-empty-state";
 import RankingsList from "./rankings-list";
+import { VtexConnectionProvider } from "./vtex-connection-context";
 
 function filterConnectionsByBinding(
   connections: ConnectionEntity[] | undefined,
 ): ConnectionEntity[] {
   if (!connections) return [];
   return connections.filter((conn) =>
-    connectionImplementsBinding(conn, REPORTS_BINDING),
+    connectionImplementsBinding(conn, FARMRIO_REORDER_BINDING),
   );
 }
 
@@ -48,20 +53,35 @@ type PluginConfigOutput = {
   } | null;
 };
 
+type SearchParams = {
+  collectionId?: string;
+  reportId?: string;
+};
+
 export default function RankingLayout() {
   const { org, project } = useProjectContext();
-  const search = useSearch({ strict: false }) as { reportId?: string };
+  const search = useSearch({ strict: false }) as SearchParams;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const allConnections = useConnections();
 
+  const collectionId = search.collectionId ?? null;
   const reportId = search.reportId ?? null;
   const pluginId = "collection-reorder-ranking";
 
-  const setReportId = (id: string | null) => {
+  const setCollectionId = (id: string | null) => {
     navigate({
-      search: id ? { reportId: id } : {},
+      search: id ? { collectionId: id } : {},
       replace: true,
-    } as Parameters<typeof navigate>[0]);
+    } as unknown as Parameters<typeof navigate>[0]);
+  };
+
+  const setReportId = (id: number | null) => {
+    if (!collectionId) return;
+    navigate({
+      search: id ? { collectionId, reportId: String(id) } : { collectionId },
+      replace: true,
+    } as unknown as Parameters<typeof navigate>[0]);
   };
 
   const selfClient = useMCPClient({
@@ -87,12 +107,110 @@ export default function RankingLayout() {
     ? validConnections.find((c) => c.id === configuredConnectionId)
     : null;
 
+  const settings =
+    pluginConfig?.config?.settings &&
+    typeof pluginConfig.config.settings === "object"
+      ? (pluginConfig.config.settings as Record<string, unknown>)
+      : null;
+
+  const configuredVtexConnectionId =
+    typeof settings?.vtexConnectionId === "string"
+      ? settings.vtexConnectionId
+      : null;
+  const configuredVtexConnection = configuredVtexConnectionId
+    ? (allConnections?.find(
+        (conn) =>
+          conn.id === configuredVtexConnectionId &&
+          connectionImplementsBinding(conn, VTEX_REORDER_COLLECTION_BINDING),
+      ) ?? null)
+    : null;
+
   const configuredClient = useMCPClientOptional({
     connectionId: configuredConnection?.id,
     orgId: org.id,
   });
+  const configuredVtexClient = useMCPClientOptional({
+    connectionId: configuredVtexConnection?.id,
+    orgId: org.id,
+  });
+
+  const { data: collectionsData, isLoading: isLoadingCollections } = useQuery({
+    queryKey: KEYS.collectionsList(configuredConnection?.id ?? ""),
+    queryFn: async (): Promise<FarmrioCollectionItem[]> => {
+      const result = (await configuredClient!.callTool({
+        name: "collection_list",
+        arguments: { isEnabled: true, limit: 200 },
+      })) as { structuredContent?: unknown };
+      const data = (result.structuredContent ?? result) as {
+        success: boolean;
+        items?: FarmrioCollectionItem[];
+      };
+      return data.items ?? [];
+    },
+    enabled: !!configuredClient && !!configuredConnection,
+  });
+
+  const collections = collectionsData ?? [];
+  const selectedCollection = collectionId
+    ? (collections.find((c) => String(c.id) === collectionId) ?? null)
+    : null;
 
   const orgContext = { id: org.id, slug: org.slug, name: org.name };
+
+  const handleAddCollection = async (input: {
+    title: string;
+    farmCollectionId: string;
+    decoCollectionId?: string;
+  }) => {
+    if (!configuredClient) throw new Error("MCP client not available");
+    await configuredClient.callTool({
+      name: "collection_create",
+      arguments: {
+        title: input.title,
+        farmCollectionId: input.farmCollectionId,
+        decoCollectionId: input.decoCollectionId,
+      },
+    });
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.collectionsList(configuredConnection?.id ?? ""),
+    });
+  };
+
+  const handleDeleteCollection = async (collection: FarmrioCollectionItem) => {
+    if (collectionId === String(collection.id)) {
+      setCollectionId(null);
+    }
+    if (!configuredClient) throw new Error("MCP client not available");
+    await configuredClient.callTool({
+      name: "collection_update",
+      arguments: {
+        id: collection.id,
+        farmCollectionId: collection.farmCollectionId,
+        isEnabled: false,
+      },
+    });
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.collectionsList(configuredConnection?.id ?? ""),
+    });
+  };
+
+  const handleToggleCollection = async (
+    collection: FarmrioCollectionItem,
+    isEnabled: boolean,
+  ) => {
+    if (!configuredClient) throw new Error("MCP client not available");
+    await configuredClient.callTool({
+      name: "collection_update",
+      arguments: {
+        id: collection.id,
+        farmCollectionId: collection.farmCollectionId,
+        isEnabled,
+      },
+    });
+    await queryClient.invalidateQueries({
+      queryKey: KEYS.collectionsList(configuredConnection?.id ?? ""),
+    });
+  };
 
   if (isLoadingConfig) {
     return (
@@ -117,15 +235,31 @@ export default function RankingLayout() {
           <Settings01 size={48} className="text-muted-foreground mb-2" />
           <h2 className="text-lg font-semibold">Plugin Not Configured</h2>
           <p className="text-sm text-muted-foreground">
-            This plugin requires a connection to be configured. Go to project
-            settings to select which integration to use.
+            This plugin requires a Farmrio reorder connection to be configured.
+            Go to project settings to select which integration to use.
           </p>
         </div>
       </div>
     );
   }
 
-  const pluginContext: PluginContext<Binder> = {
+  if (collectionId && !selectedCollection && !isLoadingCollections) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-8">
+        <div className="flex flex-col items-center gap-2 text-center max-w-md">
+          <h2 className="text-lg font-semibold">Collection Not Found</h2>
+          <p className="text-sm text-muted-foreground">
+            The selected collection was not found.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setCollectionId(null)}>
+          Back to collections
+        </Button>
+      </div>
+    );
+  }
+
+  const pluginContext: PluginContext<typeof FARMRIO_REORDER_BINDING> = {
     connectionId: configuredConnection.id,
     connection: {
       id: configuredConnection.id,
@@ -147,25 +281,78 @@ export default function RankingLayout() {
             .then((result) => result.structuredContent ?? result)
         : Promise.reject(
             new Error("MCP client is not available"),
-          )) as PluginContext<Binder>["toolCaller"],
+          )) as PluginContext<typeof FARMRIO_REORDER_BINDING>["toolCaller"],
     org: orgContext,
     session: null,
   };
 
+  const vtexContext = {
+    connection: configuredVtexConnection
+      ? {
+          id: configuredVtexConnection.id,
+          title: configuredVtexConnection.title,
+          icon: configuredVtexConnection.icon,
+          description: configuredVtexConnection.description,
+          app_name: configuredVtexConnection.app_name,
+          app_id: configuredVtexConnection.app_id,
+          tools: configuredVtexConnection.tools,
+          metadata: configuredVtexConnection.metadata,
+        }
+      : null,
+    toolCaller: configuredVtexClient
+      ? (
+          toolName: "VTEX_REORDER_COLLECTION",
+          args: { collectionId: string; productIds: string[] },
+        ) =>
+          configuredVtexClient
+            .callTool({
+              name: toolName,
+              arguments: args,
+            })
+            .then((result) => result.structuredContent ?? result)
+      : null,
+  };
+
   return (
     <PluginContextProvider value={pluginContext}>
-      <div className="flex flex-col h-full overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          {reportId ? (
-            <RankingDetail
-              reportId={reportId}
-              onBack={() => setReportId(null)}
-            />
-          ) : (
-            <RankingsList onSelectReport={setReportId} />
-          )}
+      <VtexConnectionProvider value={vtexContext}>
+        <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            {isLoadingCollections && !collectionId ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <Loading01
+                  size={32}
+                  className="animate-spin text-muted-foreground mb-4"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Loading collections...
+                </p>
+              </div>
+            ) : !collectionId ? (
+              <CollectionsList
+                collections={collections}
+                onSelectCollection={(c) => setCollectionId(String(c.id))}
+                onAddCollection={handleAddCollection}
+                onDeleteCollection={handleDeleteCollection}
+                onToggleCollection={handleToggleCollection}
+              />
+            ) : reportId && selectedCollection ? (
+              <RankingDetail
+                reportId={Number(reportId)}
+                collection={selectedCollection}
+                onBack={() => setReportId(null)}
+              />
+            ) : selectedCollection ? (
+              <RankingsList
+                collection={selectedCollection}
+                onBack={() => setCollectionId(null)}
+                onSelectReport={(id) => setReportId(id)}
+                onToggleCollection={handleToggleCollection}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      </VtexConnectionProvider>
     </PluginContextProvider>
   );
 }
