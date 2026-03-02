@@ -220,7 +220,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       }
     }
 
-    const fetchedTools = await fetchToolsFromMCP({
+    const fetchResult = await fetchToolsFromMCP({
       id: existing.id,
       title: data.title ?? existing.title,
       connection_type: finalConnectionType,
@@ -229,7 +229,15 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       connection_headers:
         data.connection_headers ?? existing.connection_headers,
     }).catch(() => null);
-    const tools = fetchedTools?.length ? fetchedTools : null;
+    const tools = fetchResult?.tools?.length ? fetchResult.tools : null;
+
+    // Auto-populate scopes from MCP_CONFIGURATION when not explicitly provided by the caller
+    if (
+      data.configuration_scopes === undefined &&
+      fetchResult?.scopes?.length
+    ) {
+      finalScopes = fetchResult.scopes;
+    }
 
     // Update the connection with the refreshed tools and configuration
     const updatePayload: Partial<ConnectionEntity> = {

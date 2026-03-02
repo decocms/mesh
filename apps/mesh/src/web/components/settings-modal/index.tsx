@@ -21,6 +21,7 @@ import { OrgGeneralPage } from "./pages/org-general";
 import { ProjectGeneralPage } from "./pages/project-general";
 import { ProjectPluginsPage } from "./pages/project-plugins";
 import { ProjectDangerPage } from "./pages/project-danger";
+import { OrgBillingPage } from "./pages/org-billing";
 
 function ContentSkeleton() {
   return (
@@ -93,6 +94,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
           <ProjectPluginsPage />
         </ProjectContextWrapper>
       );
+    case "org.billing":
+      return <OrgBillingPage />;
     default:
       return <AccountPreferencesPage />;
   }
