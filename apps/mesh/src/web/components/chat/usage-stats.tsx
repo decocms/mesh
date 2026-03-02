@@ -135,42 +135,6 @@ export function MessageStatsBar({ usage, duration }: MessageStatsBarProps) {
   );
 }
 
-export function ThreadUsageStats({ usage }: UsageStatsProps) {
-  if (!usage) return null;
-  const { totalTokens, inputTokens, outputTokens, cost } = usage;
-  if (!totalTokens && !inputTokens && !outputTokens) return null;
-  if (cost <= 0) return null;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground pl-1! h-6 gap-1 whitespace-nowrap shrink-0"
-        >
-          <span className="text-[11px] font-mono tabular-nums">
-            ${cost.toFixed(4)}
-          </span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="font-mono text-[11px]">
-        <p className="text-muted text-[10px] mb-1">tokens</p>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          <span className="text-muted">in</span>
-          <span className="text-right tabular-nums">
-            {inputTokens.toLocaleString()}
-          </span>
-          <span className="text-muted">out</span>
-          <span className="text-right tabular-nums">
-            {outputTokens.toLocaleString()}
-          </span>
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 interface SessionStatsProps {
   usage: UsageStatsType | null | undefined;
   totalTokens: number;
