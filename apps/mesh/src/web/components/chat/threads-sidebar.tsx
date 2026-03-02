@@ -164,6 +164,7 @@ function ThreadsViewContent({
                         />
                         <button
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => commitEdit(thread.id)}
                           className="p-1 hover:bg-accent rounded shrink-0"
                         >

@@ -282,6 +282,7 @@ export function ThreadHistoryPopover({
                                   />
                                   <button
                                     type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => commitEdit(thread.id)}
                                     className="p-0.5 hover:bg-accent rounded shrink-0"
                                   >
