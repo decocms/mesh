@@ -7,7 +7,6 @@ import {
   FARMRIO_REORDER_BINDING,
   type FarmrioReport,
   type FarmrioReportSummary,
-  type FarmrioCollectionItem,
 } from "@decocms/bindings";
 import { usePluginContext } from "@decocms/mesh-sdk/plugins";
 import { KEYS } from "../lib/query-keys";
@@ -51,25 +50,5 @@ export function useRankingReport(reportId: number) {
     },
     enabled: !!reportId,
     staleTime: 60 * 1000,
-  });
-}
-
-/**
- * Fetch the list of enabled collections.
- */
-export function useCollectionsList() {
-  const { connectionId, toolCaller } =
-    usePluginContext<typeof FARMRIO_REORDER_BINDING>();
-
-  return useQuery({
-    queryKey: KEYS.collectionsList(connectionId),
-    queryFn: async (): Promise<FarmrioCollectionItem[]> => {
-      const result = await toolCaller("collection_list", {
-        isEnabled: true,
-        limit: 200,
-      });
-      return result.items ?? [];
-    },
-    staleTime: 30 * 1000,
   });
 }

@@ -39,6 +39,9 @@ export type FarmrioCriteriaItem = z.infer<typeof FarmrioCriteriaItemSchema>;
 
 export const FarmrioRankedItemSchema = z.object({
   id: z.number().int().optional(),
+  productId: z.union([z.number().int(), z.string().min(1)]).optional(),
+  product_id: z.union([z.number().int(), z.string().min(1)]).optional(),
+  ProductId: z.union([z.number().int(), z.string().min(1)]).optional(),
   position: z.number().int(),
   delta: z.number().optional(),
   label: z.string(),

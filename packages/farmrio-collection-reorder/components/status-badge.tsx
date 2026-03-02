@@ -12,7 +12,7 @@ import {
 
 type ReportStatus = "passing" | "warning" | "failing" | "info";
 
-export const STATUS_CONFIG: Record<
+const STATUS_CONFIG: Record<
   ReportStatus,
   { label: string; color: string; icon: typeof CheckCircle }
 > = {

@@ -12,7 +12,7 @@ import type { Binder, ToolBinder } from "../core/binder";
 // Shared Schemas
 // ============================================================================
 
-export const VtexPagingSchema = z.object({
+const VtexPagingSchema = z.object({
   Page: z.number().optional(),
   PageSize: z.number().optional(),
   Total: z.number().optional(),
@@ -20,7 +20,7 @@ export const VtexPagingSchema = z.object({
 });
 export type VtexPaging = z.infer<typeof VtexPagingSchema>;
 
-export const VtexCollectionSchema = z.object({
+const VtexCollectionSchema = z.object({
   Id: z.number(),
   Name: z.string(),
   Searchable: z.boolean(),
@@ -32,7 +32,7 @@ export const VtexCollectionSchema = z.object({
 });
 export type VtexCollection = z.infer<typeof VtexCollectionSchema>;
 
-export const VtexCollectionProductSchema = z.object({
+const VtexCollectionProductSchema = z.object({
   ProductId: z.number(),
   SkuId: z.number().optional(),
   ProductName: z.string(),

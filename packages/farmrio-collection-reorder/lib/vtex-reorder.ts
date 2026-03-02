@@ -16,7 +16,8 @@ export type VtexApplyPayloadResult = ApplyPayloadSuccess | ApplyPayloadError;
 
 /**
  * Builds the VTEX apply payload from a ranked list.
- * Uses rankedItem.id as the product identifier.
+ * Uses rankedItem.productId (or aliases) as the product identifier.
+ * Falls back to rankedItem.id for legacy rows.
  * vtexCollectionId is the collection's DB id (used as VTEX collection id).
  */
 export function buildVtexApplyPayload(
@@ -34,11 +35,21 @@ export function buildVtexApplyPayload(
   const productIds: string[] = [];
 
   for (const row of orderedRows) {
-    const productId = row.id != null ? String(row.id) : null;
+    const rankedRow = row as FarmrioRankedItem & {
+      productId?: string | number;
+      product_id?: string | number;
+      ProductId?: string | number;
+    };
+    const rawProductId =
+      rankedRow.productId ??
+      rankedRow.product_id ??
+      rankedRow.ProductId ??
+      rankedRow.id;
+    const productId = rawProductId != null ? String(rawProductId) : null;
     if (!productId) {
       return {
         ok: false,
-        error: `ProductId ausente no item #${row.position} (${row.label}).`,
+        error: `Product ID ausente no item #${row.position} (${row.label}).`,
       };
     }
     productIds.push(productId);

@@ -311,6 +311,7 @@ function RankedListSection({
 
   const applyMutation = useMutation({
     mutationFn: async () => {
+      console.log("[Farmrio Reorder] Ranked list recebido para apply:", rows);
       if (missingVtexConnection || !vtexToolCaller) {
         throw new Error("Configure uma conexão VTEX para aplicar a sugestão.");
       }
@@ -322,6 +323,15 @@ function RankedListSection({
       if (!applyPayload.ok) {
         throw new Error(applyPayload.error);
       }
+
+      console.log(
+        "[Farmrio Reorder] Payload enviado para VTEX_REORDER_COLLECTION:",
+        {
+          collectionId: applyPayload.collectionId,
+          productIds: applyPayload.productIds,
+          productCount: applyPayload.productCount,
+        },
+      );
 
       return vtexToolCaller("VTEX_REORDER_COLLECTION", {
         collectionId: applyPayload.collectionId,
