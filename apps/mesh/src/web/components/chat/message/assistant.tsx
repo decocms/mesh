@@ -195,6 +195,7 @@ function MessagePart({
           annotations={getMeta(part.toolCallId)?.annotations}
           latency={getMeta(part.toolCallId)?.latencySeconds}
           isLastMessage={isLastMessage}
+          toolMeta={getMeta(part.toolCallId)?._meta}
         />
       );
     case "tool-user_ask":
@@ -244,6 +245,7 @@ function MessagePart({
             annotations={meta?.annotations}
             latency={meta?.latencySeconds}
             isLastMessage={isLastMessage}
+            toolMeta={meta?._meta}
           />
         );
       }
