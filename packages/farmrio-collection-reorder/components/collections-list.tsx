@@ -282,7 +282,7 @@ export default function CollectionsList({
             <Input
               value={decoCollectionIdInput}
               onChange={(event) => setDecoCollectionIdInput(event.target.value)}
-              placeholder="Deco Collection ID (opcional)"
+              placeholder="Deco Collection ID (ex: 2247)"
             />
           </div>
 
@@ -297,7 +297,10 @@ export default function CollectionsList({
             <Button
               onClick={() => void handleCreate()}
               disabled={
-                isSubmitting || !title.trim() || !farmCollectionIdInput.trim()
+                isSubmitting ||
+                !title.trim() ||
+                !farmCollectionIdInput.trim() ||
+                !decoCollectionIdInput.trim()
               }
             >
               {isSubmitting ? "Salvando..." : "Criar collection"}
