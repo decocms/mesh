@@ -46,6 +46,7 @@ startWorktree(slug, async (ctx) => {
       ...dotEnv,
       PORT: String(port),
       VITE_PORT: String(vitePort),
+      BASE_URL: `http://${ctx.slug}.localhost`,
     },
     stdio: ["inherit", "inherit", "inherit"],
   });
