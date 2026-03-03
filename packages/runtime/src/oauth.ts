@@ -20,6 +20,7 @@ function isValidRedirectUri(uri: string): boolean {
     return (
       url.protocol === "https:" ||
       url.hostname === "localhost" ||
+      url.hostname.endsWith(".localhost") ||
       url.hostname === "127.0.0.1" ||
       // Allow custom schemes for native apps (e.g., cursor://, vscode://)
       !url.protocol.startsWith("http")
@@ -71,9 +72,11 @@ interface CodePayload {
 }
 
 const forceHttps = (url: URL) => {
-  const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  const isLocal =
+    url.hostname === "localhost" ||
+    url.hostname.endsWith(".localhost") ||
+    url.hostname === "127.0.0.1";
   if (!isLocal) {
-    // force http if not local
     url.protocol = "https:";
   }
   return url;
