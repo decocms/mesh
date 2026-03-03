@@ -57,7 +57,7 @@ export function SettingsSidebar({
     },
     {
       key: "org.plugins" as SettingsSection,
-      label: "Plugins",
+      label: "Features",
       icon: <Zap size={14} />,
     },
     {

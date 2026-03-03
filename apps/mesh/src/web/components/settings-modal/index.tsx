@@ -114,7 +114,7 @@ export function SettingsModal() {
               <span className="sr-only">Close</span>
             </button>
 
-            <div className="p-8 pt-0">
+            <div className="p-8">
               <Suspense fallback={<ContentSkeleton />}>
                 <SettingsContent section={activeSection} />
               </Suspense>
