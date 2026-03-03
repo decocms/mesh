@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -27,13 +27,8 @@ import type React from "react";
 import { Suspense } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
-import { ApprovalActions } from "./approval-actions.tsx";
 import { ToolCallShell } from "./common.tsx";
-import {
-  getApprovalId,
-  getEffectiveState,
-  getFriendlyToolName,
-} from "./utils.tsx";
+import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -187,9 +182,10 @@ export function GenericToolCallPart({
   const isStaleApproval =
     part.state === "approval-requested" && isLastMessage === false;
   const isCancelled = part.state === "output-denied" || isStaleApproval;
-  const effectiveState = isStaleApproval
-    ? "idle"
-    : getEffectiveState(part.state);
+  // Approval-requested parts render as idle inline (approval UI is in the highlight above input)
+  const rawState = getEffectiveState(part.state);
+  const effectiveState =
+    isStaleApproval || rawState === "approval" ? "idle" : rawState;
 
   // Error text (used in summary and detail)
   const errorText =
@@ -213,14 +209,8 @@ export function GenericToolCallPart({
     detail += "# Output\n" + safeStringifyFormatted(part.output);
   }
 
-  // Build approval actions for approval-requested state (only when not stale)
-  const approvalId = !isStaleApproval ? getApprovalId(part) : null;
-  const actions = approvalId ? (
-    <ApprovalActions approvalId={approvalId} />
-  ) : undefined;
-
   return (
-    <div className={cn(effectiveState === "approval" && "my-2")}>
+    <div>
       <ToolCallShell
         icon={
           isCancelled ? (
@@ -240,7 +230,6 @@ export function GenericToolCallPart({
         summary={summary}
         state={effectiveState}
         detail={detail || null}
-        actions={actions}
       />
       {hasMCPApp && uiResourceUri && connectionId && org?.id && (
         <ErrorBoundary
