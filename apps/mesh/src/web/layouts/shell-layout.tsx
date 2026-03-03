@@ -192,7 +192,10 @@ function ShellLayoutContent() {
       });
 
       // Persist for fast redirect on next login (read by homeRoute beforeLoad)
-      localStorage.setItem(LOCALSTORAGE_KEYS.lastOrgSlug(), org);
+      // Only write on success to avoid caching an invalid slug
+      if (data) {
+        localStorage.setItem(LOCALSTORAGE_KEYS.lastOrgSlug(), org);
+      }
 
       return {
         org: data,
