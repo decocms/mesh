@@ -260,6 +260,17 @@ export function createAssetHandler(config: AssetServerConfig = {}) {
       }
     }
 
+    // For /assets/* paths (hashed files), return an explicit 404 with no-store
+    // to prevent CDNs (e.g., Cloudflare) from caching the 404 response.
+    // Without this, a 404 during a rolling deployment gets cached at the edge
+    // for hours, making chunks unreachable even after all pods are updated.
+    if (path.includes("/assets/")) {
+      return new Response("Not Found", {
+        status: 404,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+
     return null;
   };
 }

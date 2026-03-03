@@ -394,6 +394,23 @@ describe("createAssetHandler", () => {
       );
     });
 
+    test("missing /assets/* file returns 404 with no-store to prevent CDN caching", async () => {
+      const handler = createAssetHandler({
+        env: "production",
+        clientDir: tempDir,
+      });
+
+      // Request a hashed chunk that doesn't exist (simulates post-deploy stale reference)
+      const request = new Request(
+        "http://localhost:3000/assets/chunk-OldHash.js",
+      );
+      const result = await handler(request);
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe(404);
+      expect(result!.headers.get("Cache-Control")).toBe("no-store");
+    });
+
     test("non-asset files return no Cache-Control header", async () => {
       const handler = createAssetHandler({
         env: "production",
