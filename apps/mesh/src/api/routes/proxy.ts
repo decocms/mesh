@@ -30,6 +30,7 @@ import { Context, Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
+import { reconcileLocalDevConnection } from "./local-dev-discover";
 
 // Define Hono variables type
 type Variables = {
@@ -133,6 +134,23 @@ async function createMCPProxyDoNotUseDirectly(
   // Check connection status
   if (connection.status !== "active") {
     throw new Error(`Connection inactive: ${connection.status}`);
+  }
+
+  // Reconcile local-dev port drift before connecting (only for local-dev connections)
+  const meta = connection.metadata as { localDevRoot?: string } | null;
+  if (meta?.localDevRoot) {
+    const reconciled = await reconcileLocalDevConnection(
+      connection,
+      ctx.storage,
+    );
+    if (reconciled.connection_url === null) {
+      throw new Error(
+        "Local dev server is not running. Start it with `deco link` and try again.",
+      );
+    }
+    if (reconciled.connection_url !== connection.connection_url) {
+      connection.connection_url = reconciled.connection_url;
+    }
   }
 
   // Create base client with auth + monitoring transports
@@ -262,6 +280,20 @@ app.all("/:connectionId", async (c) => {
         throw new Error(`Connection inactive: ${connection.status}`);
       }
 
+      // Reconcile local-dev port drift before proxying
+      const reconciled = await reconcileLocalDevConnection(
+        connection,
+        ctx.storage,
+      );
+      if (reconciled.connection_url === null) {
+        throw new Error(
+          "Local dev server is not running. Start it with `deco link` and try again.",
+        );
+      }
+      if (reconciled.connection_url !== connection.connection_url) {
+        connection.connection_url = reconciled.connection_url;
+      }
+
       // Create enhanced server directly (no need for bridge - server is used directly!)
       const server = await serverFromConnection(connection, ctx, false);
 
@@ -329,6 +361,24 @@ app.all("/:connectionId/call-tool/:toolName", async (c) => {
     );
     if (!connection) {
       return c.json({ error: "Connection not found" }, 404);
+    }
+
+    // Reconcile local-dev port drift before connecting
+    const reconciled = await reconcileLocalDevConnection(
+      connection,
+      ctx.storage,
+    );
+    if (reconciled.connection_url === null) {
+      return c.json(
+        {
+          error:
+            "Local dev server is not running. Start it with `deco link` and try again.",
+        },
+        503,
+      );
+    }
+    if (reconciled.connection_url !== connection.connection_url) {
+      connection.connection_url = reconciled.connection_url;
     }
 
     // Client pool manages lifecycle, no need for await using

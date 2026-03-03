@@ -122,6 +122,9 @@ export {
   type DecopilotEventMap,
 } from "./types";
 
+// Chat bridge
+export { ChatBridgeProvider, useChatBridge } from "./hooks/use-chat-bridge";
+
 // Streamable HTTP transport
 export { StreamableHTTPClientTransport } from "./lib/streamable-http-client-transport";
 

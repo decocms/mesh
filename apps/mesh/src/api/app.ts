@@ -40,7 +40,9 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import localDevDiscoverRoutes from "./routes/local-dev-discover";
 import publicConfigRoutes from "./routes/public-config";
+import cliAuthRoutes from "./routes/cli-auth";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -361,6 +363,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     return await auth.handler(c.req.raw);
   });
 
+  // CLI authentication (creates API key with org metadata server-side)
+  app.route("/api/cli", cliAuthRoutes);
+
   // ============================================================================
   // OAuth Proxy Routes (for proxying OAuth to origin MCP servers)
   // MUST be defined BEFORE the wildcard OAuth routes below
@@ -639,6 +644,11 @@ export async function createApp(options: CreateAppOptions = {}) {
       grouped: getToolsByCategory(),
     });
   });
+
+  // Local-dev auto-discovery (dev only, requires auth via MeshContext)
+  if (process.env.NODE_ENV !== "production") {
+    app.route("/api/local-dev", localDevDiscoverRoutes);
+  }
 
   // ============================================================================
   // API Routes
