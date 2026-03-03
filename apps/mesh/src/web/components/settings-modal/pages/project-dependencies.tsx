@@ -43,9 +43,10 @@ function ProjectDependenciesForm() {
   });
   const queryClient = useQueryClient();
   const allConnections = useConnections();
+  const projectId = project.id ?? "";
 
   const { data: projectConnections } = useQuery({
-    queryKey: KEYS.projectConnections(project.id),
+    queryKey: KEYS.projectConnections(projectId),
     queryFn: async () => {
       const result = await client.callTool({
         name: "PROJECT_CONNECTION_LIST",
@@ -110,7 +111,7 @@ function ProjectDependenciesForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: KEYS.projectConnections(project.id),
+        queryKey: KEYS.projectConnections(projectId),
       });
       queryClient.invalidateQueries({
         queryKey: KEYS.project(org.id, project.slug),
