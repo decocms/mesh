@@ -26,15 +26,13 @@ export interface ToolCallShellProps {
   /** Short status text shown inline after the label */
   summary?: string;
   /** Derived UI state computed by caller based on their loading semantics */
-  state: "loading" | "error" | "idle" | "approval";
+  state: "loading" | "error" | "idle";
   /** Detail shown in expanded view */
   detail?: string | null;
   /** How to render the detail panel. "code" = monospace pre with left rail, "prose" = plain text with muted bg */
   detailVariant?: "code" | "prose";
   /** When true, forces the detail panel open (e.g. while streaming thinking). Prevents user closing. */
   forceOpen?: boolean;
-  /** Optional actions rendered in the approval card footer */
-  actions?: ReactNode;
   /** Visual variant — "subtask" gets indented with a left rail */
   variant?: "default" | "subtask";
   /** Optional icons/badges rendered at the right end of the row (before usage stats) */
@@ -53,7 +51,6 @@ export function ToolCallShell({
   detail,
   detailVariant = "code",
   forceOpen,
-  actions,
   variant = "default",
   trailing,
   iconDestructive,
@@ -62,7 +59,6 @@ export function ToolCallShell({
   const { handleCopy, copied } = useCopy();
   const isLoading = state === "loading";
   const isError = state === "error";
-  const isApproval = state === "approval";
   const isExpandable = !!(detail && detail.trim());
   const isSubtask = variant === "subtask";
   const effectiveOpen = (forceOpen ?? false) || isExpanded;
@@ -73,34 +69,6 @@ export function ToolCallShell({
     enabled: isLoading && effectiveOpen,
     contentDeps: [detail],
   });
-
-  // ── Approval: explicit bordered card ──────────────────────────────────────
-  if (isApproval) {
-    return (
-      <div className="rounded-md border border-border/60 overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <div className="shrink-0 flex items-center [&>svg]:size-4 [&>svg]:text-muted-foreground/75">
-            {icon}
-          </div>
-          <span className="flex-1 min-w-0 text-[14px] font-normal text-foreground truncate">
-            {title}
-          </span>
-          {summary && (
-            <span className="shrink-0 text-xs text-muted-foreground/50 truncate max-w-[50%]">
-              {summary}
-            </span>
-          )}
-        </div>
-        {actions && (
-          <div className="flex items-center px-3 py-2 border-t border-border/50">
-            {actions}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Log row: no border, no background ─────────────────────────────────────
   const logRow = (
     <Collapsible
       open={effectiveOpen}

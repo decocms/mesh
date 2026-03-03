@@ -62,6 +62,12 @@ function ChatMessages() {
     lastMessage.parts
       .filter((p) => p.type === "tool-user_ask")
       .some((p) => p.state === "input-available");
+  const hasActivePendingApprovals =
+    !isStreaming &&
+    lastMessage?.role === "assistant" &&
+    lastMessage.parts.some(
+      (p) => "state" in p && p.state === "approval-requested",
+    );
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-y-auto h-full overflow-x-hidden">
@@ -79,7 +85,7 @@ function ChatMessages() {
         <div
           className={cn(
             "min-h-full min-w-0 max-w-2xl mx-auto w-full",
-            hasActiveUserAsk && "pb-60",
+            (hasActiveUserAsk || hasActivePendingApprovals) && "pb-60",
           )}
         >
           <MessagePair

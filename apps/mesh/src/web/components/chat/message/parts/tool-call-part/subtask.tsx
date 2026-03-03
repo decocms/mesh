@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@deco/ui/lib/utils.ts";
 import type { ToolSubtaskMetadata } from "../../use-filter-parts.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import type { ToolDefinition } from "@decocms/mesh-sdk";
@@ -9,8 +8,7 @@ import { useChatStable } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
 import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
-import { ApprovalActions } from "./approval-actions.tsx";
-import { getApprovalId, getEffectiveState } from "./utils.tsx";
+import { getEffectiveState } from "./utils.tsx";
 
 interface SubtaskPartProps {
   part: SubtaskToolPart;
@@ -34,10 +32,12 @@ export function SubtaskPart({ part, subtaskMeta, latency }: SubtaskPartProps) {
   const isError = part.state === "output-error";
 
   // Derive UI state for ToolCallShell
-  const effectiveState = getEffectiveState(
+  // Approval-requested parts render as idle inline (approval UI is in the highlight above input)
+  const rawState = getEffectiveState(
     part.state,
     "preliminary" in part ? part.preliminary : false,
   );
+  const effectiveState = rawState === "approval" ? "idle" : rawState;
 
   // Agent lookup
   const agentId = part.input?.agent_id;
@@ -61,7 +61,12 @@ export function SubtaskPart({ part, subtaskMeta, latency }: SubtaskPartProps) {
 
   // Summary: the task prompt (what this subtask was asked to do)
   const prompt = part.input?.prompt ?? "";
-  const summary = prompt.length > 120 ? prompt.slice(0, 120) + "…" : prompt;
+  const summary =
+    part.state === "approval-requested"
+      ? "Awaiting approval..."
+      : prompt.length > 120
+        ? prompt.slice(0, 120) + "…"
+        : prompt;
 
   // Detail (expanded content)
   const response = isError
@@ -80,24 +85,15 @@ export function SubtaskPart({ part, subtaskMeta, latency }: SubtaskPartProps) {
     />
   );
 
-  // Build approval actions for approval-requested state
-  const approvalId = getApprovalId(part);
-  const actions = approvalId ? (
-    <ApprovalActions approvalId={approvalId} />
-  ) : undefined;
-
   return (
-    <div className={cn(effectiveState === "approval" && "my-2")}>
-      <ToolCallShell
-        icon={icon}
-        title={title}
-        summary={summary}
-        usage={usage}
-        latency={latency}
-        detail={detail}
-        state={effectiveState}
-        actions={actions}
-      />
-    </div>
+    <ToolCallShell
+      icon={icon}
+      title={title}
+      summary={summary}
+      usage={usage}
+      latency={latency}
+      detail={detail}
+      state={effectiveState}
+    />
   );
 }

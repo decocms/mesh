@@ -9,15 +9,11 @@ import {
 import { Tabs, TabsContent } from "@deco/ui/components/tabs.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Edit02,
-  MessageQuestionCircle,
-} from "@untitledui/icons";
+import { Edit02, MessageQuestionCircle } from "@untitledui/icons";
 import { useEffect, useRef, useState } from "react";
 import { type Control, type FieldValues, useForm } from "react-hook-form";
 import type { UserAskToolPart } from "../types";
+import { HighlightCard, Pagination } from "./card";
 import { buildCombinedSchema } from "./user-ask-schemas";
 
 /** Inferred from UserAskToolPart so we don't import the backend module directly. */
@@ -314,96 +310,6 @@ function QuestionInput({ input, control, name }: QuestionInputProps) {
 }
 
 // ============================================================================
-// Pagination - "← 1 of 4 →" control
-// ============================================================================
-
-interface PaginationProps {
-  current: number;
-  total: number;
-  onPrev: () => void;
-  onNext: () => void;
-}
-
-function Pagination({ current, total, onPrev, onNext }: PaginationProps) {
-  if (total <= 1) return null;
-  return (
-    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-      <button
-        type="button"
-        onClick={onPrev}
-        disabled={current === 0}
-        className={cn(
-          "p-0.5 rounded transition-colors",
-          current === 0
-            ? "opacity-30 cursor-not-allowed"
-            : "hover:text-foreground cursor-pointer",
-        )}
-        aria-label="Previous question"
-      >
-        <ArrowLeft size={14} />
-      </button>
-      <span className="tabular-nums text-xs">
-        {current + 1} of {total}
-      </span>
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={current === total - 1}
-        className={cn(
-          "p-0.5 rounded transition-colors",
-          current === total - 1
-            ? "opacity-30 cursor-not-allowed"
-            : "hover:text-foreground cursor-pointer",
-        )}
-        aria-label="Next question"
-      >
-        <ArrowRight size={14} />
-      </button>
-    </div>
-  );
-}
-
-// ============================================================================
-// UserAskCard - the card chrome wrapping question content
-// ============================================================================
-
-interface UserAskCardProps {
-  title: string;
-  children: React.ReactNode;
-  footerLeft?: React.ReactNode;
-  footerRight: React.ReactNode;
-}
-
-function UserAskCard({
-  title,
-  children,
-  footerLeft,
-  footerRight,
-}: UserAskCardProps) {
-  return (
-    <div className="flex flex-col rounded-xl bg-background border border-border shadow-md w-[calc(100%-16px)] max-w-[584px] mx-auto mb-[-16px]">
-      {/* Header */}
-      <div className="flex items-center gap-2 p-4">
-        <p className="flex-1 text-base font-medium text-foreground min-w-0">
-          {title}
-        </p>
-      </div>
-
-      {/* Options / Content */}
-      <div className="overflow-clip pb-4">{children}</div>
-
-      {/* Footer with border-t */}
-      <div className="border-t border-border px-3 py-3 pb-6">
-        <div className="flex items-center justify-between">
-          <div>{footerLeft}</div>
-          <div className="flex items-center gap-2">{footerRight}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // UserAskPrompt - unified form across all pending questions
 // ============================================================================
 
@@ -525,7 +431,7 @@ function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
     return (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(submitAll)} autoComplete="off">
-          <UserAskCard
+          <HighlightCard
             title={part.input?.prompt ?? "Question"}
             footerRight={footerButtons}
           >
@@ -534,7 +440,7 @@ function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
               control={form.control}
               name={`${part.toolCallId}.response`}
             />
-          </UserAskCard>
+          </HighlightCard>
         </form>
       </Form>
     );
@@ -551,7 +457,7 @@ function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
               value={part.toolCallId}
               className="mt-0"
             >
-              <UserAskCard
+              <HighlightCard
                 title={part.input?.prompt ?? "Question"}
                 footerLeft={pagination}
                 footerRight={footerButtons}
@@ -561,7 +467,7 @@ function UserAskPrompt({ parts, onSubmit }: UserAskPromptProps) {
                   control={form.control}
                   name={`${part.toolCallId}.response`}
                 />
-              </UserAskCard>
+              </HighlightCard>
             </TabsContent>
           ))}
         </Tabs>

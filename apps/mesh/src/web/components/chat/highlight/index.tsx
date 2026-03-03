@@ -2,6 +2,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AlertCircle, AlertTriangle, X } from "@untitledui/icons";
 import { useChat } from "../context";
+import { ApprovalHighlight, extractPendingApprovals } from "./approval";
 import { UserAskQuestionHighlight } from "./user-ask-question";
 import type { UserAskToolPart } from "../types";
 
@@ -126,6 +127,7 @@ export function ChatHighlight() {
     isStreaming,
     isWaitingForApprovals,
     addToolOutput,
+    addToolApprovalResponse,
     sendMessage,
   } = useChat();
 
@@ -139,6 +141,21 @@ export function ChatHighlight() {
   const isWaitingForUserInput = userAskParts?.filter(
     (p) => p.state !== "output-available",
   )?.length;
+
+  // Collect pending approval parts from the last assistant message
+  const pendingApprovals =
+    lastMessage?.role === "assistant"
+      ? extractPendingApprovals(
+          lastMessage.parts as Array<{
+            type: string;
+            state?: string;
+            approval?: { id: string };
+            toolCallId?: string;
+            toolName?: string;
+            input?: unknown;
+          }>,
+        )
+      : [];
 
   const handleFixInChat = () => {
     if (error) {
@@ -172,6 +189,19 @@ export function ChatHighlight() {
     });
   };
 
+  const handleApprovalRespond = (
+    approvalId: string,
+    approved: boolean,
+    reason?: string,
+  ) => {
+    addToolApprovalResponse({
+      id: approvalId,
+      approved,
+      ...(reason ? { reason } : {}),
+    });
+  };
+
+  // Priority: user_ask > approval > error > warning
   if (isWaitingForUserInput) {
     return (
       <div className="absolute bottom-full left-0 right-0">
@@ -179,6 +209,18 @@ export function ChatHighlight() {
           userAskParts={userAskParts}
           isStreaming={isStreaming}
           onSubmit={handleUserAskSubmit}
+        />
+      </div>
+    );
+  }
+
+  if (pendingApprovals.length > 0 || (isStreaming && isWaitingForApprovals)) {
+    return (
+      <div className="absolute bottom-full left-0 right-0">
+        <ApprovalHighlight
+          approvals={pendingApprovals}
+          isStreaming={isStreaming}
+          onRespond={handleApprovalRespond}
         />
       </div>
     );
