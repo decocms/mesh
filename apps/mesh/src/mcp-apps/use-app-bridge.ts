@@ -1,0 +1,347 @@
+import {
+  AppBridge,
+  PostMessageTransport,
+} from "@modelcontextprotocol/ext-apps/app-bridge";
+import type {
+  McpUiDisplayMode,
+  McpUiHostCapabilities,
+  McpUiHostContext,
+  McpUiMessageRequest,
+} from "@modelcontextprotocol/ext-apps";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+// eslint-disable-next-line ban-use-effect/ban-use-effect
+import { useEffect, useRef, useSyncExternalStore } from "react";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const HOST_INFO = { name: "MCP Mesh", version: "1.0.0" } as const;
+
+const HOST_CAPABILITIES: McpUiHostCapabilities = {
+  openLinks: {},
+  serverTools: {},
+  serverResources: {},
+  logging: {},
+  message: {},
+};
+
+const INIT_TIMEOUT_MS = 15_000;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function detectTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function buildHostContext(
+  displayMode: McpUiDisplayMode,
+  maxHeight?: number,
+): McpUiHostContext {
+  return {
+    theme: detectTheme(),
+    displayMode,
+    availableDisplayModes: ["inline", "fullscreen"],
+    ...(maxHeight != null && {
+      containerDimensions: { maxHeight },
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// BridgeStore — a self-contained external store that owns the full AppBridge
+// lifecycle: creation, handler wiring, iframe attachment, teardown, and the
+// observable snapshot that React subscribes to via useSyncExternalStore.
+//
+// React never touches AppBridge directly. The component calls store.attach()
+// from an iframe ref callback and reads state through getSnapshot().
+// ---------------------------------------------------------------------------
+
+interface BridgeSnapshot {
+  height: number;
+  isLoading: boolean;
+  error: string | null;
+}
+
+interface BridgeStoreConfig {
+  client: Client;
+  displayMode: McpUiDisplayMode;
+  minHeight: number;
+  maxHeight: number;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  toolResult?: CallToolResult;
+  onMessage?: (params: McpUiMessageRequest["params"]) => void;
+}
+
+class BridgeStore {
+  // --- imperative state (invisible to React) ---
+  private bridge: AppBridge | null = null;
+  private timeout: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
+
+  // --- observable snapshot (React subscribes to this) ---
+  private snapshot: BridgeSnapshot;
+  private listeners = new Set<() => void>();
+
+  // --- mutable config (updated every render via updateConfig) ---
+  private config: BridgeStoreConfig;
+
+  constructor(config: BridgeStoreConfig) {
+    this.config = config;
+    this.snapshot = Object.freeze({
+      height: config.minHeight,
+      isLoading: true,
+      error: null,
+    });
+  }
+
+  // ---- useSyncExternalStore contract ----
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  getSnapshot = (): BridgeSnapshot => {
+    return this.snapshot;
+  };
+
+  // ---- config updates (called every render) ----
+
+  /**
+   * Update the config and, if the bridge is already initialized, push any
+   * changed toolInput/toolResult to the view automatically.
+   */
+  updateConfig(config: BridgeStoreConfig) {
+    const prev = this.config;
+    this.config = config;
+
+    if (!this.bridge || this.disposed) return;
+
+    if (config.toolInput !== prev.toolInput && config.toolInput != null) {
+      this.bridge.sendToolInput({ arguments: config.toolInput });
+    }
+    if (config.toolResult !== prev.toolResult && config.toolResult != null) {
+      this.bridge.sendToolResult(config.toolResult);
+    }
+  }
+
+  // ---- snapshot mutations ----
+
+  private set(partial: Partial<BridgeSnapshot>) {
+    const prev = this.snapshot;
+    const next = { ...prev, ...partial };
+
+    if (
+      next.height === prev.height &&
+      next.isLoading === prev.isLoading &&
+      next.error === prev.error
+    ) {
+      return;
+    }
+
+    this.snapshot = Object.freeze(next);
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+
+  // ---- bridge lifecycle ----
+
+  /** Tear down the current bridge and clear timers. */
+  teardown() {
+    this.disposed = true;
+    if (this.bridge) {
+      this.bridge.teardownResource({}).catch(() => {});
+      this.bridge.close();
+      this.bridge = null;
+    }
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
+    }
+  }
+
+  /** Attach to an iframe: create a bridge, wire handlers, connect transport.
+   *  Called from the iframe ref callback — this is the only entry point for
+   *  bridge creation. Pass `null` to detach / teardown. */
+  attach = (iframe: HTMLIFrameElement | null) => {
+    this.teardown();
+    this.disposed = false;
+    this.set({
+      height: this.config.minHeight,
+      isLoading: true,
+      error: null,
+    });
+
+    if (!iframe) return;
+
+    iframe.onerror = () => {
+      if (this.disposed) return;
+      this.set({ error: "Failed to load app", isLoading: false });
+    };
+
+    try {
+      const { client, displayMode, maxHeight } = this.config;
+      const hostContext = buildHostContext(displayMode, maxHeight);
+
+      // Pass the MCP client directly — AppBridge auto-wires oncalltool,
+      // onreadresource, onlistresources, etc. via the client's capabilities.
+      const bridge = new AppBridge(client, HOST_INFO, HOST_CAPABILITIES, {
+        hostContext,
+      });
+      this.bridge = bridge;
+
+      this.registerHandlers(bridge);
+      this.startInitTimeout();
+      this.registerInitHandler(bridge);
+      this.connectTransport(bridge, iframe);
+    } catch (err) {
+      this.clearTimeout();
+      console.error("Failed to create AppBridge:", err);
+      this.set({
+        error: err instanceof Error ? err.message : "Unknown error",
+        isLoading: false,
+      });
+    }
+  };
+
+  // ---- private handler registration ----
+
+  private registerHandlers(bridge: AppBridge) {
+    bridge.onopenlink = async ({ url }) => {
+      let parsed: URL | null = null;
+      try {
+        parsed = new URL(url);
+      } catch {
+        // invalid URL
+      }
+      if (!parsed || !["http:", "https:"].includes(parsed.protocol)) {
+        throw new Error("Only http and https URLs are allowed");
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+      return {};
+    };
+
+    bridge.onmessage = async (params) => {
+      this.config.onMessage?.(params);
+      return {};
+    };
+
+    bridge.onsizechange = ({ height: h }) => {
+      if (this.disposed) return;
+      if (h != null) {
+        const { minHeight, maxHeight } = this.config;
+        this.set({ height: Math.max(minHeight, Math.min(maxHeight, h)) });
+      }
+    };
+
+    bridge.onloggingmessage = ({ level, data }) => {
+      const method = level === "error" ? "error" : "debug";
+      console[method](`[MCP App ${this.config.toolName ?? "unknown"}]`, data);
+    };
+  }
+
+  private registerInitHandler(bridge: AppBridge) {
+    bridge.oninitialized = () => {
+      if (this.disposed) return;
+      this.clearTimeout();
+      this.set({ isLoading: false });
+
+      const { toolInput, toolResult } = this.config;
+      if (toolInput != null) {
+        bridge.sendToolInput({ arguments: toolInput });
+      }
+      if (toolResult != null) {
+        bridge.sendToolResult(toolResult);
+      }
+    };
+  }
+
+  private startInitTimeout() {
+    this.timeout = setTimeout(() => {
+      if (this.disposed) return;
+      this.set({ error: "App took too long to load", isLoading: false });
+    }, INIT_TIMEOUT_MS);
+  }
+
+  private clearTimeout() {
+    if (this.timeout) {
+      globalThis.clearTimeout(this.timeout);
+      this.timeout = null;
+    }
+  }
+
+  private connectTransport(bridge: AppBridge, iframe: HTMLIFrameElement) {
+    if (!iframe.contentWindow) {
+      console.warn("iframe contentWindow not yet available");
+      return;
+    }
+
+    const transport = new PostMessageTransport(
+      iframe.contentWindow,
+      iframe.contentWindow,
+    );
+    bridge.connect(transport).catch((err: unknown) => {
+      if (this.disposed) return;
+      this.clearTimeout();
+      console.error("AppBridge connect failed:", err);
+      this.set({
+        error: err instanceof Error ? err.message : "Connection failed",
+        isLoading: false,
+      });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hook — thin React binding over BridgeStore
+// ---------------------------------------------------------------------------
+
+interface UseAppBridgeOptions {
+  client: Client;
+  displayMode: McpUiDisplayMode;
+  minHeight: number;
+  maxHeight: number;
+  toolName?: string;
+  toolInput?: Record<string, unknown>;
+  toolResult?: CallToolResult;
+  onMessage?: (params: McpUiMessageRequest["params"]) => void;
+}
+
+interface UseAppBridgeReturn {
+  height: number;
+  isLoading: boolean;
+  error: string | null;
+  iframeRef: (iframe: HTMLIFrameElement | null) => void;
+}
+
+export function useAppBridge(options: UseAppBridgeOptions): UseAppBridgeReturn {
+  const storeRef = useRef<BridgeStore>(new BridgeStore(options));
+
+  // Sync props into the store so bridge handlers always read current values
+  // and push toolInput/toolResult changes to the view through the bridge.
+  // eslint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    storeRef.current.updateConfig(options);
+  }, [options]);
+
+  const { height, isLoading, error } = useSyncExternalStore(
+    storeRef.current.subscribe,
+    storeRef.current.getSnapshot,
+  );
+
+  return {
+    height,
+    isLoading,
+    error,
+    iframeRef: storeRef.current.attach,
+  };
+}
