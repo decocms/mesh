@@ -22,6 +22,7 @@ function ChatPanelContent() {
     isChatEmpty,
     activeThreadId,
     createThread,
+    switchToThread,
     threads,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
@@ -178,7 +179,15 @@ function ChatPanelContent() {
             : "opacity-0 translate-x-4 pointer-events-none",
         )}
       >
-        <ThreadsView onClose={() => setShowThreadsOverlay(false)} />
+        <ThreadsView
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onThreadSelect={async (threadId) => {
+            await switchToThread(threadId);
+            setShowThreadsOverlay(false);
+          }}
+          onClose={() => setShowThreadsOverlay(false)}
+        />
       </div>
     </Chat>
   );

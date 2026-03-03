@@ -298,7 +298,11 @@ function VirtualMCPBadge({
 // ChatInput - Merged component with virtual MCP wrapper, banners, and selectors
 // ============================================================================
 
-export function ChatInput() {
+export function ChatInput({
+  onOpenContextPanel,
+}: {
+  onOpenContextPanel?: () => void;
+}) {
   const {
     activeThreadId,
     tiptapDocRef,
@@ -514,6 +518,7 @@ export function ChatInput() {
                       usage={usage}
                       totalTokens={lastTotalTokens}
                       contextWindow={contextWindow}
+                      onOpenContextPanel={onOpenContextPanel}
                     />
                   )}
                 </div>

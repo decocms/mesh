@@ -225,9 +225,9 @@ function TasksPanelContent() {
   const { createThread, isChatEmpty } = useChat();
 
   return (
-    <div className="flex flex-col h-full bg-background border-r border-border">
+    <div className="flex flex-col h-full bg-background border-r border-border/50">
       {/* Header */}
-      <div className="h-12 px-4 flex items-center justify-between shrink-0 border-b border-border">
+      <div className="h-11 px-4 flex items-center justify-between shrink-0 border-b border-border/50">
         <span className="text-sm font-normal text-foreground">Tasks</span>
         <button
           type="button"
@@ -247,8 +247,8 @@ function TasksPanelContent() {
 
 function TasksPanelSkeleton() {
   return (
-    <div className="flex flex-col h-full bg-background border-r border-border">
-      <div className="h-12 px-4 flex items-center shrink-0 border-b border-border">
+    <div className="flex flex-col h-full bg-background border-r border-border/50">
+      <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50">
         <span className="text-sm font-normal text-foreground">Tasks</span>
       </div>
       <div className="flex-1 flex items-center justify-center">
@@ -260,11 +260,11 @@ function TasksPanelSkeleton() {
 
 export function TasksPanel({ className }: { className?: string }) {
   return (
-    <div className={cn("w-[280px] shrink-0 h-full", className)}>
+    <div className={cn("h-full", className)}>
       <ErrorBoundary
         fallback={() => (
-          <div className="flex flex-col h-full bg-background border-r border-border">
-            <div className="h-12 px-4 flex items-center shrink-0 border-b border-border">
+          <div className="flex flex-col h-full bg-background border-r border-border/50">
+            <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50">
               <span className="text-sm font-normal text-foreground">Tasks</span>
             </div>
             <div className="flex-1 flex items-center justify-center px-4 text-center">

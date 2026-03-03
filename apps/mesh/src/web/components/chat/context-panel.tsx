@@ -1,8 +1,9 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { XClose } from "@untitledui/icons";
+import { CheckCircle, Loading01, XCircle, XClose } from "@untitledui/icons";
 import { calculateUsageStats } from "@/web/lib/usage-utils";
 import { useChat } from "./context";
-import type { ChatMessage } from "./types";
+import type { ChatMessage, SubtaskToolPart } from "./types";
+import { useState } from "react";
 
 // ============================================================================
 // Helpers
@@ -33,9 +34,7 @@ function formatDate(d: string | Date | undefined): string {
 
 function formatModelId(id: string | undefined): string {
   if (!id) return "—";
-  // Strip trailing date suffixes like -20250101 or -20250101-preview
   const stripped = id.replace(/-\d{8}(?:-[a-z0-9]+)*$/i, "");
-  // Replace hyphens with spaces
   return stripped.replace(/-/g, " ");
 }
 
@@ -50,13 +49,13 @@ interface StatItem {
 
 function StatGrid({ items }: { items: StatItem[] }) {
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+    <div className="grid grid-cols-2 gap-x-8 gap-y-6">
       {items.map((item) => (
-        <div key={item.label} className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider truncate">
+        <div key={item.label} className="flex flex-col gap-1 min-w-0">
+          <span className="text-xs text-muted-foreground truncate">
             {item.label}
           </span>
-          <span className="text-sm font-medium text-foreground tabular-nums truncate">
+          <span className="text-sm text-foreground tabular-nums truncate">
             {item.value}
           </span>
         </div>
@@ -109,21 +108,21 @@ function ContextBreakdownBar({
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         <div className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-sm bg-blue-500 shrink-0" />
-          <span className="text-[10px] text-muted-foreground">
-            User ({formatTokens(userTokens)})
+          <span className="text-xs text-muted-foreground">
+            User {userPct.toFixed(1)}%
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-sm bg-violet-500 shrink-0" />
-          <span className="text-[10px] text-muted-foreground">
-            Assistant ({formatTokens(assistantTokens)})
+          <span className="text-xs text-muted-foreground">
+            Assistant {assistantPct.toFixed(1)}%
           </span>
         </div>
         {otherTokens > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-sm bg-muted-foreground/30 shrink-0" />
-            <span className="text-[10px] text-muted-foreground">
-              Other ({formatTokens(otherTokens)})
+            <span className="text-xs text-muted-foreground">
+              Other {otherPct.toFixed(1)}%
             </span>
           </div>
         )}
@@ -145,12 +144,17 @@ export function ChatContextPanel({
   onClose,
   className,
 }: ChatContextPanelProps) {
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(
+    null,
+  );
+
   const {
     messages,
     threads,
     activeThreadId,
     selectedModel,
     selectedVirtualMcp,
+    virtualMcps,
   } = useChat();
 
   const activeThread = threads.find((t) => t.id === activeThreadId);
@@ -174,11 +178,6 @@ export function ChatContextPanel({
     contextWindow && contextWindow > 0
       ? ((stats.totalTokens / contextWindow) * 100).toFixed(1)
       : null;
-
-  const usagePctNum =
-    contextWindow && contextWindow > 0
-      ? (stats.totalTokens / contextWindow) * 100
-      : 0;
 
   // Per-role token breakdown from message metadata
   const userTokens = (messages as ChatMessage[])
@@ -218,13 +217,47 @@ export function ChatContextPanel({
     (m) => m.role !== "system",
   );
 
+  // Subtask parts across all messages
+  interface SubtaskEntry {
+    part: SubtaskToolPart;
+    agentTitle: string;
+    isRunning: boolean;
+    isError: boolean;
+  }
+  const subtasks: SubtaskEntry[] = (messages as ChatMessage[]).flatMap((m) =>
+    (m.parts ?? [])
+      .filter((p): p is SubtaskToolPart => p.type === "tool-subtask")
+      .map((part) => {
+        const agentId = part.input?.agent_id;
+        const agent = agentId
+          ? virtualMcps.find((v) => v.id === agentId)
+          : null;
+        const isRunning =
+          part.state === "input-streaming" ||
+          part.state === "input-available" ||
+          (part.state === "output-available" &&
+            (part as { preliminary?: boolean }).preliminary === true);
+        const isError = part.state === "output-error";
+        return {
+          part,
+          agentTitle: agent?.title ?? "Subtask",
+          isRunning,
+          isError,
+        };
+      }),
+  );
+
   const modelLabel = selectedModel?.thinking?.id
     ? formatModelId(selectedModel.thinking.id)
     : "—";
 
   const agentTitle = selectedVirtualMcp?.title ?? "Decopilot";
 
-  const tokenStats: StatItem[] = [
+  const allStats: StatItem[] = [
+    { label: "Session", value: activeThread?.title ?? "New chat" },
+    { label: "Messages", value: visibleMessages.length },
+    { label: "Agent", value: agentTitle },
+    { label: "Model", value: modelLabel },
     {
       label: "Context Limit",
       value: contextWindow ? formatTokens(contextWindow) : "—",
@@ -234,7 +267,7 @@ export function ChatContextPanel({
       value: stats.totalTokens > 0 ? formatTokens(stats.totalTokens) : "0",
     },
     {
-      label: "Usage %",
+      label: "Usage",
       value: usagePct !== null ? `${usagePct}%` : "—",
     },
     {
@@ -246,7 +279,7 @@ export function ChatContextPanel({
       value: stats.outputTokens > 0 ? formatTokens(stats.outputTokens) : "0",
     },
     {
-      label: "Reasoning",
+      label: "Reasoning Tokens",
       value:
         stats.reasoningTokens > 0 ? formatTokens(stats.reasoningTokens) : "0",
     },
@@ -255,52 +288,21 @@ export function ChatContextPanel({
       value:
         stats.cost > 0
           ? `$${stats.cost < 0.001 ? stats.cost.toFixed(6) : stats.cost.toFixed(4)}`
-          : "$0.0000",
+          : "$0.00",
     },
-  ];
-
-  const sessionStats: StatItem[] = [
-    {
-      label: "Session Created",
-      value: formatDate(sessionCreated),
-    },
-    {
-      label: "Last Activity",
-      value: formatDate(lastActivity),
-    },
-  ];
-
-  const agentModelStats: StatItem[] = [
-    {
-      label: "Agent",
-      value: agentTitle,
-    },
-    {
-      label: "Model",
-      value: modelLabel,
-    },
-  ];
-
-  const sessionInfoStats: StatItem[] = [
-    {
-      label: "Thread",
-      value: activeThread?.title ?? "New chat",
-    },
-    {
-      label: "Messages",
-      value: visibleMessages.length,
-    },
+    { label: "Session Created", value: formatDate(sessionCreated) },
+    { label: "Last Activity", value: formatDate(lastActivity) },
   ];
 
   if (!activeThread && visibleMessages.length === 0) {
     return (
       <div
         className={cn(
-          "flex flex-col h-full w-[320px] shrink-0 border-l border-border bg-background",
+          "flex flex-col h-full w-full border-l border-border bg-background",
           className,
         )}
       >
-        <div className="h-12 px-4 flex items-center justify-between shrink-0 border-b border-border">
+        <div className="h-11 px-4 flex items-center justify-between shrink-0 border-b border-border/50">
           <span className="text-sm font-medium text-foreground">Context</span>
           <button
             type="button"
@@ -322,13 +324,13 @@ export function ChatContextPanel({
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-[320px] shrink-0 border-l border-border bg-background overflow-y-auto",
+        "flex flex-col h-full w-full border-l border-border bg-background overflow-y-auto",
         className,
       )}
     >
       {/* Header */}
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
-        <span className="text-sm font-semibold text-foreground">Context</span>
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/50 px-4">
+        <span className="text-sm font-medium text-foreground">Context</span>
         <button
           type="button"
           onClick={onClose}
@@ -339,67 +341,58 @@ export function ChatContextPanel({
       </div>
 
       {/* Body */}
-      <div className="flex flex-col gap-5 p-4">
-        {/* Session section */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Session
-          </span>
-          <StatGrid items={sessionInfoStats} />
-        </div>
-
-        <div className="h-px bg-border" />
-
-        {/* Agent + Model */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Agent &amp; Model
-          </span>
-          <StatGrid items={agentModelStats} />
-        </div>
-
-        <div className="h-px bg-border" />
-
-        {/* Token metrics */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Token Metrics
-          </span>
-          <StatGrid items={tokenStats} />
-          {contextWindow !== null && contextWindow > 0 && stats.totalTokens > 0 && (
+      <div className="flex flex-col gap-8 p-6">
+        {/* Subtasks / subagents */}
+        {subtasks.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <span className="text-xs text-muted-foreground">Subtasks</span>
             <div className="flex flex-col gap-1">
-              <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+              {subtasks.map((s, i) => (
                 <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    usagePctNum > 80
-                      ? "bg-destructive"
-                      : usagePctNum > 60
-                        ? "bg-warning"
-                        : "bg-primary",
+                  key={i}
+                  className="flex items-center gap-2 text-xs min-w-0"
+                >
+                  {s.isRunning ? (
+                    <Loading01
+                      size={12}
+                      className="shrink-0 animate-spin text-muted-foreground"
+                    />
+                  ) : s.isError ? (
+                    <XCircle size={12} className="shrink-0 text-destructive" />
+                  ) : (
+                    <CheckCircle
+                      size={12}
+                      className="shrink-0 text-emerald-500"
+                    />
                   )}
-                  style={{ width: `${usagePctNum}%` }}
-                />
-              </div>
+                  <span
+                    className={cn(
+                      "shrink-0 font-medium",
+                      s.isError ? "text-destructive" : "text-foreground",
+                    )}
+                  >
+                    {s.agentTitle}
+                  </span>
+                  {s.part.input?.prompt && (
+                    <>
+                      <span className="text-muted-foreground/50">·</span>
+                      <span className="truncate text-muted-foreground">
+                        {s.part.input.prompt}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="h-px bg-border" />
-
-        {/* Timestamps */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            Timestamps
-          </span>
-          <StatGrid items={sessionStats} />
-        </div>
-
-        <div className="h-px bg-border" />
+        {/* Flat stats grid */}
+        <StatGrid items={allStats} />
 
         {/* Context Breakdown */}
         <div className="flex flex-col gap-3">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-xs text-muted-foreground">
             Context Breakdown
           </span>
           <ContextBreakdownBar
@@ -409,54 +402,64 @@ export function ChatContextPanel({
           />
         </div>
 
+        {/* Raw messages */}
         {visibleMessages.length > 0 && (
-          <>
-            <div className="h-px bg-border" />
-
-            {/* Messages list */}
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                Messages
-              </span>
-              <div className="flex flex-col gap-1">
-                {visibleMessages.map((m) => {
-                  const createdAt = (
-                    m.metadata as { created_at?: string | Date } | undefined
-                  )?.created_at;
-                  return (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[11px] hover:bg-accent/50"
+          <div className="flex flex-col gap-3">
+            <span className="text-xs text-muted-foreground">Raw messages</span>
+            <div className="flex flex-col gap-1">
+              {visibleMessages.map((m) => {
+                const createdAt = (
+                  m.metadata as { created_at?: string | Date } | undefined
+                )?.created_at;
+                const isExpanded = selectedMessage?.id === m.id;
+                return (
+                  <div
+                    key={m.id}
+                    className="rounded-md border border-border/50 overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMessage(isExpanded ? null : m)}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-xs hover:bg-accent/50 w-full text-left cursor-pointer"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span
                           className={cn(
-                            "shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                            "shrink-0 font-medium",
                             m.role === "user"
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                              : "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-violet-600 dark:text-violet-400",
                           )}
                         >
                           {m.role}
                         </span>
+                        <span className="text-muted-foreground">•</span>
                         <span className="truncate text-muted-foreground font-mono">
-                          {m.id.slice(0, 8)}
+                          {m.id}
                         </span>
                       </div>
                       {createdAt && (
                         <span className="shrink-0 text-muted-foreground tabular-nums">
-                          {new Date(createdAt).toLocaleTimeString("en-US", {
+                          {new Date(createdAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
                             hour: "numeric",
                             minute: "2-digit",
                           })}
                         </span>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
+                    </button>
+                    {isExpanded && (
+                      <pre className="text-xs font-mono bg-muted px-3 py-2 overflow-auto whitespace-pre-wrap break-all border-t border-border/50 max-h-64">
+                        {JSON.stringify(m, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
