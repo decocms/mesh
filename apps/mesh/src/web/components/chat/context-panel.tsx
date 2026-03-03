@@ -1,5 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  AlertCircle,
   CheckCircle,
   ChevronLeft,
   Loading01,
@@ -231,6 +232,7 @@ export function ChatContextPanel({
     agentIcon?: string | null;
     isRunning: boolean;
     isError: boolean;
+    isApproval: boolean;
   }
   const subtasks: SubtaskEntry[] = (messages as ChatMessage[]).flatMap((m) =>
     (m.parts ?? [])
@@ -246,12 +248,14 @@ export function ChatContextPanel({
           (part.state === "output-available" &&
             (part as { preliminary?: boolean }).preliminary === true);
         const isError = part.state === "output-error";
+        const isApproval = part.state === "approval-requested";
         return {
           part,
           agentTitle: agent?.title ?? "Subtask",
           agentIcon: agent?.icon ?? null,
           isRunning,
           isError,
+          isApproval,
         };
       }),
   );
@@ -395,6 +399,8 @@ export function ChatContextPanel({
                       />
                     ) : s.isError ? (
                       <XCircle size={12} className="text-destructive" />
+                    ) : s.isApproval ? (
+                      <AlertCircle size={12} className="text-warning" />
                     ) : (
                       <CheckCircle size={12} className="text-emerald-500" />
                     )}
