@@ -364,6 +364,13 @@ const agentDetailRoute = createRoute({
   ),
 });
 
+// Pinned App View (available for all projects)
+const projectAppViewRoute = createRoute({
+  getParentRoute: () => projectLayout,
+  path: "/apps/$connectionId/$toolName",
+  component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
+});
+
 // Workflows (available for all projects)
 const workflowsRoute = createRoute({
   getParentRoute: () => projectLayout,
@@ -447,6 +454,7 @@ const projectRoutes = [
   agentsRoute,
   agentDetailRoute,
   workflowsRoute,
+  projectAppViewRoute,
   pluginLayoutWithChildren,
 ];
 

@@ -8,12 +8,14 @@ export type SettingsSection =
   | "org.plugins"
   | "org.billing"
   | `project:${string}:general`
+  | `project:${string}:dependencies`
+  | `project:${string}:sidebar`
   | `project:${string}:plugins`
   | `project:${string}:danger`;
 
 export function projectSection(
   slug: string,
-  sub: "general" | "plugins" | "danger",
+  sub: "general" | "dependencies" | "sidebar" | "plugins" | "danger",
 ): SettingsSection {
   return `project:${slug}:${sub}` as SettingsSection;
 }
@@ -37,18 +39,25 @@ function isValidSettingsSection(
     parts.length === 3 &&
     parts[0] === "project" &&
     !!parts[1] &&
-    (parts[2] === "general" || parts[2] === "plugins" || parts[2] === "danger")
+    (parts[2] === "general" ||
+      parts[2] === "dependencies" ||
+      parts[2] === "sidebar" ||
+      parts[2] === "plugins" ||
+      parts[2] === "danger")
   );
 }
 
 export function parseProjectSection(section: SettingsSection): {
   slug: string;
-  sub: "general" | "plugins" | "danger";
+  sub: "general" | "dependencies" | "sidebar" | "plugins" | "danger";
 } | null {
   if (!section.startsWith("project:")) return null;
   const [, slug, sub] = section.split(":");
   if (!slug || !sub) return null;
-  return { slug, sub: sub as "general" | "plugins" | "danger" };
+  return {
+    slug,
+    sub: sub as "general" | "dependencies" | "sidebar" | "plugins" | "danger",
+  };
 }
 
 export function useSettingsModal() {

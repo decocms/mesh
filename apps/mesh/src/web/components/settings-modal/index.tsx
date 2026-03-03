@@ -21,6 +21,8 @@ import { OrgGeneralPage } from "./pages/org-general";
 import { ProjectGeneralPage } from "./pages/project-general";
 import { ProjectPluginsPage } from "./pages/project-plugins";
 import { ProjectDangerPage } from "./pages/project-danger";
+import { ProjectDependenciesPage } from "./pages/project-dependencies";
+import { ProjectSidebarPage } from "./pages/project-sidebar";
 import { OrgBillingPage } from "./pages/org-billing";
 
 function ContentSkeleton() {
@@ -73,6 +75,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
     return (
       <ProjectContextWrapper projectSlug={parsed.slug}>
         {parsed.sub === "general" && <ProjectGeneralPage />}
+        {parsed.sub === "dependencies" && <ProjectDependenciesPage />}
+        {parsed.sub === "sidebar" && <ProjectSidebarPage />}
         {parsed.sub === "plugins" && <ProjectPluginsPage />}
         {parsed.sub === "danger" && <ProjectDangerPage />}
       </ProjectContextWrapper>

@@ -5,6 +5,8 @@ import {
   Beaker01,
   Building02,
   Coins01,
+  Container,
+  LayoutLeft,
   Settings01,
   Zap,
 } from "@untitledui/icons";
@@ -20,6 +22,16 @@ import { useProjects } from "@/web/hooks/use-project";
 
 const PROJECT_SUB_ITEMS = [
   { key: "general" as const, label: "General", icon: <Settings01 size={14} /> },
+  {
+    key: "dependencies" as const,
+    label: "Dependencies",
+    icon: <Container size={14} />,
+  },
+  {
+    key: "sidebar" as const,
+    label: "Sidebar",
+    icon: <LayoutLeft size={14} />,
+  },
   { key: "plugins" as const, label: "Plugins", icon: <Zap size={14} /> },
 ];
 
