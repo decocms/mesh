@@ -33,7 +33,7 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
         onClick={item.onClick}
         isActive={item.isActive}
         tooltip={item.label}
-        className={item.isExternal ? "group/external" : undefined}
+        className={cn(item.isExternal && "group/external")}
       >
         <span className="[&>svg]:size-4">{item.icon}</span>
         <span
