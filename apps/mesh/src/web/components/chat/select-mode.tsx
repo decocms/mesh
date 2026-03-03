@@ -97,9 +97,7 @@ function ModeItemContent({
 export interface ModeSelectorProps {
   selectedMode: ToolSelectionStrategy;
   onModeChange: (mode: ToolSelectionStrategy) => void;
-  variant?: "borderless" | "bordered";
   className?: string;
-  placeholder?: string;
   disabled?: boolean;
 }
 

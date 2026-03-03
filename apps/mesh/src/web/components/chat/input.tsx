@@ -183,7 +183,6 @@ function VirtualMCPBadge({
   const { org } = useProjectContext();
 
   const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
-  if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
 
   // Focus search input when popover opens
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -196,6 +195,8 @@ function VirtualMCPBadge({
   }, [open]);
 
   const color = getAgentColor(virtualMcpId);
+
+  if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
@@ -369,11 +370,15 @@ export function ChatInput() {
 
   // Track if wrapper visuals should still show (stays true during exit animation)
   const [showWrapper, setShowWrapper] = useState(false);
-  if (hasAgentBadge && !showWrapper) {
-    setShowWrapper(true);
-  }
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (hasAgentBadge) {
+      setShowWrapper(true);
+    }
+  }, [hasAgentBadge]);
 
-  const handleGridTransitionEnd = () => {
+  const handleGridTransitionEnd = (e: React.TransitionEvent) => {
+    if (e.propertyName !== "grid-template-rows") return;
     if (!hasAgentBadge) {
       setShowWrapper(false);
       lastAgentRef.current = null;
@@ -502,8 +507,6 @@ export function ChatInput() {
                   <ModeSelector
                     selectedMode={selectedMode}
                     onModeChange={setSelectedMode}
-                    placeholder="Mode"
-                    variant="borderless"
                     disabled={isStreaming}
                   />
                   {contextWindow && lastTotalTokens > 0 && (
