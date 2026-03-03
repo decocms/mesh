@@ -8,7 +8,6 @@
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatContextPanel } from "@/web/components/chat/context-panel";
 import { TasksPanel } from "@/web/components/chat/tasks-panel";
-import { ThreadsSidebar } from "@/web/components/chat/threads-sidebar.tsx";
 import { EditableThreadTitle } from "@/web/components/chat/editable-thread-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
@@ -21,26 +20,13 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import {
-  ClockRewind,
-  LayoutRight,
-  MessageChatSquare,
-  Plus,
-  Share07,
-  Users03,
-} from "@untitledui/icons";
+import { LayoutRight, MessageChatSquare, Users03 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
-import { toast } from "sonner";
 
 // ---------- Main Content ----------
 
@@ -51,14 +37,11 @@ function HomeContent() {
     modelsConnections,
     isChatEmpty,
     activeThreadId,
-    createThread,
-    switchToThread,
     threads,
     selectedVirtualMcp,
   } = useChat();
   const activeThread = threads.find((thread) => thread.id === activeThreadId);
   const [showContext, setShowContext] = useState(false);
-  const [isThreadsSidebarOpen, setIsThreadsSidebarOpen] = useState(false);
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
@@ -125,56 +108,6 @@ function HomeContent() {
               )}
             </Page.Header.Left>
             <Page.Header.Right className="gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-7 border border-input"
-                    onClick={() => createThread()}
-                    disabled={isChatEmpty}
-                    aria-label="New chat"
-                  >
-                    <Plus size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>New chat</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-7 border border-input"
-                    onClick={() => setIsThreadsSidebarOpen(true)}
-                    aria-label="Chat history"
-                  >
-                    <ClockRewind size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Chat history</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-7 border border-input"
-                    onClick={() => {
-                      // TODO: Implement share functionality
-                      toast.info("Share feature coming soon");
-                    }}
-                    disabled={isChatEmpty}
-                    aria-label="Share chat"
-                  >
-                    <Share07 size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Share chat</TooltipContent>
-              </Tooltip>
               {!isChatEmpty && (
                 <button
                   type="button"
@@ -236,18 +169,6 @@ function HomeContent() {
               </div>
             </div>
           )}
-
-          {/* Threads Sidebar */}
-          <ThreadsSidebar
-            open={isThreadsSidebarOpen}
-            onOpenChange={setIsThreadsSidebarOpen}
-            threads={threads}
-            activeThreadId={activeThreadId}
-            onThreadSelect={async (threadId) => {
-              await switchToThread(threadId);
-              setIsThreadsSidebarOpen(false);
-            }}
-          />
         </Chat>
       </ResizablePanel>
       {showContext && (

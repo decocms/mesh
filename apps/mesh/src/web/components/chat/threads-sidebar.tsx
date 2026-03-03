@@ -32,7 +32,7 @@ interface ThreadsViewContentProps {
   showBackButton?: boolean;
 }
 
-function ThreadsViewContent({
+export function ThreadsViewContent({
   threads,
   activeThreadId,
   onThreadSelect,

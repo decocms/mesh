@@ -9,6 +9,8 @@
  */
 
 import { useChat } from "@/web/components/chat/index";
+import { useChatStable } from "@/web/components/chat/context";
+import { ThreadsViewContent } from "@/web/components/chat/threads-sidebar";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { User } from "@/web/components/user/user.tsx";
 import { useTaskData } from "@/web/hooks/use-task-data";
@@ -25,7 +27,14 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ChevronRight, Loading01, Plus } from "@untitledui/icons";
+import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import {
+  Check,
+  ChevronRight,
+  Edit01,
+  Loading01,
+  Plus,
+} from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
@@ -81,12 +90,15 @@ interface TaskListContentProps {
  */
 export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const { activeThreadId, switchToThread } = useChat();
+  const { renameThread } = useChatStable();
   const { data } = useTaskData();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<
     Record<string, boolean>
   >({});
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   const visible = data.filter((t) => !t.hidden);
 
@@ -110,6 +122,32 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
       onTaskSelect(task.id);
     } else {
       await switchToThread(task.id);
+    }
+  };
+
+  const startEditing = (task: ThreadEntity, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title || "");
+  };
+
+  const commitEdit = async (taskId: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed) {
+      await renameThread(taskId, trimmed);
+    }
+    setEditingTaskId(null);
+  };
+
+  const handleEditKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    taskId: string,
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEdit(taskId);
+    } else if (e.key === "Escape") {
+      setEditingTaskId(null);
     }
   };
 
@@ -144,7 +182,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 
             return (
               <div key={status} className="flex flex-col">
-                {/* Group header — same as /tasks/ page */}
+                {/* Group header */}
                 <button
                   type="button"
                   onClick={() => toggleGroup(status)}
@@ -173,41 +211,89 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
                   </div>
                 </button>
 
-                {/* Task rows — same as /tasks/ page, minus description column */}
+                {/* Task rows */}
                 {isOpen &&
                   tasks.map((task) => {
                     const isActive = task.id === activeThreadId;
+                    const isEditing = editingTaskId === task.id;
                     return (
-                      <button
+                      <div
                         key={task.id}
-                        type="button"
-                        onClick={() => handleTaskClick(task)}
                         className={cn(
-                          "flex items-center w-full hover:bg-accent/50 transition-colors cursor-pointer text-left",
+                          "group flex items-center w-full hover:bg-accent/50 transition-colors cursor-pointer",
                           isActive && "bg-accent/50",
                         )}
+                        onClick={() => !isEditing && handleTaskClick(task)}
                       >
                         <div className="flex items-center gap-3 min-w-0 py-3 pl-4 flex-1">
                           <Icon
                             size={16}
                             className={cn("shrink-0", config.iconClassName)}
                           />
-                          <TruncatedText
-                            text={task.title || "Untitled"}
-                            className="text-sm font-medium text-foreground flex-1 min-w-0"
-                          />
+                          {isEditing ? (
+                            <div
+                              className="flex items-center gap-1 flex-1 min-w-0 pr-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                autoFocus
+                                value={editingTitle}
+                                onChange={(e) =>
+                                  setEditingTitle(e.target.value)
+                                }
+                                onBlur={() => commitEdit(task.id)}
+                                onKeyDown={(e) => handleEditKeyDown(e, task.id)}
+                                className="flex-1 text-sm bg-transparent border-b border-foreground/30 focus:border-foreground outline-none pb-0.5 min-w-0"
+                              />
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => commitEdit(task.id)}
+                                className="p-1 hover:bg-accent rounded shrink-0"
+                              >
+                                <Check
+                                  size={12}
+                                  className="text-muted-foreground"
+                                />
+                              </button>
+                            </div>
+                          ) : (
+                            <TruncatedText
+                              text={task.title || "Untitled"}
+                              className="text-sm font-medium text-foreground flex-1 min-w-0"
+                            />
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 p-3 pr-0 shrink-0">
-                          <User id={task.created_by} size="3xs" avatarOnly />
-                        </div>
-                        <div className="w-20 p-3 shrink-0 text-right">
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">
-                            {task.updated_at
-                              ? formatTimeAgo(new Date(task.updated_at))
-                              : "\u2014"}
-                          </span>
-                        </div>
-                      </button>
+                        {!isEditing && (
+                          <>
+                            <div className="flex items-center gap-1 px-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => startEditing(task, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded transition-opacity"
+                                title="Rename task"
+                              >
+                                <Edit01
+                                  size={13}
+                                  className="text-muted-foreground"
+                                />
+                              </button>
+                              <User
+                                id={task.created_by}
+                                size="3xs"
+                                avatarOnly
+                              />
+                            </div>
+                            <div className="w-20 p-3 shrink-0 text-right">
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                {task.updated_at
+                                  ? formatTimeAgo(new Date(task.updated_at))
+                                  : "\u2014"}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     );
                   })}
               </div>
@@ -222,13 +308,18 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 // --- Home page panel wrapper ---
 
 function TasksPanelContent() {
-  const { createThread, isChatEmpty } = useChat();
+  const { createThread, isChatEmpty, threads, activeThreadId, switchToThread } =
+    useChat();
+  const [preferences] = usePreferences();
+  const tasksEnabled = preferences.experimental_tasks;
 
   return (
     <div className="flex flex-col h-full bg-background border-r border-border/50">
       {/* Header */}
       <div className="h-11 px-4 flex items-center justify-between shrink-0 border-b border-border/50">
-        <span className="text-sm font-normal text-foreground">Tasks</span>
+        <span className="text-sm font-normal text-foreground">
+          {tasksEnabled ? "Tasks" : "Chats"}
+        </span>
         <button
           type="button"
           onClick={() => createThread()}
@@ -240,7 +331,16 @@ function TasksPanelContent() {
         </button>
       </div>
 
-      <TaskListContent />
+      {tasksEnabled ? (
+        <TaskListContent />
+      ) : (
+        <ThreadsViewContent
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onThreadSelect={switchToThread}
+          showHeader={false}
+        />
+      )}
     </div>
   );
 }
@@ -248,9 +348,7 @@ function TasksPanelContent() {
 function TasksPanelSkeleton() {
   return (
     <div className="flex flex-col h-full bg-background border-r border-border/50">
-      <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50">
-        <span className="text-sm font-normal text-foreground">Tasks</span>
-      </div>
+      <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50" />
       <div className="flex-1 flex items-center justify-center">
         <Loading01 size={20} className="animate-spin text-muted-foreground" />
       </div>
@@ -264,9 +362,7 @@ export function TasksPanel({ className }: { className?: string }) {
       <ErrorBoundary
         fallback={() => (
           <div className="flex flex-col h-full bg-background border-r border-border/50">
-            <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50">
-              <span className="text-sm font-normal text-foreground">Tasks</span>
-            </div>
+            <div className="h-11 px-4 flex items-center shrink-0 border-b border-border/50" />
             <div className="flex-1 flex items-center justify-center px-4 text-center">
               <p className="text-xs text-muted-foreground">
                 Unable to load tasks

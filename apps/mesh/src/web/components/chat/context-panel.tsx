@@ -1,6 +1,13 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { CheckCircle, Loading01, XCircle, XClose } from "@untitledui/icons";
+import {
+  CheckCircle,
+  ChevronLeft,
+  Loading01,
+  XCircle,
+  XClose,
+} from "@untitledui/icons";
 import { calculateUsageStats } from "@/web/lib/usage-utils";
+import { IntegrationIcon } from "@/web/components/integration-icon";
 import { useChat } from "./context";
 import type { ChatMessage, SubtaskToolPart } from "./types";
 import { useState } from "react";
@@ -87,14 +94,11 @@ function ContextBreakdownBar({
     <div className="flex flex-col gap-2">
       <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
         {userPct > 0 && (
-          <div
-            className="h-full bg-blue-500"
-            style={{ width: `${userPct}%` }}
-          />
+          <div className="h-full bg-chart-1" style={{ width: `${userPct}%` }} />
         )}
         {assistantPct > 0 && (
           <div
-            className="h-full bg-violet-500"
+            className="h-full bg-chart-2"
             style={{ width: `${assistantPct}%` }}
           />
         )}
@@ -107,13 +111,13 @@ function ContextBreakdownBar({
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-sm bg-blue-500 shrink-0" />
+          <span className="inline-block h-2 w-2 rounded-sm bg-chart-1 shrink-0" />
           <span className="text-xs text-muted-foreground">
             User {userPct.toFixed(1)}%
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-sm bg-violet-500 shrink-0" />
+          <span className="inline-block h-2 w-2 rounded-sm bg-chart-2 shrink-0" />
           <span className="text-xs text-muted-foreground">
             Assistant {assistantPct.toFixed(1)}%
           </span>
@@ -137,11 +141,14 @@ function ContextBreakdownBar({
 
 interface ChatContextPanelProps {
   onClose: () => void;
+  /** Show a back chevron instead of X — use when embedded in a slide panel */
+  back?: boolean;
   className?: string;
 }
 
 export function ChatContextPanel({
   onClose,
+  back,
   className,
 }: ChatContextPanelProps) {
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(
@@ -221,6 +228,7 @@ export function ChatContextPanel({
   interface SubtaskEntry {
     part: SubtaskToolPart;
     agentTitle: string;
+    agentIcon?: string | null;
     isRunning: boolean;
     isError: boolean;
   }
@@ -241,6 +249,7 @@ export function ChatContextPanel({
         return {
           part,
           agentTitle: agent?.title ?? "Subtask",
+          agentIcon: agent?.icon ?? null,
           isRunning,
           isError,
         };
@@ -309,7 +318,11 @@ export function ChatContextPanel({
             onClick={onClose}
             className="flex size-6 items-center justify-center rounded hover:bg-accent transition-colors"
           >
-            <XClose size={14} className="text-muted-foreground" />
+            {back ? (
+              <ChevronLeft size={14} className="text-muted-foreground" />
+            ) : (
+              <XClose size={14} className="text-muted-foreground" />
+            )}
           </button>
         </div>
         <div className="flex-1 flex items-center justify-center px-4 text-center">
@@ -336,7 +349,7 @@ export function ChatContextPanel({
           onClick={onClose}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <XClose size={14} />
+          {back ? <ChevronLeft size={14} /> : <XClose size={14} />}
         </button>
       </div>
 
@@ -352,19 +365,12 @@ export function ChatContextPanel({
                   key={i}
                   className="flex items-center gap-2 text-xs min-w-0"
                 >
-                  {s.isRunning ? (
-                    <Loading01
-                      size={12}
-                      className="shrink-0 animate-spin text-muted-foreground"
-                    />
-                  ) : s.isError ? (
-                    <XCircle size={12} className="shrink-0 text-destructive" />
-                  ) : (
-                    <CheckCircle
-                      size={12}
-                      className="shrink-0 text-emerald-500"
-                    />
-                  )}
+                  <IntegrationIcon
+                    icon={s.agentIcon}
+                    name={s.agentTitle}
+                    size="xs"
+                    className="size-6 rounded-md shrink-0"
+                  />
                   <span
                     className={cn(
                       "shrink-0 font-medium",
@@ -381,6 +387,18 @@ export function ChatContextPanel({
                       </span>
                     </>
                   )}
+                  <span className="ml-auto shrink-0">
+                    {s.isRunning ? (
+                      <Loading01
+                        size={12}
+                        className="animate-spin text-muted-foreground"
+                      />
+                    ) : s.isError ? (
+                      <XCircle size={12} className="text-destructive" />
+                    ) : (
+                      <CheckCircle size={12} className="text-emerald-500" />
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
@@ -426,9 +444,7 @@ export function ChatContextPanel({
                         <span
                           className={cn(
                             "shrink-0 font-medium",
-                            m.role === "user"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-violet-600 dark:text-violet-400",
+                            m.role === "user" ? "text-chart-1" : "text-chart-2",
                           )}
                         >
                           {m.role}

@@ -11,6 +11,7 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { KEYS } from "../../../lib/query-keys";
+import type { ThreadEntity } from "@/tools/thread/schema";
 import type { ChatMessage, Thread, ThreadsInfiniteQueryData } from "./types.ts";
 import { THREAD_CONSTANTS } from "./types.ts";
 
@@ -80,6 +81,16 @@ export function updateThreadInCache(
       ...currentData,
       pages: updatedPages,
     });
+  }
+
+  // Also update the flat taskThreads cache used by useTaskData
+  const taskQueryKey = KEYS.taskThreads(locator);
+  const taskData = queryClient.getQueryData<ThreadEntity[]>(taskQueryKey);
+  if (taskData) {
+    queryClient.setQueryData(
+      taskQueryKey,
+      taskData.map((t) => (t.id === threadId ? { ...t, ...updates } : t)),
+    );
   }
 }
 
