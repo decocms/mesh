@@ -3,7 +3,6 @@ import { X } from "@untitledui/icons";
 import { Suspense } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
-  parseProjectSection,
   useSettingsModal,
   type SettingsSection,
 } from "@/web/hooks/use-settings-modal";
@@ -18,11 +17,7 @@ import { AccountProfilePage } from "./pages/account-profile";
 import { AccountPreferencesPage } from "./pages/account-preferences";
 import { AccountExperimentalPage } from "./pages/account-experimental";
 import { OrgGeneralPage } from "./pages/org-general";
-import { ProjectGeneralPage } from "./pages/project-general";
 import { ProjectPluginsPage } from "./pages/project-plugins";
-import { ProjectDangerPage } from "./pages/project-danger";
-import { ProjectDependenciesPage } from "./pages/project-dependencies";
-import { ProjectSidebarPage } from "./pages/project-sidebar";
 import { OrgBillingPage } from "./pages/org-billing";
 
 function ContentSkeleton() {
@@ -69,20 +64,6 @@ function ProjectContextWrapper({
 }
 
 function SettingsContent({ section }: { section: SettingsSection }) {
-  const parsed = parseProjectSection(section);
-
-  if (parsed) {
-    return (
-      <ProjectContextWrapper projectSlug={parsed.slug}>
-        {parsed.sub === "general" && <ProjectGeneralPage />}
-        {parsed.sub === "dependencies" && <ProjectDependenciesPage />}
-        {parsed.sub === "sidebar" && <ProjectSidebarPage />}
-        {parsed.sub === "plugins" && <ProjectPluginsPage />}
-        {parsed.sub === "danger" && <ProjectDangerPage />}
-      </ProjectContextWrapper>
-    );
-  }
-
   switch (section) {
     case "account.profile":
       return <AccountProfilePage />;

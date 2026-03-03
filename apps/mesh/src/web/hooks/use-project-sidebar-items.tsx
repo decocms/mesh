@@ -346,16 +346,29 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
+  const configureItem: NavigationSidebarItem = {
+    key: "configure",
+    label: "Configure",
+    icon: <Settings01 />,
+    isActive: false,
+    isExternal: true,
+    onClick: () =>
+      navigate({
+        to: "/$org/$project/projects/$slug/settings/general",
+        params: { org, project: ORG_ADMIN_PROJECT_SLUG, slug: project },
+      }),
+  };
+
   // Regular project sidebar layout (matching Figma):
-  // - Home, Tasks, Workflows
+  // - Home, Tasks, Workflows, Configure
   // - [Divider] (if enabled plugins exist)
   // - Plugin items (flat)
   // - Plugin groups
-  // (Settings is in the footer)
   const projectItems: NavigationSidebarItem[] = [
     homeItem,
     ...(preferences.experimental_tasks ? [projectTasksItem] : []),
     projectWorkflowsItem,
+    configureItem,
   ];
 
   const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
