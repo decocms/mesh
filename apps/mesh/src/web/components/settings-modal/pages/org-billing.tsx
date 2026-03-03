@@ -1426,8 +1426,7 @@ function bucketTimeseriesByMonth(
 
 function BillingHistory() {
   const { org } = useProjectContext();
-  const [period, setPeriod] = useState<BillingStatsPeriod>("90d");
-  const timeRange = periodToTimeRange(period);
+  const timeRange = periodToTimeRange("90d");
 
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -1484,12 +1483,9 @@ function BillingHistory() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Usage history from monitoring logs
-        </p>
-        <PeriodSelector period={period} onPeriodChange={setPeriod} />
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Usage history from monitoring logs (last 90 days)
+      </p>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
         <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
