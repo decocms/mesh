@@ -20,11 +20,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@deco/ui/components/dialog.tsx";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@deco/ui/components/tabs.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AlertCircle, Coins01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   KEYS,
+  SELF_MCP_ALIAS_ID,
   useConnections,
   useMCPClient,
   useMCPToolCallMutation,
@@ -32,6 +39,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { isDecoAIGatewayUrl } from "@/core/deco-constants";
+import { useMembers } from "@/web/hooks/use-members";
 
 // -- Types --
 
@@ -76,9 +84,35 @@ interface SetLimitResult {
   amount_usd: number | null;
 }
 
-interface UsageDataPoint {
-  date: string;
-  amount: number;
+type BillingStatsPeriod = "7d" | "30d" | "90d";
+
+interface WidgetPreviewResult {
+  value: number | null;
+  groups?: Array<{ key: string; value: number }>;
+  timeseries?: Array<{ timestamp: string; value: number }>;
+  matchedRecords: number;
+  timeRange: { startDate: string; endDate: string };
+}
+
+const COST_PATH = "$.providerMetadata.openrouter.usage.cost";
+
+function periodToTimeRange(period: BillingStatsPeriod) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + 1);
+  const startDate = new Date(today);
+  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+  startDate.setDate(startDate.getDate() - days);
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+}
+
+function selectWidget(result: unknown): WidgetPreviewResult | undefined {
+  return (result as { structuredContent?: WidgetPreviewResult })
+    .structuredContent;
 }
 
 // -- Helpers --
@@ -109,60 +143,6 @@ function setChipPeriod(period: LimitPeriod) {
   } catch {
     // ignore
   }
-}
-
-function buildChartData(
-  period: ChartPeriod,
-  usage: GatewayUsageResult["usage"],
-): UsageDataPoint[] {
-  const now = new Date();
-  const data: UsageDataPoint[] = [];
-
-  if (period === "day") {
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      data.push({
-        date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        amount: i === 0 ? usage.daily : 0,
-      });
-    }
-    data[data.length - 1] = {
-      date: data[data.length - 1]?.date ?? "Today",
-      amount: usage.daily,
-    };
-  } else if (period === "week") {
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i * 7);
-      data.push({
-        date: `W${String(52 - i)}`,
-        amount: i === 0 ? usage.weekly : 0,
-      });
-    }
-    data[data.length - 1] = {
-      date: data[data.length - 1]?.date ?? "This week",
-      amount: usage.weekly,
-    };
-  } else {
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - i);
-      data.push({
-        date: d.toLocaleDateString("en-US", {
-          month: "short",
-          year: "2-digit",
-        }),
-        amount: i === 0 ? usage.monthly : 0,
-      });
-    }
-    data[data.length - 1] = {
-      date: data[data.length - 1]?.date ?? "This month",
-      amount: usage.monthly,
-    };
-  }
-
-  return data;
 }
 
 const CONFIDENCE_LABEL: Record<CreditEstimation["confidence"], string> = {
@@ -507,11 +487,15 @@ function SpendingCard({
   limit,
   limitPeriod,
   onConfigureLimit,
+  connectionId,
+  alert,
 }: {
   usage: GatewayUsageResult["usage"];
   limit: GatewayUsageResult["limit"];
   limitPeriod: LimitPeriod | null;
   onConfigureLimit: () => void;
+  connectionId: string;
+  alert: AlertConfig;
 }) {
   const hasLimit = limit.total != null && limit.total > 0;
   const percentUsed = hasLimit
@@ -527,9 +511,14 @@ function SpendingCard({
     <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-card via-card to-muted/30 p-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-            Spending
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
+              Spending
+            </p>
+            <span className="text-[10px] text-muted-foreground/60">
+              · Deco AI Gateway
+            </span>
+          </div>
           <p className="text-3xl font-bold tabular-nums text-foreground tracking-tight">
             {formatUSD(usage.total)}
           </p>
@@ -577,6 +566,12 @@ function SpendingCard({
           </p>
         </div>
       )}
+
+      <AlertInline
+        connectionId={connectionId}
+        alert={alert}
+        billingMode="postpaid"
+      />
     </div>
   );
 }
@@ -588,11 +583,15 @@ function CreditCard({
   total,
   estimation,
   onAddCredit,
+  connectionId,
+  alert,
 }: {
   available: number;
   total: number;
   estimation: CreditEstimation | null;
   onAddCredit: () => void;
+  connectionId: string;
+  alert: AlertConfig;
 }) {
   const usedPct =
     total > 0
@@ -603,9 +602,14 @@ function CreditCard({
     <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-card via-card to-muted/30 p-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-            Available Credit
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
+              Available Credit
+            </p>
+            <span className="text-[10px] text-muted-foreground/60">
+              · Deco AI Gateway
+            </span>
+          </div>
           <p className="text-3xl font-bold tabular-nums text-foreground tracking-tight">
             {formatUSD(available)}
           </p>
@@ -636,13 +640,19 @@ function CreditCard({
       )}
 
       <CreditForecast estimation={estimation} />
+
+      <AlertInline
+        connectionId={connectionId}
+        alert={alert}
+        billingMode="prepaid"
+      />
     </div>
   );
 }
 
-// -- Alert Section --
+// -- Inline alert config (embedded in Spending / Credit cards) --
 
-function AlertSection({
+function AlertInline({
   connectionId,
   alert,
   billingMode,
@@ -652,6 +662,7 @@ function AlertSection({
   billingMode: BillingMode;
 }) {
   const { org } = useProjectContext();
+  const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(alert.enabled);
   const [thresholdStr, setThresholdStr] = useState(String(alert.threshold_usd));
   const [email, setEmail] = useState(alert.email ?? "");
@@ -701,18 +712,52 @@ function AlertSection({
     );
   };
 
-  const thresholdDescription =
+  const alertTitle =
+    billingMode === "postpaid" ? "Usage Alert" : "Low-Balance Alert";
+
+  const alertDescription =
     billingMode === "postpaid"
-      ? `Notify when usage reaches ${formatUSD(parseFloat(thresholdStr) || 0)}`
-      : `Notify when credit drops below ${formatUSD(parseFloat(thresholdStr) || 0)}`;
+      ? "Get notified when spending reaches a threshold"
+      : "Get notified when credit drops below a threshold";
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 flex items-center gap-3 rounded-lg border border-dashed border-border/60 px-4 py-3 w-full text-left transition-colors hover:bg-muted/50 hover:border-border"
+      >
+        <div className="flex items-center justify-center size-7 rounded-md bg-muted shrink-0">
+          <AlertCircle size={14} className="text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-foreground">{alertTitle}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {alert.enabled
+              ? billingMode === "postpaid"
+                ? `Enabled · Alert at ${formatUSD(alert.threshold_usd)}`
+                : `Enabled · Alert below ${formatUSD(alert.threshold_usd)}`
+              : billingMode === "postpaid"
+                ? "Get notified before your spending limit runs out"
+                : "Get notified before your credit balance runs out"}
+          </p>
+        </div>
+        {alert.enabled && (
+          <span className="shrink-0 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+            On
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <AlertCircle size={16} className="text-muted-foreground" />
-          <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-            {billingMode === "postpaid" ? "Usage Alert" : "Low-Balance Alert"}
+        <div>
+          <p className="text-xs font-medium text-foreground">{alertTitle}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {alertDescription}
           </p>
         </div>
         <Switch checked={enabled} onCheckedChange={setEnabled} />
@@ -728,11 +773,9 @@ function AlertSection({
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="alert-threshold"
-              className="text-xs text-muted-foreground"
+              className="text-[11px] text-muted-foreground"
             >
-              {billingMode === "postpaid"
-                ? "Alert at usage"
-                : "Alert threshold"}
+              {billingMode === "postpaid" ? "Notify at" : "Notify below"}
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -743,7 +786,7 @@ function AlertSection({
                 type="number"
                 min="1"
                 step="1"
-                className="pl-7"
+                className="h-8 pl-7 text-xs"
                 value={thresholdStr}
                 onChange={(e) => setThresholdStr(e.target.value)}
               />
@@ -752,42 +795,46 @@ function AlertSection({
           <div className="flex flex-col gap-1.5">
             <Label
               htmlFor="alert-email"
-              className="text-xs text-muted-foreground"
+              className="text-[11px] text-muted-foreground"
             >
-              Email
+              Notification email
             </Label>
             <Input
               id="alert-email"
               type="email"
               placeholder="you@example.com"
+              className="h-8 text-xs"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
         </div>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-[11px] text-destructive">{error}</p>}
+      </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            {enabled ? thresholdDescription : "Alerts are disabled"}
-          </p>
-          <div className="flex items-center gap-2">
-            {saved && (
-              <span className="text-xs text-green-600 dark:text-green-400">
-                Saved
-              </span>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSave}
-              disabled={isPending || !hasChanges}
-            >
-              {isPending ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </div>
+      <div className="flex items-center justify-end gap-2 pt-1">
+        {saved && (
+          <span className="text-[11px] text-green-600 dark:text-green-400">
+            Saved
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs"
+          onClick={() => setOpen(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="h-7 text-xs"
+          onClick={handleSave}
+          disabled={isPending || !hasChanges}
+        >
+          {isPending ? "Saving..." : "Save Alert"}
+        </Button>
       </div>
     </div>
   );
@@ -795,29 +842,95 @@ function AlertSection({
 
 // -- Chart section --
 
-type ChartPeriod = "day" | "week" | "month";
-
-const PERIOD_LABELS: Record<ChartPeriod, string> = {
-  day: "Daily",
-  week: "Weekly",
-  month: "Monthly",
-};
-
-const PERIOD_USAGE_KEY: Record<ChartPeriod, keyof GatewayUsageResult["usage"]> =
-  {
-    day: "daily",
-    week: "weekly",
-    month: "monthly",
-  };
-
 const chartConfig = {
-  amount: { label: "Spend", color: "var(--chart-1)" },
+  cost: { label: "Cost", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-function UsageSection({ usage }: { usage: GatewayUsageResult["usage"] }) {
-  const [period, setPeriod] = useState<ChartPeriod>("day");
-  const data = buildChartData(period, usage);
-  const periodTotal = usage[PERIOD_USAGE_KEY[period]];
+function UsageSection() {
+  const { org } = useProjectContext();
+  const [period, setPeriod] = useState<BillingStatsPeriod>("30d");
+  const timeRange = periodToTimeRange(period);
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: costTs } = useMCPToolCallQuery<WidgetPreviewResult | undefined>(
+    {
+      client: selfClient,
+      toolName: "MONITORING_WIDGET_PREVIEW",
+      toolArguments: {
+        widget: {
+          type: "timeseries",
+          source: { path: COST_PATH, from: "output" },
+          aggregation: { fn: "sum", interval: "1d" },
+        },
+        timeRange,
+      },
+      staleTime: 60_000,
+      select: selectWidget,
+    },
+  );
+
+  const { data: callCount } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >({
+    client: selfClient,
+    toolName: "MONITORING_WIDGET_PREVIEW",
+    toolArguments: {
+      widget: {
+        type: "metric",
+        source: { path: COST_PATH, from: "output" },
+        aggregation: { fn: "count_all" },
+      },
+      timeRange,
+    },
+    staleTime: 60_000,
+    select: selectWidget,
+  });
+
+  const { data: costByConnection } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >({
+    client: selfClient,
+    toolName: "MONITORING_WIDGET_PREVIEW",
+    toolArguments: {
+      widget: {
+        type: "metric",
+        source: { path: COST_PATH, from: "output" },
+        aggregation: { fn: "sum", groupByColumn: "connection_title" },
+      },
+      timeRange,
+    },
+    staleTime: 60_000,
+    select: selectWidget,
+  });
+
+  const chartData = (costTs?.timeseries ?? []).map((p) => ({
+    date: new Date(p.timestamp).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+    cost: p.value,
+  }));
+
+  const periodTotal = (costTs?.timeseries ?? []).reduce(
+    (s, p) => s + p.value,
+    0,
+  );
+  const periodCalls = callCount?.value ?? 0;
+  const connectionBreakdown = (costByConnection?.groups ?? [])
+    .filter((g) => g.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+
+  const periodLabel =
+    period === "7d"
+      ? "last 7 days"
+      : period === "30d"
+        ? "last 30 days"
+        : "last 90 days";
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
@@ -830,87 +943,107 @@ function UsageSection({ usage }: { usage: GatewayUsageResult["usage"] }) {
             <p className="text-2xl font-bold tabular-nums text-foreground tracking-tight">
               {formatUSD(periodTotal)}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {period === "day"
-                ? "today"
-                : period === "week"
-                  ? "this week"
-                  : "this month"}
-            </p>
+            <p className="text-xs text-muted-foreground">{periodLabel}</p>
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {formatUSD(usage.total)} all-time
+            {periodCalls.toLocaleString()} tool calls
           </p>
         </div>
-        <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5">
-          {(Object.keys(PERIOD_LABELS) as ChartPeriod[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "px-2.5 py-1 text-xs font-medium rounded-sm transition-colors",
-                period === p
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {PERIOD_LABELS[p]}
-            </button>
-          ))}
-        </div>
+        <PeriodSelector period={period} onPeriodChange={setPeriod} />
       </div>
 
-      <ChartContainer config={chartConfig} className="h-[280px] w-full">
-        <AreaChart
-          data={data}
-          margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
-        >
-          <defs>
-            <linearGradient id="fillAmount" x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="5%"
-                stopColor="var(--color-amount)"
-                stopOpacity={0.3}
-              />
-              <stop
-                offset="95%"
-                stopColor="var(--color-amount)"
-                stopOpacity={0}
-              />
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="date"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            fontSize={11}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            fontSize={11}
-            tickFormatter={(v: number) => `$${v}`}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                formatter={(value) => formatUSD(value as number)}
-              />
-            }
-          />
-          <Area
-            type="monotone"
-            dataKey="amount"
-            stroke="var(--color-amount)"
-            fill="url(#fillAmount)"
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ChartContainer>
+      {chartData.length > 0 ? (
+        <ChartContainer config={chartConfig} className="h-[200px] w-full">
+          <AreaChart
+            data={chartData}
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+          >
+            <defs>
+              <linearGradient id="fillCost" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor="var(--color-cost)"
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="95%"
+                  stopColor="var(--color-cost)"
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              fontSize={11}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              fontSize={11}
+              tickFormatter={(v: number) => `$${v}`}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value) => formatUSD(value as number)}
+                />
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey="cost"
+              stroke="var(--color-cost)"
+              fill="url(#fillCost)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        </ChartContainer>
+      ) : (
+        <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+          No usage data available for this period
+        </div>
+      )}
+
+      {connectionBreakdown.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            Cost by Connection
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {connectionBreakdown.map((item, i) => {
+              const pct =
+                periodTotal > 0
+                  ? Math.min((item.value / periodTotal) * 100, 100)
+                  : 0;
+              return (
+                <div key={item.key} className="flex items-center gap-2">
+                  <span className="text-xs text-foreground truncate min-w-0 w-36 shrink-0">
+                    {item.key}
+                  </span>
+                  <div className="relative h-1.5 bg-muted/50 overflow-hidden flex-1 rounded-sm">
+                    <div
+                      className="h-full transition-all duration-500 ease-out rounded-sm"
+                      style={{
+                        width: `${pct}%`,
+                        backgroundColor: `var(--chart-${(i % 5) + 1})`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs tabular-nums shrink-0 text-foreground font-medium">
+                    {formatUSD(item.value)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -954,9 +1087,452 @@ function ChipDisplayPicker() {
   );
 }
 
+// -- Horizontal bar row (reused in breakdown sections) --
+
+function HorizontalBarRow({
+  label,
+  value,
+  subValue,
+  maxValue,
+  color = "bg-chart-1",
+}: {
+  label: string;
+  value: string;
+  subValue?: string;
+  maxValue: number;
+  color?: string;
+}) {
+  const numericValue = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
+  const pct = maxValue > 0 ? Math.min((numericValue / maxValue) * 100, 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-foreground truncate min-w-0 w-36 shrink-0">
+        {label}
+      </span>
+      <div className="relative h-2 bg-muted/50 overflow-hidden flex-1 rounded-sm">
+        <div
+          className={cn("h-full transition-all duration-500 ease-out", color)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs tabular-nums shrink-0 text-foreground font-medium">
+        {value}
+      </span>
+      {subValue && (
+        <span className="text-xs tabular-nums shrink-0 text-muted-foreground">
+          {subValue}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// -- Breakdown section block --
+
+function BreakdownBlock({
+  title,
+  children,
+  empty,
+}: {
+  title: string;
+  children: ReactNode;
+  empty?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+      <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
+        {title}
+      </p>
+      {empty ? (
+        <p className="text-xs text-muted-foreground py-4 text-center">
+          No data available for this period
+        </p>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+// -- Period selector for breakdown / history tabs --
+
+const STATS_PERIOD_LABELS: Record<BillingStatsPeriod, string> = {
+  "7d": "7 days",
+  "30d": "30 days",
+  "90d": "90 days",
+};
+
+function PeriodSelector({
+  period,
+  onPeriodChange,
+}: {
+  period: BillingStatsPeriod;
+  onPeriodChange: (p: BillingStatsPeriod) => void;
+}) {
+  return (
+    <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5 self-start">
+      {(Object.keys(STATS_PERIOD_LABELS) as BillingStatsPeriod[]).map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onPeriodChange(p)}
+          className={cn(
+            "px-2.5 py-1 text-xs font-medium rounded-sm transition-colors",
+            period === p
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {STATS_PERIOD_LABELS[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// -- Billing Breakdown Tab (uses MONITORING_WIDGET_PREVIEW from self MCP) --
+
+function mergeGroups(
+  costGroups: Array<{ key: string; value: number }>,
+  callGroups: Array<{ key: string; value: number }>,
+): Array<{ key: string; cost: number; calls: number }> {
+  const callMap = new Map(callGroups.map((g) => [g.key, g.value]));
+  return costGroups
+    .map((g) => ({
+      key: g.key,
+      cost: g.value,
+      calls: callMap.get(g.key) ?? 0,
+    }))
+    .sort((a, b) => b.cost - a.cost);
+}
+
+function BillingBreakdown() {
+  const { org } = useProjectContext();
+  const [period, setPeriod] = useState<BillingStatsPeriod>("30d");
+  const timeRange = periodToTimeRange(period);
+  const { data: membersData } = useMembers();
+  const members = membersData?.data?.members ?? [];
+  const userNameMap = new Map(
+    members.map((m) => [m.userId, m.user.name ?? m.user.email]),
+  );
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const widgetQuery = (config: {
+    fn: "sum" | "count" | "count_all";
+    groupByColumn?: string;
+  }) =>
+    ({
+      client: selfClient,
+      toolName: "MONITORING_WIDGET_PREVIEW",
+      toolArguments: {
+        widget: {
+          type: "table" as const,
+          source: { path: COST_PATH, from: "output" as const },
+          aggregation: {
+            fn: config.fn,
+            ...(config.groupByColumn && {
+              groupByColumn: config.groupByColumn,
+            }),
+          },
+        },
+        timeRange,
+      },
+      staleTime: 60_000,
+      select: selectWidget,
+    }) as const;
+
+  const { data: costByConn, isLoading: l1 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "sum", groupByColumn: "connection_title" }));
+
+  const { data: callsByConn, isLoading: l2 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "count", groupByColumn: "connection_title" }));
+
+  const { data: costByUser, isLoading: l3 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "sum", groupByColumn: "user_id" }));
+
+  const { data: callsByUser, isLoading: l4 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "count", groupByColumn: "user_id" }));
+
+  const { data: costByTool, isLoading: l5 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "sum", groupByColumn: "tool_name" }));
+
+  const { data: callsByTool, isLoading: l6 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >(widgetQuery({ fn: "count_all", groupByColumn: "tool_name" }));
+
+  const isLoading = l1 || l2 || l3 || l4 || l5 || l6;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const byConnection = mergeGroups(
+    costByConn?.groups ?? [],
+    callsByConn?.groups ?? [],
+  );
+  const byUser = mergeGroups(
+    costByUser?.groups ?? [],
+    callsByUser?.groups ?? [],
+  ).map((g) => ({ ...g, key: userNameMap.get(g.key) ?? g.key }));
+  const toolCallGroups = callsByTool?.groups ?? [];
+  const toolCostMap = new Map(
+    (costByTool?.groups ?? []).map((g) => [g.key, g.value]),
+  );
+  const topTools = toolCallGroups
+    .map((g) => ({
+      name: g.key,
+      calls: g.value,
+      cost: toolCostMap.get(g.key) ?? 0,
+    }))
+    .sort((a, b) => b.calls - a.calls)
+    .slice(0, 20);
+
+  const totalCost = byConnection.reduce((s, c) => s + c.cost, 0);
+  const totalCalls = byConnection.reduce((s, c) => s + c.calls, 0);
+
+  const maxConnCost = byConnection[0]?.cost ?? 1;
+  const maxUserCost = byUser[0]?.cost ?? 1;
+  const maxToolCalls = topTools[0]?.calls ?? 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-4 text-sm">
+          <span className="text-muted-foreground">
+            Total:{" "}
+            <span className="font-semibold text-foreground">
+              {formatUSD(totalCost)}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            Calls:{" "}
+            <span className="font-semibold text-foreground">
+              {totalCalls.toLocaleString()}
+            </span>
+          </span>
+        </div>
+        <PeriodSelector period={period} onPeriodChange={setPeriod} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <BreakdownBlock
+          title="Cost by Connection"
+          empty={byConnection.length === 0}
+        >
+          <div className="space-y-2.5">
+            {byConnection.slice(0, 8).map((item) => (
+              <HorizontalBarRow
+                key={item.key}
+                label={item.key}
+                value={formatUSD(item.cost)}
+                subValue={`${item.calls.toLocaleString()} calls`}
+                maxValue={maxConnCost}
+                color="bg-chart-1"
+              />
+            ))}
+          </div>
+        </BreakdownBlock>
+
+        <BreakdownBlock title="Cost by User" empty={byUser.length === 0}>
+          <div className="space-y-2.5">
+            {byUser.slice(0, 8).map((item) => (
+              <HorizontalBarRow
+                key={item.key}
+                label={item.key}
+                value={formatUSD(item.cost)}
+                subValue={`${item.calls.toLocaleString()} calls`}
+                maxValue={maxUserCost}
+                color="bg-chart-4"
+              />
+            ))}
+          </div>
+        </BreakdownBlock>
+
+        <BreakdownBlock title="Top Tools" empty={topTools.length === 0}>
+          <div className="space-y-2.5">
+            {topTools.slice(0, 8).map((item) => (
+              <HorizontalBarRow
+                key={item.name}
+                label={item.name}
+                value={item.calls.toLocaleString()}
+                subValue={item.cost > 0 ? formatUSD(item.cost) : undefined}
+                maxValue={maxToolCalls}
+                color="bg-chart-3"
+              />
+            ))}
+          </div>
+        </BreakdownBlock>
+      </div>
+    </div>
+  );
+}
+
+// -- Monthly bucket helper for history --
+
+function bucketTimeseriesByMonth(
+  costTs: Array<{ timestamp: string; value: number }>,
+  callTs: Array<{ timestamp: string; value: number }>,
+): Array<{ month: string; cost: number; calls: number }> {
+  const buckets = new Map<string, { cost: number; calls: number }>();
+  for (const point of costTs) {
+    const d = new Date(point.timestamp);
+    const key = d.toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit",
+    });
+    const existing = buckets.get(key) ?? { cost: 0, calls: 0 };
+    buckets.set(key, {
+      cost: existing.cost + point.value,
+      calls: existing.calls,
+    });
+  }
+  for (const point of callTs) {
+    const d = new Date(point.timestamp);
+    const key = d.toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit",
+    });
+    const existing = buckets.get(key) ?? { cost: 0, calls: 0 };
+    buckets.set(key, {
+      cost: existing.cost,
+      calls: existing.calls + point.value,
+    });
+  }
+  return Array.from(buckets.entries())
+    .map(([month, data]) => ({ month, ...data }))
+    .reverse();
+}
+
+// -- Billing History Tab (uses MONITORING_WIDGET_PREVIEW) --
+
+function BillingHistory() {
+  const { org } = useProjectContext();
+  const [period, setPeriod] = useState<BillingStatsPeriod>("90d");
+  const timeRange = periodToTimeRange(period);
+
+  const selfClient = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: costTs, isLoading: l1 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >({
+    client: selfClient,
+    toolName: "MONITORING_WIDGET_PREVIEW",
+    toolArguments: {
+      widget: {
+        type: "timeseries",
+        source: { path: COST_PATH, from: "output" },
+        aggregation: { fn: "sum", interval: "1d" },
+      },
+      timeRange,
+    },
+    staleTime: 60_000,
+    select: selectWidget,
+  });
+
+  const { data: callTs, isLoading: l2 } = useMCPToolCallQuery<
+    WidgetPreviewResult | undefined
+  >({
+    client: selfClient,
+    toolName: "MONITORING_WIDGET_PREVIEW",
+    toolArguments: {
+      widget: {
+        type: "timeseries",
+        source: { path: COST_PATH, from: "output" },
+        aggregation: { fn: "count", interval: "1d" },
+      },
+      timeRange,
+    },
+    staleTime: 60_000,
+    select: selectWidget,
+  });
+
+  if (l1 || l2) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-48 rounded-xl" />
+      </div>
+    );
+  }
+
+  const monthlyBuckets = bucketTimeseriesByMonth(
+    costTs?.timeseries ?? [],
+    callTs?.timeseries ?? [],
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Usage history from monitoring logs
+        </p>
+        <PeriodSelector period={period} onPeriodChange={setPeriod} />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+        <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
+          Monthly Usage
+        </p>
+        {monthlyBuckets.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">
+            No usage data available for this period
+          </p>
+        ) : (
+          <div className="w-full">
+            <div className="grid grid-cols-3 gap-x-4 pb-1.5 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+              <span>Month</span>
+              <span className="text-right">Cost</span>
+              <span className="text-right">Calls</span>
+            </div>
+            <div className="divide-y divide-border">
+              {monthlyBuckets.map((bucket) => (
+                <div
+                  key={bucket.month}
+                  className="grid grid-cols-3 gap-x-4 py-2 text-xs"
+                >
+                  <span className="text-foreground font-medium">
+                    {bucket.month}
+                  </span>
+                  <span className="text-right tabular-nums text-foreground">
+                    {formatUSD(bucket.cost)}
+                  </span>
+                  <span className="text-right tabular-nums text-muted-foreground">
+                    {bucket.calls.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // -- Billing with real data --
 
-function BillingWithData({ connectionId }: { connectionId: string }) {
+function GatewayCard({ connectionId }: { connectionId: string }) {
   const { org } = useProjectContext();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
@@ -973,49 +1549,37 @@ function BillingWithData({ connectionId }: { connectionId: string }) {
       (result as { structuredContent?: GatewayUsageResult }).structuredContent,
   });
 
-  if (isLoading) return <BillingSkeleton />;
+  if (isLoading) {
+    return <Skeleton className="h-36 rounded-xl" />;
+  }
+  if (!data) return null;
 
-  const available = data?.limit.remaining ?? 0;
-  const total = data?.limit.total ?? 0;
-  const usage = data?.usage ?? { total: 0, daily: 0, weekly: 0, monthly: 0 };
-  const billingMode = data?.billing.mode ?? "prepaid";
-  const limitPeriod = data?.billing.limitPeriod ?? null;
-  const estimation = data?.estimation ?? null;
-  const alert = data?.alert ?? {
+  const available = data.limit.remaining ?? 0;
+  const total = data.limit.total ?? 0;
+  const usage = data.usage;
+  const billingMode = data.billing.mode;
+  const limitPeriod = data.billing.limitPeriod ?? null;
+  const estimation = data.estimation ?? null;
+  const alert = data.alert ?? {
     enabled: false,
     threshold_usd: 10,
     email: null,
   };
-  const limit = data?.limit ?? {
-    total: null,
-    remaining: null,
-    reset: null,
-    includeByokInLimit: false,
-  };
+  const limit = data.limit;
 
   const showChipPicker =
     billingMode === "postpaid" && (total == null || total === 0);
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-foreground">Billing</h2>
-        {billingMode === "postpaid" && (
-          <Badge
-            variant="outline"
-            className="text-[10px] px-1.5 py-0 h-4 font-normal capitalize"
-          >
-            Postpaid
-          </Badge>
-        )}
-      </div>
-
       {billingMode === "postpaid" ? (
         <SpendingCard
           usage={usage}
           limit={limit}
           limitPeriod={limitPeriod}
           onConfigureLimit={() => setLimitDialogOpen(true)}
+          connectionId={connectionId}
+          alert={alert}
         />
       ) : (
         <CreditCard
@@ -1023,19 +1587,12 @@ function BillingWithData({ connectionId }: { connectionId: string }) {
           total={total}
           estimation={estimation}
           onAddCredit={() => setLimitDialogOpen(true)}
+          connectionId={connectionId}
+          alert={alert}
         />
       )}
 
-      <UsageSection usage={usage} />
-
       {showChipPicker && <ChipDisplayPicker />}
-
-      <AlertSection
-        key={`${alert.enabled}-${alert.threshold_usd}-${alert.email}`}
-        connectionId={connectionId}
-        alert={alert}
-        billingMode={billingMode}
-      />
 
       <LimitDialog
         open={limitDialogOpen}
@@ -1045,6 +1602,47 @@ function BillingWithData({ connectionId }: { connectionId: string }) {
         billingMode={billingMode}
         currentLimitPeriod={limitPeriod}
       />
+    </>
+  );
+}
+
+function BillingWithData({
+  gatewayConnectionId,
+}: {
+  gatewayConnectionId: string | null;
+}) {
+  return (
+    <>
+      <h2 className="text-base font-semibold text-foreground">Billing</h2>
+
+      <Tabs defaultValue="summary" variant="underline">
+        <TabsList variant="underline">
+          <TabsTrigger value="summary" variant="underline">
+            Summary
+          </TabsTrigger>
+          <TabsTrigger value="breakdown" variant="underline">
+            Breakdown
+          </TabsTrigger>
+          <TabsTrigger value="history" variant="underline">
+            History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="summary" className="flex flex-col gap-4 pt-2">
+          {gatewayConnectionId && (
+            <GatewayCard connectionId={gatewayConnectionId} />
+          )}
+          <UsageSection />
+        </TabsContent>
+
+        <TabsContent value="breakdown" className="pt-2">
+          <BillingBreakdown />
+        </TabsContent>
+
+        <TabsContent value="history" className="pt-2">
+          <BillingHistory />
+        </TabsContent>
+      </Tabs>
     </>
   );
 }
@@ -1064,27 +1662,20 @@ function BillingSkeleton() {
   );
 }
 
-function BillingEmpty() {
+function BillingError() {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Billing</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Monitor usage and manage credits for your organization.
-        </p>
-      </div>
-
+      <h2 className="text-base font-semibold text-foreground">Billing</h2>
       <div className="flex flex-col items-center justify-center gap-3 py-12 rounded-lg border border-dashed border-border">
         <div className="flex items-center justify-center size-10 rounded-full bg-muted">
           <Coins01 size={20} className="text-muted-foreground" />
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-foreground">
-            No AI Gateway configured
+            Something went wrong
           </p>
           <p className="text-xs text-muted-foreground mt-1 max-w-[300px]">
-            Install the Deco AI Gateway MCP to start tracking usage and managing
-            credits.
+            Unable to load billing data. Please try again later.
           </p>
         </div>
       </div>
@@ -1110,7 +1701,7 @@ class BillingErrorBoundary extends Component<
   override componentDidCatch(_error: Error, _info: ErrorInfo): void {}
 
   override render(): ReactNode {
-    if (this.state.hasError) return <BillingEmpty />;
+    if (this.state.hasError) return <BillingError />;
     return this.props.children;
   }
 }
@@ -1124,14 +1715,8 @@ function BillingContent() {
     isDecoAIGatewayUrl(c.connection_url),
   );
 
-  if (!gatewayConnection?.id) {
-    return <BillingEmpty />;
-  }
-
   return (
-    <>
-      <BillingWithData connectionId={gatewayConnection.id} />
-    </>
+    <BillingWithData gatewayConnectionId={gatewayConnection?.id ?? null} />
   );
 }
 

@@ -12,7 +12,7 @@ import { z } from "zod";
 // ============================================================================
 
 const AggregationFunctionSchema = z
-  .enum(["sum", "avg", "min", "max", "count", "last"])
+  .enum(["sum", "avg", "min", "max", "count", "count_all", "last"])
   .describe("Aggregation function to apply");
 
 // ============================================================================
@@ -36,12 +36,23 @@ const DashboardWidgetSourceSchema = z.object({
     .describe("Extract from tool call input or output"),
 });
 
+export const GroupByColumnSchema = z
+  .enum([
+    "connection_id",
+    "connection_title",
+    "user_id",
+    "tool_name",
+    "virtual_mcp_id",
+  ])
+  .describe("Table column to group by (takes priority over JSONPath groupBy)");
+
 const DashboardWidgetAggregationSchema = z.object({
   fn: AggregationFunctionSchema,
   groupBy: z
     .string()
     .optional()
     .describe("Optional JSONPath for grouping results"),
+  groupByColumn: GroupByColumnSchema.optional(),
   interval: z
     .string()
     .optional()

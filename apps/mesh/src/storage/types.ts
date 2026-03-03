@@ -438,6 +438,16 @@ export interface MonitoringLog {
 // ============================================================================
 
 /**
+ * Table columns that can be used for groupBy in aggregations
+ */
+export type GroupByColumn =
+  | "connection_id"
+  | "connection_title"
+  | "user_id"
+  | "tool_name"
+  | "virtual_mcp_id";
+
+/**
  * Aggregation function types for dashboard widgets
  */
 export type AggregationFunction =
@@ -446,6 +456,7 @@ export type AggregationFunction =
   | "min"
   | "max"
   | "count"
+  | "count_all"
   | "last";
 
 /**
@@ -472,6 +483,7 @@ export interface DashboardWidget {
   aggregation: {
     fn: AggregationFunction;
     groupBy?: string; // Optional JSONPath for grouping
+    groupByColumn?: GroupByColumn; // Optional table column for grouping (takes priority)
     interval?: string; // For timeseries: "1h", "1d"
   };
 

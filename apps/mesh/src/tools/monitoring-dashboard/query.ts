@@ -9,6 +9,7 @@ import { defineTool } from "../../core/define-tool";
 import { z } from "zod";
 import { WidgetQueryResultSchema, type WidgetQueryResult } from "./schema";
 import type { AggregationFunction, DashboardWidget } from "@/storage/types";
+import type { GroupByColumn } from "@/storage/monitoring";
 
 export const MONITORING_DASHBOARD_QUERY = defineTool({
   name: "MONITORING_DASHBOARD_QUERY",
@@ -132,6 +133,9 @@ export const MONITORING_DASHBOARD_QUERY = defineTool({
             from: widget.source.from,
             aggregation: widget.aggregation.fn as AggregationFunction,
             groupBy: widget.aggregation.groupBy,
+            groupByColumn: widget.aggregation.groupByColumn as
+              | GroupByColumn
+              | undefined,
             interval: widget.aggregation.interval,
             filters: mergedFilters,
           });
