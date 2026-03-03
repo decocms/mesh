@@ -7,7 +7,7 @@
 
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ThreadsSidebar } from "@/web/components/chat/threads-sidebar.tsx";
-import { TypewriterTitle } from "@/web/components/chat/typewriter-title";
+import { EditableThreadTitle } from "@/web/components/chat/editable-thread-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -83,7 +83,8 @@ function HomeContent() {
       <Page.Header className="flex-none z-10 bg-background">
         <Page.Header.Left className="gap-2">
           {activeThread?.title && (
-            <TypewriterTitle
+            <EditableThreadTitle
+              threadId={activeThread.id}
               text={activeThread.title}
               className="text-sm font-medium text-foreground"
             />

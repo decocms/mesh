@@ -11,7 +11,7 @@ import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { ThreadsView } from "./threads-sidebar";
-import { TypewriterTitle } from "./typewriter-title";
+import { EditableThreadTitle } from "./editable-thread-title";
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
@@ -92,7 +92,8 @@ function ChatPanelContent() {
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">
             {!isChatEmpty && activeThread?.title && (
-              <TypewriterTitle
+              <EditableThreadTitle
+                threadId={activeThread.id}
                 text={activeThread.title}
                 className="text-sm font-medium text-foreground"
               />
