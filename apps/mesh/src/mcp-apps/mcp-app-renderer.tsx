@@ -109,7 +109,7 @@ export function MCPAppRenderer({
       <iframe
         ref={iframeRef}
         srcDoc={html}
-        sandbox="allow-scripts allow-same-origin allow-forms"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         className={cn("w-full h-full border-0", isLoading && "invisible")}
         title={`MCP App: ${toolName ?? uri}`}
       />
