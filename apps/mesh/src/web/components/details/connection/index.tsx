@@ -5,6 +5,7 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
+import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import { PinToSidebarButton } from "@/web/components/pin-to-sidebar-button";
 import { SaveActions } from "@/web/components/save-actions";
 import {
@@ -64,6 +65,7 @@ import {
   type ConnectionFormData,
 } from "./settings-tab/schema";
 import { ToolsTab } from "./tools-tab";
+import { UiTab } from "./ui-tab";
 
 /**
  * Check if STDIO params look like an NPX command
@@ -285,6 +287,7 @@ function ConnectionInspectorViewWithConnection({
     inputSchema?: Record<string, unknown>;
     outputSchema?: Record<string, unknown>;
     annotations?: ToolDefinition["annotations"];
+    _meta?: Record<string, unknown>;
   }>;
   isLoadingTools: boolean;
 }) {
@@ -445,6 +448,7 @@ function ConnectionInspectorViewWithConnection({
   const toolsCount = tools.length;
   const promptsCount = prompts.length;
   const resourcesCount = resources.length;
+  const uiToolsCount = tools.filter((t) => !!getUIResourceUri(t._meta)).length;
 
   // Show Tools tab if we have tools OR if we're still loading them
   // This handles VIRTUAL connections and others that fetch tools dynamically
@@ -466,6 +470,9 @@ function ConnectionInspectorViewWithConnection({
       : []),
     ...(isMCPAuthenticated && resourcesCount > 0
       ? [{ id: "resources", label: "Resources", count: resourcesCount }]
+      : []),
+    ...(isMCPAuthenticated && uiToolsCount > 0
+      ? [{ id: "ui", label: "UI", count: uiToolsCount }]
       : []),
     ...(isMCPAuthenticated
       ? (collections || []).map((c) => ({ id: c.name, label: c.displayName }))
@@ -575,6 +582,8 @@ function ConnectionInspectorViewWithConnection({
                     org={org}
                     isLoading={isLoadingTools}
                   />
+                ) : activeTabId === "ui" ? (
+                  <UiTab tools={tools} connectionId={connectionId} org={org} />
                 ) : activeTabId === "prompts" ? (
                   <PromptsTab
                     prompts={prompts}
@@ -681,6 +690,7 @@ function ConnectionInspectorViewContent() {
         description: t.description,
         inputSchema: t.inputSchema as Record<string, unknown> | undefined,
         annotations: t.annotations,
+        _meta: t._meta as Record<string, unknown> | undefined,
       }));
 
   // Update connection handler
