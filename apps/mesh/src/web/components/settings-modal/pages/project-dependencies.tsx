@@ -35,10 +35,11 @@ function ProjectDependenciesForm() {
 
   const { data: projectConnections } = useQuery({
     queryKey: KEYS.projectConnections(projectId),
+    enabled: !!project.id,
     queryFn: async () => {
       const result = await client.callTool({
         name: "PROJECT_CONNECTION_LIST",
-        arguments: { projectId: project.id },
+        arguments: { projectId },
       });
       return unwrapToolResult<ConnectionListResult>(result);
     },

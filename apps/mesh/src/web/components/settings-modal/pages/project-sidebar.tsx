@@ -344,6 +344,7 @@ function ProjectSidebarForm() {
 }
 
 export function ProjectSidebarPage() {
+  const { project } = useProjectContext();
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -353,7 +354,7 @@ export function ProjectSidebarPage() {
           for quick access.
         </p>
       </div>
-      <ProjectSidebarForm />
+      <ProjectSidebarForm key={project.id} />
     </div>
   );
 }
