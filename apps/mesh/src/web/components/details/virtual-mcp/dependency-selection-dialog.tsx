@@ -732,6 +732,7 @@ export function DependencySelectionDialog({
   const formData = connectionsToRecord(connections ?? []);
 
   const currentConnection = findOrFirst(allConnections, dialogState.selectedId);
+  const effectiveSelectedId = currentConnection?.id ?? null;
 
   // Use shared helper functions from selection-utils
   const hasSelections = (connId: string): boolean =>
@@ -910,7 +911,7 @@ export function DependencySelectionDialog({
               <ConnectionsList
                 allConnections={allConnections}
                 searchTerm={dialogState.searchTerm}
-                selectedId={dialogState.selectedId}
+                selectedId={effectiveSelectedId}
                 hasSelections={hasSelections}
                 getSelectionSummary={getSelectionSummary}
                 onConnectionClick={handleConnectionClick}
@@ -921,12 +922,12 @@ export function DependencySelectionDialog({
 
           {/* Right Content - Tools/Resources/Prompts */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {currentConnection && dialogState.selectedId ? (
+            {currentConnection && effectiveSelectedId ? (
               <ConnectionDetailsContent
-                key={dialogState.selectedId}
+                key={effectiveSelectedId}
                 currentConnection={currentConnection}
                 activeTab={dialogState.activeTab}
-                selectedId={dialogState.selectedId}
+                selectedId={effectiveSelectedId}
                 formData={formData}
                 toggleTool={toggleTool}
                 toggleResource={toggleResource}
