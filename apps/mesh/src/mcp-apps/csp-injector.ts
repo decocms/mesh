@@ -2,7 +2,7 @@ import type { McpUiResourceCsp } from "./types.ts";
 
 export const DEFAULT_CSP = [
   "default-src 'none'",
-  "script-src 'unsafe-inline'",
+  "script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
   "style-src 'unsafe-inline'",
   "img-src * data: blob:",
   "font-src data:",
@@ -86,29 +86,23 @@ function buildCSPPolicy(options: CSPInjectorOptions): string {
   const hasConnectDomains = connectDomains.length > 0;
   const hasFrameDomains = frameDomains.length > 0;
   const hasBaseUriDomains = baseUriDomains.length > 0;
-  const hasUnsafeEval = rc.unsafeEval === true;
-  const hasWasmEval = rc.wasmEval === true;
 
   if (
     !hasResourceDomains &&
     !hasConnectDomains &&
     !hasFrameDomains &&
-    !hasBaseUriDomains &&
-    !hasUnsafeEval &&
-    !hasWasmEval
+    !hasBaseUriDomains
   ) {
     return DEFAULT_CSP;
   }
 
   const rd = resourceDomains.join(" ");
-  const evalToken = hasUnsafeEval ? " 'unsafe-eval'" : "";
-  const wasmToken = hasWasmEval ? " 'wasm-unsafe-eval'" : "";
 
   const directives = [
     "default-src 'none'",
     hasResourceDomains
-      ? `script-src 'unsafe-inline'${evalToken}${wasmToken} ${rd}`
-      : `script-src 'unsafe-inline'${evalToken}${wasmToken}`,
+      ? `script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' ${rd}`
+      : "script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
     hasResourceDomains
       ? `style-src 'unsafe-inline' ${rd}`
       : "style-src 'unsafe-inline'",
