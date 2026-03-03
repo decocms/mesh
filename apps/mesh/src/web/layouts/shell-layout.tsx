@@ -195,10 +195,6 @@ function ShellLayoutContent() {
         query: { organizationSlug: org },
       });
 
-      // Populate the per-tab org store so the auth client injects organizationId
-      // on all subsequent Better Auth org-management calls from this tab.
-      setCurrentOrgId(data?.id ?? null);
-
       return {
         org: data,
         // Project slug comes from URL param, actual project data is fetched in project-layout
@@ -213,6 +209,12 @@ function ShellLayoutContent() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+
+  // Sync the per-tab org store on every render so the auth client injects the
+  // correct organizationId on all outbound Better Auth calls from this tab.
+  // This must live outside queryFn because cache hits (staleTime: Infinity)
+  // skip the fetch function, which would leave the store stale after org switches.
+  setCurrentOrgId(projectContext?.org?.id ?? null);
 
   if (!projectContext) {
     return (
