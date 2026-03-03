@@ -48,24 +48,6 @@ export function getFriendlyToolName(toolName: string): string {
 }
 
 /**
- * Check if a tool part is awaiting approval and has valid approval data.
- * Returns the approval ID if all conditions are met, otherwise returns null.
- */
-export function getApprovalId(part: {
-  state: string;
-  approval?: { id: string };
-}): string | null {
-  if (
-    part.state === "approval-requested" &&
-    "approval" in part &&
-    part.approval
-  ) {
-    return part.approval.id;
-  }
-  return null;
-}
-
-/**
  * Derive the effective UI state for a tool call part.
  * Returns "error", "loading", "approval", or "idle" based on the tool state.
  *
