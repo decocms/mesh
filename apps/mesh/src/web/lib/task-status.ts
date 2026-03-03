@@ -4,7 +4,7 @@
  * Used by both the /tasks/ page and the compact TaskListContent panel.
  */
 
-import type { ThreadEntity } from "@/tools/thread/schema";
+import type { Task } from "@/web/components/chat/task/types";
 import {
   CheckCircle,
   Hourglass03,
@@ -52,8 +52,8 @@ export const STATUS_CONFIG: Record<
   },
 };
 
-export function groupByStatus(tasks: ThreadEntity[]) {
-  const groups: Record<string, ThreadEntity[]> = {};
+export function groupByStatus(tasks: Task[]) {
+  const groups: Record<string, Task[]> = {};
   for (const task of tasks) {
     const status = task.status ?? "completed";
     if (!groups[status]) groups[status] = [];

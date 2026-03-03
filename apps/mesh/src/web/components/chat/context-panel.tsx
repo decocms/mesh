@@ -157,14 +157,14 @@ export function ChatContextPanel({
 
   const {
     messages,
-    threads,
-    activeThreadId,
+    tasks,
+    activeTaskId,
     selectedModel,
     selectedVirtualMcp,
     virtualMcps,
   } = useChat();
 
-  const activeThread = threads.find((t) => t.id === activeThreadId);
+  const activeTask = tasks.find((t) => t.id === activeTaskId);
 
   const stats = calculateUsageStats(
     messages as Array<{
@@ -215,9 +215,9 @@ export function ChatContextPanel({
   const lastMessage = (messages as ChatMessage[]).at(-1);
 
   const sessionCreated =
-    firstMessage?.metadata?.created_at ?? activeThread?.created_at;
+    firstMessage?.metadata?.created_at ?? activeTask?.created_at;
   const lastActivity =
-    lastMessage?.metadata?.created_at ?? activeThread?.updated_at;
+    lastMessage?.metadata?.created_at ?? activeTask?.updated_at;
 
   // Non-system messages for the messages list
   const visibleMessages = (messages as ChatMessage[]).filter(
@@ -263,7 +263,7 @@ export function ChatContextPanel({
   const agentTitle = selectedVirtualMcp?.title ?? "Decopilot";
 
   const allStats: StatItem[] = [
-    { label: "Session", value: activeThread?.title ?? "New chat" },
+    { label: "Session", value: activeTask?.title ?? "New chat" },
     { label: "Messages", value: visibleMessages.length },
     { label: "Agent", value: agentTitle },
     { label: "Model", value: modelLabel },
@@ -303,7 +303,7 @@ export function ChatContextPanel({
     { label: "Last Activity", value: formatDate(lastActivity) },
   ];
 
-  if (!activeThread && visibleMessages.length === 0) {
+  if (!activeTask && visibleMessages.length === 0) {
     return (
       <div
         className={cn(

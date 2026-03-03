@@ -8,7 +8,7 @@
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatContextPanel } from "@/web/components/chat/context-panel";
 import { TasksPanel } from "@/web/components/chat/tasks-panel";
-import { EditableThreadTitle } from "@/web/components/chat/editable-thread-title";
+import { EditableTaskTitle } from "@/web/components/chat/editable-task-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -36,11 +36,11 @@ function HomeContent() {
   const {
     modelsConnections,
     isChatEmpty,
-    activeThreadId,
-    threads,
+    activeTaskId,
+    tasks,
     selectedVirtualMcp,
   } = useChat();
-  const activeThread = threads.find((thread) => thread.id === activeThreadId);
+  const activeTask = tasks.find((task) => task.id === activeTaskId);
   const [showContext, setShowContext] = useState(false);
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
@@ -99,10 +99,10 @@ function HomeContent() {
         <Chat className="h-full bg-background">
           <Page.Header className="flex-none z-10 bg-background">
             <Page.Header.Left className="gap-2">
-              {activeThread?.title && (
-                <EditableThreadTitle
-                  threadId={activeThread.id}
-                  text={activeThread.title}
+              {activeTask?.title && (
+                <EditableTaskTitle
+                  taskId={activeTask.id}
+                  text={activeTask.title}
                   className="text-sm font-medium text-foreground"
                 />
               )}

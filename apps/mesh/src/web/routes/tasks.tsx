@@ -16,10 +16,10 @@ import { useChatStable } from "../components/chat/context";
 function TasksContent() {
   const { org, project } = useProjectContext();
   const navigate = useNavigate();
-  const { switchToThread } = useChatStable();
+  const { switchToTask } = useChatStable();
 
   const handleTaskSelect = async (taskId: string) => {
-    await switchToThread(taskId);
+    await switchToTask(taskId);
     navigate({
       to: "/$org/$project",
       params: { org: org.slug, project: project.slug },

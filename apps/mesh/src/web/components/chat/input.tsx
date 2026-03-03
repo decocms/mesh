@@ -304,7 +304,7 @@ export function ChatInput({
   onOpenContextPanel?: () => void;
 }) {
   const {
-    activeThreadId,
+    activeTaskId,
     tiptapDocRef,
     virtualMcps,
     selectedVirtualMcp,
@@ -332,10 +332,10 @@ export function ChatInput({
     tiptapDocRef.current = doc;
   };
 
-  // Reset input when switching threads (TiptapProvider also remounts via key)
-  const prevThreadRef = useRef(activeThreadId);
-  if (prevThreadRef.current !== activeThreadId) {
-    prevThreadRef.current = activeThreadId;
+  // Reset input when switching tasks (TiptapProvider also remounts via key)
+  const prevTaskRef = useRef(activeTaskId);
+  if (prevTaskRef.current !== activeTaskId) {
+    prevTaskRef.current = activeTaskId;
     setTiptapDocLocal(undefined);
     tiptapDocRef.current = undefined;
   }
@@ -457,7 +457,7 @@ export function ChatInput({
           )}
         >
           <TiptapProvider
-            key={activeThreadId}
+            key={activeTaskId}
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
             selectedModel={selectedModel}

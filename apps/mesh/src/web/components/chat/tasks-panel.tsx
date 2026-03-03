@@ -13,14 +13,13 @@ import { useChatStable } from "@/web/components/chat/context";
 
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { User } from "@/web/components/user/user.tsx";
-import { useTaskData } from "@/web/hooks/use-task-data";
 import { formatTimeAgo } from "@/web/lib/format-time";
 import {
   STATUS_ORDER,
   STATUS_CONFIG,
   groupByStatus,
 } from "@/web/lib/task-status";
-import type { ThreadEntity } from "@/tools/thread/schema";
+import type { Task } from "./task/types";
 import {
   Tooltip,
   TooltipContent,
@@ -76,22 +75,21 @@ function TruncatedText({
 // --- Shared task list content ---
 
 interface TaskListContentProps {
-  /** Called when a task is selected (defaults to switchToThread from chat context) */
+  /** Called when a task is selected (defaults to switchToTask from chat context) */
   onTaskSelect?: (taskId: string) => void;
 }
 
 /**
  * TaskListContent - The core task list with search + status-grouped tasks.
- * Self-contained: fetches its own data, uses chat context for active thread.
+ * Uses chat context for both data and active task state.
  * Used in both the home TasksPanel and the chat panel overlay.
  *
  * Design matches the /tasks/ page StatusGroup exactly, just without
  * the description column and wide spacer (compact width).
  */
 export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
-  const { activeThreadId, switchToThread } = useChat();
-  const { renameThread } = useChatStable();
-  const { data } = useTaskData();
+  const { activeTaskId, switchToTask } = useChat();
+  const { renameTask, tasks } = useChatStable();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<
@@ -100,7 +98,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
-  const visible = data.filter((t) => !t.hidden);
+  const visible = tasks.filter((t) => !t.hidden);
 
   const searched = searchQuery.trim()
     ? visible.filter((t) =>
@@ -117,15 +115,15 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
     setCollapsedGroups((prev) => ({ ...prev, [status]: !prev[status] }));
   };
 
-  const handleTaskClick = async (task: ThreadEntity) => {
+  const handleTaskClick = async (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
     } else {
-      await switchToThread(task.id);
+      await switchToTask(task.id);
     }
   };
 
-  const startEditing = (task: ThreadEntity, e: React.MouseEvent) => {
+  const startEditing = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingTaskId(task.id);
     setEditingTitle(task.title || "");
@@ -134,7 +132,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const commitEdit = async (taskId: string) => {
     const trimmed = editingTitle.trim();
     if (trimmed) {
-      await renameThread(taskId, trimmed);
+      await renameTask(taskId, trimmed);
     }
     setEditingTaskId(null);
   };
@@ -177,7 +175,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
             const config = STATUS_CONFIG[status];
             if (!config) return null;
             const Icon = config.icon;
-            const tasks = groups[status] ?? [];
+            const statusTasks = groups[status] ?? [];
             const isOpen = !collapsedGroups[status];
 
             return (
@@ -206,15 +204,15 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
                       {config.label}
                     </span>
                     <span className="text-xs text-muted-foreground/60">
-                      {tasks.length}
+                      {statusTasks.length}
                     </span>
                   </div>
                 </button>
 
                 {/* Task rows */}
                 {isOpen &&
-                  tasks.map((task) => {
-                    const isActive = task.id === activeThreadId;
+                  statusTasks.map((task) => {
+                    const isActive = task.id === activeTaskId;
                     const isEditing = editingTaskId === task.id;
                     return (
                       <div
@@ -278,11 +276,13 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
                                   className="text-muted-foreground"
                                 />
                               </button>
-                              <User
-                                id={task.created_by}
-                                size="3xs"
-                                avatarOnly
-                              />
+                              {task.created_by && (
+                                <User
+                                  id={task.created_by}
+                                  size="3xs"
+                                  avatarOnly
+                                />
+                              )}
                             </div>
                             <div className="w-20 p-3 shrink-0 text-right">
                               <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -308,7 +308,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 // --- Home page panel wrapper ---
 
 function TasksPanelContent() {
-  const { createThread, isChatEmpty } = useChat();
+  const { createTask, isChatEmpty } = useChat();
 
   return (
     <div className="flex flex-col h-full bg-background border-r border-border/50">
@@ -317,7 +317,7 @@ function TasksPanelContent() {
         <span className="text-sm font-normal text-foreground">Tasks</span>
         <button
           type="button"
-          onClick={() => createThread()}
+          onClick={() => createTask()}
           disabled={isChatEmpty}
           className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           title="New chat"

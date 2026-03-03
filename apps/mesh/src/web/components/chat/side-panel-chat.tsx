@@ -21,7 +21,7 @@ import { Chat, useChat } from "./index";
 import { ChatContextPanel } from "./context-panel";
 import { TaskListContent } from "./tasks-panel";
 
-import { EditableThreadTitle } from "./editable-thread-title";
+import { EditableTaskTitle } from "./editable-task-title";
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
@@ -30,24 +30,24 @@ function ChatPanelContent() {
     selectedVirtualMcp,
     modelsConnections,
     isChatEmpty,
-    activeThreadId,
-    createThread,
-    switchToThread,
-    threads,
+    activeTaskId,
+    createTask,
+    switchToTask,
+    tasks,
   } = useChat();
-  const activeThread = threads.find((thread) => thread.id === activeThreadId);
-  const [activePanel, setActivePanel] = useState<
-    "chat" | "threads" | "context"
-  >("chat");
+  const activeTask = tasks.find((task) => task.id === activeTaskId);
+  const [activePanel, setActivePanel] = useState<"chat" | "tasks" | "context">(
+    "chat",
+  );
   const [isPending, startTransition] = useTransition();
 
   // Use Decopilot as default agent
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
-  const handleNewThread = () => {
+  const handleNewTask = () => {
     startTransition(() => {
-      createThread();
+      createTask();
     });
   };
 
@@ -101,10 +101,10 @@ function ChatPanelContent() {
       >
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">
-            {!isChatEmpty && activeThread?.title && (
-              <EditableThreadTitle
-                threadId={activeThread.id}
-                text={activeThread.title}
+            {!isChatEmpty && activeTask?.title && (
+              <EditableTaskTitle
+                taskId={activeTask.id}
+                text={activeTask.title}
                 className="text-sm font-medium text-foreground"
               />
             )}
@@ -112,7 +112,7 @@ function ChatPanelContent() {
           <Page.Header.Right className="gap-1">
             <button
               type="button"
-              onClick={handleNewThread}
+              onClick={handleNewTask}
               disabled={isPending}
               className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="New chat"
@@ -124,7 +124,7 @@ function ChatPanelContent() {
             </button>
             <button
               type="button"
-              onClick={() => setActivePanel("threads")}
+              onClick={() => setActivePanel("tasks")}
               className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
               title="Tasks"
             >
@@ -184,7 +184,7 @@ function ChatPanelContent() {
       <div
         className={cn(
           "absolute inset-0 flex flex-col transition-opacity duration-100 ease-out",
-          activePanel === "threads"
+          activePanel === "tasks"
             ? "opacity-100"
             : "opacity-0 pointer-events-none",
         )}
@@ -228,7 +228,7 @@ function ChatPanelContent() {
           >
             <TaskListContent
               onTaskSelect={async (taskId) => {
-                await switchToThread(taskId);
+                await switchToTask(taskId);
                 setActivePanel("chat");
               }}
             />
