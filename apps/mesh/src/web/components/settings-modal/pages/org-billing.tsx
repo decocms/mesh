@@ -38,8 +38,9 @@ import {
   useMCPToolCallQuery,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { isDecoAIGatewayUrl } from "@/core/deco-constants";
 import { useMembers } from "@/web/hooks/use-members";
+import { connectionImplementsBinding } from "@/web/hooks/use-binding";
+import { AI_GATEWAY_BILLING_BINDING } from "@decocms/bindings/ai-gateway";
 
 // -- Types --
 
@@ -1251,7 +1252,7 @@ function BillingBreakdown() {
 
   const { data: callsByConn, isLoading: l2 } = useMCPToolCallQuery<
     WidgetPreviewResult | undefined
-  >(widgetQuery({ fn: "count", groupByColumn: "connection_title" }));
+  >(widgetQuery({ fn: "count_all", groupByColumn: "connection_title" }));
 
   const { data: costByUser, isLoading: l3 } = useMCPToolCallQuery<
     WidgetPreviewResult | undefined
@@ -1259,7 +1260,7 @@ function BillingBreakdown() {
 
   const { data: callsByUser, isLoading: l4 } = useMCPToolCallQuery<
     WidgetPreviewResult | undefined
-  >(widgetQuery({ fn: "count", groupByColumn: "user_id" }));
+  >(widgetQuery({ fn: "count_all", groupByColumn: "user_id" }));
 
   const { data: costByTool, isLoading: l5 } = useMCPToolCallQuery<
     WidgetPreviewResult | undefined
@@ -1459,7 +1460,7 @@ function BillingHistory() {
       widget: {
         type: "timeseries",
         source: { path: COST_PATH, from: "output" },
-        aggregation: { fn: "count", interval: "1d" },
+        aggregation: { fn: "count_all", interval: "1d" },
       },
       timeRange,
     },
@@ -1712,7 +1713,7 @@ function BillingContent() {
   const connections = useConnections();
 
   const gatewayConnection = connections.find((c) =>
-    isDecoAIGatewayUrl(c.connection_url),
+    connectionImplementsBinding(c, AI_GATEWAY_BILLING_BINDING),
   );
 
   return (
