@@ -9,6 +9,8 @@ import { requireOrganization } from "@/core/mesh-context";
 import { defineTool } from "../../core/define-tool";
 import { z } from "zod";
 import type { AggregationFunction } from "@/storage/types";
+import type { GroupByColumn } from "@/storage/monitoring";
+import { GroupByColumnSchema } from "./schema";
 
 const WidgetConfigSchema = z.object({
   type: z.enum(["metric", "timeseries", "table"]),
@@ -21,6 +23,7 @@ const WidgetConfigSchema = z.object({
       .enum(["sum", "avg", "min", "max", "count", "count_all", "last"])
       .describe("Aggregation function"),
     groupBy: z.string().optional().describe("JSONPath for grouping (table)"),
+    groupByColumn: GroupByColumnSchema.optional(),
     interval: z
       .string()
       .optional()
@@ -133,6 +136,9 @@ export const MONITORING_WIDGET_PREVIEW = defineTool({
         from: widget.source.from,
         aggregation: widget.aggregation.fn as AggregationFunction,
         groupBy: widget.aggregation.groupBy,
+        groupByColumn: widget.aggregation.groupByColumn as
+          | GroupByColumn
+          | undefined,
         interval: widget.aggregation.interval,
         filters,
       });

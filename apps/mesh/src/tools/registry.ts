@@ -72,7 +72,6 @@ const ALL_TOOL_NAMES = [
   // Monitoring tools
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
-  "MONITORING_BILLING_STATS",
   // Monitoring Dashboard tools
   "MONITORING_DASHBOARD_CREATE",
   "MONITORING_DASHBOARD_GET",
@@ -321,11 +320,6 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   {
     name: "MONITORING_STATS",
     description: "View monitoring statistics",
-    category: "Monitoring",
-  },
-  {
-    name: "MONITORING_BILLING_STATS",
-    description: "View billing cost analytics",
     category: "Monitoring",
   },
   // Monitoring Dashboard tools
@@ -577,7 +571,6 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_VIRTUAL_TOOLS_DELETE: "Delete virtual tools",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
-  MONITORING_BILLING_STATS: "View billing cost analytics",
   MONITORING_DASHBOARD_CREATE: "Create monitoring dashboards",
   MONITORING_DASHBOARD_GET: "View dashboard details",
   MONITORING_DASHBOARD_LIST: "List monitoring dashboards",

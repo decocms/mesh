@@ -9,19 +9,15 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
 import type { MonitoringStorage, PropertyFilters } from "./ports";
-import type { AggregationFunction, Database, MonitoringLog } from "./types";
+import type {
+  AggregationFunction,
+  Database,
+  GroupByColumn,
+  MonitoringLog,
+} from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
-// ============================================================================
-// Aggregation Types
-// ============================================================================
-
-export type GroupByColumn =
-  | "connection_id"
-  | "connection_title"
-  | "user_id"
-  | "tool_name"
-  | "virtual_mcp_id";
+export type { GroupByColumn };
 
 export interface AggregationParams {
   organizationId: string;
