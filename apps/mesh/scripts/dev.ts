@@ -139,7 +139,7 @@ if (secretsModified) {
 
 process.env.MESH_HOME = meshHome;
 process.env.DATABASE_URL = `file:${join(meshHome, "mesh.db")}`;
-process.env.MESH_LOCAL_MODE = "true";
+process.env.MESH_LOCAL_MODE = process.env.MESH_LOCAL_MODE ?? "true";
 
 // ============================================================================
 // Banner
