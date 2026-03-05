@@ -41,9 +41,3 @@ path that updates the stored hash on boot.
 The Playwright e2e test (`apps/mesh/src/**/*.e2e.test.ts`) is picked up by
 `bun test` and fails because `@playwright/test` conflicts with bun's test
 runner. Should be excluded via bun test config or file naming convention.
-
-## internalUrl in public config
-
-`/api/config` exposes `internalUrl` (e.g. `http://localhost:3000`) to support
-OAuth redirect URIs behind proxies. In production, this should either be omitted
-or set to the actual public URL. Currently always returns `localhost:PORT`.

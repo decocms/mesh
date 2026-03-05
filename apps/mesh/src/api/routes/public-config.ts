@@ -7,6 +7,7 @@
 
 import { Hono } from "hono";
 import { getThemeConfig, type ThemeConfig } from "@/core/config";
+import { isLocalMode } from "@/auth/local-mode";
 import { getInternalUrl } from "@/core/server-constants";
 
 const app = new Hono();
@@ -39,7 +40,8 @@ export type PublicConfig = {
 app.get("/", (c) => {
   const config: PublicConfig = {
     theme: getThemeConfig(),
-    internalUrl: getInternalUrl(),
+    // Only expose internalUrl in local mode — production uses the public URL directly
+    ...(isLocalMode() && { internalUrl: getInternalUrl() }),
   };
 
   return c.json({ success: true, config });
