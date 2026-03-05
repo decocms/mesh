@@ -8,32 +8,51 @@
  */
 
 import { getDb } from "@/database";
-import { userInfo } from "os";
+import { homedir, userInfo } from "os";
 import { join } from "path";
 import { auth } from "./index";
 
 /**
+ * Try to read LOCAL_ADMIN_PASSWORD from a secrets.json in the given directory.
+ */
+async function readPasswordFromDir(dir: string): Promise<string | null> {
+  try {
+    const file = Bun.file(join(dir, "secrets.json"));
+    if (await file.exists()) {
+      const secrets = await file.json();
+      if (secrets.LOCAL_ADMIN_PASSWORD) {
+        return secrets.LOCAL_ADMIN_PASSWORD;
+      }
+    }
+  } catch {
+    // Not available in this directory
+  }
+  return null;
+}
+
+/**
  * Get the per-install local admin password from secrets.json.
- * Falls back to a default if secrets.json is unavailable (should not happen
- * in normal CLI flow since loadOrCreateSecrets() runs first).
+ *
+ * Checks MESH_HOME first, then the default ~/deco directory (which the CLI
+ * and dev.ts both use). Throws if neither location has a password — never
+ * falls back to a hardcoded credential.
  */
 export async function getLocalAdminPassword(): Promise<string> {
+  // 1. Try MESH_HOME (set by CLI / dev.ts)
   const meshHome = process.env.MESH_HOME;
   if (meshHome) {
-    try {
-      const file = Bun.file(join(meshHome, "secrets.json"));
-      if (await file.exists()) {
-        const secrets = await file.json();
-        if (secrets.LOCAL_ADMIN_PASSWORD) {
-          return secrets.LOCAL_ADMIN_PASSWORD;
-        }
-      }
-    } catch {
-      // Fall through to default
-    }
+    const pw = await readPasswordFromDir(meshHome);
+    if (pw) return pw;
   }
-  // No fallback — if secrets.json is unavailable, fail loudly rather than
-  // using a well-known credential that is published in the source repo.
+
+  // 2. Try default ~/deco (covers `bun run dev:server` without MESH_HOME)
+  const defaultHome = join(homedir(), "deco");
+  if (!meshHome || meshHome !== defaultHome) {
+    const pw = await readPasswordFromDir(defaultHome);
+    if (pw) return pw;
+  }
+
+  // No password found — fail loudly rather than using a known credential
   throw new Error(
     "Local admin password unavailable — secrets.json was not initialized. " +
       "Ensure loadOrCreateSecrets() runs before the server starts (the CLI does this automatically).",
