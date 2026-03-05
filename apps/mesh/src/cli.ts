@@ -2,15 +2,17 @@
 /**
  * MCP Mesh CLI Entry Point
  *
- * This script serves as the bin entry point for bunx @decocms/mesh
+ * Deco Studio CLI Entry Point
+ *
+ * This script serves as the bin entry point for `npx decocms` / `deco`.
  * It runs database migrations, seeds the local environment, and starts the server.
  *
  * Usage:
- *   bunx @decocms/mesh
- *   bunx @decocms/mesh --port 8080
- *   bunx @decocms/mesh --home ~/my-mesh
- *   bunx @decocms/mesh --no-local-mode
- *   bunx @decocms/mesh --help
+ *   npx decocms
+ *   deco --port 8080
+ *   deco --home ~/my-mesh
+ *   deco --no-local-mode
+ *   deco --help
  */
 
 import { parseArgs } from "util";
@@ -56,10 +58,11 @@ const { values } = parseArgs({
 
 if (values.help) {
   console.log(`
-MCP Mesh - Self-hostable MCP Server
+Deco Studio - Open-source control plane for your AI agents
 
 Usage:
-  bunx @decocms/mesh [options]
+  npx decocms [options]
+  deco [options]
 
 Options:
   -p, --port <port>     Port to listen on (default: 3000, or PORT env var)
@@ -80,13 +83,13 @@ Environment Variables:
   CONFIG_PATH           Path to full config file (default: ./config.json)
 
 Examples:
-  bunx @decocms/mesh                          # Start with defaults (~/deco/)
-  bunx @decocms/mesh -p 8080                  # Start on port 8080
-  bunx @decocms/mesh --home ~/my-project      # Custom data directory
-  bunx @decocms/mesh --no-local-mode          # Require login (SaaS mode)
+  npx decocms                          # Start with defaults (~/deco/)
+  deco -p 8080                         # Start on port 8080
+  deco --home ~/my-project             # Custom data directory
+  deco --no-local-mode                 # Require login (SaaS mode)
 
 Documentation:
-  https://github.com/decocms/mesh
+  https://decocms.com/studio
 `);
   process.exit(0);
 }
@@ -111,7 +114,7 @@ if (values.version) {
     }
   }
 
-  console.log(`@decocms/mesh v${version}`);
+  console.log(`Deco Studio v${version}`);
   process.exit(0);
 }
 

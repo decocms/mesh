@@ -159,7 +159,7 @@ class McpOAuthProvider implements OAuthClientProvider {
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      client_name: options.clientName ?? "@decocms/mesh MCP client",
+      client_name: options.clientName ?? "Deco Studio MCP client",
       // Only include scope if explicitly provided - some servers have their own scope requirements
       ...(scopeStr && { scope: scopeStr }),
     };
@@ -770,7 +770,7 @@ export async function isConnectionAuthenticated({
           protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: {
-            name: "@decocms/mesh MCP client",
+            name: "Deco Studio MCP client",
             version: "1.0.0",
           },
         },

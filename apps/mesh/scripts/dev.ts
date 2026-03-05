@@ -3,7 +3,7 @@
  * Development environment setup script.
  *
  * Mirrors the CLI (src/cli.ts) behaviour so that `bun dev` and
- * `bunx @decocms/mesh` share the same ~/deco data directory, secrets,
+ * `npx decocms` / `deco` share the same ~/deco data directory, secrets,
  * and local-mode defaults.
  *
  * After setting up the environment it spawns the regular dev pipeline:
