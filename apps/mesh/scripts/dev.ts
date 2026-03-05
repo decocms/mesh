@@ -63,10 +63,10 @@ if (explicitHome) {
   // Interactive, first run — prompt for location
   const displayDefault = userHome.replace(homedir(), "~");
   console.log("");
-  console.log(`${bold}${cyan}MCP Mesh${reset} ${dim}(dev)${reset}`);
+  console.log(`${bold}${cyan}Deco Studio${reset} ${dim}(dev)${reset}`);
   console.log("");
   const answer = await prompt(
-    `  Where should Mesh store its data? ${dim}(${displayDefault})${reset} `,
+    `  Where should Deco store its data? ${dim}(${displayDefault})${reset} `,
   );
   if (answer === "") {
     meshHome = userHome;
@@ -151,7 +151,7 @@ process.env.MESH_LOCAL_MODE = process.env.MESH_LOCAL_MODE ?? "true";
 const displayHome = meshHome.replace(homedir(), "~");
 
 console.log("");
-console.log(`${bold}${cyan}MCP Mesh${reset} ${dim}(dev)${reset}`);
+console.log(`${bold}${cyan}Deco Studio${reset} ${dim}(dev)${reset}`);
 console.log("");
 console.log(
   `${bold}  Mode:     ${green}Local${reset}${bold} (auto-login enabled)${reset}`,

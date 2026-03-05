@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * MCP Mesh CLI Entry Point
+ * Deco Studio CLI Entry Point
  *
  * Deco Studio CLI Entry Point
  *
@@ -167,10 +167,10 @@ if (values.home) {
   // First run with default path — ask the user
   const displayDefault = defaultHome.replace(homedir(), "~");
   console.log("");
-  console.log(`${bold}${cyan}MCP Mesh${reset}`);
+  console.log(`${bold}${cyan}Deco Studio${reset}`);
   console.log("");
   const answer = await prompt(
-    `  Where should Mesh store its data? ${dim}(${displayDefault})${reset} `,
+    `  Where should Deco store its data? ${dim}(${displayDefault})${reset} `,
   );
   if (answer === "") {
     meshHome = defaultHome;
@@ -282,8 +282,8 @@ if (secretsModified) {
 const displayHome = meshHome.replace(homedir(), "~");
 
 console.log("");
-console.log(`${bold}${cyan}MCP Mesh${reset}`);
-console.log(`${dim}Self-hostable MCP Server${reset}`);
+console.log(`${bold}${cyan}Deco Studio${reset}`);
+console.log(`${dim}Open-source control plane for your AI agents${reset}`);
 console.log("");
 
 if (betterAuthFromFile || encryptionKeyFromFile) {
