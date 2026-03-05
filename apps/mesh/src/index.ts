@@ -100,8 +100,16 @@ if (process.env.MESH_LOCAL_MODE === "true") {
         markSeedComplete();
       }
     })
-    .catch((error) => {
+    .catch(async (error) => {
       console.error("Failed to load local-mode module:", error);
+      // Still release the seed gate so /local-session doesn't hang forever
+      try {
+        const { markSeedComplete } = await import("./auth/local-mode");
+        markSeedComplete();
+      } catch {
+        // Module itself failed to load — gate was never armed (isLocalMode()
+        // would have resolved it immediately in the Promise constructor)
+      }
     });
 }
 

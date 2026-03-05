@@ -32,8 +32,12 @@ export async function getLocalAdminPassword(): Promise<string> {
       // Fall through to default
     }
   }
-  // Fallback — only reachable if secrets.json wasn't written yet
-  return "admin@mesh";
+  // No fallback — if secrets.json is unavailable, fail loudly rather than
+  // using a well-known credential that is published in the source repo.
+  throw new Error(
+    "Local admin password unavailable — secrets.json was not initialized. " +
+      "Ensure loadOrCreateSecrets() runs before the server starts (the CLI does this automatically).",
+  );
 }
 
 function getLocalUserName(): string {
