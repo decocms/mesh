@@ -149,7 +149,7 @@ jobs:
 
             Open-source control plane for your AI agents.
 
-            ### Install via npm
+            ### Install via Bun
             ```bash
             bunx decocms@${{ steps.version-check.outputs.current-version }}
             ```
