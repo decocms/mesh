@@ -24,7 +24,7 @@ import { spawn } from "child_process";
 
 // When MESH_HOME is explicitly set, respect it (CI, tests, custom setups).
 // Otherwise default to ~/deco for interactive dev.
-const meshAppDir = import.meta.dir.replace("/scripts", "");
+const meshAppDir = join(import.meta.dir, "..");
 const explicitHome = process.env.MESH_HOME;
 const userHome = join(homedir(), "deco");
 // In CI / non-TTY without explicit MESH_HOME, use a repo-local directory
@@ -141,7 +141,8 @@ if (secretsModified) {
 // ============================================================================
 
 process.env.MESH_HOME = meshHome;
-process.env.DATABASE_URL = `file:${join(meshHome, "mesh.db")}`;
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL ?? `file:${join(meshHome, "mesh.db")}`;
 process.env.MESH_LOCAL_MODE = process.env.MESH_LOCAL_MODE ?? "true";
 
 // ============================================================================
