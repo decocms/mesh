@@ -166,12 +166,14 @@ export async function resolveMeshHome(
     return expandTilde(opts.explicit);
   }
 
-  if (existsSync(opts.defaultPath)) {
-    return opts.defaultPath;
-  }
-
+  // Non-interactive (CI) — always use the CI-safe path so we never
+  // accidentally touch the developer's real ~/deco data on shared runners.
   if (!process.stdin.isTTY) {
     return opts.ciFallback ?? opts.defaultPath;
+  }
+
+  if (existsSync(opts.defaultPath)) {
+    return opts.defaultPath;
   }
 
   // First run — prompt the user
