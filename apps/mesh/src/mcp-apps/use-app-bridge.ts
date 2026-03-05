@@ -41,14 +41,37 @@ function detectTheme(): "light" | "dark" {
     : "light";
 }
 
+function detectLocale(): string {
+  if (typeof navigator === "undefined") return "en";
+  return navigator.language ?? "en";
+}
+
+function detectTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
+function detectPlatform(): "web" | "desktop" | "mobile" {
+  if (typeof navigator === "undefined") return "web";
+  return /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "web";
+}
+
 function buildHostContext(
   displayMode: McpUiDisplayMode,
+  toolInfo?: McpUiHostContext["toolInfo"],
   maxHeight?: number,
 ): McpUiHostContext {
   return {
     theme: detectTheme(),
     displayMode,
     availableDisplayModes: ["inline", "fullscreen"],
+    locale: detectLocale(),
+    timeZone: detectTimeZone(),
+    platform: detectPlatform(),
+    ...(toolInfo != null && { toolInfo }),
     ...(maxHeight != null && {
       containerDimensions: { maxHeight },
     }),
@@ -75,7 +98,7 @@ interface BridgeStoreConfig {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
-  toolName?: string;
+  toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
   onMessage?: (params: McpUiMessageRequest["params"]) => void;
@@ -190,8 +213,8 @@ class BridgeStore {
     };
 
     try {
-      const { client, displayMode, maxHeight } = this.config;
-      const hostContext = buildHostContext(displayMode, maxHeight);
+      const { client, displayMode, maxHeight, toolInfo } = this.config;
+      const hostContext = buildHostContext(displayMode, toolInfo, maxHeight);
 
       // Pass the MCP client directly — AppBridge auto-wires oncalltool,
       // onreadresource, onlistresources, etc. via the client's capabilities.
@@ -246,7 +269,10 @@ class BridgeStore {
 
     bridge.onloggingmessage = ({ level, data }) => {
       const method = level === "error" ? "error" : "debug";
-      console[method](`[MCP App ${this.config.toolName ?? "unknown"}]`, data);
+      console[method](
+        `[MCP App ${this.config.toolInfo?.tool.name ?? "unknown"}]`,
+        data,
+      );
     };
 
     bridge.ondownloadfile = async ({ contents }) => {
@@ -335,7 +361,7 @@ interface UseAppBridgeOptions {
   displayMode: McpUiDisplayMode;
   minHeight: number;
   maxHeight: number;
-  toolName?: string;
+  toolInfo?: McpUiHostContext["toolInfo"];
   toolInput?: Record<string, unknown>;
   toolResult?: CallToolResult;
   onMessage?: (params: McpUiMessageRequest["params"]) => void;
