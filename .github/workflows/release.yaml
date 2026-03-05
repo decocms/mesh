@@ -151,7 +151,7 @@ jobs:
 
             ### Install via npm
             ```bash
-            npx decocms@${{ steps.version-check.outputs.current-version }}
+            bunx decocms@${{ steps.version-check.outputs.current-version }}
             ```
 
             ### Install via Docker
@@ -179,7 +179,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### npm" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "npx decocms@${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "bunx decocms@${{ steps.version-check.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker" >> $GITHUB_STEP_SUMMARY

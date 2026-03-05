@@ -3,15 +3,10 @@
 Open-source control plane for your AI agents. Install in 30 seconds.
 
 ```bash
-npx decocms
+bunx decocms
 ```
 
-Or install globally:
-
-```bash
-npm i -g decocms
-deco
-```
+> Requires [Bun](https://bun.sh). Install with: `curl -fsSL https://bun.sh/install | bash`
 
 ## What is Deco Studio?
 
@@ -40,7 +35,7 @@ Your AI Agents & MCP Clients
 
 ```bash
 # Start Deco Studio locally
-npx decocms
+bunx decocms
 
 # Opens at http://localhost:3000
 ```

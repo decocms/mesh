@@ -61,7 +61,7 @@ if (values.help) {
 Deco Studio - Open-source control plane for your AI agents
 
 Usage:
-  npx decocms [options]
+  bunx decocms [options]
   deco [options]
 
 Options:
@@ -83,7 +83,7 @@ Environment Variables:
   CONFIG_PATH           Path to full config file (default: ./config.json)
 
 Examples:
-  npx decocms                          # Start with defaults (~/deco/)
+  bunx decocms                          # Start with defaults (~/deco/)
   deco -p 8080                         # Start on port 8080
   deco --home ~/my-project             # Custom data directory
   deco --no-local-mode                 # Require login (SaaS mode)

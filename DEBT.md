@@ -24,7 +24,7 @@ The auto-auth flow (install OpenRouter → OAuth popup → chat ready) lives on
 
 ## decocms package rename
 
-`packages/studio/` publishes as `decocms` on npm (`npx decocms` / `deco` CLI).
+`packages/studio/` publishes as `decocms` on npm (`bunx decocms` / `deco` CLI).
 It's a thin wrapper that depends on `@decocms/mesh`. Eventually the source
 should move to `decocms` as the canonical package and `@decocms/mesh` becomes
 the wrapper (or is deprecated).
