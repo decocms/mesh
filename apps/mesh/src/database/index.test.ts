@@ -27,8 +27,13 @@ describe("Database Factory", () => {
       await closeDatabase(database);
     });
 
-    it("should default to PGlite when no URL is provided", async () => {
-      const database = createDatabase();
+    // When no URL is provided, createDatabase() defaults to
+    // file://${homedir()}/deco/db.pglite (DEFAULT_PGLITE_PATH).
+    // We pass an explicit file: URL to tempDir to keep the test isolated
+    // while still exercising the same PGlite creation path.
+    it("should default to PGlite when given a file: URL", async () => {
+      const dbPath = join(tempDir, "default-pglite");
+      const database = createDatabase(`file:${dbPath}`);
       expect(database).toBeDefined();
       expect(database.type).toBe("pglite");
       await closeDatabase(database);
