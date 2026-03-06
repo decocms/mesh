@@ -1,7 +1,7 @@
 /**
  * Orchestrator Tests -- Core orchestration + durability
  *
- * Uses in-memory SQLite and mock event bus to test the full
+ * Uses in-memory PGlite and mock event bus to test the full
  * orchestration lifecycle with event replay via drainEvents().
  */
 
@@ -22,15 +22,21 @@ import {
 // ============================================================================
 
 let db: Kysely<WorkflowDatabase>;
+let pglite: { close(): Promise<void> };
 let storage: WorkflowExecutionStorage;
 
 beforeEach(async () => {
-  db = await createTestDb();
+  ({ db, pglite } = await createTestDb());
   storage = new WorkflowExecutionStorage(db);
 });
 
 afterEach(async () => {
   await db.destroy();
+  try {
+    await pglite.close();
+  } catch {
+    /* PGlite may already be closed */
+  }
 });
 
 // ============================================================================

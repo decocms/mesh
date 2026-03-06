@@ -136,7 +136,10 @@ function ensurePGliteDirectory(dataDir: string): string {
   if (dataDir !== "/" && !existsSync(dataDir)) {
     try {
       mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-    } catch {
+    } catch (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Failed to create PGlite data directory: ${dataDir}`);
+      }
       console.warn(
         `Failed to create directory ${dataDir}, using in-memory database`,
       );
@@ -242,8 +245,30 @@ export function getDbDialect(databaseUrl?: string): Dialect {
 
   // For PGlite, always go through getDb() to ensure a single instance.
   // Multiple PGlite instances on the same data directory cause file lock conflicts.
+  // NOTE: The `databaseUrl` parameter is effectively ignored for PGlite — the
+  // singleton from getDb() (which uses getDatabaseUrl()) is always returned.
   const db = getDb();
   if (db.type === "pglite") {
+    // Warn if the caller requested a specific PGlite path that differs from the singleton.
+    if (databaseUrl) {
+      const requestedConfig = parseDatabaseUrl(databaseUrl);
+      if (
+        requestedConfig.type === "pglite" &&
+        requestedConfig.connectionString !== ":memory:"
+      ) {
+        const singletonConfig = parseDatabaseUrl(getDatabaseUrl());
+        if (
+          singletonConfig.type === "pglite" &&
+          requestedConfig.connectionString !== singletonConfig.connectionString
+        ) {
+          console.warn(
+            `getDbDialect(): requested PGlite path "${requestedConfig.connectionString}" ` +
+              `differs from singleton path "${singletonConfig.connectionString}". ` +
+              `The singleton instance will be used.`,
+          );
+        }
+      }
+    }
     return new KyselyPGlite(db.pglite).dialect;
   }
 
@@ -278,6 +303,12 @@ export async function closeDatabase(database: MeshDatabase): Promise<void> {
     } catch {
       // PGlite may already be closed by Kysely's destroy()
     }
+  }
+
+  // Clear the singleton if it was the instance being closed,
+  // so subsequent getDb() calls create a fresh instance.
+  if (database === dbInstance) {
+    dbInstance = null;
   }
 }
 

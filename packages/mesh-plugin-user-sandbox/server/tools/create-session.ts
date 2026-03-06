@@ -158,10 +158,7 @@ async function findOrCreateVirtualMCP(
     // Step 3: Handle race condition - another request created the agent
     // Check for unique constraint violation
     const errorMessage = String(error);
-    if (
-      errorMessage.includes("UNIQUE constraint") ||
-      errorMessage.includes("duplicate key")
-    ) {
+    if (errorMessage.includes("duplicate key")) {
       // Another request won the race - fetch and return their agent
       const winner = await typedDb
         .selectFrom("user_sandbox_agents")

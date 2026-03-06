@@ -33,17 +33,23 @@ import type { Step } from "@decocms/bindings/workflow";
 // ============================================================================
 
 let db: Kysely<WorkflowDatabase>;
+let pglite: { close(): Promise<void> };
 let storage: WorkflowExecutionStorage;
 let collectionStorage: WorkflowCollectionStorage;
 
 beforeEach(async () => {
-  db = await createTestDb();
+  ({ db, pglite } = await createTestDb());
   storage = new WorkflowExecutionStorage(db);
   collectionStorage = new WorkflowCollectionStorage(db);
 });
 
 afterEach(async () => {
   await db.destroy();
+  try {
+    await pglite.close();
+  } catch {
+    /* PGlite may already be closed */
+  }
 });
 
 // ============================================================================

@@ -86,11 +86,10 @@ async function parseSSEResponseAsJson(response: Response) {
  * Start a mesh server for benchmarking
  */
 export async function startMesh(port: number): Promise<MeshServerHandle> {
-  // Use a temp file because the database driver
-  // may spawn a separate worker that needs to access the same database
+  // Use a temp file because PGlite needs a persistent data directory
   const dbPath = join(
     tmpdir(),
-    `mesh-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+    `mesh-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.pglite`,
   );
   const database = createDatabase(dbPath);
 

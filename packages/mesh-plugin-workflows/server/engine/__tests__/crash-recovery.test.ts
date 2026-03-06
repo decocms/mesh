@@ -12,15 +12,21 @@ import {
 } from "../../__tests__/test-helpers";
 
 let db: Kysely<WorkflowDatabase>;
+let pglite: { close(): Promise<void> };
 let storage: WorkflowExecutionStorage;
 
 beforeEach(async () => {
-  db = await createTestDb();
+  ({ db, pglite } = await createTestDb());
   storage = new WorkflowExecutionStorage(db);
 });
 
 afterEach(async () => {
   await db.destroy();
+  try {
+    await pglite.close();
+  } catch {
+    /* PGlite may already be closed */
+  }
 });
 
 const IDENTITY_CODE = "export default function(input) { return input; }";

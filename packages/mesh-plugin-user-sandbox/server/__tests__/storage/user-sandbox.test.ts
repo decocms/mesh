@@ -11,6 +11,7 @@ import { migration } from "../../migrations/001-user-sandbox";
 import type { UserSandboxDatabase } from "../../storage/types";
 
 // Test database setup
+let pgliteInstance: PGlite;
 let db: Kysely<UserSandboxDatabase>;
 let storage: UserSandboxStorage;
 
@@ -53,8 +54,9 @@ async function setupTestData() {
 
 beforeEach(async () => {
   // Create in-memory PGlite database
+  pgliteInstance = new PGlite();
   db = new Kysely<UserSandboxDatabase>({
-    dialect: new KyselyPGlite(new PGlite()).dialect,
+    dialect: new KyselyPGlite(pgliteInstance).dialect,
   });
 
   await setupTestData();
@@ -64,6 +66,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await db.destroy();
+  try {
+    await pgliteInstance.close();
+  } catch {
+    /* PGlite may already be closed */
+  }
 });
 
 describe("UserSandboxStorage", () => {

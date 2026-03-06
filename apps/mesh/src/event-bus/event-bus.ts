@@ -45,7 +45,7 @@ export interface EventBusOptions {
 /**
  * Unified EventBus implementation
  *
- * Works with any database (SQLite, PostgreSQL) via EventBusStorage.
+ * Works with any database (PGlite, PostgreSQL) via EventBusStorage.
  * Supports optional immediate notification via NotifyStrategy.
  */
 export class EventBus implements IEventBus {

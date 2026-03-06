@@ -9,9 +9,13 @@ import { handleWorkflowEvents } from "../../server/events/handler";
 import type { OrchestratorContext } from "../../server/engine/orchestrator";
 import type { Step } from "@decocms/bindings/workflow";
 
-export async function createTestDb(): Promise<Kysely<WorkflowDatabase>> {
+export async function createTestDb(): Promise<{
+  db: Kysely<WorkflowDatabase>;
+  pglite: PGlite;
+}> {
+  const pglite = new PGlite();
   const db = new Kysely<WorkflowDatabase>({
-    dialect: new KyselyPGlite(new PGlite()).dialect,
+    dialect: new KyselyPGlite(pglite).dialect,
   });
 
   // Create stub tables for FK constraints
@@ -41,7 +45,7 @@ export async function createTestDb(): Promise<Kysely<WorkflowDatabase>> {
     await m.up(db as Kysely<unknown>);
   }
 
-  return db;
+  return { db, pglite };
 }
 
 interface CapturedEvent {
