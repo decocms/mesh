@@ -400,7 +400,7 @@ export interface MonitoringLogTable {
   tool_name: string;
   input: JsonObject<Record<string, unknown>>; // Redacted JSON
   output: JsonObject<Record<string, unknown>>; // Redacted JSON
-  is_error: number; // SQLite boolean (0 or 1)
+  is_error: boolean;
   error_message: string | null;
   duration_ms: number;
   timestamp: ColumnType<Date, Date | string, never>;
@@ -611,7 +611,7 @@ export interface EventSubscriptionTable {
   publisher: string | null; // Filter by publisher connection (null = wildcard)
   event_type: string; // Event type pattern to match
   filter: string | null; // Optional JSONPath filter on event data
-  enabled: number; // SQLite boolean (0 or 1)
+  enabled: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }

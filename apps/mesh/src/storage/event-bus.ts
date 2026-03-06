@@ -370,7 +370,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: existing.publisher,
         eventType: existing.event_type,
         filter: existing.filter,
-        enabled: existing.enabled === 1,
+        enabled: existing.enabled,
         createdAt: existing.created_at,
         updatedAt: existing.updated_at,
       };
@@ -442,7 +442,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: row.publisher,
       eventType: row.event_type,
       filter: row.filter,
-      enabled: row.enabled === 1,
+      enabled: row.enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -468,7 +468,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: row.publisher,
       eventType: row.event_type,
       filter: row.filter,
-      enabled: row.enabled === 1,
+      enabled: row.enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -481,7 +481,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
-      .where("enabled", "=", 1)
+      .where("enabled", "=", true)
       .where("event_type", "=", event.type)
       .where((eb) =>
         eb.or([
@@ -498,7 +498,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: row.publisher,
       eventType: row.event_type,
       filter: row.filter,
-      enabled: row.enabled === 1,
+      enabled: row.enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -545,7 +545,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
           .select("d.id")
           .where("d.status", "=", "pending")
-          .where("s.enabled", "=", 1)
+          .where("s.enabled", "=", true)
           .where((inner) =>
             inner.or([
               inner("d.next_retry_at", "is", null),
@@ -649,7 +649,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: row.publisher,
         eventType: row.event_type,
         filter: row.filter,
-        enabled: row.enabled === 1,
+        enabled: row.enabled,
         createdAt: row.subscription_created_at,
         updatedAt: row.subscription_updated_at,
       },
