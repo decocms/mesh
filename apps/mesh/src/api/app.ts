@@ -650,7 +650,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     } finally {
       // Skip for SSE — the abort signal handles cleanup when the stream ends.
       if (!c.res?.headers?.get("content-type")?.includes("text/event-stream")) {
-        await meshCtx.getOrCreateClient[Symbol.asyncDispose]();
+        await meshCtx.getOrCreateClient[Symbol.asyncDispose]().catch((err) =>
+          console.error("[ClientPool] Disposal error:", err),
+        );
       }
     }
   });
