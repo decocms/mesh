@@ -1,8 +1,8 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DuckDBEngine } from "../monitoring/query-engine";
+import { ChdbEngine } from "../monitoring/query-engine";
 import {
   makeTestMonitoringRow,
   writeTestNDJSON,
@@ -10,14 +10,17 @@ import {
 import { ClickHouseMonitoringStorage } from "./monitoring-clickhouse";
 
 let tmpDir: string;
-let engine: DuckDBEngine;
+let engine: ChdbEngine;
 let storage: ClickHouseMonitoringStorage;
 
 beforeAll(async () => {
   tmpDir = await mkdtemp(join(tmpdir(), "monitoring-ch-test-"));
-  engine = new DuckDBEngine();
+  // Create subdirectory matching NDJSON exporter structure
+  const dataDir = join(tmpDir, "2026", "03", "06", "12");
+  await mkdir(dataDir, { recursive: true });
+  engine = new ChdbEngine();
 
-  const source = `read_ndjson_auto('${tmpDir}/**/*.ndjson', union_by_name=true, ignore_errors=true)`;
+  const source = `file('${tmpDir}/**/*.ndjson', 'JSONEachRow')`;
   storage = new ClickHouseMonitoringStorage(engine, source);
 
   // Write test data
@@ -88,7 +91,7 @@ beforeAll(async () => {
     }),
   ];
 
-  await writeTestNDJSON(tmpDir, rows);
+  await writeTestNDJSON(dataDir, rows);
 });
 
 afterAll(async () => {

@@ -2,7 +2,7 @@
  * QueryEngine abstraction for monitoring queries.
  *
  * Current implementation:
- * - DuckDBEngine: local dev, uses @duckdb/node-api
+ * - ChdbEngine: local dev, uses chdb (embedded ClickHouse)
  *
  * Future (when production ClickHouse exists):
  * - ClickHouseClientEngine: production, uses @clickhouse/client over HTTP
@@ -16,45 +16,23 @@ export interface QueryEngine {
 }
 
 /**
- * DuckDB engine for local dev monitoring queries.
- * Uses an in-memory DuckDB instance that reads NDJSON files from disk.
+ * chdb engine for local dev monitoring queries.
+ * Uses embedded ClickHouse to query NDJSON files from disk.
  */
-export class DuckDBEngine implements QueryEngine {
-  private instancePromise: Promise<any> | null = null;
-  private connPromise: Promise<any> | null = null;
-
-  private async getConnection() {
-    if (!this.instancePromise) {
-      const duckdb = require("@duckdb/node-api");
-      this.instancePromise = duckdb.DuckDBInstance.create(":memory:");
-    }
-    if (!this.connPromise) {
-      this.connPromise = this.instancePromise!.then((inst: any) =>
-        inst.connect(),
-      );
-    }
-    return this.connPromise;
-  }
-
+export class ChdbEngine implements QueryEngine {
   async query(sql: string): Promise<Record<string, unknown>[]> {
-    const conn = await this.getConnection();
-    const result = await conn.run(sql);
-    const rows = await result.getRowObjects();
-    // Convert BigInt values to Number for JSON compatibility
-    return (rows as Record<string, unknown>[]).map((row) =>
-      Object.fromEntries(
-        Object.entries(row).map(([k, v]) => [
-          k,
-          typeof v === "bigint" ? Number(v) : v,
-        ]),
-      ),
-    );
+    const chdb = require("chdb");
+    const result: string = chdb.query(sql, "JSONEachRow");
+    if (!result || !result.trim()) return [];
+
+    return result
+      .trim()
+      .split("\n")
+      .map((line: string) => JSON.parse(line));
   }
 
   async destroy(): Promise<void> {
-    // DuckDB instance will be GC'd
-    this.connPromise = null;
-    this.instancePromise = null;
+    // chdb is stateless per query — nothing to clean up
   }
 }
 
@@ -67,7 +45,7 @@ export interface MonitoringEngineConfig {
  * Create the appropriate QueryEngine and source expression based on config.
  *
  * - If clickhouseUrl is set: throws (not yet implemented)
- * - Otherwise: DuckDBEngine querying local NDJSON files
+ * - Otherwise: ChdbEngine querying local NDJSON files
  *
  * Returns { engine, source } where source is the FROM clause expression.
  */
@@ -84,7 +62,7 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
 
   const basePath = config.basePath ?? DEFAULT_MONITORING_DATA_PATH;
   return {
-    engine: new DuckDBEngine(),
-    source: `read_ndjson_auto('${basePath}/**/*.ndjson', union_by_name=true, ignore_errors=true)`,
+    engine: new ChdbEngine(),
+    source: `file('${basePath}/**/*.ndjson', 'JSONEachRow')`,
   };
 }
