@@ -554,12 +554,11 @@ function sendCallbackData(
 ): boolean {
   // Try postMessage first (primary method)
   if (window.opener && !window.opener.closed) {
-    // In local dev use the configured OAuth redirect origin (set via
-    // setOAuthRedirectOrigin) so the message reaches the opener even when
-    // proxy origins differ; in production use the exact window origin.
-    const target = isLocalDev()
-      ? getOAuthRedirectOrigin()
-      : window.location.origin;
+    // In local dev the callback page (localhost:3000) and the opener
+    // (e.g. tokyo.localhost:4000) are on different origins. A specific
+    // targetOrigin would be silently dropped. Use "*" since both ends
+    // are on localhost; in production use the exact origin for security.
+    const target = isLocalDev() ? "*" : window.location.origin;
     window.opener.postMessage(data, target);
     return true;
   }

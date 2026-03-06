@@ -322,8 +322,9 @@ describe("handleOAuthCallback", () => {
         code: "auth_code_123",
         state: "state_abc",
       });
-      // In local dev, postMessage uses the OAuth redirect origin (defaults to window.location.origin)
-      expect(origin).toBe("http://localhost:3000");
+      // In local dev, postMessage uses "*" because the callback page
+      // (localhost:3000) and opener (e.g. tokyo.localhost) are on different origins
+      expect(origin).toBe("*");
     });
 
     test("handles error parameter from OAuth provider", async () => {
