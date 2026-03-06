@@ -633,16 +633,26 @@ export async function createApp(options: CreateAppOptions = {}) {
     c.set("meshContext", meshCtx);
 
     // Dispose the per-request client pool when the request ends.
-    // We use the abort signal instead of a finally block because SSE/streaming
-    // routes return a Response while the stream is still active — a finally
-    // block would close MCP client connections mid-stream.
+    // Two mechanisms handle the two response types:
+    // - Abort signal: fires when the client disconnects (handles SSE/streaming)
+    // - Finally block: fires when next() resolves (handles non-streaming JSON)
+    // Both are needed because SSE streams outlive next(), while non-streaming
+    // keep-alive connections may never fire the abort signal.
+    // Disposal is idempotent so both can safely fire.
     c.req.raw.signal.addEventListener("abort", () => {
       meshCtx.getOrCreateClient[Symbol.asyncDispose]().catch((err) =>
         console.error("[ClientPool] Disposal error:", err),
       );
     });
 
-    return next();
+    try {
+      return await next();
+    } finally {
+      // Skip for SSE — the abort signal handles cleanup when the stream ends.
+      if (!c.res?.headers?.get("content-type")?.includes("text/event-stream")) {
+        await meshCtx.getOrCreateClient[Symbol.asyncDispose]();
+      }
+    }
   });
 
   // Get all management tools (for OAuth consent UI)
