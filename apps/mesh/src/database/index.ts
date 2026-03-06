@@ -247,10 +247,12 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     return new KyselyPGlite(db.pglite).dialect;
   }
 
-  // Fallback (shouldn't reach here for PGlite)
-  const dataDir = extractPGlitePath(config.connectionString);
-  const pglite = createPGliteInstance(dataDir);
-  return new KyselyPGlite(pglite).dialect;
+  // Unreachable: config.type is "pglite" but the singleton is "postgres".
+  // This indicates a DATABASE_URL mismatch between the singleton and this call.
+  throw new Error(
+    "Invariant violation: getDbDialect resolved a PGlite config but the " +
+      "database singleton is PostgreSQL. Ensure DATABASE_URL is consistent.",
+  );
 }
 
 export function createDatabase(databaseUrl?: string): MeshDatabase {

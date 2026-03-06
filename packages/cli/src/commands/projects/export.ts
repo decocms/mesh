@@ -450,7 +450,9 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
 
       if (tableNames.length > 0) {
         // Query column details for all tables
-        const quotedNames = tableNames.map((n) => `'${n}'`).join(", ");
+        const quotedNames = tableNames
+          .map((n) => `'${n.replace(/'/g, "''")}'`)
+          .join(", ");
         const columnsResponse = await client.callTool({
           name: "DATABASES_RUN_SQL",
           arguments: {
@@ -463,6 +465,12 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
                   ORDER BY table_name, ordinal_position`,
           },
         });
+
+        if (columnsResponse.isError) {
+          console.warn(
+            `⚠️  Failed to fetch column details: ${columnsResponse.content}`,
+          );
+        }
 
         const columnsStatements = ((
           columnsResponse.structuredContent as { result?: SqlStatement[] }
@@ -490,6 +498,12 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
           },
         });
 
+        if (constraintsResponse.isError) {
+          console.warn(
+            `⚠️  Failed to fetch table constraints: ${constraintsResponse.content}`,
+          );
+        }
+
         const constraintsStatements = ((
           constraintsResponse.structuredContent as { result?: SqlStatement[] }
         )?.result ?? []) as SqlStatement[];
@@ -508,6 +522,12 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
                   ORDER BY tablename, indexname`,
           },
         });
+
+        if (indexesResponse.isError) {
+          console.warn(
+            `⚠️  Failed to fetch indexes: ${indexesResponse.content}`,
+          );
+        }
 
         const indexesStatements = ((
           indexesResponse.structuredContent as { result?: SqlStatement[] }
