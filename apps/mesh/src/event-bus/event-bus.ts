@@ -8,7 +8,7 @@
  * - Optional immediate notification via NotifyStrategy
  *
  * Architecture:
- * - EventBusStorage: Database operations (unified for SQLite/PostgreSQL via Kysely)
+ * - EventBusStorage: Database operations (unified for PGlite/PostgreSQL via Kysely)
  * - EventBusWorker: Polling and delivery logic
  * - NotifyStrategy: Optional - wakes up worker immediately (e.g., PostgreSQL LISTEN/NOTIFY)
  */

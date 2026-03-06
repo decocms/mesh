@@ -4,7 +4,8 @@
 
 import { describe, it, expect } from "bun:test";
 import { Kysely } from "kysely";
-import { BunWorkerDialect } from "kysely-bun-worker";
+import { PGlite } from "@electric-sql/pglite";
+import { KyselyPGlite } from "kysely-pglite";
 import {
   completeSession,
   type CompletionContext,
@@ -18,7 +19,7 @@ import type {
 // Create test database with required tables
 async function createTestDb() {
   const db = new Kysely({
-    dialect: new BunWorkerDialect({ url: ":memory:" }),
+    dialect: new KyselyPGlite(new PGlite()).dialect,
   });
 
   // Create minimal tables needed for completion

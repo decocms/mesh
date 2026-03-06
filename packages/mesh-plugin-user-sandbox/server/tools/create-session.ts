@@ -156,7 +156,7 @@ async function findOrCreateVirtualMCP(
     return { connectionId, created: true };
   } catch (error) {
     // Step 3: Handle race condition - another request created the agent
-    // Check for unique constraint violation (SQLite: UNIQUE constraint failed)
+    // Check for unique constraint violation
     const errorMessage = String(error);
     if (
       errorMessage.includes("UNIQUE constraint") ||

@@ -86,8 +86,8 @@ async function parseSSEResponseAsJson(response: Response) {
  * Start a mesh server for benchmarking
  */
 export async function startMesh(port: number): Promise<MeshServerHandle> {
-  // Use a temp file instead of :memory: because kysely-bun-worker
-  // spawns a separate worker thread that needs to access the same database
+  // Use a temp file because the database driver
+  // may spawn a separate worker that needs to access the same database
   const dbPath = join(
     tmpdir(),
     `mesh-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,

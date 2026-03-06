@@ -6,7 +6,7 @@
  * - Managing subscriptions
  * - Tracking event deliveries
  *
- * Supports both SQLite and PostgreSQL via Kysely.
+ * Supports both PGlite and PostgreSQL via Kysely.
  *
  * Concurrency Safety:
  * - Uses atomic UPDATE with status change to claim deliveries
@@ -154,7 +154,7 @@ export interface EventBusStorage {
    * ensuring only one worker processes each delivery.
    *
    * For PostgreSQL: Uses FOR UPDATE SKIP LOCKED for efficient locking
-   * For SQLite: Uses atomic UPDATE with subquery
+   * For PGlite: Uses atomic UPDATE with subquery
    *
    * @param limit - Maximum number of deliveries to claim
    * @returns Claimed deliveries with their events and subscriptions

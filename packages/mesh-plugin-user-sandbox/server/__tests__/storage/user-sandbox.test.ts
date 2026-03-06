@@ -4,7 +4,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { Kysely } from "kysely";
-import { BunWorkerDialect } from "kysely-bun-worker";
+import { PGlite } from "@electric-sql/pglite";
+import { KyselyPGlite } from "kysely-pglite";
 import { UserSandboxStorage } from "../../storage/user-sandbox";
 import { migration } from "../../migrations/001-user-sandbox";
 import type { UserSandboxDatabase } from "../../storage/types";
@@ -51,11 +52,9 @@ async function setupTestData() {
 }
 
 beforeEach(async () => {
-  // Create in-memory SQLite database
+  // Create in-memory PGlite database
   db = new Kysely<UserSandboxDatabase>({
-    dialect: new BunWorkerDialect({
-      url: ":memory:",
-    }),
+    dialect: new KyselyPGlite(new PGlite()).dialect,
   });
 
   await setupTestData();

@@ -25,7 +25,7 @@ function createTestLog(overrides: Partial<MonitoringLog>): MonitoringLog {
 
 /**
  * Seed parent records required by FK constraints.
- * PGlite (PostgreSQL) enforces FK constraints unlike SQLite in test mode.
+ * PGlite (PostgreSQL) enforces FK constraints.
  */
 async function seedTestFixtures(database: MeshDatabase) {
   const db = database.db;
