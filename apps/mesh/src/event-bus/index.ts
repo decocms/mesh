@@ -5,12 +5,12 @@
  *
  * Architecture:
  * - EventBus: Single class handling publish/subscribe and worker management
- * - EventBusStorage: Database operations (unified for SQLite/PostgreSQL via Kysely)
+ * - EventBusStorage: Database operations (unified via Kysely)
  * - EventBusWorker: Event processing and delivery logic (no internal polling)
  * - NotifyStrategy: Triggers worker processing (selected via NOTIFY_STRATEGY / NATS_URL env vars)
  *   - nats:     NatsNotifyStrategy + polling safety net
  *   - postgres: PostgresNotifyStrategy (LISTEN/NOTIFY) + polling safety net
- *   - polling:  PollingStrategy only
+ *   - polling:  PollingStrategy only (used for PGlite and SQLite)
  * - SSEBroadcastStrategy: Cross-pod SSE fan-out (selected alongside NotifyStrategy)
  *   - nats:     NatsSSEBroadcast (events replicated via NATS pub/sub)
  *   - default:  LocalSSEBroadcast (in-memory only, single process)
@@ -98,6 +98,7 @@ function resolveNotifyStrategy(database: MeshDatabase): NotifyStrategyName {
 
   // Auto-detect
   if (process.env.NATS_URL) return "nats";
+  // Only native PostgreSQL supports LISTEN/NOTIFY (PGlite does not)
   if (database.type === "postgres") return "postgres";
   return "polling";
 }
@@ -162,7 +163,7 @@ export function createEventBus(
     case "postgres": {
       if (database.type !== "postgres") {
         console.warn(
-          "[EventBus] NOTIFY_STRATEGY=postgres requires a PostgreSQL database, falling back to polling",
+          "[EventBus] NOTIFY_STRATEGY=postgres requires a native PostgreSQL database (PGlite does not support LISTEN/NOTIFY), falling back to polling",
         );
         notifyStrategy = polling;
         break;
