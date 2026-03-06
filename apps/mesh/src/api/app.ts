@@ -201,12 +201,14 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   if (options.eventBus) {
     eventBus = options.eventBus;
-    sseHub.start().catch((error) => {
+    try {
+      await sseHub.start();
+    } catch (error) {
       console.error(
         "[SSEHub] Error starting broadcast (custom eventBus):",
         error,
       );
-    });
+    }
   } else {
     // Create notify function that uses the context factory
     // This is called by the worker to deliver events to subscribers
@@ -593,20 +595,21 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
-  Promise.resolve(eventBus.start())
-    .then(() => {
-      console.log("[EventBus] Worker started");
-      // db is typed as `any` to avoid Kysely version mismatch issues between packages
-      return runPluginStartupHooks({
-        db: database.db as any,
-        publish: async (organizationId, event) => {
-          await eventBus.publish(organizationId, "", event);
-        },
-      });
-    })
-    .catch((error) => {
-      console.error("[EventBus] Error during startup:", error);
+  // Await critical startup to avoid degraded state where the event bus
+  // or plugins aren't ready when the first request arrives.
+  try {
+    await eventBus.start();
+    console.log("[EventBus] Worker started");
+    // db is typed as `any` to avoid Kysely version mismatch issues between packages
+    await runPluginStartupHooks({
+      db: database.db as any,
+      publish: async (organizationId, event) => {
+        await eventBus.publish(organizationId, "", event);
+      },
     });
+  } catch (error) {
+    console.error("[EventBus] Error during startup:", error);
+  }
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
