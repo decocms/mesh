@@ -275,12 +275,7 @@ app.all("/:connectionId", async (c) => {
       // Connect server to transport
       await server.connect(transport);
 
-      // Handle request with cleanup — ensures server/transport are released on error
-      try {
-        return await transport.handleRequest(c.req.raw);
-      } finally {
-        await server.close();
-      }
+      return await transport.handleRequest(c.req.raw);
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections
