@@ -4,7 +4,6 @@ import {
   MONITORING_SPAN_NAME,
   DEFAULT_MONITORING_DATA_PATH,
   spanToMonitoringRow,
-  type MonitoringRow,
 } from "./schema";
 
 describe("monitoring schema", () => {

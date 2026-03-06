@@ -59,7 +59,7 @@ describe("NDJSONSpanExporter", () => {
     });
 
     const files = await findNDJSONFiles(tmpDir);
-    const content = await readFile(files[0], "utf-8");
+    const content = await readFile(files[0]!, "utf-8");
     const lines = content.trim().split("\n");
 
     expect(lines.length).toBe(3);
@@ -104,7 +104,7 @@ describe("NDJSONSpanExporter", () => {
     expect(files.length).toBe(1);
 
     // Path should contain date parts: YYYY/MM/DD/HH
-    const relativePath = files[0].replace(tmpDir, "");
+    const relativePath = files[0]!.replace(tmpDir, "");
     expect(relativePath).toMatch(/\/\d{4}\/\d{2}\/\d{2}\/\d{2}\//);
 
     // Filename should be UUID-based, not sequential

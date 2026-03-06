@@ -1,0 +1,95 @@
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { DuckDBEngine, createMonitoringEngine } from "./query-engine";
+import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { makeTestMonitoringRow, writeTestNDJSON } from "./test-utils";
+
+describe("DuckDBEngine", () => {
+  let tmpDir: string;
+  let engine: DuckDBEngine;
+
+  beforeAll(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "duckdb-engine-test-"));
+
+    const subdir = join(tmpDir, "2026", "03", "05", "12");
+    await mkdir(subdir, { recursive: true });
+
+    await writeTestNDJSON(subdir, [
+      makeTestMonitoringRow({
+        id: "log_1",
+        tool_name: "TOOL_A",
+        duration_ms: 100,
+        is_error: 0,
+        output: '{"tokens": 42}',
+      }),
+      makeTestMonitoringRow({
+        id: "log_2",
+        tool_name: "TOOL_B",
+        duration_ms: 200,
+        is_error: 1,
+        error_message: "timeout",
+        output: '{"tokens": 10}',
+      }),
+    ]);
+
+    engine = new DuckDBEngine();
+  });
+
+  afterAll(async () => {
+    await engine.destroy();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("should execute a query and return parsed rows", async () => {
+    const source = `read_ndjson_auto('${tmpDir}/**/*.ndjson', union_by_name=true, ignore_errors=true)`;
+    const rows = await engine.query(
+      `SELECT * FROM ${source} WHERE organization_id = 'org_test'`,
+    );
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.organization_id).toBe("org_test");
+  });
+
+  it("should handle empty results", async () => {
+    const source = `read_ndjson_auto('${tmpDir}/**/*.ndjson', union_by_name=true, ignore_errors=true)`;
+    const rows = await engine.query(
+      `SELECT * FROM ${source} WHERE organization_id = 'nonexistent'`,
+    );
+    expect(rows.length).toBe(0);
+  });
+
+  it("should handle concurrent queries", async () => {
+    const source = `read_ndjson_auto('${tmpDir}/**/*.ndjson', union_by_name=true, ignore_errors=true)`;
+    const [r1, r2, r3] = await Promise.all([
+      engine.query(`SELECT count(*) AS cnt FROM ${source}`),
+      engine.query(`SELECT tool_name FROM ${source} WHERE is_error = 1`),
+      engine.query(`SELECT avg(duration_ms) AS avg_ms FROM ${source}`),
+    ]);
+
+    expect(Number(r1[0]!.cnt)).toBe(2);
+    expect(r2[0]!.tool_name).toBe("TOOL_B");
+    expect(Number(r3[0]!.avg_ms)).toBe(150);
+  });
+});
+
+describe("createMonitoringEngine", () => {
+  it("should create DuckDBEngine when no CLICKHOUSE_URL", () => {
+    const { engine, source } = createMonitoringEngine({
+      basePath: "./data/monitoring",
+    });
+    expect(engine).toBeInstanceOf(DuckDBEngine);
+    expect(source).toContain("read_ndjson_auto");
+    expect(source).toContain(".ndjson");
+  });
+
+  it("should use DEFAULT_MONITORING_DATA_PATH when no basePath", () => {
+    const { source } = createMonitoringEngine({});
+    expect(source).toContain("./data/monitoring");
+  });
+
+  it("should throw when clickhouseUrl is set (not yet implemented)", () => {
+    expect(() =>
+      createMonitoringEngine({ clickhouseUrl: "http://localhost:8123" }),
+    ).toThrow("not yet implemented");
+  });
+});
