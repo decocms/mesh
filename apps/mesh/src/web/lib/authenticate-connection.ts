@@ -78,5 +78,14 @@ export async function authenticateConnection(
     queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
   });
 
+  // Invalidate connection list queries so hooks like useModelConnections()
+  // pick up the newly-authenticated connection's tools.
+  await queryClient.invalidateQueries({
+    predicate: (query) =>
+      Array.isArray(query.queryKey) &&
+      query.queryKey.includes("collection") &&
+      query.queryKey.includes("CONNECTIONS"),
+  });
+
   return true;
 }
