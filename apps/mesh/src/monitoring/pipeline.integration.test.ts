@@ -21,7 +21,7 @@ describe("Monitoring Pipeline Integration", () => {
     if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("should write spans to NDJSON and query them via DuckDB", async () => {
+  it("should write spans to NDJSON and query them via chdb", async () => {
     tmpDir = await mkdtemp(join(tmpdir(), "pipeline-integration-"));
 
     // 1. Create exporter and write spans

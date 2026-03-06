@@ -1,10 +1,8 @@
 /**
  * ClickHouseMonitoringStorage
  *
- * Implements MonitoringStorage using DuckDB SQL via QueryEngine.
- * Despite the name, this uses DuckDB (not ClickHouse) because chdb
- * doesn't work with Bun. The "ClickHouse" name is kept for consistency
- * with the monitoring architecture plan.
+ * Implements MonitoringStorage using ClickHouse SQL via QueryEngine.
+ * Local dev uses chdb (embedded ClickHouse) to query NDJSON files on disk.
  *
  * Writes (log/logBatch) are no-ops — data flows through the OTel pipeline
  * (NDJSONSpanExporter) and is read back from NDJSON files on disk.
@@ -59,6 +57,16 @@ function validateJsonPath(path: string): string {
   return `$.${path}`;
 }
 
+/**
+ * Convert a validated JSONPath ($.key or $.key.subkey) to ClickHouse
+ * JSONExtract key arguments: 'key' or 'key', 'subkey'
+ */
+function jsonPathToChKeys(jsonPath: string): string {
+  // Remove leading $. then split by .
+  const keys = jsonPath.replace(/^\$\./, "").split(".");
+  return keys.map((k) => `'${esc(k)}'`).join(", ");
+}
+
 /** Interval regex and max amounts. */
 const INTERVAL_REGEX = /^(\d+)([mhd])$/;
 const MAX_INTERVAL_AMOUNTS: Record<string, number> = {
@@ -86,15 +94,12 @@ function parseInterval(interval: string): { amount: number; unit: string } {
 function intervalToSQL(interval: string): string {
   const { amount, unit } = parseInterval(interval);
   const unitMap: Record<string, string> = {
-    m: "minute",
-    h: "hour",
-    d: "day",
+    m: "MINUTE",
+    h: "HOUR",
+    d: "DAY",
   };
   const sqlUnit = unitMap[unit];
-  if (amount === 1) {
-    return `date_trunc('${sqlUnit}', CAST(timestamp AS TIMESTAMP))`;
-  }
-  return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(timestamp AS TIMESTAMP))`;
+  return `toStartOfInterval(parseDateTimeBestEffort(timestamp), INTERVAL ${amount} ${sqlUnit})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +144,7 @@ function toMonitoringLog(row: Record<string, unknown>): MonitoringLog {
 }
 
 // ---------------------------------------------------------------------------
-// Property filter SQL builder
+// Property filter SQL builder (ClickHouse syntax)
 // ---------------------------------------------------------------------------
 
 function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
@@ -149,7 +154,7 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
     for (const [key, value] of Object.entries(filters.properties)) {
       const k = esc(key);
       const v = esc(value);
-      clauses.push(`json_extract_string(properties, '$.${k}') = '${v}'`);
+      clauses.push(`JSONExtractString(properties, '${k}') = '${v}'`);
     }
   }
 
@@ -157,7 +162,7 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
     for (const key of filters.propertyKeys) {
       const k = esc(key);
       clauses.push(
-        `json_extract_string(properties, '$.${k}') IS NOT NULL AND json_extract_string(properties, '$.${k}') != ''`,
+        `JSONExtractString(properties, '${k}') IS NOT NULL AND JSONExtractString(properties, '${k}') != ''`,
       );
     }
   }
@@ -166,7 +171,7 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
     for (const [key, pattern] of Object.entries(filters.propertyPatterns)) {
       const k = esc(key);
       const p = esc(pattern);
-      clauses.push(`json_extract_string(properties, '$.${k}') ILIKE '${p}'`);
+      clauses.push(`JSONExtractString(properties, '${k}') ILIKE '${p}'`);
     }
   }
 
@@ -175,12 +180,24 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
       const k = esc(key);
       const v = esc(value);
       clauses.push(
-        `list_contains(string_split(json_extract_string(properties, '$.${k}'), ','), '${v}')`,
+        `has(splitByChar(',', JSONExtractString(properties, '${k}')), '${v}')`,
       );
     }
   }
 
   return clauses;
+}
+
+// ---------------------------------------------------------------------------
+// Timestamp filter helper (ClickHouse syntax)
+// ---------------------------------------------------------------------------
+
+function tsGte(date: Date): string {
+  return `parseDateTimeBestEffort(timestamp) >= parseDateTimeBestEffort('${date.toISOString()}')`;
+}
+
+function tsLte(date: Date): string {
+  return `parseDateTimeBestEffort(timestamp) <= parseDateTimeBestEffort('${date.toISOString()}')`;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,14 +263,10 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       where.push(`is_error = ${filters.isError ? 1 : 0}`);
     }
     if (filters.startDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) >= CAST('${filters.startDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsGte(filters.startDate));
     }
     if (filters.endDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) <= CAST('${filters.endDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsLte(filters.endDate));
     }
     if (filters.propertyFilters) {
       where.push(...buildPropertyFilterClauses(filters.propertyFilters));
@@ -294,14 +307,10 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     ];
 
     if (filters.startDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) >= CAST('${filters.startDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsGte(filters.startDate));
     }
     if (filters.endDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) <= CAST('${filters.endDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsLte(filters.endDate));
     }
 
     const sql = `SELECT count(*) AS total_calls, coalesce(sum(CASE WHEN is_error = 1 THEN 1.0 ELSE 0.0 END) / NULLIF(count(*), 0), 0) AS error_rate, coalesce(avg(duration_ms), 0) AS avg_duration_ms FROM ${this.source} WHERE ${where.join(" AND ")}`;
@@ -323,12 +332,13 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
 
     const jsonPath = validateJsonPath(params.path);
     const sourceCol = params.from === "input" ? "input" : "output";
+    const chKeys = jsonPathToChKeys(jsonPath);
 
-    // Build the value expression
+    // Build the value expression using ClickHouse JSONExtract functions
     const valueExpr =
       params.aggregation === "count" || params.aggregation === "count_all"
         ? "1"
-        : `CAST(json_extract(${sourceCol}, '${jsonPath}') AS DOUBLE)`;
+        : `JSONExtractFloat(${sourceCol}, ${chKeys})`;
 
     // Build aggregation expression
     const aggExpr = buildAggExpr(params.aggregation, valueExpr);
@@ -340,15 +350,14 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
 
     // For count (not count_all), only count rows where the path exists and is non-null
     if (params.aggregation === "count") {
-      where.push(
-        `json_extract_string(${sourceCol}, '${jsonPath}') IS NOT NULL`,
-      );
-      where.push(`json_extract_string(${sourceCol}, '${jsonPath}') != ''`);
+      where.push(`JSONExtractString(${sourceCol}, ${chKeys}) IS NOT NULL`);
+      where.push(`JSONExtractString(${sourceCol}, ${chKeys}) != ''`);
     }
 
     // Exclude count_all from null filtering — it counts all rows
     if (params.aggregation !== "count" && params.aggregation !== "count_all") {
-      where.push(`json_extract(${sourceCol}, '${jsonPath}') IS NOT NULL`);
+      where.push(`JSONExtractString(${sourceCol}, ${chKeys}) IS NOT NULL`);
+      where.push(`JSONExtractString(${sourceCol}, ${chKeys}) != ''`);
     }
 
     if (params.filters?.connectionIds?.length) {
@@ -370,14 +379,10 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       where.push(`tool_name IN (${names})`);
     }
     if (params.filters?.startDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) >= CAST('${params.filters.startDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsGte(params.filters.startDate));
     }
     if (params.filters?.endDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) <= CAST('${params.filters.endDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsLte(params.filters.endDate));
     }
     if (params.filters?.propertyFilters) {
       where.push(...buildPropertyFilterClauses(params.filters.propertyFilters));
@@ -403,7 +408,8 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     if (params.groupBy) {
       const groupPath = validateJsonPath(params.groupBy);
       const groupSourceCol = params.from === "input" ? "input" : "output";
-      const groupExpr = `json_extract_string(${groupSourceCol}, '${groupPath}')`;
+      const groupChKeys = jsonPathToChKeys(groupPath);
+      const groupExpr = `JSONExtractString(${groupSourceCol}, ${groupChKeys})`;
       const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC`;
       const rows = await this.engine.query(sql);
       return {
@@ -456,11 +462,12 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
 
     const jsonPath = validateJsonPath(params.path);
     const sourceCol = params.from === "input" ? "input" : "output";
+    const chKeys = jsonPathToChKeys(jsonPath);
 
     const where: string[] = [
       `organization_id = '${esc(params.organizationId)}'`,
-      `json_extract_string(${sourceCol}, '${jsonPath}') IS NOT NULL`,
-      `json_extract_string(${sourceCol}, '${jsonPath}') != ''`,
+      `JSONExtractString(${sourceCol}, ${chKeys}) IS NOT NULL`,
+      `JSONExtractString(${sourceCol}, ${chKeys}) != ''`,
     ];
 
     if (params.filters?.connectionIds?.length) {
@@ -482,14 +489,10 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       where.push(`virtual_mcp_id IN (${ids})`);
     }
     if (params.filters?.startDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) >= CAST('${params.filters.startDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsGte(params.filters.startDate));
     }
     if (params.filters?.endDate) {
-      where.push(
-        `CAST(timestamp AS TIMESTAMP) <= CAST('${params.filters.endDate.toISOString()}' AS TIMESTAMP)`,
-      );
+      where.push(tsLte(params.filters.endDate));
     }
     if (params.filters?.propertyFilters) {
       where.push(...buildPropertyFilterClauses(params.filters.propertyFilters));
