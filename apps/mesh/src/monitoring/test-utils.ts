@@ -122,7 +122,7 @@ export async function findNDJSONFiles(dir: string): Promise<string[]> {
   }
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith(".ndjson")) {
-      const parentPath = entry.parentPath ?? entry.path;
+      const parentPath = entry.parentPath ?? (entry as any).path;
       results.push(join(parentPath, entry.name));
     }
   }

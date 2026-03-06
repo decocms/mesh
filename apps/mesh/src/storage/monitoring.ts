@@ -8,13 +8,14 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { RegexRedactor } from "../monitoring/redactor";
-import type { MonitoringStorage, PropertyFilters } from "./ports";
 import type {
   AggregationFunction,
-  Database,
-  GroupByColumn,
-  MonitoringLog,
-} from "./types";
+  AggregationParams,
+  AggregationResult,
+  MonitoringStorage,
+  PropertyFilters,
+} from "./ports";
+import type { Database, MonitoringLog } from "./types";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 export type { GroupByColumn };
@@ -49,7 +50,6 @@ export interface AggregationResult {
     value: number;
   }>;
 }
-
 // ============================================================================
 // Monitoring Storage Implementation
 // ============================================================================
