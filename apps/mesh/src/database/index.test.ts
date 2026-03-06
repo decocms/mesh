@@ -27,7 +27,7 @@ describe("Database Factory", () => {
       await closeDatabase(database);
     });
 
-    it("should create PGlite database when no URL provided", async () => {
+    it("should create PGlite database with file:// URL", async () => {
       const database = createDatabase(
         `file:${join(tempDir, "default-pglite")}`,
       );

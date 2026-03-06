@@ -12,6 +12,7 @@
  */
 
 import { existsSync, mkdirSync } from "fs";
+import { homedir } from "os";
 import { type Dialect, Kysely, LogEvent, PostgresDialect } from "kysely";
 import { PGlite } from "@electric-sql/pglite";
 import { KyselyPGlite } from "kysely-pglite";
@@ -177,8 +178,10 @@ function createPGliteDatabase(config: DatabaseConfig): PGliteDatabase {
 // URL Parsing
 // ============================================================================
 
+const DEFAULT_PGLITE_PATH = path.join(homedir(), "deco", "db.pglite");
+
 function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
-  let url = databaseUrl || "file:./data/mesh.pglite";
+  let url = databaseUrl || `file://${DEFAULT_PGLITE_PATH}`;
 
   if (url === ":memory:") {
     return { type: "pglite", connectionString: ":memory:" };
@@ -224,8 +227,7 @@ function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
 
 export function getDatabaseUrl(): string {
   const databaseUrl =
-    process.env.DATABASE_URL ||
-    `file:${path.join(process.cwd(), "data/mesh.pglite")}`;
+    process.env.DATABASE_URL || `file://${DEFAULT_PGLITE_PATH}`;
   return databaseUrl;
 }
 
