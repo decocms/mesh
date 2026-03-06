@@ -37,19 +37,28 @@ async function readPasswordFromDir(dir: string): Promise<string | null> {
  * and dev.ts both use). Throws if neither location has a password — never
  * falls back to a hardcoded credential.
  */
+let _cachedPassword: string | null = null;
+
 export async function getLocalAdminPassword(): Promise<string> {
+  if (_cachedPassword) return _cachedPassword;
+
   // 1. Try MESH_HOME (set by CLI / dev.ts)
   const meshHome = process.env.MESH_HOME;
   if (meshHome) {
     const pw = await readPasswordFromDir(meshHome);
-    if (pw) return pw;
-  }
-
-  // 2. Try default ~/deco (covers `bun run dev:server` without MESH_HOME)
-  const defaultHome = join(homedir(), "deco");
-  if (!meshHome || meshHome !== defaultHome) {
+    if (pw) {
+      _cachedPassword = pw;
+      return pw;
+    }
+    // MESH_HOME is explicitly set — don't fall back to ~/deco (could be a different install)
+  } else {
+    // 2. No explicit MESH_HOME — try default ~/deco (covers `bun run dev:server` without MESH_HOME)
+    const defaultHome = join(homedir(), "deco");
     const pw = await readPasswordFromDir(defaultHome);
-    if (pw) return pw;
+    if (pw) {
+      _cachedPassword = pw;
+      return pw;
+    }
   }
 
   // No password found — fail loudly rather than using a known credential

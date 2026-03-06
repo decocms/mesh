@@ -27,13 +27,18 @@ import {
 import { Hono } from "hono";
 import { createHmac } from "node:crypto";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { MeshContext } from "../../core/mesh-context";
 import { requireOrganization } from "../../core/mesh-context";
-import { getContentType } from "./dev-assets";
+import {
+  getContentType,
+  getFilePath,
+  getOrgAssetsDir,
+  sanitizeKey,
+} from "./dev-assets";
 
 // Local tool definition type
 interface ToolDefinition {
@@ -47,12 +52,6 @@ interface ToolDefinition {
   };
   _meta?: Record<string, unknown>;
 }
-
-// Base directory for assets.
-// Uses MESH_HOME/assets when available (local mode), falls back to ./data/assets
-const DEV_ASSETS_BASE_DIR = process.env.MESH_HOME
-  ? `${process.env.MESH_HOME}/assets`
-  : "./data/assets";
 
 // Default URL expiration time in seconds (1 hour)
 const DEFAULT_EXPIRES_IN = 3600;
@@ -75,38 +74,6 @@ const app = new Hono<{ Variables: Variables }>();
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-/**
- * Get the base directory for an organization's assets
- */
-function getOrgAssetsDir(orgId: string): string {
-  // Sanitize org ID to prevent directory traversal
-  const sanitizedOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return join(DEV_ASSETS_BASE_DIR, sanitizedOrgId);
-}
-
-/**
- * Sanitize a file key — strips leading slashes only.
- * Actual traversal prevention is enforced by getFilePath's containment check.
- */
-function sanitizeKey(key: string): string {
-  return key.replace(/^\/+/, "");
-}
-
-/**
- * Get the full file path for a key within an org's assets.
- * Throws if the resolved path escapes the org's base directory.
- */
-function getFilePath(orgId: string, key: string): string {
-  const baseDir = getOrgAssetsDir(orgId);
-  const sanitizedKey = sanitizeKey(key);
-  const resolved = resolve(join(baseDir, sanitizedKey));
-  const realBase = resolve(baseDir);
-  if (resolved !== realBase && !resolved.startsWith(realBase + sep)) {
-    throw new Error("Path traversal detected");
-  }
-  return resolved;
-}
 
 /**
  * Generate a simple HMAC signature for presigned URLs

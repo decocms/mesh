@@ -322,8 +322,8 @@ describe("handleOAuthCallback", () => {
         code: "auth_code_123",
         state: "state_abc",
       });
-      // In local dev, postMessage uses "*" to support cross-origin proxy setups
-      expect(origin).toBe("*");
+      // In local dev, postMessage uses the OAuth redirect origin (defaults to window.location.origin)
+      expect(origin).toBe("http://localhost:3000");
     });
 
     test("handles error parameter from OAuth provider", async () => {

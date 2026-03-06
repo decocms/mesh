@@ -31,7 +31,7 @@ const app = new Hono();
 /**
  * Get the base directory for an organization's assets
  */
-function getOrgAssetsDir(orgId: string): string {
+export function getOrgAssetsDir(orgId: string): string {
   // Sanitize org ID to prevent directory traversal
   const sanitizedOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, "_");
   return join(DEV_ASSETS_BASE_DIR, sanitizedOrgId);
@@ -41,7 +41,7 @@ function getOrgAssetsDir(orgId: string): string {
  * Sanitize a file key — strips leading slashes only.
  * Actual traversal prevention is enforced by getFilePath's containment check.
  */
-function sanitizeKey(key: string): string {
+export function sanitizeKey(key: string): string {
   return key.replace(/^\/+/, "");
 }
 
@@ -49,7 +49,7 @@ function sanitizeKey(key: string): string {
  * Get the full file path for a key within an org's assets.
  * Throws if the resolved path escapes the org's base directory.
  */
-function getFilePath(orgId: string, key: string): string {
+export function getFilePath(orgId: string, key: string): string {
   const baseDir = getOrgAssetsDir(orgId);
   const sanitizedKey = sanitizeKey(key);
   const resolved = resolve(join(baseDir, sanitizedKey));
@@ -75,6 +75,7 @@ function verifySignature(
   const expectedSignature = createHmac("sha256", secret)
     .update(data)
     .digest("hex");
+  if (!/^[0-9a-f]+$/i.test(signature)) return false;
   const expected = Buffer.from(expectedSignature, "hex");
   const actual = Buffer.from(signature, "hex");
   return expected.length === actual.length && timingSafeEqual(expected, actual);
