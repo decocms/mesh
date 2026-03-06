@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export function NoLlmBindingEmptyState({
   const { data: session } = authClient.useSession();
   const allConnections = useConnections();
   const queryClient = useQueryClient();
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const userId = session?.user?.id ?? "";
 
@@ -51,6 +53,7 @@ export function NoLlmBindingEmptyState({
       return;
     }
 
+    setIsAuthenticating(true);
     try {
       // Check if OpenRouter already exists
       const existingConnection = allConnections?.find(
@@ -91,6 +94,8 @@ export function NoLlmBindingEmptyState({
       toast.error(
         `Failed to connect OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
       );
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -113,14 +118,16 @@ export function NoLlmBindingEmptyState({
           <Button
             variant="outline"
             onClick={handleInstallOpenRouter}
-            disabled={actions.create.isPending}
+            disabled={actions.create.isPending || isAuthenticating}
           >
             <img
               src={OPENROUTER_ICON_URL}
               alt="OpenRouter"
               className="size-4"
             />
-            {actions.create.isPending ? "Installing..." : "Install OpenRouter"}
+            {actions.create.isPending || isAuthenticating
+              ? "Connecting..."
+              : "Install OpenRouter"}
           </Button>
           <Button variant="outline" onClick={handleInstallMcpServer}>
             Install Connection
