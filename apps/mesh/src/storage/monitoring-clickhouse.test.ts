@@ -106,7 +106,7 @@ describe("query", () => {
     expect(result.total).toBe(4);
     expect(result.logs).toHaveLength(4);
     // Should be ordered by timestamp DESC
-    expect(result.logs[0].id).toBe("log_4");
+    expect(result.logs[0]!.id).toBe("log_4");
   });
 
   test("filters by toolName", async () => {
@@ -124,9 +124,9 @@ describe("query", () => {
       isError: true,
     });
     expect(result.total).toBe(1);
-    expect(result.logs[0].id).toBe("log_2");
-    expect(result.logs[0].isError).toBe(true);
-    expect(result.logs[0].errorMessage).toBe("timeout");
+    expect(result.logs[0]!.id).toBe("log_2");
+    expect(result.logs[0]!.isError).toBe(true);
+    expect(result.logs[0]!.errorMessage).toBe("timeout");
   });
 
   test("pagination works correctly", async () => {
@@ -155,7 +155,7 @@ describe("query", () => {
   test("org isolation: does not return other org data", async () => {
     const result = await storage.query({ organizationId: "org_other" });
     expect(result.total).toBe(1);
-    expect(result.logs[0].id).toBe("log_5");
+    expect(result.logs[0]!.id).toBe("log_5");
   });
 
   test("returns empty results for nonexistent org", async () => {
@@ -290,7 +290,7 @@ describe("aggregate", () => {
     expect(result.timeseries).toBeDefined();
     expect(result.timeseries!.length).toBeGreaterThan(0);
     // All logs are in the same hour, so should have one bucket
-    expect(result.timeseries![0].value).toBe(500);
+    expect(result.timeseries![0]!.value).toBe(500);
   });
 
   test("rejects invalid interval", async () => {
@@ -390,7 +390,7 @@ describe("property filters", () => {
       },
     });
     expect(result.total).toBe(1);
-    expect(result.logs[0].id).toBe("log_4");
+    expect(result.logs[0]!.id).toBe("log_4");
   });
 
   test("key existence filter", async () => {
@@ -401,7 +401,7 @@ describe("property filters", () => {
       },
     });
     expect(result.total).toBe(1);
-    expect(result.logs[0].id).toBe("log_4");
+    expect(result.logs[0]!.id).toBe("log_4");
   });
 
   test("pattern match on property", async () => {
@@ -412,7 +412,7 @@ describe("property filters", () => {
       },
     });
     expect(result.total).toBe(1);
-    expect(result.logs[0].id).toBe("log_4");
+    expect(result.logs[0]!.id).toBe("log_4");
   });
 
   test("SQL injection in property keys is escaped", async () => {

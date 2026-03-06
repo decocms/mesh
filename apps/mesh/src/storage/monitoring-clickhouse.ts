@@ -28,26 +28,6 @@ function esc(value: string): string {
   return value.replace(/\0/g, "").replace(/'/g, "''");
 }
 
-/** Allowed columns for direct column references in queries. */
-const ALLOWED_COLUMNS = new Set([
-  "id",
-  "organization_id",
-  "connection_id",
-  "connection_title",
-  "tool_name",
-  "input",
-  "output",
-  "is_error",
-  "error_message",
-  "duration_ms",
-  "timestamp",
-  "user_id",
-  "request_id",
-  "user_agent",
-  "virtual_mcp_id",
-  "properties",
-]);
-
 /** Allowed groupByColumn values. */
 const ALLOWED_GROUP_BY_COLUMNS = new Set([
   "connection_id",
@@ -56,14 +36,6 @@ const ALLOWED_GROUP_BY_COLUMNS = new Set([
   "tool_name",
   "virtual_mcp_id",
 ]);
-
-/** Validate a column identifier against the allowlist. */
-function validateColumn(col: string): string {
-  if (!ALLOWED_COLUMNS.has(col)) {
-    throw new Error(`Invalid column: ${col}`);
-  }
-  return col;
-}
 
 /** Validate a groupByColumn identifier. */
 function validateGroupByColumn(col: string): string {
@@ -97,12 +69,12 @@ const MAX_INTERVAL_AMOUNTS: Record<string, number> = {
 
 function parseInterval(interval: string): { amount: number; unit: string } {
   const match = INTERVAL_REGEX.exec(interval);
-  if (!match) {
+  if (!match || !match[1] || !match[2]) {
     throw new Error(`Invalid interval: ${interval}`);
   }
   const amount = parseInt(match[1], 10);
   const unit = match[2];
-  const max = MAX_INTERVAL_AMOUNTS[unit];
+  const max = MAX_INTERVAL_AMOUNTS[unit]!;
   if (amount < 1 || amount > max) {
     throw new Error(
       `Invalid interval amount: ${amount}${unit} (max ${max}${unit})`,
@@ -298,7 +270,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       return { logs: [], total: 0 };
     }
 
-    const total = Number(rows[0]._total ?? 0);
+    const total = Number(rows[0]!._total ?? 0);
     const logs = rows.map(toMonitoringLog);
 
     return { logs, total };
