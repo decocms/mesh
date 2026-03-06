@@ -42,7 +42,7 @@
     "@modelcontextprotocol/ext-apps": "^1.1.2",
     "dompurify": "^3.3.1",
     "kysely": "^0.28.8",
-    "kysely-bun-worker": "^0.6.0",
+    "kysely-pglite": "^0.6.1",
     "nats": "^2.29.3",
     "quickjs-emscripten-core": "^0.31.0"
   },
