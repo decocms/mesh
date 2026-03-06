@@ -182,7 +182,7 @@ export class MonitoringTransport extends WrapperTransport {
         result: callToolResult,
         duration,
         isError: Boolean(isError),
-        errorMessage: extractCallToolErrorMessage(callToolResult),
+        errorMessage: extractCallToolErrorMessage(callToolResult) || null,
         userId: ctx.auth.user?.id || ctx.auth.apiKey?.userId || null,
         requestId: ctx.metadata.requestId,
         userAgent: ctx.metadata.userAgent || null,
