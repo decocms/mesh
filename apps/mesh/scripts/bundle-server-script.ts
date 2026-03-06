@@ -21,10 +21,7 @@ const SCRIPT_DIR =
   import.meta.dir || dirname(new URL(import.meta.url).pathname);
 const SERVER_ENTRY_POINT = join(SCRIPT_DIR, "../src/index.ts");
 const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
-const MIGRATE_ENTRY_POINTS = [
-  "kysely-bun-worker",
-  "@jitl/quickjs-wasmfile-release-sync",
-];
+const MIGRATE_ENTRY_POINTS = ["@jitl/quickjs-wasmfile-release-sync"];
 
 // Parse command line arguments
 function parseArgs() {
@@ -251,8 +248,6 @@ async function buildMigrateScript(packagesToExternalize: Set<string>) {
     "--production",
     "--outfile",
     migrateOutputPath,
-    "--external",
-    "bun:sqlite",
   ];
 
   for (const pkg of packagesToExternalize) {
@@ -290,8 +285,6 @@ async function buildServerScript(packagesToExternalize: Set<string>) {
     "--production",
     "--outfile",
     serverOutputPath,
-    "--external",
-    "bun:sqlite",
   ];
 
   for (const pkg of packagesToExternalize) {
@@ -329,8 +322,6 @@ async function buildCliScript(packagesToExternalize: Set<string>) {
     "--production",
     "--outfile",
     cliOutputPath,
-    "--external",
-    "bun:sqlite",
   ];
 
   for (const pkg of packagesToExternalize) {

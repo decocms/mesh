@@ -42,8 +42,7 @@ describe("Connection Tools", () => {
   let vault: CredentialVault;
 
   beforeAll(async () => {
-    const tempDbPath = `/tmp/test-connection-tools-${Date.now()}.db`;
-    database = createDatabase(`file:${tempDbPath}`);
+    database = createDatabase(":memory:");
     await createTestSchema(database.db);
 
     vault = new CredentialVault(CredentialVault.generateKey());

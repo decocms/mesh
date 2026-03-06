@@ -10,8 +10,7 @@ describe("ConnectionStorage", () => {
   let vault: CredentialVault;
 
   beforeAll(async () => {
-    const tempDbPath = `/tmp/test-connection-${Date.now()}.db`;
-    database = createDatabase(`file:${tempDbPath}`);
+    database = createDatabase(":memory:");
     vault = new CredentialVault(CredentialVault.generateKey());
     storage = new ConnectionStorage(database.db, vault);
     await createTestSchema(database.db);

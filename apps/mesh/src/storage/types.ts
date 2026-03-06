@@ -2,7 +2,7 @@
  * Database Types for MCP Mesh
  *
  * These TypeScript interfaces define the database schema using Kysely's type-only approach.
- * The dialect (SQLite, PostgreSQL, MySQL) is determined at runtime from DATABASE_URL.
+ * The dialect (PGlite or PostgreSQL) is determined at runtime from DATABASE_URL.
  *
  * Key Principles:
  * - Database = Organization boundary (all users are org members)
