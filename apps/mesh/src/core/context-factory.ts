@@ -79,7 +79,6 @@ function parsePropertiesHeader(
 
 export interface MeshContextConfig {
   db: Kysely<Database>;
-  databaseType: "pglite" | "postgres";
   auth: BetterAuthInstance;
   encryption: {
     key: string;
