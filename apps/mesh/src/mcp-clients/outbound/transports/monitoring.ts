@@ -46,6 +46,7 @@ const MAX_INFLIGHT_DB_WRITES = 50;
 export class MonitoringTransport extends WrapperTransport {
   private inflightRequests = new Map<string | number, InflightRequest>();
   private inflightDbWrites = 0;
+  private droppedDbWrites = 0;
 
   constructor(
     innerTransport: Transport,
@@ -215,6 +216,12 @@ export class MonitoringTransport extends WrapperTransport {
     // Backpressure: drop monitoring logs when too many writes are in-flight.
     // This prevents unbounded memory growth when the database is slow.
     if (this.inflightDbWrites >= MAX_INFLIGHT_DB_WRITES) {
+      this.droppedDbWrites++;
+      if (this.droppedDbWrites === 1 || this.droppedDbWrites % 100 === 0) {
+        console.warn(
+          `[MonitoringTransport] Backpressure: dropped ${this.droppedDbWrites} monitoring log(s)`,
+        );
+      }
       return;
     }
 
