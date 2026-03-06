@@ -489,9 +489,12 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
                     tc.constraint_type,
                     pg_get_constraintdef(pgc.oid) AS constraint_def
                   FROM information_schema.table_constraints tc
+                  JOIN pg_class pgrel
+                    ON pgrel.relname = tc.table_name
+                   AND pgrel.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())
                   JOIN pg_constraint pgc
                     ON pgc.conname = tc.constraint_name
-                   AND pgc.connamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())
+                   AND pgc.conrelid = pgrel.oid
                   WHERE tc.table_schema = current_schema()
                     AND tc.table_name IN (${quotedNames})
                   ORDER BY tc.table_name, tc.constraint_type, tc.constraint_name`,
