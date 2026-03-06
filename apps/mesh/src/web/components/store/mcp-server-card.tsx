@@ -325,7 +325,7 @@ function extractCardDisplayData(
   }
 
   // Fallback to item.id when it contains a scope (e.g. "provider/name")
-  if (!scopeName && item.id.includes("/")) {
+  if (!scopeName && item.id?.includes("/")) {
     scopeName = item.id;
   }
 

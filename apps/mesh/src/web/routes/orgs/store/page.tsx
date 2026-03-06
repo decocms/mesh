@@ -96,10 +96,16 @@ export default function StorePage() {
     enabledPlugins === undefined ||
     enabledPlugins.includes(PRIVATE_REGISTRY_PLUGIN_ID);
 
-  const registryConnections = allRegistryConnections.filter((c) => {
-    if (c.id !== selfMcpId) return true;
-    return isPrivateRegistryEnabled;
-  });
+  const registryConnections = allRegistryConnections
+    .filter((c) => {
+      if (c.id !== selfMcpId) return true;
+      return isPrivateRegistryEnabled;
+    })
+    .sort((a, b) => {
+      if (a.id === selfMcpId) return 1;
+      if (b.id === selfMcpId) return -1;
+      return 0;
+    });
 
   const hasSelfMcpRegistry = registryConnections.some(
     (c) => c.id === selfMcpId,
@@ -164,9 +170,16 @@ export default function StorePage() {
   );
 
   // If there's only one registry, use it; otherwise use the selected one if it still exists.
-  // If not found, that's fine: the connection may have been deleted/changed.
+  // Prefer a non-self registry as default so the Deco Store (or Community Registry)
+  // is shown instead of the Mesh MCP when nothing is explicitly selected.
+  const firstNonSelfRegistry = registryConnections.find(
+    (c) => c.id !== selfMcpId,
+  );
   const effectiveRegistry =
-    selectedRegistry?.id || registryConnections[0]?.id || "";
+    selectedRegistry?.id ||
+    firstNonSelfRegistry?.id ||
+    registryConnections[0]?.id ||
+    "";
   const storePrivateOnlyForSelf =
     effectiveRegistry === selfMcpId &&
     registryBranding?.storePrivateOnly === true;
