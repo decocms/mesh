@@ -371,6 +371,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
           sql<string>`${colRef}`.as("group_key"),
           this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
         ])
+        .where(sql`${colRef}`, "is not", null)
         .groupBy(sql`${colRef}`)
         .orderBy(sql`agg_value`, "desc");
 
@@ -382,12 +383,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
       return {
         value: null,
-        groups: rows
-          .filter((row) => row.group_key !== null)
-          .map((row) => ({
-            key: String(row.group_key),
-            value: Number(row.agg_value) || 0,
-          })),
+        groups: rows.map((row) => ({
+          key: String(row.group_key),
+          value: Number(row.agg_value) || 0,
+        })),
       };
     }
 
@@ -400,6 +399,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
           sql<string>`${groupExpr}`.as("group_key"),
           this.aggregationExpression(aggregation, valueExpr).as("agg_value"),
         ])
+        .where(sql`${groupExpr}`, "is not", null)
         .groupBy(sql`${groupExpr}`)
         .orderBy(sql`agg_value`, "desc");
 
@@ -411,12 +411,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
       return {
         value: null,
-        groups: rows
-          .filter((row) => row.group_key !== null)
-          .map((row) => ({
-            key: String(row.group_key),
-            value: Number(row.agg_value) || 0,
-          })),
+        groups: rows.map((row) => ({
+          key: String(row.group_key),
+          value: Number(row.agg_value) || 0,
+        })),
       };
     }
 
