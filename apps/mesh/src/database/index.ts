@@ -181,7 +181,7 @@ function createPGliteDatabase(config: DatabaseConfig): PGliteDatabase {
 const DEFAULT_PGLITE_PATH = path.join(homedir(), "deco", "db.pglite");
 
 function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
-  let url = databaseUrl || `file://${DEFAULT_PGLITE_PATH}`;
+  let url = databaseUrl || getDatabaseUrl();
 
   if (url === ":memory:") {
     return { type: "pglite", connectionString: ":memory:" };
