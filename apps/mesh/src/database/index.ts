@@ -248,11 +248,14 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     });
   }
 
-  // Reuse the singleton PGlite instance if available to avoid data directory conflicts
-  if (dbInstance && dbInstance.type === "pglite") {
-    return new KyselyPGlite(dbInstance.pglite).dialect;
+  // For PGlite, always go through getDb() to ensure a single instance.
+  // Multiple PGlite instances on the same data directory cause file lock conflicts.
+  const db = getDb();
+  if (db.type === "pglite") {
+    return new KyselyPGlite(db.pglite).dialect;
   }
 
+  // Fallback (shouldn't reach here for PGlite)
   const dataDir = extractPGlitePath(config.connectionString);
   const pglite = createPGliteInstance(dataDir);
   return new KyselyPGlite(pglite).dialect;

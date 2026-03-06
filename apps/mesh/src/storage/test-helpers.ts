@@ -5,6 +5,7 @@
 
 import { Migrator, sql, type Kysely } from "kysely";
 import migrations from "../../migrations";
+import { collectPluginMigrations } from "../core/plugin-loader";
 import type { Database } from "./types";
 
 /**
@@ -229,6 +230,14 @@ export async function createTestSchema(db: Kysely<Database>): Promise<void> {
   const successCount =
     results?.filter((r) => r.status === "Success").length ?? 0;
   console.log(`✅ ${successCount} migrations applied`);
+
+  // Run plugin migrations (e.g., workflows) so plugin tables exist
+  // when createApp() triggers plugin startup hooks
+  const pluginMigrations = collectPluginMigrations();
+  for (const { migration } of pluginMigrations) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await migration.up(db as any);
+  }
 }
 
 /**
