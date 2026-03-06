@@ -36,14 +36,6 @@ describe("Database Factory", () => {
       await closeDatabase(database);
     });
 
-    it("should handle sqlite:// URLs as PGlite (backward compat)", async () => {
-      const dbPath = join(tempDir, "test-sqlite-compat");
-      const database = createDatabase(`sqlite://${dbPath}`);
-      expect(database).toBeDefined();
-      expect(database.type).toBe("pglite");
-      await closeDatabase(database);
-    });
-
     it("should throw error for unsupported protocol", () => {
       expect(() => createDatabase("redis://localhost")).toThrow(
         "Unsupported database protocol: redis",

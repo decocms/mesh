@@ -197,16 +197,6 @@ function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
     case "postgresql":
       return { type: "postgres", connectionString: url };
 
-    case "sqlite":
-      console.warn(
-        "[Database] sqlite:// protocol is deprecated. Use file:// instead. " +
-          "SQLite has been replaced by PGlite (embedded PostgreSQL).",
-      );
-      if (!parsed?.pathname) {
-        throw new Error("Invalid database URL: " + url);
-      }
-      return { type: "pglite", connectionString: parsed.pathname };
-
     case "file":
       if (!parsed?.pathname) {
         throw new Error("Invalid database URL: " + url);
