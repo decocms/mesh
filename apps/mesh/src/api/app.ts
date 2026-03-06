@@ -632,14 +632,17 @@ export async function createApp(options: CreateAppOptions = {}) {
     const meshCtx = await ContextFactory.create(c.req.raw, { timings });
     c.set("meshContext", meshCtx);
 
-    try {
-      return await next();
-    } finally {
-      // Dispose the per-request client pool to close MCP client connections.
-      // Without this, every request that uses getOrCreateClient() leaks
-      // connections, eventually exhausting file descriptors and memory.
-      await meshCtx.getOrCreateClient[Symbol.asyncDispose]();
-    }
+    // Dispose the per-request client pool when the request ends.
+    // We use the abort signal instead of a finally block because SSE/streaming
+    // routes return a Response while the stream is still active — a finally
+    // block would close MCP client connections mid-stream.
+    c.req.raw.signal.addEventListener("abort", () => {
+      meshCtx.getOrCreateClient[Symbol.asyncDispose]().catch((err) =>
+        console.error("[ClientPool] Disposal error:", err),
+      );
+    });
+
+    return next();
   });
 
   // Get all management tools (for OAuth consent UI)
