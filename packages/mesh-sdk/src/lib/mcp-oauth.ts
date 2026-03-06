@@ -498,8 +498,14 @@ function sendCallbackData(
   state: string | null,
 ): boolean {
   // Try postMessage first (primary method)
+  // In local dev with proxy setups the popup's origin may differ from the
+  // opener's origin, so we use "*" when running on localhost.
   if (window.opener && !window.opener.closed) {
-    window.opener.postMessage(data, window.location.origin);
+    const isLocal =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    const target = isLocal ? "*" : window.location.origin;
+    window.opener.postMessage(data, target);
     return true;
   }
 
