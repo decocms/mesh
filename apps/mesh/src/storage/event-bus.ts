@@ -388,7 +388,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: input.publisher ?? null,
         event_type: input.eventType,
         filter: input.filter ?? null,
-        enabled: 1,
+        enabled: true,
         created_at: now,
         updated_at: now,
       })
@@ -1003,7 +1003,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       event_type: string;
       publisher: string | null;
       filter: string | null;
-      enabled: number;
+      enabled: boolean;
       created_at: string;
       updated_at: string;
     }> = [];
@@ -1024,7 +1024,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           event_type: desiredSub.eventType,
           publisher: desiredSub.publisher ?? null,
           filter: desiredSub.filter ?? null,
-          enabled: 1,
+          enabled: true,
           created_at: now,
           updated_at: now,
         });
