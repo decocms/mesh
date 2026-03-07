@@ -2,12 +2,8 @@
  * Notify Strategy Interface
  *
  * Abstraction for how to notify the event bus worker that new events are available.
- * This allows different notification mechanisms:
- * - PostgreSQL: LISTEN/NOTIFY
- * - Redis: Pub/Sub (future)
- * - NATS: Subscribe (future)
- *
- * If no strategy is provided, the worker falls back to polling.
+ * Primary strategy: NATS pub/sub (mandatory).
+ * Safety net: PollingStrategy catches scheduled retries and missed notifications.
  */
 
 /**
