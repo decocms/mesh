@@ -201,15 +201,19 @@ export async function createApp(options: CreateAppOptions = {}) {
       );
     });
 
-    // In test/mock mode, use no-op decopilot strategies
-    const { LocalCancelBroadcast } = await import(
-      "./routes/decopilot/cancel-broadcast"
-    );
-    const { NoOpStreamBuffer } = await import(
-      "./routes/decopilot/stream-buffer"
-    );
-    cancelBroadcast = new LocalCancelBroadcast();
-    streamBuffer = new NoOpStreamBuffer();
+    // In test/mock mode, use inline no-op decopilot strategies
+    cancelBroadcast = {
+      start: async () => {},
+      broadcast: () => {},
+      stop: async () => {},
+    };
+    streamBuffer = {
+      init: async () => {},
+      relay: (stream: ReadableStream) => stream,
+      createReplayStream: async () => null,
+      purge: () => {},
+      teardown: () => {},
+    };
 
     cancelBroadcast
       .start((threadId) => runRegistry.cancelLocal(threadId))
