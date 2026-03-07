@@ -53,9 +53,10 @@ export const COLLECTION_THREADS_LIST = defineTool({
     const offset = input.offset ?? 0;
     const limit = input.limit ?? 100;
 
+    const createdBy = input.where?.created_by;
     const { threads, total } = await ctx.storage.threads.list(
       organization.id,
-      userId,
+      createdBy,
       { limit, offset },
     );
 

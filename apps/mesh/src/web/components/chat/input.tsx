@@ -23,6 +23,7 @@ import {
   ArrowUp,
   ChevronDown,
   Edit01,
+  Lock01,
   Stop,
   Users03,
   XCircle,
@@ -47,6 +48,7 @@ import {
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
 import { SessionStats } from "./usage-stats";
+import { authClient } from "@/web/lib/auth-client.ts";
 
 // ============================================================================
 // DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
@@ -320,7 +322,12 @@ export function ChatInput({
     sendMessage,
     stop,
     cancelRun,
+    tasks,
   } = useChat();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+
+  const task = tasks.find((task) => task.id === activeTaskId);
 
   // tiptapDoc lives here (not in context) so keystrokes don't re-render
   // the entire context tree. The ref on context lets IceBreakers read it.
@@ -411,6 +418,17 @@ export function ChatInput({
     : (lastAgentRef.current?.virtualMcps ?? []);
   // Use current color when active, last color during exit animation
   const wrapperBg = color?.bg ?? lastAgentRef.current?.color?.bg;
+
+  if (userId && task?.created_by && task.created_by !== userId) {
+    return (
+      <div className="flex w-full items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-muted/40 text-muted-foreground">
+        <Lock01 size={14} className="shrink-0" />
+        <span className="text-sm">
+          Read only — you&apos;re viewing someone else&apos;s thread
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full justify-end">

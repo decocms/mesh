@@ -42,6 +42,7 @@ import {
 import {
   ensureOrganization,
   toolsFromMCP,
+  validateThreadAccess,
   validateThreadOwnership,
 } from "./helpers";
 import { createMemory } from "./memory";
@@ -189,6 +190,14 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           defaultWindowSize: windowSize,
         }),
       ]);
+
+      if (mem.thread.created_by !== userId) {
+        throw new HTTPException(403, {
+          message:
+            "You are not allowed to write to this thread because you are not the owner",
+        });
+      }
+
       const saveMessagesToThread = async (
         ...messages: (typeof requestMessage | undefined)[]
       ) => {
@@ -641,7 +650,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
   app.get("/:org/decopilot/attach/:threadId", async (c) => {
     try {
-      const { threadId } = await validateThreadOwnership(c);
+      const { threadId } = await validateThreadAccess(c);
 
       const run = runRegistry.getRun(threadId);
       if (!run || run.status !== "running") {

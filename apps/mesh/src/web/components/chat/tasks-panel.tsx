@@ -36,6 +36,18 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useRef, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
+import { User as UserIcon, Users as UsersIcon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.js";
+import { Button } from "@deco/ui/components/button.js";
+import type { TaskOwnerFilter } from "./task";
 
 // --- Truncated text with tooltip ---
 
@@ -69,6 +81,59 @@ function TruncatedText({
         {text}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function TaskOwnerFilter() {
+  const { ownerFilter, setOwnerFilter, isFilterChangePending } =
+    useChatStable();
+
+  const handleChange = (value: string) => {
+    setOwnerFilter(value as TaskOwnerFilter);
+  };
+
+  const isFiltered = ownerFilter === "me";
+  const Icon = isFilterChangePending
+    ? Loading01
+    : isFiltered
+      ? UserIcon
+      : UsersIcon;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="size-8"
+          title={isFiltered ? "My tasks" : "All tasks"}
+          disabled={isFilterChangePending}
+        >
+          <Icon
+            size={14}
+            className={cn(
+              isFilterChangePending
+                ? "animate-spin text-muted-foreground"
+                : isFiltered
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+            )}
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Filter by owner</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={ownerFilter}
+          onValueChange={handleChange}
+        >
+          <DropdownMenuRadioItem value="me">My tasks</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="everyone">
+            All tasks
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -151,17 +216,22 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 
   return (
     <>
-      <CollectionSearch
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder="Search tasks..."
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            setSearchQuery("");
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-      />
+      <div className="relative">
+        <CollectionSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search tasks..."
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+          <TaskOwnerFilter />
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto">
         {searched.length === 0 ? (

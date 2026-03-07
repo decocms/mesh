@@ -51,7 +51,7 @@ import { KEYS } from "../../lib/query-keys";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 import { type ModelChangePayload, useModels } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import { useTaskManager, type Task } from "./task";
+import { useTaskManager, type Task, type TaskOwnerFilter } from "./task";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
 import type { ChatMessage, ChatModelsConfig, Metadata } from "./types.ts";
 import {
@@ -111,6 +111,10 @@ interface ChatStableValue {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+
+  ownerFilter: TaskOwnerFilter;
+  setOwnerFilter: (filter: TaskOwnerFilter) => void;
+  isFilterChangePending: boolean;
 
   virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcp: VirtualMCPInfo | null;
@@ -1016,6 +1020,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
     hasNextPage: taskManager.hasNextPage,
     isFetchingNextPage: taskManager.isFetchingNextPage,
     fetchNextPage: taskManager.fetchNextPage,
+    ownerFilter: taskManager.ownerFilter,
+    setOwnerFilter: taskManager.setOwnerFilter,
+    isFilterChangePending: taskManager.isFilterChangePending,
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
