@@ -99,6 +99,7 @@ export type StepConfig = z.infer<typeof StepConfigSchema>;
  * Data flow uses @ref syntax:
  * - @input.field → workflow input
  * - @stepName.field → output from a previous step
+ * - @ctx.execution_id → current workflow execution ID
  */
 
 type JsonSchema = {
@@ -137,7 +138,7 @@ export const StepSchema = z.object({
     .record(z.string(), z.unknown())
     .optional()
     .describe(
-      "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context). Example: { 'userId': '@input.user_id', 'data': '@fetch.result' }",
+      "Data passed to the action. Use @ref for dynamic values: @input.field (workflow input), @stepName.field (previous step output), @item/@index (loop context), @ctx.execution_id (current execution ID). Example: { 'userId': '@input.user_id', 'data': '@fetch.result', 'executionId': '@ctx.execution_id' }",
     ),
   outputSchema: JsonSchemaSchema.optional().describe(
     "Optional JSON Schema describing the expected output of the step.",
