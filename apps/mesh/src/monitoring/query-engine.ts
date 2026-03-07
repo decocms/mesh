@@ -95,6 +95,16 @@ export interface MonitoringEngineConfig {
  *
  * Returns { engine, source } where source is the FROM clause expression.
  */
+/**
+ * No-op engine returned when chdb is unavailable (e.g. CI, environments
+ * without the native module). Monitoring queries return empty results.
+ */
+class NoopEngine implements QueryEngine {
+  async query(): Promise<Record<string, unknown>[]> {
+    return [];
+  }
+}
+
 export function createMonitoringEngine(config: MonitoringEngineConfig): {
   engine: QueryEngine;
   source: string;
@@ -111,8 +121,19 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
   if (/[';]/.test(resolvedPath)) {
     throw new Error(`Invalid monitoring data path: ${resolvedPath}`);
   }
-  return {
-    engine: new ChdbEngine(),
-    source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
-  };
+
+  try {
+    return {
+      engine: new ChdbEngine(),
+      source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
+    };
+  } catch {
+    console.warn(
+      "chdb not available — monitoring queries will return empty results",
+    );
+    return {
+      engine: new NoopEngine(),
+      source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
+    };
+  }
 }
