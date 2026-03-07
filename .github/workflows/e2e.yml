@@ -20,6 +20,14 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Install nats-server
+        run: |
+          curl -sL https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-linux-amd64.tar.gz -o nats-server.tar.gz
+          tar xzf nats-server.tar.gz
+          sudo mv nats-server-v2.10.24-linux-amd64/nats-server /usr/local/bin/
+          rm -rf nats-server.tar.gz nats-server-v2.10.24-linux-amd64
+          nats-server --version
+
       - name: Install dependencies
         run: bun install
         working-directory: .
