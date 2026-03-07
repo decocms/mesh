@@ -183,7 +183,10 @@ function createPGliteDatabase(config: DatabaseConfig): PGliteDatabase {
 // URL Parsing
 // ============================================================================
 
-const DEFAULT_PGLITE_PATH = path.join(homedir(), "deco", "db.pglite");
+const DEFAULT_PGLITE_PATH = path.join(
+  process.env.DECOCMS_HOME || path.join(homedir(), "deco"),
+  "db.pglite",
+);
 
 function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
   let url = databaseUrl || getDatabaseUrl();
