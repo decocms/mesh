@@ -30,7 +30,7 @@ import { ExportResultCode } from "@opentelemetry/core";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { mkdir, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { MESH_ATTR, spanToMonitoringRow, type MonitoringRow } from "./schema";
+import { MESH_ATTR, spanToMonitoringRow } from "./schema";
 
 export interface NDJSONSpanExporterOptions {
   /** Base directory for NDJSON files. Default: ./data/monitoring */
@@ -44,7 +44,7 @@ export interface NDJSONSpanExporterOptions {
 }
 
 export class NDJSONSpanExporter implements SpanExporter {
-  private buffer: MonitoringRow[] = [];
+  private bufferStrings: string[] = [];
   private bufferBytes = 0;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private flushInProgress: Promise<void> | null = null;
@@ -105,12 +105,13 @@ export class NDJSONSpanExporter implements SpanExporter {
         attributes: attrs,
       });
 
-      this.buffer.push(row);
-      this.bufferBytes += JSON.stringify(row).length + 1;
+      const json = JSON.stringify(row);
+      this.bufferStrings.push(json);
+      this.bufferBytes += json.length + 1;
     }
 
     if (
-      this.buffer.length >= this.flushThreshold ||
+      this.bufferStrings.length >= this.flushThreshold ||
       this.bufferBytes >= this.maxBufferBytes
     ) {
       this.flush()
@@ -130,13 +131,13 @@ export class NDJSONSpanExporter implements SpanExporter {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    if (this.buffer.length > 0) {
+    if (this.bufferStrings.length > 0) {
       await this.flush();
     }
   }
 
   async forceFlush(): Promise<void> {
-    if (this.buffer.length > 0) {
+    if (this.bufferStrings.length > 0) {
       await this.flush();
     }
   }
@@ -146,13 +147,13 @@ export class NDJSONSpanExporter implements SpanExporter {
       await this.flushInProgress;
     }
 
-    if (this.buffer.length === 0) return;
+    if (this.bufferStrings.length === 0) return;
 
-    const rows = this.buffer;
-    this.buffer = [];
+    const strings = this.bufferStrings;
+    this.bufferStrings = [];
     this.bufferBytes = 0;
 
-    this.flushInProgress = this.writeNDJSON(rows);
+    this.flushInProgress = this.writeNDJSON(strings);
     try {
       await this.flushInProgress;
     } finally {
@@ -160,14 +161,14 @@ export class NDJSONSpanExporter implements SpanExporter {
     }
   }
 
-  private async writeNDJSON(rows: MonitoringRow[]): Promise<void> {
+  private async writeNDJSON(strings: string[]): Promise<void> {
     const now = new Date();
     const dir = join(
       this.basePath,
-      String(now.getFullYear()),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-      String(now.getHours()).padStart(2, "0"),
+      String(now.getUTCFullYear()),
+      String(now.getUTCMonth() + 1).padStart(2, "0"),
+      String(now.getUTCDate()).padStart(2, "0"),
+      String(now.getUTCHours()).padStart(2, "0"),
     );
 
     if (!this.knownDirs.has(dir)) {
@@ -179,7 +180,7 @@ export class NDJSONSpanExporter implements SpanExporter {
     const tmpPath = join(dir, `.${filename}.tmp`);
     const finalPath = join(dir, filename);
 
-    const content = rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
+    const content = strings.join("\n") + "\n";
 
     await writeFile(tmpPath, content, { mode: 0o600 });
     await rename(tmpPath, finalPath);

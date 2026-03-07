@@ -227,7 +227,7 @@ const headSampler = new MonitoringAlwaysSampler(
 
 /**
  * Select trace exporter based on environment.
- * "local" (default): NDJSON files for DuckDB queries
+ * "local" (default): NDJSON files for chdb (embedded ClickHouse) queries
  * "otlp": OTel Collector for cloud deployments
  */
 const exportMode = process.env.MONITORING_EXPORT_MODE ?? "local";
