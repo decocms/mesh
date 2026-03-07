@@ -16,7 +16,9 @@ import { CredentialVault } from "../encryption/credential-vault";
 import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
-import { SqlMonitoringStorage } from "../storage/monitoring";
+import { ClickHouseMonitoringStorage } from "../storage/monitoring-clickhouse";
+import { createMonitoringEngine } from "../monitoring/query-engine";
+import { DEFAULT_MONITORING_DATA_PATH } from "../monitoring/schema";
 import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { ProjectsStorage } from "../storage/projects";
@@ -79,7 +81,6 @@ function parsePropertiesHeader(
 
 export interface MeshContextConfig {
   db: Kysely<Database>;
-  databaseType: "sqlite" | "postgres";
   auth: BetterAuthInstance;
   encryption: {
     key: string;
@@ -545,6 +546,29 @@ async function authenticateRequest(
           role = membership?.role;
         }
 
+        let organization: OrganizationContext | undefined;
+        const metaOrgId = meshJwtPayload.metadata?.organizationId;
+        if (metaOrgId) {
+          const metaName = meshJwtPayload.metadata?.organizationName;
+          const metaSlug = meshJwtPayload.metadata?.organizationSlug;
+          if (metaName || metaSlug) {
+            organization = { id: metaOrgId, name: metaName, slug: metaSlug };
+          } else {
+            const orgRow = await timings.measure(
+              "auth_query_org_for_mesh_jwt",
+              () =>
+                db
+                  .selectFrom("organization")
+                  .select(["id", "slug", "name"])
+                  .where("id", "=", metaOrgId)
+                  .executeTakeFirst(),
+            );
+            organization = orgRow
+              ? { id: orgRow.id, slug: orgRow.slug, name: orgRow.name }
+              : { id: metaOrgId };
+          }
+        }
+
         return {
           user: {
             id: meshJwtPayload.sub,
@@ -553,11 +577,7 @@ async function authenticateRequest(
           },
           role,
           permissions: meshJwtPayload.permissions,
-          organization: meshJwtPayload.metadata?.organizationId
-            ? {
-                id: meshJwtPayload.metadata?.organizationId,
-              }
-            : undefined,
+          organization,
         };
       }
     } catch {
@@ -736,11 +756,23 @@ export async function createMeshContextFactory(
   // Create vault instance for credential encryption
   const vault = new CredentialVault(config.encryption.key);
 
+  // Create monitoring engine (shared across requests)
+  const monitoringBasePath =
+    process.env.MONITORING_DATA_PATH ?? DEFAULT_MONITORING_DATA_PATH;
+  const { engine: monitoringEngine, source: monitoringSource } =
+    createMonitoringEngine({
+      clickhouseUrl: process.env.CLICKHOUSE_URL,
+      basePath: monitoringBasePath,
+    });
+
   // Create storage adapters once (singleton pattern)
   const storage = {
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
-    monitoring: new SqlMonitoringStorage(config.db, config.databaseType),
+    monitoring: new ClickHouseMonitoringStorage(
+      monitoringEngine,
+      monitoringSource,
+    ),
     monitoringDashboards: new SqlMonitoringDashboardStorage(config.db),
     virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),

@@ -15,8 +15,18 @@ export const KEYS = {
   authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
-  // Task queries
-  tasks: (locator: string) => ["tasks", locator] as const,
+  // Task queries (ownerFilter + userId scope the cache entry)
+  // userId is included when ownerFilter is "me" to prevent cross-user cache pollution
+  tasks: (
+    locator: string,
+    ownerFilter?: "me" | "everyone",
+    userId?: string | null,
+  ): unknown[] => {
+    const key: unknown[] = ["tasks", locator];
+    if (ownerFilter !== undefined) key.push(ownerFilter);
+    if (ownerFilter === "me") key.push(userId ?? null);
+    return key;
+  },
   messages: (locator: string) => ["messages", locator] as const,
 
   // Organizations list

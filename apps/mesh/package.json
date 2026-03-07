@@ -1,6 +1,6 @@
 {
   "name": "@decocms/mesh",
-  "version": "2.137.1",
+  "version": "2.143.0",
   "description": "MCP Mesh - Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "license": "MIT",
@@ -37,11 +37,15 @@
     "prepublishOnly": "bun run build:client && bun run build:server"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.8.1",
+    "@electric-sql/pglite": "^0.3.15",
+    "chdb": "^1.6.0",
     "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
     "@modelcontextprotocol/ext-apps": "^1.1.2",
+    "@opentelemetry/core": "^2.6.0",
     "dompurify": "^3.3.1",
     "kysely": "^0.28.8",
-    "kysely-bun-worker": "^0.6.0",
+    "kysely-pglite": "^0.6.1",
     "nats": "^2.29.3",
     "quickjs-emscripten-core": "^0.31.0"
   },

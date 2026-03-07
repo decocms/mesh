@@ -54,6 +54,12 @@ import {
   type CancelBroadcast,
 } from "./routes/decopilot/cancel-broadcast";
 import { createNatsConnectionProvider } from "../nats/connection";
+import {
+  InMemoryToolListCache,
+  JetStreamKVToolListCache,
+  setToolListCache,
+  type ToolListCache,
+} from "../mcp-clients/tool-list-cache";
 import { NatsCancelBroadcast } from "./routes/decopilot/nats-cancel-broadcast";
 import {
   NoOpStreamBuffer,
@@ -62,6 +68,8 @@ import {
 import { NatsStreamBuffer } from "./routes/decopilot/nats-stream-buffer";
 import { RunRegistry } from "./routes/decopilot/run-registry";
 import { SqlThreadStorage } from "../storage/threads";
+import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
+import { DEFAULT_MONITORING_DATA_PATH } from "../monitoring/schema";
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -194,6 +202,24 @@ export async function createApp(options: CreateAppOptions = {}) {
     }
   }
 
+  // Create tool list cache: JetStream KV when NATS is available, local Map otherwise
+  let toolListCache: ToolListCache = natsProvider
+    ? new JetStreamKVToolListCache({
+        getJetStream: () => natsProvider!.getJetStream(),
+        getConnection: () => natsProvider!.getConnection(),
+      })
+    : new InMemoryToolListCache();
+  if (toolListCache instanceof JetStreamKVToolListCache) {
+    await toolListCache.init().catch((err) => {
+      console.warn(
+        "[ToolListCache] KV init failed, falling back to in-memory cache:",
+        err,
+      );
+      toolListCache = new InMemoryToolListCache();
+    });
+  }
+  setToolListCache(toolListCache);
+
   // Create event bus with a lazy context getter
   // The notify function needs a context, but the context needs the event bus
   // We resolve this by having notify create its own system context
@@ -253,6 +279,8 @@ export async function createApp(options: CreateAppOptions = {}) {
     runRegistry.dispose();
     cancelBroadcast.stop().catch(() => {});
     streamBuffer.teardown();
+    toolListCache.teardown();
+    setToolListCache(null);
     natsProvider?.drain().catch(() => {});
   };
 
@@ -578,7 +606,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Context factory only needs the Kysely instance, not the full MeshDatabase
   const factory = await createMeshContextFactory({
     db: database.db,
-    databaseType: database.type,
     auth,
     encryption: {
       key: process.env.ENCRYPTION_KEY || "",
@@ -607,6 +634,37 @@ export async function createApp(options: CreateAppOptions = {}) {
     .catch((error) => {
       console.error("[EventBus] Error during startup:", error);
     });
+
+  // NDJSON monitoring retention cleanup
+  const monitoringBasePath =
+    process.env.MONITORING_DATA_PATH ?? DEFAULT_MONITORING_DATA_PATH;
+  const retentionDays = Math.max(
+    1,
+    Number(process.env.MONITORING_RETENTION_DAYS) || 30,
+  );
+
+  cleanupOldMonitoringFiles(monitoringBasePath, { maxAgeDays: retentionDays })
+    .then((deleted) => {
+      if (deleted > 0)
+        console.log(
+          `[monitoring] Cleaned up ${deleted} old monitoring partitions`,
+        );
+    })
+    .catch((err) =>
+      console.error("[monitoring] Retention cleanup failed:", err),
+    );
+
+  const retentionTimer = setInterval(
+    () => {
+      cleanupOldMonitoringFiles(monitoringBasePath, {
+        maxAgeDays: retentionDays,
+      }).catch((err) =>
+        console.error("[monitoring] Retention cleanup failed:", err),
+      );
+    },
+    24 * 60 * 60 * 1000,
+  );
+  retentionTimer.unref();
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
@@ -780,7 +838,6 @@ export async function createApp(options: CreateAppOptions = {}) {
         typePatterns: typePatterns?.length ? typePatterns : null,
         push: (event: SSEEvent) => {
           // Write to the SSE stream — fire-and-forget
-          // If the stream is closed, writeSSE will throw and the hub will remove us
           stream
             .writeSSE({
               id: event.id,
@@ -788,7 +845,9 @@ export async function createApp(options: CreateAppOptions = {}) {
               data: JSON.stringify(event),
             })
             .catch(() => {
-              // Stream broken — cleanup happens via onAbort
+              // Stream broken — remove immediately so no further events are
+              // attempted. onAbort handles interval cleanup.
+              sseHub.remove(orgId, listenerId);
             });
         },
       });
@@ -811,16 +870,13 @@ export async function createApp(options: CreateAppOptions = {}) {
         });
       }, 30_000);
 
-      // Cleanup when the client disconnects
-      stream.onAbort(() => {
-        clearInterval(keepaliveInterval);
-        sseHub.remove(orgId, listenerId);
-      });
-
-      // Keep the stream open until the client disconnects
-      // We use a promise that resolves when the request is aborted
+      // Cleanup when the client disconnects and keep the stream open
       await new Promise<void>((resolve) => {
-        stream.onAbort(() => resolve());
+        stream.onAbort(() => {
+          clearInterval(keepaliveInterval);
+          sseHub.remove(orgId, listenerId);
+          resolve();
+        });
       });
     });
   });

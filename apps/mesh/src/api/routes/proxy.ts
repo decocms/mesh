@@ -18,6 +18,7 @@ import {
   type ClientWithOptionalStreamingSupport,
   type ClientWithStreamingSupport,
 } from "@/mcp-clients";
+import { getToolListCache } from "@/mcp-clients/tool-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
 import {
@@ -128,7 +129,16 @@ async function createMCPProxyDoNotUseDirectly(
   if (ctx.organization && connection.organization_id !== ctx.organization.id) {
     throw new Error("Connection does not belong to the active organization");
   }
-  ctx.organization ??= { id: connection.organization_id };
+  if (!ctx.organization) {
+    const org = await ctx.db
+      .selectFrom("organization")
+      .select(["id", "slug", "name"])
+      .where("id", "=", connection.organization_id)
+      .executeTakeFirst();
+    ctx.organization = org
+      ? { id: org.id, slug: org.slug, name: org.name }
+      : { id: connection.organization_id };
+  }
 
   // Check connection status
   if (connection.status !== "active") {
@@ -138,8 +148,12 @@ async function createMCPProxyDoNotUseDirectly(
   // Create base client with auth + monitoring transports
   const baseClient = await clientFromConnection(connection, ctx, superUser);
 
-  // Apply tool caching decorator
-  const cachedClient = withToolCaching(baseClient, connection);
+  // Apply tool caching decorator (pass cross-pod cache if available)
+  const cachedClient = withToolCaching(
+    baseClient,
+    connection,
+    getToolListCache() ?? undefined,
+  );
 
   // Create server directly from decorated client
   // Tool caching is handled by the decorated client
