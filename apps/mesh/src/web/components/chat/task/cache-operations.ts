@@ -22,8 +22,9 @@ export function updateTaskInCache(
   locator: string,
   taskId: string,
   updates: Partial<Task>,
+  ownerFilter?: "me" | "everyone",
 ): void {
-  const queryKey = KEYS.tasks(locator);
+  const queryKey = KEYS.tasks(locator, ownerFilter);
 
   const currentData =
     queryClient.getQueryData<TasksInfiniteQueryData>(queryKey);
@@ -88,8 +89,9 @@ export function addTaskToCache(
   queryClient: QueryClient,
   locator: string,
   task: Task,
+  ownerFilter?: "me" | "everyone",
 ): void {
-  const queryKey = KEYS.tasks(locator);
+  const queryKey = KEYS.tasks(locator, ownerFilter);
 
   const currentData =
     queryClient.getQueryData<TasksInfiniteQueryData>(queryKey);

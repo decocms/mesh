@@ -21,6 +21,7 @@ import {
   useSuspenseInfiniteQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { authClient } from "../../../lib/auth-client";
 import { useCollectionCachePrefill } from "../../../hooks/use-collection-cache-prefill";
 import { useLocalStorage } from "../../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../../lib/localstorage-keys";
@@ -39,12 +40,16 @@ import {
 import type { ChatMessage, Task } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
 
+export type TaskOwnerFilter = "me" | "everyone";
+
 /**
  * Hook to get all tasks with infinite scroll pagination
  *
+ * @param ownerFilter - "me" filters to current user's tasks, "everyone" shows all org tasks
+ * @param userId - current user's ID, required when ownerFilter is "me"
  * @returns Object with tasks array, pagination helpers, and refetch function
  */
-function useTasks() {
+function useTasks(ownerFilter: TaskOwnerFilter, userId: string | undefined) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -53,15 +58,19 @@ function useTasks() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
     useSuspenseInfiniteQuery({
-      queryKey: KEYS.tasks(locator),
+      queryKey: KEYS.tasks(locator, ownerFilter),
       queryFn: async ({ pageParam = 0 }) => {
         if (!client) {
           throw new Error("MCP client is not available");
         }
-        const input: CollectionListInput = {
+        const baseInput: CollectionListInput = {
           limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
           offset: pageParam,
         };
+        const input =
+          ownerFilter === "me" && userId
+            ? { ...baseInput, where: { created_by: userId } }
+            : baseInput;
 
         const result = (await client.callTool({
           name: "COLLECTION_THREADS_LIST",
@@ -137,8 +146,19 @@ export function useTaskManager() {
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
 
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+
+  const [ownerFilter, setOwnerFilter] = useLocalStorage<TaskOwnerFilter>(
+    LOCALSTORAGE_KEYS.chatTaskOwnerFilter(locator),
+    "me",
+  );
+
   // Fetch tasks list with pagination
-  const { tasks, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasks();
+  const { tasks, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasks(
+    ownerFilter,
+    userId,
+  );
 
   // Initialize MCP client internally
   const client = useMCPClient({
@@ -164,7 +184,7 @@ export function useTaskManager() {
     const optimisticTask = buildOptimisticTask(newTaskId);
 
     // Add task optimistically to cache so it appears immediately
-    addTaskToCache(queryClient, locator, optimisticTask);
+    addTaskToCache(queryClient, locator, optimisticTask, ownerFilter);
 
     // Prefill message cache
     if (client) {
@@ -192,7 +212,7 @@ export function useTaskManager() {
    * Updates task data directly in React Query cache without refetching
    */
   const updateTask = (taskId: string, updates: Partial<Task>) => {
-    updateTaskInCache(queryClient, locator, taskId, updates);
+    updateTaskInCache(queryClient, locator, taskId, updates, ownerFilter);
   };
 
   /**
@@ -205,10 +225,16 @@ export function useTaskManager() {
         title,
       });
       if (updatedTask) {
-        updateTaskInCache(queryClient, locator, taskId, {
-          title,
-          updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-        });
+        updateTaskInCache(
+          queryClient,
+          locator,
+          taskId,
+          {
+            title,
+            updated_at: updatedTask.updated_at ?? new Date().toISOString(),
+          },
+          ownerFilter,
+        );
       }
     } catch (error) {
       const err = error as Error;
@@ -240,10 +266,16 @@ export function useTaskManager() {
           }
         }
         // Update task hidden status in cache
-        updateTaskInCache(queryClient, locator, taskId, {
-          hidden: true,
-          updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-        });
+        updateTaskInCache(
+          queryClient,
+          locator,
+          taskId,
+          {
+            hidden: true,
+            updated_at: updatedTask.updated_at ?? new Date().toISOString(),
+          },
+          ownerFilter,
+        );
       }
     } catch (error) {
       const err = error as Error;
@@ -270,6 +302,8 @@ export function useTaskManager() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    ownerFilter,
+    setOwnerFilter,
     createTask,
     switchToTask,
     updateTask,

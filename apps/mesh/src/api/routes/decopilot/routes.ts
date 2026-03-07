@@ -189,6 +189,14 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           defaultWindowSize: windowSize,
         }),
       ]);
+
+      if (mem.thread.created_by !== userId) {
+        throw new HTTPException(403, {
+          message:
+            "You are not allowed to write to this thread because you are not the owner",
+        });
+      }
+
       const saveMessagesToThread = async (
         ...messages: (typeof requestMessage | undefined)[]
       ) => {

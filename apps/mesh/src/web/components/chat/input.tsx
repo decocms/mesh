@@ -47,6 +47,7 @@ import {
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
 import { SessionStats } from "./usage-stats";
+import { authClient } from "@/web/lib/auth-client.ts";
 
 // ============================================================================
 // DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
@@ -320,7 +321,12 @@ export function ChatInput({
     sendMessage,
     stop,
     cancelRun,
+    tasks,
   } = useChat();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+
+  const task = tasks.find((task) => task.id === activeTaskId);
 
   // tiptapDoc lives here (not in context) so keystrokes don't re-render
   // the entire context tree. The ref on context lets IceBreakers read it.
@@ -411,6 +417,16 @@ export function ChatInput({
     : (lastAgentRef.current?.virtualMcps ?? []);
   // Use current color when active, last color during exit animation
   const wrapperBg = color?.bg ?? lastAgentRef.current?.color?.bg;
+
+  if (userId && task?.created_by && task.created_by !== userId) {
+    return (
+      <div className="flex flex-col w-full justify-end">
+        <div className="relative rounded-xl w-full flex flex-col">
+          <div className="absolute inset-0 rounded-xl pointer-events-none bg-muted" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full justify-end">

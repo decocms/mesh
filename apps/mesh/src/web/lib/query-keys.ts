@@ -15,8 +15,11 @@ export const KEYS = {
   authConfig: () => ["authConfig"] as const,
   session: () => ["session"] as const,
 
-  // Task queries
-  tasks: (locator: string) => ["tasks", locator] as const,
+  // Task queries (ownerFilter scopes to "me" or "everyone" for cache isolation)
+  tasks: (locator: string, ownerFilter?: "me" | "everyone") =>
+    ownerFilter !== undefined
+      ? (["tasks", locator, ownerFilter] as const)
+      : (["tasks", locator] as const),
   messages: (locator: string) => ["messages", locator] as const,
 
   // Organizations list
