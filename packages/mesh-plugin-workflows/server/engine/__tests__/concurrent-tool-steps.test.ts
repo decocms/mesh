@@ -6,7 +6,9 @@
  * proxy, it could tear down shared downstream clients, causing other
  * in-flight steps to time out.
  *
- * The fix: executeToolStep no longer calls proxy.close() in a finally block.
+ * The fix: notify.ts creates an isolated client pool per createMCPProxy call,
+ * so each step gets its own connection. executeToolStep safely closes its
+ * proxy in a finally block without affecting concurrent steps.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
@@ -47,34 +49,34 @@ afterEach(async () => {
 describe("Concurrent tool steps", () => {
   it("all parallel tool steps complete when one finishes before others", async () => {
     let closeCount = 0;
-    let closedWhileOthersInFlight = false;
-
-    const activeCalls = new Set<string>();
+    let closedWhileOwnCallInFlight = false;
 
     const ctx = createMockOrchestratorContext(storage);
 
-    // Override createMCPProxy to track concurrent usage and detect
-    // the bug: if close() is called while other calls are still in-flight
+    // Each createMCPProxy call gets its own isolated proxy (mirrors isolated pool
+    // behavior in production). close() should only be called after that proxy's
+    // own callTool has resolved — never while the call is still in-flight.
     ctx.createMCPProxy = async (_connectionId: string) => {
+      let callInFlight = false;
+
       return {
         async callTool(params: {
           name: string;
           arguments?: Record<string, unknown>;
         }) {
-          const callId = `${params.name}_${Math.random().toString(36).slice(2, 6)}`;
-          activeCalls.add(callId);
+          callInFlight = true;
 
-          // Simulate varying response times — step A is slow, B and C are fast
+          // Simulate varying response times — slow step takes longer than fast ones
           const delay = params.arguments?.slow === true ? 50 : 5;
           await new Promise((resolve) => setTimeout(resolve, delay));
 
-          activeCalls.delete(callId);
+          callInFlight = false;
           return { structuredContent: { result: `mock-${params.name}` } };
         },
         async close() {
           closeCount++;
-          if (activeCalls.size > 0) {
-            closedWhileOthersInFlight = true;
+          if (callInFlight) {
+            closedWhileOwnCallInFlight = true;
           }
         },
       };
@@ -105,11 +107,11 @@ describe("Concurrent tool steps", () => {
       expect(result.error).toBeNull();
     }
 
-    // The fix: proxy.close() is no longer called, so no proxy should be
-    // closed while other calls are still in-flight
-    expect(closedWhileOthersInFlight).toBe(false);
-    // And close should not be called at all (we removed the finally block)
-    expect(closeCount).toBe(0);
+    // Each step closes its own isolated proxy — close() is called only after
+    // that proxy's callTool has resolved, never while its own call is in-flight
+    expect(closedWhileOwnCallInFlight).toBe(false);
+    // Each of the 3 steps closes its proxy exactly once
+    expect(closeCount).toBe(3);
   });
 
   it("three independent tool steps all succeed in parallel", async () => {

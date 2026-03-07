@@ -95,6 +95,8 @@ export async function executeToolStep(
       completedAt: Date.now(),
       error: errorMessage,
     };
+  } finally {
+    proxy?.close().catch(() => {});
   }
 
   // Post-processing: checkpoint raw output then run transformCode
