@@ -5,7 +5,7 @@
  * and uses MCP APIs to create connections and gateways.
  */
 
-import { rmSync } from "fs";
+import { unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import type {
@@ -86,10 +86,11 @@ async function parseSSEResponseAsJson(response: Response) {
  * Start a mesh server for benchmarking
  */
 export async function startMesh(port: number): Promise<MeshServerHandle> {
-  // Use a temp file because PGlite needs a persistent data directory
+  // Use a temp file instead of :memory: because kysely-bun-worker
+  // spawns a separate worker thread that needs to access the same database
   const dbPath = join(
     tmpdir(),
-    `mesh-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.pglite`,
+    `mesh-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
   );
   const database = createDatabase(dbPath);
 
@@ -282,9 +283,11 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
       server.stop(true);
       await closeDatabase(database);
 
-      // Delete temp database directory (PGlite creates a directory, not a file)
+      // Delete temp database file
       try {
-        rmSync(dbPath, { recursive: true, force: true });
+        unlinkSync(dbPath);
+        unlinkSync(`${dbPath}-wal`);
+        unlinkSync(`${dbPath}-shm`);
       } catch {
         // Ignore cleanup errors
       }

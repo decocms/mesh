@@ -7,6 +7,8 @@
  * This prevents users from deleting a connection that is being used
  * by a Virtual MCP (agent). They must first remove the connection from
  * the agent before deleting it.
+ *
+ * SQLite doesn't support ALTER CONSTRAINT, so we need to recreate the table.
  */
 
 import { type Kysely, sql } from "kysely";
@@ -70,15 +72,25 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 5: Rename FK constraints to clean names
+  // Step 5: Rename FK constraints to clean names (PostgreSQL only)
+  // SQLite doesn't support renaming constraints
   // ============================================================================
 
-  await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_parent_connection_id_fkey TO conn_agg_parent_fk`.execute(
-    db,
-  );
-  await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_child_connection_id_fkey TO conn_agg_child_fk`.execute(
-    db,
-  );
+  // Check if we're on PostgreSQL by checking for PostgreSQL-specific function
+  const isPostgres = await sql`SELECT current_database()`
+    .execute(db)
+    .then(() => true)
+    .catch(() => false);
+
+  if (isPostgres) {
+    // Rename the auto-generated FK constraint names to clean names
+    await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_parent_connection_id_fkey TO conn_agg_parent_fk`.execute(
+      db,
+    );
+    await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_child_connection_id_fkey TO conn_agg_child_fk`.execute(
+      db,
+    );
+  }
 
   // ============================================================================
   // Step 6: Recreate indexes
@@ -162,15 +174,23 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // ============================================================================
-  // Step 5: Rename FK constraints to clean names
+  // Step 5: Rename FK constraints to clean names (PostgreSQL only)
   // ============================================================================
 
-  await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_parent_connection_id_fkey TO conn_agg_parent_fk`.execute(
-    db,
-  );
-  await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_child_connection_id_fkey TO conn_agg_child_fk`.execute(
-    db,
-  );
+  // Check if we're on PostgreSQL by checking for PostgreSQL-specific function
+  const isPostgres = await sql`SELECT current_database()`
+    .execute(db)
+    .then(() => true)
+    .catch(() => false);
+
+  if (isPostgres) {
+    await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_parent_connection_id_fkey TO conn_agg_parent_fk`.execute(
+      db,
+    );
+    await sql`ALTER TABLE connection_aggregations RENAME CONSTRAINT connection_aggregations_new_child_connection_id_fkey TO conn_agg_child_fk`.execute(
+      db,
+    );
+  }
 
   // ============================================================================
   // Step 6: Recreate indexes

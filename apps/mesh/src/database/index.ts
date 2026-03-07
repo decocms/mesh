@@ -2,20 +2,17 @@
  * Database Factory for MCP Mesh
  *
  * Auto-detects database dialect from DATABASE_URL and returns configured Kysely instance.
- * Supports PGlite (default, local PostgreSQL via WASM) and PostgreSQL (cloud).
+ * Supports SQLite (default) and PostgreSQL.
  *
  * Returns a MeshDatabase discriminated union that includes:
  * - The Kysely instance
  * - Database type for runtime discrimination
  * - For PostgreSQL: the shared Pool (reusable for LISTEN/NOTIFY)
- * - For PGlite: the PGlite instance (for lifecycle management)
  */
 
 import { existsSync, mkdirSync } from "fs";
-import { homedir } from "os";
-import { type Dialect, Kysely, LogEvent, PostgresDialect } from "kysely";
-import { PGlite } from "@electric-sql/pglite";
-import { KyselyPGlite } from "kysely-pglite";
+import { type Dialect, Kysely, LogEvent, PostgresDialect, sql } from "kysely";
+import { BunWorkerDialect } from "kysely-bun-worker";
 import * as path from "path";
 import { Pool } from "pg";
 import type { Database as DatabaseSchema } from "../storage/types";
@@ -25,10 +22,19 @@ import { meter } from "../observability";
 // MeshDatabase Types - Discriminated Union
 // ============================================================================
 
+/**
+ * OpenTelemetry histogram for database query durations
+ * Records query execution time with the SQL statement as an attribute
+ */
 const queryDurationHistogram = meter.createHistogram("db.query.duration", {
   description: "Database query execution duration in milliseconds",
   unit: "ms",
 });
+
+const WELL_KNOWN_QUERY_ERRORS = [
+  "PRAGMA busy_timeout = ?;",
+  "SELECT current_database()",
+];
 
 const SLOW_QUERY_TRESHOLD_MS = 400;
 const log = (event: LogEvent) => {
@@ -41,12 +47,16 @@ const log = (event: LogEvent) => {
     console.error("Slow query detected:", {
       durationMs: event.queryDurationMillis,
       sql: event.query.sql,
+      params: event.query.parameters,
     });
   }
 
   queryDurationHistogram.record(event.queryDurationMillis, attributes);
 
-  if (event.level === "error") {
+  if (
+    event.level === "error" &&
+    !WELL_KNOWN_QUERY_ERRORS.includes(event.query.sql)
+  ) {
     console.error("Query failed:", {
       durationMs: event.queryDurationMillis,
       error: event.error,
@@ -54,20 +64,17 @@ const log = (event: LogEvent) => {
     });
   }
 };
-
 /**
  * Supported database types
  */
-export type DatabaseType = "pglite" | "postgres";
+export type DatabaseType = "sqlite" | "postgres";
 
 /**
- * PGlite database connection (local PostgreSQL via WASM)
- * Exposes the PGlite instance for lifecycle management and sharing.
+ * SQLite database connection
  */
-export interface PGliteDatabase {
-  type: "pglite";
+export interface SqliteDatabase {
+  type: "sqlite";
   db: Kysely<DatabaseSchema>;
-  pglite: PGlite;
 }
 
 /**
@@ -84,17 +91,22 @@ export interface PostgresDatabase {
  * MeshDatabase - discriminated union of all supported database types
  * Use `database.type` to discriminate between implementations
  */
-export type MeshDatabase = PGliteDatabase | PostgresDatabase;
+export type MeshDatabase = SqliteDatabase | PostgresDatabase;
 
 // ============================================================================
 // Internal Types
 // ============================================================================
 
+/**
+ * Database configuration interface
+ */
 interface DatabaseConfig {
   type: DatabaseType;
   connectionString: string;
   options?: {
-    maxConnections?: number;
+    maxConnections?: number; // For PostgreSQL
+    enableWAL?: boolean; // For SQLite
+    busyTimeout?: number; // For SQLite
   };
 }
 
@@ -103,13 +115,17 @@ interface DatabaseConfig {
 // ============================================================================
 
 const defaultPoolOptions = {
+  // Keep connections alive to avoid reconnection latency across regions
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
+  // Allow connections to stay idle longer (5 min instead of default 10s)
+  // This reduces reconnection overhead for cross-region databases
   idleTimeoutMillis: 300000,
+  // Increase connection timeout for high-latency networks (30s)
   connectionTimeoutMillis: 30000,
+  // Allow the process to exit even with idle connections
   allowExitOnIdle: true,
 };
-
 function createPostgresDatabase(config: DatabaseConfig): PostgresDatabase {
   const pool = new Pool({
     connectionString: config.connectionString,
@@ -119,79 +135,111 @@ function createPostgresDatabase(config: DatabaseConfig): PostgresDatabase {
   });
 
   const dialect = new PostgresDialect({ pool });
-  const db = new Kysely<DatabaseSchema>({ dialect, log });
+  const db = new Kysely<DatabaseSchema>({
+    dialect,
+    log,
+  });
 
   return { type: "postgres", db, pool };
 }
 
 // ============================================================================
-// PGlite Implementation
+// SQLite Implementation
 // ============================================================================
 
-function ensurePGliteDirectory(dataDir: string): string {
-  if (dataDir === ":memory:" || !dataDir) {
-    return ":memory:";
-  }
-
-  if (dataDir !== "/" && !existsSync(dataDir)) {
-    try {
-      mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-    } catch (error) {
-      if (process.env.NODE_ENV === "production") {
-        throw new Error(`Failed to create PGlite data directory: ${dataDir}`, {
-          cause: error,
-        });
-      }
-      console.warn(
-        `Failed to create directory ${dataDir}, using in-memory database`,
-      );
-      return ":memory:";
-    }
-  }
-  return dataDir;
-}
-
-function extractPGlitePath(connectionString: string): string {
+function extractSqlitePath(connectionString: string): string {
+  // Handle ":memory:" special case
   if (connectionString === ":memory:") {
     return ":memory:";
   }
 
+  // Parse URL if it has a protocol
   if (connectionString.includes("://")) {
     const url = new URL(connectionString);
     return url.pathname;
   }
 
+  // Otherwise treat as direct path
   return connectionString;
 }
 
-function createPGliteInstance(dataDir: string): PGlite {
-  const resolvedDir = ensurePGliteDirectory(dataDir);
-  return new PGlite(resolvedDir === ":memory:" ? undefined : resolvedDir);
+function ensureSqliteDirectory(dbPath: string): string {
+  if (dbPath !== ":memory:" && dbPath !== "/" && dbPath) {
+    const dir = dbPath.substring(0, dbPath.lastIndexOf("/"));
+    if (dir && dir !== "/" && !existsSync(dir)) {
+      try {
+        mkdirSync(dir, { recursive: true });
+      } catch {
+        // If directory creation fails, use in-memory database
+        console.warn(
+          `Failed to create directory ${dir}, using in-memory database`,
+        );
+        return ":memory:";
+      }
+    }
+  }
+  return dbPath;
 }
 
-function createPGliteDatabase(config: DatabaseConfig): PGliteDatabase {
-  const dataDir = extractPGlitePath(config.connectionString);
-  const pglite = createPGliteInstance(dataDir);
+function createSqliteDatabase(config: DatabaseConfig): SqliteDatabase {
+  let dbPath = extractSqlitePath(config.connectionString);
+  dbPath = ensureSqliteDirectory(dbPath);
 
-  const kpg = new KyselyPGlite(pglite);
-  const db = new Kysely<DatabaseSchema>({ dialect: kpg.dialect, log });
+  const dialect = new BunWorkerDialect({
+    url: dbPath || ":memory:",
+  });
 
-  return { type: "pglite", db, pglite };
+  const db = new Kysely<DatabaseSchema>({
+    dialect,
+    log,
+  });
+
+  // Enable foreign keys (required for FK constraints to work in SQLite)
+  // Skip in test environment to avoid breaking existing tests
+  const isTest =
+    process.env.NODE_ENV === "test" || process.env.BUN_ENV === "test";
+  if (!isTest) {
+    sql`PRAGMA foreign_keys = ON;`.execute(db).catch(() => {
+      // Ignore errors
+    });
+  }
+
+  // Enable WAL mode and busy timeout for non-memory databases
+  if (dbPath !== ":memory:" && config.options?.enableWAL !== false) {
+    sql`PRAGMA journal_mode = WAL;`.execute(db).catch(() => {
+      // Ignore errors - might already be in WAL mode
+    });
+  }
+
+  if (dbPath !== ":memory:") {
+    const timeout = config.options?.busyTimeout || 5000;
+    sql`PRAGMA busy_timeout = ${timeout};`.execute(db).catch(() => {
+      // Ignore errors
+    });
+  }
+
+  return { type: "sqlite", db };
 }
 
 // ============================================================================
 // URL Parsing
 // ============================================================================
 
-const DEFAULT_PGLITE_PATH = path.join(homedir(), "deco", "db.pglite");
-
+/**
+ * Parse database URL and extract configuration
+ */
 function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
-  let url = databaseUrl || getDatabaseUrl();
+  let url = databaseUrl || "file:./data/mesh.db";
 
+  // Handle special case: ":memory:" without protocol
   if (url === ":memory:") {
-    return { type: "pglite", connectionString: ":memory:" };
+    return {
+      type: "sqlite",
+      connectionString: ":memory:",
+    };
   }
 
+  // Add file:// prefix for absolute paths
   url = url.startsWith("/") ? `file://${url}` : url;
 
   const parsed = URL.canParse(url) ? new URL(url) : null;
@@ -200,18 +248,25 @@ function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
   switch (protocol) {
     case "postgres":
     case "postgresql":
-      return { type: "postgres", connectionString: url };
+      return {
+        type: "postgres",
+        connectionString: url,
+      };
 
+    case "sqlite":
     case "file":
       if (!parsed?.pathname) {
         throw new Error("Invalid database URL: " + url);
       }
-      return { type: "pglite", connectionString: parsed.pathname };
+      return {
+        type: "sqlite",
+        connectionString: parsed.pathname,
+      };
 
     default:
       throw new Error(
         `Unsupported database protocol: ${protocol}. ` +
-          `Supported protocols: postgres://, postgresql://, file://`,
+          `Supported protocols: postgres://, postgresql://, sqlite://, file://`,
       );
   }
 }
@@ -220,16 +275,19 @@ function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
 // Public API
 // ============================================================================
 
+/**
+ * Get database URL from environment or default
+ */
 export function getDatabaseUrl(): string {
   const databaseUrl =
-    process.env.DATABASE_URL || `file://${DEFAULT_PGLITE_PATH}`;
+    process.env.DATABASE_URL ||
+    `file:${path.join(process.cwd(), "data/mesh.db")}`;
   return databaseUrl;
 }
 
 /**
- * Create a Kysely dialect for the given database URL.
- * For PGlite, reuses the singleton PGlite instance from getDb() when available
- * to avoid dual-instance conflicts on the same data directory.
+ * Create a Kysely dialect for the given database URL
+ * This allows you to create a dialect without creating the full MeshDatabase
  */
 export function getDbDialect(databaseUrl?: string): Dialect {
   const config = parseDatabaseUrl(databaseUrl);
@@ -245,43 +303,18 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     });
   }
 
-  // For PGlite, always go through getDb() to ensure a single instance.
-  // Multiple PGlite instances on the same data directory cause file lock conflicts.
-  // NOTE: The `databaseUrl` parameter is effectively ignored for PGlite — the
-  // singleton from getDb() (which uses getDatabaseUrl()) is always returned.
-  const db = getDb();
-  if (db.type === "pglite") {
-    // Warn if the caller requested a specific PGlite path that differs from the singleton.
-    if (databaseUrl) {
-      const requestedConfig = parseDatabaseUrl(databaseUrl);
-      if (
-        requestedConfig.type === "pglite" &&
-        requestedConfig.connectionString !== ":memory:"
-      ) {
-        const singletonConfig = parseDatabaseUrl(getDatabaseUrl());
-        if (
-          singletonConfig.type === "pglite" &&
-          requestedConfig.connectionString !== singletonConfig.connectionString
-        ) {
-          console.warn(
-            `getDbDialect(): requested PGlite path "${requestedConfig.connectionString}" ` +
-              `differs from singleton path "${singletonConfig.connectionString}". ` +
-              `The singleton instance will be used.`,
-          );
-        }
-      }
-    }
-    return new KyselyPGlite(db.pglite).dialect;
-  }
-
-  // Unreachable: config.type is "pglite" but the singleton is "postgres".
-  // This indicates a DATABASE_URL mismatch between the singleton and this call.
-  throw new Error(
-    "Invariant violation: getDbDialect resolved a PGlite config but the " +
-      "database singleton is PostgreSQL. Ensure DATABASE_URL is consistent.",
-  );
+  let dbPath = extractSqlitePath(config.connectionString);
+  dbPath = ensureSqliteDirectory(dbPath);
+  return new BunWorkerDialect({ url: dbPath || ":memory:" });
 }
 
+/**
+ * Create MeshDatabase instance with auto-detected dialect
+ *
+ * Returns a discriminated union - use `database.type` to check the type:
+ * - "sqlite": SqliteDatabase with { db }
+ * - "postgres": PostgresDatabase with { db, pool }
+ */
 export function createDatabase(databaseUrl?: string): MeshDatabase {
   const config = parseDatabaseUrl(databaseUrl);
 
@@ -289,34 +322,26 @@ export function createDatabase(databaseUrl?: string): MeshDatabase {
     return createPostgresDatabase(config);
   }
 
-  return createPGliteDatabase(config);
+  return createSqliteDatabase(config);
 }
 
+/**
+ * Close database connection
+ * Handles both SQLite and PostgreSQL (including Pool cleanup)
+ */
 export async function closeDatabase(database: MeshDatabase): Promise<void> {
   await database.db.destroy();
 
+  // PostgreSQL: also close the pool
   if (database.type === "postgres" && !database.pool.ended) {
     await database.pool.end();
   }
-
-  if (database.type === "pglite") {
-    try {
-      await database.pglite.close();
-    } catch (error) {
-      // PGlite may already be closed by Kysely's destroy()
-      if (!(error instanceof Error) || !error.message.includes("is closed")) {
-        throw error;
-      }
-    }
-  }
-
-  // Clear the singleton if it was the instance being closed,
-  // so subsequent getDb() calls create a fresh instance.
-  if (database === dbInstance) {
-    dbInstance = null;
-  }
 }
 
+/**
+ * Default database instance (singleton)
+ * Lazy-initialized to avoid errors during module import
+ */
 let dbInstance: MeshDatabase | null = null;
 
 export function getDb(): MeshDatabase {

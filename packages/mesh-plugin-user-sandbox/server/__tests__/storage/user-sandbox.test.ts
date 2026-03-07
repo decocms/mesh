@@ -4,14 +4,12 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { Kysely } from "kysely";
-import { PGlite } from "@electric-sql/pglite";
-import { KyselyPGlite } from "kysely-pglite";
+import { BunWorkerDialect } from "kysely-bun-worker";
 import { UserSandboxStorage } from "../../storage/user-sandbox";
 import { migration } from "../../migrations/001-user-sandbox";
 import type { UserSandboxDatabase } from "../../storage/types";
 
 // Test database setup
-let pgliteInstance: PGlite;
 let db: Kysely<UserSandboxDatabase>;
 let storage: UserSandboxStorage;
 
@@ -53,10 +51,11 @@ async function setupTestData() {
 }
 
 beforeEach(async () => {
-  // Create in-memory PGlite database
-  pgliteInstance = new PGlite();
+  // Create in-memory SQLite database
   db = new Kysely<UserSandboxDatabase>({
-    dialect: new KyselyPGlite(pgliteInstance).dialect,
+    dialect: new BunWorkerDialect({
+      url: ":memory:",
+    }),
   });
 
   await setupTestData();
@@ -66,16 +65,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await db.destroy();
-  try {
-    await pgliteInstance.close();
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("PGlite is closed")
-    ) {
-      throw error;
-    }
-  }
 });
 
 describe("UserSandboxStorage", () => {

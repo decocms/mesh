@@ -2,10 +2,9 @@
  * Completion Service Tests
  */
 
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import { Kysely } from "kysely";
-import { PGlite } from "@electric-sql/pglite";
-import { KyselyPGlite } from "kysely-pglite";
+import { BunWorkerDialect } from "kysely-bun-worker";
 import {
   completeSession,
   type CompletionContext,
@@ -16,34 +15,11 @@ import type {
   UserSandboxSessionEntity,
 } from "../../storage/types";
 
-// Track PGlite + Kysely instances for cleanup
-const cleanupQueue: Array<{ db: Kysely<unknown>; pglite: PGlite }> = [];
-
-afterEach(async () => {
-  for (const { db, pglite } of cleanupQueue) {
-    await db.destroy();
-    try {
-      await pglite.close();
-    } catch (error) {
-      // PGlite may already be closed by Kysely's destroy()
-      if (
-        !(error instanceof Error) ||
-        !error.message.includes("PGlite is closed")
-      ) {
-        throw error;
-      }
-    }
-  }
-  cleanupQueue.length = 0;
-});
-
 // Create test database with required tables
 async function createTestDb() {
-  const pglite = new PGlite();
   const db = new Kysely({
-    dialect: new KyselyPGlite(pglite).dialect,
+    dialect: new BunWorkerDialect({ url: ":memory:" }),
   });
-  cleanupQueue.push({ db: db as Kysely<unknown>, pglite });
 
   // Create minimal tables needed for completion
   await db.schema

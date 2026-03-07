@@ -156,9 +156,12 @@ async function findOrCreateVirtualMCP(
     return { connectionId, created: true };
   } catch (error) {
     // Step 3: Handle race condition - another request created the agent
-    // Check for unique constraint violation
+    // Check for unique constraint violation (SQLite: UNIQUE constraint failed)
     const errorMessage = String(error);
-    if (errorMessage.includes("duplicate key")) {
+    if (
+      errorMessage.includes("UNIQUE constraint") ||
+      errorMessage.includes("duplicate key")
+    ) {
       // Another request won the race - fetch and return their agent
       const winner = await typedDb
         .selectFrom("user_sandbox_agents")
