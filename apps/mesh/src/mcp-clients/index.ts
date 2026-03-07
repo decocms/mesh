@@ -9,11 +9,3 @@
 export { clientFromConnection } from "./client";
 export { serverFromConnection } from "./server";
 export * from "./decorators";
-export {
-  InMemoryToolListCache,
-  JetStreamKVToolListCache,
-  getToolListCache,
-  setToolListCache,
-  type ToolListCache,
-  type JetStreamKVToolListCacheOptions,
-} from "./tool-list-cache";
