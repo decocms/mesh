@@ -14,6 +14,12 @@ export async function createTestDb(): Promise<{
   pglite: PGlite;
 }> {
   const pglite = new PGlite();
+  // PGlite initializes its WASM module asynchronously. On Linux (CI) the
+  // WASM compilation can take long enough that the first DB query arrives
+  // before the engine is ready, causing kysely-pglite to return undefined
+  // for the dialect or fail the first transaction. Awaiting waitReady
+  // guarantees the engine is fully up before any SQL runs.
+  await pglite.waitReady;
   const db = new Kysely<WorkflowDatabase>({
     dialect: new KyselyPGlite(pglite).dialect,
   });
