@@ -7,10 +7,14 @@
  */
 
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
+import { resolve } from "node:path";
 import { DEFAULT_MONITORING_DATA_PATH } from "./schema";
 
 export interface QueryEngine {
-  query(sql: string): Promise<Record<string, unknown>[]>;
+  query(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]>;
   destroy?(): void | Promise<void>;
 }
 
@@ -19,9 +23,21 @@ export interface QueryEngine {
  * Uses embedded ClickHouse to query NDJSON files from disk.
  */
 export class ChdbEngine implements QueryEngine {
+  private chdb: { query: (sql: string, format: string) => string };
+
+  constructor() {
+    try {
+      this.chdb = require("chdb");
+    } catch (e) {
+      throw new Error(
+        "chdb native module not available. Install with: bun add chdb",
+        { cause: e },
+      );
+    }
+  }
+
   async query(sql: string): Promise<Record<string, unknown>[]> {
-    const chdb = require("chdb");
-    const result: string = chdb.query(sql, "JSONEachRow");
+    const result: string = this.chdb.query(sql, "JSONEachRow");
     if (!result || !result.trim()) return [];
 
     return result
@@ -46,9 +62,13 @@ export class ClickHouseClientEngine implements QueryEngine {
     this.client = createClient({ url });
   }
 
-  async query(sql: string): Promise<Record<string, unknown>[]> {
+  async query(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
     const result = await this.client.query({
       query: sql,
+      query_params: params,
       format: "JSONEachRow",
     });
     return await result.json<Record<string, unknown>>();
@@ -87,8 +107,12 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
   }
 
   const basePath = config.basePath ?? DEFAULT_MONITORING_DATA_PATH;
+  const resolvedPath = resolve(basePath);
+  if (/[';]/.test(resolvedPath)) {
+    throw new Error(`Invalid monitoring data path: ${resolvedPath}`);
+  }
   return {
     engine: new ChdbEngine(),
-    source: `file('${basePath}/**/*.ndjson', 'JSONEachRow')`,
+    source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
   };
 }

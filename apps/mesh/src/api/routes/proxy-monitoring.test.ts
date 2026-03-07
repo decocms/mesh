@@ -38,7 +38,7 @@ function createMockCtx(overrides?: {
     organization: { id: "org_1" },
     auth: { user: { id: "user_1" } },
     storage: {
-      monitoring: { log: vi.fn() },
+      monitoring: {},
       tags: { getUserTagsInOrg: vi.fn(async () => []) },
     },
     metadata: {
@@ -90,8 +90,7 @@ describe("proxy monitoring middleware", () => {
     expect(attrs[MESH_ATTR.CONNECTION_ID]).toBe("conn_1");
     expect(attrs[MESH_ATTR.TOOL_IS_ERROR]).toBe(true);
     expect(spans[0]!._isEnded()).toBe(true);
-    // DB log should NOT be called
-    expect(ctx.storage.monitoring.log).not.toHaveBeenCalled();
+    // Writes go through OTel pipeline, not storage
   });
 
   it("emits span for auth-denied streamable Response (403)", async () => {

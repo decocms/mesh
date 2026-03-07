@@ -4,8 +4,8 @@
  * Implements MonitoringStorage using ClickHouse SQL via QueryEngine.
  * Local dev uses chdb (embedded ClickHouse) to query NDJSON files on disk.
  *
- * Writes (log/logBatch) are no-ops — data flows through the OTel pipeline
- * (NDJSONSpanExporter) and is read back from NDJSON files on disk.
+ * Writes flow through the OTel pipeline (NDJSONSpanExporter).
+ * This adapter is read-only — it queries NDJSON files on disk.
  */
 
 import type { QueryEngine } from "../monitoring/query-engine";
@@ -13,6 +13,7 @@ import type { MonitoringLog } from "./types";
 import type {
   AggregationParams,
   AggregationResult,
+  GroupByColumn,
   MonitoringStorage,
   PropertyFilters,
 } from "./ports";
@@ -23,11 +24,11 @@ import type {
 
 /** Escape a string value for safe use in SQL single-quoted literals. */
 function esc(value: string): string {
-  return value.replace(/\0/g, "").replace(/'/g, "''");
+  return value.replace(/\0/g, "").replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
 
 /** Allowed groupByColumn values. */
-const ALLOWED_GROUP_BY_COLUMNS = new Set([
+const ALLOWED_GROUP_BY_COLUMNS = new Set<GroupByColumn>([
   "connection_id",
   "connection_title",
   "user_id",
@@ -36,11 +37,11 @@ const ALLOWED_GROUP_BY_COLUMNS = new Set([
 ]);
 
 /** Validate a groupByColumn identifier. */
-function validateGroupByColumn(col: string): string {
-  if (!ALLOWED_GROUP_BY_COLUMNS.has(col)) {
+function validateGroupByColumn(col: string): GroupByColumn {
+  if (!ALLOWED_GROUP_BY_COLUMNS.has(col as GroupByColumn)) {
     throw new Error(`Invalid groupByColumn: ${col}`);
   }
-  return col;
+  return col as GroupByColumn;
 }
 
 /** Strict JSONPath regex: allows $.key.subkey or key.subkey forms. */
@@ -125,7 +126,8 @@ function toMonitoringLog(row: Record<string, unknown>): MonitoringLog {
     toolName: String(row.tool_name ?? ""),
     input: safeJsonParse(row.input),
     output: safeJsonParse(row.output),
-    isError: row.is_error === 1 || row.is_error === true,
+    isError:
+      row.is_error === 1 || row.is_error === true || row.is_error === "1",
     errorMessage: row.error_message != null ? String(row.error_message) : null,
     durationMs: Number(row.duration_ms ?? 0),
     timestamp:
@@ -192,6 +194,40 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
 // Timestamp filter helper (ClickHouse syntax)
 // ---------------------------------------------------------------------------
 
+function buildCommonFilterClauses(filters?: {
+  connectionIds?: string[];
+  toolNames?: string[];
+  virtualMcpIds?: string[];
+  startDate?: Date;
+  endDate?: Date;
+  propertyFilters?: PropertyFilters;
+}): string[] {
+  if (!filters) return [];
+  const clauses: string[] = [];
+  if (filters.connectionIds?.length) {
+    const ids = filters.connectionIds.map((id) => `'${esc(id)}'`).join(",");
+    clauses.push(`connection_id IN (${ids})`);
+  }
+  if (filters.toolNames?.length) {
+    const names = filters.toolNames.map((n) => `'${esc(n)}'`).join(",");
+    clauses.push(`tool_name IN (${names})`);
+  }
+  if (filters.virtualMcpIds?.length) {
+    const ids = filters.virtualMcpIds.map((id) => `'${esc(id)}'`).join(",");
+    clauses.push(`virtual_mcp_id IN (${ids})`);
+  }
+  if (filters.startDate) {
+    clauses.push(tsGte(filters.startDate));
+  }
+  if (filters.endDate) {
+    clauses.push(tsLte(filters.endDate));
+  }
+  if (filters.propertyFilters) {
+    clauses.push(...buildPropertyFilterClauses(filters.propertyFilters));
+  }
+  return clauses;
+}
+
 function tsGte(date: Date): string {
   return `parseDateTimeBestEffort(timestamp) >= parseDateTimeBestEffort('${date.toISOString()}')`;
 }
@@ -209,19 +245,6 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     private engine: QueryEngine,
     private source: string,
   ) {}
-
-  // Writes are no-ops — data flows through the OTel pipeline
-  async log(_event: MonitoringLog): Promise<void> {
-    console.warn(
-      "ClickHouseMonitoringStorage.log() is a no-op. Writes go through OTel pipeline.",
-    );
-  }
-
-  async logBatch(_events: MonitoringLog[]): Promise<void> {
-    console.warn(
-      "ClickHouseMonitoringStorage.logBatch() is a no-op. Writes go through OTel pipeline.",
-    );
-  }
 
   async query(filters: {
     organizationId: string;
@@ -272,8 +295,12 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       where.push(...buildPropertyFilterClauses(filters.propertyFilters));
     }
 
-    const limit = filters.limit ?? 50;
-    const offset = filters.offset ?? 0;
+    const MAX_LIMIT = 1000;
+    const limit = Math.min(
+      Math.max(1, Math.floor(filters.limit ?? 50)),
+      MAX_LIMIT,
+    );
+    const offset = Math.max(0, Math.floor(filters.offset ?? 0));
 
     const sql = `SELECT *, count(*) OVER () AS _total FROM ${this.source} WHERE ${where.join(" AND ")} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
 
@@ -360,40 +387,14 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       where.push(`JSONExtractString(${sourceCol}, ${chKeys}) != ''`);
     }
 
-    if (params.filters?.connectionIds?.length) {
-      const ids = params.filters.connectionIds
-        .map((id) => `'${esc(id)}'`)
-        .join(",");
-      where.push(`connection_id IN (${ids})`);
-    }
-    if (params.filters?.virtualMcpIds?.length) {
-      const ids = params.filters.virtualMcpIds
-        .map((id) => `'${esc(id)}'`)
-        .join(",");
-      where.push(`virtual_mcp_id IN (${ids})`);
-    }
-    if (params.filters?.toolNames?.length) {
-      const names = params.filters.toolNames
-        .map((n) => `'${esc(n)}'`)
-        .join(",");
-      where.push(`tool_name IN (${names})`);
-    }
-    if (params.filters?.startDate) {
-      where.push(tsGte(params.filters.startDate));
-    }
-    if (params.filters?.endDate) {
-      where.push(tsLte(params.filters.endDate));
-    }
-    if (params.filters?.propertyFilters) {
-      where.push(...buildPropertyFilterClauses(params.filters.propertyFilters));
-    }
+    where.push(...buildCommonFilterClauses(params.filters));
 
     const whereClause = where.join(" AND ");
 
     // --- groupByColumn (takes priority) ---
     if (params.groupByColumn) {
       const col = validateGroupByColumn(params.groupByColumn);
-      const sql = `SELECT ${col} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY ${col} ORDER BY value DESC`;
+      const sql = `SELECT ${col} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY ${col} ORDER BY value DESC LIMIT 10000`;
       const rows = await this.engine.query(sql);
       return {
         value: null,
@@ -410,7 +411,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       const groupSourceCol = params.from === "input" ? "input" : "output";
       const groupChKeys = jsonPathToChKeys(groupPath);
       const groupExpr = `JSONExtractString(${groupSourceCol}, ${groupChKeys})`;
-      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC`;
+      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC LIMIT 10000`;
       const rows = await this.engine.query(sql);
       return {
         value: null,
@@ -424,7 +425,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     // --- interval (timeseries) ---
     if (params.interval) {
       const bucketExpr = intervalToSQL(params.interval);
-      const sql = `SELECT ${bucketExpr} AS bucket, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY bucket ORDER BY bucket ASC`;
+      const sql = `SELECT ${bucketExpr} AS bucket, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY bucket ORDER BY bucket ASC LIMIT 10000`;
       const rows = await this.engine.query(sql);
       return {
         value: null,
@@ -470,33 +471,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       `JSONExtractString(${sourceCol}, ${chKeys}) != ''`,
     ];
 
-    if (params.filters?.connectionIds?.length) {
-      const ids = params.filters.connectionIds
-        .map((id) => `'${esc(id)}'`)
-        .join(",");
-      where.push(`connection_id IN (${ids})`);
-    }
-    if (params.filters?.toolNames?.length) {
-      const names = params.filters.toolNames
-        .map((n) => `'${esc(n)}'`)
-        .join(",");
-      where.push(`tool_name IN (${names})`);
-    }
-    if (params.filters?.virtualMcpIds?.length) {
-      const ids = params.filters.virtualMcpIds
-        .map((id) => `'${esc(id)}'`)
-        .join(",");
-      where.push(`virtual_mcp_id IN (${ids})`);
-    }
-    if (params.filters?.startDate) {
-      where.push(tsGte(params.filters.startDate));
-    }
-    if (params.filters?.endDate) {
-      where.push(tsLte(params.filters.endDate));
-    }
-    if (params.filters?.propertyFilters) {
-      where.push(...buildPropertyFilterClauses(params.filters.propertyFilters));
-    }
+    where.push(...buildCommonFilterClauses(params.filters));
 
     const sql = `SELECT count(*) AS cnt FROM ${this.source} WHERE ${where.join(" AND ")}`;
     const rows = await this.engine.query(sql);
@@ -523,7 +498,7 @@ function buildAggExpr(fn: string, valueExpr: string): string {
     case "count_all":
       return `count(*)`;
     case "last":
-      return `max(${valueExpr})`; // simplified: last = max
+      return `argMax(${valueExpr}, timestamp)`;
     default:
       throw new Error(`Unknown aggregation function: ${fn}`);
   }

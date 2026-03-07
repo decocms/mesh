@@ -197,8 +197,6 @@ export interface AggregationResult {
 }
 
 export interface MonitoringStorage {
-  log(event: MonitoringLog): Promise<void>;
-  logBatch(events: MonitoringLog[]): Promise<void>;
   query(filters: {
     organizationId: string;
     connectionId?: string;

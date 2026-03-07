@@ -52,7 +52,7 @@ function createMockTransportAndCtx() {
   const ctx = {
     organization: { id: "org_test" },
     auth: { user: { id: "user_1" } },
-    storage: { monitoring: { log: vi.fn() } },
+    storage: { monitoring: {} },
     metadata: {
       requestId: "req_1",
       userAgent: "test/1.0",
@@ -154,29 +154,5 @@ describe("MonitoringTransport span enrichment", () => {
     expect(mockSpan.isEnded()).toBe(true);
     // And attrs were set BEFORE end() was called
     expect(attrsAtEnd[MESH_ATTR.TOOL_NAME]).toBe("TOOL_B");
-  });
-
-  it("should not call ctx.storage.monitoring.log()", async () => {
-    const { transport, simulateResponse, ctx } = createMockTransportAndCtx();
-
-    transport.onmessage = vi.fn();
-    await transport.start();
-
-    await transport.send({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: { name: "TOOL_C", arguments: {} },
-    } as any);
-
-    simulateResponse({
-      jsonrpc: "2.0",
-      id: 3,
-      result: { content: [], isError: false },
-    } as any);
-
-    expect(
-      ctx.storage.monitoring.log as ReturnType<typeof vi.fn>,
-    ).not.toHaveBeenCalled();
   });
 });

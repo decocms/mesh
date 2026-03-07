@@ -1,5 +1,5 @@
 /**
- * Integration test: Span creation -> NDJSON write -> DuckDB query
+ * Integration test: Span creation -> NDJSON write -> chdb (embedded ClickHouse) query
  */
 import { describe, it, expect, afterAll } from "bun:test";
 import { NDJSONSpanExporter } from "./ndjson-span-exporter";
@@ -74,7 +74,7 @@ describe("Monitoring Pipeline Integration", () => {
       JSON.parse(line); // Should not throw
     }
 
-    // 3. Query via ClickHouseMonitoringStorage (DuckDB engine for local NDJSON)
+    // 3. Query via ClickHouseMonitoringStorage (chdb engine for local NDJSON)
     const { engine, source } = createMonitoringEngine({ basePath: tmpDir });
     engineToDestroy = engine;
     const storage = new ClickHouseMonitoringStorage(engine, source);

@@ -8,7 +8,7 @@
  * (tool call logs) with a 30-day retention policy.
  */
 
-import { type Kysely, sql } from "kysely";
+import type { Kysely } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema.dropTable("monitoring_logs").ifExists().execute();
