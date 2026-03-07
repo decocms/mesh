@@ -33,28 +33,17 @@ import type { Step } from "@decocms/bindings/workflow";
 // ============================================================================
 
 let db: Kysely<WorkflowDatabase>;
-let pglite: { close(): Promise<void> };
 let storage: WorkflowExecutionStorage;
 let collectionStorage: WorkflowCollectionStorage;
 
 beforeEach(async () => {
-  ({ db, pglite } = await createTestDb());
+  db = await createTestDb();
   storage = new WorkflowExecutionStorage(db);
   collectionStorage = new WorkflowCollectionStorage(db);
 });
 
 afterEach(async () => {
   await db.destroy();
-  try {
-    await pglite.close();
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("PGlite is closed")
-    ) {
-      throw error;
-    }
-  }
 });
 
 // ============================================================================
@@ -303,7 +292,7 @@ describe("Stress Tests", () => {
       }
 
       expect(allExecutions).toHaveLength(orgCount * workflowsPerOrg);
-    }, 15_000);
+    });
 
     it("organizations don't see each other's executions in list queries", async () => {
       const orgA = "org_iso_a";

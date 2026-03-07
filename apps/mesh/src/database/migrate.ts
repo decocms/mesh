@@ -29,12 +29,21 @@ export { runSeed, type SeedName };
  */
 async function tableExists(
   db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
   tableName: string,
 ): Promise<boolean> {
-  const result = await sql<{ table_name: string }>`
-    SELECT table_name FROM information_schema.tables
-    WHERE table_schema='public' AND table_name=${tableName}
-  `.execute(db);
+  const query =
+    dbType === "sqlite"
+      ? sql<{ name: string }>`
+          SELECT name FROM sqlite_master 
+          WHERE type='table' AND name=${tableName}
+        `
+      : sql<{ table_name: string }>`
+          SELECT table_name FROM information_schema.tables 
+          WHERE table_schema='public' AND table_name=${tableName}
+        `;
+
+  const result = await query.execute(db);
   return result.rows.length > 0;
 }
 
@@ -43,8 +52,9 @@ async function tableExists(
  */
 async function ensurePluginMigrationsTable(
   db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
 ): Promise<void> {
-  if (await tableExists(db, "plugin_migrations")) {
+  if (await tableExists(db, dbType, "plugin_migrations")) {
     return;
   }
 
@@ -68,8 +78,9 @@ async function ensurePluginMigrationsTable(
  */
 async function migrateExistingPluginRecords(
   db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
 ): Promise<void> {
-  if (!(await tableExists(db, "kysely_migration"))) {
+  if (!(await tableExists(db, dbType, "kysely_migration"))) {
     return; // Fresh database
   }
 
@@ -261,13 +272,16 @@ export interface MigrateOptions {
 /**
  * Run Kysely migrations on a specific database instance
  */
-export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
+export async function runKyselyMigrations(
+  db: Kysely<Database>,
+  dbType: "sqlite" | "postgres",
+): Promise<void> {
   // IMPORTANT: Clean up plugin migrations from kysely_migration BEFORE running
   // Kysely's migrator. Kysely checks for missing migrations at startup and will
   // fail if it finds records like "user-sandbox/001-user-sandbox" that aren't
   // in the migrations list.
-  await ensurePluginMigrationsTable(db);
-  await migrateExistingPluginRecords(db);
+  await ensurePluginMigrationsTable(db, dbType);
+  await migrateExistingPluginRecords(db, dbType);
 
   const migrator = new Migrator({
     db,
@@ -335,7 +349,7 @@ export async function migrateToLatest<T = unknown>(
     // Phase 1: Run core Kysely migrations
     // (This also migrates any old plugin records from kysely_migration first)
     console.log("📊 Running Kysely migrations...");
-    await runKyselyMigrations(database.db);
+    await runKyselyMigrations(database.db, database.type);
     console.log("🎉 Core migrations completed successfully");
 
     // Phase 2: Run plugin migrations (separate tracking)

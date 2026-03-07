@@ -1,7 +1,7 @@
 /**
  * Workflow Execution Storage Tests
  *
- * Tests for WorkflowExecutionStorage against in-memory PGlite.
+ * Tests for WorkflowExecutionStorage against in-memory SQLite.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
@@ -19,26 +19,15 @@ import {
 // ============================================================================
 
 let db: Kysely<WorkflowDatabase>;
-let pglite: { close(): Promise<void> };
 let storage: WorkflowExecutionStorage;
 
 beforeEach(async () => {
-  ({ db, pglite } = await createTestDb());
+  db = await createTestDb();
   storage = new WorkflowExecutionStorage(db);
 });
 
 afterEach(async () => {
   await db.destroy();
-  try {
-    await pglite.close();
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("PGlite is closed")
-    ) {
-      throw error;
-    }
-  }
 });
 
 // ============================================================================
