@@ -52,7 +52,7 @@ CURRENT_USER=$(gh api user --jq '.login')
 # Get IDs that have been replied to by the current user
 REPLIED_IDS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" \
   --paginate \
-  --jq --arg user "$CURRENT_USER" '[.[] | select(.in_reply_to_id != null and .user.login == $user) | .in_reply_to_id] | unique')
+  --jq "[.[] | select(.in_reply_to_id != null and .user.login == \"$CURRENT_USER\") | .in_reply_to_id] | unique")
 ```
 
 Skip any comment whose `id` appears in `REPLIED_IDS`.

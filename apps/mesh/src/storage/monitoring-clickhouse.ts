@@ -416,7 +416,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       const groupSourceCol = params.from === "input" ? "input" : "output";
       const groupChKeys = jsonPathToChKeys(groupPath);
       const groupExpr = `JSONExtractString(${groupSourceCol}, ${groupChKeys})`;
-      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC LIMIT ${rowLimit}`;
+      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} != '' GROUP BY ${groupExpr} ORDER BY value DESC LIMIT ${rowLimit}`;
       const rows = await this.engine.query(sql);
       return {
         value: null,

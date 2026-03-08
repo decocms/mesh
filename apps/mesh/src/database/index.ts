@@ -208,7 +208,7 @@ function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
       // mis-parsed by the WHATWG URL spec — the "./" becomes the host and only
       // the trailing segment ends up in pathname.  Strip the protocol prefix
       // and resolve relative paths manually to avoid this footgun.
-      const raw = url.replace(/^file:\/\/(localhost)?/, "");
+      const raw = url.replace(/^file:(?:\/\/(?:localhost(?=\/|$))?)?/, "");
       if (!raw) {
         throw new Error("Invalid database URL: " + url);
       }

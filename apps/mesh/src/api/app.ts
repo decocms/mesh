@@ -228,8 +228,6 @@ export async function createApp(options: CreateAppOptions = {}) {
       toolListCache = new InMemoryToolListCache();
     });
   }
-  setToolListCache(toolListCache);
-
   // Create event bus with a lazy context getter
   // The notify function needs a context, but the context needs the event bus
   // We resolve this by having notify create its own system context
@@ -255,6 +253,10 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Decopilot strategy cleanup on HMR / shutdown
   if (currentDecopilotCleanup) currentDecopilotCleanup();
+
+  // Set tool list cache after cleanup to avoid previous cleanup nulling the new cache
+  setToolListCache(toolListCache);
+
   const threadStorage = new SqlThreadStorage(database.db);
 
   const cancelBroadcast: CancelBroadcast = natsProvider
@@ -655,27 +657,29 @@ export async function createApp(options: CreateAppOptions = {}) {
       console.error("[EventBus] Error during startup:", error);
     });
 
-  // NDJSON monitoring retention cleanup
-  cleanupOldMonitoringFiles(DEFAULT_MONITORING_URI)
-    .then((deleted) => {
-      if (deleted > 0)
-        console.log(
-          `[monitoring] Cleaned up ${deleted} old monitoring partitions`,
-        );
-    })
-    .catch((err) =>
-      console.error("[monitoring] Retention cleanup failed:", err),
-    );
-
-  currentRetentionTimer = setInterval(
-    () => {
-      cleanupOldMonitoringFiles(DEFAULT_MONITORING_URI).catch((err) =>
+  // NDJSON monitoring retention cleanup (skip in ClickHouse mode)
+  if (!process.env.CLICKHOUSE_URL) {
+    cleanupOldMonitoringFiles(DEFAULT_MONITORING_URI)
+      .then((deleted) => {
+        if (deleted > 0)
+          console.log(
+            `[monitoring] Cleaned up ${deleted} old monitoring partitions`,
+          );
+      })
+      .catch((err) =>
         console.error("[monitoring] Retention cleanup failed:", err),
       );
-    },
-    24 * 60 * 60 * 1000,
-  );
-  currentRetentionTimer.unref();
+
+    currentRetentionTimer = setInterval(
+      () => {
+        cleanupOldMonitoringFiles(DEFAULT_MONITORING_URI).catch((err) =>
+          console.error("[monitoring] Retention cleanup failed:", err),
+        );
+      },
+      24 * 60 * 60 * 1000,
+    );
+    currentRetentionTimer.unref();
+  }
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext

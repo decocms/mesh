@@ -135,12 +135,18 @@ export class NDJSONSpanExporter implements SpanExporter {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
+    if (this.flushInProgress) {
+      await this.flushInProgress;
+    }
     if (this.bufferStrings.length > 0) {
       await this.flush();
     }
   }
 
   async forceFlush(): Promise<void> {
+    if (this.flushInProgress) {
+      await this.flushInProgress;
+    }
     if (this.bufferStrings.length > 0) {
       await this.flush();
     }
