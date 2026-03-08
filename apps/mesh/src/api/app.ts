@@ -78,6 +78,9 @@ let currentEventBus: EventBus | null = null;
 // Track decopilot strategy cleanup (abort active runs, stop strategies) during HMR
 let currentDecopilotCleanup: (() => void) | null = null;
 
+// Track monitoring retention timer for cleanup during HMR
+let currentRetentionTimer: ReturnType<typeof setInterval> | null = null;
+
 // ============================================================================
 // Deco Store OAuth Helpers
 // ============================================================================
@@ -171,6 +174,12 @@ export interface CreateAppOptions {
  */
 export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
+
+  // Clear previous monitoring retention timer (cleanup during HMR)
+  if (currentRetentionTimer) {
+    clearInterval(currentRetentionTimer);
+    currentRetentionTimer = null;
+  }
 
   // Stop any existing event bus worker and SSE hub (cleanup during HMR)
   if (currentEventBus && currentEventBus.isRunning()) {
@@ -658,7 +667,7 @@ export async function createApp(options: CreateAppOptions = {}) {
       console.error("[monitoring] Retention cleanup failed:", err),
     );
 
-  const retentionTimer = setInterval(
+  currentRetentionTimer = setInterval(
     () => {
       cleanupOldMonitoringFiles(DEFAULT_MONITORING_URI).catch((err) =>
         console.error("[monitoring] Retention cleanup failed:", err),
@@ -666,7 +675,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     },
     24 * 60 * 60 * 1000,
   );
-  retentionTimer.unref();
+  currentRetentionTimer.unref();
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
