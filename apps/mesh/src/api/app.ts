@@ -949,7 +949,22 @@ export async function createApp(options: CreateAppOptions = {}) {
 }
 
 export async function shutdownApp() {
+  // 1. Stop event bus worker (prevents new event processing)
+  if (currentEventBus?.isRunning()) {
+    await Promise.resolve(currentEventBus.stop()).catch((err: unknown) => {
+      console.error("[EventBus] Error during shutdown:", err);
+    });
+  }
+
+  // 2. Stop SSE hub broadcast
+  await sseHub.stop().catch((err) => {
+    console.error("[SSEHub] Error during shutdown:", err);
+  });
+
+  // 3. Decopilot cleanup + drain NATS connection
   if (currentDecopilotCleanup) await currentDecopilotCleanup();
+
+  // 4. Kill local NATS server (if we spawned one)
   await currentLocalNatsServer?.stop();
   currentLocalNatsServer = null;
 }

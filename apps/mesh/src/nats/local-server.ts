@@ -124,7 +124,17 @@ export async function ensureLocalNatsServer(
         async stop() {
           try {
             proc.kill();
-            await proc.exited;
+            const timeout = new Promise<"timeout">((r) =>
+              setTimeout(() => r("timeout"), 5000),
+            );
+            const result = await Promise.race([proc.exited, timeout]);
+            if (result === "timeout") {
+              console.warn(
+                `[NATS] nats-server (pid=${proc.pid}) did not exit after SIGTERM, sending SIGKILL`,
+              );
+              proc.kill(9);
+              await proc.exited;
+            }
             console.log(`[NATS] Stopped local nats-server (pid=${proc.pid})`);
           } catch {
             // Process already dead
