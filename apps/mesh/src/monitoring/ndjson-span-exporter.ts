@@ -136,7 +136,12 @@ export class NDJSONSpanExporter implements SpanExporter {
       this.flushTimer = null;
     }
     if (this.flushInProgress) {
-      await this.flushInProgress;
+      try {
+        await this.flushInProgress;
+      } catch {
+        // Ignore in-flight flush error; flush() restores the buffer
+        // so the retry below will pick up any unwritten spans.
+      }
     }
     if (this.bufferStrings.length > 0) {
       await this.flush();
