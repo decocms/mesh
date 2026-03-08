@@ -218,15 +218,19 @@ export async function createApp(options: CreateAppOptions = {}) {
       );
     });
 
-    // In test/mock mode, use no-op decopilot strategies
-    const { LocalCancelBroadcast } = await import(
-      "./routes/decopilot/cancel-broadcast"
-    );
-    const { NoOpStreamBuffer } = await import(
-      "./routes/decopilot/stream-buffer"
-    );
-    cancelBroadcast = new LocalCancelBroadcast();
-    streamBuffer = new NoOpStreamBuffer();
+    // In test/mock mode, use inline no-op decopilot strategies
+    cancelBroadcast = {
+      start: async () => {},
+      broadcast: () => {},
+      stop: async () => {},
+    };
+    streamBuffer = {
+      init: async () => {},
+      relay: (stream: ReadableStream) => stream,
+      createReplayStream: async () => null,
+      purge: () => {},
+      teardown: () => {},
+    };
     toolListCache = new InMemoryToolListCache();
   } else {
     // Ensure NATS is available — spawn local server if NATS_URL is not set
