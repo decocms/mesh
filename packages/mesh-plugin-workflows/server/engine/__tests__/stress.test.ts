@@ -48,10 +48,7 @@ afterEach(async () => {
   try {
     await pglite.close();
   } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("PGlite is closed")
-    ) {
+    if (!(error instanceof Error) || !error.message.includes("is closed")) {
       throw error;
     }
   }

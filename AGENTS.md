@@ -219,7 +219,7 @@ The worker doesn't poll internally - it relies on a NotifyStrategy to trigger pr
 ### Database & Storage
 
 Uses **Kysely ORM** with support for PGlite (default, embedded PostgreSQL via WASM, using `kysely-pglite` and `@electric-sql/pglite`) and PostgreSQL.
-- Database URL: `DATABASE_URL` environment variable (defaults to `file://./data/mesh`)
+- Database URL: `DATABASE_URL` environment variable (defaults to `file://$HOME/deco/db.pglite`)
 - Schema types: `apps/mesh/src/storage/types.ts`
 - Operations organized by domain: `apps/mesh/src/storage/`
 - Multi-tenancy: Workspace/project isolation for config, credentials, policies, audit logs
