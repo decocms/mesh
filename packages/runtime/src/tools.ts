@@ -17,7 +17,11 @@ import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
-import { type WorkflowDefinition, Workflow } from "./workflows.ts";
+import {
+  type WorkflowDefinition,
+  Workflow,
+  workflowToolId,
+} from "./workflows.ts";
 
 // Re-export EventHandlers type and SELF constant for external use
 export { SELF } from "./events.ts";
@@ -44,13 +48,17 @@ export interface ToolExecutionContext<
 
 /**
  * Tool interface with generic schema types for type-safe tool creation.
+ *
+ * TId preserves the literal string type of `id` so consumers (e.g. the
+ * workflow builder) can derive union types of tool names without codegen.
  */
 export interface Tool<
   TSchemaIn extends ZodTypeAny = ZodTypeAny,
   TSchemaOut extends ZodTypeAny | undefined = undefined,
+  TId extends string = string,
 > {
   _meta?: Record<string, unknown>;
-  id: string;
+  id: TId;
   description?: string;
   annotations?: ToolAnnotations;
   inputSchema: TSchemaIn;
@@ -248,7 +256,8 @@ export function createStreamableTool<TSchemaIn extends ZodSchema = ZodSchema>(
 export function createTool<
   TSchemaIn extends ZodSchema = ZodSchema,
   TSchemaOut extends ZodSchema | undefined = undefined,
->(opts: Tool<TSchemaIn, TSchemaOut>): Tool<TSchemaIn, TSchemaOut> {
+  TId extends string = string,
+>(opts: Tool<TSchemaIn, TSchemaOut, TId>): Tool<TSchemaIn, TSchemaOut, TId> {
   return {
     ...opts,
     execute: (input: ToolExecutionContext<TSchemaIn>) => {
@@ -519,7 +528,9 @@ export interface CreateMCPServerOptions<
           | Promise<CreatedResource[]>
       >
     | ((env: TEnv) => CreatedResource[] | Promise<CreatedResource[]>);
-  workflows?: WorkflowDefinition[];
+  workflows?:
+    | WorkflowDefinition[]
+    | ((env: TEnv) => WorkflowDefinition[] | Promise<WorkflowDefinition[]>);
 }
 
 export type Fetch<TEnv = unknown> = (
@@ -544,11 +555,16 @@ const getEventBus = (
     : env?.MESH_REQUEST_CONTEXT?.state?.[prop];
 };
 
+type ResolvedMCPServerOptions<TSchema extends ZodTypeAny = never> = Omit<
+  CreateMCPServerOptions<any, TSchema>,
+  "workflows"
+> & { workflows?: WorkflowDefinition[] };
+
 const toolsFor = <TSchema extends ZodTypeAny = never>({
   events,
   workflows,
   configuration: { state: schema, scopes, onChange } = {},
-}: CreateMCPServerOptions<any, TSchema> = {}): CreatedTool[] => {
+}: ResolvedMCPServerOptions<TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
     ? z.toJSONSchema(schema)
     : { type: "object", properties: {} };
@@ -678,12 +694,96 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
                   "SELF::COLLECTION_WORKFLOW_CREATE",
                   "SELF::COLLECTION_WORKFLOW_UPDATE",
                   "SELF::COLLECTION_WORKFLOW_DELETE",
+                  "SELF::COLLECTION_WORKFLOW_EXECUTION_CREATE",
                 ]
               : []),
           ],
         });
       },
     }),
+
+    // Auto-generated trigger tool for each declared workflow.
+    // Calls COLLECTION_WORKFLOW_EXECUTION_CREATE on the mesh and returns the
+    // execution ID immediately (fire-and-forget; poll with
+    // COLLECTION_WORKFLOW_EXECUTION_GET to track progress).
+    ...(workflows?.length
+      ? workflows.map((wf) => {
+          const id = wf.toolId ?? workflowToolId(wf.title);
+          return createTool({
+            id,
+            description: [
+              wf.description
+                ? `Run workflow: ${wf.description}`
+                : `Start the "${wf.title}" workflow.`,
+              "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
+            ].join(" "),
+            inputSchema: z.object({
+              input: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe(
+                  "Input data for the workflow. Steps reference these values via @input.field.",
+                ),
+              virtual_mcp_id: z
+                .string()
+                .optional()
+                .describe(
+                  wf.virtual_mcp_id
+                    ? `Virtual MCP ID to use for execution (defaults to "${wf.virtual_mcp_id}").`
+                    : "Virtual MCP ID that will execute the workflow steps.",
+                ),
+              start_at_epoch_ms: z
+                .number()
+                .optional()
+                .describe(
+                  "Unix timestamp (ms) for scheduled execution. Omit to start immediately.",
+                ),
+            }),
+            outputSchema: z.object({
+              execution_id: z
+                .string()
+                .describe("ID of the created workflow execution."),
+            }),
+            execute: async (input) => {
+              const meshCtx = input.runtimeContext.env.MESH_REQUEST_CONTEXT;
+              const connectionId = meshCtx?.connectionId;
+              const meshUrl = meshCtx?.meshUrl;
+              const token = meshCtx?.token;
+
+              if (!connectionId || !meshUrl) {
+                throw new Error(
+                  `[${id}] Missing MESH_REQUEST_CONTEXT (connectionId or meshUrl).`,
+                );
+              }
+
+              const ctx = input.context as {
+                input?: Record<string, unknown>;
+                virtual_mcp_id?: string;
+                start_at_epoch_ms?: number;
+              };
+
+              const virtualMcpId = ctx.virtual_mcp_id ?? wf.virtual_mcp_id;
+              if (!virtualMcpId) {
+                throw new Error(
+                  `[${id}] virtual_mcp_id is required to start workflow "${wf.title}".`,
+                );
+              }
+
+              const collectionId = Workflow.workflowId(connectionId, wf.title);
+              const client = Workflow.createClient(meshUrl, token);
+
+              const result = await client.COLLECTION_WORKFLOW_EXECUTION_CREATE({
+                workflow_collection_id: collectionId,
+                virtual_mcp_id: virtualMcpId,
+                input: ctx.input,
+                start_at_epoch_ms: ctx.start_at_epoch_ms,
+              });
+
+              return { execution_id: result.item.id };
+            },
+          });
+        })
+      : []),
   ];
 };
 
@@ -738,7 +838,14 @@ export const createMCPServer = <
           };
     const tools = await toolsFn(bindings);
 
-    tools.push(...toolsFor<TSchema>(options));
+    const resolvedWorkflows =
+      typeof options.workflows === "function"
+        ? await options.workflows(bindings)
+        : options.workflows;
+
+    tools.push(
+      ...toolsFor<TSchema>({ ...options, workflows: resolvedWorkflows }),
+    );
 
     for (const tool of tools) {
       server.registerTool(

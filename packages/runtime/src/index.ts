@@ -30,6 +30,7 @@ export {
   type CreatedResource,
   type WorkflowDefinition,
 } from "./tools.ts";
+export { createWorkflow } from "./workflows.ts";
 import type { Binding } from "./wrangler.ts";
 export { proxyConnectionForId, BindingOf } from "./bindings.ts";
 export { type CORSOptions, type CORSOrigin } from "./cors.ts";
