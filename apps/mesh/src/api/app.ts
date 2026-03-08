@@ -67,7 +67,7 @@ import {
 } from "./routes/decopilot/stream-buffer";
 import { NatsStreamBuffer } from "./routes/decopilot/nats-stream-buffer";
 import { RunRegistry } from "./routes/decopilot/run-registry";
-import { type RunReactorDeps, reactAll } from "./routes/decopilot/run-reactor";
+import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
 import { SqlThreadStorage } from "../storage/threads";
 
 // Track current event bus instance for cleanup during HMR
@@ -269,9 +269,8 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   cancelBroadcast
     .start((threadId) => {
-      const pairs = runRegistry.dispatch({ type: "CANCEL", threadId });
-      reactAll(pairs, cancelReactorDeps).catch((err) => {
-        console.error("[Decopilot] CancelBroadcast reactAll failed:", err);
+      runRegistry.execute({ type: "CANCEL", threadId }).catch((err) => {
+        console.error("[Decopilot] CancelBroadcast execute failed:", err);
       });
     })
     .catch((err) => {
