@@ -8,6 +8,7 @@ import { z } from "zod";
 import { StepSchema } from "@decocms/bindings/workflow";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { requireWorkflowContext, getPluginStorage, parseJson } from "../types";
+import { getDecopilotId } from "@decocms/mesh-sdk";
 
 // ============================================================================
 // Helpers
@@ -158,7 +159,10 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       .describe("The ID of the workflow template to execute"),
     virtual_mcp_id: z
       .string()
-      .describe("The Virtual MCP ID to use for the execution"),
+      .optional()
+      .describe(
+        "The Virtual MCP ID to use for the execution. Defaults to Decopilot (organization-wide agent).",
+      ),
     input: z
       .record(z.string(), z.unknown())
       .optional()
@@ -178,7 +182,7 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
     await meshCtx.access.check();
     const typedInput = input as {
       workflow_collection_id: string;
-      virtual_mcp_id: string;
+      virtual_mcp_id?: string;
       input?: Record<string, unknown>;
       start_at_epoch_ms?: number;
     };
@@ -195,9 +199,12 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       );
     }
 
+    const virtualMcpId =
+      typedInput.virtual_mcp_id ?? getDecopilotId(meshCtx.organization.id);
+
     const { id: executionId } = await storage.executions.createExecution({
       organizationId: meshCtx.organization.id,
-      virtualMcpId: typedInput.virtual_mcp_id,
+      virtualMcpId,
       input: typedInput.input,
       steps:
         workflowCollection.steps as import("@decocms/bindings/workflow").Step[],
