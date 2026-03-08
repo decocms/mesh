@@ -45,7 +45,7 @@ function validateGroupByColumn(col: string): GroupByColumn {
 }
 
 /** Strict JSONPath regex: allows $.key.subkey or key.subkey forms. */
-const JSONPATH_REGEX = /^\$?\.?[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$/;
+const JSONPATH_REGEX = /^(\$\.)?[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$/;
 
 /** Validate and normalise a JSONPath expression. Returns the $.key.subkey form. */
 function validateJsonPath(path: string): string {
@@ -391,10 +391,15 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
 
     const whereClause = where.join(" AND ");
 
+    const rowLimit = Math.min(
+      Math.max(1, Math.floor(params.limit ?? 10000)),
+      10000,
+    );
+
     // --- groupByColumn (takes priority) ---
     if (params.groupByColumn) {
       const col = validateGroupByColumn(params.groupByColumn);
-      const sql = `SELECT ${col} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY ${col} ORDER BY value DESC LIMIT 10000`;
+      const sql = `SELECT ${col} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY ${col} ORDER BY value DESC LIMIT ${rowLimit}`;
       const rows = await this.engine.query(sql);
       return {
         value: null,
@@ -411,7 +416,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
       const groupSourceCol = params.from === "input" ? "input" : "output";
       const groupChKeys = jsonPathToChKeys(groupPath);
       const groupExpr = `JSONExtractString(${groupSourceCol}, ${groupChKeys})`;
-      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC LIMIT 10000`;
+      const sql = `SELECT ${groupExpr} AS group_key, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} AND ${groupExpr} IS NOT NULL GROUP BY ${groupExpr} ORDER BY value DESC LIMIT ${rowLimit}`;
       const rows = await this.engine.query(sql);
       return {
         value: null,
@@ -425,7 +430,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     // --- interval (timeseries) ---
     if (params.interval) {
       const bucketExpr = intervalToSQL(params.interval);
-      const sql = `SELECT ${bucketExpr} AS bucket, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY bucket ORDER BY bucket ASC LIMIT 10000`;
+      const sql = `SELECT ${bucketExpr} AS bucket, ${aggExpr} AS value FROM ${this.source} WHERE ${whereClause} GROUP BY bucket ORDER BY bucket ASC LIMIT ${rowLimit}`;
       const rows = await this.engine.query(sql);
       return {
         value: null,

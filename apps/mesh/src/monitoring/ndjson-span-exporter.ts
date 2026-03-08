@@ -111,7 +111,7 @@ export class NDJSONSpanExporter implements SpanExporter {
 
       const json = JSON.stringify(row);
       this.bufferStrings.push(json);
-      this.bufferBytes += json.length + 1;
+      this.bufferBytes += Buffer.byteLength(json, "utf8") + 1;
     }
 
     if (
@@ -164,7 +164,7 @@ export class NDJSONSpanExporter implements SpanExporter {
       // Restore buffer so spans are not lost on write failure
       this.bufferStrings = strings.concat(this.bufferStrings);
       for (const s of strings) {
-        this.bufferBytes += s.length + 1;
+        this.bufferBytes += Buffer.byteLength(s, "utf8") + 1;
       }
       throw err;
     } finally {

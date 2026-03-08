@@ -47,8 +47,8 @@ export async function cleanupOldMonitoringFiles(
         await rm(yearPath, { recursive: true, force: true });
       }
     }
-  } catch {
-    // Base path doesn't exist or isn't readable
+  } catch (err) {
+    console.warn("monitoring retention cleanup failed:", err);
   }
 
   return deleted;
