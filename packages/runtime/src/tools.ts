@@ -763,11 +763,6 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
               };
 
               const virtualMcpId = ctx.virtual_mcp_id ?? wf.virtual_mcp_id;
-              if (!virtualMcpId) {
-                throw new Error(
-                  `[${id}] virtual_mcp_id is required to start workflow "${wf.title}".`,
-                );
-              }
 
               const collectionId = Workflow.workflowId(connectionId, wf.title);
               const client = Workflow.createClient(meshUrl, token);

@@ -67,7 +67,7 @@ interface MeshWorkflowClient {
   }) => Promise<{ success: boolean; error?: string }>;
   COLLECTION_WORKFLOW_EXECUTION_CREATE: (input: {
     workflow_collection_id: string;
-    virtual_mcp_id: string;
+    virtual_mcp_id?: string;
     input?: Record<string, unknown>;
     start_at_epoch_ms?: number;
   }) => Promise<{ item: { id: string } }>;
