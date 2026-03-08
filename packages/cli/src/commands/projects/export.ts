@@ -458,7 +458,7 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
           arguments: {
             sql: `SELECT table_name, column_name, data_type, udt_name,
                          character_maximum_length, numeric_precision, numeric_scale,
-                         is_nullable, column_default
+                         datetime_precision, is_nullable, column_default
                   FROM information_schema.columns
                   WHERE table_schema = current_schema()
                     AND table_name IN (${quotedNames})
@@ -549,6 +549,7 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
             character_maximum_length: number | null;
             numeric_precision: number | null;
             numeric_scale: number | null;
+            datetime_precision: number | null;
             is_nullable: string;
             column_default: string | null;
           }>
@@ -570,6 +571,10 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
                 : null,
             numeric_scale:
               row.numeric_scale != null ? Number(row.numeric_scale) : null,
+            datetime_precision:
+              row.datetime_precision != null
+                ? Number(row.datetime_precision)
+                : null,
             is_nullable: String(row.is_nullable ?? "YES"),
             column_default:
               row.column_default != null ? String(row.column_default) : null,
@@ -658,6 +663,15 @@ export async function exportCommand(options: ExportOptions): Promise<void> {
                 col.numeric_scale != null
                   ? `numeric(${col.numeric_precision}, ${col.numeric_scale})`
                   : `numeric(${col.numeric_precision})`;
+            } else if (
+              col.datetime_precision != null &&
+              col.datetime_precision !== 6 &&
+              /^(timestamp|time|interval)\b/.test(col.data_type)
+            ) {
+              typeName = col.data_type.replace(
+                /^(timestamp|time|interval)/,
+                `$1(${col.datetime_precision})`,
+              );
             } else {
               typeName = col.data_type;
             }
