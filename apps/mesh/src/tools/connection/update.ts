@@ -46,6 +46,25 @@ const UpdateOutputSchema = z.object({
 });
 
 /**
+ * Inject the well-known "SELF" sentinel into state when any SELF:: scopes are
+ * present and the key hasn't already been set.  The sentinel value resolves to
+ * the org's own self-endpoint, bypassing the normal DB-existence check inside
+ * validateConfiguration (see the `endsWith("_self")` guard there).
+ */
+function injectSelfSentinel(
+  state: Record<string, unknown>,
+  scopes: string[],
+  organizationId: string,
+): void {
+  if (
+    scopes.some((s) => s !== "*" && s.startsWith("SELF::")) &&
+    state["SELF"] === undefined
+  ) {
+    state["SELF"] = { value: `${organizationId}_self` };
+  }
+}
+
+/**
  * Validate configuration state and scopes, checking referenced connections
  */
 async function validateConfiguration(
@@ -195,12 +214,9 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
 
       // Validate configuration if we have scopes
       if (finalScopes.length > 0) {
-        await validateConfiguration(
-          finalState as Record<string, unknown>,
-          finalScopes,
-          organization.id,
-          ctx,
-        );
+        const stateObj = finalState as Record<string, unknown>;
+        injectSelfSentinel(stateObj, finalScopes, organization.id);
+        await validateConfiguration(stateObj, finalScopes, organization.id, ctx);
       }
     }
 
@@ -238,6 +254,17 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     ) {
       finalScopes = fetchResult.scopes;
     }
+
+    // Covers the fetchResult auto-scopes path: if an MCP server advertises
+    // SELF:: scopes via MCP_CONFIGURATION (and the caller didn't trigger the
+    // explicit-config validation block above), we still need SELF in state so
+    // the downstream JWT includes the correct self-endpoint permissions.
+    // If SELF was already injected above this is a no-op.
+    injectSelfSentinel(
+      finalState as Record<string, unknown>,
+      finalScopes,
+      organization.id,
+    );
 
     // Update the connection with the refreshed tools and configuration
     const updatePayload: Partial<ConnectionEntity> = {
