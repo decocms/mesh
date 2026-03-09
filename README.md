@@ -1,32 +1,34 @@
-<img alt="MCP Mesh Readme Banner" src="https://github.com/user-attachments/assets/e6283421-71ff-478d-8c45-9fb67d484888" />
+<img alt="deco Studio Readme Banner" src="https://github.com/user-attachments/assets/e6283421-71ff-478d-8c45-9fb67d484888" />
 
-<h1 align="center">MCP Mesh</h1>
+<h1 align="center">deco Studio</h1>
 
 <p align="center">
-<em>MCP-native · TypeScript-first · Deploy anywhere</em><br/><br/>
-<b>One secure endpoint for every MCP server.</b>
+<em>Open-source · TypeScript-first · Deploy anywhere</em><br/><br/>
+<b>Open-source control plane for your AI agents.</b>
 </p>
 
 <p align="center">
-<a href="https://docs.deco.page/">📘 Docs</a> ·
-<a href="https://decocms.com/discord">💬 Discord</a> ·
-<a href="https://decocms.com/mesh">🌐 decocms.com/mesh</a>
+<a href="https://docs.deco.page/">Docs</a> ·
+<a href="https://decocms.com/discord">Discord</a> ·
+<a href="https://decocms.com/studio">decocms.com/studio</a>
 </p>
 
 > **TL;DR:**
-> - Route all MCP traffic through a single governed endpoint
-> - Enforce RBAC, policies, and audit trails at the control plane
-> - Full observability with OpenTelemetry — traces, costs, errors
-> - Runtime strategies as mcps for optimal tool selection 
+> - Browse and hire specialized AI agents with battle-tested prompts
+> - Connect tools via web UI with one-click OAuth — no JSON configs
+> - Full observability — traces, costs, errors, latency per connection
+> - RBAC, policies, and audit trails at the control plane
 > - Self-host with Docker, Bun/Node, Kubernetes, or run locally
 
 ---
 
-## What is an MCP Mesh?
+## What is deco Studio?
 
-**MCP Mesh** is an open-source control plane for MCP traffic. It sits between your MCP clients (Cursor, Claude, Windsurf, VS Code, custom agents) and your MCP servers, providing a unified layer for auth, routing and observability.
+**deco Studio** is an open-source control plane for AI agents. It gives you one place to hire agents, connect tools, manage projects, and track every token and dollar — from your laptop or from any browser.
 
-It replaces M×N integrations (M MCP servers × N clients) with one production endpoint, so you stop maintaining separate configs in every client. Built for multi-tenant orgs: workspace/project scoping for policies, credentials, and logs.
+MCP connections are a core capability, but Studio goes beyond routing: it adds agents with real skills, declarative project planning, cost attribution, and a web UI you can access from anywhere.
+
+Install locally and everything stays private. Optionally sync to the cloud for remote access, team roles, and shared billing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -36,14 +38,14 @@ It replaces M×N integrations (M MCP servers × N clients) with one production e
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                         MCP MESH                                │
-│       Virtual MCP · Policy Engine · Observability · Token Vault     │
+│                        DECO STUDIO                              │
+│    Agents · MCP Mesh · Projects · Observability · Token Vault   │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                       MCP Servers                               │
-│      Salesforce · Slack · GitHub · Postgres · Your APIs         │
+│                    Tools & MCP Servers                           │
+│      GitHub · Slack · Postgres · OpenRouter · Your APIs         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 ---
@@ -51,31 +53,38 @@ It replaces M×N integrations (M MCP servers × N clients) with one production e
 ## Quick Start
 
 ```bash
-# Clone and install
-git clone https://github.com/decocms/mesh.git
-bun install
+bunx decocms
+```
 
-# Run locally (client + API server)
+Or clone and run from source:
+
+```bash
+git clone https://github.com/decocms/studio.git
+bun install
 bun run dev
 ```
 
-→ runs at [http://localhost:3000](http://localhost:3000) (client) + API server
-
-Or use `npx @decocms/mesh` to instantly get a mesh running.
+> runs at [http://localhost:3000](http://localhost:3000) (client) + API server
 
 ---
 
-## Runtime strategies as Virtual MCPs
+## Agents
 
-As tool surfaces grow, “send every tool definition to the model on every call” gets expensive and slow.
-The mesh models runtime strategies as Virtual MCPs: one endpoint, different ways of exposing tools.
+Browse and hire specialized AI agents from the built-in store. Each agent comes with battle-tested prompts and knows how to use specific tools. Agents compose — they can call each other — and every action is tracked with cost attribution.
 
-Examples:
+---
+
+## Tool Connections
+
+Set up MCP connections through a web UI with one-click OAuth. Monitor latency, errors, and costs per connection. Share tools across your team without sharing credentials.
+
+As tool surfaces grow, Studio models runtime strategies as **Virtual MCPs**: one endpoint, different ways of exposing tools.
+
 - Full-context: expose everything (simple and deterministic for small toolsets)
 - Smart selection: narrow the toolset before execution
 - Code execution: load tools on demand and run code in a sandbox
 
-Virtual MCPs are configurable and extensible. You can add new strategies and also curate toolsets (see Virtual MCPs).
+Virtual MCPs are configurable and extensible.
 
 ---
 
@@ -83,16 +92,16 @@ Virtual MCPs are configurable and extensible. You can add new strategies and als
 
 | Capability | What it does |
 |-------|-------------|
-| **MeshContext** | Unified runtime interface providing auth, storage, observability, and policy control |
-| **defineTool()** | Declarative API for typed, auditable, observable MCP tools |
+| **Agents** | Browse, hire, and compose AI agents with tracked skills and cost attribution |
+| **MCP Mesh** | Route all MCP traffic through one governed endpoint with auth, proxy, and token vault |
+| **Projects** | Declarative planning — define outcomes, Studio derives milestones and assigns agents |
+| **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers |
+| **Observability** | Full tracing and metrics — traces, costs, errors, latency per connection |
 | **AccessControl** | Fine-grained RBAC via Better Auth — OAuth 2.1 + API keys per workspace/project |
 | **Multi-tenancy** | Workspace/project isolation for config, credentials, policies, and audit logs |
-| **OpenTelemetry** | Full tracing and metrics for tools, workflows, and UI interactions |
-| **Storage Adapters** | Kysely ORM → SQLite / Postgres, easily swapped |
-| **Proxy Layer** | Secure bridge to remote MCP servers with token vault + OAuth |
-| **Virtual MCPs** | Compose and expose governed toolsets as new MCP servers |
 | **Event Bus** | Pub/sub between connections with scheduled/cron delivery and at-least-once guarantees |
-| **Bindings** | Capability contracts (ex.: agents, workflows, views) so apps target interfaces instead of specific MCP implementations |
+| **Bindings** | Capability contracts so apps target interfaces instead of specific MCP implementations |
+| **Store** | Discover and install agents, tools, and templates from the marketplace |
 
 ---
 
@@ -139,7 +148,7 @@ Every tool call automatically gets: input/output validation, access control chec
 
 ```
 ├── apps/
-│   ├── mesh/                # Full-stack MCP Mesh (Hono API + Vite/React)
+│   ├── mesh/                # Full-stack deco Studio (Hono API + Vite/React)
 │   │   ├── src/
 │   │   │   ├── api/         # Hono HTTP + MCP proxy routes
 │   │   │   ├── auth/        # Better Auth (OAuth + API keys)
@@ -186,7 +195,7 @@ bun run lint
 bun run fmt
 ```
 
-### Mesh-specific commands (from `apps/mesh/`)
+### Studio-specific commands (from `apps/mesh/`)
 
 ```bash
 bun run dev:client     # Vite dev server (port 4000)
@@ -260,35 +269,23 @@ Runs on any infrastructure — Docker, Kubernetes, AWS, GCP, or local Bun/Node r
 
 ## Roadmap
 
-- [ ] Multi-tenant admin dashboard
-- [ ] MCP bindings (swap providers without rewrites)
-- [ ] Version history for mesh configs
-- [ ] NPM package runtime
-- [ ] Edge debugger / live tracing
+- [ ] Agent marketplace — discover, hire, and compose agents
+- [ ] Declarative planning engine
 - [ ] Cost analytics and spend caps
-- [ ] MCP Store — discover and install pre-built MCP apps
-
----
-
-## Part of deco CMS
-
-The MCP Mesh is the infrastructure layer of [decoCMS](https://decocms.com).
-
-| Layer | What it does |
-|-------|--------------|
-| **MCP Mesh** | Connect, govern, and observe MCP traffic |
-| **MCP Studio** (coming soon) | Package durable MCP capabilities into shareable apps (SDK + no-code admin) |
-| **MCP Store** (coming soon) | Discover, install (and eventually monetize) pre-built MCP apps. |
+- [ ] Remote access from any browser
+- [ ] Live tracing debugger
+- [ ] Version history for configs
+- [ ] Workflow orchestration with guardrails
 
 ---
 
 ## License
 
-The MCP Mesh ships with a **Sustainable Use License (SUL)**. See [LICENSE.md](./LICENSE.md).
+deco Studio ships with a **Sustainable Use License (SUL)**. See [LICENSE.md](./LICENSE.md).
 
-- ✅ Free to self-host for internal use
-- ✅ Free for client projects (agencies, SIs)
-- ⚠️ Commercial license required for SaaS or revenue-generating production systems
+- Free to self-host for internal use
+- Free for client projects (agencies, SIs)
+- Commercial license required for SaaS or revenue-generating production systems
 
 Questions? [contact@decocms.com](mailto:contact@decocms.com)
 
@@ -309,5 +306,5 @@ See `AGENTS.md` for detailed coding guidelines and conventions.
 ---
 
 <div align="center">
-  <sub>Made with ❤️ by the <a href="https://decocms.com">deco</a> community</sub>
+  <sub>Made with care by the <a href="https://decocms.com">deco</a> community</sub>
 </div>
