@@ -107,8 +107,8 @@ type JsonSchema = {
   properties?: Record<string, unknown>;
   required?: string[];
   description?: string;
-  additionalProperties?: boolean;
-  additionalItems?: boolean;
+  additionalProperties?: boolean | Record<string, unknown>;
+  additionalItems?: boolean | Record<string, unknown>;
   items?: JsonSchema;
 };
 const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
@@ -118,8 +118,12 @@ const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
       properties: z.record(z.string(), z.unknown()).optional(),
       required: z.array(z.string()).optional(),
       description: z.string().optional(),
-      additionalProperties: z.boolean().optional(),
-      additionalItems: z.boolean().optional(),
+      additionalProperties: z
+        .union([z.boolean(), z.record(z.string(), z.unknown())])
+        .optional(),
+      additionalItems: z
+        .union([z.boolean(), z.record(z.string(), z.unknown())])
+        .optional(),
       items: JsonSchemaSchema.optional(),
     })
     .passthrough(),

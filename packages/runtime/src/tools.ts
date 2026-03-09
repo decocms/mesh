@@ -17,10 +17,17 @@ import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
+import {
+  type WorkflowDefinition,
+  Workflow,
+  WORKFLOW_SCOPES,
+  workflowToolId,
+} from "./workflows.ts";
 
 // Re-export EventHandlers type and SELF constant for external use
 export { SELF } from "./events.ts";
 export type { EventHandlers } from "./events.ts";
+export type { WorkflowDefinition } from "./workflows.ts";
 
 export const createRuntimeContext = (prev?: AppContext) => {
   const store = State.getStore();
@@ -42,13 +49,17 @@ export interface ToolExecutionContext<
 
 /**
  * Tool interface with generic schema types for type-safe tool creation.
+ *
+ * TId preserves the literal string type of `id` so consumers (e.g. the
+ * workflow builder) can derive union types of tool names without codegen.
  */
 export interface Tool<
   TSchemaIn extends ZodTypeAny = ZodTypeAny,
   TSchemaOut extends ZodTypeAny | undefined = undefined,
+  TId extends string = string,
 > {
   _meta?: Record<string, unknown>;
-  id: string;
+  id: TId;
   description?: string;
   annotations?: ToolAnnotations;
   inputSchema: TSchemaIn;
@@ -246,7 +257,8 @@ export function createStreamableTool<TSchemaIn extends ZodSchema = ZodSchema>(
 export function createTool<
   TSchemaIn extends ZodSchema = ZodSchema,
   TSchemaOut extends ZodSchema | undefined = undefined,
->(opts: Tool<TSchemaIn, TSchemaOut>): Tool<TSchemaIn, TSchemaOut> {
+  TId extends string = string,
+>(opts: Tool<TSchemaIn, TSchemaOut, TId>): Tool<TSchemaIn, TSchemaOut, TId> {
   return {
     ...opts,
     execute: (input: ToolExecutionContext<TSchemaIn>) => {
@@ -517,6 +529,9 @@ export interface CreateMCPServerOptions<
           | Promise<CreatedResource[]>
       >
     | ((env: TEnv) => CreatedResource[] | Promise<CreatedResource[]>);
+  workflows?:
+    | WorkflowDefinition[]
+    | ((env: TEnv) => WorkflowDefinition[] | Promise<WorkflowDefinition[]>);
 }
 
 export type Fetch<TEnv = unknown> = (
@@ -541,16 +556,34 @@ const getEventBus = (
     : env?.MESH_REQUEST_CONTEXT?.state?.[prop];
 };
 
+// TEnv is erased here because toolsFor() only reads events/workflows/configuration
+// and doesn't need the full env type. Replacing `any` with a proper generic
+// would require threading TEnv through toolsFor, which is a larger refactor.
+type ResolvedMCPServerOptions<TSchema extends ZodTypeAny = never> = Omit<
+  CreateMCPServerOptions<any, TSchema>, // eslint-disable-line @typescript-eslint/no-explicit-any
+  "workflows"
+> & { workflows?: WorkflowDefinition[] };
+
+const getMeshCtx = (input: { runtimeContext: AppContext }) => {
+  const ctx = input.runtimeContext.env.MESH_REQUEST_CONTEXT;
+  return {
+    connectionId: ctx?.connectionId,
+    meshUrl: ctx?.meshUrl,
+    token: ctx?.token,
+  };
+};
+
 const toolsFor = <TSchema extends ZodTypeAny = never>({
   events,
+  workflows,
   configuration: { state: schema, scopes, onChange } = {},
-}: CreateMCPServerOptions<any, TSchema> = {}): CreatedTool[] => {
+}: ResolvedMCPServerOptions<TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
     ? z.toJSONSchema(schema)
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [
-    ...(onChange || events
+    ...(onChange || events || workflows?.length
       ? [
           createTool({
             id: "ON_MCP_CONFIGURATION",
@@ -573,9 +606,7 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
               });
               const bus = getEventBus(busProp, input.runtimeContext.env);
               if (events && state && bus) {
-                // Get connectionId for SELF subscriptions
-                const connectionId =
-                  input.runtimeContext.env.MESH_REQUEST_CONTEXT?.connectionId;
+                const { connectionId } = getMeshCtx(input);
                 // Sync subscriptions - always call to handle deletions too
                 const subscriptions = Event.subscriptions(
                   events?.handlers ?? ({} as Record<string, never>),
@@ -607,6 +638,23 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
                   );
                 }
               }
+
+              if (workflows?.length) {
+                const {
+                  connectionId: wfConnectionId,
+                  meshUrl,
+                  token,
+                } = getMeshCtx(input);
+                if (wfConnectionId && meshUrl) {
+                  await Workflow.sync(
+                    workflows,
+                    meshUrl,
+                    wfConnectionId,
+                    token,
+                  );
+                }
+              }
+
               return Promise.resolve({});
             },
           }),
@@ -623,10 +671,8 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
             outputSchema: OnEventsOutputSchema,
             execute: async (input) => {
               const env = input.runtimeContext.env;
-              // Get state from MESH_REQUEST_CONTEXT - this has the binding values
               const state = env.MESH_REQUEST_CONTEXT?.state as z.infer<TSchema>;
-              // Get connectionId for SELF handlers
-              const connectionId = env.MESH_REQUEST_CONTEXT?.connectionId;
+              const { connectionId } = getMeshCtx(input);
               return Event.execute(
                 events.handlers!,
                 input.context.events,
@@ -652,10 +698,90 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
           scopes: [
             ...((scopes as string[]) ?? []),
             ...(events ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
+            ...(workflows?.length ? [...WORKFLOW_SCOPES] : []),
           ],
         });
       },
     }),
+
+    // Auto-generated trigger tool for each declared workflow.
+    // Calls COLLECTION_WORKFLOW_EXECUTION_CREATE on the mesh and returns the
+    // execution ID immediately (fire-and-forget; poll with
+    // COLLECTION_WORKFLOW_EXECUTION_GET to track progress).
+    ...(workflows?.length
+      ? workflows.map((wf) => {
+          const id = wf.toolId ?? workflowToolId(wf.title);
+          return createTool({
+            id,
+            description: [
+              wf.description
+                ? `Run workflow: ${wf.description}`
+                : `Start the "${wf.title}" workflow.`,
+              "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
+            ].join(" "),
+            inputSchema: z.object({
+              input: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe(
+                  "Input data for the workflow. Steps reference these values via @input.field.",
+                ),
+              virtual_mcp_id: z
+                .string()
+                .optional()
+                .describe(
+                  wf.virtual_mcp_id
+                    ? `Virtual MCP ID to use for execution (defaults to "${wf.virtual_mcp_id}").`
+                    : "Virtual MCP ID that will execute the workflow steps.",
+                ),
+              start_at_epoch_ms: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe(
+                  "Unix timestamp (ms) for scheduled execution. Omit to start immediately.",
+                ),
+            }),
+            outputSchema: z.object({
+              execution_id: z
+                .string()
+                .describe("ID of the created workflow execution."),
+            }),
+            execute: async (input) => {
+              const { connectionId, meshUrl, token } = getMeshCtx(input);
+
+              if (!connectionId || !meshUrl) {
+                throw new Error(
+                  `[${id}] Missing MESH_REQUEST_CONTEXT (connectionId or meshUrl).`,
+                );
+              }
+
+              const ctx = input.context as {
+                input?: Record<string, unknown>;
+                virtual_mcp_id?: string;
+                start_at_epoch_ms?: number;
+              };
+
+              const virtualMcpId = ctx.virtual_mcp_id ?? wf.virtual_mcp_id;
+
+              const collectionId = Workflow.workflowId(connectionId, wf.title);
+              const executionId = await Workflow.createExecution(
+                meshUrl,
+                token,
+                {
+                  workflow_collection_id: collectionId,
+                  virtual_mcp_id: virtualMcpId,
+                  input: ctx.input,
+                  start_at_epoch_ms: ctx.start_at_epoch_ms,
+                },
+              );
+
+              return { execution_id: executionId };
+            },
+          });
+        })
+      : []),
   ];
 };
 
@@ -710,7 +836,14 @@ export const createMCPServer = <
           };
     const tools = await toolsFn(bindings);
 
-    tools.push(...toolsFor<TSchema>(options));
+    const resolvedWorkflows =
+      typeof options.workflows === "function"
+        ? await options.workflows(bindings)
+        : options.workflows;
+
+    tools.push(
+      ...toolsFor<TSchema>({ ...options, workflows: resolvedWorkflows }),
+    );
 
     for (const tool of tools) {
       server.registerTool(
