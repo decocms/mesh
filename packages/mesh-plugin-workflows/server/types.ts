@@ -18,6 +18,7 @@ export interface WorkflowEventBus {
       type: string;
       subject?: string;
       data?: unknown;
+      deliverAt?: string;
     },
   ): Promise<unknown>;
 }

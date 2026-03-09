@@ -220,6 +220,9 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       {
         type: "workflow.execution.created",
         subject: executionId,
+        ...(typedInput.start_at_epoch_ms != null && {
+          deliverAt: new Date(typedInput.start_at_epoch_ms).toISOString(),
+        }),
       },
     );
 
