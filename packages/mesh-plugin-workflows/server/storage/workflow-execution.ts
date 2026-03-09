@@ -357,19 +357,8 @@ export class WorkflowExecutionStorage {
     return this.db.transaction().execute(async (trx) => {
       const now = Date.now();
 
-      // Clear incomplete and failed step results in one pass; successful results
-      // are preserved and their outputs will be reused by the orchestrator.
-      await trx
-        .deleteFrom("workflow_execution_step_result")
-        .where("execution_id", "=", executionId)
-        .where((eb) =>
-          eb.or([
-            eb("completed_at_epoch_ms", "is", null),
-            eb("error", "is not", null),
-          ]),
-        )
-        .execute();
-
+      // Validate org ownership and resumable status first — bail before
+      // touching step results if the execution doesn't qualify.
       const result = await trx
         .updateTable("workflow_execution")
         .set({
@@ -386,7 +375,22 @@ export class WorkflowExecutionStorage {
         .returningAll()
         .executeTakeFirst();
 
-      return !!result;
+      if (!result) return false;
+
+      // Clear incomplete and failed step results in one pass; successful results
+      // are preserved and their outputs will be reused by the orchestrator.
+      await trx
+        .deleteFrom("workflow_execution_step_result")
+        .where("execution_id", "=", executionId)
+        .where((eb) =>
+          eb.or([
+            eb("completed_at_epoch_ms", "is", null),
+            eb("error", "is not", null),
+          ]),
+        )
+        .execute();
+
+      return true;
     });
   }
 
