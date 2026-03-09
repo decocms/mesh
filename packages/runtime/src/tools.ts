@@ -20,6 +20,7 @@ import { State } from "./state.ts";
 import {
   type WorkflowDefinition,
   Workflow,
+  WORKFLOW_SCOPES,
   workflowToolId,
 } from "./workflows.ts";
 
@@ -555,8 +556,11 @@ const getEventBus = (
     : env?.MESH_REQUEST_CONTEXT?.state?.[prop];
 };
 
+// TEnv is erased here because toolsFor() only reads events/workflows/configuration
+// and doesn't need the full env type. Replacing `any` with a proper generic
+// would require threading TEnv through toolsFor, which is a larger refactor.
 type ResolvedMCPServerOptions<TSchema extends ZodTypeAny = never> = Omit<
-  CreateMCPServerOptions<any, TSchema>,
+  CreateMCPServerOptions<any, TSchema>, // eslint-disable-line @typescript-eslint/no-explicit-any
   "workflows"
 > & { workflows?: WorkflowDefinition[] };
 
@@ -694,15 +698,7 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
           scopes: [
             ...((scopes as string[]) ?? []),
             ...(events ? [`${busProp}::EVENT_SYNC_SUBSCRIPTIONS`] : []),
-            ...(workflows?.length
-              ? [
-                  "SELF::COLLECTION_WORKFLOW_LIST",
-                  "SELF::COLLECTION_WORKFLOW_CREATE",
-                  "SELF::COLLECTION_WORKFLOW_UPDATE",
-                  "SELF::COLLECTION_WORKFLOW_DELETE",
-                  "SELF::COLLECTION_WORKFLOW_EXECUTION_CREATE",
-                ]
-              : []),
+            ...(workflows?.length ? [...WORKFLOW_SCOPES] : []),
           ],
         });
       },
@@ -740,6 +736,8 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
                 ),
               start_at_epoch_ms: z
                 .number()
+                .int()
+                .min(0)
                 .optional()
                 .describe(
                   "Unix timestamp (ms) for scheduled execution. Omit to start immediately.",
@@ -765,19 +763,30 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
                 start_at_epoch_ms?: number;
               };
 
+              if (
+                ctx.virtual_mcp_id &&
+                wf.virtual_mcp_id &&
+                ctx.virtual_mcp_id !== wf.virtual_mcp_id
+              ) {
+                throw new Error(
+                  `[${id}] Cannot override virtual_mcp_id: workflow is bound to "${wf.virtual_mcp_id}".`,
+                );
+              }
               const virtualMcpId = ctx.virtual_mcp_id ?? wf.virtual_mcp_id;
 
               const collectionId = Workflow.workflowId(connectionId, wf.title);
-              const client = Workflow.createClient(meshUrl, token);
+              const executionId = await Workflow.createExecution(
+                meshUrl,
+                token,
+                {
+                  workflow_collection_id: collectionId,
+                  virtual_mcp_id: virtualMcpId,
+                  input: ctx.input,
+                  start_at_epoch_ms: ctx.start_at_epoch_ms,
+                },
+              );
 
-              const result = await client.COLLECTION_WORKFLOW_EXECUTION_CREATE({
-                workflow_collection_id: collectionId,
-                virtual_mcp_id: virtualMcpId,
-                input: ctx.input,
-                start_at_epoch_ms: ctx.start_at_epoch_ms,
-              });
-
-              return { execution_id: result.item.id };
+              return { execution_id: executionId };
             },
           });
         })

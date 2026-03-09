@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { z } from "zod";
 import { Workflow, createWorkflow, type WorkflowDefinition } from "./workflows";
 
 // ---------------------------------------------------------------------------
@@ -12,7 +13,12 @@ function makeFakeClient(
     title: string;
     virtual_mcp_id?: string | null;
   }[] = [],
-  opts: { listFails?: boolean; createFails?: Set<string> } = {},
+  opts: {
+    listFails?: boolean;
+    createFails?: Set<string>;
+    updateFails?: Set<string>;
+    deleteFails?: Set<string>;
+  } = {},
 ) {
   const calls: Call[] = [];
 
@@ -48,10 +54,14 @@ function makeFakeClient(
       };
     }),
     COLLECTION_WORKFLOW_UPDATE: mock(async (args: unknown) => {
+      const id = (args as { id: string }).id;
+      if (opts.updateFails?.has(id)) throw new Error(`update failed for ${id}`);
       calls.push({ method: "UPDATE", args });
       return { success: true };
     }),
     COLLECTION_WORKFLOW_DELETE: mock(async (args: unknown) => {
+      const id = (args as { id: string }).id;
+      if (opts.deleteFails?.has(id)) throw new Error(`delete failed for ${id}`);
       calls.push({ method: "DELETE", args });
       return { success: true };
     }),
@@ -233,6 +243,115 @@ describe("syncWorkflows", () => {
       expect.stringContaining("Bad Workflow"),
       expect.anything(),
     );
+  });
+
+  test("continues syncing remaining workflows when one UPDATE fails", async () => {
+    const cid = "conn_update_fail";
+    const idFailing = workflowId(cid, "Bad Existing");
+    const idGood = workflowId(cid, "Good Existing");
+
+    const { client, calls } = makeFakeClient(
+      [
+        { id: idFailing, title: "Bad Existing" },
+        { id: idGood, title: "Good Existing" },
+      ],
+      { updateFails: new Set([idFailing]) },
+    );
+
+    const consoleSpy = mock(() => {});
+    const originalWarn = console.warn;
+    console.warn = consoleSpy;
+
+    try {
+      await sync(
+        [
+          {
+            title: "Bad Existing",
+            steps: [{ name: "s1", action: { toolName: "TOOL_A" } }],
+          },
+          {
+            title: "Good Existing",
+            steps: [{ name: "s1", action: { toolName: "TOOL_B" } }],
+          },
+        ],
+        meshUrl,
+        cid,
+        undefined,
+        client as never,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const updateCalls = calls.filter((c) => c.method === "UPDATE");
+    expect(updateCalls).toHaveLength(1);
+    expect((updateCalls[0].args as { id: string }).id).toBe(idGood);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Bad Existing"),
+      expect.anything(),
+    );
+  });
+
+  test("continues deleting remaining orphans when one DELETE fails", async () => {
+    const cid = "conn_delete_fail";
+    const idFailing = workflowId(cid, "Orphan Fail");
+    const idGood = workflowId(cid, "Orphan Good");
+
+    const { client, calls } = makeFakeClient(
+      [
+        { id: idFailing, title: "Orphan Fail" },
+        { id: idGood, title: "Orphan Good" },
+      ],
+      { deleteFails: new Set([idFailing]) },
+    );
+
+    const consoleSpy = mock(() => {});
+    const originalWarn = console.warn;
+    console.warn = consoleSpy;
+
+    try {
+      await sync([], meshUrl, cid, undefined, client as never);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const deleteCalls = calls.filter((c) => c.method === "DELETE");
+    expect(deleteCalls).toHaveLength(1);
+    expect((deleteCalls[0].args as { id: string }).id).toBe(idGood);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining(idFailing),
+      expect.anything(),
+    );
+  });
+
+  test("fingerprint is not stored when a CREATE fails — next identical sync retries", async () => {
+    const cid = "conn_fingerprint_retry";
+    const failingId = workflowId(cid, "Retry Workflow");
+    const { client } = makeFakeClient([], {
+      createFails: new Set([failingId]),
+    });
+
+    const consoleSpy = mock(() => {});
+    const originalWarn = console.warn;
+    console.warn = consoleSpy;
+
+    const workflows: WorkflowDefinition[] = [
+      {
+        title: "Retry Workflow",
+        steps: [{ name: "s1", action: { toolName: "TOOL_A" } }],
+      },
+    ];
+
+    try {
+      await sync(workflows, meshUrl, cid, undefined, client as never);
+      // Second call with identical content: fingerprint must NOT have been
+      // stored, so the sync must hit the server again.
+      await sync(workflows, meshUrl, cid, undefined, client as never);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(client.COLLECTION_WORKFLOW_LIST).toHaveBeenCalledTimes(2);
   });
 
   test("skips sync entirely when list call fails", async () => {
@@ -679,5 +798,168 @@ describe("WorkflowBuilder (createWorkflow)", () => {
       .build();
 
     expect(wf.steps.map((s) => s.name)).toEqual(["a", "b", "c"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schema drift detection — outputSchema auto-injection
+// ---------------------------------------------------------------------------
+describe("WorkflowBuilder — schema drift detection", () => {
+  const TOOL_V1 = {
+    id: "GET_USERS",
+    inputSchema: z.object({ limit: z.number() }),
+    outputSchema: z.object({ users: z.array(z.object({ id: z.string() })) }),
+  };
+
+  const TOOL_V2 = {
+    ...TOOL_V1,
+    outputSchema: z.object({
+      users: z.array(z.object({ id: z.string(), email: z.string() })),
+    }),
+  };
+
+  test("auto-injects tool outputSchema into step when not explicitly set", () => {
+    const wf = createWorkflow({ title: "Test" }, [TOOL_V1])
+      .step("fetch", { action: { toolName: "GET_USERS" } })
+      .build();
+
+    const step = wf.steps[0];
+    expect(step.outputSchema).toBeDefined();
+    expect(step.outputSchema?.type).toBe("object");
+    expect(step.outputSchema?.properties).toHaveProperty("users");
+  });
+
+  test("does not override an explicitly provided step outputSchema", () => {
+    const explicitSchema = {
+      type: "object",
+      properties: { custom: { type: "string" } },
+    };
+
+    const wf = createWorkflow({ title: "Test" }, [TOOL_V1])
+      .step("fetch", {
+        action: { toolName: "GET_USERS" },
+        outputSchema: explicitSchema,
+      })
+      .build();
+
+    expect(wf.steps[0].outputSchema).toEqual(explicitSchema);
+  });
+
+  test("schema change in tool produces a different fingerprint (re-sync is triggered)", async () => {
+    const makeWorkflow = (tool: typeof TOOL_V1) =>
+      createWorkflow({ title: "Drift Test" }, [tool])
+        .step("fetch", { action: { toolName: "GET_USERS" } })
+        .build();
+
+    const fingerprintV1 = JSON.stringify(makeWorkflow(TOOL_V1).steps);
+    const fingerprintV2 = JSON.stringify(makeWorkflow(TOOL_V2).steps);
+
+    expect(fingerprintV1).not.toBe(fingerprintV2);
+
+    // Verify the sync actually fires for both versions by using a fake client
+    const calls: string[] = [];
+    const fakeClient = {
+      COLLECTION_WORKFLOW_LIST: async () => ({
+        items: [],
+        totalCount: 0,
+        hasMore: false,
+      }),
+      COLLECTION_WORKFLOW_CREATE: async (input: { data: { id: string } }) => {
+        calls.push(`create:${input.data.id}`);
+        return {
+          item: {
+            id: input.data.id,
+            title: "",
+            description: null,
+            virtual_mcp_id: null,
+            created_at: "",
+            updated_at: "",
+          },
+        };
+      },
+      COLLECTION_WORKFLOW_UPDATE: async (input: { id: string }) => {
+        calls.push(`update:${input.id}`);
+        return { success: true };
+      },
+      COLLECTION_WORKFLOW_DELETE: async () => ({ success: true }),
+      COLLECTION_WORKFLOW_EXECUTION_CREATE: async () => ({
+        item: { id: "exec_1" },
+      }),
+    };
+
+    const connId = "conn_drift_test";
+    await Workflow.sync(
+      [makeWorkflow(TOOL_V1)],
+      "https://mesh.example.com",
+      connId,
+      undefined,
+      fakeClient as never,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/^create:/);
+
+    // Second sync with TOOL_V2 — fingerprint differs, re-sync must fire
+    calls.length = 0;
+    // Reset the stored fingerprint by simulating a fresh LIST that has the v1 workflow
+    const fakeClientWithExisting = {
+      ...fakeClient,
+      COLLECTION_WORKFLOW_LIST: async () => ({
+        items: [
+          {
+            id: `${connId}::drift-test`,
+            title: "Drift Test",
+            description: null,
+            virtual_mcp_id: null,
+            created_at: "",
+            updated_at: "",
+          },
+        ],
+        totalCount: 1,
+        hasMore: false,
+      }),
+    };
+
+    await Workflow.sync(
+      [makeWorkflow(TOOL_V2)],
+      "https://mesh.example.com",
+      connId,
+      undefined,
+      fakeClientWithExisting as never,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/^update:/);
+  });
+
+  test("auto-injects outputSchema in forEachItem steps", () => {
+    const wf = createWorkflow({ title: "Test" }, [TOOL_V1])
+      .step("list", { action: { toolName: "GET_USERS" } })
+      .forEachItem("process", "@list", {
+        action: { toolName: "GET_USERS" },
+      })
+      .build();
+
+    expect(wf.steps[1].outputSchema).toBeDefined();
+    expect(wf.steps[1].outputSchema?.type).toBe("object");
+  });
+
+  test("step without matching tool does not get outputSchema injected", () => {
+    const wf = createWorkflow({ title: "Test" }, [TOOL_V1])
+      .step("fetch", { action: { toolName: "UNKNOWN_TOOL" } })
+      .build();
+
+    expect(wf.steps[0].outputSchema).toBeUndefined();
+  });
+
+  test("tool without outputSchema does not inject schema into step", () => {
+    const TOOL_NO_OUT = {
+      id: "SIDE_EFFECT_TOOL",
+      inputSchema: z.object({ id: z.string() }),
+    };
+
+    const wf = createWorkflow({ title: "Test" }, [TOOL_NO_OUT])
+      .step("run", { action: { toolName: "SIDE_EFFECT_TOOL" } })
+      .build();
+
+    expect(wf.steps[0].outputSchema).toBeUndefined();
   });
 });

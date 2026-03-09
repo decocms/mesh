@@ -1,5 +1,5 @@
 import type { Step } from "@decocms/bindings/workflow";
-import type { ZodTypeAny } from "zod";
+import { z, type ZodTypeAny } from "zod";
 import { proxyConnectionForId } from "./bindings.ts";
 import { MCPClient } from "./mcp.ts";
 
@@ -116,7 +116,19 @@ function createMeshSelfClient(
 const syncInFlight = new Map<string, Promise<void>>();
 
 // I4: Fingerprint of the last successfully synced declared set, keyed by connectionId.
+// Capped at MAX_FINGERPRINT_CACHE entries to prevent unbounded growth in environments
+// with rotating connection IDs. Oldest entry is evicted when the cap is reached.
+// Callers that own connection lifecycle should call Workflow.clearFingerprint() on teardown.
+const MAX_FINGERPRINT_CACHE = 500;
 const workflowFingerprints = new Map<string, string>();
+
+function setFingerprint(connectionId: string, fingerprint: string) {
+  if (workflowFingerprints.size >= MAX_FINGERPRINT_CACHE) {
+    const firstKey = workflowFingerprints.keys().next().value;
+    if (firstKey !== undefined) workflowFingerprints.delete(firstKey);
+  }
+  workflowFingerprints.set(connectionId, fingerprint);
+}
 
 function fingerprintWorkflows(declared: WorkflowDefinition[]): string {
   return JSON.stringify(
@@ -137,11 +149,13 @@ async function doSyncWorkflows(
   token?: string,
   _clientOverride?: MeshWorkflowClient,
 ): Promise<void> {
+  const tag = `[Workflows][${connectionId}]`;
+
   // I6: Reject any title that slugifies to empty — would produce IDs like "conn_abc::".
   const emptySlugWf = declared.find((w) => slugify(w.title) === "");
   if (emptySlugWf !== undefined) {
     console.warn(
-      `[Workflows] Workflow title "${emptySlugWf.title}" produces an empty ID. Skipping sync.`,
+      `${tag} Workflow title "${emptySlugWf.title}" produces an empty ID. Skipping sync.`,
     );
     return;
   }
@@ -157,7 +171,7 @@ async function doSyncWorkflows(
         .filter((w) => duplicateSlugs.has(slugify(w.title)))
         .map((w) => w.title);
       console.warn(
-        `[Workflows] Workflow titles that produce duplicate IDs: ${[...new Set(collidingTitles)].join(", ")}. Skipping sync.`,
+        `${tag} Workflow titles that produce duplicate IDs: ${[...new Set(collidingTitles)].join(", ")}. Skipping sync.`,
       );
       return;
     }
@@ -165,7 +179,19 @@ async function doSyncWorkflows(
 
   // I4: Skip the remote round-trip when the declared set is identical to the last sync.
   const fingerprint = fingerprintWorkflows(declared);
-  if (workflowFingerprints.get(connectionId) === fingerprint) return;
+  const storedFingerprint = workflowFingerprints.get(connectionId);
+  if (storedFingerprint === fingerprint) {
+    console.log(
+      `${tag} Fingerprint unchanged — skipping sync. Declared: ${declared.length} workflow(s): [${declared.map((w) => w.title).join(", ")}]`,
+    );
+    return;
+  }
+  console.log(
+    `${tag} Fingerprint changed (or first sync) — starting sync. Declared: ${declared.length} workflow(s): [${declared.map((w) => w.title).join(", ")}]`,
+    storedFingerprint
+      ? "(previous fingerprint existed)"
+      : "(no previous fingerprint)",
+  );
 
   const client = _clientOverride ?? createMeshSelfClient(meshUrl, token);
 
@@ -177,13 +203,22 @@ async function doSyncWorkflows(
     while (true) {
       const page = await client.COLLECTION_WORKFLOW_LIST({ limit, offset });
       allItems.push(...page.items);
-      if (!page.hasMore) break;
+      if (!page.hasMore || page.items.length === 0) break;
       offset += page.items.length;
     }
     existing = allItems;
-  } catch {
+    console.log(
+      `${tag} LIST returned ${existing.length} total workflow(s). IDs owned by this connection: [${
+        existing
+          .filter((w) => w.id.startsWith(`${connectionId}::`))
+          .map((w) => w.id)
+          .join(", ") || "none"
+      }]`,
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     console.warn(
-      "[Workflows] Could not list workflows. The workflows plugin may not be enabled. Skipping sync.",
+      `${tag} Could not list workflows (workflows plugin may not be enabled). Skipping sync. Error: ${errMsg}`,
     );
     return;
   }
@@ -200,12 +235,16 @@ async function doSyncWorkflows(
   );
   const declaredIds = new Set(declaredEntries.map(([id]) => id));
 
+  let hadError = false;
+
   // I5: Upserts run in parallel — no ordering dependency between workflows.
   await Promise.all(
     declaredEntries.map(async ([id, wf]) => {
+      const op = managed.has(id) ? "UPDATE" : "CREATE";
+      console.log(`${tag} ${op} "${wf.title}" (id=${id})`);
       try {
-        if (managed.has(id)) {
-          await client.COLLECTION_WORKFLOW_UPDATE({
+        if (op === "UPDATE") {
+          const result = await client.COLLECTION_WORKFLOW_UPDATE({
             id,
             data: {
               title: wf.title,
@@ -216,6 +255,15 @@ async function doSyncWorkflows(
               steps: wf.steps,
             },
           });
+          if (!result.success) {
+            hadError = true;
+            console.warn(
+              `${tag} UPDATE "${wf.title}" returned success=false:`,
+              String(result.error ?? "(no error message)"),
+            );
+          } else {
+            console.log(`${tag} UPDATE "${wf.title}" OK`);
+          }
         } else {
           await client.COLLECTION_WORKFLOW_CREATE({
             data: {
@@ -226,34 +274,51 @@ async function doSyncWorkflows(
               steps: wf.steps,
             },
           });
+          console.log(`${tag} CREATE "${wf.title}" OK`);
         }
       } catch (error) {
+        hadError = true;
         console.warn(
-          `[Workflows] Failed to sync workflow "${wf.title}":`,
-          error instanceof Error ? error.message : error,
+          `${tag} Failed to ${op} workflow "${wf.title}":`,
+          error instanceof Error ? error.message : String(error),
         );
       }
     }),
   );
 
   // I5: Deletes run in parallel — orphans are independent of each other.
+  const orphanIds = [...managed.keys()].filter((id) => !declaredIds.has(id));
+  if (orphanIds.length > 0) {
+    console.log(
+      `${tag} Deleting ${orphanIds.length} orphaned workflow(s): [${orphanIds.join(", ")}]`,
+    );
+  }
   await Promise.all(
-    [...managed.keys()]
-      .filter((id) => !declaredIds.has(id))
-      .map(async (id) => {
-        try {
-          await client.COLLECTION_WORKFLOW_DELETE({ id });
-        } catch (error) {
-          console.warn(
-            `[Workflows] Failed to delete orphaned workflow "${id}":`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }),
+    orphanIds.map(async (id) => {
+      try {
+        await client.COLLECTION_WORKFLOW_DELETE({ id });
+        console.log(`${tag} DELETE "${id}" OK`);
+      } catch (error) {
+        hadError = true;
+        console.warn(
+          `${tag} Failed to delete orphaned workflow "${id}":`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }),
   );
 
-  // I4: Record the fingerprint so identical follow-up calls are no-ops.
-  workflowFingerprints.set(connectionId, fingerprint);
+  // I4: Only record the fingerprint when every operation succeeded so that
+  // a follow-up call with an identical declared set retries any failures
+  // rather than silently skipping them.
+  if (!hadError) {
+    setFingerprint(connectionId, fingerprint);
+    console.log(`${tag} Sync complete — fingerprint stored.`);
+  } else {
+    console.warn(
+      `${tag} Sync finished with errors — fingerprint NOT stored so the next call will retry.`,
+    );
+  }
 }
 
 async function syncWorkflows(
@@ -261,13 +326,19 @@ async function syncWorkflows(
   meshUrl: string,
   connectionId: string,
   token?: string,
-  /** Optional client override — only used in tests to capture payloads. */
+  /**
+   * @internal Only used in tests to capture payloads without a real server.
+   * Not part of the public API contract; may be removed without notice.
+   */
   _clientOverride?: MeshWorkflowClient,
 ): Promise<void> {
   // I7: Chain onto any in-flight sync for this connectionId so concurrent calls
   // never interleave LIST/CREATE/DELETE operations against the same connection.
   const previous = syncInFlight.get(connectionId) ?? Promise.resolve();
   const next = previous
+    // Isolate from predecessor's rejection so a failed prior sync doesn't
+    // propagate its error to unrelated callers queued behind it.
+    .catch(() => {})
     .then(() =>
       doSyncWorkflows(declared, meshUrl, connectionId, token, _clientOverride),
     )
@@ -280,12 +351,51 @@ async function syncWorkflows(
   return next;
 }
 
+/**
+ * Scopes required by a connection that declares workflows.
+ * Co-located here so any rename of a server-side tool name causes a compile
+ * error in the consumer rather than a silent scope mismatch.
+ */
+export const WORKFLOW_SCOPES = [
+  "SELF::COLLECTION_WORKFLOW_LIST",
+  "SELF::COLLECTION_WORKFLOW_CREATE",
+  "SELF::COLLECTION_WORKFLOW_UPDATE",
+  "SELF::COLLECTION_WORKFLOW_DELETE",
+  "SELF::COLLECTION_WORKFLOW_EXECUTION_CREATE",
+] as const;
+
 export const Workflow = {
   sync: syncWorkflows,
   slugify,
   workflowId,
   toolId: workflowToolId,
-  createClient: createMeshSelfClient,
+  /**
+   * Creates a workflow execution via the mesh self-endpoint.
+   * Returns the execution ID of the newly created execution.
+   * This keeps the MeshWorkflowClient factory internal to this module.
+   */
+  createExecution: async (
+    meshUrl: string,
+    token: string | undefined,
+    params: {
+      workflow_collection_id: string;
+      virtual_mcp_id?: string;
+      input?: Record<string, unknown>;
+      start_at_epoch_ms?: number;
+    },
+  ): Promise<string> => {
+    const client = createMeshSelfClient(meshUrl, token);
+    const result = await client.COLLECTION_WORKFLOW_EXECUTION_CREATE(params);
+    return result.item.id;
+  },
+  /**
+   * Clears the cached fingerprint for a connection so the next sync performs
+   * a full remote round-trip. Call this on connection teardown or when you
+   * need to force a re-sync without changing the declared workflow set.
+   */
+  clearFingerprint: (connectionId: string) => {
+    workflowFingerprints.delete(connectionId);
+  },
 };
 
 // ============================================================================
@@ -293,14 +403,16 @@ export const Workflow = {
 // ============================================================================
 
 /**
- * Minimal tool shape for builder type inference.
+ * Minimal tool shape for builder type inference and schema injection.
  * Defined locally to avoid a circular import with tools.ts (which imports
  * WorkflowDefinition from this file). Includes inputSchema so the builder
- * can derive per-tool input key suggestions.
+ * can derive per-tool input key suggestions, and outputSchema so the builder
+ * can auto-inject a step's outputSchema to detect schema drift at sync time.
  */
 type ToolLike<TId extends string = string> = {
   id: TId;
   inputSchema: ZodTypeAny;
+  outputSchema?: ZodTypeAny;
 };
 
 /**
@@ -410,14 +522,42 @@ class WorkflowBuilder<
   TTools extends readonly ToolLike[] = never[],
 > {
   private readonly _steps: Step[] = [];
+  private readonly _tools: readonly ToolLike[];
 
-  constructor(private readonly meta: Omit<WorkflowDefinition, "steps">) {}
+  constructor(
+    private readonly meta: Omit<WorkflowDefinition, "steps">,
+    tools: readonly ToolLike[] = [],
+  ) {
+    this._tools = tools;
+  }
+
+  /**
+   * Auto-injects the referenced tool's outputSchema into the step if:
+   * 1. The step action is a tool call (has toolName)
+   * 2. The matched tool has an outputSchema
+   * 3. The step does not already have an explicit outputSchema
+   *
+   * This ensures that when a tool's outputSchema changes, the workflow
+   * fingerprint changes and the sync correctly updates the stored workflow.
+   */
+  private _withToolSchema(step: Step): Step {
+    const action = step.action as { toolName?: string } | undefined;
+    if (!action?.toolName) return step;
+    const tool = this._tools.find((t) => t.id === action.toolName);
+    if (!tool?.outputSchema || step.outputSchema !== undefined) return step;
+    return {
+      ...step,
+      outputSchema: z.toJSONSchema(tool.outputSchema) as Step["outputSchema"],
+    };
+  }
 
   step<TName extends string>(
     name: TName,
     opts: StepOpts<TSteps, TTools>,
   ): WorkflowBuilder<TSteps | TName, TTools> {
-    this._steps.push({ name, ...(opts as Omit<Step, "name">) });
+    this._steps.push(
+      this._withToolSchema({ name, ...(opts as Omit<Step, "name">) }),
+    );
     return this as unknown as WorkflowBuilder<TSteps | TName, TTools>;
   }
 
@@ -435,11 +575,13 @@ class WorkflowBuilder<
     opts: ForEachItemOpts<TSteps, TTools>,
   ): WorkflowBuilder<TSteps | TName, TTools> {
     const { concurrency = 1, ...rest } = opts;
-    this._steps.push({
-      name,
-      ...(rest as Omit<Step, "name" | "forEach">),
-      forEach: { ref, concurrency },
-    });
+    this._steps.push(
+      this._withToolSchema({
+        name,
+        ...(rest as Omit<Step, "name" | "forEach">),
+        forEach: { ref, concurrency },
+      }),
+    );
     return this as unknown as WorkflowBuilder<TSteps | TName, TTools>;
   }
 
@@ -487,6 +629,8 @@ export function createWorkflow<TTools extends readonly ToolLike[] = never[]>(
   meta: Omit<WorkflowDefinition, "steps">,
   tools?: TTools,
 ): WorkflowBuilder<never, TTools> {
-  void tools; // runtime unused — exists purely for type inference
-  return new WorkflowBuilder(meta) as unknown as WorkflowBuilder<never, TTools>;
+  return new WorkflowBuilder(meta, tools ?? []) as unknown as WorkflowBuilder<
+    never,
+    TTools
+  >;
 }
