@@ -203,7 +203,12 @@ function ShellLayoutContent() {
     gcTime: Infinity,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // "always" ensures setActive() is called on every org navigation,
+    // keeping the session cookie in sync with the org shown in the UI.
+    // Without this, navigating back to a previously-visited org skips
+    // setActive(), leaving the cookie pointing at the last-visited org
+    // and causing ORGANIZATION_GET to return data for the wrong org.
+    refetchOnMount: "always",
   });
 
   if (!projectContext) {
