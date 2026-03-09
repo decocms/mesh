@@ -315,13 +315,12 @@ async function doSyncWorkflows(
 
   const client = _clientOverride ?? createMeshSelfClient(meshUrl, token);
 
-  // Resolve (or lazily create) the default Virtual MCP for this connection so
-  // that workflows without an explicit virtual_mcp_id get a sensible default.
-  const defaultVmcpId = await resolveDefaultVirtualMcp(
-    connectionId,
-    client,
-    tag,
-  );
+  // Only resolve (or lazily create) the default Virtual MCP when at least one
+  // declared workflow actually needs the fallback `virtual_mcp_id`.
+  const needsDefault = declared.some((w) => w.virtual_mcp_id === undefined);
+  const defaultVmcpId = needsDefault
+    ? await resolveDefaultVirtualMcp(connectionId, client, tag)
+    : undefined;
 
   let existing: WorkflowCollectionItem[];
   try {
