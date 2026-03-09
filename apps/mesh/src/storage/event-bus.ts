@@ -265,6 +265,14 @@ export interface EventBusStorage {
   ): Promise<{ success: boolean }>;
 
   /**
+   * Mark a cron event as completed (delivered) when there are no more runs.
+   * Called by the worker when a cron expression produces no next run time.
+   *
+   * @param eventId - The event ID to mark as completed
+   */
+  markEventCompleted(eventId: string): Promise<void>;
+
+  /**
    * Sync subscriptions to a desired state.
    * Creates new subscriptions, deletes removed ones, and updates filters.
    * Subscriptions are identified by (eventType, publisher) - only one per combination.
@@ -720,6 +728,19 @@ class KyselyEventBusStorage implements EventBusStorage {
     );
 
     if (allDelivered) {
+      // For cron events, don't mark as "delivered" — the event represents an
+      // ongoing schedule. The worker's scheduleNextCronDelivery() owns the
+      // lifecycle and will mark it delivered when the cron has no more runs.
+      const event = await this.db
+        .selectFrom("events")
+        .select(["cron"])
+        .where("id", "=", eventId)
+        .executeTakeFirst();
+
+      if (event?.cron) {
+        return; // Cron events stay "pending" between delivery cycles
+      }
+
       await this.db
         .updateTable("events")
         .set({
@@ -936,6 +957,17 @@ class KyselyEventBusStorage implements EventBusStorage {
     }
 
     return { success: updated };
+  }
+
+  async markEventCompleted(eventId: string): Promise<void> {
+    await this.db
+      .updateTable("events")
+      .set({
+        status: "delivered",
+        updated_at: new Date().toISOString(),
+      })
+      .where("id", "=", eventId)
+      .execute();
   }
 
   async syncSubscriptions(
