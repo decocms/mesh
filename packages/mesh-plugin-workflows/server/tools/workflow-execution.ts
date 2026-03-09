@@ -171,6 +171,8 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       ),
     start_at_epoch_ms: z
       .number()
+      .int()
+      .positive()
       .optional()
       .describe(
         "Timestamp in milliseconds of when the execution should start. If not provided, starts immediately.",
@@ -220,9 +222,10 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       {
         type: "workflow.execution.created",
         subject: executionId,
-        ...(typedInput.start_at_epoch_ms != null && {
-          deliverAt: new Date(typedInput.start_at_epoch_ms).toISOString(),
-        }),
+        ...(typedInput.start_at_epoch_ms != null &&
+          Number.isFinite(typedInput.start_at_epoch_ms) && {
+            deliverAt: new Date(typedInput.start_at_epoch_ms).toISOString(),
+          }),
       },
     );
 
