@@ -281,6 +281,31 @@ describe("WorkflowExecutionStorage", () => {
       const resumed = await storage.resumeExecution(id, TEST_ORG_ID);
       expect(resumed).toBe(false);
     });
+
+    it("does not delete step results when organizationId does not match", async () => {
+      const { id } = await createTestExecution();
+      await storage.claimExecution(id);
+
+      // Create an incomplete step result
+      await storage.createStepResult({
+        execution_id: id,
+        step_id: "incompleteStep",
+      });
+
+      await storage.cancelExecution(id, TEST_ORG_ID);
+
+      // Attempt resume with wrong org — must not delete rows
+      const resumed = await storage.resumeExecution(id, "wrong-org-id");
+      expect(resumed).toBe(false);
+
+      // Step result must still be intact
+      const stepResult = await storage.getStepResult(id, "incompleteStep");
+      expect(stepResult).not.toBeNull();
+
+      // Execution must still be cancelled
+      const execution = await storage.getExecution(id, TEST_ORG_ID);
+      expect(execution!.status).toBe("cancelled");
+    });
   });
 
   // --------------------------------------------------------------------------
