@@ -97,7 +97,7 @@ export default function ProjectAppView() {
   return (
     <Page>
       <Page.Header />
-      <Page.Content className="overflow-hidden">
+      <Page.Content>
         <ErrorBoundary key={`${connectionId}:${toolName}`} fallback={undefined}>
           <Suspense
             fallback={
