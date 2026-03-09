@@ -9,7 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { makeTestMonitoringRow, writeTestNDJSON } from "./test-utils";
 
-describe("ChdbEngine", () => {
+let chdbAvailable = false;
+try {
+  require("chdb");
+  chdbAvailable = true;
+} catch {}
+
+describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
   let tmpDir: string;
   let engine: ChdbEngine;
 
@@ -77,14 +83,17 @@ describe("ChdbEngine", () => {
 });
 
 describe("createMonitoringEngine", () => {
-  it("should create ChdbEngine when no CLICKHOUSE_URL", () => {
-    const { engine, source } = createMonitoringEngine({
-      basePath: "./data/monitoring",
-    });
-    expect(engine).toBeInstanceOf(ChdbEngine);
-    expect(source).toContain("file(");
-    expect(source).toContain(".ndjson");
-  });
+  it.skipIf(!chdbAvailable)(
+    "should create ChdbEngine when no CLICKHOUSE_URL",
+    () => {
+      const { engine, source } = createMonitoringEngine({
+        basePath: "./data/monitoring",
+      });
+      expect(engine).toBeInstanceOf(ChdbEngine);
+      expect(source).toContain("file(");
+      expect(source).toContain(".ndjson");
+    },
+  );
 
   it("should use DEFAULT_MONITORING_URI when no basePath", () => {
     const { source } = createMonitoringEngine({});

@@ -12,7 +12,13 @@ import { ExportResultCode } from "@opentelemetry/core";
 import { MESH_ATTR } from "./schema";
 import { makeTestMonitoringSpan, findNDJSONFiles } from "./test-utils";
 
-describe("Monitoring Pipeline Integration", () => {
+let chdbAvailable = false;
+try {
+  require("chdb");
+  chdbAvailable = true;
+} catch {}
+
+describe.skipIf(!chdbAvailable)("Monitoring Pipeline Integration", () => {
   let tmpDir: string;
   let engineToDestroy: { destroy?: () => void | Promise<void> } | null = null;
 
