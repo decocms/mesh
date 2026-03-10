@@ -662,7 +662,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
 
   // NDJSON monitoring retention cleanup (skip in ClickHouse mode)
-  const SIGNAL_DIRS = [DEFAULT_LOGS_DIR, DEFAULT_TRACES_DIR, DEFAULT_METRICS_DIR];
+  const SIGNAL_DIRS = [
+    DEFAULT_LOGS_DIR,
+    DEFAULT_TRACES_DIR,
+    DEFAULT_METRICS_DIR,
+  ];
 
   if (!process.env.CLICKHOUSE_URL) {
     for (const dir of SIGNAL_DIRS) {

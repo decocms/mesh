@@ -74,9 +74,7 @@ describe("NDJSONExporter", () => {
 
   it("should return FAILED after shutdown", async () => {
     await exporter.shutdown();
-    const result = await exporter.exportRows([
-      { v: 1, id: "1", value: "a" },
-    ]);
+    const result = await exporter.exportRows([{ v: 1, id: "1", value: "a" }]);
     expect(result.code).toBe(ExportResultCode.FAILED);
   });
 
