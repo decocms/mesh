@@ -23,45 +23,67 @@ function toIsoString(v: Date | string): string {
  * Organization-scoped thread storage wrapper.
  * Bakes organizationId into the instance — callers never pass org.
  * Use for per-request context where org is known at construction.
+ *
+ * Constructed eagerly for every request (org may be absent for unauthenticated
+ * contexts). Any method call without a valid org throws immediately so misuse
+ * surfaces at the call site rather than silently operating on `organization_id = ""`.
  */
 export class OrgScopedThreadStorage {
   constructor(
     private inner: SqlThreadStorage,
-    private organizationId: string,
+    private organizationId: string | undefined,
   ) {}
 
+  /** Throws if no org is bound; returns the validated org ID for use in method bodies. */
+  private requireOrg(): string {
+    if (!this.organizationId) {
+      throw new Error(
+        "OrgScopedThreadStorage: thread operations require an authenticated organization",
+      );
+    }
+    return this.organizationId;
+  }
+
   create(data: Partial<Thread>): Promise<Thread> {
-    return this.inner.create({
-      ...data,
-      organization_id: this.organizationId,
-    });
+    const orgId = this.requireOrg();
+    return this.inner.create({ ...data, organization_id: orgId });
   }
 
   get(id: string): Promise<Thread | null> {
-    return this.inner.get(id, this.organizationId);
+    return this.inner.get(id, this.requireOrg());
+  }
+
+  /**
+   * Returns true if a thread with this ID exists in any organization.
+   * Used to distinguish "genuinely new thread" from "thread owned by another org"
+   * when a caller-supplied ID resolves to null under the current org scope.
+   */
+  existsById(id: string): Promise<boolean> {
+    this.requireOrg();
+    return this.inner.existsById(id);
   }
 
   update(id: string, data: Partial<Thread>): Promise<Thread> {
-    return this.inner.update(id, this.organizationId, data);
+    return this.inner.update(id, this.requireOrg(), data);
   }
 
   forceFailIfInProgress(id: string): Promise<boolean> {
-    return this.inner.forceFailIfInProgress(id, this.organizationId);
+    return this.inner.forceFailIfInProgress(id, this.requireOrg());
   }
 
   delete(id: string): Promise<void> {
-    return this.inner.delete(id, this.organizationId);
+    return this.inner.delete(id, this.requireOrg());
   }
 
   list(
     createdBy?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<{ threads: Thread[]; total: number }> {
-    return this.inner.list(this.organizationId, createdBy, options);
+    return this.inner.list(this.requireOrg(), createdBy, options);
   }
 
   saveMessages(data: ThreadMessage[]): Promise<void> {
-    return this.inner.saveMessages(data, this.organizationId);
+    return this.inner.saveMessages(data, this.requireOrg());
   }
 
   listMessages(
@@ -72,7 +94,7 @@ export class OrgScopedThreadStorage {
       sort?: "asc" | "desc";
     },
   ): Promise<{ messages: ThreadMessage[]; total: number }> {
-    return this.inner.listMessages(threadId, this.organizationId, options);
+    return this.inner.listMessages(threadId, this.requireOrg(), options);
   }
 }
 
@@ -131,6 +153,16 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .executeTakeFirst();
 
     return row ? this.threadFromDbRow(row) : null;
+  }
+
+  async existsById(id: string): Promise<boolean> {
+    const row = await this.db
+      .selectFrom("threads")
+      .select("id")
+      .where("id", "=", id)
+      .executeTakeFirst();
+
+    return row !== undefined;
   }
 
   async update(

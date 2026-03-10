@@ -845,7 +845,7 @@ export async function createMeshContextFactory(
 
     const storage = {
       ...baseStorage,
-      threads: new OrgScopedThreadStorage(threadDb, organization?.id ?? ""),
+      threads: new OrgScopedThreadStorage(threadDb, organization?.id),
     };
 
     const ctx: MeshContext = {

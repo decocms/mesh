@@ -93,19 +93,25 @@ export async function createMemory(
       created_by: userId,
     });
   } else {
-    // Try to get existing thread
+    // Try to get existing thread scoped to this org
     const existing = await storage.get(thread_id);
 
-    if (!existing) {
-      // Thread not found or belongs to different org - create new
-      // Use fresh ID to avoid conflicts when thread exists in another org
+    if (existing) {
+      thread = existing;
+    } else if (await storage.existsById(thread_id)) {
+      // ID is taken by a thread in another org — generate a fresh one
       thread = await storage.create({
         id: generatePrefixedId("thrd"),
         organization_id,
         created_by: userId,
       });
     } else {
-      thread = existing;
+      // Genuinely new thread — honor the caller-supplied ID
+      thread = await storage.create({
+        id: thread_id,
+        organization_id,
+        created_by: userId,
+      });
     }
   }
 
