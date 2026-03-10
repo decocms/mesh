@@ -7,7 +7,12 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
-import { MESH_ATTR, type MonitoringRow } from "./schema";
+import {
+  MESH_ATTR,
+  MONITORING_LOG_ATTR,
+  MONITORING_LOG_TYPE_VALUE,
+  type MonitoringRow,
+} from "./schema";
 
 /**
  * Creates a minimal ReadableSpan-like object for testing.
@@ -98,6 +103,42 @@ export async function writeTestNDJSON(
   await writeFile(join(dir, `test-${crypto.randomUUID()}.ndjson`), content, {
     mode: 0o600,
   });
+}
+
+/**
+ * Creates a minimal ReadableLogRecord-like object for testing.
+ * Used by NDJSONLogExporter tests and pipeline integration tests.
+ *
+ * Mimics the OTel ReadableLogRecord interface with only the fields
+ * that NDJSONLogExporter reads.
+ */
+export function makeTestMonitoringLogRecord(
+  attrOverrides: Record<string, string | number | boolean> = {},
+) {
+  const nowMs = Date.now();
+  return {
+    hrTime: [Math.floor(nowMs / 1000), (nowMs % 1000) * 1_000_000] as [
+      number,
+      number,
+    ],
+    spanContext: undefined,
+    attributes: {
+      [MONITORING_LOG_ATTR.TYPE]: MONITORING_LOG_TYPE_VALUE,
+      [MONITORING_LOG_ATTR.ORGANIZATION_ID]: "org_test",
+      [MONITORING_LOG_ATTR.CONNECTION_ID]: "conn_test",
+      [MONITORING_LOG_ATTR.CONNECTION_TITLE]: "Test Server",
+      [MONITORING_LOG_ATTR.TOOL_NAME]: "TEST_TOOL",
+      [MONITORING_LOG_ATTR.INPUT]: '{"key":"value"}',
+      [MONITORING_LOG_ATTR.OUTPUT]: '{"result":"ok"}',
+      [MONITORING_LOG_ATTR.IS_ERROR]: false,
+      [MONITORING_LOG_ATTR.DURATION_MS]: 100,
+      [MONITORING_LOG_ATTR.REQUEST_ID]: "req_test",
+      ...attrOverrides,
+    },
+    severityNumber: 9, // INFO
+    severityText: "INFO",
+    body: attrOverrides[MONITORING_LOG_ATTR.TOOL_NAME] ?? "TEST_TOOL",
+  };
 }
 
 /**

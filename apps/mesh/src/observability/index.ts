@@ -24,6 +24,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { RuntimeNodeInstrumentation } from "@opentelemetry/instrumentation-runtime-node";
 import { enableFetchInstrumentation } from "./instrumentations/fetch";
 import { NDJSONSpanExporter } from "../monitoring/ndjson-span-exporter";
+import { NDJSONLogExporter } from "../monitoring/ndjson-log-exporter";
 import {
   MONITORING_SPAN_NAME,
   DEFAULT_MONITORING_URI,
@@ -237,6 +238,10 @@ const traceExporter = process.env.CLICKHOUSE_URL
   ? new OTLPTraceExporter()
   : new NDJSONSpanExporter({ basePath: DEFAULT_MONITORING_URI });
 
+const monitoringLogExporter = process.env.CLICKHOUSE_URL
+  ? null
+  : new NDJSONLogExporter({ basePath: DEFAULT_MONITORING_URI });
+
 /**
  * Initialize OpenTelemetry SDK
  */
@@ -246,7 +251,19 @@ const sdk = new NodeSDK({
   metricReader: prometheusExporter as unknown as MetricReader,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sampler: headSampler,
-  logRecordProcessors: [new BatchLogRecordProcessor(new OTLPLogExporter())],
+  logRecordProcessors: [
+    ...(process.env.CLICKHOUSE_URL
+      ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
+      : []),
+    ...(monitoringLogExporter
+      ? [
+          new BatchLogRecordProcessor(monitoringLogExporter, {
+            scheduledDelayMillis: 60_000,
+            maxExportBatchSize: 1000,
+          }),
+        ]
+      : []),
+  ],
   instrumentations: [new RuntimeNodeInstrumentation()],
 });
 
@@ -382,6 +399,15 @@ export async function flushTraceExporter(): Promise<void> {
   // 2. Drain the exporter's internal buffer to disk (NDJSONSpanExporter)
   if ("forceFlush" in traceExporter) {
     await traceExporter.forceFlush();
+  }
+  // 3. Flush log provider (drains BatchLogRecordProcessor → export())
+  const logProvider = logs.getLoggerProvider();
+  if ("forceFlush" in logProvider) {
+    await (logProvider as { forceFlush(): Promise<void> }).forceFlush();
+  }
+  // 4. Flush NDJSONLogExporter's internal write buffer
+  if (monitoringLogExporter) {
+    await monitoringLogExporter.forceFlush();
   }
 }
 
