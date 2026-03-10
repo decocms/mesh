@@ -1,6 +1,6 @@
 /**
  * Shared test utilities for monitoring tests.
- * Used by ndjson-span-exporter.test.ts, monitoring-clickhouse.test.ts,
+ * Used by ndjson-log-exporter.test.ts, monitoring-clickhouse.test.ts,
  * and pipeline.integration.test.ts.
  */
 
@@ -8,64 +8,13 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
 import {
-  MESH_ATTR,
   MONITORING_LOG_ATTR,
   MONITORING_LOG_TYPE_VALUE,
   type MonitoringRow,
 } from "./schema";
 
 /**
- * Creates a minimal ReadableSpan-like object for testing.
- * Real spans come from the OTel SDK, but we only need the fields
- * that NDJSONSpanExporter reads.
- *
- * Field names match the actual ReadableSpan interface from
- * @opentelemetry/sdk-trace-base@2.5.0:
- * - instrumentationScope (not instrumentationLibrary)
- * - parentSpanContext (not parentSpanId)
- */
-export function makeTestMonitoringSpan(
-  attrOverrides: Record<string, string | number | boolean> = {},
-) {
-  return {
-    spanContext: () => ({
-      traceId: "trace_" + Math.random().toString(36).slice(2),
-      spanId: "span_" + Math.random().toString(36).slice(2),
-      traceFlags: 1,
-    }),
-    name: "mcp.proxy.callTool",
-    startTime: [Math.floor(Date.now() / 1000), 0] as [number, number],
-    endTime: [Math.floor(Date.now() / 1000) + 1, 0] as [number, number],
-    attributes: {
-      [MESH_ATTR.ORGANIZATION_ID]: "org_test",
-      [MESH_ATTR.CONNECTION_ID]: "conn_test",
-      [MESH_ATTR.CONNECTION_TITLE]: "Test Server",
-      [MESH_ATTR.TOOL_NAME]: "TEST_TOOL",
-      [MESH_ATTR.TOOL_INPUT]: '{"key":"value"}',
-      [MESH_ATTR.TOOL_OUTPUT]: '{"result":"ok"}',
-      [MESH_ATTR.TOOL_IS_ERROR]: false,
-      [MESH_ATTR.TOOL_DURATION_MS]: 100,
-      [MESH_ATTR.REQUEST_ID]: "req_test",
-      ...attrOverrides,
-    },
-    status: { code: 0 },
-    resource: { attributes: {} },
-    instrumentationScope: { name: "test" },
-    kind: 0,
-    duration: [1, 0] as [number, number],
-    events: [],
-    links: [],
-    ended: true,
-    parentSpanContext: undefined,
-    droppedAttributesCount: 0,
-    droppedEventsCount: 0,
-    droppedLinksCount: 0,
-  };
-}
-
-/**
  * Creates a MonitoringRow for testing ClickHouseMonitoringStorage queries.
- * Shared across Plan 02 and Plan 03 tests.
  */
 export function makeTestMonitoringRow(
   overrides: Partial<MonitoringRow> = {},
@@ -93,7 +42,6 @@ export function makeTestMonitoringRow(
 
 /**
  * Writes MonitoringRow objects to an NDJSON file in the given directory.
- * Shared across Plan 02 and Plan 03 tests.
  */
 export async function writeTestNDJSON(
   dir: string,

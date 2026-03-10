@@ -54,7 +54,7 @@ export class NDJSONLogExporter implements LogRecordExporter {
   private bufferStrings: string[] = [];
   private bufferBytes = 0;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
-  private flushInProgress: Promise<void> | null = null;
+  private flushQueue: Promise<void> = Promise.resolve();
   private basePath: string;
   private flushThreshold: number;
   private maxBufferBytes: number;
@@ -151,13 +151,11 @@ export class NDJSONLogExporter implements LogRecordExporter {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    if (this.flushInProgress) {
-      try {
-        await this.flushInProgress;
-      } catch {
-        // Ignore in-flight flush error; flush() restores the buffer
-        // so the retry below will pick up any unwritten records.
-      }
+    // Wait for any in-flight flush, then flush remaining records
+    try {
+      await this.flushQueue;
+    } catch {
+      // Ignore — flush() already restored the buffer on failure
     }
     if (this.bufferStrings.length > 0) {
       await this.flush();
@@ -165,28 +163,36 @@ export class NDJSONLogExporter implements LogRecordExporter {
   }
 
   async forceFlush(): Promise<void> {
-    if (this.flushInProgress) {
-      await this.flushInProgress;
-    }
+    await this.flushQueue;
     if (this.bufferStrings.length > 0) {
       await this.flush();
     }
   }
 
-  private async flush(): Promise<void> {
-    if (this.flushInProgress) {
-      await this.flushInProgress;
-    }
+  /**
+   * Serialized flush: each call queues behind the previous one,
+   * preventing concurrent buffer swaps (TOCTOU race).
+   */
+  private flush(): Promise<void> {
+    const prev = this.flushQueue;
+    const next = prev
+      .catch(() => {
+        /* ignore previous failure */
+      })
+      .then(() => this.doFlush());
+    this.flushQueue = next;
+    return next;
+  }
 
+  private async doFlush(): Promise<void> {
     if (this.bufferStrings.length === 0) return;
 
     const strings = this.bufferStrings;
     this.bufferStrings = [];
     this.bufferBytes = 0;
 
-    this.flushInProgress = this.writeNDJSON(strings);
     try {
-      await this.flushInProgress;
+      await this.writeNDJSON(strings);
     } catch (err) {
       // Restore buffer so records are not lost on write failure
       this.bufferStrings = strings.concat(this.bufferStrings);
@@ -194,8 +200,6 @@ export class NDJSONLogExporter implements LogRecordExporter {
         this.bufferBytes += Buffer.byteLength(s, "utf8") + 1;
       }
       throw err;
-    } finally {
-      this.flushInProgress = null;
     }
   }
 

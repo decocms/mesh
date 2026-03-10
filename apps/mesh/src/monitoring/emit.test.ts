@@ -1,6 +1,21 @@
-import { describe, it, expect } from "bun:test";
-import { emitMonitoringLog } from "./emit";
-import type { EmitMonitoringLogParams } from "./emit";
+import { describe, it, expect, beforeEach } from "bun:test";
+import { logs } from "@opentelemetry/api-logs";
+import { MONITORING_LOG_ATTR, MONITORING_LOG_TYPE_VALUE } from "./schema";
+
+// Capture emitted log records by mocking the logger
+let emittedRecords: Array<Record<string, unknown>> = [];
+const mockLogger = {
+  emit(record: Record<string, unknown>) {
+    emittedRecords.push(record);
+  },
+};
+
+// Patch the logger provider before importing emit.ts
+logs.getLogger = (() => mockLogger) as typeof logs.getLogger;
+
+// Import after patching
+const { emitMonitoringLog } = await import("./emit");
+type EmitMonitoringLogParams = Parameters<typeof emitMonitoringLog>[0];
 
 function makeParams(
   overrides: Partial<EmitMonitoringLogParams> = {},
@@ -25,69 +40,105 @@ function makeParams(
 }
 
 describe("emitMonitoringLog", () => {
-  it("should not throw on valid params", () => {
-    expect(() => emitMonitoringLog(makeParams())).not.toThrow();
+  beforeEach(() => {
+    emittedRecords = [];
   });
 
-  it("should not throw when organizationId is empty (skips emission)", () => {
-    expect(() =>
-      emitMonitoringLog(makeParams({ organizationId: "" })),
-    ).not.toThrow();
+  it("should emit a log record with correct monitoring attributes", () => {
+    emitMonitoringLog(makeParams());
+
+    expect(emittedRecords.length).toBe(1);
+    const record = emittedRecords[0]!;
+    const attrs = record.attributes as Record<string, unknown>;
+
+    expect(attrs[MONITORING_LOG_ATTR.TYPE]).toBe(MONITORING_LOG_TYPE_VALUE);
+    expect(attrs[MONITORING_LOG_ATTR.ORGANIZATION_ID]).toBe("org_123");
+    expect(attrs[MONITORING_LOG_ATTR.CONNECTION_ID]).toBe("conn_456");
+    expect(attrs[MONITORING_LOG_ATTR.CONNECTION_TITLE]).toBe("My MCP Server");
+    expect(attrs[MONITORING_LOG_ATTR.TOOL_NAME]).toBe("EXAMPLE_TOOL");
+    expect(attrs[MONITORING_LOG_ATTR.IS_ERROR]).toBe(false);
+    expect(attrs[MONITORING_LOG_ATTR.DURATION_MS]).toBe(150);
+    expect(attrs[MONITORING_LOG_ATTR.USER_ID]).toBe("user_789");
+    expect(attrs[MONITORING_LOG_ATTR.REQUEST_ID]).toBe("req_abc");
+    expect(attrs[MONITORING_LOG_ATTR.USER_AGENT]).toBe("cursor/1.0");
+    expect(attrs[MONITORING_LOG_ATTR.VIRTUAL_MCP_ID]).toBe("vmcp_def");
   });
 
-  it("should not throw with null optional fields", () => {
-    expect(() =>
-      emitMonitoringLog(
-        makeParams({
-          userId: null,
-          userAgent: null,
-          virtualMcpId: null,
-          properties: null,
-          errorMessage: null,
-        }),
-      ),
-    ).not.toThrow();
+  it("should not emit when organizationId is empty", () => {
+    emitMonitoringLog(makeParams({ organizationId: "" }));
+    expect(emittedRecords.length).toBe(0);
   });
 
-  it("should not throw when toolArguments is undefined", () => {
-    expect(() =>
-      emitMonitoringLog(makeParams({ toolArguments: undefined })),
-    ).not.toThrow();
+  it("should handle null optional fields with empty string fallbacks", () => {
+    emitMonitoringLog(
+      makeParams({
+        userId: null,
+        userAgent: null,
+        virtualMcpId: null,
+        properties: null,
+      }),
+    );
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    expect(attrs[MONITORING_LOG_ATTR.USER_ID]).toBe("");
+    expect(attrs[MONITORING_LOG_ATTR.USER_AGENT]).toBe("");
+    expect(attrs[MONITORING_LOG_ATTR.VIRTUAL_MCP_ID]).toBe("");
+    expect(attrs[MONITORING_LOG_ATTR.PROPERTIES]).toBe("");
   });
 
-  it("should not throw with error params", () => {
-    expect(() =>
-      emitMonitoringLog(
-        makeParams({
-          isError: true,
-          errorMessage: "Something went wrong",
-        }),
-      ),
-    ).not.toThrow();
+  it("should redact PII in input", () => {
+    emitMonitoringLog(
+      makeParams({
+        toolArguments: { email: "user@example.com", query: "test" },
+      }),
+    );
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const input = attrs[MONITORING_LOG_ATTR.INPUT] as string;
+    expect(input).not.toContain("user@example.com");
+    expect(input).toContain("[REDACTED:email]");
   });
 
-  it("should not throw with PII in input (redaction runs internally)", () => {
-    expect(() =>
-      emitMonitoringLog(
-        makeParams({
-          toolArguments: { email: "user@example.com", query: "test" },
-          errorMessage: "Failed for user@example.com",
-        }),
-      ),
-    ).not.toThrow();
+  it("should redact PII in error message", () => {
+    emitMonitoringLog(
+      makeParams({
+        isError: true,
+        errorMessage: "Failed for user@example.com",
+      }),
+    );
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const errorMsg = attrs[MONITORING_LOG_ATTR.ERROR_MESSAGE] as string;
+    expect(errorMsg).not.toContain("user@example.com");
   });
 
-  it("should accept an optional context parameter", () => {
-    // Passing undefined context should not throw
-    expect(() => emitMonitoringLog(makeParams(), undefined)).not.toThrow();
+  it("should serialize properties as JSON", () => {
+    emitMonitoringLog(makeParams({ properties: { env: "prod", v: "2" } }));
+
+    expect(emittedRecords.length).toBe(1);
+    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    expect(JSON.parse(attrs[MONITORING_LOG_ATTR.PROPERTIES] as string)).toEqual(
+      { env: "prod", v: "2" },
+    );
   });
 
   it("should be fail-safe when result contains circular references", () => {
     const circular: Record<string, unknown> = { a: 1 };
     circular.self = circular;
-    // This would cause JSON.stringify to throw, but emitMonitoringLog is fail-safe
     expect(() =>
       emitMonitoringLog(makeParams({ result: circular })),
     ).not.toThrow();
+  });
+
+  it("should set severity based on isError", () => {
+    emitMonitoringLog(makeParams({ isError: false }));
+    emitMonitoringLog(makeParams({ isError: true }));
+
+    expect(emittedRecords.length).toBe(2);
+    expect(emittedRecords[0]!.severityText).toBe("INFO");
+    expect(emittedRecords[1]!.severityText).toBe("ERROR");
   });
 });

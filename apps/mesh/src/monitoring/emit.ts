@@ -1,7 +1,7 @@
 /**
  * Emit a monitoring OTel log record.
  *
- * Same data as enrichMonitoringSpan() but written to a log record
+ * Writes monitoring data to an OTel log record
  * instead of span attributes. This decouples monitoring data from
  * the trace lifecycle, allowing log-based exporters (NDJSONLogExporter)
  * to capture tool calls independently.

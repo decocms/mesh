@@ -4,7 +4,7 @@
  * Implements MonitoringStorage using ClickHouse SQL via QueryEngine.
  * Local dev uses chdb (embedded ClickHouse) to query NDJSON files on disk.
  *
- * Writes flow through the OTel pipeline (NDJSONSpanExporter).
+ * Writes flow through the OTel pipeline (NDJSONLogExporter).
  * This adapter is read-only — it queries NDJSON files on disk.
  */
 
@@ -25,6 +25,11 @@ import type {
 /** Escape a string value for safe use in SQL single-quoted literals. */
 function esc(value: string): string {
   return value.replace(/\0/g, "").replace(/\\/g, "\\\\").replace(/'/g, "''");
+}
+
+/** Escape a string value for safe use in ILIKE patterns (escapes SQL wildcards). */
+function escLike(value: string): string {
+  return esc(value).replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 /** Allowed groupByColumn values. */
@@ -172,7 +177,7 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
   if (filters.propertyPatterns) {
     for (const [key, pattern] of Object.entries(filters.propertyPatterns)) {
       const k = esc(key);
-      const p = esc(pattern);
+      const p = escLike(pattern);
       clauses.push(`JSONExtractString(properties, '${k}') ILIKE '${p}'`);
     }
   }
