@@ -36,6 +36,7 @@ import {
 import authRoutes from "./routes/auth";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
+import decoSitesRoutes from "./routes/deco-sites";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
@@ -1118,6 +1119,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Downstream token management routes
   app.route("/api", downstreamTokenRoutes);
+
+  // Deco.cx sites list (requires meshContext / auth)
+  app.route("/api/deco-sites", decoSitesRoutes);
 
   // ============================================================================
   // Server Plugin Routes
