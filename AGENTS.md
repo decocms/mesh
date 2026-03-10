@@ -160,14 +160,14 @@ Pub/sub system between connections following CloudEvents v1.0 spec:
 - At-least-once delivery with exponential backoff (1s to 1hr, max 20 attempts)
 - Scheduled delivery (`deliverAt`) and recurring events (`cron`)
 - Per-event results (subscribers can return individual results per event)
-- Pluggable NotifyStrategy: PollingStrategy (timer-based) or PostgresNotifyStrategy (LISTEN/NOTIFY)
+- NotifyStrategy: NatsNotifyStrategy (immediate) + PollingStrategy (timer-based safety net)
 
 #### Event Bus Files
 - `packages/bindings/src/well-known/event-bus.ts` - EVENT_BUS_BINDING (PUBLISH, SUBSCRIBE, UNSUBSCRIBE, CANCEL, ACK)
 - `packages/bindings/src/well-known/event-subscriber.ts` - EVENT_SUBSCRIBER_BINDING (ON_EVENTS)
 - `apps/mesh/src/event-bus/` - EventBus implementation and worker
-- `apps/mesh/src/event-bus/polling.ts` - Timer-based NotifyStrategy (for PGlite/other)
-- `apps/mesh/src/event-bus/postgres-notify.ts` - LISTEN/NOTIFY NotifyStrategy (for PostgreSQL)
+- `apps/mesh/src/event-bus/polling.ts` - Timer-based NotifyStrategy (safety net)
+- `apps/mesh/src/event-bus/nats-notify.ts` - NATS-based NotifyStrategy (immediate notifications)
 - `apps/mesh/src/storage/event-bus.ts` - Database operations
 - `apps/mesh/src/tools/eventbus/` - MCP tools (publish, subscribe, unsubscribe, list, cancel, ack)
 - `apps/mesh/migrations/008-event-bus.ts` - Database schema
@@ -202,8 +202,9 @@ Subscribers can return batch or per-event results:
 
 #### NotifyStrategy Architecture
 The worker doesn't poll internally - it relies on a NotifyStrategy to trigger processing:
-- `PollingStrategy(intervalMs)` - Timer-based, for PGlite or databases without pub/sub
-- `PostgresNotifyStrategy(pool)` - Event-based via LISTEN/NOTIFY, no polling
+- `NatsNotifyStrategy` - NATS pub/sub for immediate event notification (primary)
+- `PollingStrategy(intervalMs)` - Timer-based safety net for scheduled retries and edge cases
+- Both are composed via `compose()` — NATS handles immediate notifications, polling handles scheduled work
 
 #### Event Bus Configuration (EventBusConfig)
 ```typescript

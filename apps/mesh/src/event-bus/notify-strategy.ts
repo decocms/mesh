@@ -2,12 +2,8 @@
  * Notify Strategy Interface
  *
  * Abstraction for how to notify the event bus worker that new events are available.
- * This allows different notification mechanisms:
- * - PostgreSQL: LISTEN/NOTIFY
- * - Redis: Pub/Sub (future)
- * - NATS: Subscribe (future)
- *
- * If no strategy is provided, the worker falls back to polling.
+ * Primary strategy: NATS pub/sub (mandatory).
+ * Safety net: PollingStrategy catches scheduled retries and missed notifications.
  */
 
 /**
@@ -45,12 +41,10 @@ export interface NotifyStrategy {
  * @example
  * ```ts
  * import { compose } from "./notify-strategy";
- * import { PollingStrategy } from "./polling";
- * import { PostgresNotifyStrategy } from "./postgres-notify";
+ * import { NatsNotifyStrategy } from "./nats-notify";
  *
  * const strategy = compose(
- *   new PollingStrategy(30000),        // Safety net: poll every 30s
- *   new PostgresNotifyStrategy(pool),  // Primary: LISTEN/NOTIFY
+ *   new NatsNotifyStrategy(natsProvider),  // Primary: NATS pub/sub
  * );
  * ```
  */

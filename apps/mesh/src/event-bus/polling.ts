@@ -1,10 +1,9 @@
 /**
  * Polling Notify Strategy
  *
- * A simple timer-based polling approach for triggering event processing.
- * The timer fires at regular intervals, triggering the worker to check for pending events.
- *
- * Use this when a pub/sub mechanism is not available (e.g., PGlite, file-based storage).
+ * Timer-based safety net that periodically triggers event processing.
+ * Used alongside NATS to catch scheduled retries and edge cases.
+ * Does NOT forward immediate notify() calls — NATS handles those.
  */
 
 import type { NotifyStrategy } from "./notify-strategy";
@@ -46,11 +45,8 @@ export class PollingStrategy implements NotifyStrategy {
   }
 
   async notify(_eventId: string): Promise<void> {
-    // Optionally trigger immediate processing when an event is published.
-    // This provides faster delivery while still having the timer as a backup.
-    if (this.onNotify) {
-      this.onNotify();
-    }
+    // No-op: polling is a timer-based safety net only.
+    // Immediate notification is handled by NatsNotifyStrategy.
   }
 
   private scheduleNext(): void {
