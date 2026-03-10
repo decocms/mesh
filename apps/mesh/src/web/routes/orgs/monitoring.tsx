@@ -1539,31 +1539,51 @@ export default function MonitoringDashboard() {
             <>
               <Page.Header>
                 <Page.Header.Left>
-                  <h1 className="text-sm font-medium text-foreground">
-                    Monitoring
-                  </h1>
+                  <Breadcrumb>
+                    <BreadcrumbList>
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>Monitoring</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </BreadcrumbList>
+                  </Breadcrumb>
                 </Page.Header.Left>
               </Page.Header>
-              <Page.Content>
-                {tab === "audit" ? (
-                  <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-                    <MonitoringLogsTable.Skeleton />
+
+              {/* Tabs */}
+              <div className="px-5 py-3 border-b border-border">
+                <CollectionTabs
+                  tabs={[
+                    { id: "overview", label: "Overview" },
+                    { id: "audit", label: "Audit" },
+                    { id: "dashboards", label: "Dashboards" },
+                  ]}
+                  activeTab={tab}
+                  onTabChange={(tabId) =>
+                    updateFilters({
+                      tab: tabId as "overview" | "audit" | "dashboards",
+                    })
+                  }
+                />
+              </div>
+
+              {tab === "audit" ? (
+                <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+                  <MonitoringLogsTable.Skeleton />
+                </div>
+              ) : tab === "dashboards" ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-muted-foreground">
+                    Loading dashboards...
                   </div>
-                ) : tab === "dashboards" ? (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-muted-foreground">
-                      Loading dashboards...
-                    </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+                  <div className="border-b border-border">
+                    <TopTools.Skeleton />
                   </div>
-                ) : (
-                  <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
-                    <div className="border-b border-border">
-                      <TopTools.Skeleton />
-                    </div>
-                    <MonitoringStats.Skeleton />
-                  </div>
-                )}
-              </Page.Content>
+                  <MonitoringStats.Skeleton />
+                </div>
+              )}
             </>
           }
         >
