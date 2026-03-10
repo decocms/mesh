@@ -18,7 +18,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/mesh
+  IMAGE_NAME: decocms/mesh/mesh
 
 jobs:
   release:
