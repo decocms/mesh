@@ -199,9 +199,12 @@ const traceExporter = process.env.CLICKHOUSE_URL
   ? new OTLPTraceExporter()
   : undefined;
 
-const monitoringLogExporter = process.env.CLICKHOUSE_URL
-  ? null
-  : new NDJSONLogExporter({ basePath: DEFAULT_MONITORING_URI });
+// Skip NDJSONLogExporter during tests — it creates timers and writes to disk,
+// neither of which is needed when running `bun test`.
+const monitoringLogExporter =
+  process.env.CLICKHOUSE_URL || process.env.NODE_ENV === "test"
+    ? null
+    : new NDJSONLogExporter({ basePath: DEFAULT_MONITORING_URI });
 
 /**
  * Initialize OpenTelemetry SDK
