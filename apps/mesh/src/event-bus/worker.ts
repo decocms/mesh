@@ -115,8 +115,10 @@ export class EventBusWorker {
   constructor(
     private storage: EventBusStorage,
     config?: EventBusConfig,
+    notifySubscriberOverride?: NotifySubscriberFn,
   ) {
-    this.notifySubscriber = createNotifySubscriber();
+    this.notifySubscriber =
+      notifySubscriberOverride ?? createNotifySubscriber();
     this.config = {
       ...DEFAULT_EVENT_BUS_CONFIG,
       ...config,
@@ -205,6 +207,7 @@ export class EventBusWorker {
     // Process each subscriber's batch in parallel -- deliveries to different
     // connections are independent, so a slow/dead connection doesn't block others.
     const eventIdsToUpdate = new Set<string>();
+    const permanentlyFailedEventIds = new Set<string>();
 
     await Promise.allSettled(
       Array.from(grouped.entries()).map(async ([subscriptionId, batch]) => {
@@ -229,11 +232,18 @@ export class EventBusWorker {
               result.retryAfter,
             );
           } else {
-            // Batch mode: mark as failed with error and apply exponential backoff
+            // Batch mode: mark as failed with error and apply exponential backoff.
+            // Auth errors are permanent — skip backoff by passing maxAttempts=1.
+            const maxAttempts = result.permanent ? 1 : this.config.maxAttempts;
+            if (result.permanent) {
+              for (const event of batch.events) {
+                permanentlyFailedEventIds.add(event.id);
+              }
+            }
             await this.storage.markDeliveriesFailed(
               batch.deliveryIds,
               result.error || "Subscriber returned success=false",
-              this.config.maxAttempts,
+              maxAttempts,
               this.config.retryDelayMs,
               this.config.maxDelayMs,
             );
@@ -275,7 +285,7 @@ export class EventBusWorker {
         const event = pendingDeliveries.find(
           (p) => p.event.id === eventId,
         )?.event;
-        if (event?.cron) {
+        if (event?.cron && !permanentlyFailedEventIds.has(eventId)) {
           await this.scheduleNextCronDelivery(event);
         }
       } catch (error) {

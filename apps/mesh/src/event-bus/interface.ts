@@ -257,6 +257,8 @@ export type NotifySubscriberFn = (
   success?: boolean;
   error?: string;
   retryAfter?: number;
+  /** Skip backoff and mark as permanently failed immediately (e.g. auth errors) */
+  permanent?: boolean;
   results?: Record<string, EventResult>;
 }>;
 
