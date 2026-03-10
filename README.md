@@ -17,11 +17,11 @@
 
 ## What is deco Studio?
 
-Studio is where you manage your AI agents, tools, and projects — all from one place.
+Studio is where you hire agents, connect tools, and organize them into projects that actually do things.
 
-Instead of wiring up MCP servers one by one across every client, you connect them once in Studio and get a single endpoint that any client can use. But connections are just the start: Studio adds agents that know how to use those tools, projects with declarative planning, per-connection cost tracking, and a web dashboard you can access from anywhere.
+You add agents with real skills and connect MCP servers through a web UI — no JSON configs. Then you group them into **projects**: each project gets its own sidebar, shaped by the agents and connections inside it. The UI you see is the UI that's relevant for operating that project.
 
-Install locally and everything stays private. Optionally sync to the cloud for remote access, team roles, and shared billing.
+Everything is tracked — tokens, costs, errors, latency — per connection, per agent. Install locally and it stays private. Sync to the cloud for remote access, team roles, and shared billing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -80,7 +80,9 @@ As tool surfaces grow, Studio exposes **Virtual MCPs** — one endpoint, differe
 
 ### Projects
 
-Define what done looks like. Studio works backward to derive milestones, assign agents, and verify outcomes.
+Projects are the centerpiece. You gather specific agents and connections around a goal, and the project's UI adapts to what's inside — the sidebar shows the views, actions, and data that are relevant for operating it. Add a content agent and a CMS connection, the sidebar shows content management. Add an analytics agent and a database connection, it shows dashboards and queries.
+
+Define what done looks like and Studio works backward to derive milestones, assign agents, and verify outcomes. Projects are where agents, tools, and humans collaborate with a UI that fits the job.
 
 ### Observability
 
