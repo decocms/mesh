@@ -63,7 +63,7 @@ describe("reactAll", () => {
       await reactAll(pairs, deps);
 
       expect(deps.storage.update).toHaveBeenCalledTimes(1);
-      expect(deps.storage.update).toHaveBeenCalledWith("t1", {
+      expect(deps.storage.update).toHaveBeenCalledWith("t1", "org1", {
         status: "in_progress",
       });
       expect(deps.sseHub.emit).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ describe("reactAll", () => {
       await reactAll(pairs, deps);
 
       expect(deps.storage.update).toHaveBeenCalledTimes(1);
-      expect(deps.storage.update).toHaveBeenCalledWith("t1", {
+      expect(deps.storage.update).toHaveBeenCalledWith("t1", "org1", {
         status: "completed",
       });
       expect(deps.streamBuffer.purge).toHaveBeenCalledTimes(1);
@@ -138,7 +138,7 @@ describe("reactAll", () => {
       await reactAll(pairs, deps);
 
       expect(deps.storage.update).toHaveBeenCalledTimes(1);
-      expect(deps.storage.update).toHaveBeenCalledWith("t1", {
+      expect(deps.storage.update).toHaveBeenCalledWith("t1", "org1", {
         status: "requires_action",
       });
       expect(deps.streamBuffer.purge).toHaveBeenCalledTimes(1);
@@ -164,7 +164,7 @@ describe("reactAll", () => {
 
         await reactAll(pairs, deps);
 
-        expect(deps.storage.update).toHaveBeenCalledWith("t1", {
+        expect(deps.storage.update).toHaveBeenCalledWith("t1", "org1", {
           status: "failed",
         });
         expect(deps.storage.forceFailIfInProgress).not.toHaveBeenCalled();
@@ -190,7 +190,10 @@ describe("reactAll", () => {
       await reactAll(pairs, deps);
 
       expect(deps.storage.forceFailIfInProgress).toHaveBeenCalledTimes(1);
-      expect(deps.storage.forceFailIfInProgress).toHaveBeenCalledWith("t1");
+      expect(deps.storage.forceFailIfInProgress).toHaveBeenCalledWith(
+        "t1",
+        "org1",
+      );
       expect(deps.storage.update).not.toHaveBeenCalled();
       expect(deps.streamBuffer.purge).toHaveBeenCalledWith("t1");
       expect(deps.sseHub.emit).toHaveBeenCalledTimes(2);
