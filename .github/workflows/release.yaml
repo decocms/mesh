@@ -145,7 +145,7 @@ jobs:
           tag_name: v${{ steps.version-check.outputs.current-version }}
           name: "decocms v${{ steps.version-check.outputs.current-version }}"
           body: |
-            ## MCP Mesh v${{ steps.version-check.outputs.current-version }}
+            ## Deco Studio v${{ steps.version-check.outputs.current-version }}
 
             Self-hostable Virtual MCP for managing AI connections and tools.
 

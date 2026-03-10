@@ -1,5 +1,5 @@
 /**
- * Database Factory for MCP Mesh
+ * Database Factory for Deco Studio
  *
  * Auto-detects database dialect from DATABASE_URL and returns configured Kysely instance.
  * Supports PGlite (default, local PostgreSQL via WASM) and PostgreSQL (cloud).

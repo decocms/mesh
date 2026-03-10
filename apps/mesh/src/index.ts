@@ -1,5 +1,5 @@
 /**
- * MCP Mesh Server Entry Point
+ * Deco Studio Server Entry Point
  *
  * Bundled server entry point for production.
  * Start with: bun run index.js
