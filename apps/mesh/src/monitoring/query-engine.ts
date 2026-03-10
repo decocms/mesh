@@ -107,7 +107,17 @@ export interface MonitoringEngineConfig {
  * without the native module). Monitoring queries return empty results.
  */
 class NoopEngine implements QueryEngine {
+  private warned = false;
+
   async query(): Promise<Record<string, unknown>[]> {
+    if (!this.warned) {
+      this.warned = true;
+      console.warn(
+        "\n⚠️  WARNING: Monitoring query skipped — chdb native module is not available.\n" +
+          "   Monitoring data exists on disk but cannot be queried.\n" +
+          "   Fix: run `bun add chdb` in apps/mesh/ to install the native module.\n",
+      );
+    }
     return [];
   }
 }
@@ -134,9 +144,11 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
       engine: new ChdbEngine(),
       source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
     };
-  } catch {
+  } catch (err) {
     console.warn(
-      "chdb not available — monitoring queries will return empty results",
+      "\n⚠️  WARNING: chdb native module failed to load — monitoring will return empty results.\n" +
+        `   Error: ${err instanceof Error ? err.message : err}\n` +
+        "   Fix: run `bun add chdb` in apps/mesh/ to reinstall the native module.\n",
     );
     return {
       engine: new NoopEngine(),
