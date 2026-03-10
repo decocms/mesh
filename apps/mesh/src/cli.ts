@@ -119,15 +119,22 @@ const decoHome =
 process.env.DECOCMS_HOME = decoHome;
 process.env.PORT = values.port;
 
+// Capture before CLI sets NODE_ENV — if it was already "production" (e.g., Docker/K8s),
+// we should NOT default to local mode since this is a real production deployment.
+const nodeEnvWasProduction = process.env.NODE_ENV === "production";
+
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "production";
 }
 
 // Determine if local mode should be active
+// Local mode is for `bunx decocms` running locally — disable when NODE_ENV was
+// already set to production (indicates a container/cloud deployment).
 const hasCustomAuthConfig =
   process.env.AUTH_CONFIG_PATH &&
   process.env.AUTH_CONFIG_PATH !== "./auth-config.json";
-const localMode = !values["no-local-mode"] && !hasCustomAuthConfig;
+const localMode =
+  !values["no-local-mode"] && !hasCustomAuthConfig && !nodeEnvWasProduction;
 process.env.MESH_LOCAL_MODE = localMode ? "true" : "false";
 
 // CLI is the intended local runner — allow local mode even when NODE_ENV=production
