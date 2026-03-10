@@ -113,8 +113,11 @@ export class NDJSONExporter<T> {
     try {
       await this.writeNDJSON(strings);
     } catch (err) {
+      // Prepend restored strings, then recalculate bytes for the entire
+      // merged buffer (includes rows added by concurrent exportRows calls).
       this.bufferStrings = strings.concat(this.bufferStrings);
-      for (const s of strings) {
+      this.bufferBytes = 0;
+      for (const s of this.bufferStrings) {
         this.bufferBytes += Buffer.byteLength(s, "utf8") + 1;
       }
       throw err;
