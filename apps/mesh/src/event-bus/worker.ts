@@ -9,6 +9,7 @@ import type { CloudEvent } from "@decocms/bindings";
 import { Cron } from "croner";
 import type { EventBusStorage, PendingDelivery } from "../storage/event-bus";
 import type { Event } from "../storage/types";
+import { PermanentDeliveryError } from "./errors";
 import {
   DEFAULT_EVENT_BUS_CONFIG,
   type EventBusConfig,
@@ -115,8 +116,10 @@ export class EventBusWorker {
   constructor(
     private storage: EventBusStorage,
     config?: EventBusConfig,
+    notifySubscriberOverride?: NotifySubscriberFn,
   ) {
-    this.notifySubscriber = createNotifySubscriber();
+    this.notifySubscriber =
+      notifySubscriberOverride ?? createNotifySubscriber();
     this.config = {
       ...DEFAULT_EVENT_BUS_CONFIG,
       ...config,
@@ -204,67 +207,98 @@ export class EventBusWorker {
 
     // Process each subscriber's batch in parallel -- deliveries to different
     // connections are independent, so a slow/dead connection doesn't block others.
-    const eventIdsToUpdate = new Set<string>();
 
-    await Promise.allSettled(
-      Array.from(grouped.entries()).map(async ([subscriptionId, batch]) => {
-        try {
-          // Call ON_EVENTS on the subscriber connection
-          const result = await this.notifySubscriber(
-            batch.connectionId,
-            batch.events,
-          );
+    interface BatchOutcome {
+      eventIds: Set<string>;
+      permanentlyFailed: Set<string>;
+    }
 
-          // Check if per-event results were provided
-          if (result.results && Object.keys(result.results).length > 0) {
-            // Per-event mode: process each event individually
-            await this.processPerEventResults(batch, result);
-          } else if (result.success) {
-            // Batch mode: mark all deliveries as delivered
-            await this.storage.markDeliveriesDelivered(batch.deliveryIds);
-          } else if (result.retryAfter && result.retryAfter > 0) {
-            // Batch mode: subscriber wants re-delivery after a delay
-            await this.storage.scheduleRetryWithoutAttemptIncrement(
-              batch.deliveryIds,
-              result.retryAfter,
+    const settled = await Promise.allSettled(
+      Array.from(grouped.entries()).map(
+        async ([subscriptionId, batch]): Promise<BatchOutcome> => {
+          const permanentlyFailed = new Set<string>();
+
+          try {
+            // Call ON_EVENTS on the subscriber connection
+            const result = await this.notifySubscriber(
+              batch.connectionId,
+              batch.events,
             );
-          } else {
-            // Batch mode: mark as failed with error and apply exponential backoff
-            await this.storage.markDeliveriesFailed(
-              batch.deliveryIds,
-              result.error || "Subscriber returned success=false",
-              this.config.maxAttempts,
-              this.config.retryDelayMs,
-              this.config.maxDelayMs,
-            );
-          }
-        } catch (error) {
-          // Network error or other failure
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error(
-            `[EventBus] Failed to notify subscription ${subscriptionId}:`,
-            errorMessage,
-          );
 
-          // Apply exponential backoff with config settings
-          await this.storage.markDeliveriesFailed(
-            batch.deliveryIds,
-            errorMessage,
-            this.config.maxAttempts,
-            this.config.retryDelayMs,
-            this.config.maxDelayMs,
-          );
-        }
-
-        // Collect event IDs for status update
-        for (const pending of pendingDeliveries) {
-          if (batch.deliveryIds.includes(pending.delivery.id)) {
-            eventIdsToUpdate.add(pending.event.id);
+            // Check if per-event results were provided
+            if (result.results && Object.keys(result.results).length > 0) {
+              // Per-event mode: process each event individually
+              await this.processPerEventResults(batch, result);
+            } else if (result.success) {
+              // Batch mode: mark all deliveries as delivered
+              await this.storage.markDeliveriesDelivered(batch.deliveryIds);
+            } else if (result.retryAfter && result.retryAfter > 0) {
+              // Batch mode: subscriber wants re-delivery after a delay
+              await this.storage.scheduleRetryWithoutAttemptIncrement(
+                batch.deliveryIds,
+                result.retryAfter,
+              );
+            } else {
+              // Batch mode: mark as failed with error and apply exponential backoff
+              await this.storage.markDeliveriesFailed(
+                batch.deliveryIds,
+                result.error || "Subscriber returned success=false",
+                this.config.maxAttempts,
+                this.config.retryDelayMs,
+                this.config.maxDelayMs,
+              );
+            }
+          } catch (error) {
+            if (error instanceof PermanentDeliveryError) {
+              await this.storage.markDeliveriesPermanentlyFailed(
+                batch.deliveryIds,
+                error.message,
+              );
+              for (const event of batch.events) {
+                permanentlyFailed.add(event.id);
+              }
+            } else {
+              // Network error or other transient failure
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              console.error(
+                `[EventBus] Failed to notify subscription ${subscriptionId}:`,
+                errorMessage,
+              );
+              await this.storage.markDeliveriesFailed(
+                batch.deliveryIds,
+                errorMessage,
+                this.config.maxAttempts,
+                this.config.retryDelayMs,
+                this.config.maxDelayMs,
+              );
+            }
           }
-        }
-      }),
+
+          // Collect event IDs touched by this batch
+          const eventIds = new Set<string>();
+          for (const pending of pendingDeliveries) {
+            if (batch.deliveryIds.includes(pending.delivery.id)) {
+              eventIds.add(pending.event.id);
+            }
+          }
+
+          return { eventIds, permanentlyFailed };
+        },
+      ),
     );
+
+    // Collect results from all settled promises
+    const eventIdsToUpdate = new Set<string>();
+    const permanentlyFailedEventIds = new Set<string>();
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        for (const id of result.value.eventIds) eventIdsToUpdate.add(id);
+        for (const id of result.value.permanentlyFailed) {
+          permanentlyFailedEventIds.add(id);
+        }
+      }
+    }
 
     // Update event statuses and handle cron scheduling
     for (const eventId of eventIdsToUpdate) {
@@ -275,7 +309,7 @@ export class EventBusWorker {
         const event = pendingDeliveries.find(
           (p) => p.event.id === eventId,
         )?.event;
-        if (event?.cron) {
+        if (event?.cron && !permanentlyFailedEventIds.has(eventId)) {
           await this.scheduleNextCronDelivery(event);
         }
       } catch (error) {

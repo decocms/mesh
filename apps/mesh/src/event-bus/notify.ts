@@ -21,6 +21,7 @@ import {
   dangerouslyCreateSuperUserMCPProxy,
   toServerClient,
 } from "../api/routes/proxy";
+import { PermanentDeliveryError, isAuthError } from "./errors";
 import type { NotifySubscriberFn } from "./interface";
 
 /**
@@ -144,6 +145,10 @@ export function createNotifySubscriber(): NotifySubscriberFn {
         `[EventBus] Failed to notify connection ${connectionId}:`,
         errorMessage,
       );
+
+      if (isAuthError(error)) {
+        throw new PermanentDeliveryError(errorMessage);
+      }
 
       return {
         success: false,
