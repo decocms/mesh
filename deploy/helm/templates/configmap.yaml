@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "chart-deco-mcp-mesh.fullname" . }}-config
+  name: {{ include "chart-decocms.fullname" . }}-config
   labels:
-    {{- include "chart-deco-mcp-mesh.labels" . | nindent 4 }}
+    {{- include "chart-decocms.labels" . | nindent 4 }}
 data:
   {{- $knownKeys := list "NODE_EXTRA_CA_CERTS" }}
   {{- range $key, $value := .Values.configMap.meshConfig }}
@@ -16,5 +16,5 @@ data:
   {{- end }}
   {{- if ne (lower (default "sqlite" .Values.database.engine)) "postgresql" }}
   # DATABASE_URL only goes in ConfigMap when SQLite (file path, not sensitive)
-  DATABASE_URL: {{ include "chart-deco-mcp-mesh.databaseUrl" . | trim | quote }}
+  DATABASE_URL: {{ include "chart-decocms.databaseUrl" . | trim | quote }}
   {{- end }}
