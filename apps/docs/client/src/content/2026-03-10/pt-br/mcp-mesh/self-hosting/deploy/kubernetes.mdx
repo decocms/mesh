@@ -8,9 +8,9 @@ import Callout from "../../../../../../components/ui/Callout.astro";
 
 Este guia explica como fazer deploy do deco CMS no Kubernetes usando o Helm chart.
 
-Saiba mais: [a página do produto deco CMS](https://www.deco CMS.com/mesh)
+Saiba mais: [a página do produto deco CMS](https://www.decocms.com/mesh)
 
-Código-fonte do Helm chart: [deco CMS/helm-chart-deco-mcp-mesh](https://github.com/deco CMS/helm-chart-deco-mcp-mesh)
+Código-fonte do Helm chart: [decocms/helm-chart-deco-mcp-mesh](https://github.com/decocms/helm-chart-deco-mcp-mesh)
 
 ## Visão Geral
 
@@ -155,7 +155,7 @@ configMap:
         provider: "resend"
         config:
           apiKey: ""  # Deixar vazio quando usar Secret
-          fromEmail: "noreply@deco CMS.com"
+          fromEmail: "noreply@decocms.com"
 ```
 
 #### Passo 3: Instalar/Atualizar
@@ -185,7 +185,7 @@ Os principais valores configuráveis estão em `values.yaml`.
 | Parâmetro | Descrição | Padrão |
 |-----------|-------------|---------|
 | `replicaCount` | Número de réplicas | `3` |
-| `image.repository` | Repositório da imagem | `ghcr.io/deco CMS/mesh/mesh` |
+| `image.repository` | Repositório da imagem | `ghcr.io/decocms/mesh/mesh` |
 | `image.tag` | Tag da imagem | `latest` |
 | `service.type` | Tipo do Service | `ClusterIP` |
 | `persistence.enabled` | Habilitar PVC | `true` |
@@ -261,7 +261,7 @@ chart-deco-mcp-mesh/
 
 ## Templates e Funcionalidade
 
-Esta seção explica como o chart se comporta em tempo de renderização/execução. Para os códigos-fonte completos, veja o repositório do chart: [deco CMS/helm-chart-deco-mcp-mesh](https://github.com/deco CMS/helm-chart-deco-mcp-mesh).
+Esta seção explica como o chart se comporta em tempo de renderização/execução. Para os códigos-fonte completos, veja o repositório do chart: [decocms/helm-chart-deco-mcp-mesh](https://github.com/decocms/helm-chart-deco-mcp-mesh).
 
 ### `_helpers.tpl` (nomes + labels)
 
@@ -307,7 +307,7 @@ A lista completa está em `values.yaml`; abaixo estão os parâmetros mais impor
 
 ```yaml
 image:
-  repository: ghcr.io/deco CMS/mesh/mesh
+  repository: ghcr.io/decocms/mesh/mesh
   pullPolicy: Always # Always, IfNotPresent, Never
   tag: "latest"
 ```

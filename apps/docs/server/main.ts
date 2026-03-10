@@ -35,7 +35,7 @@ const runtime = withRuntime<Env>({
 
     // Redirect /latest/* to actual latest version
     if (url.pathname.startsWith("/latest/") || url.pathname === "/latest") {
-      const newPath = url.pathname.replace(/^\/latest/, `/${LATEST}`);
+      const newPath = `${url.pathname.replace(/^\/latest/, `/${LATEST}`)}${url.search}`;
       return Response.redirect(new URL(newPath, req.url), 302);
     }
 

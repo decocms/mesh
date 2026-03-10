@@ -585,7 +585,7 @@ export default function Sidebar({
             />
           </div>
           <a
-            href="https://github.com/deco-cx/chat"
+            href="https://github.com/decocms/studio"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted hover:text-foreground transition-colors"
