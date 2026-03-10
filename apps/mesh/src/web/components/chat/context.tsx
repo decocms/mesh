@@ -583,6 +583,12 @@ interface TaskStreamManagerProps {
 /**
  * Behavior-only component managing stream resumption and safety-net polling.
  * Keyed by activeTaskId so it remounts on task switch — all refs start fresh.
+ *
+ * Resume should only happen when the server has an in-progress run but the
+ * client has no active stream (page reload, tab switch, multi-pod). When the
+ * client already has a live stream (from sendMessage or a previous resume),
+ * SSE step events are just echoes — calling resumeStream would open a second
+ * /attach connection and cause duplicate/oscillating chunks.
  */
 function TaskStreamManager({
   taskId,
@@ -597,25 +603,34 @@ function TaskStreamManager({
   const resumeFailCountRef = useRef(0);
   const MAX_RESUME_RETRIES = 3;
 
-  const invalidateTaskData = () => {
+  const invalidateTaskList = () => {
     queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
-    if (taskId) {
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey;
-          if (key[3] !== "collection" || key[4] !== "THREAD_MESSAGES") {
-            return false;
-          }
-          const serialized = typeof key[6] === "string" ? key[6] : "";
-          return serialized.includes(taskId);
-        },
-      });
-    }
+  };
+
+  const invalidateMessages = () => {
+    if (!taskId) return;
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        if (key[3] !== "collection" || key[4] !== "THREAD_MESSAGES") {
+          return false;
+        }
+        const serialized = typeof key[6] === "string" ? key[6] : "";
+        return serialized.includes(taskId);
+      },
+    });
+  };
+
+  /** Read the AI SDK's live status — not the React-lagged prop. */
+  const isChatActive = () => {
+    const s = chatRef.current.status;
+    return s === "submitted" || s === "streaming";
   };
 
   const tryResumeStream = (reason: string) => {
     if (!taskId || hasResumedRef.current === taskId) return;
     if (resumeFailCountRef.current >= MAX_RESUME_RETRIES) return;
+    if (isChatActive()) return;
     hasResumedRef.current = taskId;
 
     console.log(`[chat] resumeStream (${reason})`, taskId);
@@ -623,7 +638,8 @@ function TaskStreamManager({
       console.error("[chat] resumeStream error", err);
       resumeFailCountRef.current++;
       hasResumedRef.current = null;
-      invalidateTaskData();
+      invalidateTaskList();
+      invalidateMessages();
     });
   };
 
@@ -632,15 +648,24 @@ function TaskStreamManager({
     taskId,
     onStep: () => tryResumeStream("sse-step"),
     onFinish: () => {
-      hasResumedRef.current = null;
-      resumeFailCountRef.current = 0;
-      if (!isStreaming) {
-        invalidateTaskData();
+      // Only reset the resume guard when the AI SDK is truly idle.
+      // During sendAutomaticallyWhen cycles the SDK fires onFinish
+      // between round-trips while status is still "submitted" — resetting
+      // here would re-open the window for a duplicate attach.
+      if (!isChatActive()) {
+        hasResumedRef.current = null;
+        resumeFailCountRef.current = 0;
+        invalidateTaskList();
+        // Delay message invalidation so the server-side onFinish has time
+        // to persist messages. Without this, the refetch races with the
+        // server save and returns stale data — wiping the snapshot that
+        // cancelRun or the client onFinish already wrote to the cache.
+        setTimeout(invalidateMessages, 2000);
       }
     },
     onTaskStatus: () => {
-      if (!isStreaming) {
-        invalidateTaskData();
+      if (!isChatActive()) {
+        invalidateTaskList();
       }
     },
   });
@@ -655,7 +680,10 @@ function TaskStreamManager({
 
     tryResumeStream("page-load");
 
-    const id = setInterval(() => invalidateTaskData(), SAFETY_NET_POLL_MS);
+    const id = setInterval(() => {
+      invalidateTaskList();
+      invalidateMessages();
+    }, SAFETY_NET_POLL_MS);
     return () => clearInterval(id);
   };
 
