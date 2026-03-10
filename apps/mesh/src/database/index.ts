@@ -12,7 +12,6 @@
  */
 
 import { existsSync, mkdirSync } from "fs";
-import { homedir } from "os";
 import { type Dialect, Kysely, LogEvent, PostgresDialect } from "kysely";
 import { PGlite } from "@electric-sql/pglite";
 import { KyselyPGlite } from "kysely-pglite";
@@ -184,11 +183,9 @@ function createPGliteDatabase(config: DatabaseConfig): PGliteDatabase {
 // URL Parsing
 // ============================================================================
 
-const DEFAULT_PGLITE_PATH = path.join(
-  process.env.DECOCMS_HOME || path.join(homedir(), "deco"),
-  "system",
-  "db.pglite",
-);
+import { DATA_DIR } from "../monitoring/schema";
+
+const DEFAULT_PGLITE_PATH = path.join(DATA_DIR, "db.pglite");
 
 function parseDatabaseUrl(databaseUrl?: string): DatabaseConfig {
   let url = databaseUrl || getDatabaseUrl();

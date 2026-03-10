@@ -25,7 +25,8 @@ let _cachedPassword: string | null = null;
 export async function getLocalAdminPassword(): Promise<string> {
   if (_cachedPassword) return _cachedPassword;
 
-  const decoHome = process.env.DECOCMS_HOME || join(homedir(), "deco");
+  const decoHome =
+    process.env.DATA_DIR || process.env.DECOCMS_HOME || join(homedir(), "deco");
 
   const secretsPath = join(decoHome, "secrets.json");
 

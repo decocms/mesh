@@ -661,39 +661,37 @@ export async function createApp(options: CreateAppOptions = {}) {
       console.error("[EventBus] Error during startup:", error);
     });
 
-  // NDJSON monitoring retention cleanup (skip in ClickHouse mode)
+  // NDJSON monitoring retention cleanup (always — local files are always written)
   const SIGNAL_DIRS = [
     DEFAULT_LOGS_DIR,
     DEFAULT_TRACES_DIR,
     DEFAULT_METRICS_DIR,
   ];
 
-  if (!process.env.CLICKHOUSE_URL) {
-    for (const dir of SIGNAL_DIRS) {
-      cleanupOldMonitoringFiles(dir)
-        .then((deleted) => {
-          if (deleted > 0)
-            console.log(
-              `[monitoring] Cleaned up ${deleted} old partitions from ${dir}`,
-            );
-        })
-        .catch((err) =>
+  for (const dir of SIGNAL_DIRS) {
+    cleanupOldMonitoringFiles(dir)
+      .then((deleted) => {
+        if (deleted > 0)
+          console.log(
+            `[monitoring] Cleaned up ${deleted} old partitions from ${dir}`,
+          );
+      })
+      .catch((err) =>
+        console.error("[monitoring] Retention cleanup failed:", err),
+      );
+  }
+
+  currentRetentionTimer = setInterval(
+    () => {
+      for (const dir of SIGNAL_DIRS) {
+        cleanupOldMonitoringFiles(dir).catch((err) =>
           console.error("[monitoring] Retention cleanup failed:", err),
         );
-    }
-
-    currentRetentionTimer = setInterval(
-      () => {
-        for (const dir of SIGNAL_DIRS) {
-          cleanupOldMonitoringFiles(dir).catch((err) =>
-            console.error("[monitoring] Retention cleanup failed:", err),
-          );
-        }
-      },
-      24 * 60 * 60 * 1000,
-    );
-    currentRetentionTimer.unref();
-  }
+      }
+    },
+    24 * 60 * 60 * 1000,
+  );
+  currentRetentionTimer.unref();
 
   // Inject MeshContext into requests
   // Skip auth routes, static files, health check, and metrics - they don't need MeshContext
