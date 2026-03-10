@@ -27,11 +27,6 @@ function esc(value: string): string {
   return value.replace(/\0/g, "").replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
 
-/** Escape a string value for safe use in ILIKE patterns (escapes SQL wildcards). */
-function escLike(value: string): string {
-  return esc(value).replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
 /** Allowed groupByColumn values. */
 const ALLOWED_GROUP_BY_COLUMNS = new Set<GroupByColumn>([
   "connection_id",
@@ -177,7 +172,7 @@ function buildPropertyFilterClauses(filters: PropertyFilters): string[] {
   if (filters.propertyPatterns) {
     for (const [key, pattern] of Object.entries(filters.propertyPatterns)) {
       const k = esc(key);
-      const p = escLike(pattern);
+      const p = esc(pattern);
       clauses.push(`JSONExtractString(properties, '${k}') ILIKE '${p}'`);
     }
   }

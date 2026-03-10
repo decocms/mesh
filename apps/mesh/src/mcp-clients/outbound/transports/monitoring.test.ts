@@ -93,7 +93,7 @@ function createMockTransportAndCtx() {
 
 describe("MonitoringTransport emitMonitoringLog", () => {
   beforeEach(() => {
-    mockEmitMonitoringLog.mockClear();
+    mockEmitMonitoringLog.mockReset();
   });
 
   it("should call emitMonitoringLog on tool call response", async () => {

@@ -163,7 +163,11 @@ export class NDJSONLogExporter implements LogRecordExporter {
   }
 
   async forceFlush(): Promise<void> {
-    await this.flushQueue;
+    try {
+      await this.flushQueue;
+    } catch {
+      // Ignore — flush() already restored the buffer on failure
+    }
     if (this.bufferStrings.length > 0) {
       await this.flush();
     }
