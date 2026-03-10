@@ -1,21 +1,17 @@
-import { describe, it, expect, beforeEach } from "bun:test";
-import { logs } from "@opentelemetry/api-logs";
+import { describe, it, expect, beforeEach, vi } from "bun:test";
+import { logs, type LogRecord } from "@opentelemetry/api-logs";
 import { MONITORING_LOG_ATTR, MONITORING_LOG_TYPE_VALUE } from "./schema";
+import { emitMonitoringLog } from "./emit";
+import type { EmitMonitoringLogParams } from "./emit";
 
-// Capture emitted log records by mocking the logger
-let emittedRecords: Array<Record<string, unknown>> = [];
-const mockLogger = {
-  emit(record: Record<string, unknown>) {
+// Intercept log records by spying on logs.getLogger()
+let emittedRecords: LogRecord[] = [];
+
+vi.spyOn(logs, "getLogger").mockReturnValue({
+  emit(record: LogRecord) {
     emittedRecords.push(record);
   },
-};
-
-// Patch the logger provider before importing emit.ts
-logs.getLogger = (() => mockLogger) as typeof logs.getLogger;
-
-// Import after patching
-const { emitMonitoringLog } = await import("./emit");
-type EmitMonitoringLogParams = Parameters<typeof emitMonitoringLog>[0];
+});
 
 function makeParams(
   overrides: Partial<EmitMonitoringLogParams> = {},
@@ -48,8 +44,7 @@ describe("emitMonitoringLog", () => {
     emitMonitoringLog(makeParams());
 
     expect(emittedRecords.length).toBe(1);
-    const record = emittedRecords[0]!;
-    const attrs = record.attributes as Record<string, unknown>;
+    const attrs = emittedRecords[0]!.attributes!;
 
     expect(attrs[MONITORING_LOG_ATTR.TYPE]).toBe(MONITORING_LOG_TYPE_VALUE);
     expect(attrs[MONITORING_LOG_ATTR.ORGANIZATION_ID]).toBe("org_123");
@@ -80,7 +75,7 @@ describe("emitMonitoringLog", () => {
     );
 
     expect(emittedRecords.length).toBe(1);
-    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const attrs = emittedRecords[0]!.attributes!;
     expect(attrs[MONITORING_LOG_ATTR.USER_ID]).toBe("");
     expect(attrs[MONITORING_LOG_ATTR.USER_AGENT]).toBe("");
     expect(attrs[MONITORING_LOG_ATTR.VIRTUAL_MCP_ID]).toBe("");
@@ -95,7 +90,7 @@ describe("emitMonitoringLog", () => {
     );
 
     expect(emittedRecords.length).toBe(1);
-    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const attrs = emittedRecords[0]!.attributes!;
     const input = attrs[MONITORING_LOG_ATTR.INPUT] as string;
     expect(input).not.toContain("user@example.com");
     expect(input).toContain("[REDACTED:email]");
@@ -110,7 +105,7 @@ describe("emitMonitoringLog", () => {
     );
 
     expect(emittedRecords.length).toBe(1);
-    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const attrs = emittedRecords[0]!.attributes!;
     const errorMsg = attrs[MONITORING_LOG_ATTR.ERROR_MESSAGE] as string;
     expect(errorMsg).not.toContain("user@example.com");
   });
@@ -119,7 +114,7 @@ describe("emitMonitoringLog", () => {
     emitMonitoringLog(makeParams({ properties: { env: "prod", v: "2" } }));
 
     expect(emittedRecords.length).toBe(1);
-    const attrs = emittedRecords[0]!.attributes as Record<string, unknown>;
+    const attrs = emittedRecords[0]!.attributes!;
     expect(JSON.parse(attrs[MONITORING_LOG_ATTR.PROPERTIES] as string)).toEqual(
       { env: "prod", v: "2" },
     );

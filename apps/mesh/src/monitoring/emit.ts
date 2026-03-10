@@ -14,12 +14,10 @@
  */
 
 import type { Context } from "@opentelemetry/api";
-import { type Logger, SeverityNumber, logs } from "@opentelemetry/api-logs";
+import { SeverityNumber, logs } from "@opentelemetry/api-logs";
 import { RegexRedactor } from "./redactor";
 import { MONITORING_LOG_ATTR, MONITORING_LOG_TYPE_VALUE } from "./schema";
 
-// Module-level logger and redactor (initialized once)
-const logger: Logger = logs.getLogger("mesh.monitoring", "1.0.0");
 const redactor = new RegexRedactor();
 
 export interface EmitMonitoringLogParams {
@@ -59,7 +57,7 @@ export function emitMonitoringLog(
       ? redactor.redactString(params.errorMessage)
       : "";
 
-    logger.emit({
+    logs.getLogger("mesh.monitoring", "1.0.0").emit({
       severityNumber: params.isError
         ? SeverityNumber.ERROR
         : SeverityNumber.INFO,
