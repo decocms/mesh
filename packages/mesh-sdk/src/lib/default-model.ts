@@ -42,15 +42,18 @@ export function selectDefaultModel(
 
   const candidates = DEFAULT_MODEL_PREFERENCES[providerId as ProviderId] ?? [];
 
+  const withKey = (model: AiProviderModel): AiProviderModel =>
+    keyId !== undefined ? { ...model, keyId } : model;
+
   for (const candidate of candidates) {
     const exact = models.find((m) => m.modelId === candidate);
-    if (exact) return { ...exact, keyId };
+    if (exact) return withKey(exact);
   }
 
   for (const candidate of candidates) {
     const partial = models.find((m) => m.modelId.includes(candidate));
-    if (partial) return { ...partial, keyId };
+    if (partial) return withKey(partial);
   }
 
-  return { ...models[0], keyId };
+  return withKey(models[0]);
 }
