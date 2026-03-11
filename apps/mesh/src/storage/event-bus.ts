@@ -413,7 +413,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: input.publisher ?? null,
         event_type: input.eventType,
         filter: input.filter ?? null,
-        enabled: true,
+        enabled: 1 as never, // PGLite boolean
         created_at: now,
         updated_at: now,
       })
@@ -426,7 +426,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: input.publisher ?? null,
       eventType: input.eventType,
       filter: input.filter ?? null,
-      enabled: true,
+      enabled: 1 as never, // PGLite boolean
       createdAt: now,
       updatedAt: now,
     };
@@ -486,7 +486,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
-      .where("enabled", "=", true)
+      .where("enabled", "=", 1 as never)
       .where("event_type", "=", event.type)
       .where((eb) =>
         eb.or([
@@ -540,7 +540,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
           .select("d.id")
           .where("d.status", "=", "pending")
-          .where("s.enabled", "=", true)
+          .where("s.enabled", "=", 1 as never)
           .where((inner) =>
             inner.or([
               inner("d.next_retry_at", "is", null),
@@ -1061,7 +1061,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       event_type: string;
       publisher: string | null;
       filter: string | null;
-      enabled: boolean;
+      enabled: number;
       created_at: string;
       updated_at: string;
     }> = [];
@@ -1082,7 +1082,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           event_type: desiredSub.eventType,
           publisher: desiredSub.publisher ?? null,
           filter: desiredSub.filter ?? null,
-          enabled: true,
+          enabled: 1 as never, // PGLite boolean
           created_at: now,
           updated_at: now,
         });
