@@ -311,7 +311,6 @@ export function ChatInput({
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
-    modelsConnections,
     selectedModel,
     setSelectedModel,
     selectedMode,
@@ -546,7 +545,6 @@ export function ChatInput({
                   <ModelSelector
                     selectedModel={selectedModel ?? undefined}
                     onModelChange={setSelectedModel}
-                    modelsConnections={modelsConnections}
                     placeholder="Model"
                     variant="borderless"
                   />

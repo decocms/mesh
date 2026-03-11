@@ -394,6 +394,9 @@ import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { OrgScopedThreadStorage, SqlThreadStorage } from "@/storage/threads";
 import { createClientPool } from "@/mcp-clients/outbound/client-pool";
+import { AIProviderKeyStorage } from "@/storage/ai-provider-keys";
+import { OAuthPkceStateStorage } from "@/storage/oauth-pkce-states";
+import { AIProviderFactory } from "@/ai-providers/factory";
 
 /**
  * Fetch role permissions from the database
@@ -789,6 +792,8 @@ export async function createMeshContextFactory(
     projects: new ProjectsStorage(config.db),
     projectConnections: new ProjectConnectionsStorage(config.db),
     projectPluginConfigs: new ProjectPluginConfigsStorage(config.db),
+    aiProviderKeys: new AIProviderKeyStorage(config.db, vault),
+    oauthPkceStates: new OAuthPkceStateStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin
@@ -858,6 +863,8 @@ export async function createMeshContextFactory(
       threads: new OrgScopedThreadStorage(threadDb, organization?.id),
     };
 
+    const aiProviderFactory = new AIProviderFactory(storage.aiProviderKeys);
+
     const ctx: MeshContext = {
       timings,
       auth: meshAuth,
@@ -893,6 +900,7 @@ export async function createMeshContextFactory(
         ),
       },
       eventBus: config.eventBus,
+      aiProviders: aiProviderFactory,
       createMCPProxy: async (conn: string | ConnectionEntity) => {
         return await createMCPProxy(conn, ctx);
       },

@@ -39,7 +39,10 @@ import {
 import { useDecopilotEvents } from "../../hooks/use-decopilot-events";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useModelConnections } from "../../hooks/collections/use-llm";
+import {
+  useAiProviderKeyList,
+  useAiProviderModels,
+} from "../../hooks/collections/use-llm";
 import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
@@ -50,7 +53,7 @@ import { usePreferences } from "../../hooks/use-preferences";
 import { authClient } from "../../lib/auth-client";
 import { KEYS } from "../../lib/query-keys";
 import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
-import { type ModelChangePayload, useModels } from "./select-model";
+import { type ModelChangePayload } from "./select-model";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import { useTaskManager, type Task, type TaskOwnerFilter } from "./task";
 import type { FileAttrs } from "./tiptap/file/node.tsx";
@@ -121,7 +124,6 @@ interface ChatStableValue {
   selectedVirtualMcp: VirtualMCPInfo | null;
   setVirtualMcpId: (virtualMcpId: string | null) => void;
 
-  modelsConnections: ReturnType<typeof useModelConnections>;
   selectedModel: ChatModelsConfig | null;
   setSelectedModel: (model: ModelChangePayload) => void;
 
@@ -135,6 +137,7 @@ interface ChatStableValue {
     params: McpUiUpdateModelContextRequest["params"],
   ) => void;
   clearAppContext: (sourceId: string) => void;
+  allModelsConnections: ReturnType<typeof useAiProviderKeyList>;
 }
 
 /**
@@ -225,7 +228,7 @@ const findOrFirst = <T extends { id: string }>(array?: T[], id?: string) =>
  */
 const useModelState = (
   locator: ProjectLocator,
-  modelsConnections: ReturnType<typeof useModelConnections>,
+  allModelsConnections: ReturnType<typeof useAiProviderKeyList>,
 ) => {
   const [modelState, setModelState] = useLocalStorage<StoredModelState | null>(
     LOCALSTORAGE_KEYS.chatSelectedModel(locator),
@@ -235,7 +238,7 @@ const useModelState = (
   // Validate stored connectionId is still in the available connections list.
   // Falls back to first connection when stored one is gone.
   const modelsConnection = findOrFirst(
-    modelsConnections,
+    allModelsConnections,
     modelState?.connectionId,
   );
 
@@ -509,22 +512,21 @@ const ChatStreamContext = createContext<ChatStreamValue | null>(null);
  * Renders null — purely a behavior component.
  */
 function ModelAutoSelector({
-  modelsConnections,
   currentConfig,
   onAutoSelect,
   allowAll,
   isModelAllowed,
 }: {
-  modelsConnections: ReturnType<typeof useModelConnections>;
   currentConfig: ChatModelsConfig | null;
   onAutoSelect: (state: StoredModelState) => void;
   allowAll: boolean;
   isModelAllowed: (connectionId: string, modelId: string) => boolean;
 }) {
-  const firstConnection = modelsConnections[0];
+  const keys = useAiProviderKeyList();
+  const firstKey = keys[0];
   // This call may suspend (loading) or throw (MCP error).
   // Both are handled by the ErrorBoundary + Suspense wrapping this component.
-  const models = useModels(firstConnection?.id);
+  const models = useAiProviderModels(firstKey?.id);
 
   // Stable refs for callbacks that change reference every render.
   // Without these, the effect re-fires while the mutation is still pending
@@ -540,32 +542,30 @@ function ModelAutoSelector({
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     // Only auto-select when there is no stored model config yet.
-    if (currentConfig || !firstConnection || models.length === 0) return;
+    if (currentConfig || !firstKey || models.length === 0) return;
 
     // Filter models through the same permission check used in the manual
     // selector so auto-selection always picks a model the user can actually use.
     const allowedModels = allowAll
       ? models
-      : models.filter((m) =>
-          isModelAllowedRef.current(firstConnection.id, m.id),
-        );
+      : models.filter((m) => isModelAllowedRef.current(firstKey.id, m.modelId));
 
     // Prefer Claude Opus 4.6 as default, fall back to Sonnet 4.6, then any
     const preferred =
-      allowedModels.find((m) => m.id.includes("claude-4.6-opus")) ??
-      allowedModels.find((m) => m.id.includes("claude-opus-4.6")) ??
-      allowedModels.find((m) => m.id.includes("claude-sonnet-4.6")) ??
-      allowedModels.find((m) => m.id.includes("claude-sonnet"));
+      allowedModels.find((m) => m.modelId.includes("claude-4.6-opus")) ??
+      allowedModels.find((m) => m.modelId.includes("claude-opus-4.6")) ??
+      allowedModels.find((m) => m.modelId.includes("claude-sonnet-4.6")) ??
+      allowedModels.find((m) => m.modelId.includes("claude-sonnet"));
     const first = preferred ?? allowedModels[0];
     if (!first) return;
     onAutoSelectRef.current({
-      id: first.id,
-      connectionId: firstConnection.id,
-      provider: first.provider ?? undefined,
+      id: first.modelId,
+      connectionId: firstKey.id,
+      provider: firstKey.providerId,
       capabilities: first.capabilities ?? undefined,
       limits: first.limits ?? undefined,
     });
-  }, [models, currentConfig, firstConnection, allowAll]);
+  }, [models, currentConfig, firstKey, allowAll]);
 
   return null;
 }
@@ -744,7 +744,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   >(`${locator}:selected-virtual-mcp-id`, null);
 
   // Model state — filter out connections where the user's role allows no models
-  const allModelsConnections = useModelConnections();
+  const allModelsConnections = useAiProviderKeyList();
   const { hasConnectionModels, isModelAllowed, allowAll } = useAllowedModels();
   const modelsConnections = allModelsConnections.filter((conn) =>
     hasConnectionModels(conn.id),
@@ -1121,7 +1121,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
     virtualMcps,
     selectedVirtualMcp,
     setVirtualMcpId,
-    modelsConnections,
     selectedModel,
     setSelectedModel,
     selectedMode,
@@ -1130,6 +1129,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     cancelRun,
     setAppContext,
     clearAppContext,
+    allModelsConnections,
   };
 
   const streamValue: ChatStreamValue = {
@@ -1155,7 +1155,6 @@ export function ChatProvider({ children }: PropsWithChildren) {
         <ErrorBoundary fallback={null}>
           <Suspense fallback={null}>
             <ModelAutoSelector
-              modelsConnections={modelsConnections}
               currentConfig={selectedModel}
               onAutoSelect={setModel}
               allowAll={allowAll}

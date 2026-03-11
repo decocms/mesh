@@ -63,7 +63,7 @@ function verifySignature(
   method: "GET" | "PUT",
   signature: string,
 ): boolean {
-  const secret = env.ENCRYPTION_KEY || "dev-secret";
+  const secret = env.ENCRYPTION_KEY;
   const data = `${orgId}:${key}:${expires}:${method}`;
   const expectedSignature = createHmac("sha256", secret)
     .update(data)

@@ -51,5 +51,8 @@
   ],
   "overrides": {
     "fast-xml-parser": "5.4.2"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58"
   }
 }
