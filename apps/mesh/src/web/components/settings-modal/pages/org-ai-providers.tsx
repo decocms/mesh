@@ -205,18 +205,20 @@ function ConnectApiKeyForm({
   );
 }
 
-function ProviderCard({
+export type AiProvider = {
+  id: string;
+  name: string;
+  description: string;
+  logo: string | null;
+  connectionMethod: "api-key" | "oauth-pkce";
+  supportedMethods: ("api-key" | "oauth-pkce")[];
+};
+
+export function ProviderCard({
   provider,
   keys,
 }: {
-  provider: {
-    id: string;
-    name: string;
-    description: string;
-    logo: string | null;
-    connectionMethod: "api-key" | "oauth-pkce";
-    supportedMethods: ("api-key" | "oauth-pkce")[];
-  };
+  provider: AiProvider;
   keys: AiProviderKey[];
 }) {
   const { locator, org } = useProjectContext();
@@ -444,7 +446,7 @@ function ProviderCard({
                   {provider.logo && (
                     <img src={provider.logo} className="size-4 mr-2" />
                   )}
-                  Connect with {provider.name}
+                  OAuth
                 </>
               )}
             </Button>

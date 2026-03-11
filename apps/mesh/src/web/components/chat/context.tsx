@@ -637,7 +637,10 @@ export function ChatProvider({ children }: PropsWithChildren) {
 
   // Model state — filter out connections where the user's role allows no models
   const allModelsConnections = useAiProviderKeyList();
-  const [model, setModel] = useState<AiProviderModel | null>(null);
+  const [model, setModel] = useLocalStorage<AiProviderModel | null>(
+    LOCALSTORAGE_KEYS.chatSelectedModel(locator),
+    null,
+  );
 
   // Mode state
   const [selectedMode, setSelectedMode] =

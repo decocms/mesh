@@ -312,7 +312,6 @@ export function ChatInput({
     selectedVirtualMcp,
     setVirtualMcpId,
     model,
-    setSelectedModel,
     selectedMode,
     setSelectedMode,
     messages,
@@ -541,12 +540,7 @@ export function ChatInput({
 
                 {/* Right Actions (model, send) */}
                 <div className="flex items-center gap-1.5">
-                  <ModelSelector
-                    selectedModel={model ?? null}
-                    onModelChange={setSelectedModel}
-                    placeholder="Model"
-                    variant="borderless"
-                  />
+                  <ModelSelector placeholder="Model" variant="borderless" />
 
                   <Button
                     type={showStopOrCancel ? "button" : "submit"}

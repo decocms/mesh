@@ -472,7 +472,7 @@ function SelectedModelDisplay({
   model,
   placeholder = "Select model",
 }: {
-  model: AiProviderModel | undefined;
+  model: AiProviderModel | null;
   placeholder?: string;
 }) {
   if (!model) {
@@ -573,15 +573,7 @@ function ModelSelectorContentFallback() {
   );
 }
 
-function ModelSelectorContent({
-  selectedModel,
-  onModelChange,
-  onClose,
-}: {
-  selectedModel?: AiProviderModel | null;
-  onModelChange: (model: AiProviderModel) => void;
-  onClose: () => void;
-}) {
+function ModelSelectorContent({ onClose }: { onClose: () => void }) {
   const [hoveredModel, setHoveredModel] = useState<AiProviderModel | null>(
     null,
   );
@@ -589,7 +581,12 @@ function ModelSelectorContent({
   const [managing, setManaging] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const aiProviders = useAiProviders();
-  const { credentialId, setCredentialId } = useChat();
+  const {
+    credentialId,
+    setCredentialId,
+    model: selectedModel,
+    setSelectedModel,
+  } = useChat();
   const keys = useAiProviderKeyList();
 
   const providerMap = Object.fromEntries(
@@ -604,11 +601,7 @@ function ModelSelectorContent({
   const handleModelSelect = (model: AiProviderModel) => {
     const credential = credentialId;
     if (!credential) return;
-    onModelChange({
-      ...model,
-      capabilities: model.capabilities ?? [],
-      keyId: credential,
-    });
+    setSelectedModel(model);
     setSearchTerm("");
     onClose();
   };
@@ -718,65 +711,20 @@ function ModelSelectorContent({
 // ============================================================================
 
 export interface ModelSelectorProps {
-  selectedModel?: AiProviderModel | null;
-  onModelChange: (model: AiProviderModel) => void;
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
 }
 
-function ResolvedModelDisplay({
-  selectedModel,
-  placeholder,
-}: {
-  selectedModel?: AiProviderModel | null;
-  placeholder: string;
-}) {
-  const keyId = selectedModel?.modelId ?? undefined;
-  const models = useAiProviderModels(keyId);
-  const currentModel = selectedModel
-    ? models.find((m) => m.modelId === selectedModel.modelId)
-    : undefined;
-  return (
-    <SelectedModelDisplay model={currentModel} placeholder={placeholder} />
-  );
-}
-
-function FallbackModelDisplay({
-  selectedModel,
-  placeholder,
-}: {
-  selectedModel?: AiProviderModel | null;
-  placeholder: string;
-}) {
-  if (!selectedModel) {
-    return <SelectedModelDisplay model={undefined} placeholder={placeholder} />;
-  }
-  const id = selectedModel.modelId;
-  const shortName = id.split("/").pop() ?? id;
-  return (
-    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-      <span className="text-sm text-muted-foreground truncate whitespace-nowrap hidden md:inline">
-        {shortName}
-      </span>
-      <ChevronDown
-        size={14}
-        className="text-muted-foreground opacity-50 shrink-0 hidden md:inline"
-      />
-    </div>
-  );
-}
-
 export function ModelSelector({
-  selectedModel,
-  onModelChange,
   variant = "borderless",
   className,
   placeholder = "Select model",
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
-  const currentModel = selectedModel;
+  const { model } = useChat();
 
+  console.log({ model });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -789,28 +737,7 @@ export function ModelSelector({
             className,
           )}
         >
-          <ErrorBoundary
-            fallback={
-              <FallbackModelDisplay
-                selectedModel={currentModel}
-                placeholder={placeholder}
-              />
-            }
-          >
-            <Suspense
-              fallback={
-                <SelectedModelDisplay
-                  model={undefined}
-                  placeholder={placeholder}
-                />
-              }
-            >
-              <ResolvedModelDisplay
-                selectedModel={selectedModel}
-                placeholder={placeholder}
-              />
-            </Suspense>
-          </ErrorBoundary>
+          <SelectedModelDisplay model={model} placeholder={placeholder} />
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -819,11 +746,7 @@ export function ModelSelector({
       >
         <DialogTitle className="sr-only">Select model</DialogTitle>
         <Suspense fallback={<ModelSelectorContentFallback />}>
-          <ModelSelectorContent
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-            onClose={() => setOpen(false)}
-          />
+          <ModelSelectorContent onClose={() => setOpen(false)} />
         </Suspense>
       </DialogContent>
     </Dialog>

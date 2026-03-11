@@ -1,4 +1,4 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type {
   MeshProvider,
   ModelInfo,
@@ -50,9 +50,8 @@ export const openrouterAdapter: ProviderAdapter = {
   },
 
   create(apiKey): MeshProvider {
-    const aiSdk = createOpenAI({
+    const aiSdk = createOpenRouter({
       apiKey,
-      baseURL: "https://openrouter.ai/api/v1",
     });
 
     const headers = { Authorization: `Bearer ${apiKey}` };
