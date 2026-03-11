@@ -41,6 +41,9 @@ export function LogoUpload({
         if (reader.readyState === FileReader.DONE && reader.result) {
           onChange(reader.result as string);
         }
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       };
 
       reader.readAsDataURL(file);
