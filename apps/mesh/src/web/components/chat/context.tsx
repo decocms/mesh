@@ -42,7 +42,9 @@ import { toast } from "sonner";
 import {
   AiProviderModel,
   useAiProviderKeyList,
+  useAiProviderModels,
 } from "../../hooks/collections/use-llm";
+import { selectDefaultModel } from "@decocms/mesh-sdk";
 import { useContext as useContextHook } from "../../hooks/use-context";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
 import { useLocalStorage } from "../../hooks/use-local-storage";
@@ -645,12 +647,25 @@ export function ChatProvider({ children }: PropsWithChildren) {
     null,
   );
 
+  // Load models for the effective key so we can auto-select a default.
+  // useAiProviderModels uses a regular useQuery (non-suspending), so this
+  // returns [] until data arrives — no blocking, no useEffect needed.
+  const defaultKeyModels = useAiProviderModels(effectiveKeyId ?? undefined);
+  const effectiveProviderId =
+    keys.find((k) => k.id === effectiveKeyId)?.providerId ?? "";
+  const defaultModel = selectDefaultModel(
+    defaultKeyModels,
+    effectiveProviderId,
+    effectiveKeyId ?? undefined,
+  );
+
   // Guard against stale localStorage entries that predate the current schema.
-  // If required fields are missing the stored value is unusable — treat as null.
+  // If required fields are missing the stored value is unusable — fall back to
+  // the provider-aware default, then null.
   const model =
     storedModel && typeof storedModel.modelId === "string" && storedModel.title
       ? storedModel
-      : null;
+      : defaultModel;
 
   // Mode state
   const [selectedMode, setSelectedMode] =

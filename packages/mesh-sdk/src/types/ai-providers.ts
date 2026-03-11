@@ -2,6 +2,10 @@
 // AI Provider Types — shared between server tool output and client hooks
 // ============================================================================
 
+export const PROVIDER_IDS = ["anthropic", "openrouter"] as const;
+
+export type ProviderId = (typeof PROVIDER_IDS)[number];
+
 export interface AiProviderModelLimits {
   contextWindow: number;
   /** Null means the provider does not advertise a specific cap. */
@@ -21,6 +25,8 @@ export interface AiProviderModel {
   capabilities: string[];
   limits: AiProviderModelLimits | null;
   costs: AiProviderModelCosts | null;
+  /** Client-side only — the credential key ID used to fetch this model. */
+  keyId?: string;
 }
 
 export interface AiProviderKey {

@@ -26,6 +26,8 @@ export {
 } from "./virtual-mcp";
 
 export {
+  PROVIDER_IDS,
+  type ProviderId,
   type AiProviderModel,
   type AiProviderModelLimits,
   type AiProviderModelCosts,

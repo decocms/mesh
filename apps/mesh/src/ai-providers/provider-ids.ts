@@ -1,3 +1,1 @@
-export const PROVIDER_IDS = ["anthropic", "openrouter"] as const;
-
-export type ProviderId = (typeof PROVIDER_IDS)[number];
+export { PROVIDER_IDS, type ProviderId } from "@decocms/mesh-sdk";
