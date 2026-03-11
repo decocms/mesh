@@ -390,7 +390,8 @@ export { type Exception, type Span };
 export async function flushMonitoringData(): Promise<void> {
   // Flush logs, traces, and metrics in parallel (each pair is independent).
   // Within each pair the SDK processor must flush before the NDJSON exporter.
-  await Promise.all([
+  // Use allSettled so one rejection doesn't prevent the other flushes from completing.
+  const results = await Promise.allSettled([
     // Logs
     (async () => {
       const logProvider = logs.getLoggerProvider();
@@ -421,6 +422,13 @@ export async function flushMonitoringData(): Promise<void> {
       }
     })(),
   ]);
+
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (rejected) {
+    throw rejected.reason;
+  }
 }
 
 /**
