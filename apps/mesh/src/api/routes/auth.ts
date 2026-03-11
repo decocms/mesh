@@ -56,6 +56,11 @@ export type AuthConfig = {
    * When true, the frontend should auto-login and skip org selection.
    */
   localMode: boolean;
+  /**
+   * Whether Claude Code is available locally.
+   * When true, the frontend can offer Claude Code as a chat provider.
+   */
+  claudeCodeAvailable: boolean;
 };
 
 /**
@@ -105,6 +110,7 @@ app.get("/config", async (c) => {
           },
       stdioEnabled,
       localMode: isLocalMode(),
+      claudeCodeAvailable: isLocalMode() && !!Bun.which("claude"),
     };
 
     return c.json({ success: true, config });
