@@ -16,7 +16,7 @@ import {
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
 import { startDebugServer } from "./debug";
-import { env } from "./env";
+import { env, logConfiguration } from "./env";
 
 const port = env.PORT;
 const debugPort = env.DEBUG_PORT;
@@ -62,6 +62,8 @@ const handleAssets = createAssetHandler({
 
 // Create the Hono app
 const app = await createApp();
+
+logConfiguration(env);
 
 console.log("");
 console.log(`${green}✓${reset} ${bold}Ready${reset}`);

@@ -132,7 +132,11 @@ function logConfiguration(e: Env) {
   };
 
   lines.push("");
-  lines.push("  Mesh Configuration");
+  lines.push(green("       _                    ____ __  __ ____"));
+  lines.push(green("    __| | ___  ___ ___     / ___|  \\/  / ___|"));
+  lines.push(green("   / _` |/ _ \\/ __/ _ \\   | |   | |\\/| \\___ \\"));
+  lines.push(green("  | (_| |  __/ (_| (_) |  | |___| |  | |___) |"));
+  lines.push(green("   \\__,_|\\___|\\___\\___/    \\____|_|  |_|____/"));
 
   section("Core");
   row("NODE_ENV", e.NODE_ENV);
@@ -178,4 +182,4 @@ function logConfiguration(e: Env) {
   console.log(lines.join("\n"));
 }
 
-logConfiguration(env);
+export { logConfiguration };
