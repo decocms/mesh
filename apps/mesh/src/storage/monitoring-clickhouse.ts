@@ -9,6 +9,8 @@
  */
 
 import type { QueryEngine } from "../monitoring/query-engine";
+import { createMonitoringEngine } from "../monitoring/query-engine";
+import { DEFAULT_METRICS_DIR } from "../monitoring/schema";
 import type { MonitoringLog } from "./types";
 import type {
   AggregationParams,
@@ -244,10 +246,26 @@ function tsLte(date: Date): string {
 // ---------------------------------------------------------------------------
 
 export class ClickHouseMonitoringStorage implements MonitoringStorage {
+  private metricEngine: QueryEngine;
+  private metricSource: string;
+
   constructor(
     private engine: QueryEngine,
     private source: string,
-  ) {}
+    metricEngine?: QueryEngine,
+    metricSource?: string,
+  ) {
+    if (metricEngine && metricSource) {
+      this.metricEngine = metricEngine;
+      this.metricSource = metricSource;
+    } else {
+      const { engine: me, source: ms } = createMonitoringEngine({
+        basePath: DEFAULT_METRICS_DIR,
+      });
+      this.metricEngine = me;
+      this.metricSource = ms;
+    }
+  }
 
   async query(filters: {
     organizationId: string;
@@ -485,6 +503,309 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     const rows = await this.engine.query(sql);
     return Number(rows[0]?.cnt ?? 0);
   }
+  async queryMetricTimeseries(params: {
+    organizationId: string;
+    interval: string;
+    startDate?: Date;
+    endDate?: Date;
+    filters?: {
+      toolNames?: string[];
+      status?: string;
+    };
+  }): Promise<{
+    totalCalls: number;
+    totalErrors: number;
+    avgDurationMs: number;
+    p50DurationMs: number;
+    p95DurationMs: number;
+    timeseries: Array<{
+      timestamp: string;
+      calls: number;
+      errors: number;
+      errorRate: number;
+      avg: number;
+      p50: number;
+      p95: number;
+    }>;
+  }> {
+    const emptyResult = {
+      totalCalls: 0,
+      totalErrors: 0,
+      avgDurationMs: 0,
+      p50DurationMs: 0,
+      p95DurationMs: 0,
+      timeseries: [],
+    };
+
+    try {
+      if (!params.organizationId) {
+        throw new Error("organizationId is required");
+      }
+
+      const { amount, unit } = parseInterval(params.interval);
+      const unitMap: Record<string, string> = {
+        m: "MINUTE",
+        h: "HOUR",
+        d: "DAY",
+      };
+      const sqlUnit = unitMap[unit];
+      const bucketExpr = `toStartOfInterval(parseDateTime64BestEffort(toString(timestamp)), INTERVAL ${amount} ${sqlUnit})`;
+
+      const where: string[] = [
+        `organization_id = '${esc(params.organizationId)}'`,
+      ];
+
+      if (params.startDate) {
+        where.push(tsGte(params.startDate));
+      }
+      if (params.endDate) {
+        where.push(tsLte(params.endDate));
+      }
+      if (params.filters?.toolNames?.length) {
+        const names = params.filters.toolNames
+          .slice(0, 100)
+          .map((n) => `'${esc(n)}'`)
+          .join(",");
+        where.push(`tool_name IN (${names})`);
+      }
+      if (params.filters?.status) {
+        where.push(`status = '${esc(params.filters.status)}'`);
+      }
+
+      const whereClause = where.join(" AND ");
+
+      const sql = `SELECT
+  ${bucketExpr} AS bucket,
+  sumIf(value, name = 'tool.execution.count') AS calls,
+  sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
+  sumIf(hist_sum, name = 'tool.execution.duration') / nullIf(sumIf(hist_count, name = 'tool.execution.duration'), 0) AS avg_duration,
+  groupArrayIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
+  groupArrayIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+FROM ${this.metricSource}
+WHERE ${whereClause}
+GROUP BY bucket
+ORDER BY bucket ASC`;
+
+      const rows = await this.metricEngine.query(sql);
+
+      if (rows.length === 0) {
+        return emptyResult;
+      }
+
+      // Accumulate totals across all buckets
+      let totalCalls = 0;
+      let totalErrors = 0;
+      let totalHistSum = 0;
+      let totalHistCount = 0;
+      const allBoundaries: number[][] = [];
+      const allBucketCounts: number[][] = [];
+
+      const timeseries = rows.map((row) => {
+        const calls = Number(row.calls ?? 0);
+        const errors = Number(row.errors ?? 0);
+        const avg = Number(row.avg_duration ?? 0);
+        const errorRate = calls > 0 ? errors / calls : 0;
+
+        totalCalls += calls;
+        totalErrors += errors;
+
+        // Parse histogram arrays for percentile computation
+        const boundariesArr = parseGroupedArrays(row.boundaries_arr);
+        const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+
+        // Merge all histogram data in this time bucket
+        const { boundaries: mergedBounds, counts: mergedCounts } =
+          mergeHistogramBuckets(boundariesArr, bucketCountsArr);
+
+        // Accumulate for global percentiles
+        if (mergedBounds.length > 0) {
+          allBoundaries.push(mergedBounds);
+          allBucketCounts.push(mergedCounts);
+          const bucketHistCount = mergedCounts.reduce((a, b) => a + b, 0);
+          totalHistCount += bucketHistCount;
+          // Reconstruct hist_sum from avg * count for this bucket
+          totalHistSum += avg * bucketHistCount;
+        }
+
+        const p50 = computePercentileFromHistogramBuckets(
+          mergedBounds,
+          mergedCounts,
+          0.5,
+        );
+        const p95 = computePercentileFromHistogramBuckets(
+          mergedBounds,
+          mergedCounts,
+          0.95,
+        );
+
+        return {
+          timestamp: String(row.bucket ?? ""),
+          calls,
+          errors,
+          errorRate,
+          avg,
+          p50,
+          p95,
+        };
+      });
+
+      // Global percentiles from merged histogram data
+      const { boundaries: globalBounds, counts: globalCounts } =
+        mergeHistogramBuckets(allBoundaries, allBucketCounts);
+
+      return {
+        totalCalls,
+        totalErrors,
+        avgDurationMs: totalHistCount > 0 ? totalHistSum / totalHistCount : 0,
+        p50DurationMs: computePercentileFromHistogramBuckets(
+          globalBounds,
+          globalCounts,
+          0.5,
+        ),
+        p95DurationMs: computePercentileFromHistogramBuckets(
+          globalBounds,
+          globalCounts,
+          0.95,
+        ),
+        timeseries,
+      };
+    } catch {
+      return emptyResult;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Histogram helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse grouped array results from ClickHouse.
+ * groupArrayIf returns an array of JSON strings (each being a serialized array).
+ */
+function parseGroupedArrays(val: unknown): number[][] {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val.map((item) => {
+      if (typeof item === "string") {
+        try {
+          return JSON.parse(item) as number[];
+        } catch {
+          return [];
+        }
+      }
+      if (Array.isArray(item)) return item as number[];
+      return [];
+    });
+  }
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item: unknown) => {
+          if (typeof item === "string") {
+            try {
+              return JSON.parse(item) as number[];
+            } catch {
+              return [];
+            }
+          }
+          if (Array.isArray(item)) return item as number[];
+          return [];
+        });
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * Merge multiple histogram bucket arrays into one.
+ * All histograms must share the same boundaries (OTel SDK uses consistent boundaries).
+ * Bucket counts are additive (delta temporality).
+ */
+function mergeHistogramBuckets(
+  boundariesArrays: number[][],
+  countsArrays: number[][],
+): { boundaries: number[]; counts: number[] } {
+  if (boundariesArrays.length === 0 || countsArrays.length === 0) {
+    return { boundaries: [], counts: [] };
+  }
+
+  // Use the first non-empty boundaries as reference
+  let refBoundaries: number[] = [];
+  for (const b of boundariesArrays) {
+    if (b.length > 0) {
+      refBoundaries = b;
+      break;
+    }
+  }
+
+  if (refBoundaries.length === 0) {
+    return { boundaries: [], counts: [] };
+  }
+
+  // Expected bucket count = boundaries + 1 (one bucket per boundary gap, plus overflow)
+  const expectedBuckets = refBoundaries.length + 1;
+  const mergedCounts = new Array<number>(expectedBuckets).fill(0);
+
+  for (const counts of countsArrays) {
+    if (counts.length === 0) continue;
+    const len = Math.min(counts.length, expectedBuckets);
+    for (let i = 0; i < len; i++) {
+      mergedCounts[i]! += counts[i]!;
+    }
+  }
+
+  return { boundaries: refBoundaries, counts: mergedCounts };
+}
+
+/**
+ * Compute a percentile from histogram bucket boundaries and counts
+ * using linear interpolation.
+ *
+ * @param boundaries - Sorted upper boundaries of histogram buckets (N values)
+ * @param counts - Counts for each bucket (N+1 values: one per boundary gap + overflow)
+ * @param p - Percentile to compute (0-1, e.g. 0.5 for p50)
+ */
+function computePercentileFromHistogramBuckets(
+  boundaries: number[],
+  counts: number[],
+  p: number,
+): number {
+  if (boundaries.length === 0 || counts.length === 0) return 0;
+
+  const totalCount = counts.reduce((a, b) => a + b, 0);
+  if (totalCount === 0) return 0;
+
+  const targetCount = p * totalCount;
+  let cumulativeCount = 0;
+
+  // Buckets: (-inf, b[0]], (b[0], b[1]], ..., (b[n-1], +inf)
+  for (let i = 0; i < counts.length; i++) {
+    const prevCumulative = cumulativeCount;
+    const bucketCount = counts[i] ?? 0;
+    cumulativeCount += bucketCount;
+
+    if (cumulativeCount >= targetCount) {
+      // The percentile falls in this bucket
+      const bucketLower = i === 0 ? 0 : (boundaries[i - 1] ?? 0);
+      const bucketUpper =
+        i < boundaries.length
+          ? (boundaries[i] ?? 0)
+          : (boundaries[boundaries.length - 1] ?? 0) * 2;
+
+      // Linear interpolation within the bucket
+      const bucketFraction =
+        bucketCount > 0 ? (targetCount - prevCumulative) / bucketCount : 0;
+      return bucketLower + bucketFraction * (bucketUpper - bucketLower);
+    }
+  }
+
+  // Fallback: return the last boundary
+  return boundaries[boundaries.length - 1] ?? 0;
 }
 
 // ---------------------------------------------------------------------------

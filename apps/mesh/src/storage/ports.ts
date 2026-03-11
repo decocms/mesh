@@ -239,6 +239,33 @@ export interface MonitoringStorage {
       propertyFilters?: PropertyFilters;
     };
   }): Promise<number>;
+
+  /** Query pre-aggregated OTel metrics for timeseries charts */
+  queryMetricTimeseries(params: {
+    organizationId: string;
+    interval: string;
+    startDate?: Date;
+    endDate?: Date;
+    filters?: {
+      toolNames?: string[];
+      status?: string;
+    };
+  }): Promise<{
+    totalCalls: number;
+    totalErrors: number;
+    avgDurationMs: number;
+    p50DurationMs: number;
+    p95DurationMs: number;
+    timeseries: Array<{
+      timestamp: string;
+      calls: number;
+      errors: number;
+      errorRate: number;
+      avg: number;
+      p50: number;
+      p95: number;
+    }>;
+  }>;
 }
 
 // ============================================================================
