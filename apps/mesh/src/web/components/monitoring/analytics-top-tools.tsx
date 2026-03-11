@@ -113,7 +113,10 @@ function buildToolBuckets(
   }
 
   for (const point of timeseries) {
-    const bucketDate = floorToInterval(new Date(point.timestamp), interval);
+    const normalizedTimestamp = point.timestamp.includes("T")
+      ? point.timestamp
+      : point.timestamp.replace(" ", "T");
+    const bucketDate = floorToInterval(new Date(normalizedTimestamp), interval);
     const timestampKey = String(bucketDate.getTime());
     let bucket = bucketMap.get(timestampKey);
     if (!bucket) {
