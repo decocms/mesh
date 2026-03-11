@@ -18,11 +18,11 @@ import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
 import { LogRow } from "@/web/components/monitoring/log-row.tsx";
 import {
   MonitoringStatsRowSkeleton,
-  calculateStats,
   KPIChart,
   type DateRange,
   type MonitoringStatsData,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
+import { useMonitoringStats } from "@/web/components/monitoring/hooks.ts";
 import { DashboardsTab } from "@/web/components/monitoring/dashboards-tab";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
@@ -115,6 +115,33 @@ interface MonitoringStatsProps {
   connections: ReturnType<typeof useConnections>;
   selectedMetric: TopChartMetric;
   onMetricSelect: (metric: TopChartMetric) => void;
+}
+
+/**
+ * Determine the appropriate interval for timeseries queries based on date range.
+ */
+function getIntervalFromRange(range: DateRange): "1m" | "1h" | "1d" {
+  const durationMs = range.endDate.getTime() - range.startDate.getTime();
+  const ONE_HOUR = 60 * 60 * 1000;
+  const HOURS_25 = 25 * ONE_HOUR;
+
+  if (durationMs <= ONE_HOUR) return "1m";
+  if (durationMs <= HOURS_25) return "1h";
+  return "1d";
+}
+
+/**
+ * Format a timestamp label based on the interval.
+ */
+function formatTimestampLabel(
+  timestamp: string,
+  interval: "1m" | "1h" | "1d",
+): string {
+  const date = new Date(timestamp);
+  if (interval === "1d") {
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 interface ServerMetric {
@@ -357,7 +384,7 @@ function MonitoringStatsContent({
   displayDateRange,
   connectionIds,
   logs: allLogs,
-  total,
+  total: _total,
   connections,
   selectedMetric,
   onMetricSelect,
@@ -367,8 +394,38 @@ function MonitoringStatsContent({
     logs = logs.filter((log) => connectionIds.includes(log.connectionId));
   }
 
-  const totalCalls = connectionIds.length > 1 ? undefined : total;
-  const stats = calculateStats(logs, displayDateRange, undefined, totalCalls);
+  const interval = getIntervalFromRange(displayDateRange);
+  const { data: serverStats } = useMonitoringStats({
+    interval,
+    startDate: displayDateRange.startDate.toISOString(),
+    endDate: displayDateRange.endDate.toISOString(),
+  });
+
+  const stats: MonitoringStatsData = serverStats
+    ? {
+        totalCalls: serverStats.totalCalls,
+        totalErrors: serverStats.totalErrors,
+        avgDurationMs: serverStats.avgDurationMs,
+        p95DurationMs: serverStats.p95DurationMs,
+        data: serverStats.timeseries.map((point) => ({
+          t: point.timestamp,
+          ts: new Date(point.timestamp).getTime(),
+          label: formatTimestampLabel(point.timestamp, interval),
+          calls: point.calls,
+          errors: point.errors,
+          errorRate: point.errorRate,
+          avg: point.avg,
+          p50: point.p50,
+          p95: point.p95,
+        })),
+      }
+    : {
+        totalCalls: 0,
+        totalErrors: 0,
+        avgDurationMs: 0,
+        p95DurationMs: 0,
+        data: [],
+      };
 
   return (
     <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0 border-b border-border">

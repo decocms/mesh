@@ -34,7 +34,7 @@ export function useMonitoringLogs(externalDateRange?: {
   const query = useMCPToolCall<MonitoringLogsWithVirtualMCPResponse>({
     client,
     toolName: "MONITORING_LOGS_LIST",
-    toolArguments: { ...dateRange, limit: 2000, offset: 0 },
+    toolArguments: { ...dateRange, limit: 200, offset: 0 },
     staleTime: 30_000,
     select: (result) =>
       ((result as { structuredContent?: unknown }).structuredContent ??
@@ -45,4 +45,41 @@ export function useMonitoringLogs(externalDateRange?: {
     ...query,
     dateRange,
   };
+}
+
+export function useMonitoringStats(params: {
+  interval: "1m" | "1h" | "1d";
+  startDate: string;
+  endDate: string;
+}) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useMCPToolCall<{
+    totalCalls: number;
+    totalErrors: number;
+    avgDurationMs: number;
+    p50DurationMs: number;
+    p95DurationMs: number;
+    timeseries: Array<{
+      timestamp: string;
+      calls: number;
+      errors: number;
+      errorRate: number;
+      avg: number;
+      p50: number;
+      p95: number;
+    }>;
+  }>({
+    client,
+    toolName: "MONITORING_STATS",
+    toolArguments: params,
+    staleTime: 30_000,
+    select: (result) =>
+      ((result as { structuredContent?: unknown }).structuredContent ??
+        result) as any,
+  });
 }
