@@ -22,6 +22,26 @@ function buildResourceMetrics(
   };
 }
 
+/** Create an exporter with a patched inner that captures exported rows. */
+function createTestExporter(): {
+  exporter: NDJSONMetricExporter;
+  rows: unknown[];
+} {
+  const rows: unknown[] = [];
+  const exporter = new NDJSONMetricExporter({
+    basePath: "/tmp/test-metrics",
+  });
+  (
+    exporter as unknown as {
+      inner: { exportRows: (rows: unknown[]) => Promise<{ code: number }> };
+    }
+  ).inner.exportRows = async (r) => {
+    rows.push(...r);
+    return { code: ExportResultCode.SUCCESS };
+  };
+  return { exporter, rows };
+}
+
 /** Fixed hrTime for deterministic timestamps. */
 const HR_TIME: [number, number] = [1700000000, 0];
 const EXPECTED_TIMESTAMP = new Date(1700000000 * 1000).toISOString();
@@ -38,20 +58,7 @@ describe("NDJSONMetricExporter", () => {
   });
 
   it("exports counter (Sum) data points correctly", async () => {
-    const exportedRows: unknown[] = [];
-    const exporter = new NDJSONMetricExporter({
-      basePath: "/tmp/test-metrics",
-    });
-
-    // Monkey-patch inner exporter to capture rows
-    (
-      exporter as unknown as {
-        inner: { exportRows: (rows: unknown[]) => Promise<{ code: number }> };
-      }
-    ).inner.exportRows = async (rows) => {
-      exportedRows.push(...rows);
-      return { code: ExportResultCode.SUCCESS };
-    };
+    const { exporter, rows: exportedRows } = createTestExporter();
 
     const metrics = buildResourceMetrics([
       {
@@ -110,19 +117,7 @@ describe("NDJSONMetricExporter", () => {
   });
 
   it("exports histogram data points with boundaries and counts", async () => {
-    const exportedRows: unknown[] = [];
-    const exporter = new NDJSONMetricExporter({
-      basePath: "/tmp/test-metrics",
-    });
-
-    (
-      exporter as unknown as {
-        inner: { exportRows: (rows: unknown[]) => Promise<{ code: number }> };
-      }
-    ).inner.exportRows = async (rows) => {
-      exportedRows.push(...rows);
-      return { code: ExportResultCode.SUCCESS };
-    };
+    const { exporter, rows: exportedRows } = createTestExporter();
 
     const metrics = buildResourceMetrics([
       {
@@ -189,19 +184,7 @@ describe("NDJSONMetricExporter", () => {
   });
 
   it("handles empty histogram (count=0)", async () => {
-    const exportedRows: unknown[] = [];
-    const exporter = new NDJSONMetricExporter({
-      basePath: "/tmp/test-metrics",
-    });
-
-    (
-      exporter as unknown as {
-        inner: { exportRows: (rows: unknown[]) => Promise<{ code: number }> };
-      }
-    ).inner.exportRows = async (rows) => {
-      exportedRows.push(...rows);
-      return { code: ExportResultCode.SUCCESS };
-    };
+    const { exporter, rows: exportedRows } = createTestExporter();
 
     const metrics = buildResourceMetrics([
       {
@@ -255,19 +238,7 @@ describe("NDJSONMetricExporter", () => {
   });
 
   it("defaults undefined histogram min/max/sum to 0", async () => {
-    const exportedRows: unknown[] = [];
-    const exporter = new NDJSONMetricExporter({
-      basePath: "/tmp/test-metrics",
-    });
-
-    (
-      exporter as unknown as {
-        inner: { exportRows: (rows: unknown[]) => Promise<{ code: number }> };
-      }
-    ).inner.exportRows = async (rows) => {
-      exportedRows.push(...rows);
-      return { code: ExportResultCode.SUCCESS };
-    };
+    const { exporter, rows: exportedRows } = createTestExporter();
 
     const metrics = buildResourceMetrics([
       {

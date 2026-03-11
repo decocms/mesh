@@ -248,7 +248,6 @@ export interface MonitoringStorage {
     endDate?: Date;
     filters?: {
       toolNames?: string[];
-      status?: string;
     };
   }): Promise<{
     totalCalls: number;

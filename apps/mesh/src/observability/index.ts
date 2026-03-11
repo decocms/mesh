@@ -388,32 +388,39 @@ export { type Exception, type Span };
  * In cloud mode (CLICKHOUSE_URL set) this flushes the OTLP exporters.
  */
 export async function flushMonitoringData(): Promise<void> {
-  // 1. Flush log provider (drains BatchLogRecordProcessor → export())
-  const logProvider = logs.getLoggerProvider();
-  if ("forceFlush" in logProvider) {
-    await (logProvider as { forceFlush(): Promise<void> }).forceFlush();
-  }
-  // 2. Flush NDJSONLogExporter's internal write buffer
-  if (monitoringLogExporter) {
-    await monitoringLogExporter.forceFlush();
-  }
-  // 3. Flush trace provider (drains BatchSpanProcessor → export())
-  const provider = trace.getTracerProvider();
-  if ("forceFlush" in provider) {
-    await (provider as { forceFlush(): Promise<void> }).forceFlush();
-  }
-  // 4. Flush NDJSONTraceExporter's internal write buffer
-  if (monitoringTraceExporter) {
-    await monitoringTraceExporter.forceFlush();
-  }
-  // 5. Flush metric reader (drains PeriodicExportingMetricReader → export())
-  if (monitoringMetricReader) {
-    await monitoringMetricReader.forceFlush();
-  }
-  // 6. Flush NDJSONMetricExporter's internal write buffer
-  if (monitoringMetricExporter) {
-    await monitoringMetricExporter.forceFlush();
-  }
+  // Flush logs, traces, and metrics in parallel (each pair is independent).
+  // Within each pair the SDK processor must flush before the NDJSON exporter.
+  await Promise.all([
+    // Logs
+    (async () => {
+      const logProvider = logs.getLoggerProvider();
+      if ("forceFlush" in logProvider) {
+        await (logProvider as { forceFlush(): Promise<void> }).forceFlush();
+      }
+      if (monitoringLogExporter) {
+        await monitoringLogExporter.forceFlush();
+      }
+    })(),
+    // Traces
+    (async () => {
+      const provider = trace.getTracerProvider();
+      if ("forceFlush" in provider) {
+        await (provider as { forceFlush(): Promise<void> }).forceFlush();
+      }
+      if (monitoringTraceExporter) {
+        await monitoringTraceExporter.forceFlush();
+      }
+    })(),
+    // Metrics
+    (async () => {
+      if (monitoringMetricReader) {
+        await monitoringMetricReader.forceFlush();
+      }
+      if (monitoringMetricExporter) {
+        await monitoringMetricExporter.forceFlush();
+      }
+    })(),
+  ]);
 }
 
 /**

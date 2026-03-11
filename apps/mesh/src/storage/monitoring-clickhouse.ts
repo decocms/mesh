@@ -510,7 +510,6 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
     endDate?: Date;
     filters?: {
       toolNames?: string[];
-      status?: string;
     };
   }): Promise<{
     totalCalls: number;
@@ -542,14 +541,7 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
         throw new Error("organizationId is required");
       }
 
-      const { amount, unit } = parseInterval(params.interval);
-      const unitMap: Record<string, string> = {
-        m: "MINUTE",
-        h: "HOUR",
-        d: "DAY",
-      };
-      const sqlUnit = unitMap[unit];
-      const bucketExpr = `toStartOfInterval(parseDateTime64BestEffort(toString(timestamp)), INTERVAL ${amount} ${sqlUnit})`;
+      const bucketExpr = intervalToSQL(params.interval);
 
       const where: string[] = [
         `organization_id = '${esc(params.organizationId)}'`,
@@ -568,9 +560,9 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
           .join(",");
         where.push(`tool_name IN (${names})`);
       }
-      if (params.filters?.status) {
-        where.push(`status = '${esc(params.filters.status)}'`);
-      }
+      // Note: status filter is NOT added to the WHERE clause because it would
+      // prevent error counting (errors have status='error', so filtering to
+      // status='ok' would make error aggregation always return 0).
 
       const whereClause = where.join(" AND ");
 
@@ -578,13 +570,15 @@ export class ClickHouseMonitoringStorage implements MonitoringStorage {
   ${bucketExpr} AS bucket,
   sumIf(value, name = 'tool.execution.count') AS calls,
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
-  sumIf(hist_sum, name = 'tool.execution.duration') / nullIf(sumIf(hist_count, name = 'tool.execution.duration'), 0) AS avg_duration,
+  sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
+  sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
   groupArrayIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
   groupArrayIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${this.metricSource}
 WHERE ${whereClause}
 GROUP BY bucket
-ORDER BY bucket ASC`;
+ORDER BY bucket ASC
+LIMIT 10000`;
 
       const rows = await this.metricEngine.query(sql);
 
@@ -603,11 +597,15 @@ ORDER BY bucket ASC`;
       const timeseries = rows.map((row) => {
         const calls = Number(row.calls ?? 0);
         const errors = Number(row.errors ?? 0);
-        const avg = Number(row.avg_duration ?? 0);
+        const histSum = Number(row.total_hist_sum ?? 0);
+        const histCount = Number(row.total_hist_count ?? 0);
+        const avg = histCount > 0 ? histSum / histCount : 0;
         const errorRate = calls > 0 ? errors / calls : 0;
 
         totalCalls += calls;
         totalErrors += errors;
+        totalHistSum += histSum;
+        totalHistCount += histCount;
 
         // Parse histogram arrays for percentile computation
         const boundariesArr = parseGroupedArrays(row.boundaries_arr);
@@ -621,10 +619,6 @@ ORDER BY bucket ASC`;
         if (mergedBounds.length > 0) {
           allBoundaries.push(mergedBounds);
           allBucketCounts.push(mergedCounts);
-          const bucketHistCount = mergedCounts.reduce((a, b) => a + b, 0);
-          totalHistCount += bucketHistCount;
-          // Reconstruct hist_sum from avg * count for this bucket
-          totalHistSum += avg * bucketHistCount;
         }
 
         const p50 = computePercentileFromHistogramBuckets(
@@ -669,7 +663,8 @@ ORDER BY bucket ASC`;
         ),
         timeseries,
       };
-    } catch {
+    } catch (err) {
+      console.error("queryMetricTimeseries failed:", err);
       return emptyResult;
     }
   }
@@ -683,7 +678,7 @@ ORDER BY bucket ASC`;
  * Parse grouped array results from ClickHouse.
  * groupArrayIf returns an array of JSON strings (each being a serialized array).
  */
-function parseGroupedArrays(val: unknown): number[][] {
+export function parseGroupedArrays(val: unknown): number[][] {
   if (!val) return [];
   if (Array.isArray(val)) {
     return val.map((item) => {
@@ -726,7 +721,7 @@ function parseGroupedArrays(val: unknown): number[][] {
  * All histograms must share the same boundaries (OTel SDK uses consistent boundaries).
  * Bucket counts are additive (delta temporality).
  */
-function mergeHistogramBuckets(
+export function mergeHistogramBuckets(
   boundariesArrays: number[][],
   countsArrays: number[][],
 ): { boundaries: number[]; counts: number[] } {
@@ -770,7 +765,7 @@ function mergeHistogramBuckets(
  * @param counts - Counts for each bucket (N+1 values: one per boundary gap + overflow)
  * @param p - Percentile to compute (0-1, e.g. 0.5 for p50)
  */
-function computePercentileFromHistogramBuckets(
+export function computePercentileFromHistogramBuckets(
   boundaries: number[],
   counts: number[],
   p: number,
