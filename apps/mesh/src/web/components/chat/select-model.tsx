@@ -601,7 +601,7 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
   const handleModelSelect = (model: AiProviderModel) => {
     const credential = credentialId;
     if (!credential) return;
-    setSelectedModel(model);
+    setSelectedModel({ ...model, keyId: credential });
     setSearchTerm("");
     onClose();
   };

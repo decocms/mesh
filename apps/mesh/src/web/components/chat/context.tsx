@@ -932,7 +932,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       ...messageMetadata,
       system,
       models: {
-        credentialId: model.keyId ?? "",
+        credentialId: model.keyId ?? selectedKeyId ?? "",
         thinking: toMetadataModelInfo(model),
         fast: toMetadataModelInfo(model),
       },
