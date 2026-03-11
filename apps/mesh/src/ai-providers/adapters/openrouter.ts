@@ -69,6 +69,7 @@ export const openrouterAdapter: ProviderAdapter = {
           throw new Error(`OpenRouter listModels failed: ${res.status}`);
         }
         const data = await res.json();
+        console.log({ data: data.data[6] });
         return data.data.map((m: OpenRouterModel) => ({
           modelId: m.canonical_slug,
           title: m.name,

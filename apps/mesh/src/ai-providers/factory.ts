@@ -27,19 +27,22 @@ export class AIProviderFactory {
       organizationId,
     );
     const providerId = keyInfo.providerId;
-
     if (this.cache) {
       const cached = await this.cache.get(organizationId, providerId);
-      if (cached) return cached;
+      if (cached) return cached.map((m) => ({ ...m, providerId }));
     }
 
     const provider = PROVIDERS[providerId].create(apiKey);
     const models = await provider.listModels();
 
     if (this.cache) {
-      await this.cache.set(organizationId, providerId, models);
+      await this.cache.set(
+        organizationId,
+        providerId,
+        models.map((m) => ({ ...m, providerId })),
+      );
     }
 
-    return models;
+    return models.map((m) => ({ ...m, providerId }));
   }
 }

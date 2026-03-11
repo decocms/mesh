@@ -864,6 +864,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       title: model.title,
       description: model.description,
       logo: model.logo,
+      providerId: model.providerId,
       capabilities: model.capabilities,
       limits: model.limits,
       costs: model.costs,

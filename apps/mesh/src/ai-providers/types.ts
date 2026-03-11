@@ -9,6 +9,7 @@ export interface ProviderInfo {
 }
 
 export interface ModelInfo {
+  providerId: string;
   modelId: string;
   title: string;
   description: string | null;

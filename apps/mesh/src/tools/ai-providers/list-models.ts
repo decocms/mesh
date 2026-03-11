@@ -12,6 +12,7 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
   outputSchema: z.object({
     models: z.array(
       z.object({
+        providerId: z.string(),
         modelId: z.string(),
         title: z.string(),
         description: z.string().nullable(),

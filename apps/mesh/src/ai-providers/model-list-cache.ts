@@ -19,7 +19,7 @@ export interface ModelListCache {
 }
 
 function cacheKey(organizationId: string, providerId: string): string {
-  return `${organizationId}:${providerId}`;
+  return `${organizationId}.${providerId}`;
 }
 
 export class InMemoryModelListCache implements ModelListCache {
@@ -129,8 +129,8 @@ export class JetStreamKVModelListCache implements ModelListCache {
     try {
       const key = cacheKey(organizationId, providerId);
       await this.kv.put(`models.${key}`, this.codec.encode(models));
-    } catch {
-      // best-effort
+    } catch (err) {
+      console.warn("[ModelListCache] set failed:", err);
     }
   }
 

@@ -36,6 +36,7 @@ import {
 } from "../../hooks/collections/use-llm";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
+import { DEFAULT_LOGO, PROVIDER_LOGOS } from "@/web/utils/ai-providers-logos";
 
 // ============================================================================
 // Contextual annotations (absolute thresholds, not relative to model list)
@@ -351,18 +352,22 @@ function ModelItemContent({
     ? model.title.split(": ")[0]
     : model.modelId.split("/")[0];
 
+  const maybeProviderId = model.modelId.split("/")[0] ?? undefined;
+  const maybeLogo = maybeProviderId
+    ? PROVIDER_LOGOS[maybeProviderId]
+    : undefined;
+  const providerLogo = maybeLogo ?? DEFAULT_LOGO;
+
   return (
     <div
       className="flex items-center gap-2.5 py-2 px-3 hover:bg-accent cursor-pointer rounded-lg"
       onMouseEnter={() => onHover(model)}
     >
-      {model.logo && (
-        <img
-          src={model.logo}
-          className="w-4 h-4 shrink-0 rounded-sm"
-          alt={model.title}
-        />
-      )}
+      <img
+        src={providerLogo}
+        className="w-4 h-4 shrink-0 rounded-sm"
+        alt={model.title}
+      />
       <div className="flex flex-col flex-1 min-w-0">
         <span className="text-sm text-foreground leading-tight truncate">
           {displayName}
@@ -501,15 +506,15 @@ function SelectedModelDisplay({
     ? model.title.split(": ").slice(1).join(": ")
     : model.title;
 
+  const providerLogo = PROVIDER_LOGOS[model.providerId] ?? DEFAULT_LOGO;
+
   return (
     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-      {model.logo && (
-        <img
-          src={model.logo}
-          className="w-5 h-5 shrink-0 rounded-sm"
-          alt={model.title}
-        />
-      )}
+      <img
+        src={providerLogo}
+        className="w-5 h-5 shrink-0 rounded-sm"
+        alt={model.title}
+      />
       <span className="text-sm text-muted-foreground truncate whitespace-nowrap hidden md:inline">
         {displayName}
       </span>

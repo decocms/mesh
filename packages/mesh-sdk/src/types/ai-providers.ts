@@ -18,6 +18,7 @@ export interface AiProviderModelCosts {
 }
 
 export interface AiProviderModel {
+  providerId: string;
   modelId: string;
   title: string;
   description: string | null;
