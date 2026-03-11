@@ -37,7 +37,7 @@ describe("processConversation", () => {
         windowSize: 50,
         models: {
           connectionId: "c1",
-          thinking: { id: "m1", capabilities: { text: true } },
+          thinking: { id: "m1", title: "m1", capabilities: { text: true } },
         },
       });
 
@@ -67,7 +67,7 @@ describe("processConversation", () => {
         windowSize: 50,
         models: {
           connectionId: "c1",
-          thinking: { id: "m1", capabilities: { text: true } },
+          thinking: { id: "m1", title: "m1", capabilities: { text: true } },
         },
       });
 
@@ -90,7 +90,7 @@ describe("processConversation", () => {
         windowSize: 50,
         models: {
           connectionId: "c1",
-          thinking: { id: "m1", capabilities: { text: true } },
+          thinking: { id: "m1", title: "m1", capabilities: { text: true } },
         },
       });
 

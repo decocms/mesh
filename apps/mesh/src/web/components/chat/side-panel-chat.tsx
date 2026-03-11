@@ -81,7 +81,6 @@ function ChatPanelContent() {
             <Chat.NoLlmBindingEmptyState
               title={title}
               description={description}
-              org={org}
             />
           </Chat.EmptyState>
         </Chat.Main>

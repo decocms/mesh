@@ -28,7 +28,15 @@ function ProviderList() {
   );
 }
 
-export function NoLlmBindingEmptyState() {
+interface NoLlmBindingEmptyStateProps {
+  title?: string;
+  description?: string;
+}
+
+export function NoLlmBindingEmptyState({
+  title = "Connect an AI provider",
+  description = "Keys are stored encrypted in the vault.",
+}: NoLlmBindingEmptyStateProps = {}) {
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-lg">
       <div className="flex flex-col items-center gap-3 text-center">
@@ -36,12 +44,8 @@ export function NoLlmBindingEmptyState() {
           <CpuChip01 size={18} className="text-muted-foreground" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-foreground">
-            Connect an AI provider
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Keys are stored encrypted in the vault.
-          </p>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
       <Suspense

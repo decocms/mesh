@@ -53,7 +53,7 @@ function HomeContent() {
   if (allModelsConnections.length === 0) {
     return (
       <div className="flex flex-col h-full bg-background items-center justify-center">
-        <Chat.NoLlmBindingEmptyState org={org} />
+        <Chat.NoLlmBindingEmptyState />
       </div>
     );
   }
