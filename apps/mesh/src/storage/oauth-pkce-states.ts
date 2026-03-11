@@ -6,7 +6,11 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export class OAuthPkceStateStorage {
   constructor(private db: Kysely<Database>) {}
 
-  async create(codeVerifier: string): Promise<string> {
+  async create(
+    codeVerifier: string,
+    organizationId: string,
+    userId: string,
+  ): Promise<string> {
     const id = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + STATE_TTL_MS);
 
@@ -14,6 +18,8 @@ export class OAuthPkceStateStorage {
       .insertInto("oauth_pkce_states")
       .values({
         id,
+        organization_id: organizationId,
+        user_id: userId,
         code_verifier: codeVerifier,
         expires_at: expiresAt,
         created_at: new Date(),
@@ -23,12 +29,18 @@ export class OAuthPkceStateStorage {
     return id;
   }
 
-  /** Retrieve and delete the verifier in a single operation (single-use). */
-  async consume(stateToken: string): Promise<string> {
+  /** Atomically retrieve and delete the verifier (single-use). Validates org/user ownership. */
+  async consume(
+    stateToken: string,
+    organizationId: string,
+    userId: string,
+  ): Promise<string> {
     const row = await this.db
-      .selectFrom("oauth_pkce_states")
+      .deleteFrom("oauth_pkce_states")
       .where("id", "=", stateToken)
-      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("user_id", "=", userId)
+      .returningAll()
       .executeTakeFirst();
 
     if (!row) {
@@ -41,17 +53,8 @@ export class OAuthPkceStateStorage {
         : new Date(row.expires_at);
 
     if (expiresAt < new Date()) {
-      await this.db
-        .deleteFrom("oauth_pkce_states")
-        .where("id", "=", stateToken)
-        .execute();
       throw new Error("OAuth state token has expired");
     }
-
-    await this.db
-      .deleteFrom("oauth_pkce_states")
-      .where("id", "=", stateToken)
-      .execute();
 
     return row.code_verifier;
   }

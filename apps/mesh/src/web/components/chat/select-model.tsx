@@ -724,7 +724,6 @@ export function ModelSelector({
   const [open, setOpen] = useState(false);
   const { model } = useChat();
 
-  console.log({ model });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>

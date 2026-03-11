@@ -598,6 +598,9 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const [selectedKeyId, setSelectedKeyId] = useState<string | null>(
     keys[0]?.id ?? null,
   );
+  const effectiveKeyId = keys.some((k) => k.id === selectedKeyId)
+    ? selectedKeyId
+    : (keys[0]?.id ?? null);
 
   // Unified task manager hook handles all task state and operations
   const taskManager = useTaskManager();
@@ -636,7 +639,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
   >(`${locator}:selected-virtual-mcp-id`, null);
 
   // Model state — filter out connections where the user's role allows no models
-  const allModelsConnections = useAiProviderKeyList();
+  const allModelsConnections = keys;
   const [model, setModel] = useLocalStorage<AiProviderModel | null>(
     LOCALSTORAGE_KEYS.chatSelectedModel(locator),
     null,
@@ -932,7 +935,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       ...messageMetadata,
       system,
       models: {
-        credentialId: model.keyId ?? selectedKeyId ?? "",
+        credentialId: model.keyId ?? effectiveKeyId ?? "",
         thinking: toMetadataModelInfo(model),
         fast: toMetadataModelInfo(model),
       },
@@ -1028,7 +1031,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
     setAppContext,
     clearAppContext,
     allModelsConnections,
-    credentialId: selectedKeyId,
+    credentialId: effectiveKeyId,
     setCredentialId: setSelectedKeyId,
   };
 

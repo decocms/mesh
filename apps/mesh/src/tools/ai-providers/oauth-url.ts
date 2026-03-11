@@ -34,7 +34,7 @@ export const AI_PROVIDER_OAUTH_URL = defineTool({
   }),
   handler: async (input, ctx) => {
     requireAuth(ctx);
-    requireOrganization(ctx);
+    const org = requireOrganization(ctx);
     await ctx.access.check();
 
     const adapter = PROVIDERS[input.providerId];
@@ -50,7 +50,11 @@ export const AI_PROVIDER_OAUTH_URL = defineTool({
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
-    const stateToken = await ctx.storage.oauthPkceStates.create(codeVerifier);
+    const stateToken = await ctx.storage.oauthPkceStates.create(
+      codeVerifier,
+      org.id,
+      ctx.auth.user!.id,
+    );
 
     // Embed stateToken in the callbackUrl so providers that don't pass state
     // back in their redirect (e.g. OpenRouter) still round-trip it via the URL.

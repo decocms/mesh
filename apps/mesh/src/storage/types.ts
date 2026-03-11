@@ -231,6 +231,8 @@ export interface AIProviderKeyTable {
  */
 export interface OAuthPkceStateTable {
   id: string; // state token (UUID), returned as stateToken to client
+  organization_id: string; // scoped to the org that initiated the flow
+  user_id: string; // scoped to the user that initiated the flow
   code_verifier: string; // PKCE verifier — never leaves the server
   expires_at: ColumnType<Date, Date | string, never>;
   created_at: ColumnType<Date, Date | string, never>;

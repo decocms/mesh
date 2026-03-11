@@ -29,7 +29,7 @@ export class AIProviderFactory {
     const providerId = keyInfo.providerId;
 
     if (this.cache) {
-      const cached = await this.cache.get(providerId);
+      const cached = await this.cache.get(organizationId, providerId);
       if (cached) return cached;
     }
 
@@ -37,7 +37,7 @@ export class AIProviderFactory {
     const models = await provider.listModels();
 
     if (this.cache) {
-      await this.cache.set(providerId, models);
+      await this.cache.set(organizationId, providerId, models);
     }
 
     return models;

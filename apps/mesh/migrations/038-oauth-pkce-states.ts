@@ -4,6 +4,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("oauth_pkce_states")
     .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("organization_id", "text", (col) => col.notNull())
+    .addColumn("user_id", "text", (col) => col.notNull())
     .addColumn("code_verifier", "text", (col) => col.notNull())
     .addColumn("expires_at", "timestamptz", (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) =>

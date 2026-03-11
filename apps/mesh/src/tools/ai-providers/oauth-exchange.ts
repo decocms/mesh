@@ -39,6 +39,8 @@ export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
 
     const codeVerifier = await ctx.storage.oauthPkceStates.consume(
       input.stateToken,
+      org.id,
+      ctx.auth.user!.id,
     );
 
     const { apiKey } = await adapter.exchangeOAuthCode({

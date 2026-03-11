@@ -172,12 +172,8 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
 
       // Get connection entities and create/load memory in parallel
-      const [virtualMcp, providerKey, mem] = await Promise.all([
+      const [virtualMcp, mem] = await Promise.all([
         ctx.storage.virtualMcps.findById(agent.id, organization.id),
-        ctx.storage.aiProviderKeys.findById(
-          models.credentialId,
-          organization.id,
-        ),
         createMemory(ctx.storage.threads, {
           organization_id: organization.id,
           thread_id: resolvedThreadId,
@@ -319,7 +315,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
             : {};
 
           const provider = await ctx.aiProviders.activate(
-            providerKey.id,
+            models.credentialId,
             organization.id,
           );
 
@@ -329,7 +325,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
               provider,
               organization,
               models: {
-                credentialId: providerKey.id,
+                credentialId: models.credentialId,
                 thinking: models.thinking,
               },
               toolApprovalLevel,

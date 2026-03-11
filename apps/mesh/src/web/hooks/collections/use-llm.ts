@@ -19,7 +19,7 @@ import {
 
 export type { AiProviderKey };
 import { z } from "zod";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "../../lib/query-keys";
 
 // LLM type matching ModelSchema from @decocms/bindings
@@ -117,8 +117,9 @@ export function useAiProviderModels(keyId: string | undefined) {
     orgId: org.id,
   });
 
-  const { data } = useSuspenseQuery({
+  const { data } = useQuery({
     queryKey: KEYS.aiProviderModels(locator, keyId ?? ""),
+    enabled: !!keyId,
     queryFn: async () => {
       const result = (await client.callTool({
         name: "AI_PROVIDERS_LIST_MODELS",

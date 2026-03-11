@@ -8,10 +8,18 @@ import {
 } from "nats";
 
 export interface ModelListCache {
-  get(providerId: string): Promise<ModelInfo[] | null>;
-  set(providerId: string, models: ModelInfo[]): Promise<void>;
-  invalidate(providerId: string): Promise<void>;
+  get(organizationId: string, providerId: string): Promise<ModelInfo[] | null>;
+  set(
+    organizationId: string,
+    providerId: string,
+    models: ModelInfo[],
+  ): Promise<void>;
+  invalidate(organizationId: string, providerId: string): Promise<void>;
   teardown(): void;
+}
+
+function cacheKey(organizationId: string, providerId: string): string {
+  return `${organizationId}:${providerId}`;
 }
 
 export class InMemoryModelListCache implements ModelListCache {
@@ -25,22 +33,33 @@ export class InMemoryModelListCache implements ModelListCache {
     this.ttlMs = ttlMs;
   }
 
-  async get(providerId: string): Promise<ModelInfo[] | null> {
-    const entry = this.cache.get(providerId);
+  async get(
+    organizationId: string,
+    providerId: string,
+  ): Promise<ModelInfo[] | null> {
+    const key = cacheKey(organizationId, providerId);
+    const entry = this.cache.get(key);
     if (!entry) return null;
     if (Date.now() - entry.ts > this.ttlMs) {
-      this.cache.delete(providerId);
+      this.cache.delete(key);
       return null;
     }
     return entry.models;
   }
 
-  async set(providerId: string, models: ModelInfo[]): Promise<void> {
-    this.cache.set(providerId, { models, ts: Date.now() });
+  async set(
+    organizationId: string,
+    providerId: string,
+    models: ModelInfo[],
+  ): Promise<void> {
+    this.cache.set(cacheKey(organizationId, providerId), {
+      models,
+      ts: Date.now(),
+    });
   }
 
-  async invalidate(providerId: string): Promise<void> {
-    this.cache.delete(providerId);
+  async invalidate(organizationId: string, providerId: string): Promise<void> {
+    this.cache.delete(cacheKey(organizationId, providerId));
   }
 
   teardown(): void {
@@ -85,10 +104,14 @@ export class JetStreamKVModelListCache implements ModelListCache {
     }
   }
 
-  async get(providerId: string): Promise<ModelInfo[] | null> {
+  async get(
+    organizationId: string,
+    providerId: string,
+  ): Promise<ModelInfo[] | null> {
     if (!this.kv) return null;
     try {
-      const entry = await this.kv.get(`models.${providerId}`);
+      const key = cacheKey(organizationId, providerId);
+      const entry = await this.kv.get(`models.${key}`);
       if (!entry?.value?.length) return null;
       if (entry.operation === "DEL" || entry.operation === "PURGE") return null;
       return this.codec.decode(entry.value);
@@ -97,19 +120,25 @@ export class JetStreamKVModelListCache implements ModelListCache {
     }
   }
 
-  async set(providerId: string, models: ModelInfo[]): Promise<void> {
+  async set(
+    organizationId: string,
+    providerId: string,
+    models: ModelInfo[],
+  ): Promise<void> {
     if (!this.kv) return;
     try {
-      await this.kv.put(`models.${providerId}`, this.codec.encode(models));
+      const key = cacheKey(organizationId, providerId);
+      await this.kv.put(`models.${key}`, this.codec.encode(models));
     } catch {
       // best-effort
     }
   }
 
-  async invalidate(providerId: string): Promise<void> {
+  async invalidate(organizationId: string, providerId: string): Promise<void> {
     if (!this.kv) return;
     try {
-      await this.kv.delete(`models.${providerId}`);
+      const key = cacheKey(organizationId, providerId);
+      await this.kv.delete(`models.${key}`);
     } catch {
       // best-effort
     }
