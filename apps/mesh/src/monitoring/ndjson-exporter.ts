@@ -114,31 +114,45 @@ export class NDJSONExporter<T> {
     this.bufferItems = [];
     this.bufferBytes = 0;
 
-    try {
-      const groups = new Map<string, string[]>();
-      for (const item of items) {
-        let group = groups.get(item.partition);
-        if (!group) {
-          group = [];
-          groups.set(item.partition, group);
+    const groups = new Map<string, string[]>();
+    for (const item of items) {
+      let group = groups.get(item.partition);
+      if (!group) {
+        group = [];
+        groups.set(item.partition, group);
+      }
+      group.push(item.json);
+    }
+
+    const results = await Promise.allSettled(
+      Array.from(groups.entries()).map(([partition, strings]) =>
+        this.writeNDJSON(strings, partition).then(() => partition),
+      ),
+    );
+
+    const firstError = results.find((r) => r.status === "rejected") as
+      | PromiseRejectedResult
+      | undefined;
+
+    if (firstError) {
+      // Determine which partitions succeeded so we only restore failed ones.
+      const succeededPartitions = new Set<string>();
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          succeededPartitions.add(result.value);
         }
-        group.push(item.json);
       }
 
-      await Promise.all(
-        Array.from(groups.entries()).map(([partition, strings]) =>
-          this.writeNDJSON(strings, partition),
-        ),
+      // Restore only items from failed partitions.
+      const failedItems = items.filter(
+        (item) => !succeededPartitions.has(item.partition),
       );
-    } catch (err) {
-      // Prepend restored items, then recalculate bytes for the entire
-      // merged buffer (includes rows added by concurrent exportRows calls).
-      this.bufferItems = items.concat(this.bufferItems);
+      this.bufferItems = failedItems.concat(this.bufferItems);
       this.bufferBytes = 0;
       for (const item of this.bufferItems) {
         this.bufferBytes += Buffer.byteLength(item.json, "utf8") + 1;
       }
-      throw err;
+      throw firstError.reason;
     }
   }
 
