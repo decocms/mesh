@@ -343,7 +343,6 @@ function TopToolsContent({
               <XAxis
                 dataKey="ts"
                 type="number"
-                scale="time"
                 domain={["dataMin", "dataMax"]}
                 axisLine={false}
                 tickLine={false}
