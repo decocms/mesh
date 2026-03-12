@@ -152,6 +152,7 @@ function toMetadataModelInfo(
       ? {
           vision: caps.includes("vision") || undefined,
           text: caps.includes("text") || undefined,
+          reasoning: caps.includes("reasoning") || undefined,
         }
       : undefined;
   return {

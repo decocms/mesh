@@ -73,7 +73,7 @@ import {
   Trash01,
   XClose,
 } from "@untitledui/icons";
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
@@ -486,20 +486,37 @@ function SettingsTab({
 }) {
   const updateMutation = useAutomationUpdate();
 
+  // Use the current chat's key + model as initial defaults when not configured
+  const { credentialId: chatCredentialId, model: chatModel } = useChat();
+
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
       ?.tiptapDoc ?? undefined;
-  const [tiptapDoc, setTiptapDoc] =
+  const [tiptapDoc, setTiptapDocRaw] =
     useState<Metadata["tiptapDoc"]>(initialTiptapDoc);
   const [savedDoc, setSavedDoc] = useState(initialTiptapDoc);
+  const editorInitializedRef = useRef(false);
+
+  // Sync savedDoc on the first editor-triggered update so the editor's
+  // initialisation doesn't mark the form as dirty.
+  const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
+    setTiptapDocRaw(doc);
+    if (!editorInitializedRef.current) {
+      editorInitializedRef.current = true;
+      if (!initialTiptapDoc) {
+        setSavedDoc(doc);
+      }
+    }
+  };
 
   const form = useForm<SettingsFormData>({
     defaultValues: {
       name: automation.name,
       active: automation.active,
       agent_id: automation.agent?.id ?? "",
-      model_connection_id: automation.models?.connectionId ?? "",
-      model_id: automation.models?.thinking?.id ?? "",
+      model_connection_id:
+        automation.models?.connectionId || chatCredentialId || "",
+      model_id: automation.models?.thinking?.id || chatModel?.modelId || "",
     },
   });
 
@@ -573,7 +590,11 @@ function SettingsTab({
             control={form.control}
             name="active"
             render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                className="cursor-pointer"
+              />
             )}
           />
         </div>
@@ -698,6 +719,7 @@ export default function AutomationDetailPage() {
   const { createTask, setVirtualMcpId, setSelectedModel, sendMessage } =
     useChat();
   const [, setChatOpen] = useDecoChatOpen();
+  const [, startTransition] = useTransition();
 
   // Resolve model for Run Now
   const connectionId = automation?.models?.connectionId;
@@ -720,11 +742,13 @@ export default function AutomationDetailPage() {
       setSelectedModel(resolvedModel);
     }
 
-    // Open chat and create a new task
+    // Open chat and create a new thread
     setChatOpen(true);
-    createTask();
+    startTransition(() => {
+      createTask();
+    });
 
-    // Send message after React flushes state updates
+    // Send message after React flushes the new thread state
     setTimeout(() => {
       sendMessage(tiptapDoc);
     }, 0);
