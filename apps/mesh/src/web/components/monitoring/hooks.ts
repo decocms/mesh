@@ -118,3 +118,62 @@ export function useMonitoringTopTools(
         result) as any,
   });
 }
+
+interface MonitoringLlmStatsParams {
+  interval: "1m" | "1h" | "1d";
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Fetch aggregated stats for LLM calls made by Decopilot.
+ *
+ * Queries the same MONITORING_STATS tool but scoped to connection_id = "decopilot",
+ * where each LLM completion is logged as a single entry. The `toolName` field
+ * in each log record holds the model ID (e.g. "claude-3-7-sonnet-20250219").
+ */
+export function useMonitoringLlmStats(
+  params: MonitoringLlmStatsParams,
+  queryOptions?: MonitoringQueryOptions,
+) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useMCPToolCall<{
+    totalCalls: number;
+    totalErrors: number;
+    avgDurationMs: number;
+    p50DurationMs: number;
+    p95DurationMs: number;
+    connectionBreakdown: Array<{
+      connectionId: string;
+      calls: number;
+      errors: number;
+      errorRate: number;
+      avgDurationMs: number;
+    }>;
+    timeseries: Array<{
+      timestamp: string;
+      calls: number;
+      errors: number;
+      errorRate: number;
+      avg: number;
+      p50: number;
+      p95: number;
+    }>;
+  }>({
+    client,
+    toolName: "MONITORING_STATS",
+    toolArguments: {
+      ...params,
+    },
+    staleTime: 30_000,
+    ...queryOptions,
+    select: (result) =>
+      ((result as { structuredContent?: unknown }).structuredContent ??
+        result) as any,
+  });
+}
