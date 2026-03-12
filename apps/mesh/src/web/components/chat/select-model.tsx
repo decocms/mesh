@@ -28,7 +28,6 @@ import {
   SearchMd,
   Settings01,
   Stars01,
-  TerminalSquare,
   Tool01,
 } from "@untitledui/icons";
 import {
@@ -46,7 +45,6 @@ import {
   useAiProviderModels,
   useAiProviders,
 } from "../../hooks/collections/use-llm";
-import { useAuthConfig } from "../../providers/auth-config-provider";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
@@ -68,43 +66,6 @@ function parseModelTitle(model: { title: string; modelId: string }): {
 }
 
 // ============================================================================
-// Claude Code Constants
-// ============================================================================
-
-export const CLAUDE_CODE_CONNECTION_ID = "claude-code";
-
-/** Claude Code model variants available in the selector */
-const CLAUDE_CODE_MODELS = [
-  {
-    id: "claude-code:opus",
-    title: "Opus",
-    description: "Most capable",
-    tier: "smarter" as const,
-    limits: { contextWindow: 200_000, maxOutputTokens: 32_768 },
-  },
-  {
-    id: "claude-code:sonnet",
-    title: "Sonnet",
-    description: "Fast & capable",
-    tier: "faster" as const,
-    limits: { contextWindow: 200_000, maxOutputTokens: 32_768 },
-  },
-  {
-    id: "claude-code:haiku",
-    title: "Haiku",
-    description: "Fastest",
-    tier: "cheaper" as const,
-    limits: { contextWindow: 200_000, maxOutputTokens: 32_768 },
-  },
-];
-
-export function isClaudeCodeModel(
-  model: { connectionId?: string } | null | undefined,
-): boolean {
-  return model?.connectionId === CLAUDE_CODE_CONNECTION_ID;
-}
-
-// ============================================================================
 // Tier Classification
 // ============================================================================
 
@@ -121,6 +82,7 @@ const TIER_PATTERNS: Array<{ tier: TierId; prefixes: string[] }> = [
   {
     tier: "smarter",
     prefixes: [
+      "claude-code:opus",
       "anthropic/claude-4.6-opus",
       "anthropic/claude-opus-4.6",
       "anthropic/claude-sonnet-4.6",
@@ -135,6 +97,7 @@ const TIER_PATTERNS: Array<{ tier: TierId; prefixes: string[] }> = [
   {
     tier: "faster",
     prefixes: [
+      "claude-code:sonnet",
       "anthropic/claude-haiku-4.5",
       "anthropic/claude-4.5-haiku",
       "google/gemini-3-flash",
@@ -150,6 +113,7 @@ const TIER_PATTERNS: Array<{ tier: TierId; prefixes: string[] }> = [
   {
     tier: "cheaper",
     prefixes: [
+      "claude-code:haiku",
       "google/gemini-2.5-flash-lite",
       "google/gemini-2.5-flash",
       "google/gemini-2.0-flash",
@@ -1058,29 +1022,9 @@ function ModelSelectorInner({
   );
   const { open: openSettings } = useSettingsModal();
 
-  const authConfig = useAuthConfig();
-  const showClaudeCode = authConfig.claudeCodeAvailable;
-
   const handleKeyChange = (keyId: string) => {
     onCredentialChange(keyId);
     setHoveredModel(null);
-  };
-
-  const handleClaudeCodeSelect = (modelId: string) => {
-    const variant = CLAUDE_CODE_MODELS.find((m) => m.id === modelId);
-    setSelectedModel({
-      modelId,
-      title: variant ? `Claude Code ${variant.title}` : "Claude Code",
-      providerId: "claude-code" as AiProviderModel["providerId"],
-      capabilities: ["text"],
-      limits: variant?.limits ?? {
-        contextWindow: 200_000,
-        maxOutputTokens: 32_768,
-      },
-      keyId: "claude-code",
-    } as AiProviderModel);
-    setSearchTerm("");
-    onClose();
   };
 
   const handleModelSelect = (model: AiProviderModel) => {
@@ -1171,50 +1115,6 @@ function ModelSelectorInner({
           </label>
         </div>
 
-        {showClaudeCode && (
-          <div className="border-b border-border">
-            <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
-              <TerminalSquare className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground">
-                Claude Code
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
-                Local
-              </span>
-            </div>
-            {CLAUDE_CODE_MODELS.map((variant) => (
-              <button
-                key={variant.id}
-                type="button"
-                onClick={() => handleClaudeCodeSelect(variant.id)}
-                onMouseEnter={() =>
-                  setHoveredModel({
-                    modelId: variant.id,
-                    title: `Claude Code: ${variant.title}`,
-                    logo: null,
-                    description: variant.description,
-                    capabilities: ["text"],
-                    limits: variant.limits,
-                    costs: null,
-                    providerId: "claude-code" as AiProviderModel["providerId"],
-                  })
-                }
-                className={cn(
-                  "flex items-center gap-2 w-full min-h-8 py-2 px-4 text-left cursor-pointer",
-                  "hover:bg-accent",
-                  selectedModel?.modelId === variant.id &&
-                    (selectedModel?.providerId as string) === "claude-code" &&
-                    "bg-accent/50",
-                )}
-              >
-                <span className="text-sm flex-1">{variant.title}</span>
-                <span className="text-xs text-muted-foreground">
-                  {variant.description}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
         <ErrorBoundary
           key={credentialId}
           fallback={({ error, resetError }) => (
