@@ -8,7 +8,7 @@
  * - Concurrency control for automation runs via tryAcquireRunSlot
  */
 
-import { type Kysely, type SqlBool, sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { Database, Automation, AutomationTrigger } from "./types";
 
