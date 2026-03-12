@@ -82,6 +82,16 @@ export {
 
 // Types
 export {
+  // AI Provider types
+  PROVIDER_IDS,
+  MODEL_CAPABILITIES,
+  type ProviderId,
+  type ModelCapability,
+  type AiProviderModel,
+  type AiProviderModelLimits,
+  type AiProviderModelCosts,
+  type AiProviderKey,
+  // Connection types
   ConnectionEntitySchema,
   ConnectionCreateDataSchema,
   ConnectionUpdateDataSchema,
@@ -141,6 +151,12 @@ export {
 
 // Query keys
 export { KEYS } from "./lib/query-keys";
+
+// Default model selection
+export {
+  DEFAULT_MODEL_PREFERENCES,
+  selectDefaultModel,
+} from "./lib/default-model";
 
 // MCP OAuth utilities
 export {
