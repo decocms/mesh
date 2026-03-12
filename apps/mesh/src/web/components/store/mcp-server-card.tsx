@@ -100,6 +100,7 @@ interface MCPServerCardStoreProps extends MCPServerCardBaseProps {
   isVerified: boolean;
   isOfficial: boolean;
   canInstall: boolean;
+  headerAction?: React.ReactNode;
 }
 
 interface MCPServerCardServerProps extends MCPServerCardBaseProps {
@@ -155,6 +156,9 @@ export function MCPServerCard(props: MCPServerCardProps) {
   const canInstall = !isServer
     ? (props as MCPServerCardStoreProps).canInstall
     : true;
+  const headerAction = !isServer
+    ? (props as MCPServerCardStoreProps).headerAction
+    : undefined;
 
   return (
     <Card
@@ -238,6 +242,14 @@ export function MCPServerCard(props: MCPServerCardProps) {
                 </div>
               )}
             </div>
+            {headerAction && (
+              <div
+                className="shrink-0 ml-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {headerAction}
+              </div>
+            )}
           </div>
         </div>
 
