@@ -26,6 +26,17 @@ export {
 } from "./virtual-mcp";
 
 export {
+  PROVIDER_IDS,
+  MODEL_CAPABILITIES,
+  type ProviderId,
+  type ModelCapability,
+  type AiProviderModel,
+  type AiProviderModelLimits,
+  type AiProviderModelCosts,
+  type AiProviderKey,
+} from "./ai-providers";
+
+export {
   THREAD_STATUSES,
   THREAD_DISPLAY_STATUSES,
   DECOPILOT_EVENTS,

@@ -27,6 +27,9 @@
         // Called from routes.ts in the next PR; unused here by design
         "src/monitoring/emit-llm-call.ts",
         "src/monitoring/record-llm-call-metrics.ts"
+        // Wired into MeshContext in the next PR (context-factory.ts); unused here by design
+        "src/storage/ai-provider-keys.ts",
+        "src/storage/oauth-pkce-states.ts"
       ]
     },
     "packages/mesh-sdk": {
