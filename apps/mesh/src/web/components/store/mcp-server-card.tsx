@@ -378,6 +378,8 @@ interface MCPServerCardGridProps {
   subtitle?: string;
   onItemClick: (item: RegistryItem) => void;
   totalCount?: number | null;
+  connectedAppNames?: Set<string>;
+  onConnectedItemClick?: (item: RegistryItem) => void;
 }
 
 /**
@@ -387,6 +389,8 @@ export function MCPServerCardGrid({
   items,
   title,
   onItemClick,
+  connectedAppNames,
+  onConnectedItemClick,
 }: MCPServerCardGridProps) {
   const safeItems = items.filter((item) => item !== null && item !== undefined);
   if (safeItems.length === 0) return null;
@@ -401,11 +405,34 @@ export function MCPServerCardGrid({
       <div className="grid grid-cols-4 gap-4">
         {safeItems.map((item) => {
           const displayData = extractCardDisplayData(item);
+          const appName = item.server?.name || item.name || item.id || "";
+          const isConnected = connectedAppNames
+            ? connectedAppNames.has(appName)
+            : false;
+          const handleClick =
+            isConnected && onConnectedItemClick
+              ? () => onConnectedItemClick(item)
+              : () => onItemClick(item);
+          const headerAction =
+            !isConnected && displayData.canInstall ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onItemClick(item);
+                }}
+              >
+                Connect
+              </Button>
+            ) : undefined;
           return (
             <MCPServerCard
               key={item.id}
               {...displayData}
-              onClick={() => onItemClick(item)}
+              onClick={handleClick}
+              headerAction={headerAction}
             />
           );
         })}
