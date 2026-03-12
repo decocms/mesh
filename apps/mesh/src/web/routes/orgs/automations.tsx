@@ -135,25 +135,24 @@ export default function AutomationsPage() {
         ) : !automations || automations.length === 0 ? (
           <div className="flex items-center h-full">
             <EmptyState
-            title="No automations yet"
-            description="Automations run tasks on a schedule or in response to events."
-            actions={
-              <Button
-                size="sm"
-                onClick={handleCreate}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Plus size={14} />
-                )}
-                Create Automation
-              </Button>
-            }
-          />
+              title="No automations yet"
+              description="Automations run tasks on a schedule or in response to events."
+              actions={
+                <Button
+                  size="sm"
+                  onClick={handleCreate}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <Loading01 size={14} className="animate-spin" />
+                  ) : (
+                    <Plus size={14} />
+                  )}
+                  Create Automation
+                </Button>
+              }
+            />
           </div>
-          
         ) : (
           <div className="p-4">
             <UITable>
