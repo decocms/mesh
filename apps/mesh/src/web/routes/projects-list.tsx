@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useProjects } from "@/web/hooks/use-project";
 import { Page } from "@/web/components/page";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
@@ -10,9 +11,9 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import {
   CreateProjectDialog,
   ModeSelectionCards,
-  type Step as CreateStep,
 } from "@/web/components/create-project-dialog";
 import { KEYS } from "@/web/lib/query-keys";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -27,15 +28,108 @@ export default function ProjectsListPage() {
   const { data: projects, isLoading } = useProjects(org.id);
   const [search, setSearch] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDialogStep, setCreateDialogStep] = useState<
-    CreateStep | undefined
-  >(undefined);
+  const [folderPicking, setFolderPicking] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: publicConfig } = useQuery<PublicConfig>({
     queryKey: KEYS.publicConfig(),
   });
   const isLocal = publicConfig?.localMode === true;
+
+  // Pick folder → validate → create project → navigate (no dialog)
+  const pickFolderAndCreate = async () => {
+    if (folderPicking) return;
+    setFolderPicking(true);
+    try {
+      // 1. Open native OS folder picker
+      const pickRes = await fetch("/api/local-dev/pick-folder", {
+        method: "POST",
+        credentials: "include",
+      });
+      const pick: { path?: string; cancelled?: boolean; error?: string } =
+        await pickRes.json();
+      if (!pick.path) return;
+
+      // 2. Validate folder (gets name/slug, checks for existing project)
+      const valRes = await fetch("/api/local-dev/validate-folder", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderPath: pick.path }),
+      });
+      const val: {
+        valid: boolean;
+        name?: string;
+        slug?: string;
+        existingProjectSlug?: string;
+        error?: string;
+      } = await valRes.json();
+
+      // If project already exists for this folder, navigate to it
+      if (val.existingProjectSlug) {
+        navigate({
+          to: "/$org/$project",
+          params: { org: org.slug, project: val.existingProjectSlug },
+        });
+        return;
+      }
+
+      if (!val.valid) {
+        toast.error(val.error || "Invalid folder");
+        return;
+      }
+
+      // 3. Create project automatically
+      const createRes = await fetch("/api/local-dev/create-project", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folderPath: pick.path,
+          name: val.name,
+          slug: val.slug,
+        }),
+      });
+      if (!createRes.ok) {
+        const err = await createRes
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `HTTP ${createRes.status}`);
+      }
+      const result: {
+        project: { id: string; slug: string; name: string };
+        virtualMcpId?: string;
+      } = await createRes.json();
+
+      // 4. Set localStorage keys and navigate
+      const locator =
+        `${org.slug}/${result.project.slug}` as `${string}/${string}`;
+      if (result.virtualMcpId) {
+        localStorage.setItem(
+          `${locator}:selected-virtual-mcp-id`,
+          JSON.stringify(result.virtualMcpId),
+        );
+      }
+      localStorage.setItem(
+        LOCALSTORAGE_KEYS.chatSelectedMode(locator),
+        JSON.stringify("passthrough"),
+      );
+
+      toast.success(`Project "${result.project.name}" created`);
+      await queryClient.invalidateQueries();
+      navigate({
+        to: "/$org/$project",
+        params: { org: org.slug, project: result.project.slug },
+      });
+    } catch (err) {
+      toast.error(
+        `Failed to create project: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setFolderPicking(false);
+    }
+  };
 
   // Filter out org-admin and apply search
   const userProjects =
@@ -75,24 +169,16 @@ export default function ProjectsListPage() {
                 </p>
               </div>
               <ModeSelectionCards
-                onSelectFolder={() => {
-                  setCreateDialogStep("folder");
-                  setCreateDialogOpen(true);
-                }}
-                onSelectBlank={() => {
-                  setCreateDialogStep("blank");
-                  setCreateDialogOpen(true);
-                }}
+                onSelectFolder={pickFolderAndCreate}
+                onSelectBlank={() => setCreateDialogOpen(true)}
+                folderPicking={folderPicking}
               />
             </div>
           </div>
           <CreateProjectDialog
             open={createDialogOpen}
-            onOpenChange={(open) => {
-              setCreateDialogOpen(open);
-              if (!open) setCreateDialogStep(undefined);
-            }}
-            initialStep={createDialogStep}
+            onOpenChange={setCreateDialogOpen}
+            onPickFolder={pickFolderAndCreate}
           />
         </Page.Content>
       </Page>
@@ -199,6 +285,7 @@ export default function ProjectsListPage() {
       <CreateProjectDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        onPickFolder={pickFolderAndCreate}
       />
     </Page>
   );

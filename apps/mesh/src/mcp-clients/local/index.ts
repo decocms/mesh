@@ -18,6 +18,8 @@ import {
   registerTools,
   registerBashTool,
 } from "@decocms/local-dev";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { getInternalUrl } from "@/core/server-constants";
 
@@ -39,12 +41,115 @@ function getOrCreateStorage(rootPath: string): LocalFileStorage {
   return storage;
 }
 
-/**
- * Register a preview tool that exposes an MCP UI resource.
- * The UI is an HTML page with an iframe pointing to the local dev server.
- * Config is read from `.deco/preview.json` in the project root.
- */
-function registerPreviewTool(server: McpServer, rootPath: string) {
+// ---- Preview detection ----
+
+interface PreviewConfig {
+  command?: string;
+  port?: number;
+}
+
+interface PreviewDetection {
+  /** "static" = has index.html, no dev server needed; "dev-server" = has a dev command; "needs-config" = can't detect */
+  mode: "static" | "dev-server" | "needs-config";
+  /** For static mode: URL to iframe directly */
+  staticUrl?: string;
+  /** Suggested dev command (from package.json or .deco/preview.json) */
+  command?: string;
+  /** Suggested port */
+  port?: number;
+  /** Whether .deco/preview.json exists */
+  hasConfig: boolean;
+}
+
+function detectPreview(
+  rootPath: string,
+  baseFileUrl: string,
+): PreviewDetection {
+  // 1. Check .deco/preview.json first (user-configured)
+  const configPath = join(rootPath, ".deco", "preview.json");
+  let savedConfig: PreviewConfig | null = null;
+  if (existsSync(configPath)) {
+    try {
+      savedConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+    } catch {}
+  }
+
+  if (savedConfig?.command && savedConfig?.port) {
+    return {
+      mode: "dev-server",
+      command: savedConfig.command,
+      port: savedConfig.port,
+      hasConfig: true,
+    };
+  }
+
+  // 2. Check for static index.html (no build step needed)
+  const hasIndexHtml = existsSync(join(rootPath, "index.html"));
+  const hasPackageJson = existsSync(join(rootPath, "package.json"));
+
+  if (hasIndexHtml && !hasPackageJson) {
+    // Pure static site — serve via file route
+    return {
+      mode: "static",
+      staticUrl: `${baseFileUrl}/index.html`,
+      hasConfig: false,
+    };
+  }
+
+  // 3. Check package.json for dev scripts
+  if (hasPackageJson) {
+    try {
+      const pkg = JSON.parse(
+        readFileSync(join(rootPath, "package.json"), "utf-8"),
+      );
+      const scripts = pkg.scripts || {};
+
+      // Detect package manager
+      let pm = "npm run";
+      if (existsSync(join(rootPath, "bun.lockb"))) pm = "bun run";
+      else if (existsSync(join(rootPath, "pnpm-lock.yaml"))) pm = "pnpm";
+      else if (existsSync(join(rootPath, "yarn.lock"))) pm = "yarn";
+
+      // Find a dev command
+      for (const key of ["dev", "start", "serve"]) {
+        if (scripts[key]) {
+          let port = 3000;
+          const portMatch = scripts[key].match(/(?:--port|PORT=|:)(\d{4,5})/);
+          if (portMatch) port = parseInt(portMatch[1]);
+          else if (scripts[key].includes("vite")) port = 5173;
+          else if (scripts[key].includes("astro")) port = 4321;
+
+          return {
+            mode: "dev-server",
+            command: `${pm} ${key}`,
+            port,
+            hasConfig: false,
+          };
+        }
+      }
+    } catch {}
+
+    // Has package.json but no dev script — if there's an index.html, serve it statically
+    if (hasIndexHtml) {
+      return {
+        mode: "static",
+        staticUrl: `${baseFileUrl}/index.html`,
+        hasConfig: false,
+      };
+    }
+  }
+
+  // 4. Can't detect — user needs to configure
+  return { mode: "needs-config", hasConfig: false };
+}
+
+// ---- Preview tool registration ----
+
+function registerPreviewTool(
+  server: McpServer,
+  rootPath: string,
+  baseFileUrl: string,
+) {
   const previewResourceUri = "ui://local-dev/preview";
 
   // Register the UI resource that serves the preview HTML
@@ -60,7 +165,7 @@ function registerPreviewTool(server: McpServer, rootPath: string) {
         {
           uri: previewResourceUri,
           mimeType: "text/html;profile=mcp-app",
-          text: getPreviewHtml(rootPath),
+          text: getPreviewHtml(rootPath, baseFileUrl),
         },
       ],
     }),
@@ -72,7 +177,7 @@ function registerPreviewTool(server: McpServer, rootPath: string) {
     {
       title: "Dev Server Preview",
       description:
-        "Preview your local dev server in an iframe. " +
+        "Preview your local project. Auto-detects static sites and dev servers. " +
         "Configure via .deco/preview.json with { command, port }.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
@@ -80,7 +185,6 @@ function registerPreviewTool(server: McpServer, rootPath: string) {
         ui: {
           resourceUri: previewResourceUri,
           csp: {
-            // Allow connecting to any localhost port for dev servers
             connectDomains: [
               "http://localhost:*",
               "http://127.0.0.1:*",
@@ -92,23 +196,22 @@ function registerPreviewTool(server: McpServer, rootPath: string) {
         },
       },
     },
-    async () => ({
-      content: [
-        {
-          type: "text" as const,
-          text: "Preview tool — use the UI tab to see the dev server iframe.",
-        },
-      ],
-    }),
+    async () => {
+      const detection = detectPreview(rootPath, baseFileUrl);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(detection),
+          },
+        ],
+      };
+    },
   );
 }
 
 /**
  * Create an in-process MCP client for a local folder connection.
- *
- * The connection must have metadata.localDevRoot set to the folder path.
- * Tools (filesystem, bash, object storage, preview) execute directly in
- * the mesh server process — no HTTP round-trip.
  */
 export async function createLocalClient(
   connection: ConnectionEntity,
@@ -116,7 +219,6 @@ export async function createLocalClient(
 ): Promise<Client> {
   const storage = getOrCreateStorage(rootPath);
 
-  // Create a fresh McpServer per client — MCP SDK only allows one transport per server
   const mcpServer = new McpServer({
     name: `local-dev-${rootPath}`,
     version: "1.0.0",
@@ -127,7 +229,7 @@ export async function createLocalClient(
 
   registerTools(mcpServer, storage, baseFileUrl);
   registerBashTool(mcpServer, rootPath);
-  registerPreviewTool(mcpServer, rootPath);
+  registerPreviewTool(mcpServer, rootPath, baseFileUrl);
 
   const { client: clientTransport, server: serverTransport } =
     createBridgeTransportPair();
@@ -145,7 +247,6 @@ export async function createLocalClient(
 
 /**
  * Get the LocalFileStorage instance for a connection's root path.
- * Used by API routes (file serving, watch) to access the filesystem.
  */
 export function getLocalStorage(
   rootPath: string,
@@ -154,13 +255,22 @@ export function getLocalStorage(
 }
 
 /**
- * Returns the HTML for the preview UI resource.
- * This is a self-contained page that:
- * 1. Reads .deco/preview.json config via the bash tool (through AppBridge)
- * 2. Starts the dev server if not running
- * 3. Shows the dev server in an iframe
+ * Returns the HTML for the preview MCP App.
+ *
+ * Implements the MCP ext-apps protocol:
+ * 1. PostMessageTransport handshake (ui/initialize → ui/notifications/initialized)
+ * 2. Receives tool result with preview detection info
+ * 3. Can call tools (bash) via tools/call JSON-RPC
+ *
+ * Detection modes:
+ * - static: iframe the file serving URL directly (e.g. index.html)
+ * - dev-server: start the dev server via bash, then iframe localhost:port
+ * - needs-config: show a form for the user to fill in command + port
  */
-function getPreviewHtml(rootPath: string): string {
+function getPreviewHtml(rootPath: string, baseFileUrl: string): string {
+  // Do server-side detection to bake initial state into HTML
+  const detection = detectPreview(rootPath, baseFileUrl);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -192,46 +302,117 @@ function getPreviewHtml(rootPath: string): string {
 </head>
 <body>
 <div id="app"></div>
-<script type="module">
-const ROOT = ${JSON.stringify(rootPath)};
-const CONFIG_PATH = ".deco/preview.json";
+<script>
+// ---- Minimal MCP App protocol ----
+// Implements the JSON-RPC handshake required by ext-apps AppBridge.
 
-let config = null;
-let serverRunning = false;
-let serverUrl = "";
+var _msgId = 0;
+var _pending = {};
 
-// AppBridge communication — call tools on the host
-async function callTool(name, args) {
-  return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID();
-    const handler = (e) => {
-      const msg = e.data;
-      if (msg?.id === id && msg?.jsonrpc === "2.0") {
-        window.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
-      }
+// Listen for messages from the host
+window.addEventListener("message", function(e) {
+  var msg = e.data;
+  if (!msg || msg.jsonrpc !== "2.0") return;
+
+  // Response to a request we sent
+  if (msg.id != null && _pending[msg.id]) {
+    _pending[msg.id](msg);
+    delete _pending[msg.id];
+    return;
+  }
+
+  // Notification from host (tool result, context changes, etc.)
+  if (msg.method === "ui/notifications/tool-result" && msg.params) {
+    onToolResult(msg.params);
+  }
+  if (msg.method === "ui/notifications/host-context-changed" && msg.params) {
+    if (msg.params.theme) {
+      document.documentElement.className = msg.params.theme === "dark" ? "dark" : "";
+    }
+  }
+  // Resource teardown — just respond OK
+  if (msg.method === "ui/resource-teardown" && msg.id != null) {
+    window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, "*");
+  }
+  // Ping
+  if (msg.method === "ping" && msg.id != null) {
+    window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, "*");
+  }
+});
+
+function sendRequest(method, params) {
+  return new Promise(function(resolve, reject) {
+    var id = ++_msgId;
+    _pending[id] = function(msg) {
+      if (msg.error) reject(new Error(msg.error.message));
+      else resolve(msg.result);
     };
-    window.addEventListener("message", handler);
     window.parent.postMessage({
       jsonrpc: "2.0",
-      id,
-      method: "tools/call",
-      params: { name, arguments: args }
+      id: id,
+      method: method,
+      params: params
     }, "*");
   });
 }
 
+function sendNotification(method, params) {
+  window.parent.postMessage({
+    jsonrpc: "2.0",
+    method: method,
+    params: params || {}
+  }, "*");
+}
+
+// Initialize the MCP App protocol handshake
+async function initApp() {
+  try {
+    await sendRequest("ui/initialize", {
+      appInfo: { name: "Local Dev Preview", version: "1.0.0" },
+      appCapabilities: { tools: {} },
+      protocolVersion: "2025-03-26"
+    });
+    sendNotification("ui/notifications/initialized");
+  } catch (err) {
+    console.error("MCP App init failed:", err);
+  }
+}
+
+// Call a tool on the host MCP server
+async function callTool(name, args) {
+  return sendRequest("tools/call", { name: name, arguments: args });
+}
+
 async function bash(cmd) {
-  const result = await callTool("bash", { cmd, timeout: 30000 });
-  const text = result?.content?.[0]?.text || "{}";
+  var result = await callTool("bash", { cmd: cmd, timeout: 30000 });
+  var text = result && result.content && result.content[0] && result.content[0].text || "{}";
   return JSON.parse(text);
 }
 
+// ---- Preview state ----
+
+var ROOT = ${JSON.stringify(rootPath)};
+var BASE_FILE_URL = ${JSON.stringify(baseFileUrl)};
+var detection = ${JSON.stringify(detection)};
+var config = null;
+var serverRunning = false;
+
+function onToolResult(params) {
+  // Tool result may contain updated detection
+  try {
+    if (params.content && params.content[0] && params.content[0].text) {
+      var d = JSON.parse(params.content[0].text);
+      if (d.mode) detection = d;
+    }
+  } catch {}
+}
+
+// ---- Config management ----
+
 async function loadConfig() {
   try {
-    const result = await bash("cat " + CONFIG_PATH + " 2>/dev/null || echo '{}'");
-    const parsed = JSON.parse(result.stdout || "{}");
+    var result = await bash("cat .deco/preview.json 2>/dev/null || echo '{}'");
+    var parsed = JSON.parse(result.stdout || "{}");
     if (parsed.command && parsed.port) {
       config = parsed;
       return true;
@@ -241,15 +422,16 @@ async function loadConfig() {
 }
 
 async function saveConfig(command, port) {
-  await bash("mkdir -p .deco && cat > " + CONFIG_PATH + " << 'DECO_EOF'\\n" + JSON.stringify({ command, port }, null, 2) + "\\nDECO_EOF");
-  config = { command, port };
+  var json = JSON.stringify({ command: command, port: port }, null, 2);
+  await bash("mkdir -p .deco && printf '%s' " + JSON.stringify(json) + " > .deco/preview.json");
+  config = { command: command, port: port };
 }
 
 async function checkServer() {
   if (!config) return false;
   try {
-    const result = await bash("curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 http://localhost:" + config.port + " 2>/dev/null || echo 000");
-    const code = parseInt(result.stdout || "000");
+    var result = await bash("curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 http://localhost:" + config.port + " 2>/dev/null || echo 000");
+    var code = parseInt(result.stdout || "000");
     return code > 0 && code < 500;
   } catch { return false; }
 }
@@ -257,9 +439,8 @@ async function checkServer() {
 async function startServer() {
   if (!config) return;
   await bash("cd " + ROOT + " && nohup " + config.command + " > .deco/preview.log 2>&1 &");
-  // Poll until server is up
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 1000));
+  for (var i = 0; i < 30; i++) {
+    await new Promise(function(r) { setTimeout(r, 1000); });
     if (await checkServer()) { serverRunning = true; render(); return; }
   }
   render();
@@ -272,148 +453,132 @@ async function stopServer() {
   render();
 }
 
-async function detectConfig() {
-  const result = await bash(\`
-    if [ -f package.json ]; then
-      cat package.json
-    else
-      echo '{}'
-    fi
-  \`);
-  try {
-    const pkg = JSON.parse(result.stdout || "{}");
-    const scripts = pkg.scripts || {};
-
-    // Detect package manager
-    let pm = "npm run";
-    const pmResult = await bash("[ -f bun.lockb ] && echo bun || ([ -f pnpm-lock.yaml ] && echo pnpm || ([ -f yarn.lock ] && echo yarn || echo npm))");
-    const detected = (pmResult.stdout || "npm").trim();
-    if (detected === "bun") pm = "bun run";
-    else if (detected === "pnpm") pm = "pnpm";
-    else if (detected === "yarn") pm = "yarn";
-
-    // Detect dev command and port
-    let command = "";
-    let port = 3000;
-
-    for (const key of ["dev", "start", "serve"]) {
-      if (scripts[key]) {
-        command = pm + " " + key;
-        // Try to extract port from script
-        const portMatch = scripts[key].match(/(?:--port|PORT=|:)(\\d{4,5})/);
-        if (portMatch) port = parseInt(portMatch[1]);
-        break;
-      }
-    }
-
-    // Framework-specific port defaults
-    if (scripts.dev) {
-      if (scripts.dev.includes("vite")) port = 5173;
-      else if (scripts.dev.includes("next")) port = 3000;
-      else if (scripts.dev.includes("astro")) port = 4321;
-      else if (scripts.dev.includes("nuxt")) port = 3000;
-    }
-
-    return { command, port };
-  } catch { return { command: "", port: 3000 }; }
-}
+// ---- Rendering ----
 
 function render() {
-  const app = document.getElementById("app");
-  if (!config) {
-    renderSetup(app);
-  } else if (!serverRunning) {
-    renderStopped(app);
-  } else {
-    renderRunning(app);
+  var el = document.getElementById("app");
+
+  // Static mode: just iframe the files directly
+  if (detection.mode === "static" && detection.staticUrl) {
+    renderStatic(el, detection.staticUrl);
+    return;
   }
+
+  // Dev server mode with config (from detection or loaded)
+  if (config) {
+    if (serverRunning) {
+      renderRunning(el);
+    } else {
+      renderStopped(el);
+    }
+    return;
+  }
+
+  // Needs config
+  renderSetup(el);
+}
+
+function renderStatic(el, url) {
+  el.innerHTML =
+    '<div class="toolbar">' +
+      '<span class="status running">● Static</span>' +
+      '<span class="url-bar">' + url + '</span>' +
+      '<button id="refresh-btn">↻ Refresh</button>' +
+      '<button id="open-btn">↗ Open</button>' +
+    '</div>' +
+    '<iframe id="preview-frame" src="' + url + '"></iframe>';
+  document.getElementById("refresh-btn").onclick = function() {
+    document.getElementById("preview-frame").src = url;
+  };
+  document.getElementById("open-btn").onclick = function() {
+    window.open(url, "_blank");
+  };
+  sendNotification("ui/notifications/size-changed", { height: window.innerHeight });
+}
+
+function renderRunning(el) {
+  var url = "http://localhost:" + config.port;
+  el.innerHTML =
+    '<div class="toolbar">' +
+      '<span class="status running">● Running</span>' +
+      '<span class="url-bar">' + url + '</span>' +
+      '<button id="refresh-btn">↻ Refresh</button>' +
+      '<button id="open-btn">↗ Open</button>' +
+      '<button class="danger" id="stop-btn">Stop</button>' +
+    '</div>' +
+    '<iframe id="preview-frame" src="' + url + '"></iframe>';
+  document.getElementById("refresh-btn").onclick = function() {
+    document.getElementById("preview-frame").src = url;
+  };
+  document.getElementById("open-btn").onclick = function() { window.open(url, "_blank"); };
+  document.getElementById("stop-btn").onclick = stopServer;
+  sendNotification("ui/notifications/size-changed", { height: window.innerHeight });
+}
+
+function renderStopped(el) {
+  el.innerHTML =
+    '<div class="toolbar">' +
+      '<span class="status stopped">● Stopped</span>' +
+      '<span class="url-bar">http://localhost:' + config.port + '</span>' +
+      '<button class="primary" id="start-btn">Start Server</button>' +
+      '<button id="edit-btn">Edit</button>' +
+    '</div>' +
+    '<div class="setup">' +
+      '<p>Dev server is not running.</p>' +
+      '<button class="primary" id="start-btn2" style="padding:10px 24px; border-radius:8px; border:none; background:var(--app-primary,#2563eb); color:white; cursor:pointer; font-size:14px;">Start Dev Server</button>' +
+    '</div>';
+  var start = async function() {
+    document.querySelectorAll("#start-btn, #start-btn2").forEach(function(b) { b.textContent = "Starting..."; b.disabled = true; });
+    await startServer();
+  };
+  document.getElementById("start-btn").onclick = start;
+  document.getElementById("start-btn2").onclick = start;
+  document.getElementById("edit-btn").onclick = function() { config = null; render(); };
 }
 
 function renderSetup(el) {
-  el.innerHTML = \`
-    <div class="setup">
-      <h2>Configure Dev Server</h2>
-      <p>Set the command and port for your local development server.</p>
-      <div class="config-form">
-        <label>Command</label>
-        <input id="cmd" placeholder="bun run dev" />
-        <label>Port</label>
-        <input id="port" type="number" placeholder="3000" />
-        <button class="primary" id="save-btn" style="padding:8px 16px; border-radius:6px; border:none; background:var(--app-primary,#2563eb); color:white; cursor:pointer; font-size:14px;">Save & Start</button>
-        <button id="detect-btn" style="padding:8px 16px; border-radius:6px; border:1px solid var(--app-border,#e5e5e5); background:transparent; cursor:pointer; font-size:13px; color:var(--app-muted-foreground,#666);">Auto-detect from package.json</button>
-      </div>
-    </div>
-  \`;
-  document.getElementById("detect-btn").onclick = async () => {
-    const btn = document.getElementById("detect-btn");
-    btn.textContent = "Detecting...";
-    btn.classList.add("detecting");
-    const detected = await detectConfig();
-    btn.classList.remove("detecting");
-    btn.textContent = "Auto-detect from package.json";
-    if (detected.command) {
-      document.getElementById("cmd").value = detected.command;
-      document.getElementById("port").value = detected.port;
-    }
-  };
-  document.getElementById("save-btn").onclick = async () => {
-    const cmd = document.getElementById("cmd").value.trim();
-    const port = parseInt(document.getElementById("port").value) || 3000;
+  var suggestedCmd = detection.command || "";
+  var suggestedPort = detection.port || 3000;
+  el.innerHTML =
+    '<div class="setup">' +
+      '<h2>Configure Dev Server</h2>' +
+      '<p>Set the command and port for your local development server.</p>' +
+      '<div class="config-form">' +
+        '<label>Command</label>' +
+        '<input id="cmd" placeholder="bun run dev" value="' + suggestedCmd + '" />' +
+        '<label>Port</label>' +
+        '<input id="port" type="number" placeholder="3000" value="' + suggestedPort + '" />' +
+        '<button class="primary" id="save-btn" style="padding:8px 16px; border-radius:6px; border:none; background:var(--app-primary,#2563eb); color:white; cursor:pointer; font-size:14px;">Save & Start</button>' +
+      '</div>' +
+    '</div>';
+  document.getElementById("save-btn").onclick = async function() {
+    var cmd = document.getElementById("cmd").value.trim();
+    var port = parseInt(document.getElementById("port").value) || 3000;
     if (!cmd) return;
     await saveConfig(cmd, port);
     await startServer();
   };
 }
 
-function renderStopped(el) {
-  el.innerHTML = \`
-    <div class="toolbar">
-      <span class="status stopped">● Stopped</span>
-      <span class="url-bar">http://localhost:\${config.port}</span>
-      <button class="primary" id="start-btn">Start Server</button>
-      <button id="edit-btn">Edit</button>
-    </div>
-    <div class="setup">
-      <p>Dev server is not running.</p>
-      <button class="primary" id="start-btn2" style="padding:10px 24px; border-radius:8px; border:none; background:var(--app-primary,#2563eb); color:white; cursor:pointer; font-size:14px;">Start Dev Server</button>
-    </div>
-  \`;
-  const start = async () => {
-    document.querySelectorAll("#start-btn, #start-btn2").forEach(b => { b.textContent = "Starting..."; b.disabled = true; });
-    await startServer();
-  };
-  document.getElementById("start-btn").onclick = start;
-  document.getElementById("start-btn2").onclick = start;
-  document.getElementById("edit-btn").onclick = () => { config = null; render(); };
-}
+// ---- Boot ----
 
-function renderRunning(el) {
-  serverUrl = "http://localhost:" + config.port;
-  el.innerHTML = \`
-    <div class="toolbar">
-      <span class="status running">● Running</span>
-      <span class="url-bar">\${serverUrl}</span>
-      <button id="refresh-btn">↻ Refresh</button>
-      <button id="open-btn">↗ Open</button>
-      <button class="danger" id="stop-btn">Stop</button>
-    </div>
-    <iframe id="preview-frame" src="\${serverUrl}"></iframe>
-  \`;
-  document.getElementById("refresh-btn").onclick = () => {
-    document.getElementById("preview-frame").src = serverUrl;
-  };
-  document.getElementById("open-btn").onclick = () => {
-    window.open(serverUrl, "_blank");
-  };
-  document.getElementById("stop-btn").onclick = stopServer;
-}
+(async function() {
+  // Initialize MCP App protocol first
+  await initApp();
 
-// Initialize
-(async () => {
-  const hasConfig = await loadConfig();
-  if (hasConfig) {
-    serverRunning = await checkServer();
+  // If detection says dev-server, load saved config or use detection
+  if (detection.mode === "dev-server") {
+    var hasConfig = await loadConfig();
+    if (!hasConfig && detection.command) {
+      config = { command: detection.command, port: detection.port || 3000 };
+    }
+    if (config) {
+      serverRunning = await checkServer();
+    }
+  } else if (detection.mode === "needs-config") {
+    await loadConfig();
   }
+
   render();
 })();
 </script>

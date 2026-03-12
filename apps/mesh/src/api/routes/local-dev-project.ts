@@ -205,6 +205,7 @@ app.post("/create-project", async (c) => {
     name: string;
     description?: string;
     inputSchema?: unknown;
+    _meta?: Record<string, unknown>;
   }> | null = null;
   try {
     const client = await createLocalClient(tempConnection as any, resolvedPath);
@@ -213,6 +214,7 @@ app.post("/create-project", async (c) => {
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema,
+      ...((t as any)._meta ? { _meta: (t as any)._meta } : {}),
     }));
     await client.close();
   } catch (err) {
@@ -261,12 +263,15 @@ app.post("/create-project", async (c) => {
     },
   });
 
-  // 4. Bind object-storage plugin to the connection
+  // 4. Add connection to the project
+  await ctx.storage.projectConnections.add(project.id, connection.id);
+
+  // 5. Bind object-storage plugin to the connection
   await ctx.storage.projectPluginConfigs.upsert(project.id, "object-storage", {
     connectionId: connection.id,
   });
 
-  // 5. Create Virtual MCP so tools are available in chat
+  // 6. Create Virtual MCP so tools are available in chat
   const virtualMcp = await ctx.storage.virtualMcps.create(
     organizationId,
     userId,

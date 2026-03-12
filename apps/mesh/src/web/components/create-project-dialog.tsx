@@ -32,7 +32,6 @@ import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { KEYS } from "@/web/lib/query-keys";
-import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { generateSlug, isValidSlug } from "@/web/lib/slug";
 import { ColorPicker } from "./color-picker";
 import type { Project } from "@/web/hooks/use-project";
@@ -40,29 +39,7 @@ import type { PublicConfig } from "@/api/routes/public-config";
 
 // ---- Types ----
 
-export type Step = "select" | "folder" | "blank";
-
-interface PickFolderResult {
-  path?: string;
-  cancelled?: boolean;
-  error?: string;
-}
-
-interface ValidateResult {
-  valid: boolean;
-  name?: string;
-  slug?: string;
-  folderPath?: string;
-  existingProjectSlug?: string;
-  error?: string;
-}
-
-interface CreateFromFolderResult {
-  project: { id: string; slug: string; name: string };
-  connectionId: string;
-  virtualMcpId?: string;
-  existing?: boolean;
-}
+type Step = "select" | "blank";
 
 // ---- Blank Project Form Schema ----
 
@@ -81,14 +58,14 @@ type ProjectCreateOutput = { project: Project };
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Override the initial step (e.g. "folder" to skip mode selection) */
-  initialStep?: Step;
+  /** Called when "From Folder" is selected — triggers native OS picker directly */
+  onPickFolder?: () => void;
 }
 
 export function CreateProjectDialog({
   open,
   onOpenChange,
-  initialStep,
+  onPickFolder,
 }: CreateProjectDialogProps) {
   const { org } = useProjectContext();
 
@@ -98,7 +75,7 @@ export function CreateProjectDialog({
   });
   const isLocal = publicConfig?.localMode === true;
 
-  const getDefaultStep = () => initialStep ?? (isLocal ? "select" : "blank");
+  const getDefaultStep = (): Step => (isLocal ? "select" : "blank");
   const [step, setStep] = useState<Step>(getDefaultStep());
 
   // Reset step when dialog opens/closes
@@ -109,20 +86,20 @@ export function CreateProjectDialog({
     onOpenChange(newOpen);
   };
 
+  const handleSelectFolder = () => {
+    if (onPickFolder) {
+      handleOpenChange(false);
+      onPickFolder();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         {step === "select" && (
           <ModeSelectionInDialog
-            onSelectFolder={() => setStep("folder")}
+            onSelectFolder={handleSelectFolder}
             onSelectBlank={() => setStep("blank")}
-          />
-        )}
-        {step === "folder" && (
-          <FolderStep
-            org={org}
-            onBack={() => setStep("select")}
-            onClose={() => handleOpenChange(false)}
           />
         )}
         {step === "blank" && (
@@ -165,16 +142,19 @@ function ModeSelectionInDialog({
 export function ModeSelectionCards({
   onSelectFolder,
   onSelectBlank,
+  folderPicking,
 }: {
   onSelectFolder: () => void;
   onSelectBlank: () => void;
+  folderPicking?: boolean;
 }) {
   return (
     <div className="grid gap-3">
       <button
         type="button"
         onClick={onSelectFolder}
-        className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-foreground/20 hover:bg-accent/50 transition-colors text-left"
+        disabled={folderPicking}
+        className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-foreground/20 hover:bg-accent/50 transition-colors text-left disabled:opacity-50 disabled:cursor-wait"
       >
         <div className="flex items-center justify-center size-10 rounded-lg bg-emerald-500/10 text-emerald-600 shrink-0">
           <svg
@@ -191,7 +171,9 @@ export function ModeSelectionCards({
           </svg>
         </div>
         <div>
-          <div className="text-sm font-medium">From Folder</div>
+          <div className="text-sm font-medium">
+            {folderPicking ? "Opening…" : "From Folder"}
+          </div>
           <div className="text-xs text-muted-foreground">
             Connect a local directory
           </div>
@@ -249,306 +231,6 @@ export function ModeSelectionCards({
         </div>
       </button>
     </div>
-  );
-}
-
-// ---- Folder Step ----
-
-function FolderStep({
-  org,
-  onBack,
-  onClose,
-}: {
-  org: { id: string; slug: string; name: string };
-  onBack: () => void;
-  onClose: () => void;
-}) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [folderName, setFolderName] = useState("");
-  const [folderSlug, setFolderSlug] = useState("");
-  const [bannerColor, setBannerColor] = useState("#10B981");
-  const [picking, setPicking] = useState(false);
-
-  // Validate selected folder
-  const { data: validation } = useQuery<ValidateResult>({
-    queryKey: ["local-dev", "validate", selectedPath],
-    queryFn: async () => {
-      const res = await fetch("/api/local-dev/validate-folder", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderPath: selectedPath }),
-      });
-      return res.json();
-    },
-    enabled: !!selectedPath,
-  });
-
-  // Auto-fill name/slug when validation succeeds
-  const validationName = validation?.name;
-  const validationSlug = validation?.slug;
-  if (validationName && !folderName) {
-    setFolderName(validationName);
-  }
-  if (validationSlug && !folderSlug) {
-    setFolderSlug(validationSlug);
-  }
-
-  // Open native folder picker
-  const pickFolder = async () => {
-    setPicking(true);
-    try {
-      const res = await fetch("/api/local-dev/pick-folder", {
-        method: "POST",
-        credentials: "include",
-      });
-      const data: PickFolderResult = await res.json();
-      if (data.path) {
-        setSelectedPath(data.path);
-        setFolderName("");
-        setFolderSlug("");
-      }
-    } catch {
-      toast.error("Failed to open folder picker");
-    } finally {
-      setPicking(false);
-    }
-  };
-
-  // Create project mutation
-  const createMutation = useMutation({
-    mutationFn: async (): Promise<CreateFromFolderResult> => {
-      const res = await fetch("/api/local-dev/create-project", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folderPath: selectedPath,
-          name: folderName,
-          slug: folderSlug,
-          bannerColor,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      return res.json();
-    },
-    onSuccess: async (result) => {
-      const locator =
-        `${org.slug}/${result.project.slug}` as `${string}/${string}`;
-      if (result.virtualMcpId) {
-        localStorage.setItem(
-          `${locator}:selected-virtual-mcp-id`,
-          JSON.stringify(result.virtualMcpId),
-        );
-      }
-      localStorage.setItem(
-        LOCALSTORAGE_KEYS.chatSelectedMode(locator),
-        JSON.stringify("passthrough"),
-      );
-
-      toast.success(`Project "${result.project.name}" created`);
-      await queryClient.invalidateQueries();
-      onClose();
-      navigate({
-        to: "/$org/$project",
-        params: { org: org.slug, project: result.project.slug },
-      });
-    },
-    onError: (error) => {
-      toast.error(
-        `Failed to create project: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    },
-  });
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          From Folder
-        </DialogTitle>
-        <DialogDescription>
-          Select a local directory to create your project.
-        </DialogDescription>
-      </DialogHeader>
-
-      {/* Folder picker card */}
-      <button
-        type="button"
-        onClick={pickFolder}
-        disabled={picking}
-        className="flex flex-col items-center justify-center gap-3 w-full rounded-lg border-2 border-dashed border-border py-8 px-4 text-muted-foreground hover:border-foreground/20 hover:bg-accent/30 hover:text-foreground transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
-      >
-        <svg
-          width="32"
-          height="32"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="text-amber-500"
-        >
-          <path d="M2 6a2 2 0 0 1 2-2h4.586a1 1 0 0 1 .707.293L11 6h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-        </svg>
-        <span className="text-sm font-medium">
-          {picking ? "Opening picker…" : "Click to select a folder"}
-        </span>
-      </button>
-
-      {/* Selected folder display */}
-      {selectedPath && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="shrink-0 text-amber-500"
-            >
-              <path d="M2 6a2 2 0 0 1 2-2h4.586a1 1 0 0 1 .707.293L11 6h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z" />
-            </svg>
-            <span className="text-sm font-mono truncate flex-1">
-              {selectedPath}
-            </span>
-            <button
-              type="button"
-              onClick={pickFolder}
-              className="text-xs text-muted-foreground hover:text-foreground underline shrink-0"
-            >
-              Change
-            </button>
-          </div>
-
-          {validation?.existingProjectSlug && (
-            <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-md">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="shrink-0"
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <span className="flex-1">
-                Project already exists.{" "}
-                <button
-                  type="button"
-                  className="underline font-medium"
-                  onClick={() => {
-                    onClose();
-                    navigate({
-                      to: "/$org/$project",
-                      params: {
-                        org: org.slug,
-                        project: validation.existingProjectSlug!,
-                      },
-                    });
-                  }}
-                >
-                  Open it
-                </button>
-              </span>
-            </div>
-          )}
-
-          {validation?.valid && !validation.existingProjectSlug && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Name</Label>
-                  <Input
-                    value={folderName}
-                    onChange={(e) => setFolderName(e.target.value)}
-                    disabled={createMutation.isPending}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Slug</Label>
-                  <Input
-                    value={folderSlug}
-                    onChange={(e) =>
-                      setFolderSlug(
-                        e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
-                      )
-                    }
-                    disabled={createMutation.isPending}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Color</Label>
-                <ColorPicker
-                  value={bannerColor}
-                  onChange={(c) => setBannerColor(c ?? "#10B981")}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <DialogFooter>
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        {validation?.existingProjectSlug ? (
-          <Button
-            onClick={() => {
-              onClose();
-              navigate({
-                to: "/$org/$project",
-                params: {
-                  org: org.slug,
-                  project: validation.existingProjectSlug!,
-                },
-              });
-            }}
-          >
-            Open Project
-          </Button>
-        ) : (
-          <Button
-            onClick={() => createMutation.mutate()}
-            disabled={
-              !selectedPath ||
-              !validation?.valid ||
-              !folderName ||
-              !folderSlug ||
-              createMutation.isPending
-            }
-          >
-            {createMutation.isPending ? "Creating…" : "Create Project"}
-          </Button>
-        )}
-      </DialogFooter>
-    </>
   );
 }
 
