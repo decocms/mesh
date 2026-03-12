@@ -75,6 +75,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // Add check constraints for trigger types
+  await sql`ALTER TABLE automation_triggers ADD CONSTRAINT chk_trigger_type CHECK (type IN ('cron', 'event'))`.execute(
+    db,
+  );
   await sql`ALTER TABLE automation_triggers ADD CONSTRAINT chk_cron_trigger CHECK (type != 'cron' OR cron_expression IS NOT NULL)`.execute(
     db,
   );

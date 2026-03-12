@@ -36,23 +36,18 @@ export const AUTOMATION_LIST = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const automations = await ctx.storage.automations.list(organization.id);
-
-    const results = await Promise.all(
-      automations.map(async (automation) => {
-        const triggers = await ctx.storage.automations.listTriggers(
-          automation.id,
-        );
-        return {
-          id: automation.id,
-          name: automation.name,
-          active: automation.active,
-          created_by: automation.created_by,
-          created_at: automation.created_at,
-          trigger_count: triggers.length,
-        };
-      }),
+    const automations = await ctx.storage.automations.listWithTriggerCounts(
+      organization.id,
     );
+
+    const results = automations.map((automation) => ({
+      id: automation.id,
+      name: automation.name,
+      active: automation.active,
+      created_by: automation.created_by,
+      created_at: automation.created_at,
+      trigger_count: automation.trigger_count,
+    }));
 
     return { automations: results };
   },
