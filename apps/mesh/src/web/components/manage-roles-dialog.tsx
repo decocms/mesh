@@ -412,6 +412,8 @@ interface ModelsPermissionsTabProps {
  * Inner component per connection that fetches and displays models.
  * Wrapped in Suspense by the parent.
  */
+const MODELS_PAGE_SIZE = 30;
+
 function ConnectionModelsSection({
   connection,
   selectedModels,
@@ -425,12 +427,13 @@ function ConnectionModelsSection({
   connection: AiProviderKey;
   selectedModels: string[];
   allowAllModels: boolean;
-  onToggleModel: (providerId: string, modelId: string) => void;
-  onToggleConnectionAll: (providerId: string, models: { id: string }[]) => void;
+  onToggleModel: (keyId: string, modelId: string) => void;
+  onToggleConnectionAll: (keyId: string, models: { id: string }[]) => void;
   allConnectionModelsSelected: boolean;
   searchQuery: string;
   readOnly: boolean;
 }) {
+  const [visibleCount, setVisibleCount] = useState(MODELS_PAGE_SIZE);
   const rawModels = useSuspenseAiProviderModels(connection.id);
   const models = rawModels
     .filter((m, i, arr) => arr.findIndex((x) => x.modelId === m.modelId) === i)
@@ -451,6 +454,9 @@ function ConnectionModelsSection({
     : models;
 
   if (filteredModels.length === 0) return null;
+
+  const visibleModels = filteredModels.slice(0, visibleCount);
+  const hasMore = filteredModels.length > visibleCount;
 
   // Check if all filtered models in this connection are selected
   const allSelected =
@@ -484,15 +490,13 @@ function ConnectionModelsSection({
         {!readOnly && !allowAllModels && (
           <Switch
             checked={allSelected}
-            onCheckedChange={() =>
-              onToggleConnectionAll(connection.providerId, models)
-            }
+            onCheckedChange={() => onToggleConnectionAll(connection.id, models)}
           />
         )}
       </div>
       {/* Model list */}
       <div className="space-y-1">
-        {filteredModels.map((model) => {
+        {visibleModels.map((model) => {
           const isEnabled =
             allowAllModels ||
             selectedModels.includes("*") ||
@@ -507,7 +511,7 @@ function ConnectionModelsSection({
               )}
               onClick={() => {
                 if (readOnly || allowAllModels) return;
-                onToggleModel(connection.providerId, model.id);
+                onToggleModel(connection.id, model.id);
               }}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -540,7 +544,7 @@ function ConnectionModelsSection({
                     disabled={readOnly || allowAllModels}
                     onCheckedChange={() => {
                       if (readOnly || allowAllModels) return;
-                      onToggleModel(connection.providerId, model.id);
+                      onToggleModel(connection.id, model.id);
                     }}
                   />
                 )}
@@ -548,6 +552,15 @@ function ConnectionModelsSection({
             </div>
           );
         })}
+        {hasMore && (
+          <button
+            type="button"
+            className="w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            onClick={() => setVisibleCount((c) => c + MODELS_PAGE_SIZE)}
+          >
+            Show more ({filteredModels.length - visibleCount} remaining)
+          </button>
+        )}
       </div>
     </div>
   );
@@ -685,13 +698,13 @@ function ModelsPermissionsTab({
             >
               <ConnectionModelsSection
                 connection={conn}
-                selectedModels={modelSet[conn.providerId] ?? []}
+                selectedModels={modelSet[conn.id] ?? []}
                 allowAllModels={allowAllModels}
                 onToggleModel={toggleModel}
                 onToggleConnectionAll={toggleConnectionAll}
-                allConnectionModelsSelected={(
-                  modelSet[conn.providerId] ?? []
-                ).includes("*")}
+                allConnectionModelsSelected={(modelSet[conn.id] ?? []).includes(
+                  "*",
+                )}
                 searchQuery={deferredSearchQuery}
                 readOnly={readOnly}
               />
@@ -1165,7 +1178,7 @@ export function ManageRolesDialog({
       }
     }
 
-    // Build modelSet from "models" key (composite providerId:modelId strings)
+    // Build modelSet from "models" key (composite keyId:modelId strings)
     const modelsEntries = permission["models"] || [];
     const hasAllModels =
       modelsEntries.length === 0 || modelsEntries.includes("*:*");
@@ -1174,12 +1187,12 @@ export function ManageRolesDialog({
       for (const entry of modelsEntries) {
         const colonIdx = entry.indexOf(":");
         if (colonIdx === -1) continue;
-        const providerId = entry.slice(0, colonIdx);
+        const keyId = entry.slice(0, colonIdx);
         const modelId = entry.slice(colonIdx + 1);
-        if (!modelSet[providerId]) {
-          modelSet[providerId] = [];
+        if (!modelSet[keyId]) {
+          modelSet[keyId] = [];
         }
-        modelSet[providerId].push(modelId);
+        modelSet[keyId].push(modelId);
       }
     }
 
@@ -1338,15 +1351,15 @@ export function ManageRolesDialog({
       }
     }
 
-    // Add model permissions as composite "providerId:modelId" strings
+    // Add model permissions as composite "keyId:modelId" strings
     if (role.allowAllModels) {
       permission["models"] = ["*:*"];
     } else {
       const modelEntries: string[] = [];
-      for (const [providerId, models] of Object.entries(role.modelSet)) {
+      for (const [keyId, models] of Object.entries(role.modelSet)) {
         if (models.length > 0) {
           for (const modelId of models) {
-            modelEntries.push(`${providerId}:${modelId}`);
+            modelEntries.push(`${keyId}:${modelId}`);
           }
         }
       }
@@ -1795,9 +1808,10 @@ export function ManageRolesDialog({
               </Button>
             </div>
 
-            {/* Tab Content */}
+            {/* Tab Content — unmount eagerly when dialog closes to avoid
+                tearing down hundreds of DOM nodes during the close animation */}
             <div className="flex-1 overflow-hidden min-h-0">
-              {activeTab === "mcp" && !viewingBuiltinRole && (
+              {open && activeTab === "mcp" && !viewingBuiltinRole && (
                 <ToolSetSelector
                   toolSet={form.watch("toolSet")}
                   onToolSetChange={(newToolSet) =>
@@ -1805,7 +1819,7 @@ export function ManageRolesDialog({
                   }
                 />
               )}
-              {activeTab === "org" && (
+              {open && activeTab === "org" && (
                 <OrgPermissionsTab
                   allowAllStaticPermissions={form.watch(
                     "allowAllStaticPermissions",
@@ -1824,7 +1838,7 @@ export function ManageRolesDialog({
                   readOnly={!!viewingBuiltinRole}
                 />
               )}
-              {activeTab === "models" && (
+              {open && activeTab === "models" && (
                 <ModelsPermissionsTab
                   allowAllModels={form.watch("allowAllModels")}
                   modelSet={form.watch("modelSet")}
@@ -1841,7 +1855,7 @@ export function ManageRolesDialog({
                   readOnly={!!viewingBuiltinRole}
                 />
               )}
-              {activeTab === "members" && (
+              {open && activeTab === "members" && (
                 <MembersTab
                   memberIds={form.watch("memberIds")}
                   onMemberIdsChange={(newMemberIds) =>

@@ -3,7 +3,7 @@
  *
  * Utilities for checking model access permissions.
  * Model permissions are stored in the role permission JSON under the "models" key
- * as composite "providerId:modelId" strings (e.g. "anthropic:claude-opus-4-5").
+ * as composite "keyId:modelId" strings (e.g. "aik_abc123:claude-opus-4-5").
  */
 
 import type { Kysely } from "kysely";
@@ -24,16 +24,33 @@ export function extractModelPermissions(
 }
 
 /**
- * Check if a specific model from a specific provider is allowed.
+ * Check if a specific API key is accessible at all (i.e. the user has at least
+ * one allowed model entry for it). Used to filter AI provider keys.
  *
  * @param models - The "models" array from the permission object, or undefined for "all allowed"
- * @param providerId - The AI provider ID (e.g. "anthropic", "openrouter")
+ * @param keyId - The AI provider key ID (e.g. "aik_abc123")
+ * @returns true if the key has any allowed models
+ */
+export function checkKeyPermission(
+  models: string[] | undefined,
+  keyId: string,
+): boolean {
+  if (!models) return true;
+  if (models.includes("*:*")) return true;
+  return models.some((entry) => entry.startsWith(`${keyId}:`));
+}
+
+/**
+ * Check if a specific model from a specific key is allowed.
+ *
+ * @param models - The "models" array from the permission object, or undefined for "all allowed"
+ * @param keyId - The AI provider key ID (e.g. "aik_abc123")
  * @param modelId - The model ID to check
  * @returns true if the model is allowed
  */
 export function checkModelPermission(
   models: string[] | undefined,
-  providerId: string,
+  keyId: string,
   modelId: string,
 ): boolean {
   // No models key = all models allowed (backward compat)
@@ -41,16 +58,16 @@ export function checkModelPermission(
 
   return (
     models.includes("*:*") ||
-    models.includes(`${providerId}:*`) ||
-    models.includes(`${providerId}:${modelId}`)
+    models.includes(`${keyId}:*`) ||
+    models.includes(`${keyId}:${modelId}`)
   );
 }
 
 /**
- * Parse the models array into a provider-scoped map.
+ * Parse the models array into a key-scoped map.
  * Used by the allowed-models API endpoint to return structured data to the client.
  *
- * @returns { allowAll: boolean, models: Record<providerId, modelId[]> }
+ * @returns { allowAll: boolean, models: Record<keyId, modelId[]> }
  */
 export function parseModelsToMap(models: string[] | undefined): {
   allowAll: boolean;
@@ -68,12 +85,12 @@ export function parseModelsToMap(models: string[] | undefined): {
   for (const entry of models) {
     const colonIdx = entry.indexOf(":");
     if (colonIdx === -1) continue;
-    const providerId = entry.slice(0, colonIdx);
+    const keyId = entry.slice(0, colonIdx);
     const modelId = entry.slice(colonIdx + 1);
-    if (!result[providerId]) {
-      result[providerId] = [];
+    if (!result[keyId]) {
+      result[keyId] = [];
     }
-    result[providerId].push(modelId);
+    result[keyId].push(modelId);
   }
 
   return { allowAll: false, models: result };

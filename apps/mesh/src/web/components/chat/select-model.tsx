@@ -872,10 +872,12 @@ function SelectedModelDisplay({
   model,
   placeholder = "Select model",
   isLoading = false,
+  isStale = false,
 }: {
   model: AiProviderModel | null;
   placeholder?: string;
   isLoading?: boolean;
+  isStale?: boolean;
 }) {
   if (isLoading) {
     return (
@@ -906,12 +908,21 @@ function SelectedModelDisplay({
 
   return (
     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-      <img
-        src={providerLogo}
-        className="w-5 h-5 shrink-0 rounded-sm"
-        alt={model.title}
-      />
-      <span className="text-sm text-muted-foreground truncate whitespace-nowrap hidden md:inline">
+      {isStale ? (
+        <AlertTriangle size={16} className="text-warning shrink-0" />
+      ) : (
+        <img
+          src={providerLogo}
+          className="w-5 h-5 shrink-0 rounded-sm"
+          alt={model.title}
+        />
+      )}
+      <span
+        className={cn(
+          "text-sm truncate whitespace-nowrap hidden md:inline",
+          isStale ? "text-warning" : "text-muted-foreground",
+        )}
+      >
         {displayName}
       </span>
       <ChevronDown
@@ -1169,7 +1180,9 @@ export function ModelSelector({
   placeholder = "Select model",
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
-  const { model, isModelsLoading } = useChat();
+  const { model, isModelsLoading, isSelectedKeyStale, isSelectedModelStale } =
+    useChat();
+  const isStale = isSelectedKeyStale || isSelectedModelStale;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1180,6 +1193,7 @@ export function ModelSelector({
           className={cn(
             "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 shrink justify-start overflow-hidden",
             variant === "borderless" && "md:border-none",
+            isStale && "text-warning",
             className,
           )}
         >
@@ -1187,6 +1201,7 @@ export function ModelSelector({
             model={model}
             placeholder={placeholder}
             isLoading={isModelsLoading}
+            isStale={isStale}
           />
         </Button>
       </DialogTrigger>

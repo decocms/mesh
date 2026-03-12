@@ -50,9 +50,8 @@ const ModelInfoSchema = z.object({
     .optional(),
 });
 
-// thinking model must always carry provider — it drives permission checks and metadata
 const ThinkingModelSchema = ModelInfoSchema.extend({
-  provider: ProviderEnum,
+  provider: ProviderSchema,
 });
 
 const ModelsSchema = z

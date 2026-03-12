@@ -131,6 +131,11 @@ export class AIProviderFactory {
     );
     const providerId = keyInfo.providerId;
 
+    if (this.cache) {
+      const cached = await this.cache.get(organizationId, providerId);
+      if (cached) return cached;
+    }
+
     const provider = PROVIDERS[providerId].create(apiKey);
     const rawModels = await provider.listModels();
 
@@ -143,18 +148,16 @@ export class AIProviderFactory {
     });
 
     if (providerId !== "openrouter") {
-      const index = await getOpenRouterIndex();
+      const index = await getOpenRouterIndex(this.cache);
       models = enrich(models, index);
     }
 
+    const result = models.map((m) => ({ ...m, providerId }));
+
     if (this.cache) {
-      await this.cache.set(
-        organizationId,
-        providerId,
-        models.map((m) => ({ ...m, providerId })),
-      );
+      await this.cache.set(organizationId, providerId, result);
     }
 
-    return models.map((m) => ({ ...m, providerId }));
+    return result;
   }
 }

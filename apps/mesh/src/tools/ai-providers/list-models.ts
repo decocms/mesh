@@ -51,7 +51,7 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
     const models = await ctx.aiProviders.listModels(input.keyId, org.id);
 
     const filtered = models.filter((m) =>
-      checkModelPermission(allowedModels, m.providerId, m.modelId),
+      checkModelPermission(allowedModels, input.keyId, m.modelId),
     );
 
     return { models: filtered };

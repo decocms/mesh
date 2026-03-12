@@ -69,6 +69,7 @@ export function useAiProviderKeyList() {
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.aiProviderKeys(locator),
+    staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({
         name: "AI_PROVIDER_KEY_LIST",
@@ -92,6 +93,7 @@ export function useAiProviderModels(keyId: string | undefined) {
   const { data, isLoading } = useQuery({
     queryKey: KEYS.aiProviderModels(locator, keyId ?? ""),
     enabled: !!keyId,
+    staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({
         name: "AI_PROVIDERS_LIST_MODELS",
@@ -114,6 +116,7 @@ export function useSuspenseAiProviderModels(keyId: string) {
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.aiProviderModels(locator, keyId),
+    staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({
         name: "AI_PROVIDERS_LIST_MODELS",

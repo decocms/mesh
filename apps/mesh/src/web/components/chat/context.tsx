@@ -112,6 +112,8 @@ interface ChatStableValue {
   model: AiProviderModel | null;
   isModelsLoading: boolean;
   setSelectedModel: (model: AiProviderModel) => void;
+  isSelectedKeyStale: boolean;
+  isSelectedModelStale: boolean;
 
   selectedMode: ToolSelectionStrategy;
   setSelectedMode: (mode: ToolSelectionStrategy) => void;
@@ -674,6 +676,21 @@ export function ChatProvider({ children }: PropsWithChildren) {
   // If a valid stored model exists we render it immediately; no spinner needed.
   const isModelsLoading = !hasValidStoredModel && isModelsQueryLoading;
 
+  // Staleness: the cached key/model is no longer present in the server-returned list.
+  // Keys come from useSuspenseQuery so they are always available on first render.
+  const isSelectedKeyStale =
+    selectedKeyId !== null &&
+    keys.length > 0 &&
+    !keys.some((k) => k.id === selectedKeyId);
+
+  // Only flag the model as stale once the model list has finished loading and
+  // returned at least one result — avoids false positives during initial fetch.
+  const isSelectedModelStale =
+    hasValidStoredModel &&
+    !isModelsQueryLoading &&
+    defaultKeyModels.length > 0 &&
+    !defaultKeyModels.some((m) => m.modelId === storedModel!.modelId);
+
   // Mode state
   const [selectedMode, setSelectedMode] =
     useLocalStorage<ToolSelectionStrategy>(
@@ -1055,6 +1072,8 @@ export function ChatProvider({ children }: PropsWithChildren) {
     model,
     isModelsLoading,
     setSelectedModel,
+    isSelectedKeyStale,
+    isSelectedModelStale,
     selectedMode,
     setSelectedMode,
     sendMessage,
