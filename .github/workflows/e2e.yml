@@ -58,5 +58,8 @@ jobs:
       - name: Create data directory
         run: mkdir -p data
 
+      - name: Run database migrations
+        run: bun run migrate
+
       - name: Run e2e tests
         run: bun run test:e2e
