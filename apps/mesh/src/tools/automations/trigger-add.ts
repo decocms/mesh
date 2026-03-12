@@ -59,7 +59,7 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
       }
 
       // Validate cron expression
-      const cron = new Cron(input.cron_expression);
+      const cron = new Cron(input.cron_expression, { timezone: "UTC" });
       const runs = cron.nextRuns(2);
       if (runs.length >= 2 && runs[1]!.getTime() - runs[0]!.getTime() < 60000) {
         throw new Error(

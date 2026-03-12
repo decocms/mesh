@@ -503,7 +503,7 @@ export class EventBusWorker {
     // If it was cancelled, no new deliveries will be created.
 
     try {
-      const cron = new Cron(event.cron);
+      const cron = new Cron(event.cron, { timezone: "UTC" });
       const nextRun = cron.nextRun();
 
       if (!nextRun) {

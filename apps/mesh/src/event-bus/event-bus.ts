@@ -86,7 +86,7 @@ export class EventBus implements IEventBus {
     let firstDeliveryTime: string | undefined;
     if (input.cron) {
       try {
-        const cron = new Cron(input.cron);
+        const cron = new Cron(input.cron, { timezone: "UTC" });
         const nextRun = cron.nextRun();
         if (!nextRun) {
           throw new Error("Cron expression does not produce a next run time");

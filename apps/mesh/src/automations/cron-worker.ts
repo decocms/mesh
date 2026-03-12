@@ -106,7 +106,7 @@ export class AutomationCronWorker {
 
   private async scheduleNextRun(trigger: AutomationTrigger): Promise<void> {
     if (!trigger.cron_expression) return;
-    const cron = new Cron(trigger.cron_expression);
+    const cron = new Cron(trigger.cron_expression, { timezone: "UTC" });
     const nextRun = cron.nextRun();
     if (nextRun) {
       await this.storage.updateTriggerNextRunAt(
@@ -131,7 +131,7 @@ export class AutomationCronWorker {
       for (const { automation: _automation, ...trigger } of allDue) {
         if (!trigger.cron_expression) continue;
         try {
-          const cron = new Cron(trigger.cron_expression);
+          const cron = new Cron(trigger.cron_expression, { timezone: "UTC" });
           const nextRun = cron.nextRun();
           if (nextRun) {
             await this.storage.updateTriggerNextRunAt(
