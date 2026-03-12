@@ -24,10 +24,7 @@ const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
 const ALWAYS_INCLUDE = [
   "@jitl/quickjs-wasmfile-release-sync",
   "@electric-sql/pglite",
-  "@duckdb/node-api",
 ];
-/** Native addons resolved at install time per-platform; skip if missing. */
-const OPTIONAL_INCLUDE = ["@duckdb/node-bindings"];
 const ALWAYS_EXCLUDE = ["kysely-codegen"];
 
 // Parse command line arguments
@@ -131,15 +128,6 @@ async function pruneNodeModules(): Promise<Set<string>> {
     } catch (error) {
       console.error(`❌ Failed to resolve ${entryPoint}:`, error);
       process.exit(1);
-    }
-  }
-  for (const entryPoint of OPTIONAL_INCLUDE) {
-    try {
-      const resolved = Bun.resolveSync(entryPoint, MESH_APP_ROOT);
-      migrateEntryPointPaths.push(resolved);
-      console.log(`📦 Optional entry point: ${entryPoint} -> ${resolved}`);
-    } catch {
-      console.log(`⏭️  Optional entry point not found: ${entryPoint} (skipped)`);
     }
   }
 
