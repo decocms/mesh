@@ -279,6 +279,8 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
             <button
               type="button"
               onClick={() => {
+                verifyOtpMutation.reset();
+                setOtp("");
                 sendOtpMutation.mutate({ email });
                 startResendCooldown();
               }}

@@ -33,7 +33,7 @@
   ],
   "inviteEmailProviderId": "resend-primary",
   "magicLinkConfig": {
-    "enabled": true,
+    "enabled": false,
     "emailProviderId": "resend-primary"
   },
   "emailOTPConfig": {
