@@ -46,7 +46,6 @@ import {
   useAiProviderModels,
   useAiProviders,
 } from "../../hooks/collections/use-llm";
-import { useAllowedModels } from "../../hooks/use-allowed-models";
 import { useAuthConfig } from "../../providers/auth-config-provider";
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
@@ -103,12 +102,6 @@ export function isClaudeCodeModel(
   model: { connectionId?: string } | null | undefined,
 ): boolean {
   return model?.connectionId === CLAUDE_CODE_CONNECTION_ID;
-}
-
-/** Get display name for a Claude Code model id */
-function claudeCodeDisplayName(modelId: string): string {
-  const m = CLAUDE_CODE_MODELS.find((m) => m.id === modelId);
-  return m ? `Claude Code ${m.title}` : "Claude Code";
 }
 
 // ============================================================================
@@ -1078,8 +1071,8 @@ function ModelSelectorInner({
     setSelectedModel({
       modelId,
       title: variant ? `Claude Code ${variant.title}` : "Claude Code",
-      providerId: "claude-code",
-      capabilities: ["text", "tools"],
+      providerId: "claude-code" as AiProviderModel["providerId"],
+      capabilities: ["text"],
       limits: variant?.limits ?? {
         contextWindow: 200_000,
         maxOutputTokens: 32_768,
@@ -1196,25 +1189,21 @@ function ModelSelectorInner({
                 onClick={() => handleClaudeCodeSelect(variant.id)}
                 onMouseEnter={() =>
                   setHoveredModel({
-                    id: variant.id,
+                    modelId: variant.id,
                     title: `Claude Code: ${variant.title}`,
                     logo: null,
                     description: variant.description,
-                    capabilities: ["text", "tools"],
+                    capabilities: ["text"],
                     limits: variant.limits,
                     costs: null,
-                    provider: null,
-                    created_at: "",
-                    updated_at: "",
-                    created_by: "",
-                    updated_by: "",
+                    providerId: "claude-code" as AiProviderModel["providerId"],
                   })
                 }
                 className={cn(
                   "flex items-center gap-2 w-full min-h-8 py-2 px-4 text-left cursor-pointer",
                   "hover:bg-accent",
-                  selectedModel?.thinking?.id === variant.id &&
-                    isClaudeCodeModel(selectedModel) &&
+                  selectedModel?.modelId === variant.id &&
+                    (selectedModel?.providerId as string) === "claude-code" &&
                     "bg-accent/50",
                 )}
               >
