@@ -567,9 +567,16 @@ const MonitoringStats = Object.assign(MonitoringStatsContent, {
 interface LlmStatsProps {
   displayDateRange: DateRange;
   isStreaming: boolean;
+  selectedMetric: TopChartMetric;
+  onMetricSelect: (metric: TopChartMetric) => void;
 }
 
-function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
+function LlmStatsContent({
+  displayDateRange,
+  isStreaming,
+  selectedMetric,
+  onMetricSelect,
+}: LlmStatsProps) {
   const interval = getIntervalFromRange(displayDateRange);
   const { data: serverStats } = useMonitoringLlmStats(
     {
@@ -609,6 +616,7 @@ function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
       id: "llm-calls",
       dataKey: "calls" as const,
       colorNum: 1,
+      chartMetric: "calls" as TopChartMetric,
       renderTitle: () => (
         <div className="flex flex-col gap-0.5 md:gap-1">
           <p className="text-xs md:text-sm text-muted-foreground">LLM Calls</p>
@@ -622,6 +630,7 @@ function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
       id: "llm-latency",
       dataKey: "avg" as const,
       colorNum: 4,
+      chartMetric: "latency-avg" as TopChartMetric,
       renderTitle: () => (
         <div className="flex flex-col gap-0.5 md:gap-1">
           <p className="text-xs md:text-sm text-muted-foreground">
@@ -652,6 +661,7 @@ function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
       id: "llm-errors",
       dataKey: "errors" as const,
       colorNum: 3,
+      chartMetric: "errors" as TopChartMetric,
       renderTitle: () => (
         <div className="flex flex-col gap-0.5 md:gap-1">
           <p className="text-xs md:text-sm text-muted-foreground">LLM Errors</p>
@@ -671,18 +681,35 @@ function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
         </span>
       </div>
       <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
-        {llmKpiConfigs.map(({ id, dataKey, colorNum, renderTitle }) => (
-          <div key={id} className="bg-background">
-            <HomeGridCell title={renderTitle()}>
-              <KPIChart
-                data={stats.data}
-                dataKey={dataKey}
-                colorNum={colorNum}
-                chartHeight="h-[30px] md:h-[40px]"
-              />
-            </HomeGridCell>
-          </div>
-        ))}
+        {llmKpiConfigs.map(
+          ({ id, dataKey, colorNum, chartMetric, renderTitle }) => {
+            const isSelected = selectedMetric === chartMetric;
+            return (
+              <div
+                key={id}
+                className="bg-background relative cursor-pointer"
+                onClick={() => onMetricSelect(chartMetric)}
+              >
+                {isSelected && (
+                  <div
+                    className="absolute top-0 left-0 right-0 h-0.5 z-10"
+                    style={{
+                      backgroundColor: `var(--chart-${colorNum})`,
+                    }}
+                  />
+                )}
+                <HomeGridCell title={renderTitle()}>
+                  <KPIChart
+                    data={stats.data}
+                    dataKey={dataKey}
+                    colorNum={colorNum}
+                    chartHeight="h-[30px] md:h-[40px]"
+                  />
+                </HomeGridCell>
+              </div>
+            );
+          },
+        )}
       </div>
     </div>
   );
@@ -1755,6 +1782,8 @@ function MonitoringDashboardContent({
           <LlmStatsContent
             displayDateRange={displayDateRange}
             isStreaming={isStreaming}
+            selectedMetric={topChartMetric}
+            onMetricSelect={setTopChartMetric}
           />
         </div>
       )}
