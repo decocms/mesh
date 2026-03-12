@@ -254,7 +254,9 @@ export async function createApp(options: CreateAppOptions = {}) {
       modelListCache = new InMemoryModelListCache();
     });
   }
-
+  // Create event bus with a lazy context getter
+  // The notify function needs a context, but the context needs the event bus
+  // We resolve this by having notify create its own system context
   let eventBus: EventBus;
 
   if (options.eventBus) {

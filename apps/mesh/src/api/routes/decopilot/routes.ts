@@ -494,7 +494,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
               }
 
               if (part.type === "finish") {
-                const provider = models.thinking.provider;
+                const thinkingProvider = models.thinking.provider;
                 const totalUsage = part.totalUsage;
                 const providerMeta =
                   lastProviderMetadata ??
@@ -507,11 +507,13 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
                       reasoningTokens: totalUsage.reasoningTokens ?? undefined,
                       totalTokens: totalUsage.totalTokens ?? 0,
                       providerMetadata: sanitizeProviderMetadata(
-                        provider && providerMeta
+                        thinkingProvider && providerMeta
                           ? {
                               ...providerMeta,
-                              [provider]: {
-                                ...((providerMeta[provider] as object) ?? {}),
+                              [thinkingProvider]: {
+                                ...((providerMeta[
+                                  thinkingProvider
+                                ] as object) ?? {}),
                                 reasoning_details: undefined,
                               },
                             }

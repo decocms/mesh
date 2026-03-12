@@ -41,7 +41,6 @@ const ModelInfoSchema = z.object({
       tools: z.boolean().optional(),
     })
     .optional(),
-  provider: ProviderSchema,
   limits: z
     .object({
       contextWindow: z.number().optional(),
