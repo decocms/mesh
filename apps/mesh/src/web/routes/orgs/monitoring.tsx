@@ -185,7 +185,7 @@ function buildFilledStatsData(
   );
 
   // Always generate exactly 10 display buckets
-  const BUCKET_COUNT = 10;
+  const BUCKET_COUNT = 20;
   const startMs = range.startDate.getTime();
   const endMs = range.endDate.getTime();
   const step = (endMs - startMs) / (BUCKET_COUNT - 1);

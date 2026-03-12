@@ -69,7 +69,7 @@ function buildToolBuckets(
   >();
 
   // Always create exactly 10 display buckets spanning the full range
-  const BUCKET_COUNT = 10;
+  const BUCKET_COUNT = 20;
   const startMs = start.getTime();
   const endMs = end.getTime();
   const step = (endMs - startMs) / (BUCKET_COUNT - 1);
