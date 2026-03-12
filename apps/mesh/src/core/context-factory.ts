@@ -778,10 +778,10 @@ export async function createMeshContextFactory(
     monitoringEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
     metricEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
   } else {
-    const { engine: me } = createMonitoringEngine({
+    const { engine: me } = await createMonitoringEngine({
       basePath: DEFAULT_LOGS_DIR,
     });
-    const { engine: metricE } = createMonitoringEngine({
+    const { engine: metricE } = await createMonitoringEngine({
       basePath: DEFAULT_METRICS_DIR,
     });
     monitoringEngine = me;

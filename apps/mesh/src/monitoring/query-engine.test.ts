@@ -85,8 +85,8 @@ describe.skipIf(!duckdbAvailable)("DuckDBEngine", () => {
 describe("createMonitoringEngine", () => {
   it.skipIf(!duckdbAvailable)(
     "should create DuckDBEngine when no CLICKHOUSE_URL",
-    () => {
-      const { engine, source } = createMonitoringEngine({
+    async () => {
+      const { engine, source } = await createMonitoringEngine({
         basePath: "./data/monitoring",
       });
       expect(engine).toBeInstanceOf(DuckDBEngine);
@@ -95,21 +95,21 @@ describe("createMonitoringEngine", () => {
     },
   );
 
-  it("should use DEFAULT_LOGS_DIR when no basePath", () => {
-    const { source } = createMonitoringEngine({});
+  it("should use DEFAULT_LOGS_DIR when no basePath", async () => {
+    const { source } = await createMonitoringEngine({});
     expect(source).toContain("deco/logs");
   });
 
-  it("should create ClickHouseClientEngine when clickhouseUrl is set", () => {
-    const { engine, source } = createMonitoringEngine({
+  it("should create ClickHouseClientEngine when clickhouseUrl is set", async () => {
+    const { engine, source } = await createMonitoringEngine({
       clickhouseUrl: "http://localhost:8123",
     });
     expect(engine).toBeInstanceOf(ClickHouseClientEngine);
     expect(source).toBe("monitoring_logs");
   });
 
-  it("should use custom tableName when clickhouseUrl is set", () => {
-    const { engine, source } = createMonitoringEngine({
+  it("should use custom tableName when clickhouseUrl is set", async () => {
+    const { engine, source } = await createMonitoringEngine({
       clickhouseUrl: "http://localhost:8123",
       tableName: "custom_table",
     });

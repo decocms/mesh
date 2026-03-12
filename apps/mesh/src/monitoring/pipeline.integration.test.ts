@@ -81,7 +81,9 @@ describe.skipIf(!duckdbAvailable)("Monitoring Pipeline Integration", () => {
     }
 
     // 3. Query via SqlMonitoringStorage (DuckDB engine for local NDJSON)
-    const { engine, source } = createMonitoringEngine({ basePath: tmpDir });
+    const { engine, source } = await createMonitoringEngine({
+      basePath: tmpDir,
+    });
     engineToDestroy = engine;
     const sourceFactory = (_orgId: string) => source;
     const storage = new SqlMonitoringStorage(

@@ -35,6 +35,19 @@ export class DuckDBEngine implements QueryEngine {
     );
   }
 
+  /**
+   * Eagerly check whether @duckdb/node-api can be loaded.
+   * Returns true if the module is available, false otherwise.
+   */
+  static async isAvailable(): Promise<boolean> {
+    try {
+      await import("@duckdb/node-api");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async query(sql: string): Promise<Record<string, unknown>[]> {
     const connection = await this.connectionPromise;
     try {
@@ -54,7 +67,8 @@ export class DuckDBEngine implements QueryEngine {
   }
 
   async destroy(): Promise<void> {
-    // Connection will be GC'd
+    const connection = await this.connectionPromise;
+    connection.disconnectSync();
   }
 }
 
@@ -130,10 +144,12 @@ class NoopEngine implements QueryEngine {
   }
 }
 
-export function createMonitoringEngine(config: MonitoringEngineConfig): {
+export async function createMonitoringEngine(
+  config: MonitoringEngineConfig,
+): Promise<{
   engine: QueryEngine;
   source: string;
-} {
+}> {
   if (config.clickhouseUrl) {
     return {
       engine: new ClickHouseClientEngine(config.clickhouseUrl),
@@ -147,20 +163,15 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
     throw new Error(`Invalid monitoring data path: ${resolvedPath}`);
   }
 
-  try {
-    return {
-      engine: new DuckDBEngine(),
-      source: `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`,
-    };
-  } catch (err) {
-    console.warn(
-      "\n⚠️  WARNING: @duckdb/node-api native module failed to load — monitoring will return empty results.\n" +
-        `   Error: ${err instanceof Error ? err.message : err}\n` +
-        "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to reinstall the native module.\n",
-    );
-    return {
-      engine: new NoopEngine(),
-      source: `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`,
-    };
+  const source = `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`;
+
+  if (await DuckDBEngine.isAvailable()) {
+    return { engine: new DuckDBEngine(), source };
   }
+
+  console.warn(
+    "\n⚠️  WARNING: @duckdb/node-api native module is not available — monitoring will return empty results.\n" +
+      "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to install the native module.\n",
+  );
+  return { engine: new NoopEngine(), source };
 }
