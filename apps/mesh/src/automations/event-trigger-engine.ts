@@ -107,7 +107,7 @@ export class EventTriggerEngine {
     try {
       parsed = JSON.parse(triggerParams);
     } catch {
-      return true;
+      return false;
     }
 
     if (Object.keys(parsed).length === 0) return true;

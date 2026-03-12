@@ -52,10 +52,17 @@ export interface CreateTriggerInput {
 // AutomationsStorage Interface
 // ============================================================================
 
+export interface AutomationWithTriggerCount extends Automation {
+  trigger_count: number;
+}
+
 export interface AutomationsStorage {
   create(input: CreateAutomationInput): Promise<Automation>;
   findById(id: string, organizationId: string): Promise<Automation | null>;
   list(organizationId: string): Promise<Automation[]>;
+  listWithTriggerCounts(
+    organizationId: string,
+  ): Promise<AutomationWithTriggerCount[]>;
   update(
     id: string,
     organizationId: string,
@@ -83,6 +90,7 @@ export interface AutomationsStorage {
     triggerId: string,
     maxConcurrent: number,
   ): Promise<string | null>;
+  markRunFailed(threadId: string): Promise<void>;
   updateTriggerNextRunAt(triggerId: string, nextRunAt: string): Promise<void>;
   deactivateAutomation(id: string): Promise<void>;
 }
@@ -207,6 +215,51 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       .execute();
 
     return rows.map(automationFromDbRow);
+  }
+
+  async listWithTriggerCounts(
+    organizationId: string,
+  ): Promise<AutomationWithTriggerCount[]> {
+    const rows = await this.db
+      .selectFrom("automations as a")
+      .leftJoin("automation_triggers as t", "t.automation_id", "a.id")
+      .select([
+        "a.id",
+        "a.organization_id",
+        "a.name",
+        "a.active",
+        "a.created_by",
+        "a.agent",
+        "a.messages",
+        "a.models",
+        "a.temperature",
+        "a.tool_approval_level",
+        "a.created_at",
+        "a.updated_at",
+      ])
+      .select((eb) => eb.fn.count("t.id").as("trigger_count"))
+      .where("a.organization_id", "=", organizationId)
+      .groupBy([
+        "a.id",
+        "a.organization_id",
+        "a.name",
+        "a.active",
+        "a.created_by",
+        "a.agent",
+        "a.messages",
+        "a.models",
+        "a.temperature",
+        "a.tool_approval_level",
+        "a.created_at",
+        "a.updated_at",
+      ])
+      .orderBy("a.created_at", "desc")
+      .execute();
+
+    return rows.map((row) => ({
+      ...automationFromDbRow(row),
+      trigger_count: Number(row.trigger_count),
+    }));
   }
 
   async update(
@@ -492,6 +545,15 @@ class KyselyAutomationsStorage implements AutomationsStorage {
 
       return threadId;
     });
+  }
+
+  async markRunFailed(threadId: string): Promise<void> {
+    await this.db
+      .updateTable("threads")
+      .set({ status: "failed", updated_at: new Date().toISOString() })
+      .where("id", "=", threadId)
+      .where("status", "=", "in_progress")
+      .execute();
   }
 
   async updateTriggerNextRunAt(

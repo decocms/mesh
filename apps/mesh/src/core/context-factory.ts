@@ -203,7 +203,7 @@ function checkApiKeyPermission(
  * 1. API Key / MCP OAuth → permissions are queried and stored here
  * 2. Browser sessions → use Better Auth's hasPermission API (no stored permissions)
  */
-interface AuthContext {
+export interface AuthContext {
   headers: Headers;
   auth: BetterAuthInstance;
   role?: string; // User's role (for built-in role bypass)
@@ -219,7 +219,7 @@ interface AuthContext {
  * 1. API Key / MCP OAuth → check directly against stored `permissions`
  * 2. Browser sessions → delegate to Better Auth's hasPermission API
  */
-function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
+export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
   const { auth, headers, role, permissions, userId } = ctx;
 
   // Get hasPermission from Better Auth's organization plugin (for browser sessions)

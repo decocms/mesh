@@ -6,7 +6,11 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { requireAuth, requireOrganization } from "../../core/mesh-context";
+import {
+  getUserId,
+  requireAuth,
+  requireOrganization,
+} from "../../core/mesh-context";
 
 export const AUTOMATION_CREATE = defineTool({
   name: "AUTOMATION_CREATE",
@@ -83,9 +87,14 @@ export const AUTOMATION_CREATE = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
+    const userId = getUserId(ctx);
+    if (!userId) {
+      throw new Error("Unable to determine user identity");
+    }
+
     const automation = await ctx.storage.automations.create({
       organization_id: organization.id,
-      created_by: ctx.auth.user!.id,
+      created_by: userId,
       name: input.name,
       agent: JSON.stringify(input.agent),
       messages: JSON.stringify(input.messages),

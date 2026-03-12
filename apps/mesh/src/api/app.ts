@@ -20,8 +20,10 @@ import { endTime, startTime, timing } from "hono/timing";
 import { auth } from "../auth";
 import {
   ContextFactory,
+  createBoundAuthClient,
   createMeshContextFactory,
 } from "../core/context-factory";
+import { AccessControl } from "../core/access-control";
 import type { MeshContext } from "../core/mesh-context";
 import { getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
@@ -732,7 +734,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
     if (!membership) return null;
 
-    // Create a base context (unauthenticated) and override auth/org fields
+    // Create a base context (unauthenticated) and override auth/org/access fields
     const ctx = await ContextFactory.create();
     ctx.auth.user = { id: userId, role: membership.role };
     ctx.organization = {
@@ -740,6 +742,25 @@ export async function createApp(options: CreateAppOptions = {}) {
       slug: membership.orgSlug,
       name: membership.orgName,
     };
+
+    // Reconstruct boundAuth and access with the correct identity so that
+    // permission checks use the automation user's role instead of stale
+    // undefined values from the unauthenticated base context.
+    ctx.boundAuth = createBoundAuthClient({
+      auth: ctx.authInstance,
+      headers: new Headers(),
+      role: membership.role,
+      userId,
+    });
+    ctx.access = new AccessControl(
+      ctx.authInstance,
+      userId,
+      undefined, // toolName set later by defineTool
+      ctx.boundAuth,
+      membership.role,
+      "self",
+    );
+
     return ctx;
   };
 

@@ -44,6 +44,7 @@ export interface FireAutomationConfig {
 
 export type FireAutomationResult =
   | { threadId: string }
+  | { threadId: string; error: string }
   | { skipped: "concurrency_limit" }
   | { skipped: "creator_invalid" }
   | { skipped: "global_limit" };
@@ -120,6 +121,7 @@ export async function fireAutomation(opts: {
     );
     request.abortSignal = abortController.signal;
 
+    let runError: string | undefined;
     try {
       const result = await streamCoreFn(request, ctx, {
         runRegistry: deps.runRegistry,
@@ -128,14 +130,17 @@ export async function fireAutomation(opts: {
       });
       await consumeStreamCore(result);
     } catch (err) {
+      runError = err instanceof Error ? err.message : String(err);
       console.error(
         `[Automation] Run failed for automation ${automation.id}:`,
         err,
       );
+      await storage.markRunFailed(threadId);
     } finally {
       clearTimeout(timeout);
     }
 
+    if (runError) return { threadId, error: runError };
     return { threadId };
   } finally {
     globalSlot.release();

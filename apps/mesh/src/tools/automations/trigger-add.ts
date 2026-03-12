@@ -82,6 +82,15 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
         throw new Error("event_type is required for event triggers");
       }
 
+      // Validate connection belongs to this organization
+      const connection = await ctx.storage.connections.findById(
+        input.connection_id,
+        organization.id,
+      );
+      if (!connection) {
+        throw new Error("Connection not found");
+      }
+
       // Build a temporary trigger object for configureTriggerOnMcp
       const tempTrigger = {
         id: "",
