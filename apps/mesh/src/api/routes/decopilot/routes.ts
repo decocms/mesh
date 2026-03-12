@@ -53,6 +53,8 @@ import { resolveThreadStatus } from "./status";
 import { genTitle } from "./title-generator";
 import type { ChatMessage } from "./types";
 import { ThreadMessage } from "@/storage/types";
+import { emitLlmCallLog } from "@/monitoring/emit-llm-call";
+import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
 
 // ============================================================================
 // Request Validation
@@ -128,6 +130,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     let runStarted = false;
     let closeClients: (() => void) | undefined;
     let threadId: string | undefined;
+    let llmCallStartTime: number | undefined;
     try {
       const ctx = c.get("meshContext");
 
@@ -400,6 +403,8 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           let reasoningStartAt: Date | null = null;
           let lastProviderMetadata: Record<string, unknown> | undefined;
 
+          llmCallStartTime = Date.now();
+
           const result = streamText({
             model: provider.aiSdk.languageModel(models.thinking.id),
             system: processedSystemMessages,
@@ -410,6 +415,54 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
             maxOutputTokens,
             abortSignal,
             stopWhen: stepCountIs(PARENT_STEP_LIMIT),
+            onFinish: async ({
+              usage,
+              totalUsage,
+              finishReason,
+              request,
+              response,
+            }) => {
+              if (abortSignal.aborted) return;
+              const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
+              recordLlmCallMetrics({
+                ctx,
+                organizationId: organization.id,
+                agentId: agent.id,
+                modelId: models.thinking.id,
+                credentialId: models.credentialId,
+                durationMs,
+                isError: false,
+                inputTokens: totalUsage.inputTokens ?? 0,
+                outputTokens: totalUsage.outputTokens ?? 0,
+              });
+              emitLlmCallLog({
+                tracer: ctx.tracer,
+                organizationId: organization.id,
+                agentId: agent.id,
+                modelId: models.thinking.id,
+                modelTitle: models.thinking.title ?? models.thinking.id,
+                credentialId: models.credentialId,
+                threadId: mem.thread.id,
+                durationMs,
+                isError: false,
+                finishReason,
+                usage: {
+                  inputTokens: usage.inputTokens ?? 0,
+                  outputTokens: usage.outputTokens ?? 0,
+                  totalTokens: usage.totalTokens ?? 0,
+                },
+                totalUsage: {
+                  inputTokens: totalUsage.inputTokens ?? 0,
+                  outputTokens: totalUsage.outputTokens ?? 0,
+                  totalTokens: totalUsage.totalTokens ?? 0,
+                },
+                request,
+                response,
+                userId: userId ?? null,
+                requestId: ctx.metadata.requestId,
+                userAgent: ctx.metadata.userAgent ?? null,
+              });
+            },
             onError: async (error) => {
               console.error("[decopilot:stream] Error", error);
               throw error;
@@ -554,6 +607,35 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
             return error instanceof Error ? error.message : String(error);
           }
           console.error("[decopilot] stream error:", error);
+
+          if (llmCallStartTime !== undefined) {
+            const durationMs = Date.now() - llmCallStartTime;
+            recordLlmCallMetrics({
+              ctx,
+              organizationId: organization.id,
+              agentId: agent.id,
+              modelId: models.thinking.id,
+              credentialId: models.credentialId,
+              durationMs,
+              isError: true,
+            });
+            emitLlmCallLog({
+              tracer: ctx.tracer,
+              organizationId: organization.id,
+              agentId: agent.id,
+              modelId: models.thinking.id,
+              modelTitle: models.thinking.title ?? models.thinking.id,
+              credentialId: models.credentialId,
+              threadId: mem.thread.id,
+              durationMs,
+              isError: true,
+              errorMessage:
+                error instanceof Error ? error.message : String(error),
+              userId: userId ?? null,
+              requestId: ctx.metadata.requestId,
+              userAgent: ctx.metadata.userAgent ?? null,
+            });
+          }
 
           runRegistry
             .execute({

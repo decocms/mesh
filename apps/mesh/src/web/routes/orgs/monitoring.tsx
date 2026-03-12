@@ -22,7 +22,10 @@ import {
   type DateRange,
   type MonitoringStatsData,
 } from "@/web/components/monitoring/monitoring-stats-row.tsx";
-import { useMonitoringStats } from "@/web/components/monitoring/hooks.ts";
+import {
+  useMonitoringStats,
+  useMonitoringLlmStats,
+} from "@/web/components/monitoring/hooks.ts";
 import { DashboardsTab } from "@/web/components/monitoring/dashboards-tab";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
@@ -537,6 +540,134 @@ function MonitoringStatsContent({
 const MonitoringStats = Object.assign(MonitoringStatsContent, {
   Skeleton: MonitoringStatsRowSkeleton,
 });
+
+// ============================================================================
+// LLM Call Stats Component
+// ============================================================================
+
+interface LlmStatsProps {
+  displayDateRange: DateRange;
+  isStreaming: boolean;
+}
+
+function LlmStatsContent({ displayDateRange, isStreaming }: LlmStatsProps) {
+  const interval = getIntervalFromRange(displayDateRange);
+  const { data: serverStats } = useMonitoringLlmStats(
+    {
+      interval,
+      startDate: displayDateRange.startDate.toISOString(),
+      endDate: displayDateRange.endDate.toISOString(),
+    },
+    {
+      refetchInterval: isStreaming
+        ? MONITORING_CONFIG.streamingRefetchInterval
+        : false,
+    },
+  );
+
+  const stats: MonitoringStatsData = serverStats
+    ? {
+        totalCalls: serverStats.totalCalls,
+        totalErrors: serverStats.totalErrors,
+        avgDurationMs: serverStats.avgDurationMs,
+        p95DurationMs: serverStats.p95DurationMs,
+        data: buildFilledStatsData(
+          serverStats.timeseries,
+          displayDateRange,
+          interval,
+        ),
+      }
+    : {
+        totalCalls: 0,
+        totalErrors: 0,
+        avgDurationMs: 0,
+        p95DurationMs: 0,
+        data: [],
+      };
+
+  const llmKpiConfigs = [
+    {
+      id: "llm-calls",
+      dataKey: "calls" as const,
+      colorNum: 2,
+      renderTitle: () => (
+        <div className="flex flex-col gap-0.5 md:gap-1">
+          <p className="text-xs md:text-sm text-muted-foreground">LLM Calls</p>
+          <p className="text-sm md:text-lg font-medium">
+            {stats.totalCalls.toLocaleString()}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "llm-latency",
+      dataKey: "avg" as const,
+      colorNum: 5,
+      renderTitle: () => (
+        <div className="flex flex-col gap-0.5 md:gap-1">
+          <p className="text-xs md:text-sm text-muted-foreground">
+            LLM Latency
+          </p>
+          <div className="flex items-baseline gap-3">
+            <div>
+              <span className="text-sm md:text-lg font-medium">
+                {formatDuration(stats.avgDurationMs)}
+              </span>
+              <span className="text-[10px] md:text-xs text-muted-foreground ml-1">
+                avg
+              </span>
+            </div>
+            <div>
+              <span className="text-sm md:text-lg font-medium">
+                {formatDuration(stats.p95DurationMs)}
+              </span>
+              <span className="text-[10px] md:text-xs text-muted-foreground ml-1">
+                p95
+              </span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "llm-errors",
+      dataKey: "errors" as const,
+      colorNum: 3,
+      renderTitle: () => (
+        <div className="flex flex-col gap-0.5 md:gap-1">
+          <p className="text-xs md:text-sm text-muted-foreground">LLM Errors</p>
+          <p className="text-sm md:text-lg font-medium">
+            {stats.totalErrors.toLocaleString()}
+          </p>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="border-b border-border">
+      <div className="px-5 py-2 bg-muted/30 border-b border-border">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          LLM Calls (Decopilot)
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+        {llmKpiConfigs.map(({ id, dataKey, colorNum, renderTitle }) => (
+          <div key={id} className="bg-background">
+            <HomeGridCell title={renderTitle()}>
+              <KPIChart
+                data={stats.data}
+                dataKey={dataKey}
+                colorNum={colorNum}
+                chartHeight="h-[30px] md:h-[40px]"
+              />
+            </HomeGridCell>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // Filters Popover Component
@@ -1599,6 +1730,12 @@ function MonitoringDashboardContent({
             isStreaming={isStreaming}
             selectedMetric={topChartMetric}
             onMetricSelect={setTopChartMetric}
+          />
+
+          {/* LLM Call Stats */}
+          <LlmStatsContent
+            displayDateRange={displayDateRange}
+            isStreaming={isStreaming}
           />
         </div>
       )}
