@@ -338,6 +338,8 @@ PRs should include:
 3. **Database migrations**: Remember to run both Kysely migrations (`bun run migrate`) and Better Auth migrations (`bun run better-auth:migrate`)
 4. **Event bus**: The worker doesn't poll internally—it relies on NotifyStrategy to trigger processing
 5. **Formatting**: The pre-commit hook will reject commits if code isn't formatted with Biome
+6. **Never modify knip configuration** (`knip.json`, `knip.config.ts`, etc.) to silence warnings. Knip warnings indicate dead code, unused exports, or unused dependencies—these are code smells that should be fixed by removing the unused code/export/dependency, not by adding exclusions to the knip config.
+7. **CI errors are always on your branch**. The `main` branch CI always passes. When CI fails, the problem is in the code you changed—do not assume it's a pre-existing issue or a flaky test. Investigate and fix your code.
 
 ## License
 
