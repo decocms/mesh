@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterAll } from "bun:test";
 import { NDJSONLogExporter } from "./ndjson-log-exporter";
-import { ClickHouseMonitoringStorage } from "../storage/monitoring-clickhouse";
+import { SqlMonitoringStorage } from "../storage/monitoring-sql";
 import { createMonitoringEngine } from "./query-engine";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -80,11 +80,11 @@ describe.skipIf(!duckdbAvailable)("Monitoring Pipeline Integration", () => {
       JSON.parse(line); // Should not throw
     }
 
-    // 3. Query via ClickHouseMonitoringStorage (DuckDB engine for local NDJSON)
+    // 3. Query via SqlMonitoringStorage (DuckDB engine for local NDJSON)
     const { engine, source } = createMonitoringEngine({ basePath: tmpDir });
     engineToDestroy = engine;
     const sourceFactory = (_orgId: string) => source;
-    const storage = new ClickHouseMonitoringStorage(
+    const storage = new SqlMonitoringStorage(
       engine,
       sourceFactory,
       engine,

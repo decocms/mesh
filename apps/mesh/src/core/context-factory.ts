@@ -18,9 +18,9 @@ import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
 import {
-  ClickHouseMonitoringStorage,
+  SqlMonitoringStorage,
   type SqlDialect,
-} from "../storage/monitoring-clickhouse";
+} from "../storage/monitoring-sql";
 import { createMonitoringEngine } from "../monitoring/query-engine";
 import { ClickHouseClientEngine } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
@@ -807,7 +807,7 @@ export async function createMeshContextFactory(
   const baseStorage = {
     connections: new ConnectionStorage(config.db, vault),
     organizationSettings: new OrganizationSettingsStorage(config.db),
-    monitoring: new ClickHouseMonitoringStorage(
+    monitoring: new SqlMonitoringStorage(
       monitoringEngine,
       logSourceFactory,
       metricEngine,

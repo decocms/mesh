@@ -8,7 +8,7 @@ import {
   makeTestMonitoringRow,
   writeTestNDJSON,
 } from "../monitoring/test-utils";
-import { ClickHouseMonitoringStorage } from "./monitoring-clickhouse";
+import { SqlMonitoringStorage } from "./monitoring-sql";
 
 let duckdbAvailable = false;
 try {
@@ -16,10 +16,10 @@ try {
   duckdbAvailable = true;
 } catch {}
 
-describe.skipIf(!duckdbAvailable)("ClickHouseMonitoringStorage", () => {
+describe.skipIf(!duckdbAvailable)("SqlMonitoringStorage", () => {
   let tmpDir: string;
   let engine: DuckDBEngine;
-  let storage: ClickHouseMonitoringStorage;
+  let storage: SqlMonitoringStorage;
 
   beforeAll(async () => {
     tmpDir = await mkdtemp(join(tmpdir(), "monitoring-ch-test-"));
@@ -33,7 +33,7 @@ describe.skipIf(!duckdbAvailable)("ClickHouseMonitoringStorage", () => {
       `read_ndjson('${dataDir}/*.ndjson', auto_detect=true)`;
     const metricSourceFactory = (_orgId: string) =>
       `read_ndjson('${metricsDir}/*.ndjson', auto_detect=true)`;
-    storage = new ClickHouseMonitoringStorage(
+    storage = new SqlMonitoringStorage(
       engine,
       sourceFactory,
       engine,

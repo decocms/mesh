@@ -1,5 +1,5 @@
 /**
- * ClickHouseMonitoringStorage
+ * SqlMonitoringStorage
  *
  * Implements MonitoringStorage using SQL via QueryEngine.
  * Supports two SQL dialects:
@@ -316,10 +316,10 @@ function tsLte(date: Date, dialect: SqlDialect): string {
 }
 
 // ---------------------------------------------------------------------------
-// ClickHouseMonitoringStorage
+// SqlMonitoringStorage
 // ---------------------------------------------------------------------------
 
-export class ClickHouseMonitoringStorage implements MonitoringStorage {
+export class SqlMonitoringStorage implements MonitoringStorage {
   constructor(
     private engine: QueryEngine,
     private sourceFactory: (organizationId: string) => string,
