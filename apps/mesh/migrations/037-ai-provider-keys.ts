@@ -10,9 +10,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("provider_id", "text", (col) => col.notNull())
     .addColumn("label", "text", (col) => col.notNull())
     .addColumn("encrypted_api_key", "text", (col) => col.notNull())
-    .addColumn("created_by", "text", (col) =>
-      col.notNull().references("user.id").onDelete("restrict"),
-    )
+    .addColumn("created_by", "text", (col) => col.notNull())
     .addColumn("created_at", "timestamptz", (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
     )
