@@ -282,7 +282,6 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
                 verifyOtpMutation.reset();
                 setOtp("");
                 sendOtpMutation.mutate({ email });
-                startResendCooldown();
               }}
               disabled={isLoading || resendCooldown > 0}
               className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"

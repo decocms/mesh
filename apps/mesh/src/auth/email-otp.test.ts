@@ -31,114 +31,126 @@ describe("createEmailOTPConfig", () => {
 
   it("logs OTP to console in non-production when no email provider configured", async () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
-
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    const config: EmailOTPConfig = { enabled: true };
-    const result = createEmailOTPConfig(config);
+    try {
+      process.env.NODE_ENV = "development";
 
-    await result.sendVerificationOTP!({
-      email: "test@example.com",
-      otp: "123456",
-      type: "sign-in",
-    });
+      const config: EmailOTPConfig = { enabled: true };
+      const result = createEmailOTPConfig(config);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "[email-otp] Your sign-in code for test@example.com: 123456",
-    );
+      await result.sendVerificationOTP!({
+        email: "test@example.com",
+        otp: "123456",
+        type: "sign-in",
+      });
 
-    consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[email-otp] Your sign-in code for test@example.com: 123456",
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 
   it("does NOT log OTP to console in production when no email provider configured", async () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    const config: EmailOTPConfig = { enabled: true };
-    const result = createEmailOTPConfig(config);
+    try {
+      process.env.NODE_ENV = "production";
 
-    await result.sendVerificationOTP!({
-      email: "test@example.com",
-      otp: "123456",
-      type: "sign-in",
-    });
+      const config: EmailOTPConfig = { enabled: true };
+      const result = createEmailOTPConfig(config);
 
-    expect(consoleSpy).not.toHaveBeenCalled();
+      await result.sendVerificationOTP!({
+        email: "test@example.com",
+        otp: "123456",
+        type: "sign-in",
+      });
 
-    consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+      expect(consoleSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 
   it("selects correct subject for sign-in type", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    const config: EmailOTPConfig = { enabled: true };
-    const result = createEmailOTPConfig(config);
+    try {
+      process.env.NODE_ENV = "development";
 
-    await result.sendVerificationOTP!({
-      email: "test@example.com",
-      otp: "123456",
-      type: "sign-in",
-    });
+      const config: EmailOTPConfig = { enabled: true };
+      const result = createEmailOTPConfig(config);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Your sign-in code"),
-    );
+      await result.sendVerificationOTP!({
+        email: "test@example.com",
+        otp: "123456",
+        type: "sign-in",
+      });
 
-    consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Your sign-in code"),
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 
   it("uses default subject for unknown OTP types", async () => {
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    const config: EmailOTPConfig = { enabled: true };
-    const result = createEmailOTPConfig(config);
+    try {
+      process.env.NODE_ENV = "development";
 
-    await result.sendVerificationOTP!({
-      email: "test@example.com",
-      otp: "123456",
-      type: "email-verification",
-    });
+      const config: EmailOTPConfig = { enabled: true };
+      const result = createEmailOTPConfig(config);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Verify your email"),
-    );
+      await result.sendVerificationOTP!({
+        email: "test@example.com",
+        otp: "123456",
+        type: "email-verification",
+      });
 
-    consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Verify your email"),
+      );
+    } finally {
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 
   it("falls back to console when emailProviderId set but providers empty", async () => {
-    const config: EmailOTPConfig = {
-      enabled: true,
-      emailProviderId: "test-provider",
-    };
-
-    const result = createEmailOTPConfig(config, []);
-
-    // With empty providers array, should fall back to console
-    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
 
-    await result.sendVerificationOTP!({
-      email: "test@example.com",
-      otp: "123456",
-      type: "sign-in",
-    });
+    try {
+      process.env.NODE_ENV = "development";
 
-    expect(consoleSpy).toHaveBeenCalled();
+      const config: EmailOTPConfig = {
+        enabled: true,
+        emailProviderId: "test-provider",
+      };
 
-    consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+      const result = createEmailOTPConfig(config, []);
+
+      await result.sendVerificationOTP!({
+        email: "test@example.com",
+        otp: "123456",
+        type: "sign-in",
+      });
+
+      expect(consoleSpy).toHaveBeenCalled();
+    } finally {
+      consoleSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 });
