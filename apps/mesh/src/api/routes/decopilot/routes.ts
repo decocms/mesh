@@ -165,7 +165,6 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         { runRegistry, streamBuffer, cancelBroadcast },
       );
 
-
       return createUIMessageStreamResponse({
         stream: result.stream,
         consumeSseStream: consumeStream,
