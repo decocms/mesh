@@ -25,6 +25,9 @@ data:
   {{- if .Values.configMap.meshConfig.PRESTOP_HEAP_SNAPSHOT_DIR }}
   PRESTOP_HEAP_SNAPSHOT_DIR: {{ .Values.configMap.meshConfig.PRESTOP_HEAP_SNAPSHOT_DIR | quote }}
   {{- end }}
+  {{- if .Values.configMap.meshConfig.DATA_DIR }}
+  DATA_DIR: {{ .Values.configMap.meshConfig.DATA_DIR | quote }}
+  {{- end }}
   {{- if ne (lower (default "sqlite" .Values.database.engine)) "postgresql" }}
   # DATABASE_URL only goes in ConfigMap when SQLite (file path, not sensitive)
   DATABASE_URL: {{ include "chart-decocms.databaseUrl" . | trim | quote }}

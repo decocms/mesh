@@ -199,6 +199,13 @@ spec:
                   name: {{ include "chart-decocms.fullname" . }}-config
                   key: PRESTOP_HEAP_SNAPSHOT_DIR
             {{- end }}
+            {{- if .Values.configMap.meshConfig.DATA_DIR }}
+            - name: DATA_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "chart-decocms.fullname" . }}-config
+                  key: DATA_DIR
+            {{- end }}
             {{- if .Values.otel.enabled }}
             {{- if .Values.otel.protocol }}
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
@@ -256,7 +263,7 @@ spec:
               readOnly: true
             {{- end }}
             - name: data
-              mountPath: /app/data
+              mountPath: {{ .Values.configMap.meshConfig.DATA_DIR | default "/app/data" }}
             {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
             - name: ca-cert
               mountPath: /etc/ssl/certs
@@ -294,12 +301,10 @@ spec:
               port: 13133
             initialDelaySeconds: 5
             periodSeconds: 5
+          {{- with .Values.securityContext }}
           securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.otel.collector.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -307,6 +312,27 @@ spec:
           volumeMounts:
             - name: otel-collector-config
               mountPath: /etc/otel
+              readOnly: true
+      {{- end }}
+      {{- if .Values.s3Sync.enabled }}
+        - name: s3-sync
+          image: "{{ .Values.s3Sync.image.repository }}:{{ .Values.s3Sync.image.tag }}"
+          imagePullPolicy: {{ .Values.s3Sync.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/sync.sh"]
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.s3Sync.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.configMap.meshConfig.DATA_DIR | default "/app/data" }}
+              readOnly: true
+            - name: s3-sync-script
+              mountPath: /scripts
               readOnly: true
       {{- end }}
       {{- with .Values.extraContainers }}
@@ -361,6 +387,15 @@ spec:
             items:
               - key: config.yaml
                 path: config.yaml
+        {{- end }}
+        {{- if .Values.s3Sync.enabled }}
+        - name: s3-sync-script
+          configMap:
+            name: {{ include "chart-decocms.fullname" . }}-s3-sync
+            defaultMode: 0755
+            items:
+              - key: sync.sh
+                path: sync.sh
         {{- end }}
         {{- with .Values.volumes }}
           {{- toYaml . | nindent 8 }}
