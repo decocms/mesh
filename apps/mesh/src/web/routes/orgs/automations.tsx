@@ -63,8 +63,8 @@ export default function AutomationsPage() {
 
   function handleNewAutomation() {
     navigate({
-      to: "/$org/$project/automations/new",
-      params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      to: "/$org/$project/automations/$automationId",
+      params: { org, project: ORG_ADMIN_PROJECT_SLUG, automationId: "new" },
     });
   }
 
