@@ -163,20 +163,6 @@ function floorToInterval(date: Date, interval: "1m" | "1h" | "1d"): Date {
   return result;
 }
 
-function addInterval(date: Date, interval: "1m" | "1h" | "1d"): Date {
-  const result = new Date(date);
-  if (interval === "1d") {
-    result.setDate(result.getDate() + 1);
-    return result;
-  }
-  if (interval === "1h") {
-    result.setHours(result.getHours() + 1);
-    return result;
-  }
-  result.setMinutes(result.getMinutes() + 1);
-  return result;
-}
-
 function buildFilledStatsData(
   points: Array<{
     timestamp: string;
@@ -190,6 +176,7 @@ function buildFilledStatsData(
   range: DateRange,
   interval: "1m" | "1h" | "1d",
 ): MonitoringStatsData["data"] {
+  // Map server points by their floored timestamp
   const pointMap = new Map(
     points.map((point) => [
       floorToInterval(new Date(point.timestamp), interval).getTime(),
@@ -197,28 +184,53 @@ function buildFilledStatsData(
     ]),
   );
 
-  const alignedStart = floorToInterval(range.startDate, interval);
-  const alignedEnd = floorToInterval(range.endDate, interval);
+  // Always generate exactly 10 display buckets
+  const BUCKET_COUNT = 10;
+  const startMs = range.startDate.getTime();
+  const endMs = range.endDate.getTime();
+  const step = (endMs - startMs) / (BUCKET_COUNT - 1);
   const data: MonitoringStatsData["data"] = [];
 
-  for (
-    let bucketDate = new Date(alignedStart);
-    bucketDate.getTime() <= alignedEnd.getTime();
-    bucketDate = addInterval(bucketDate, interval)
-  ) {
-    const ts = bucketDate.getTime();
-    const point = pointMap.get(ts);
+  // Collect all server point timestamps for nearest-bucket matching
+  const serverTimestamps = [...pointMap.keys()].sort((a, b) => a - b);
+
+  for (let i = 0; i < BUCKET_COUNT; i++) {
+    const ts = Math.round(startMs + i * step);
+    const date = new Date(ts);
+
+    // Find all server points closest to this display bucket
+    const halfStep = step / 2;
+    let calls = 0;
+    let errors = 0;
+    let errorRate = 0;
+    let avg = 0;
+    let p50 = 0;
+    let p95 = 0;
+    let count = 0;
+
+    for (const serverTs of serverTimestamps) {
+      if (Math.abs(serverTs - ts) <= halfStep) {
+        const point = pointMap.get(serverTs)!;
+        calls += point.calls;
+        errors += point.errors;
+        errorRate += point.errorRate;
+        avg += point.avg;
+        p50 += point.p50;
+        p95 = Math.max(p95, point.p95);
+        count++;
+      }
+    }
 
     data.push({
-      t: bucketDate.toISOString(),
+      t: date.toISOString(),
       ts,
-      label: formatTimestampLabel(bucketDate.toISOString(), interval),
-      calls: point?.calls ?? 0,
-      errors: point?.errors ?? 0,
-      errorRate: point?.errorRate ?? 0,
-      avg: point?.avg ?? 0,
-      p50: point?.p50 ?? 0,
-      p95: point?.p95 ?? 0,
+      label: formatTimestampLabel(date.toISOString(), interval),
+      calls,
+      errors,
+      errorRate: count > 0 ? errorRate / count : 0,
+      avg: count > 0 ? avg / count : 0,
+      p50: count > 0 ? p50 / count : 0,
+      p95,
     });
   }
 
