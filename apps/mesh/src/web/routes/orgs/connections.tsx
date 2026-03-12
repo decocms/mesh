@@ -2027,19 +2027,6 @@ function OrgMcpsContent() {
             Select
           </Button>
           <Button
-            variant="outline"
-            onClick={() =>
-              navigate({
-                to: "/$org/$project/store",
-                params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
-              })
-            }
-            size="sm"
-            className="h-7 px-3 rounded-lg text-sm font-medium"
-          >
-            Browse Store
-          </Button>
-          <Button
             onClick={openCreateDialog}
             size="sm"
             className="h-7 px-3 rounded-lg text-sm font-medium"
@@ -2574,24 +2561,6 @@ function OrgMcpsContent() {
                     ? `No Connections match "${listState.search}"`
                     : "Create a connection to get started."
                 }
-                actions={
-                  !listState.search && (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate({
-                          to: "/$org/$project/store",
-                          params: {
-                            org: org.slug,
-                            project: ORG_ADMIN_PROJECT_SLUG,
-                          },
-                        })
-                      }
-                    >
-                      Browse Store
-                    </Button>
-                  )
-                }
               />
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
@@ -2777,22 +2746,6 @@ function OrgMcpsContent() {
                         }
                         title="No Connections found"
                         description="Create a connection to get started."
-                        actions={
-                          <Button
-                            variant="outline"
-                            onClick={() =>
-                              navigate({
-                                to: "/$org/$project/store",
-                                params: {
-                                  org: org.slug,
-                                  project: ORG_ADMIN_PROJECT_SLUG,
-                                },
-                              })
-                            }
-                          >
-                            Browse Store
-                          </Button>
-                        }
                       />
                     )
                   }
