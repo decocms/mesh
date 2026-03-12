@@ -764,6 +764,46 @@ function LlmStatsContent({
   );
 }
 
+function LlmStatsSkeleton() {
+  return (
+    <div className="border-b border-border">
+      <div className="px-5 py-2 bg-muted/30 border-b border-border">
+        <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+      </div>
+      <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+        {[...Array(3)].map((_, i) => (
+          <HomeGridCell
+            key={i}
+            title={
+              <div className="flex flex-col gap-0.5 md:gap-1">
+                <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                <div className="h-5 md:h-6 w-12 rounded bg-muted animate-pulse" />
+              </div>
+            }
+          >
+            <div className="flex flex-col w-full">
+              <div className="h-[30px] md:h-[40px] w-full rounded bg-muted animate-pulse" />
+              <div className="space-y-1.5 mt-2">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div key={j} className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-1.5 flex-1 bg-muted animate-pulse" />
+                    <div className="h-2.5 w-8 rounded bg-muted animate-pulse shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </HomeGridCell>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const LlmStats = Object.assign(LlmStatsContent, {
+  Skeleton: LlmStatsSkeleton,
+});
+
 // ============================================================================
 // Filters Popover Component
 // ============================================================================
@@ -1846,7 +1886,7 @@ function MonitoringDashboardContent({
           />
 
           {/* LLM Call Stats */}
-          <LlmStatsContent
+          <LlmStats
             displayDateRange={displayDateRange}
             isStreaming={isStreaming}
             selectedMetric={topChartMetric}
@@ -2006,6 +2046,7 @@ export default function MonitoringDashboard() {
                     <TopTools.Skeleton />
                   </div>
                   <MonitoringStats.Skeleton />
+                  <LlmStats.Skeleton />
                 </div>
               )}
             </>
