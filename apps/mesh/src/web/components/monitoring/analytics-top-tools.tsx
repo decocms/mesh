@@ -287,6 +287,15 @@ function TopToolsContent({
           ? errorsBuckets
           : callsBuckets;
 
+  // Thin buckets to ~10 points so the X-axis always shows ~10 ticks
+  const chartBuckets =
+    buckets.length <= 10
+      ? buckets
+      : Array.from({ length: 10 }, (_, i) => {
+          const idx = Math.round((i * (buckets.length - 1)) / 9);
+          return buckets[idx]!;
+        });
+
   const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
   const handleTitleClick = () => {
@@ -337,30 +346,14 @@ function TopToolsContent({
             config={chartConfig}
           >
             <LineChart
-              data={buckets}
+              data={chartBuckets}
               margin={{ left: 8, right: 8, top: 5, bottom: 5 }}
             >
               <XAxis
-                dataKey="ts"
-                type="number"
-                domain={["dataMin", "dataMax"]}
+                dataKey="label"
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                ticks={Array.from(
-                  { length: Math.min(10, buckets.length) },
-                  (_, i) => {
-                    const idx =
-                      buckets.length <= 10
-                        ? i
-                        : Math.round((i * (buckets.length - 1)) / 9);
-                    return buckets[idx]!.ts;
-                  },
-                )}
-                tickFormatter={(ts) => {
-                  const b = buckets.find((b) => b.ts === ts);
-                  return b?.label ?? "";
-                }}
               />
               <ChartTooltip
                 content={({ active, payload }) => {
