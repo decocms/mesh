@@ -341,7 +341,10 @@ function TopToolsContent({
               margin={{ left: 8, right: 8, top: 5, bottom: 5 }}
             >
               <XAxis
-                dataKey="t"
+                dataKey="ts"
+                type="number"
+                scale="time"
+                domain={["dataMin", "dataMax"]}
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
@@ -352,11 +355,11 @@ function TopToolsContent({
                       buckets.length <= 10
                         ? i
                         : Math.round((i * (buckets.length - 1)) / 9);
-                    return buckets[idx]!.t;
+                    return buckets[idx]!.ts;
                   },
                 )}
-                tickFormatter={(t) => {
-                  const b = buckets.find((b) => b.t === t);
+                tickFormatter={(ts) => {
+                  const b = buckets.find((b) => b.ts === ts);
                   return b?.label ?? "";
                 }}
               />
