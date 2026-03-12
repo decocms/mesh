@@ -1,0 +1,79 @@
+---
+title: Monitoring
+description: How to persist and query monitoring data in self-hosted deployments
+icon: Activity
+---
+
+import Callout from "../../../../../components/ui/Callout.astro";
+
+## How Monitoring Works
+
+deco CMS includes an OpenTelemetry exporter that writes NDJSON files to the `DATA_DIR` directory. Data is organized into three subdirectories:
+
+- **`/metrics`** — system and application metrics
+- **`/logs`** — structured log entries for every tool invocation
+- **`/traces`** — distributed traces across MCP operations
+
+Files are org-sharded with the following path structure:
+
+```
+{DATA_DIR}/{type}/{org_id}/YYYY/MM/DD/HH/{uuid}.ndjson
+```
+
+A 30-day retention policy with automatic cleanup keeps disk usage in check.
+
+## Persisting Monitoring Data (S3 Sidecar)
+
+By default, monitoring data lives on the local filesystem. To survive container restarts and enable centralized storage, set up a sidecar process that periodically syncs `DATA_DIR` to S3:
+
+```bash
+# Example: sync monitoring data to S3 every 5 minutes
+aws s3 sync $DATA_DIR/metrics s3://your-bucket/metrics
+aws s3 sync $DATA_DIR/logs s3://your-bucket/logs
+aws s3 sync $DATA_DIR/traces s3://your-bucket/traces
+```
+
+<Callout type="tip">
+  In Kubernetes, run this as a sidecar container sharing a volume with the main deco CMS container.
+</Callout>
+
+## Option A: ClickHouse (Recommended)
+
+For production deployments, ClickHouse provides scalable, fast aggregations over monitoring data.
+
+1. Set the `CLICKHOUSE_URL` environment variable to your ClickHouse HTTP endpoint.
+2. Create tables named `monitoring_logs` and `monitoring_metrics` in your ClickHouse instance.
+3. When configured, the monitoring UI queries ClickHouse directly via HTTP.
+
+```bash
+CLICKHOUSE_URL=https://your-clickhouse-instance:8123
+```
+
+<Callout type="info">
+  ClickHouse is the best choice for production: it handles large volumes efficiently, supports fast aggregations, and has native S3 integration for loading NDJSON files.
+</Callout>
+
+## Option B: DuckDB + S3
+
+For smaller deployments that want to avoid running a separate database, you can use DuckDB with S3-mounted storage.
+
+1. Mount your S3 bucket as a local filesystem using a tool like **s3fs**, **goofys**, or **mountpoint-s3**.
+2. Set `DATA_DIR` to the mounted path.
+3. deco CMS writes NDJSON files directly to the mount, and the embedded DuckDB engine reads from the same path.
+
+```bash
+# Mount S3 bucket
+mountpoint-s3 your-bucket /mnt/monitoring
+
+# Point DATA_DIR to the mount
+DATA_DIR=/mnt/monitoring
+```
+
+No `CLICKHOUSE_URL` is needed — DuckDB queries the NDJSON files on disk.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATA_DIR` | `~/deco` | Base directory for monitoring NDJSON files |
+| `CLICKHOUSE_URL` | *(not set)* | ClickHouse HTTP endpoint. When set, the monitoring UI uses ClickHouse instead of DuckDB |

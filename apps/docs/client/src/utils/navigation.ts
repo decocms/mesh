@@ -68,6 +68,7 @@ export async function getNavigationLinks(
     // 10. Self-Hosting
     "mcp-mesh/self-hosting/quickstart",
     "mcp-mesh/self-hosting/authentication",
+    "mcp-mesh/self-hosting/monitoring",
     "mcp-mesh/self-hosting/deploy/docker-compose",
     "mcp-mesh/self-hosting/deploy/kubernetes",
 
