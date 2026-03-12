@@ -72,7 +72,14 @@ export class AIProviderKeyStorage {
     let query = this.db
       .selectFrom("ai_provider_keys")
       .where("organization_id", "=", params.organizationId)
-      .selectAll();
+      .select([
+        "id",
+        "provider_id",
+        "label",
+        "organization_id",
+        "created_by",
+        "created_at",
+      ]);
 
     if (params.providerId) {
       query = query.where("provider_id", "=", params.providerId);
@@ -119,7 +126,14 @@ export class AIProviderKeyStorage {
       .selectFrom("ai_provider_keys")
       .where("id", "=", keyId)
       .where("organization_id", "=", organizationId)
-      .selectAll()
+      .select([
+        "id",
+        "provider_id",
+        "label",
+        "organization_id",
+        "created_by",
+        "created_at",
+      ])
       .executeTakeFirst();
     if (!row) {
       throw new Error("Provider key not found");
