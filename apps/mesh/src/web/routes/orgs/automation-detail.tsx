@@ -5,30 +5,24 @@
  */
 
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ViewActions, ViewLayout } from "@/web/components/details/layout";
 import { SaveActions } from "@/web/components/save-actions";
 import {
-  useAiProviderKeyList,
   useAiProviderModels,
+  type AiProviderModel,
 } from "@/web/hooks/collections/use-llm.ts";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deco/ui/components/select.tsx";
-import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp.tsx";
+import { ModelSelector } from "@/web/components/chat/select-model.tsx";
+import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp.tsx";
 import {
   useAutomationDetail,
   useAutomationUpdate,
   useAutomationDelete,
   useAutomationTriggerAdd,
   useAutomationTriggerRemove,
-  useAutomationRun,
   type AutomationTrigger,
 } from "@/web/hooks/use-automations";
+import { useChat } from "@/web/components/chat/index";
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,16 +58,11 @@ import {
   TableHeader,
   TableRow,
 } from "@deco/ui/components/table.tsx";
-import {
-  ORG_ADMIN_PROJECT_SLUG,
-  useProjectContext,
-  useVirtualMCPs,
-} from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
-  ChevronDown,
   ChevronRight,
   Clock,
   Edit05,
@@ -431,7 +420,9 @@ function TriggerRow({
         </TableCell>
         <TableCell className="text-muted-foreground text-xs">
           {trigger.next_run_at
-            ? new Date(trigger.next_run_at).toLocaleString()
+            ? new Date(trigger.next_run_at).toLocaleString(undefined, {
+                timeZoneName: "short",
+              })
             : "-"}
         </TableCell>
         <TableCell>
@@ -483,61 +474,6 @@ function TriggerRow({
 }
 
 // ============================================================================
-// Standalone Model Picker (no chat context dependency)
-// ============================================================================
-
-function AutomationModelPicker({
-  connectionId,
-  modelId,
-  onConnectionChange,
-  onModelChange,
-}: {
-  connectionId: string;
-  modelId: string;
-  onConnectionChange: (id: string) => void;
-  onModelChange: (id: string) => void;
-}) {
-  const keys = useAiProviderKeyList();
-  const { models } = useAiProviderModels(connectionId || undefined);
-
-  return (
-    <div className="flex items-center gap-2">
-      <Select
-        value={connectionId || ""}
-        onValueChange={(value) => {
-          onConnectionChange(value);
-          onModelChange("");
-        }}
-      >
-        <SelectTrigger size="sm" className="w-[160px]">
-          <SelectValue placeholder="API Key" />
-        </SelectTrigger>
-        <SelectContent>
-          {keys.map((key) => (
-            <SelectItem key={key.id} value={key.id}>
-              {key.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select value={modelId || ""} onValueChange={onModelChange}>
-        <SelectTrigger size="sm" className="w-[220px]">
-          <SelectValue placeholder="Model" />
-        </SelectTrigger>
-        <SelectContent>
-          {models.map((m) => (
-            <SelectItem key={m.modelId} value={m.modelId}>
-              {m.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-// ============================================================================
 // Settings Tab
 // ============================================================================
 
@@ -549,9 +485,6 @@ function SettingsTab({
   automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
 }) {
   const updateMutation = useAutomationUpdate();
-  const virtualMcps = useVirtualMCPs();
-
-  const [agentPopoverOpen, setAgentPopoverOpen] = useState(false);
 
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
@@ -574,7 +507,11 @@ function SettingsTab({
   const watchConnectionId = form.watch("model_connection_id");
   const watchModelId = form.watch("model_id");
 
-  const selectedAgent = virtualMcps.find((v) => v.id === watchAgentId);
+  const { models, isLoading: isModelsLoading } = useAiProviderModels(
+    watchConnectionId || undefined,
+  );
+  const selectedModel: AiProviderModel | null =
+    models.find((m) => m.modelId === watchModelId) ?? null;
 
   const handleSave = async () => {
     const values = form.getValues();
@@ -624,8 +561,8 @@ function SettingsTab({
       </ViewActions>
 
       <div className="flex flex-col gap-6 p-6">
-        {/* Name + Active + Agent + Model — single row */}
-        <div className="flex items-center gap-3">
+        {/* Name + Active */}
+        <div className="flex items-center justify-between gap-3">
           <Input
             {...form.register("name")}
             placeholder="Automation name"
@@ -639,67 +576,51 @@ function SettingsTab({
               <Switch checked={field.value} onCheckedChange={field.onChange} />
             )}
           />
-
-          <Popover open={agentPopoverOpen} onOpenChange={setAgentPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 shrink justify-start overflow-hidden"
-              >
-                {selectedAgent ? (
-                  <>
-                    <IntegrationIcon
-                      icon={selectedAgent.icon}
-                      name={selectedAgent.title}
-                      size="xs"
-                      className="rounded shrink-0"
-                    />
-                    <span className="truncate max-w-[120px]">
-                      {selectedAgent.title}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">Agent...</span>
-                )}
-                <ChevronDown size={14} className="text-muted-foreground" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[550px] p-0 overflow-hidden"
-              align="start"
-            >
-              <VirtualMCPPopoverContent
-                virtualMcps={virtualMcps}
-                selectedVirtualMcpId={watchAgentId || null}
-                onVirtualMcpChange={(id) => {
-                  form.setValue("agent_id", id ?? "", { shouldDirty: true });
-                  setAgentPopoverOpen(false);
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <AutomationModelPicker
-            connectionId={watchConnectionId}
-            modelId={watchModelId}
-            onConnectionChange={(id) =>
-              form.setValue("model_connection_id", id, { shouldDirty: true })
-            }
-            onModelChange={(id) =>
-              form.setValue("model_id", id, { shouldDirty: true })
-            }
-          />
         </div>
 
-        {/* Messages Editor */}
+        {/* Messages Editor with bottom actions (mirrors chat input layout) */}
         <TiptapProvider
           tiptapDoc={tiptapDoc}
           setTiptapDoc={setTiptapDoc}
           placeholder="What should this automation do?"
         >
-          <div className="rounded-lg border border-border min-h-[120px] flex flex-col">
+          <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
             <TiptapInput virtualMcpId={watchAgentId || null} />
+
+            {/* Bottom Actions Row */}
+            <div className="flex items-center justify-between p-2.5">
+              {/* Left: Agent selector */}
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                <VirtualMCPSelector
+                  selectedVirtualMcpId={watchAgentId || null}
+                  onVirtualMcpChange={(id) =>
+                    form.setValue("agent_id", id ?? "", { shouldDirty: true })
+                  }
+                  placeholder="Select Agent"
+                />
+              </div>
+
+              {/* Right: Model selector */}
+              <div className="flex items-center gap-1.5">
+                <ModelSelector
+                  model={selectedModel}
+                  isLoading={isModelsLoading}
+                  credentialId={watchConnectionId || null}
+                  onCredentialChange={(id) => {
+                    form.setValue("model_connection_id", id ?? "", {
+                      shouldDirty: true,
+                    });
+                    form.setValue("model_id", "", { shouldDirty: true });
+                  }}
+                  onModelChange={(model) =>
+                    form.setValue("model_id", model.modelId, {
+                      shouldDirty: true,
+                    })
+                  }
+                  placeholder="Model"
+                />
+              </div>
+            </div>
           </div>
         </TiptapProvider>
 
@@ -736,7 +657,6 @@ function SettingsTab({
             </UITable>
           )}
         </div>
-
         {/* Run History */}
         <div className="flex flex-col gap-3 border-t border-border pt-6">
           <h3 className="text-sm font-medium">Run History</h3>
@@ -773,22 +693,41 @@ export default function AutomationDetailPage() {
 
   const { data: automation, isLoading } = useAutomationDetail(automationId);
   const deleteMutation = useAutomationDelete();
-  const runMutation = useAutomationRun();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleRun = async () => {
-    try {
-      const result = await runMutation.mutateAsync(automationId);
-      if (result.skipped) {
-        toast.info(`Run skipped: ${result.skipped}`);
-      } else if (result.error) {
-        toast.error(`Run failed: ${result.error}`);
-      } else {
-        toast.success("Automation run started");
-      }
-    } catch {
-      toast.error("Failed to run automation");
+  const { createTask, setVirtualMcpId, setSelectedModel, sendMessage } =
+    useChat();
+  const [, setChatOpen] = useDecoChatOpen();
+
+  // Resolve model for Run Now
+  const connectionId = automation?.models?.connectionId;
+  const modelId = automation?.models?.thinking?.id;
+  const { models } = useAiProviderModels(connectionId || undefined);
+  const resolvedModel = models.find((m) => m.modelId === modelId) ?? null;
+
+  const handleRun = () => {
+    const tiptapDoc = (
+      automation?.messages?.[0] as { metadata?: Metadata } | undefined
+    )?.metadata?.tiptapDoc;
+    if (!tiptapDoc) {
+      toast.error("No message configured for this automation");
+      return;
     }
+
+    // Set agent and model to match automation config
+    setVirtualMcpId(automation?.agent?.id ?? null);
+    if (resolvedModel) {
+      setSelectedModel(resolvedModel);
+    }
+
+    // Open chat and create a new task
+    setChatOpen(true);
+    createTask();
+
+    // Send message after React flushes state updates
+    setTimeout(() => {
+      sendMessage(tiptapDoc);
+    }, 0);
   };
 
   const handleDelete = async () => {
@@ -846,19 +785,9 @@ export default function AutomationDetailPage() {
   return (
     <ViewLayout breadcrumb={breadcrumb}>
       <ViewActions>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7"
-          onClick={handleRun}
-          disabled={runMutation.isPending}
-        >
-          {runMutation.isPending ? (
-            <Loading01 size={14} className="animate-spin" />
-          ) : (
-            <Play size={14} />
-          )}
-          Run Now
+        <Button variant="ghost" size="sm" className="h-7" onClick={handleRun}>
+          <Play size={14} />
+          Test Automation
         </Button>
         <Button
           variant="ghost"
