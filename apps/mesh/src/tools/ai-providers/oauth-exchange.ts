@@ -3,6 +3,7 @@ import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
 import { PROVIDERS } from "../../ai-providers/registry";
+import { providerKeyOutputSchema } from "./key-create";
 
 export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
   name: "AI_PROVIDER_OAUTH_EXCHANGE",
@@ -16,12 +17,7 @@ export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
       .describe("The stateToken returned by AI_PROVIDER_OAUTH_URL"),
     label: z.string().min(1).max(100).default("Connected via OAuth"),
   }),
-  outputSchema: z.object({
-    id: z.string(),
-    providerId: z.string(),
-    label: z.string(),
-    createdAt: z.string(),
-  }),
+  outputSchema: providerKeyOutputSchema,
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);

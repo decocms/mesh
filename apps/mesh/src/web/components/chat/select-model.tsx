@@ -50,6 +50,21 @@ import { useChat } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
 import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 
+function parseModelTitle(model: { title: string; modelId: string }): {
+  provider: string;
+  displayName: string;
+} {
+  const hasPrefix = model.title.includes(": ");
+  return {
+    provider: hasPrefix
+      ? (model.title.split(": ")[0] ?? "")
+      : (model.modelId.split("/")[0] ?? ""),
+    displayName: hasPrefix
+      ? model.title.split(": ").slice(1).join(": ")
+      : model.title,
+  };
+}
+
 // ============================================================================
 // Tier Classification
 // ============================================================================
@@ -316,12 +331,8 @@ function ModelDetailsPanel({
   const outputCostPerM =
     model.costs?.output != null ? model.costs.output * 1_000_000 : null;
 
-  const providerLabel = model.title.includes(": ")
-    ? model.title.split(": ")[0]
-    : model.modelId.split("/")[0];
-  const modelName = model.title.includes(": ")
-    ? model.title.split(": ").slice(1).join(": ")
-    : model.title;
+  const { provider: providerLabel, displayName: modelName } =
+    parseModelTitle(model);
 
   if (compact) {
     return (
@@ -521,12 +532,7 @@ function ModelItemContent({
   model: AiProviderModel;
   onHover: (model: AiProviderModel) => void;
 }) {
-  const displayName = model.title.includes(": ")
-    ? model.title.split(": ").slice(1).join(": ")
-    : model.title;
-  const provider = model.title.includes(": ")
-    ? model.title.split(": ")[0]
-    : model.modelId.split("/")[0];
+  const { displayName, provider } = parseModelTitle(model);
 
   const providerLogo = getProviderLogo(model);
 
@@ -898,9 +904,7 @@ function SelectedModelDisplay({
     );
   }
 
-  const displayName = model.title.includes(": ")
-    ? model.title.split(": ").slice(1).join(": ")
-    : model.title;
+  const { displayName } = parseModelTitle(model);
 
   const providerLogo = getProviderLogo(model);
 

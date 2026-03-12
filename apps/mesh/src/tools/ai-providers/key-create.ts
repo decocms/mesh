@@ -3,6 +3,13 @@ import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
 
+export const providerKeyOutputSchema = z.object({
+  id: z.string(),
+  providerId: z.string(),
+  label: z.string(),
+  createdAt: z.string(),
+});
+
 export const AI_PROVIDER_KEY_CREATE = defineTool({
   name: "AI_PROVIDER_KEY_CREATE",
   description: "Store an API key for an AI provider",
@@ -11,12 +18,7 @@ export const AI_PROVIDER_KEY_CREATE = defineTool({
     label: z.string().min(1).max(100),
     apiKey: z.string().min(1),
   }),
-  outputSchema: z.object({
-    id: z.string(),
-    providerId: z.string(),
-    label: z.string(),
-    createdAt: z.string(),
-  }),
+  outputSchema: providerKeyOutputSchema,
   handler: async (input, ctx) => {
     requireAuth(ctx);
     const org = requireOrganization(ctx);

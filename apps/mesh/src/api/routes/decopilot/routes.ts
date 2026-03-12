@@ -53,8 +53,7 @@ import { resolveThreadStatus } from "./status";
 import { genTitle } from "./title-generator";
 import type { ChatMessage } from "./types";
 import { ThreadMessage } from "@/storage/types";
-import { emitLlmCallLog } from "@/monitoring/emit-llm-call";
-import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
+import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 
 // ============================================================================
 // Request Validation
@@ -424,19 +423,8 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
             }) => {
               if (abortSignal.aborted) return;
               const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
-              recordLlmCallMetrics({
+              monitorLlmCall({
                 ctx,
-                organizationId: organization.id,
-                agentId: agent.id,
-                modelId: models.thinking.id,
-                credentialId: models.credentialId,
-                durationMs,
-                isError: false,
-                inputTokens: totalUsage.inputTokens ?? 0,
-                outputTokens: totalUsage.outputTokens ?? 0,
-              });
-              emitLlmCallLog({
-                tracer: ctx.tracer,
                 organizationId: organization.id,
                 agentId: agent.id,
                 modelId: models.thinking.id,
@@ -610,17 +598,8 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
           if (llmCallStartTime !== undefined) {
             const durationMs = Date.now() - llmCallStartTime;
-            recordLlmCallMetrics({
+            monitorLlmCall({
               ctx,
-              organizationId: organization.id,
-              agentId: agent.id,
-              modelId: models.thinking.id,
-              credentialId: models.credentialId,
-              durationMs,
-              isError: true,
-            });
-            emitLlmCallLog({
-              tracer: ctx.tracer,
               organizationId: organization.id,
               agentId: agent.id,
               modelId: models.thinking.id,

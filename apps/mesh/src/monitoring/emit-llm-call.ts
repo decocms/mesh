@@ -11,12 +11,14 @@
 
 import { context, trace } from "@opentelemetry/api";
 import type { Tracer } from "@opentelemetry/api";
+import type { MeshContext } from "@/core/mesh-context";
 import { emitMonitoringLog } from "./emit";
 import {
   DECOPILOT_CONNECTION_ID,
   MONITORING_LOG_TYPE_LLM_CALL,
   MONITORING_SPAN_NAME,
 } from "./schema";
+import { recordLlmCallMetrics } from "./record-llm-call-metrics";
 
 const DECOPILOT_CONNECTION_TITLE = "Decopilot";
 
@@ -59,10 +61,35 @@ export interface EmitLlmCallLogParams {
 }
 
 /**
+ * Record metrics and emit a monitoring log for an LLM call.
+ * Convenience wrapper that calls recordLlmCallMetrics + emitLlmCallLog together.
+ */
+export function monitorLlmCall(
+  params: Omit<EmitLlmCallLogParams, "tracer"> & {
+    ctx: MeshContext;
+    errorType?: string;
+  },
+): void {
+  recordLlmCallMetrics({
+    ctx: params.ctx,
+    organizationId: params.organizationId,
+    agentId: params.agentId,
+    modelId: params.modelId,
+    credentialId: params.credentialId,
+    durationMs: params.durationMs,
+    isError: params.isError,
+    errorType: params.errorType,
+    inputTokens: params.totalUsage?.inputTokens,
+    outputTokens: params.totalUsage?.outputTokens,
+  });
+  emitLlmCallLog({ ...params, tracer: params.ctx.tracer });
+}
+
+/**
  * Emit an OTel log record for an LLM call made by Decopilot.
  * Associates the log with a short-lived trace span for correlation.
  */
-export function emitLlmCallLog(params: EmitLlmCallLogParams): void {
+function emitLlmCallLog(params: EmitLlmCallLogParams): void {
   try {
     if (!params.organizationId) return;
 

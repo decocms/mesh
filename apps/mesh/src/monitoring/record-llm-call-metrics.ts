@@ -8,9 +8,7 @@
  */
 
 import type { MeshContext } from "@/core/mesh-context";
-
-/** Connection ID stored in metrics for all Decopilot LLM calls. */
-const DECOPILOT_CONNECTION_ID = "decopilot";
+import { DECOPILOT_CONNECTION_ID } from "./schema";
 
 export function recordLlmCallMetrics(params: {
   ctx: MeshContext;

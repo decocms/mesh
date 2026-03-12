@@ -44,6 +44,7 @@ export const AI_PROVIDER_KEY_LIST = defineTool({
 
     // Remove organizationId since it's implicit in the user's context
     return {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       keys: filtered.map(({ organizationId, ...key }) => key),
     };
   },
