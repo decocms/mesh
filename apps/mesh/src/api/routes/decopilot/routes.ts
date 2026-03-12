@@ -125,7 +125,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         throw new HTTPException(401, { message: "User ID is required" });
       }
 
-      const isClaudeCode = models.connectionId === "claude-code";
+      const isClaudeCode = models.thinking.provider === "claude-code";
 
       // 2. Check model permissions (skip for Claude Code — uses local auth)
       if (!isClaudeCode) {
