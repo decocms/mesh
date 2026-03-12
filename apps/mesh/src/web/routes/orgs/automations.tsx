@@ -115,14 +115,14 @@ export default function AutomationsPage() {
               <button
                 key={automation.id}
                 type="button"
-                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left w-full"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors text-left w-full"
                 onClick={() => handleAutomationClick(automation)}
               >
                 {/* Status dot */}
                 <span
                   title={automation.active ? "Active" : "Inactive"}
                   className={cn(
-                    "shrink-0 h-2 w-2 rounded-full",
+                    "shrink-0 size-2 rounded-full",
                     automation.active
                       ? "bg-green-500"
                       : "bg-muted-foreground/40",
