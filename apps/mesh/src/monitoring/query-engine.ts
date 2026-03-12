@@ -2,7 +2,7 @@
  * QueryEngine abstraction for monitoring queries.
  *
  * Implementations:
- * - ChdbEngine: local dev, uses chdb (embedded ClickHouse)
+ * - DuckDBEngine: local dev, uses @duckdb/node-api (embedded DuckDB)
  * - ClickHouseClientEngine: production, uses @clickhouse/client over HTTP
  */
 
@@ -18,35 +18,43 @@ export interface QueryEngine {
 }
 
 /**
- * chdb engine for local dev monitoring queries.
- * Uses embedded ClickHouse to query NDJSON files from disk.
+ * DuckDB engine for local dev monitoring queries.
+ * Uses embedded DuckDB to query NDJSON files from disk.
  */
-export class ChdbEngine implements QueryEngine {
-  private chdb: { query: (sql: string, format: string) => string };
+export class DuckDBEngine implements QueryEngine {
+  private connectionPromise: Promise<
+    import("@duckdb/node-api").DuckDBConnection
+  >;
 
   constructor() {
-    try {
-      this.chdb = require("chdb");
-    } catch (e) {
-      throw new Error(
-        "chdb native module not available. Install with: bun add chdb",
-        { cause: e },
-      );
-    }
+    this.connectionPromise = import("@duckdb/node-api").then(
+      async ({ DuckDBInstance }) => {
+        const instance = await DuckDBInstance.create();
+        return instance.connect();
+      },
+    );
   }
 
   async query(sql: string): Promise<Record<string, unknown>[]> {
-    const result: string = this.chdb.query(sql, "JSONEachRow");
-    if (!result || !result.trim()) return [];
-
-    return result
-      .trim()
-      .split("\n")
-      .map((line: string) => JSON.parse(line));
+    const connection = await this.connectionPromise;
+    try {
+      const reader = await connection.runAndReadAll(sql);
+      if (reader.currentRowCount === 0) return [];
+      return reader.getRowObjectsJS();
+    } catch (err: unknown) {
+      // DuckDB throws when no files match the glob pattern
+      if (
+        err instanceof Error &&
+        err.message.includes("No files found that match the pattern")
+      ) {
+        return [];
+      }
+      throw err;
+    }
   }
 
   async destroy(): Promise<void> {
-    // chdb is stateless per query — nothing to clean up
+    // Connection will be GC'd
   }
 }
 
@@ -98,13 +106,13 @@ export interface MonitoringEngineConfig {
  * Create the appropriate QueryEngine and source expression based on config.
  *
  * - If clickhouseUrl is set: ClickHouseClientEngine querying a remote table
- * - Otherwise: ChdbEngine querying local NDJSON files
+ * - Otherwise: DuckDBEngine querying local NDJSON files
  *
  * Returns { engine, source } where source is the FROM clause expression.
  */
 /**
- * No-op engine returned when chdb is unavailable (e.g. CI, environments
- * without the native module). Monitoring queries return empty results.
+ * No-op engine returned when @duckdb/node-api is unavailable (e.g. CI,
+ * environments without the native module). Monitoring queries return empty results.
  */
 class NoopEngine implements QueryEngine {
   private warned = false;
@@ -113,9 +121,9 @@ class NoopEngine implements QueryEngine {
     if (!this.warned) {
       this.warned = true;
       console.warn(
-        "\n⚠️  WARNING: Monitoring query skipped — chdb native module is not available.\n" +
+        "\n⚠️  WARNING: Monitoring query skipped — @duckdb/node-api native module is not available.\n" +
           "   Monitoring data exists on disk but cannot be queried.\n" +
-          "   Fix: run `bun add chdb` in apps/mesh/ to install the native module.\n",
+          "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to install the native module.\n",
       );
     }
     return [];
@@ -141,18 +149,18 @@ export function createMonitoringEngine(config: MonitoringEngineConfig): {
 
   try {
     return {
-      engine: new ChdbEngine(),
-      source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
+      engine: new DuckDBEngine(),
+      source: `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`,
     };
   } catch (err) {
     console.warn(
-      "\n⚠️  WARNING: chdb native module failed to load — monitoring will return empty results.\n" +
+      "\n⚠️  WARNING: @duckdb/node-api native module failed to load — monitoring will return empty results.\n" +
         `   Error: ${err instanceof Error ? err.message : err}\n` +
-        "   Fix: run `bun add chdb` in apps/mesh/ to reinstall the native module.\n",
+        "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to reinstall the native module.\n",
     );
     return {
       engine: new NoopEngine(),
-      source: `file('${resolvedPath}/**/*.ndjson', 'JSONEachRow')`,
+      source: `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`,
     };
   }
 }

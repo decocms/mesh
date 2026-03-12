@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import {
-  ChdbEngine,
+  DuckDBEngine,
   ClickHouseClientEngine,
   createMonitoringEngine,
 } from "./query-engine";
@@ -9,18 +9,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { makeTestMonitoringRow, writeTestNDJSON } from "./test-utils";
 
-let chdbAvailable = false;
+let duckdbAvailable = false;
 try {
-  require("chdb");
-  chdbAvailable = true;
+  await import("@duckdb/node-api");
+  duckdbAvailable = true;
 } catch {}
 
-describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
+describe.skipIf(!duckdbAvailable)("DuckDBEngine", () => {
   let tmpDir: string;
-  let engine: ChdbEngine;
+  let engine: DuckDBEngine;
 
   beforeAll(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), "chdb-engine-test-"));
+    tmpDir = await mkdtemp(join(tmpdir(), "duckdb-engine-test-"));
 
     const subdir = join(tmpDir, "2026", "03", "05", "12");
     await mkdir(subdir, { recursive: true });
@@ -43,7 +43,7 @@ describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
       }),
     ]);
 
-    engine = new ChdbEngine();
+    engine = new DuckDBEngine();
   });
 
   afterAll(async () => {
@@ -52,7 +52,7 @@ describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
   });
 
   it("should execute a query and return parsed rows", async () => {
-    const source = `file('${tmpDir}/**/*.ndjson', 'JSONEachRow')`;
+    const source = `read_ndjson('${tmpDir}/**/*.ndjson', auto_detect=true)`;
     const rows = await engine.query(
       `SELECT * FROM ${source} WHERE organization_id = 'org_test'`,
     );
@@ -61,7 +61,7 @@ describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
   });
 
   it("should handle empty results", async () => {
-    const source = `file('${tmpDir}/**/*.ndjson', 'JSONEachRow')`;
+    const source = `read_ndjson('${tmpDir}/**/*.ndjson', auto_detect=true)`;
     const rows = await engine.query(
       `SELECT * FROM ${source} WHERE organization_id = 'nonexistent'`,
     );
@@ -69,7 +69,7 @@ describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
   });
 
   it("should handle concurrent queries", async () => {
-    const source = `file('${tmpDir}/**/*.ndjson', 'JSONEachRow')`;
+    const source = `read_ndjson('${tmpDir}/**/*.ndjson', auto_detect=true)`;
     const [r1, r2, r3] = await Promise.all([
       engine.query(`SELECT count(*) AS cnt FROM ${source}`),
       engine.query(`SELECT tool_name FROM ${source} WHERE is_error = 1`),
@@ -83,14 +83,14 @@ describe.skipIf(!chdbAvailable)("ChdbEngine", () => {
 });
 
 describe("createMonitoringEngine", () => {
-  it.skipIf(!chdbAvailable)(
-    "should create ChdbEngine when no CLICKHOUSE_URL",
+  it.skipIf(!duckdbAvailable)(
+    "should create DuckDBEngine when no CLICKHOUSE_URL",
     () => {
       const { engine, source } = createMonitoringEngine({
         basePath: "./data/monitoring",
       });
-      expect(engine).toBeInstanceOf(ChdbEngine);
-      expect(source).toContain("file(");
+      expect(engine).toBeInstanceOf(DuckDBEngine);
+      expect(source).toContain("read_ndjson(");
       expect(source).toContain(".ndjson");
     },
   );
