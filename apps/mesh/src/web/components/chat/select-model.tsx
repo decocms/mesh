@@ -994,7 +994,7 @@ function ModelSelectorContentFallback() {
   );
 }
 
-export interface ModelSelectorInnerProps {
+interface ModelSelectorInnerProps {
   onClose: () => void;
   credentialId: string | null;
   onCredentialChange: (id: string | null) => void;
@@ -1002,7 +1002,7 @@ export interface ModelSelectorInnerProps {
   onModelChange: (model: AiProviderModel) => void;
 }
 
-export function ModelSelectorInner({
+function ModelSelectorInner({
   onClose,
   credentialId,
   onCredentialChange,
