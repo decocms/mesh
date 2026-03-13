@@ -104,7 +104,7 @@ function loadConfig(): Config {
     try {
       const content = readFileSync(authConfigPath, "utf-8");
       return {
-        auth: JSON.parse(content),
+        auth: { ...DEFAULT_AUTH_CONFIG, ...JSON.parse(content) },
         monitoring: DEFAULT_MONITORING_CONFIG,
       };
     } catch {
