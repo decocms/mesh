@@ -8,6 +8,7 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
     id: "deco",
     name: "Deco AI Gateway",
     description: "Deco-managed keys with access to 100+ models",
+    logo: "/logos/deco logo.svg",
   },
 
   supportedMethods: ["oauth-pkce", "api-key"],

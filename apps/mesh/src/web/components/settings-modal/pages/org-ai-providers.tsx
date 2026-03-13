@@ -449,7 +449,7 @@ function OrgAiProvidersContent() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 [&>*:first-child]:lg:col-span-2">
         {aiProviders?.providers?.map((provider) => (
           <ProviderCard
             key={provider.id}

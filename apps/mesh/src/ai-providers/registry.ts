@@ -5,7 +5,7 @@ import type { ProviderId } from "./provider-ids";
 import type { ProviderAdapter } from "./types";
 
 export const PROVIDERS: Record<ProviderId, ProviderAdapter> = {
+  deco: decoAiGatewayAdapter,
   anthropic: anthropicAdapter,
   openrouter: openrouterAdapter,
-  deco: decoAiGatewayAdapter,
 };
