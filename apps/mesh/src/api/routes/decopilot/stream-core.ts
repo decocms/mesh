@@ -9,6 +9,7 @@
 import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
+import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
 import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { createUIMessageStream, stepCountIs, streamText } from "ai";
 import { getBuiltInTools } from "./built-in-tools";
@@ -86,6 +87,7 @@ export async function streamCore(
   let runStarted = false;
   let threadId: string | undefined;
   let llmCallStartTime: number | undefined;
+  let llmCallLogged = false;
 
   try {
     // 1. Check model permissions
@@ -368,6 +370,16 @@ export async function streamCore(
           }) => {
             if (registrySignal.aborted) return;
             const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
+            llmCallLogged = true;
+            recordLlmCallMetrics({
+              ctx,
+              organizationId: input.organizationId,
+              modelId: input.models.thinking.id,
+              durationMs,
+              isError: false,
+              inputTokens: totalUsage.inputTokens,
+              outputTokens: totalUsage.outputTokens,
+            });
             monitorLlmCall({
               ctx,
               organizationId: input.organizationId,
@@ -537,7 +549,19 @@ export async function streamCore(
         }
         console.error("[decopilot] stream error:", error);
 
-        if (llmCallStartTime !== undefined) {
+        // Only log if streamText.onFinish hasn't already recorded this call.
+        // createUIMessageStream.onError can also fire for stream-layer failures
+        // (buffer, SSE) that are unrelated to the LLM call itself.
+        if (llmCallStartTime !== undefined && !llmCallLogged) {
+          const durationMs = Date.now() - llmCallStartTime;
+          recordLlmCallMetrics({
+            ctx,
+            organizationId: input.organizationId,
+            modelId: input.models.thinking.id,
+            durationMs,
+            isError: true,
+            errorType: error instanceof Error ? error.name : "Error",
+          });
           monitorLlmCall({
             ctx,
             organizationId: input.organizationId,
@@ -546,7 +570,7 @@ export async function streamCore(
             modelTitle: input.models.thinking.title ?? input.models.thinking.id,
             credentialId: input.models.credentialId,
             threadId: mem.thread.id,
-            durationMs: Date.now() - llmCallStartTime,
+            durationMs,
             isError: true,
             errorMessage:
               error instanceof Error ? error.message : String(error),

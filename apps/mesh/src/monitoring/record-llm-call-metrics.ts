@@ -13,9 +13,7 @@ import { DECOPILOT_CONNECTION_ID } from "./schema";
 export function recordLlmCallMetrics(params: {
   ctx: MeshContext;
   organizationId: string;
-  agentId: string;
   modelId: string;
-  credentialId: string;
   durationMs: number;
   isError: boolean;
   errorType?: string;
@@ -25,9 +23,7 @@ export function recordLlmCallMetrics(params: {
   const {
     ctx,
     organizationId,
-    agentId,
     modelId,
-    credentialId,
     durationMs,
     isError,
     inputTokens,
@@ -42,8 +38,6 @@ export function recordLlmCallMetrics(params: {
     "connection.id": DECOPILOT_CONNECTION_ID,
     "tool.name": modelId,
     "organization.id": organizationId,
-    "agent.id": agentId,
-    "credential.id": credentialId,
     status: isError ? "error" : "success",
     "error.type": isError ? params.errorType || "Error" : "",
   };
