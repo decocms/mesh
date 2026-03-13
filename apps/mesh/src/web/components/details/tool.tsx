@@ -286,7 +286,7 @@ function ToolDetailsAuthenticated({
           arguments: args,
         },
         undefined,
-        { timeout: 2 * 60 * 1000 },
+        { timeout: 2 * 60 * 1000 + 5 * 1000 },
       )) as CallToolResult & { structuredContent?: unknown };
       const payload = (result.structuredContent ?? result) as Record<
         string,

@@ -9,7 +9,7 @@
  * This server can be used directly in proxy routes or bridged to create a Client.
  */
 
-import { MCP_UPSTREAM_TOOL_CALL_TIMEOUT_MS } from "@/api/routes/proxy";
+import { MCP_UPSTREAM_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { createServerFromClient } from "@decocms/mesh-sdk";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
