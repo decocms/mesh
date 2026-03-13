@@ -106,6 +106,7 @@ interface SettingsFormData {
 // ============================================================================
 
 const CRON_PRESETS = [
+  { label: "Minute", cron: "* * * * *" },
   { label: "Hour", cron: "0 * * * *" },
   { label: "Day", cron: "0 0 * * *" },
   { label: "Week", cron: "0 0 * * 1" },
