@@ -1,0 +1,111 @@
+import { describe, expect, it } from "bun:test";
+import type { Automation } from "@/storage/types";
+import { buildStreamRequest } from "./build-stream-request";
+
+function makeAutomation(overrides?: Partial<Automation>): Automation {
+  return {
+    id: "auto_1",
+    organization_id: "org_1",
+    name: "Test",
+    active: true,
+    created_by: "user_1",
+    agent: JSON.stringify({ id: "agent_1", name: "My Agent" }),
+    messages: JSON.stringify([
+      { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
+    ]),
+    models: JSON.stringify({
+      main: { id: "gpt-4" },
+      thinking: { id: "gpt-4" },
+      credentialId: "cred_1",
+    }),
+    temperature: 0.7,
+    tool_approval_level: "readonly",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("buildStreamRequest", () => {
+  it("parses JSON columns into objects", () => {
+    const result = buildStreamRequest(makeAutomation(), "trig_1", "thrd_1");
+    expect(result.messages).toEqual([
+      { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
+    ]);
+    expect(result.models).toEqual({
+      main: { id: "gpt-4" },
+      thinking: { id: "gpt-4" },
+      credentialId: "cred_1",
+    });
+    expect(result.agent).toEqual({ id: "agent_1", name: "My Agent" });
+  });
+
+  it("sets organizationId from automation", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ organization_id: "org_xyz" }),
+      null,
+      "thrd_1",
+    );
+    expect(result.organizationId).toBe("org_xyz");
+  });
+
+  it("sets userId from automation.created_by", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ created_by: "user_abc" }),
+      null,
+      "thrd_1",
+    );
+    expect(result.userId).toBe("user_abc");
+  });
+
+  it("passes triggerId when provided", () => {
+    const result = buildStreamRequest(makeAutomation(), "trig_99", "thrd_1");
+    expect(result.triggerId).toBe("trig_99");
+  });
+
+  it("sets triggerId to undefined when null", () => {
+    const result = buildStreamRequest(makeAutomation(), null, "thrd_1");
+    expect(result.triggerId).toBeUndefined();
+  });
+
+  it("passes threadId through", () => {
+    const result = buildStreamRequest(makeAutomation(), null, "thrd_abc");
+    expect(result.threadId).toBe("thrd_abc");
+  });
+
+  it("uses automation temperature", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ temperature: 0.9 }),
+      null,
+      "thrd_1",
+    );
+    expect(result.temperature).toBe(0.9);
+  });
+
+  it("defaults temperature to 0.5 when null", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ temperature: null as any }),
+      null,
+      "thrd_1",
+    );
+    expect(result.temperature).toBe(0.5);
+  });
+
+  it("maps tool_approval_level", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ tool_approval_level: "yolo" }),
+      null,
+      "thrd_1",
+    );
+    expect(result.toolApprovalLevel).toBe("yolo");
+  });
+
+  it("defaults tool_approval_level to none when null", () => {
+    const result = buildStreamRequest(
+      makeAutomation({ tool_approval_level: null as any }),
+      null,
+      "thrd_1",
+    );
+    expect(result.toolApprovalLevel).toBe("none");
+  });
+});
