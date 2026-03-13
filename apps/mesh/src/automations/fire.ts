@@ -78,7 +78,12 @@ export async function fireAutomation(opts: {
 
   // 0. Acquire global semaphore
   const globalSlot = globalSemaphore.tryAcquire();
-  if (!globalSlot) return { skipped: "global_limit" };
+  if (!globalSlot) {
+    console.info(
+      `[Automation] Skipped: global_limit for automation ${automation.id}`,
+    );
+    return { skipped: "global_limit" };
+  }
 
   try {
     // 1. Verify creator is still active in the org
@@ -88,6 +93,9 @@ export async function fireAutomation(opts: {
     );
     if (!ctx) {
       // Creator no longer valid — deactivate automation
+      console.info(
+        `[Automation] Skipped: creator_invalid for automation ${automation.id}`,
+      );
       await storage.deactivateAutomation(automation.id);
       return { skipped: "creator_invalid" };
     }
@@ -98,7 +106,16 @@ export async function fireAutomation(opts: {
       triggerId,
       config.maxConcurrentPerAutomation,
     );
-    if (!threadId) return { skipped: "concurrency_limit" };
+    if (!threadId) {
+      console.info(
+        `[Automation] Skipped: concurrency_limit for automation ${automation.id}`,
+      );
+      return { skipped: "concurrency_limit" };
+    }
+
+    console.info(
+      `[Automation] Starting run for automation ${automation.id}, thread ${threadId}, trigger ${triggerId}`,
+    );
 
     // 3. Build request & fire with timeout
     const abortController = new AbortController();
@@ -128,6 +145,9 @@ export async function fireAutomation(opts: {
         cancelBroadcast: deps.cancelBroadcast,
       });
       await consumeStreamCore(result);
+      console.info(
+        `[Automation] Run completed for automation ${automation.id}, thread ${threadId}`,
+      );
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
       console.error(

@@ -72,6 +72,13 @@ export class OrgScopedThreadStorage {
     return this.inner.list(this.requireOrg(), createdBy, options);
   }
 
+  listByTriggerIds(
+    triggerIds: string[],
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ threads: Thread[]; total: number }> {
+    return this.inner.listByTriggerIds(this.requireOrg(), triggerIds, options);
+  }
+
   saveMessages(data: ThreadMessage[]): Promise<void> {
     return this.inner.saveMessages(data, this.requireOrg());
   }
@@ -235,6 +242,46 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (createdBy) {
       countQuery = countQuery.where("created_by", "=", createdBy);
     }
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+
+    const [rows, countResult] = await Promise.all([
+      query.execute(),
+      countQuery.executeTakeFirst(),
+    ]);
+
+    return {
+      threads: rows.map((row) => this.threadFromDbRow(row)),
+      total: Number(countResult?.count || 0),
+    };
+  }
+
+  async listByTriggerIds(
+    organizationId: string,
+    triggerIds: string[],
+    options?: { limit?: number; offset?: number },
+  ): Promise<{ threads: Thread[]; total: number }> {
+    if (triggerIds.length === 0) {
+      return { threads: [], total: 0 };
+    }
+
+    let query = this.db
+      .selectFrom("threads")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("trigger_id", "in", triggerIds)
+      .orderBy("updated_at", "desc");
+
+    const countQuery = this.db
+      .selectFrom("threads")
+      .select((eb) => eb.fn.count("id").as("count"))
+      .where("organization_id", "=", organizationId)
+      .where("trigger_id", "in", triggerIds);
 
     if (options?.limit) {
       query = query.limit(options.limit);

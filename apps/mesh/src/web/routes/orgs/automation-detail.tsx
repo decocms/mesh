@@ -76,6 +76,12 @@ import {
 import { useRef, useState, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SELF_MCP_ALIAS_ID, useMCPClient } from "@decocms/mesh-sdk";
+import { KEYS } from "@/web/lib/query-keys.ts";
+import { STATUS_CONFIG } from "@/web/lib/task-status.ts";
+import { useDecopilotEvents } from "@/web/hooks/use-decopilot-events.ts";
 import type { Metadata } from "@/web/components/chat/types.ts";
 import {
   TiptapProvider,
@@ -681,7 +687,10 @@ function SettingsTab({
         {/* Run History */}
         <div className="flex flex-col gap-3 border-t border-border pt-6">
           <h3 className="text-sm font-medium">Run History</h3>
-          <RunHistorySection automationId={automationId} />
+          <RunHistorySection
+            automationId={automationId}
+            triggerIds={automation.triggers.map((t) => t.id)}
+          />
         </div>
       </div>
     </>
@@ -692,12 +701,129 @@ function SettingsTab({
 // Run History Section
 // ============================================================================
 
-function RunHistorySection(_props: { automationId: string }) {
+interface RunThread {
+  id: string;
+  title: string;
+  status: string;
+  updated_at: string;
+}
+
+function useAutomationRuns(
+  orgId: string,
+  automationId: string,
+  triggerIds: string[],
+) {
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId,
+  });
+
+  return useQuery({
+    queryKey: KEYS.automationRuns(orgId, automationId),
+    queryFn: async () => {
+      if (!client) throw new Error("MCP client not available");
+      const result = (await client.callTool({
+        name: "COLLECTION_THREADS_LIST",
+        arguments: { where: { trigger_ids: triggerIds }, limit: 20 },
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as {
+        items: RunThread[];
+        totalCount: number;
+      };
+      return payload.items ?? [];
+    },
+    enabled: triggerIds.length > 0,
+  });
+}
+
+function RunHistorySection({
+  automationId,
+  triggerIds,
+}: {
+  automationId: string;
+  triggerIds: string[];
+}) {
+  const { org } = useProjectContext();
+  const { switchToTask } = useChat();
+  const [, setChatOpen] = useDecoChatOpen();
+  const queryClient = useQueryClient();
+  const { data: runs, isLoading } = useAutomationRuns(
+    org.id,
+    automationId,
+    triggerIds,
+  );
+
+  // Real-time updates via SSE
+  useDecopilotEvents({
+    orgId: org.id,
+    enabled: triggerIds.length > 0,
+    onTaskStatus: (event) => {
+      const threadId = event.subject;
+      const cached = runs ?? [];
+      const existingRun = cached.find((r) => r.id === threadId);
+      if (existingRun) {
+        // Update status in cache
+        queryClient.setQueryData(
+          KEYS.automationRuns(org.id, automationId),
+          cached.map((r) =>
+            r.id === threadId ? { ...r, status: event.data.status } : r,
+          ),
+        );
+      } else {
+        // New run — refetch to pick it up
+        queryClient.invalidateQueries({
+          queryKey: KEYS.automationRuns(org.id, automationId),
+        });
+      }
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loading01 size={18} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!runs || runs.length === 0) {
+    return (
+      <EmptyState
+        title="No run history"
+        description="Run history will appear here when the automation has been triggered."
+      />
+    );
+  }
+
+  const handleRunClick = async (threadId: string) => {
+    await switchToTask(threadId);
+    setChatOpen(true);
+  };
+
   return (
-    <EmptyState
-      title="No run history"
-      description="Run history will appear here when the automation has been triggered."
-    />
+    <div className="flex flex-col divide-y divide-border">
+      {runs.map((run) => {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const config = (STATUS_CONFIG[run.status] ?? STATUS_CONFIG.completed)!;
+        const StatusIcon = config.icon;
+        return (
+          <button
+            key={run.id}
+            type="button"
+            className="flex items-center gap-3 px-1 py-2.5 text-left hover:bg-accent/50 transition-colors cursor-pointer rounded-sm"
+            onClick={() => handleRunClick(run.id)}
+          >
+            <StatusIcon size={16} className={config.iconClassName} />
+            <span className="flex-1 min-w-0 text-sm truncate">{run.title}</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              {formatDistanceToNow(new Date(run.updated_at), {
+                addSuffix: true,
+              })}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
