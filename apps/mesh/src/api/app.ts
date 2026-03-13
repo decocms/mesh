@@ -76,7 +76,7 @@ import {
 import { NatsStreamBuffer } from "./routes/decopilot/nats-stream-buffer";
 import { RunRegistry } from "./routes/decopilot/run-registry";
 import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
-import { SqlThreadStorage } from "../storage/threads";
+import { OrgScopedThreadStorage, SqlThreadStorage } from "../storage/threads";
 import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
 import {
   DEFAULT_LOGS_DIR,
@@ -760,6 +760,13 @@ export async function createApp(options: CreateAppOptions = {}) {
       ctx.boundAuth,
       membership.role,
       "self",
+    );
+
+    // Rebuild thread storage with the correct org so OrgScopedThreadStorage
+    // doesn't throw "thread operations require an authenticated organization".
+    ctx.storage.threads = new OrgScopedThreadStorage(
+      threadStorage,
+      membership.orgId,
     );
 
     return ctx;
