@@ -130,17 +130,29 @@ export async function streamCore(
       ...messages: (ChatMessage | undefined)[]
     ) => {
       const now = Date.now();
+      const filtered = messages.filter(Boolean);
       const messagesToSave = [
-        ...new Map(messages.filter(Boolean).map((m) => [m!.id, m!])).values(),
+        ...new Map(filtered.map((m) => [m!.id, m!])).values(),
       ].map((message, i) => ({
         ...message,
         thread_id: mem.thread.id,
         created_at: new Date(now + i).toISOString(),
         updated_at: new Date(now + i).toISOString(),
       }));
-      if (messagesToSave.length === 0) return;
+      if (messagesToSave.length === 0) {
+        console.warn(
+          `[decopilot:stream] Thread ${mem.thread.id}: saveMessagesToThread called with ${messages.length} args but 0 messages to save (filtered=${filtered.length})`,
+        );
+        return;
+      }
+      console.info(
+        `[decopilot:stream] Thread ${mem.thread.id}: saving ${messagesToSave.length} messages (ids: [${messagesToSave.map((m) => m.id).join(", ")}], roles: [${messagesToSave.map((m) => m.role).join(", ")}])`,
+      );
       await mem.save(messagesToSave as ThreadMessage[]).catch((error) => {
-        console.error("[decopilot:stream] Error saving messages", error);
+        console.error(
+          `[decopilot:stream] Thread ${mem.thread.id}: Error saving messages (ids: [${messagesToSave.map((m) => m.id).join(", ")}])`,
+          error,
+        );
       });
     };
 

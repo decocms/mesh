@@ -13,7 +13,15 @@ export function buildStreamRequest(
   triggerId: string | null,
   threadId: string,
 ): StreamCoreInput {
-  const messages = JSON.parse(automation.messages);
+  const rawMessages = JSON.parse(automation.messages);
+  // Generate fresh ids for each run so concurrent automation runs don't
+  // collide on the same message id (ON CONFLICT in saveMessages would
+  // silently keep the message in the first thread, making it invisible
+  // in subsequent threads).
+  const messages = rawMessages.map((m: { id?: string; role: string }) => ({
+    ...m,
+    id: crypto.randomUUID(),
+  }));
   console.info(
     `[Automation:buildRequest] Thread ${threadId}: automation ${automation.id} has ${messages.length} stored messages (roles: [${messages.map((m: { role: string }) => m.role).join(", ")}])`,
   );
