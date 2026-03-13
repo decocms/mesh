@@ -156,7 +156,13 @@ export function ImportFromDecoDialog({
             {
               connectionId: connId,
               toolName: "list_environments",
-              label: "Environments",
+              label: "Preview",
+              icon: null,
+            },
+            {
+              connectionId: connId,
+              toolName: "file_explorer",
+              label: "File Explorer",
               icon: null,
             },
             {
