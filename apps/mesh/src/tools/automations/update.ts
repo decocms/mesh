@@ -78,7 +78,7 @@ export const AUTOMATION_UPDATE = defineTool({
       .loose()
       .optional(),
     temperature: z.number().optional(),
-    tool_approval_level: z.enum(["none", "readonly"]).optional(),
+    tool_approval_level: z.enum(["none", "readonly", "yolo"]).optional(),
   }),
   outputSchema: z.object({
     id: z.string(),

@@ -18,7 +18,7 @@ export function buildStreamRequest(
     models: JSON.parse(automation.models),
     agent: JSON.parse(automation.agent),
     temperature: automation.temperature ?? 0.5,
-    toolApprovalLevel: (automation.tool_approval_level ?? "none") as
+    toolApprovalLevel: (automation.tool_approval_level ?? "yolo") as
       | "none"
       | "readonly"
       | "yolo",

@@ -26,7 +26,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("models", "text", (col) => col.notNull()) // JSONB: { connectionId, thinking, coding?, fast? }
     .addColumn("temperature", "real", (col) => col.notNull().defaultTo(0.5))
     .addColumn("tool_approval_level", "text", (col) =>
-      col.notNull().defaultTo("none"),
+      col.notNull().defaultTo("yolo"),
     )
     .addColumn("created_at", "text", (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`),
@@ -37,7 +37,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // Add check constraint for tool_approval_level
-  await sql`ALTER TABLE automations ADD CONSTRAINT chk_tool_approval_level CHECK (tool_approval_level IN ('none', 'readonly'))`.execute(
+  await sql`ALTER TABLE automations ADD CONSTRAINT chk_tool_approval_level CHECK (tool_approval_level IN ('none', 'readonly', 'yolo'))`.execute(
     db,
   );
 

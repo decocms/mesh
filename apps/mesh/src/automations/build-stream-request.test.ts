@@ -98,12 +98,12 @@ describe("buildStreamRequest", () => {
     expect(result.toolApprovalLevel).toBe("yolo");
   });
 
-  it("defaults tool_approval_level to none when null", () => {
+  it("defaults tool_approval_level to yolo when null", () => {
     const result = buildStreamRequest(
       makeAutomation({ tool_approval_level: null as any }),
       null,
       "thrd_1",
     );
-    expect(result.toolApprovalLevel).toBe("none");
+    expect(result.toolApprovalLevel).toBe("yolo");
   });
 });
