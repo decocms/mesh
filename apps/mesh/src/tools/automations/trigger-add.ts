@@ -51,8 +51,6 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
       throw new Error("Automation not found");
     }
 
-    let nextRunAt: string | null = null;
-
     if (input.type === "cron") {
       if (!input.cron_expression) {
         throw new Error("cron_expression is required for cron triggers");
@@ -67,12 +65,10 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
         );
       }
 
-      // Compute initial next_run_at
-      const nextRun = cron.nextRun();
-      if (!nextRun) {
+      // Validate the expression has future runs
+      if (!cron.nextRun()) {
         throw new Error("Cron expression has no future runs");
       }
-      nextRunAt = nextRun.toISOString();
     }
 
     if (input.type === "event") {
@@ -101,7 +97,7 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
         connection_id: input.connection_id,
         event_type: input.event_type,
         params: input.params ? JSON.stringify(input.params) : null,
-        next_run_at: null,
+        last_run_at: null,
         created_at: "",
       };
 
@@ -122,7 +118,6 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
       connection_id: input.type === "event" ? input.connection_id : null,
       event_type: input.type === "event" ? input.event_type : null,
       params: input.params ? JSON.stringify(input.params) : null,
-      next_run_at: nextRunAt,
     });
 
     return {

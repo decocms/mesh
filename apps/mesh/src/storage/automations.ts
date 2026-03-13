@@ -4,11 +4,11 @@
  * Provides database operations for automations and their triggers:
  * - CRUD for automations
  * - Adding/removing triggers (cron and event-based)
- * - Querying due cron triggers and matching event triggers
+ * - Querying active cron triggers and matching event triggers
  * - Concurrency control for automation runs via tryAcquireRunSlot
  */
 
-import { type Kysely, sql } from "kysely";
+import { type Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { Database, Automation, AutomationTrigger } from "./types";
 
@@ -43,7 +43,6 @@ export interface CreateTriggerInput {
   connection_id?: string | null;
   event_type?: string | null;
   params?: string | null;
-  next_run_at?: string | null;
 }
 
 // ============================================================================
@@ -79,9 +78,9 @@ export interface AutomationsStorage {
     eventType: string,
     organizationId: string,
   ): Promise<(AutomationTrigger & { automation: Automation })[]>;
-  findDueCronTriggers(
-    now: string,
-  ): Promise<(AutomationTrigger & { automation: Automation })[]>;
+  findAllActiveCronTriggers(): Promise<
+    (AutomationTrigger & { automation: Automation })[]
+  >;
   countInProgressRuns(automationId: string): Promise<number>;
   tryAcquireRunSlot(
     automationId: string,
@@ -89,7 +88,7 @@ export interface AutomationsStorage {
     maxConcurrent: number,
   ): Promise<string | null>;
   markRunFailed(threadId: string): Promise<void>;
-  updateTriggerNextRunAt(triggerId: string, nextRunAt: string): Promise<void>;
+  updateTriggerLastRunAt(triggerId: string, lastRunAt: string): Promise<void>;
   deactivateAutomation(id: string): Promise<void>;
 }
 
@@ -137,7 +136,7 @@ function triggerFromDbRow(row: {
   connection_id: string | null;
   event_type: string | null;
   params: string | null;
-  next_run_at: Date | string | null;
+  last_run_at: Date | string | null;
   created_at: Date | string;
 }): AutomationTrigger {
   return {
@@ -148,7 +147,7 @@ function triggerFromDbRow(row: {
     connection_id: row.connection_id,
     event_type: row.event_type,
     params: row.params,
-    next_run_at: row.next_run_at ? toIsoString(row.next_run_at) : null,
+    last_run_at: row.last_run_at ? toIsoString(row.last_run_at) : null,
     created_at: toIsoString(row.created_at),
   };
 }
@@ -311,7 +310,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       connection_id: input.connection_id ?? null,
       event_type: input.event_type ?? null,
       params: input.params ?? null,
-      next_run_at: input.next_run_at ?? null,
+      last_run_at: null,
       created_at: now,
     };
 
@@ -374,7 +373,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "t.connection_id",
         "t.event_type",
         "t.params",
-        "t.next_run_at",
+        "t.last_run_at",
         "t.created_at",
         "a.id as a_id",
         "a.organization_id as a_organization_id",
@@ -413,9 +412,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
     }));
   }
 
-  async findDueCronTriggers(
-    now: string,
-  ): Promise<(AutomationTrigger & { automation: Automation })[]> {
+  async findAllActiveCronTriggers(): Promise<
+    (AutomationTrigger & { automation: Automation })[]
+  > {
     const rows = await this.db
       .selectFrom("automation_triggers as t")
       .innerJoin("automations as a", "a.id", "t.automation_id")
@@ -427,7 +426,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "t.connection_id",
         "t.event_type",
         "t.params",
-        "t.next_run_at",
+        "t.last_run_at",
         "t.created_at",
         "a.id as a_id",
         "a.organization_id as a_organization_id",
@@ -442,12 +441,6 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.updated_at as a_updated_at",
       ])
       .where("t.type", "=", "cron")
-      .where((eb) =>
-        eb.or([
-          eb(sql`t.next_run_at`, "<=", now),
-          eb("t.next_run_at", "is", null),
-        ]),
-      )
       .where("a.active", "=", true)
       .execute();
 
@@ -496,6 +489,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         .executeTakeFirst();
 
       if (!automation || !automation.active) {
+        console.warn(
+          `[tryAcquireRunSlot] Automation ${automationId} not found or inactive (active=${automation?.active})`,
+        );
         return null;
       }
 
@@ -511,6 +507,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       const currentCount = Number(countResult?.count ?? 0);
 
       if (currentCount >= maxConcurrent) {
+        console.warn(
+          `[tryAcquireRunSlot] Automation ${automationId} at concurrency limit (${currentCount}/${maxConcurrent})`,
+        );
         return null;
       }
 
@@ -535,6 +534,10 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         })
         .execute();
 
+      console.log(
+        `[tryAcquireRunSlot] Created thread ${threadId} for "${automation.name}" (${automationId}), trigger_id=${triggerId}, org=${automation.organization_id}`,
+      );
+
       return threadId;
     });
   }
@@ -548,13 +551,13 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       .execute();
   }
 
-  async updateTriggerNextRunAt(
+  async updateTriggerLastRunAt(
     triggerId: string,
-    nextRunAt: string,
+    lastRunAt: string,
   ): Promise<void> {
     await this.db
       .updateTable("automation_triggers")
-      .set({ next_run_at: nextRunAt })
+      .set({ last_run_at: lastRunAt })
       .where("id", "=", triggerId)
       .execute();
   }

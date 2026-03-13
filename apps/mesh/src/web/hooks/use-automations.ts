@@ -32,7 +32,7 @@ export interface AutomationTrigger {
   connection_id: string | null;
   event_type: string | null;
   params: Record<string, string> | null;
-  next_run_at: string | null;
+  last_run_at: string | null;
   created_at: string;
 }
 

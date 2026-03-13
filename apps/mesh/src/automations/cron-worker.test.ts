@@ -48,7 +48,7 @@ function makeTrigger(
     connection_id: null,
     event_type: null,
     params: null,
-    next_run_at: "2026-03-12T11:55:00Z",
+    last_run_at: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
@@ -83,8 +83,8 @@ function makeDeps() {
 }
 
 interface MockStorage extends AutomationsStorage {
-  findDueCronTriggers: ReturnType<typeof mock>;
-  updateTriggerNextRunAt: ReturnType<typeof mock>;
+  findAllActiveCronTriggers: ReturnType<typeof mock>;
+  updateTriggerLastRunAt: ReturnType<typeof mock>;
   tryAcquireRunSlot: ReturnType<typeof mock>;
   deactivateAutomation: ReturnType<typeof mock>;
   markRunFailed: ReturnType<typeof mock>;
@@ -92,8 +92,8 @@ interface MockStorage extends AutomationsStorage {
 
 function makeStorage(overrides?: Partial<MockStorage>): MockStorage {
   return {
-    findDueCronTriggers: mock(() => Promise.resolve([])),
-    updateTriggerNextRunAt: mock(() => Promise.resolve()),
+    findAllActiveCronTriggers: mock(() => Promise.resolve([])),
+    updateTriggerLastRunAt: mock(() => Promise.resolve()),
     tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
     deactivateAutomation: mock(() => Promise.resolve()),
     markRunFailed: mock(() => Promise.resolve()),
@@ -142,29 +142,64 @@ function makeWorker(opts?: {
 // ============================================================================
 
 describe("AutomationCronWorker", () => {
+  describe("isDue", () => {
+    it("returns true when trigger has never run", () => {
+      // Every 5 minutes — at 12:00 there was a scheduled time at 12:00
+      expect(AutomationCronWorker.isDue("*/5 * * * *", null, FIXED_NOW)).toBe(
+        true,
+      );
+    });
+
+    it("returns true when previous scheduled time is after last_run_at", () => {
+      // Every 5 minutes, last ran at 11:50, now 12:00 — 11:55 was missed
+      expect(
+        AutomationCronWorker.isDue(
+          "*/5 * * * *",
+          "2026-03-12T11:50:00Z",
+          FIXED_NOW,
+        ),
+      ).toBe(true);
+    });
+
+    it("returns false when next scheduled occurrence is still in the future", () => {
+      // Every 5 minutes, last ran at 12:00:01 — next after that is 12:05 > 12:00
+      expect(
+        AutomationCronWorker.isDue(
+          "*/5 * * * *",
+          "2026-03-12T12:00:01Z",
+          FIXED_NOW,
+        ),
+      ).toBe(false);
+    });
+
+    it("returns false for invalid cron expression", () => {
+      expect(AutomationCronWorker.isDue("not a cron", null, FIXED_NOW)).toBe(
+        false,
+      );
+    });
+  });
+
   describe("processNow", () => {
     it("does nothing when not started", async () => {
       const { worker, storage } = makeWorker();
       // Don't call start()
       await worker.processNow();
-      expect(storage.findDueCronTriggers).not.toHaveBeenCalled();
+      expect(storage.findAllActiveCronTriggers).not.toHaveBeenCalled();
     });
 
-    it("queries due triggers with current time", async () => {
+    it("queries all active cron triggers", async () => {
       const { worker, storage } = makeWorker();
       await worker.start();
       await worker.processNow();
-      // The second call is from processNow (first was from start/recover)
-      const calls = (storage.findDueCronTriggers as any).mock.calls;
-      const lastCall = calls[calls.length - 1];
-      expect(lastCall[0]).toBe(FIXED_NOW.toISOString());
+      expect(storage.findAllActiveCronTriggers).toHaveBeenCalled();
     });
 
-    it("fires automation for each due trigger", async () => {
-      const trigger = makeTrigger();
+    it("fires automation for due triggers", async () => {
+      // last_run_at is null so it's due
+      const trigger = makeTrigger({ last_run_at: null });
       const automation = makeAutomation();
       const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
+        findAllActiveCronTriggers: mock(() =>
           Promise.resolve([{ ...trigger, automation }]),
         ),
       });
@@ -176,17 +211,37 @@ describe("AutomationCronWorker", () => {
       expect(streamCoreFn).toHaveBeenCalled();
     });
 
-    it("schedules next run BEFORE firing automation", async () => {
+    it("does not fire triggers that are not due", async () => {
+      // Hourly cron, last ran at 12:00:01 — next after that is 13:00 > 12:00
+      const trigger = makeTrigger({
+        cron_expression: "0 * * * *",
+        last_run_at: "2026-03-12T12:00:01Z",
+      });
+      const automation = makeAutomation();
+      const storage = makeStorage({
+        findAllActiveCronTriggers: mock(() =>
+          Promise.resolve([{ ...trigger, automation }]),
+        ),
+      });
+
+      const { worker, streamCoreFn } = makeWorker({ storage });
+      await worker.start();
+      await worker.processNow();
+
+      expect(streamCoreFn).not.toHaveBeenCalled();
+    });
+
+    it("records last_run_at BEFORE firing automation", async () => {
       const callOrder: string[] = [];
-      const trigger = makeTrigger({ cron_expression: "*/5 * * * *" });
+      const trigger = makeTrigger({ last_run_at: null });
       const automation = makeAutomation();
 
       const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
+        findAllActiveCronTriggers: mock(() =>
           Promise.resolve([{ ...trigger, automation }]),
         ),
-        updateTriggerNextRunAt: mock(() => {
-          callOrder.push("scheduleNext");
+        updateTriggerLastRunAt: mock(() => {
+          callOrder.push("updateLastRunAt");
           return Promise.resolve();
         }),
       });
@@ -200,63 +255,19 @@ describe("AutomationCronWorker", () => {
       await worker.start();
       await worker.processNow();
 
-      expect(callOrder.indexOf("scheduleNext")).toBeLessThan(
+      expect(callOrder.indexOf("updateLastRunAt")).toBeLessThan(
         callOrder.indexOf("fire"),
       );
     });
 
-    it("computes correct next_run_at from cron expression", async () => {
-      const trigger = makeTrigger({ cron_expression: "0 * * * *" }); // every hour
-      const automation = makeAutomation();
-
-      const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
-          Promise.resolve([{ ...trigger, automation }]),
-        ),
-      });
-
-      const { worker } = makeWorker({ storage });
-      await worker.start();
-      await worker.processNow();
-
-      // updateTriggerNextRunAt is called during recovery AND during processNow
-      const calls = (storage.updateTriggerNextRunAt as any).mock.calls;
-      const lastCall = calls[calls.length - 1];
-      expect(lastCall[0]).toBe("trig_1");
-      // Next run should be a valid ISO date in the future
-      const nextRun = new Date(lastCall[1]);
-      expect(nextRun.getTime()).toBeGreaterThan(FIXED_NOW.getTime());
-      expect(lastCall[1]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00\.000Z$/);
-    });
-
-    it("skips scheduling when trigger has no cron expression", async () => {
-      const trigger = makeTrigger({ cron_expression: null });
-      const automation = makeAutomation();
-
-      const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
-          Promise.resolve([{ ...trigger, automation }]),
-        ),
-      });
-
-      const { worker } = makeWorker({ storage });
-      await worker.start();
-
-      // Reset mock after recovery phase
-      (storage.updateTriggerNextRunAt as any).mockClear();
-
-      await worker.processNow();
-      expect(storage.updateTriggerNextRunAt).not.toHaveBeenCalled();
-    });
-
     it("handles multiple due triggers in parallel", async () => {
-      const t1 = makeTrigger({ id: "trig_1" });
-      const t2 = makeTrigger({ id: "trig_2" });
+      const t1 = makeTrigger({ id: "trig_1", last_run_at: null });
+      const t2 = makeTrigger({ id: "trig_2", last_run_at: null });
       const a1 = makeAutomation({ id: "auto_1" });
       const a2 = makeAutomation({ id: "auto_2" });
 
       const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
+        findAllActiveCronTriggers: mock(() =>
           Promise.resolve([
             { ...t1, automation: a1 },
             { ...t2, automation: a2 },
@@ -272,21 +283,20 @@ describe("AutomationCronWorker", () => {
     });
 
     it("does not crash when one trigger fails", async () => {
-      const t1 = makeTrigger({ id: "trig_1" });
-      const t2 = makeTrigger({ id: "trig_2" });
+      const t1 = makeTrigger({ id: "trig_1", last_run_at: null });
+      const t2 = makeTrigger({ id: "trig_2", last_run_at: null });
       const a1 = makeAutomation({ id: "auto_1" });
       const a2 = makeAutomation({ id: "auto_2" });
 
       let callCount = 0;
       const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
+        findAllActiveCronTriggers: mock(() =>
           Promise.resolve([
             { ...t1, automation: a1 },
             { ...t2, automation: a2 },
           ]),
         ),
-        // First call fails (for scheduling), the rest succeed
-        updateTriggerNextRunAt: mock(() => {
+        updateTriggerLastRunAt: mock(() => {
           callCount++;
           if (callCount === 1) {
             return Promise.reject(new Error("db error"));
@@ -296,9 +306,7 @@ describe("AutomationCronWorker", () => {
       });
 
       const { worker } = makeWorker({ storage });
-      // start() will reset callCount via recovery, so just test processNow behavior
       await worker.start();
-      callCount = 0; // Reset after recovery
 
       // Should not throw
       await worker.processNow();
@@ -308,18 +316,12 @@ describe("AutomationCronWorker", () => {
   describe("coalescing", () => {
     it("coalesces concurrent processNow calls", async () => {
       let resolveProcess: (() => void) | undefined;
-      // Track calls that use the processNow timestamp (not recovery)
       let processNowCallCount = 0;
 
       const storage = makeStorage({
-        findDueCronTriggers: mock((timestamp: string) => {
-          // Recovery uses a far-future date; processNow uses FIXED_NOW
-          if (timestamp !== FIXED_NOW.toISOString()) {
-            return Promise.resolve([]);
-          }
+        findAllActiveCronTriggers: mock(() => {
           processNowCallCount++;
           if (processNowCallCount === 1) {
-            // First processNow call blocks until we release
             return new Promise<[]>((resolve) => {
               resolveProcess = () => resolve([]);
             });
@@ -331,7 +333,7 @@ describe("AutomationCronWorker", () => {
       const { worker } = makeWorker({ storage });
       await worker.start();
 
-      // Start first processNow (will block on findDueCronTriggers)
+      // Start first processNow (will block on findAllActiveCronTriggers)
       const p1 = worker.processNow();
 
       // Allow microtask to enter the blocked state
@@ -356,86 +358,17 @@ describe("AutomationCronWorker", () => {
       await worker.start();
       await worker.stop();
       await worker.processNow();
-      // Only the recovery call from start, no processNow call
-      const calls = (storage.findDueCronTriggers as any).mock.calls;
-      const processNowCalls = calls.filter(
-        (c: any) => c[0] === FIXED_NOW.toISOString(),
-      );
-      expect(processNowCalls.length).toBe(0);
+      expect(storage.findAllActiveCronTriggers).not.toHaveBeenCalled();
     });
   });
 
-  describe("recovery (start)", () => {
-    it("recomputes next_run_at for all cron triggers on start", async () => {
-      const trigger = makeTrigger({
-        id: "trig_recover",
-        cron_expression: "0 0 * * *", // daily at midnight
-        next_run_at: null, // stale
-      });
-      const automation = makeAutomation();
-
-      const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
-          Promise.resolve([{ ...trigger, automation }]),
-        ),
-      });
-
-      const { worker } = makeWorker({ storage });
-      await worker.start();
-
-      const calls = (storage.updateTriggerNextRunAt as any).mock.calls;
-      expect(calls.length).toBeGreaterThan(0);
-      const call = calls.find((c: any) => c[0] === "trig_recover");
-      expect(call).toBeDefined();
-      // Next daily midnight should be in the future
-      const nextRun = new Date(call![1]);
-      expect(nextRun.getTime()).toBeGreaterThan(FIXED_NOW.getTime());
-    });
-
-    it("skips triggers with invalid cron expressions during recovery", async () => {
-      const trigger = makeTrigger({
-        id: "trig_bad",
-        cron_expression: "not a cron",
-      });
-      const automation = makeAutomation();
-
-      const storage = makeStorage({
-        findDueCronTriggers: mock(() =>
-          Promise.resolve([{ ...trigger, automation }]),
-        ),
-      });
-
-      const { worker } = makeWorker({ storage });
-      // Should not throw
-      await worker.start();
-      // updateTriggerNextRunAt should not be called for this bad trigger
-      expect(storage.updateTriggerNextRunAt).not.toHaveBeenCalled();
-    });
-
-    it("continues even if recovery query fails", async () => {
-      const storage = makeStorage({
-        findDueCronTriggers: mock(() => Promise.reject(new Error("db down"))),
-      });
-
-      const { worker } = makeWorker({ storage });
-      // Should not throw — recovery errors are caught
-      await worker.start();
-
-      // Worker should still be running and processNow should work
-      // (though findDueCronTriggers will fail again)
-    });
-
-    it("uses a far-future timestamp to fetch all triggers", async () => {
+  describe("start", () => {
+    it("does not need recovery — start is synchronous", async () => {
       const storage = makeStorage();
       const { worker } = makeWorker({ storage });
       await worker.start();
-
-      const recoveryCall = (storage.findDueCronTriggers as any).mock.calls[0];
-      const recoveryDate = new Date(recoveryCall[0]);
-      // Should be roughly 1 year from now
-      expect(recoveryDate.getTime()).toBeGreaterThan(
-        FIXED_NOW.getTime() + 364 * 24 * 60 * 60 * 1000,
-      );
+      // No storage calls on start — due-ness is computed on each processNow
+      expect(storage.findAllActiveCronTriggers).not.toHaveBeenCalled();
     });
   });
 });

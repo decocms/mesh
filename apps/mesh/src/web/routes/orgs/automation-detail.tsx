@@ -76,6 +76,7 @@ import {
 import { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
+import { Cron } from "croner";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SELF_MCP_ALIAS_ID, useMCPClient } from "@decocms/mesh-sdk";
@@ -426,11 +427,21 @@ function TriggerRow({
           )}
         </TableCell>
         <TableCell className="text-muted-foreground text-xs">
-          {trigger.next_run_at
-            ? new Date(trigger.next_run_at).toLocaleString(undefined, {
-                timeZoneName: "short",
-              })
-            : "-"}
+          {(() => {
+            if (!isCron || !trigger.cron_expression) return "-";
+            try {
+              const nextRun = new Cron(trigger.cron_expression, {
+                timezone: "UTC",
+              }).nextRun();
+              return nextRun
+                ? nextRun.toLocaleString(undefined, {
+                    timeZoneName: "short",
+                  })
+                : "-";
+            } catch {
+              return "-";
+            }
+          })()}
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-0.5">

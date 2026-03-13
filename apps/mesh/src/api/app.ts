@@ -733,7 +733,16 @@ export async function createApp(options: CreateAppOptions = {}) {
       .where("member.organizationId", "=", orgId)
       .executeTakeFirst();
 
-    if (!membership) return null;
+    if (!membership) {
+      console.warn(
+        `[automationContextFactory] User ${userId} not found in org ${orgId} — returning null`,
+      );
+      return null;
+    }
+
+    console.log(
+      `[automationContextFactory] Resolved context: user=${userId}, org=${orgId}, role=${membership.role}`,
+    );
 
     // Create a base context (unauthenticated) and override auth/org/access fields
     const ctx = await ContextFactory.create();
@@ -803,8 +812,8 @@ export async function createApp(options: CreateAppOptions = {}) {
     { runRegistry, cancelBroadcast },
   );
 
-  // Start cron worker and poll every 5 seconds
-  const cronPollIntervalMs = 5_000;
+  // Start cron worker and poll every 30 seconds
+  const cronPollIntervalMs = 30_000;
   let cronTimer: ReturnType<typeof setInterval> | null = null;
 
   Promise.resolve(cronWorker.start())

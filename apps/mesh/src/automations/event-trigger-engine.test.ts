@@ -48,7 +48,7 @@ function makeTriggerWithAutomation(
     connection_id: "conn_1",
     event_type: "order.created",
     params: null,
-    next_run_at: null,
+    last_run_at: null,
     created_at: "2026-01-01T00:00:00Z",
     ...triggerOverrides,
     automation: makeAutomation(automationOverrides),

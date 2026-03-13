@@ -1,15 +1,16 @@
 /**
  * Automation Cron Worker
  *
- * Periodically finds due cron triggers and fires the associated automations.
+ * Periodically checks all active cron triggers and fires automations that are
+ * due. Instead of storing `next_run_at` (fragile — a failed update loses the
+ * trigger), we store `last_run_at` and compute due-ness from the cron
+ * expression. If `last_run_at` update fails, worst case the trigger fires
+ * again (much safer than losing it forever).
+ *
  * Follows the same coalescing-loop pattern as EventBusWorker:
  *   - `processNow()` is called by an external timer / polling strategy
  *   - Concurrent calls are coalesced so at most one `processDueTriggers`
  *     runs at a time, with a follow-up if notifications arrived mid-flight.
- *
- * On startup the worker recovers all cron triggers by recomputing their
- * `next_run_at` from the cron expression, protecting against stale or
- * NULL values left by a previous crash.
  */
 
 import type { StreamCoreDeps } from "@/api/routes/decopilot/stream-core";
@@ -40,7 +41,6 @@ export class AutomationCronWorker {
   ) {}
 
   async start(): Promise<void> {
-    await this.recoverMissedCronTriggers();
     this.running = true;
   }
 
@@ -71,12 +71,61 @@ export class AutomationCronWorker {
   }
 
   // --------------------------------------------------------------------------
+  // Static helpers
+  // --------------------------------------------------------------------------
+
+  /**
+   * Check if a cron trigger is due based on its expression and last_run_at.
+   *
+   * A trigger is due when the next scheduled occurrence after `last_run_at`
+   * is at or before `now`. If the trigger has never run, it's always due.
+   */
+  static isDue(
+    cronExpression: string,
+    lastRunAt: string | null,
+    now: Date,
+  ): boolean {
+    try {
+      const cron = new Cron(cronExpression, { timezone: "UTC" });
+
+      // Never run → always due
+      if (!lastRunAt) return true;
+
+      // Compute the next scheduled occurrence after last_run_at
+      const nextScheduled = cron.nextRun(new Date(lastRunAt));
+      return nextScheduled != null && nextScheduled.getTime() <= now.getTime();
+    } catch {
+      return false;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Private helpers
   // --------------------------------------------------------------------------
 
   private async processDueTriggers(): Promise<void> {
-    const now = this.now().toISOString();
-    const dueTriggers = await this.storage.findDueCronTriggers(now);
+    const now = this.now();
+    const allTriggers = await this.storage.findAllActiveCronTriggers();
+
+    const dueTriggers = allTriggers.filter(
+      (t) =>
+        t.cron_expression &&
+        AutomationCronWorker.isDue(t.cron_expression, t.last_run_at, now),
+    );
+
+    if (dueTriggers.length > 0) {
+      console.log(
+        `[AutomationCron] Found ${dueTriggers.length} due trigger(s) at ${now.toISOString()}:`,
+        dueTriggers.map((t) => ({
+          triggerId: t.id,
+          automationId: t.automation_id,
+          automationName: t.automation.name,
+          cronExpr: t.cron_expression,
+          lastRunAt: t.last_run_at,
+          automationActive: t.automation.active,
+        })),
+      );
+    }
 
     await Promise.allSettled(
       dueTriggers.map(({ automation, ...trigger }) =>
@@ -89,10 +138,18 @@ export class AutomationCronWorker {
     trigger: AutomationTrigger,
     automation: Automation,
   ): Promise<void> {
-    // Schedule next run FIRST (crash safety)
-    await this.scheduleNextRun(trigger);
+    console.log(
+      `[AutomationCron] Firing trigger ${trigger.id} for automation "${automation.name}" (${automation.id})`,
+    );
 
-    await fireAutomation({
+    // Record last_run_at FIRST (crash safety — if this fails, the trigger
+    // fires again next cycle, which is safe)
+    await this.storage.updateTriggerLastRunAt(
+      trigger.id,
+      this.now().toISOString(),
+    );
+
+    const result = await fireAutomation({
       automation,
       triggerId: trigger.id,
       storage: this.storage,
@@ -102,59 +159,10 @@ export class AutomationCronWorker {
       globalSemaphore: this.globalSemaphore,
       deps: this.deps,
     });
-  }
 
-  private async scheduleNextRun(trigger: AutomationTrigger): Promise<void> {
-    if (!trigger.cron_expression) return;
-    const cron = new Cron(trigger.cron_expression, { timezone: "UTC" });
-    const nextRun = cron.nextRun();
-    if (nextRun) {
-      await this.storage.updateTriggerNextRunAt(
-        trigger.id,
-        nextRun.toISOString(),
-      );
-    }
-  }
-
-  /**
-   * Recover all cron triggers on startup by recomputing `next_run_at`.
-   * Uses a far-future timestamp so `findDueCronTriggers` returns every
-   * active cron trigger, not just those that are overdue right now.
-   */
-  private async recoverMissedCronTriggers(): Promise<void> {
-    try {
-      const now = this.now();
-      const allDue = await this.storage.findDueCronTriggers(
-        new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      );
-
-      await Promise.allSettled(
-        allDue
-          .filter(({ cron_expression }) => !!cron_expression)
-          .map(({ automation: _automation, ...trigger }) => {
-            try {
-              const cron = new Cron(trigger.cron_expression!, {
-                timezone: "UTC",
-              });
-              const nextRun = cron.nextRun();
-              if (nextRun) {
-                return this.storage.updateTriggerNextRunAt(
-                  trigger.id,
-                  nextRun.toISOString(),
-                );
-              }
-            } catch {
-              // Skip triggers with invalid cron expressions
-            }
-            return Promise.resolve();
-          }),
-      );
-      console.log(`[AutomationCron] Recovered ${allDue.length} cron triggers`);
-    } catch (err) {
-      console.error(
-        "[AutomationCron] Error recovering missed cron triggers:",
-        err,
-      );
-    }
+    console.log(
+      `[AutomationCron] fireAutomation result for trigger ${trigger.id}:`,
+      result,
+    );
   }
 }
