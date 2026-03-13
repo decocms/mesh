@@ -411,6 +411,35 @@ export async function streamCore(
           },
           onError: async (error) => {
             console.error("[decopilot:stream] Error", error);
+            if (!llmCallLogged) {
+              const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
+              llmCallLogged = true;
+              recordLlmCallMetrics({
+                ctx,
+                organizationId: input.organizationId,
+                modelId: input.models.thinking.id,
+                durationMs,
+                isError: true,
+                errorType: error instanceof Error ? error.name : "Error",
+              });
+              monitorLlmCall({
+                ctx,
+                organizationId: input.organizationId,
+                agentId: input.agent.id,
+                modelId: input.models.thinking.id,
+                modelTitle:
+                  input.models.thinking.title ?? input.models.thinking.id,
+                credentialId: input.models.credentialId,
+                threadId: mem.thread.id,
+                durationMs,
+                isError: true,
+                errorMessage:
+                  error instanceof Error ? error.message : String(error),
+                userId: input.userId,
+                requestId: ctx.metadata.requestId,
+                userAgent: ctx.metadata.userAgent ?? null,
+              });
+            }
             throw error;
           },
         });
@@ -548,37 +577,6 @@ export async function streamCore(
           return error instanceof Error ? error.message : String(error);
         }
         console.error("[decopilot] stream error:", error);
-
-        // Only log if streamText.onFinish hasn't already recorded this call.
-        // createUIMessageStream.onError can also fire for stream-layer failures
-        // (buffer, SSE) that are unrelated to the LLM call itself.
-        if (llmCallStartTime !== undefined && !llmCallLogged) {
-          const durationMs = Date.now() - llmCallStartTime;
-          recordLlmCallMetrics({
-            ctx,
-            organizationId: input.organizationId,
-            modelId: input.models.thinking.id,
-            durationMs,
-            isError: true,
-            errorType: error instanceof Error ? error.name : "Error",
-          });
-          monitorLlmCall({
-            ctx,
-            organizationId: input.organizationId,
-            agentId: input.agent.id,
-            modelId: input.models.thinking.id,
-            modelTitle: input.models.thinking.title ?? input.models.thinking.id,
-            credentialId: input.models.credentialId,
-            threadId: mem.thread.id,
-            durationMs,
-            isError: true,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
-            userId: input.userId,
-            requestId: ctx.metadata.requestId,
-            userAgent: ctx.metadata.userAgent ?? null,
-          });
-        }
 
         runRegistry
           .execute({
