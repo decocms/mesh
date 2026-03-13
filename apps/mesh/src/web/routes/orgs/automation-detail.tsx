@@ -562,8 +562,11 @@ function SettingsTab({
           mode: "passthrough",
         },
         models: {
-          credentialId: values.credential_id,
-          thinking: { id: values.model_id },
+          credentialId:
+            values.credential_id && values.model_id ? values.credential_id : "",
+          thinking: {
+            id: values.credential_id && values.model_id ? values.model_id : "",
+          },
         },
         messages: tiptapDocToMessages(tiptapDoc),
         temperature: 0,
