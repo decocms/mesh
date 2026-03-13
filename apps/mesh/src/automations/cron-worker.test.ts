@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { AutomationsStorage } from "@/storage/automations";
 import type { Automation, AutomationTrigger } from "@/storage/types";
 import type { MeshContext } from "@/core/mesh-context";

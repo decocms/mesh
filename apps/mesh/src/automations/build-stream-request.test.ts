@@ -9,13 +9,12 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
     name: "Test",
     active: true,
     created_by: "user_1",
-    agent: JSON.stringify({ id: "agent_1", name: "My Agent" }),
+    agent: JSON.stringify({ id: "agent_1", mode: "passthrough" }),
     messages: JSON.stringify([
       { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
     ]),
     models: JSON.stringify({
-      main: { id: "gpt-4" },
-      thinking: { id: "gpt-4" },
+      thinking: { id: "gpt-4", title: "GPT-4" },
       credentialId: "cred_1",
     }),
     temperature: 0.7,
@@ -33,11 +32,10 @@ describe("buildStreamRequest", () => {
       { id: "m1", role: "user", parts: [{ type: "text", text: "hello" }] },
     ]);
     expect(result.models).toEqual({
-      main: { id: "gpt-4" },
-      thinking: { id: "gpt-4" },
+      thinking: { id: "gpt-4", title: "GPT-4" },
       credentialId: "cred_1",
     });
-    expect(result.agent).toEqual({ id: "agent_1", name: "My Agent" });
+    expect(result.agent).toEqual({ id: "agent_1", mode: "passthrough" });
   });
 
   it("sets organizationId from automation", () => {
