@@ -65,7 +65,7 @@ export default function AutomationsPage() {
         agent: { id: "", mode: "passthrough" },
         messages: [],
         models: {
-          connectionId: "",
+          credentialId: "",
           thinking: { id: "" },
         },
         temperature: 0.5,

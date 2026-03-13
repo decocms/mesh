@@ -515,7 +515,7 @@ function SettingsTab({
       active: automation.active,
       agent_id: automation.agent?.id ?? "",
       model_connection_id:
-        automation.models?.connectionId || chatCredentialId || "",
+        automation.models?.credentialId || chatCredentialId || "",
       model_id: automation.models?.thinking?.id || chatModel?.modelId || "",
     },
   });
@@ -542,7 +542,7 @@ function SettingsTab({
           mode: "passthrough",
         },
         models: {
-          connectionId: values.model_connection_id,
+          credentialId: values.model_connection_id,
           thinking: { id: values.model_id },
         },
         messages: tiptapDocToMessages(tiptapDoc),
@@ -722,7 +722,7 @@ export default function AutomationDetailPage() {
   const [, startTransition] = useTransition();
 
   // Resolve model for Run Now
-  const connectionId = automation?.models?.connectionId;
+  const connectionId = automation?.models?.credentialId;
   const modelId = automation?.models?.thinking?.id;
   const { models } = useAiProviderModels(connectionId || undefined);
   const resolvedModel = models.find((m) => m.modelId === modelId) ?? null;

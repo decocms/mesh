@@ -46,7 +46,7 @@ export interface AutomationDetail {
   agent: { id: string; mode: string };
   messages: unknown[];
   models: {
-    connectionId: string;
+    credentialId: string;
     thinking: { id: string; [key: string]: unknown };
     [key: string]: unknown;
   };

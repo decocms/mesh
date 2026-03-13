@@ -43,7 +43,7 @@ export const AUTOMATION_UPDATE = defineTool({
       .optional(),
     models: z
       .object({
-        connectionId: z.string(),
+        credentialId: z.string(),
         thinking: z.object({
           id: z.string(),
           capabilities: z
