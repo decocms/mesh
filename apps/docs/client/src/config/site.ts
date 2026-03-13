@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "Deco Studio Documentation",
+  name: "deco Studio Documentation",
   description:
     "Hire specialized agents, give them access to your tools, and let them deliver real projects — with planning, verification, and observability built in.",
   url: "https://your-domain.com",
