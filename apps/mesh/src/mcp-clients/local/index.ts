@@ -68,8 +68,9 @@ function detectPreview(
   const hasIndexHtml = existsSync(join(rootPath, "index.html"));
   const hasPackageJson = existsSync(join(rootPath, "package.json"));
 
-  // 1. Static site: has index.html but no package.json — always serve directly
-  if (hasIndexHtml && !hasPackageJson) {
+  // 1. Static site: has index.html at root — serve directly
+  //    Even if there's a package.json, a root index.html means it can be previewed as-is.
+  if (hasIndexHtml) {
     return {
       mode: "static",
       staticUrl: `${baseFileUrl}/index.html`,
