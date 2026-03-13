@@ -228,7 +228,7 @@ export const KEYS = {
       "automation-runs",
       organizationId,
       automationId,
-      ...(triggerIds ?? []),
+      ...[...(triggerIds ?? [])].sort(),
     ] as const,
 
   // Projects (scoped by organization)

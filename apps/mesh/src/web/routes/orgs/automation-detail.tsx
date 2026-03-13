@@ -522,11 +522,13 @@ function SettingsTab({
       active: automation.active,
       agent_id: automation.agent?.id ?? "",
       model_connection_id:
-        (automation.models?.connectionId as string) ||
-        (!automation.models?.thinking?.id ? chatCredentialId || "" : ""),
+        automation.models?.credentialId ||
+        (!automation.models?.credentialId && !automation.models?.thinking?.id
+          ? chatCredentialId || ""
+          : ""),
       model_id:
         automation.models?.thinking?.id ||
-        (!(automation.models?.connectionId as string)
+        (!automation.models?.credentialId && !automation.models?.thinking?.id
           ? chatModel?.modelId || ""
           : ""),
     },

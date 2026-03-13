@@ -128,7 +128,7 @@ export class AutomationCronWorker {
         new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       );
 
-      await Promise.all(
+      await Promise.allSettled(
         allDue
           .filter(({ cron_expression }) => !!cron_expression)
           .map(({ automation: _automation, ...trigger }) => {

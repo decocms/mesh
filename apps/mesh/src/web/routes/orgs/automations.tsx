@@ -69,7 +69,7 @@ export default function AutomationsPage() {
           thinking: { id: "" },
         },
         temperature: 0.5,
-        active: false,
+        active: true,
       });
       navigate({
         to: "/$org/$project/automations/$automationId",
