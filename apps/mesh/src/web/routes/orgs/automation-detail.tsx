@@ -504,7 +504,8 @@ function SettingsTab({
 }) {
   const updateMutation = useAutomationUpdate();
 
-  // Use the current chat's key + model as initial defaults when not configured
+  // Use the chat's effective credential/model as fallback (mirrors chat context
+  // which auto-selects the first available key).
   const { credentialId: chatCredentialId, model: chatModel } = useChat();
 
   const initialTiptapDoc =
@@ -527,27 +528,18 @@ function SettingsTab({
     }
   };
 
+  const defaultCredentialId =
+    automation.models?.credentialId || chatCredentialId || "";
+  const defaultModelId =
+    automation.models?.thinking?.id || chatModel?.modelId || "";
+
   const form = useForm<SettingsFormData>({
     defaultValues: {
       name: automation.name,
       active: automation.active,
       agent_id: automation.agent?.id ?? "",
-      credential_id:
-        automation.models?.credentialId ||
-        (!automation.models?.credentialId &&
-        !automation.models?.thinking?.id &&
-        chatCredentialId &&
-        chatModel?.modelId
-          ? chatCredentialId
-          : ""),
-      model_id:
-        automation.models?.thinking?.id ||
-        (!automation.models?.credentialId &&
-        !automation.models?.thinking?.id &&
-        chatCredentialId &&
-        chatModel?.modelId
-          ? chatModel.modelId
-          : ""),
+      credential_id: defaultCredentialId,
+      model_id: defaultModelId,
     },
   });
 
