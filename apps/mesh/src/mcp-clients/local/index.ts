@@ -65,7 +65,19 @@ function detectPreview(
   rootPath: string,
   baseFileUrl: string,
 ): PreviewDetection {
-  // 1. Check .deco/preview.json first (user-configured)
+  const hasIndexHtml = existsSync(join(rootPath, "index.html"));
+  const hasPackageJson = existsSync(join(rootPath, "package.json"));
+
+  // 1. Static site: has index.html but no package.json — always serve directly
+  if (hasIndexHtml && !hasPackageJson) {
+    return {
+      mode: "static",
+      staticUrl: `${baseFileUrl}/index.html`,
+      hasConfig: false,
+    };
+  }
+
+  // 2. Check .deco/preview.json (user-configured, only relevant for dev-server projects)
   const configPath = join(rootPath, ".deco", "preview.json");
   let savedConfig: PreviewConfig | null = null;
   if (existsSync(configPath)) {
@@ -80,19 +92,6 @@ function detectPreview(
       command: savedConfig.command,
       port: savedConfig.port,
       hasConfig: true,
-    };
-  }
-
-  // 2. Check for static index.html (no build step needed)
-  const hasIndexHtml = existsSync(join(rootPath, "index.html"));
-  const hasPackageJson = existsSync(join(rootPath, "package.json"));
-
-  if (hasIndexHtml && !hasPackageJson) {
-    // Pure static site — serve via file route
-    return {
-      mode: "static",
-      staticUrl: `${baseFileUrl}/index.html`,
-      hasConfig: false,
     };
   }
 
