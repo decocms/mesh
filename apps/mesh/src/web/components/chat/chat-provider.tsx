@@ -52,7 +52,9 @@ function ThreadListSync() {
       isFetchingNextPage: taskManager.isFetchingNextPage ?? false,
       fetchNextPage: taskManager.fetchNextPage,
     });
-    chatStore.mergeMessages(activeThreadId, taskManager.messages);
+    if (taskManager.activeTaskId === activeThreadId) {
+      chatStore.mergeMessages(activeThreadId, taskManager.messages);
+    }
 
     if (taskManager.activeTaskId !== activeThreadId) {
       taskManager.setActiveTaskId(activeThreadId);
