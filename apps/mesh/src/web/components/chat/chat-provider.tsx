@@ -42,21 +42,22 @@ function ThreadListSync() {
   const taskManager = useTaskManager();
   const activeThreadId = useActiveThreadId();
 
-  // Sync threads into store
-  chatStore.setThreads(taskManager.tasks);
-  chatStore.setPagination({
-    hasNextPage: taskManager.hasNextPage ?? false,
-    isFetchingNextPage: taskManager.isFetchingNextPage ?? false,
-    fetchNextPage: taskManager.fetchNextPage,
+  // Sync threads, pagination, and messages into store after render
+  // to avoid "cannot update component while rendering another" warnings.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    chatStore.setThreads(taskManager.tasks);
+    chatStore.setPagination({
+      hasNextPage: taskManager.hasNextPage ?? false,
+      isFetchingNextPage: taskManager.isFetchingNextPage ?? false,
+      fetchNextPage: taskManager.fetchNextPage,
+    });
+    chatStore.mergeMessages(activeThreadId, taskManager.messages);
+
+    if (taskManager.activeTaskId !== activeThreadId) {
+      taskManager.setActiveTaskId(activeThreadId);
+    }
   });
-
-  // Sync messages for active thread
-  chatStore.mergeMessages(activeThreadId, taskManager.messages);
-
-  // Sync active task ID changes from store back to taskManager
-  if (taskManager.activeTaskId !== activeThreadId) {
-    taskManager.setActiveTaskId(activeThreadId);
-  }
 
   // Expose taskManager's updateMessagesCache to the store
   const taskManagerRef = useRef(taskManager);
@@ -206,24 +207,27 @@ function ReactSyncer() {
   const storedVirtualMcpId = useChatStore((s) => s.selectedAgent?.id ?? null);
   const contextPrompt = useContextHook(storedVirtualMcpId);
 
-  // Sync into store
-  chatStore.setVirtualMcps(virtualMcps);
-  chatStore.setAllModelsConnections(keys);
-  chatStore.setContextPrompt(contextPrompt);
-  chatStore.setToolApprovalLevel(preferences.toolApprovalLevel);
-  chatStore.setNotificationHandler(
-    showNotification,
-    preferences.enableNotifications ?? false,
-  );
-  chatStore.setDefaultModel(
-    defaultModel,
-    !chatStore.getSnapshot().selectedModel && isModelsQueryLoading,
-  );
+  // Sync into store after render to avoid "cannot update component
+  // while rendering another" warnings.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    chatStore.setVirtualMcps(virtualMcps);
+    chatStore.setAllModelsConnections(keys);
+    chatStore.setContextPrompt(contextPrompt);
+    chatStore.setToolApprovalLevel(preferences.toolApprovalLevel);
+    chatStore.setNotificationHandler(
+      showNotification,
+      preferences.enableNotifications ?? false,
+    );
+    chatStore.setDefaultModel(
+      defaultModel,
+      !chatStore.getSnapshot().selectedModel && isModelsQueryLoading,
+    );
 
-  // Sync effective credential ID
-  if (effectiveKeyId !== credentialId) {
-    chatStore.setCredentialId(effectiveKeyId);
-  }
+    if (effectiveKeyId !== credentialId) {
+      chatStore.setCredentialId(effectiveKeyId);
+    }
+  });
 
   return null;
 }
