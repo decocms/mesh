@@ -16,7 +16,7 @@ interface UnifiedAuthFormProps {
 
 type FormView = "signIn" | "signUp" | "forgotPassword";
 
-export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
+export function UnifiedAuthForm({ redirectUrl = "/" }: UnifiedAuthFormProps) {
   const { emailAndPassword, resetPassword } = useAuthConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,9 +65,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
     },
     onSuccess: () => {
       globalThis.localStorage?.setItem("hasLoggedIn", "true");
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      }
+      window.location.href = redirectUrl;
     },
   });
 
