@@ -411,6 +411,9 @@ export async function streamCore(
           },
           onError: async (error) => {
             console.error("[decopilot:stream] Error", error);
+            if (registrySignal.aborted) {
+              throw error;
+            }
             if (!llmCallLogged) {
               const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
               llmCallLogged = true;
