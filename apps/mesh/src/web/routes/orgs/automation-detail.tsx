@@ -643,7 +643,9 @@ function SettingsTab({
     <>
       <ViewActions>
         <SaveActions
-          onSave={handleSave}
+          onSave={async () => {
+            await handleSave();
+          }}
           onUndo={handleUndo}
           isDirty={isDirty}
           isSaving={updateMutation.isPending}
