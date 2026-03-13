@@ -36,6 +36,7 @@ import {
 import authRoutes from "./routes/auth";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
+import aiGatewayRoutes from "./routes/ai-gateway";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
@@ -1114,6 +1115,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Downstream token management routes
   app.route("/api", downstreamTokenRoutes);
+  app.route("/api", aiGatewayRoutes);
 
   // ============================================================================
   // Server Plugin Routes

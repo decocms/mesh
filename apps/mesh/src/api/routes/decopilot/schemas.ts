@@ -27,6 +27,7 @@ const ProviderEnum = z.enum([
   "deepseek",
   "openrouter",
   "openai-compatible",
+  "deco",
 ]);
 
 const ProviderSchema = ProviderEnum.optional().nullable();
