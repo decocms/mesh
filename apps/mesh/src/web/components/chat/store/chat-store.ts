@@ -151,19 +151,11 @@ class ChatStore {
 
   // ---- Lifecycle ----
 
-  /**
-   * Initialise the store with project context. Safe to call during render
-   * (skips notify — subscribers pick up the state on their next read).
-   * Pass `silent: false` when calling outside of render to notify subscribers.
-   */
-  init(
-    ctx: {
-      org: { id: string; slug: string };
-      locator: ProjectLocator;
-      user: { name: string; image?: string } | null;
-    },
-    { silent = true }: { silent?: boolean } = {},
-  ): void {
+  init(ctx: {
+    org: { id: string; slug: string };
+    locator: ProjectLocator;
+    user: { name: string; image?: string } | null;
+  }): void {
     const { org, locator, user } = ctx;
 
     const storedModel = readSelectedModel(locator);
@@ -190,9 +182,7 @@ class ChatStore {
     // Store the virtual MCP id so setVirtualMcps can resolve it
     this._pendingVirtualMcpId = storedVirtualMcpId;
 
-    if (!silent) {
-      this.notify();
-    }
+    this.notify();
   }
 
   private _pendingVirtualMcpId: string | null = null;

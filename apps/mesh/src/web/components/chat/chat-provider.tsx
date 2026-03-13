@@ -240,29 +240,18 @@ export function ChatProvider({ children }: PropsWithChildren) {
   const { locator, org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
+  const isInitialized = useChatStore((s) => !!s.org.slug);
 
-  // Init synchronously during render so the store has org/locator
-  // before children (ChatBridge) render — avoids empty slug in transport URL.
-  const initRef = useRef<string | null>(null);
-  if (initRef.current !== locator) {
-    if (initRef.current !== null) {
-      chatStore.reset();
-    }
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (!org) return;
+
     chatStore.init({
       org,
       locator,
       user: user ? { name: user.name, image: user.image ?? undefined } : null,
     });
-    initRef.current = locator;
-  }
-
-  // Cleanup on unmount
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    return () => {
-      chatStore.reset();
-      initRef.current = null;
-    };
+    return () => chatStore.reset();
   }, [locator]);
 
   const activeThreadId = useActiveThreadId();
@@ -276,7 +265,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
           <TaskStreamManager key={activeThreadId} threadId={activeThreadId} />
         </Suspense>
       </ErrorBoundary>
-      <ChatBridge />
+      {isInitialized && <ChatBridge />}
       {children}
     </>
   );
