@@ -76,9 +76,16 @@ export async function fireAutomation(opts: {
     deps,
   } = opts;
 
+  console.log(
+    `[fireAutomation] Starting for automation "${automation.name}" (${automation.id}), triggerId=${triggerId}`,
+  );
+
   // 0. Acquire global semaphore
   const globalSlot = globalSemaphore.tryAcquire();
   if (!globalSlot) {
+    console.warn(
+      `[fireAutomation] SKIPPED "${automation.name}" — global concurrency limit`,
+    );
     return { skipped: "global_limit" };
   }
 
@@ -89,6 +96,9 @@ export async function fireAutomation(opts: {
       automation.created_by,
     );
     if (!ctx) {
+      console.warn(
+        `[fireAutomation] SKIPPED "${automation.name}" — creator ${automation.created_by} not in org ${automation.organization_id}, deactivating`,
+      );
       // Creator no longer valid — deactivate automation
       await storage.deactivateAutomation(automation.id);
       return { skipped: "creator_invalid" };
@@ -101,8 +111,15 @@ export async function fireAutomation(opts: {
       config.maxConcurrentPerAutomation,
     );
     if (!threadId) {
+      console.warn(
+        `[fireAutomation] SKIPPED "${automation.name}" — per-automation concurrency limit (max ${config.maxConcurrentPerAutomation})`,
+      );
       return { skipped: "concurrency_limit" };
     }
+
+    console.log(
+      `[fireAutomation] Acquired run slot threadId=${threadId} for "${automation.name}"`,
+    );
 
     // 3. Build request & fire with timeout
     const abortController = new AbortController();
@@ -134,6 +151,10 @@ export async function fireAutomation(opts: {
       await consumeStreamCore(result);
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[fireAutomation] ERROR "${automation.name}" threadId=${threadId}:`,
+        runError,
+      );
       try {
         await storage.markRunFailed(threadId);
       } catch (_) {
@@ -144,6 +165,9 @@ export async function fireAutomation(opts: {
     }
 
     if (runError) return { threadId, error: runError };
+    console.log(
+      `[fireAutomation] SUCCESS "${automation.name}" threadId=${threadId}`,
+    );
     return { threadId };
   } finally {
     globalSlot.release();

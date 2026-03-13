@@ -22,7 +22,7 @@ export function buildStreamRequest(
     ...m,
     id: crypto.randomUUID(),
   }));
-  return {
+  const request: StreamCoreInput = {
     messages,
     models: JSON.parse(automation.models),
     agent: { ...JSON.parse(automation.agent), mode: "passthrough" },
@@ -33,4 +33,18 @@ export function buildStreamRequest(
     triggerId: triggerId ?? undefined,
     threadId,
   };
+
+  console.log(`[buildStreamRequest] automation="${automation.name}":`, {
+    threadId,
+    triggerId,
+    agentId: request.agent?.id,
+    agentMode: request.agent?.mode,
+    credentialId: request.models?.credentialId,
+    modelId: request.models?.thinking?.id,
+    messageCount: request.messages.length,
+    userId: request.userId,
+    orgId: request.organizationId,
+  });
+
+  return request;
 }

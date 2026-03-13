@@ -59,9 +59,19 @@ export class EventTriggerEngine {
     organizationId: string;
     automationDepth?: number;
   }): Promise<void> {
+    const depth = event.automationDepth ?? 0;
+
     // Prevent infinite recursion
-    if ((event.automationDepth ?? 0) >= EventTriggerEngine.MAX_AUTOMATION_DEPTH)
+    if (depth >= EventTriggerEngine.MAX_AUTOMATION_DEPTH) {
+      console.warn(
+        `[EventTrigger] SKIPPED event ${event.type} from ${event.source} — max depth ${depth}`,
+      );
       return;
+    }
+
+    console.log(
+      `[EventTrigger] Processing event: type=${event.type}, source=${event.source}, org=${event.organizationId}, depth=${depth}`,
+    );
 
     // 1. Find matching triggers
     const matchingTriggers = await this.storage.findActiveEventTriggers(
@@ -70,13 +80,28 @@ export class EventTriggerEngine {
       event.organizationId,
     );
 
+    console.log(
+      `[EventTrigger] Found ${matchingTriggers.length} matching trigger(s) for ${event.type}`,
+      matchingTriggers.map((t) => ({
+        triggerId: t.id,
+        automationId: t.automation_id,
+        automationName: t.automation.name,
+      })),
+    );
+
     // 2. Filter by params
     const triggersToFire = matchingTriggers.filter((trigger) =>
       this.paramsMatch(trigger.params, event.data),
     );
 
+    if (triggersToFire.length !== matchingTriggers.length) {
+      console.log(
+        `[EventTrigger] After param filter: ${triggersToFire.length}/${matchingTriggers.length} triggers will fire`,
+      );
+    }
+
     // 3. Fire each
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       triggersToFire.map((trigger) =>
         fireAutomation({
           automation: trigger.automation,
@@ -91,6 +116,21 @@ export class EventTriggerEngine {
         }),
       ),
     );
+
+    for (const [i, result] of results.entries()) {
+      const trigger = triggersToFire[i]!;
+      if (result.status === "fulfilled") {
+        console.log(
+          `[EventTrigger] Trigger ${trigger.id} ("${trigger.automation.name}") result:`,
+          result.value,
+        );
+      } else {
+        console.error(
+          `[EventTrigger] Trigger ${trigger.id} ("${trigger.automation.name}") REJECTED:`,
+          result.reason,
+        );
+      }
+    }
   }
 
   /**
