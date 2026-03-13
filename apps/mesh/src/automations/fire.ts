@@ -139,6 +139,10 @@ export async function fireAutomation(opts: {
       }
       request.abortSignal = abortController.signal;
 
+      console.info(
+        `[Automation] Thread ${threadId}: request has ${request.messages.length} messages (roles: [${request.messages.map((m) => m.role).join(", ")}])`,
+      );
+
       const result = await streamCoreFn(request, ctx, {
         runRegistry: deps.runRegistry,
         streamBuffer: undefined,

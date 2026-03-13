@@ -197,6 +197,15 @@ export async function streamCore(
     const systemMessages = input.messages.filter((m) => m.role === "system");
     const requestMessage = input.messages.find((m) => m.role !== "system");
 
+    console.info(
+      `[decopilot:stream] Thread ${mem.thread.id}: input has ${input.messages.length} messages (roles: [${input.messages.map((m) => m.role).join(", ")}]), requestMessage role=${requestMessage?.role ?? "MISSING"}, id=${requestMessage?.id ?? "MISSING"}`,
+    );
+    if (!requestMessage) {
+      console.warn(
+        `[decopilot:stream] Thread ${mem.thread.id}: No user message found in input.messages! triggerId=${input.triggerId}, messages=${JSON.stringify(input.messages)}`,
+      );
+    }
+
     await saveMessagesToThread(requestMessage);
 
     // Close MCP clients on abort

@@ -13,8 +13,12 @@ export function buildStreamRequest(
   triggerId: string | null,
   threadId: string,
 ): StreamCoreInput {
+  const messages = JSON.parse(automation.messages);
+  console.info(
+    `[Automation:buildRequest] Thread ${threadId}: automation ${automation.id} has ${messages.length} stored messages (roles: [${messages.map((m: { role: string }) => m.role).join(", ")}])`,
+  );
   return {
-    messages: JSON.parse(automation.messages),
+    messages,
     models: JSON.parse(automation.models),
     agent: JSON.parse(automation.agent),
     temperature: automation.temperature ?? 0.5,
