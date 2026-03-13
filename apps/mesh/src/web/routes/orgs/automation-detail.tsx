@@ -97,7 +97,7 @@ interface SettingsFormData {
   name: string;
   active: boolean;
   agent_id: string;
-  model_connection_id: string;
+  credential_id: string;
   model_id: string;
 }
 
@@ -521,21 +521,27 @@ function SettingsTab({
       name: automation.name,
       active: automation.active,
       agent_id: automation.agent?.id ?? "",
-      model_connection_id:
+      credential_id:
         automation.models?.credentialId ||
-        (!automation.models?.credentialId && !automation.models?.thinking?.id
-          ? chatCredentialId || ""
+        (!automation.models?.credentialId &&
+        !automation.models?.thinking?.id &&
+        chatCredentialId &&
+        chatModel?.modelId
+          ? chatCredentialId
           : ""),
       model_id:
         automation.models?.thinking?.id ||
-        (!automation.models?.credentialId && !automation.models?.thinking?.id
-          ? chatModel?.modelId || ""
+        (!automation.models?.credentialId &&
+        !automation.models?.thinking?.id &&
+        chatCredentialId &&
+        chatModel?.modelId
+          ? chatModel.modelId
           : ""),
     },
   });
 
   const watchAgentId = form.watch("agent_id");
-  const watchConnectionId = form.watch("model_connection_id");
+  const watchConnectionId = form.watch("credential_id");
   const watchModelId = form.watch("model_id");
 
   const { models, isLoading: isModelsLoading } = useAiProviderModels(
@@ -556,7 +562,7 @@ function SettingsTab({
           mode: "passthrough",
         },
         models: {
-          credentialId: values.model_connection_id,
+          credentialId: values.credential_id,
           thinking: { id: values.model_id },
         },
         messages: tiptapDocToMessages(tiptapDoc),
@@ -641,7 +647,7 @@ function SettingsTab({
                   isLoading={isModelsLoading}
                   credentialId={watchConnectionId || null}
                   onCredentialChange={(id) => {
-                    form.setValue("model_connection_id", id ?? "", {
+                    form.setValue("credential_id", id ?? "", {
                       shouldDirty: true,
                     });
                     form.setValue("model_id", "", { shouldDirty: true });
