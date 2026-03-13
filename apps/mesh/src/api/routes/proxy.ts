@@ -44,11 +44,8 @@ const app = new Hono<{ Variables: Variables }>();
 // MCP Tool Call Configuration
 // ============================================================================
 
-// Re-export for backward compatibility
-export {
-  MCP_TOOL_CALL_TIMEOUT_MS,
-  MCP_UPSTREAM_TOOL_CALL_TIMEOUT_MS,
-} from "@/core/constants";
+// Re-export for decopilot/helpers.ts
+export { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 
 // ============================================================================
 // MCP Proxy Factory
