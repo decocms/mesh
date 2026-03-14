@@ -307,9 +307,24 @@ export async function streamCore(
               const connections = await ctx.storage.connections.list(
                 organization.id,
               );
+              const { DownstreamTokenStorage } = await import(
+                "@/storage/downstream-token"
+              );
+              const tokenStorage = new DownstreamTokenStorage(
+                ctx.db,
+                ctx.vault,
+              );
               for (const conn of connections) {
                 // Skip the self connection (Mesh MCP)
                 if (conn.id.endsWith("_self")) continue;
+                // Skip connections that already have an OAuth token
+                const existingToken = await tokenStorage
+                  .get(conn.id)
+                  .catch(() => null);
+                if (existingToken?.accessToken) continue;
+                // Skip connections with a stored connection_token
+                if (conn.connection_token) continue;
+
                 const health = await ctx.storage.connections.testConnection(
                   conn.id,
                 );
