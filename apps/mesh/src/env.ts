@@ -181,7 +181,10 @@ function logConfiguration(e: Env) {
 
   section("Webhooks");
   row("SEED_ORG_WEBHOOK_URL", redactUrl(e.SEED_ORG_WEBHOOK_URL));
-  row("SEED_ORG_WEBHOOK_SECRET", redactUrl(e.SEED_ORG_WEBHOOK_SECRET));
+  row(
+    "SEED_ORG_WEBHOOK_SECRET",
+    e.SEED_ORG_WEBHOOK_SECRET ? "[redacted]" : "not set",
+  );
 
   section("Transport");
   row("UNSAFE_ALLOW_STDIO_TRANSPORT", e.UNSAFE_ALLOW_STDIO_TRANSPORT);
