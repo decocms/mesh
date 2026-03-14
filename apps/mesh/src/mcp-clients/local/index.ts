@@ -166,6 +166,19 @@ function registerPreviewTool(
           uri: previewResourceUri,
           mimeType: "text/html;profile=mcp-app",
           text: getPreviewHtml(rootPath, baseFileUrl),
+          _meta: {
+            ui: {
+              csp: {
+                frameDomains: ["http://localhost:*", "http://127.0.0.1:*"],
+                connectDomains: [
+                  "http://localhost:*",
+                  "http://127.0.0.1:*",
+                  "ws://localhost:*",
+                  "ws://127.0.0.1:*",
+                ],
+              },
+            },
+          },
         },
       ],
     }),

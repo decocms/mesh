@@ -375,17 +375,14 @@ app.get("/watch/:connectionId", async (c) => {
 // ---- File Serving (Presigned URLs) ----
 
 app.get("/files/:connectionId/*", async (c) => {
+  // In local mode, the connection ID acts as a capability token.
+  // Skip auth because this is loaded inside sandboxed iframes that
+  // may not carry session cookies.
   const ctx = c.var.meshContext;
-  requireAuth(ctx);
-
   const connectionId = c.req.param("connectionId");
-  const organizationId = ctx.organization?.id;
-  if (!organizationId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
 
   const connection = await ctx.storage.connections.findById(connectionId);
-  if (!connection || connection.organization_id !== organizationId) {
+  if (!connection) {
     return c.json({ error: "Connection not found" }, 404);
   }
 
