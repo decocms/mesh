@@ -259,50 +259,15 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     return { connected, auth };
   }
 
-  async function getGithubStatus() {
-    // Check if gh CLI is authenticated
-    const { ok: ghOk } = await runCli("gh", ["auth", "status"]);
-    if (!ghOk) return { connected: false, auth: null };
-
-    // Get username via API
-    let user: string | undefined;
-    try {
-      const { ok, stdout } = await runCli("gh", [
-        "api",
-        "user",
-        "--jq",
-        ".login",
-      ]);
-      if (ok) user = stdout.trim();
-    } catch {
-      // Username not available
-    }
-
-    // Check if the MCP is registered in Claude Code
-    const { ok: mcpRegistered } = await runCli("claude", [
-      "mcp",
-      "get",
-      "github",
-    ]);
-
-    return {
-      connected: mcpRegistered,
-      auth: user ? { user } : null,
-    };
-  }
-
   app.get("/:org/decopilot/connect-studio/status", async (c) => {
     const ctx = c.get("meshContext");
     if (!ctx.auth?.user?.id) {
       throw new HTTPException(401, { message: "Authentication required" });
     }
 
-    const [claude, github] = await Promise.all([
-      getClaudeStatus(),
-      getGithubStatus(),
-    ]);
+    const claude = await getClaudeStatus();
 
-    return c.json({ claude, github });
+    return c.json({ claude });
   });
 
   app.post("/:org/decopilot/connect-studio", async (c) => {
@@ -353,37 +318,6 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       return c.json({ success: true });
     }
 
-    if (target === "github") {
-      // Get token from local gh CLI
-      const { ok, stdout: token } = await runCli("gh", ["auth", "token"]);
-      if (!ok || !token.trim()) {
-        throw new HTTPException(400, {
-          message:
-            "GitHub CLI not authenticated. Run `gh auth login` in your terminal.",
-        });
-      }
-
-      const mcpConfig = JSON.stringify({
-        type: "http",
-        url: "https://api.githubcopilot.com/mcp/",
-        headers: {
-          Authorization: `Bearer ${token.trim()}`,
-        },
-      });
-
-      const result = await runCli(
-        "claude",
-        ["mcp", "add-json", "github", mcpConfig, "--scope", "user"],
-        10000,
-      );
-      if (!result.ok) {
-        throw new HTTPException(500, {
-          message: "Failed to register GitHub MCP",
-        });
-      }
-      return c.json({ success: true });
-    }
-
     throw new HTTPException(400, { message: `Unknown target: ${target}` });
   });
 
@@ -399,8 +333,6 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     let mcpName: string;
     if (target === "claude-code") {
       mcpName = "deco-studio";
-    } else if (target === "github") {
-      mcpName = "github";
     } else {
       throw new HTTPException(400, { message: `Unknown target: ${target}` });
     }
