@@ -235,6 +235,35 @@ function MessagePart({
     case "data-tool-metadata":
     case "data-tool-subtask-metadata":
       return null;
+    case "data-connection-auth": {
+      // Auth card emitted via MCP elicitation (Claude Code path)
+      const authData = (part as { data?: Record<string, unknown> }).data;
+      if (authData) {
+        const connectionId = (authData.connectionId as string) ?? "";
+        return (
+          <ConnectionAuthPart
+            part={
+              {
+                type: "tool-CONNECTION_AUTHENTICATE" as ToolUIPart["type"],
+                toolCallId: `elicit-${connectionId}`,
+                state: "output-available" as const,
+                output: {
+                  connection_id: connectionId,
+                  title: (authData.title as string) ?? "Authenticate",
+                  icon: (authData.icon as string) ?? null,
+                  description: null,
+                  connection_url: (authData.connectionUrl as string) ?? null,
+                  status: "inactive",
+                  needs_auth: true,
+                  auth_type: "oauth",
+                },
+              } as ToolUIPart
+            }
+          />
+        );
+      }
+      return null;
+    }
     default: {
       const fallback = part as ToolUIPart;
       // Inline auth card for CONNECTION_AUTHENTICATE tool

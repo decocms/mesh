@@ -38,6 +38,13 @@ export type ChatMessage = UIMessage<
     "thread-title": {
       title: string;
     };
+    "connection-auth": {
+      connectionId: string;
+      title: string;
+      icon: string | null;
+      connectionUrl: string | null;
+      elicitationId: string;
+    };
   },
   {
     [K in keyof ReturnType<typeof getBuiltInTools>]: InferUITool<
