@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import { createTestDatabase } from "../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../database";
 import { createTestSchema } from "./test-helpers";
 import { SqlThreadStorage } from "./threads";
 import type { ThreadMessage } from "./types";
@@ -9,7 +10,7 @@ describe("SqlThreadStorage", () => {
   let storage: SqlThreadStorage;
 
   beforeAll(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
     // Insert org and user for thread FK constraints
     await database.db
