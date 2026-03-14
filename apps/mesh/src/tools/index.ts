@@ -343,17 +343,18 @@ COLLECTION_REGISTRY_APP_GET({ id: "deco/google-gmail" })
 CONNECTION_INSTALL({ title: "Gmail", connection_url: "https://mcp.gmail.example.com/sse", icon: "https://..." })
 // → returns { connection_id: "conn_abc123", needs_auth: true }
 
-// 4. Authenticate (if needs_auth is true)
+// 4. ALWAYS call CONNECTION_AUTHENTICATE after install
 CONNECTION_AUTHENTICATE({ connection_id: "conn_abc123" })
-// → shows inline auth card. Wait for the user to click and complete OAuth.
+// → renders an inline auth card the user can click. STOP here and wait for the user.
+// Do NOT proceed or say "ready to use" until the user completes authentication.
 
-// 5. Now use the new connection's tools via CODE_EXECUTION
+// 5. After user authenticates, use the new connection's tools via CODE_EXECUTION
 CODE_EXECUTION_SEARCH_TOOLS({ query: "send email" })
 CODE_EXECUTION_DESCRIBE_TOOLS({ tools: ["gmail_send_message"] })
 CODE_EXECUTION_RUN_CODE({ code: "export default async function(tools) { ... }" })
 \`\`\`
 
-If auth fails or the user cancels, use \`CONNECTION_AUTH_STATUS({ connection_id: "conn_abc123" })\` to check the state, and offer to retry.
+**Important**: Always call \`CONNECTION_AUTHENTICATE\` after installing a new connection, even if the install response is ambiguous. Most external services require OAuth. Do NOT tell the user "ready to use" until they've clicked the auth card and authenticated. If auth fails or the user cancels, use \`CONNECTION_AUTH_STATUS\` to check state and offer to retry.
 
 ## General guidelines
 
