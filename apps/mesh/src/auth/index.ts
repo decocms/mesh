@@ -186,7 +186,12 @@ const plugins = [
   organization({
     organizationCreation: {
       afterCreate: async (data) => {
-        await seedOrgDb(data.organization.id, data.member.userId);
+        await seedOrgDb(
+          data.organization.id,
+          data.member.userId,
+          data.organization.slug,
+          data.organization.name,
+        );
       },
     },
     ac,

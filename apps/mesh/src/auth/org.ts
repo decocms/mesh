@@ -81,12 +81,40 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
   ];
 }
 
+interface OrgCreatedEvent {
+  organizationId: string;
+  slug: string;
+  name: string;
+  createdBy: string;
+  timestamp: string;
+}
+
+async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
+  const webhookUrl = env.SEED_ORG_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    });
+  } catch (err) {
+    console.warn("Failed to notify SEED_ORG_WEBHOOK_URL:", err);
+  }
+}
+
 /**
  * Create default MCP connections and org-admin project for a new organization
  * This is deferred to run after the Better Auth request completes
  * to avoid deadlocks when issuing tokens
  */
-export async function seedOrgDb(organizationId: string, createdBy: string) {
+export async function seedOrgDb(
+  organizationId: string,
+  createdBy: string,
+  slug: string,
+  name: string,
+) {
   try {
     const database = getDb();
     const vault = new CredentialVault(env.ENCRYPTION_KEY);
@@ -164,6 +192,13 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
         });
       }),
     );
+    notifyOrgCreated({
+      organizationId,
+      slug,
+      name,
+      createdBy,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
   } catch (err) {
     console.error("Error creating default MCP connections:", err);
   }
