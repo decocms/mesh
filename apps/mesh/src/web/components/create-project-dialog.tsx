@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ORG_ADMIN_PROJECT_SLUG,
@@ -30,10 +30,18 @@ import {
 import { Input } from "@deco/ui/components/input.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { KEYS } from "@/web/lib/query-keys";
 import { generateSlug, isValidSlug } from "@/web/lib/slug";
 import { ColorPicker } from "./color-picker";
 import type { Project } from "@/web/hooks/use-project";
+import type { PublicConfig } from "@/api/routes/public-config";
+
+// ---- Types ----
+
+type Step = "select" | "blank";
+
+// ---- Blank Project Form Schema ----
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
@@ -43,19 +51,200 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+type ProjectCreateOutput = { project: Project };
+
+// ---- Dialog Props ----
 
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called when "From Folder" is selected — triggers native OS picker directly */
+  onPickFolder?: () => void;
 }
-
-type ProjectCreateOutput = { project: Project };
 
 export function CreateProjectDialog({
   open,
   onOpenChange,
+  onPickFolder,
 }: CreateProjectDialogProps) {
   const { org } = useProjectContext();
+
+  // Check if local mode
+  const { data: publicConfig } = useQuery<PublicConfig>({
+    queryKey: KEYS.publicConfig(),
+  });
+  const isLocal = publicConfig?.localMode === true;
+
+  const getDefaultStep = (): Step => (isLocal ? "select" : "blank");
+  const [step, setStep] = useState<Step>(getDefaultStep());
+
+  // Reset step when dialog opens/closes
+  const handleOpenChange = (newOpen: boolean) => {
+    if (newOpen) {
+      setStep(getDefaultStep());
+    }
+    onOpenChange(newOpen);
+  };
+
+  const handleSelectFolder = () => {
+    if (onPickFolder) {
+      handleOpenChange(false);
+      onPickFolder();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        {step === "select" && (
+          <ModeSelectionInDialog
+            onSelectFolder={handleSelectFolder}
+            onSelectBlank={() => setStep("blank")}
+          />
+        )}
+        {step === "blank" && (
+          <BlankStep
+            org={org}
+            onBack={isLocal ? () => setStep("select") : undefined}
+            onClose={() => handleOpenChange(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- Mode Selection Step ----
+
+function ModeSelectionInDialog({
+  onSelectFolder,
+  onSelectBlank,
+}: {
+  onSelectFolder: () => void;
+  onSelectBlank: () => void;
+}) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>New Project</DialogTitle>
+        <DialogDescription>
+          Choose how to create your project.
+        </DialogDescription>
+      </DialogHeader>
+      <ModeSelectionCards
+        onSelectFolder={onSelectFolder}
+        onSelectBlank={onSelectBlank}
+      />
+    </>
+  );
+}
+
+export function ModeSelectionCards({
+  onSelectFolder,
+  onSelectBlank,
+  folderPicking,
+}: {
+  onSelectFolder: () => void;
+  onSelectBlank: () => void;
+  folderPicking?: boolean;
+}) {
+  return (
+    <div className="grid gap-3">
+      <button
+        type="button"
+        onClick={onSelectFolder}
+        disabled={folderPicking}
+        className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-foreground/20 hover:bg-accent/50 transition-colors text-left disabled:opacity-50 disabled:cursor-wait"
+      >
+        <div className="flex items-center justify-center size-10 rounded-lg bg-emerald-500/10 text-emerald-600 shrink-0">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+          </svg>
+        </div>
+        <div>
+          <div className="text-sm font-medium">
+            {folderPicking ? "Opening…" : "From Folder"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Connect a local directory
+          </div>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        disabled
+        className="flex items-center gap-4 p-4 rounded-lg border border-border opacity-50 cursor-not-allowed text-left"
+      >
+        <div className="flex items-center justify-center size-10 rounded-lg bg-muted text-muted-foreground shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+          </svg>
+        </div>
+        <div className="flex items-center gap-2">
+          <div>
+            <div className="text-sm font-medium">From GitHub</div>
+            <div className="text-xs text-muted-foreground">
+              Import from repository
+            </div>
+          </div>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            Soon
+          </Badge>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={onSelectBlank}
+        className="flex items-center gap-4 p-4 rounded-lg border border-border hover:border-foreground/20 hover:bg-accent/50 transition-colors text-left"
+      >
+        <div className="flex items-center justify-center size-10 rounded-lg bg-muted text-muted-foreground shrink-0">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        <div>
+          <div className="text-sm font-medium">Blank Project</div>
+          <div className="text-xs text-muted-foreground">
+            Start from scratch
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// ---- Blank Step (existing form) ----
+
+function BlankStep({
+  org,
+  onBack,
+  onClose,
+}: {
+  org: { id: string; slug: string; name: string };
+  onBack?: () => void;
+  onClose: () => void;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
@@ -100,15 +289,9 @@ export function CreateProjectDialog({
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: KEYS.projects(org.id) });
       toast.success("Project created successfully");
-      onOpenChange(false);
-      form.reset({
-        name: "",
-        slug: "",
-        description: "",
-        bannerColor: "#3B82F6",
-      });
+      onClose();
+      form.reset();
       setSlugManuallyEdited(false);
-      // Navigate to the new project
       navigate({
         to: "/$org/$project",
         params: { org: org.slug, project: result.project.slug },
@@ -123,7 +306,6 @@ export function CreateProjectDialog({
   });
 
   const onSubmit = async (data: FormData) => {
-    // Validate slug before submitting
     if (!isValidSlug(data.slug)) {
       form.setError("slug", {
         message: "Slug must be lowercase alphanumeric with hyphens only",
@@ -139,14 +321,11 @@ export function CreateProjectDialog({
     await mutation.mutateAsync(data);
   };
 
-  // Auto-generate slug from name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
     form.setValue("name", name);
-
     if (!slugManuallyEdited) {
-      const slug = generateSlug(name);
-      form.setValue("slug", slug);
+      form.setValue("slug", generateSlug(name));
     }
   };
 
@@ -161,149 +340,174 @@ export function CreateProjectDialog({
   const bannerColor = form.watch("bannerColor");
   const slug = form.watch("slug");
   const name = form.watch("name");
-
   const isSlugReserved = slug === ORG_ADMIN_PROJECT_SLUG;
   const isSlugInvalid = slug.length > 0 && !isValidSlug(slug);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>
-            Set up a new project in {org.name}. You can configure plugins and
-            settings after creation.
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Banner Preview */}
-            <div
-              className="h-20 rounded-lg relative"
-              style={{ backgroundColor: bannerColor ?? "#3B82F6" }}
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground mr-2"
             >
-              <div className="absolute -bottom-4 left-4">
-                <div
-                  className="size-12 rounded-lg border-2 border-background flex items-center justify-center text-lg font-semibold text-white"
-                  style={{ backgroundColor: bannerColor ?? "#3B82F6" }}
-                >
-                  {name?.charAt(0)?.toUpperCase() || "P"}
-                </div>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+          Create New Project
+        </DialogTitle>
+        <DialogDescription>
+          Set up a new project in {org.name}. You can configure plugins and
+          settings after creation.
+        </DialogDescription>
+      </DialogHeader>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Banner Preview */}
+          <div
+            className="h-20 rounded-lg relative"
+            style={{ backgroundColor: bannerColor ?? "#3B82F6" }}
+          >
+            <div className="absolute -bottom-4 left-4">
+              <div
+                className="size-12 rounded-lg border-2 border-background flex items-center justify-center text-lg font-semibold text-white"
+                style={{ backgroundColor: bannerColor ?? "#3B82F6" }}
+              >
+                {name?.charAt(0)?.toUpperCase() || "P"}
               </div>
             </div>
+          </div>
 
-            {/* Banner Color */}
-            <div className="space-y-2 pt-4">
-              <Label>Banner Color</Label>
-              <ColorPicker
-                value={bannerColor ?? null}
-                onChange={(color) => form.setValue("bannerColor", color)}
-              />
-            </div>
+          <div className="space-y-2 pt-4">
+            <Label>Banner Color</Label>
+            <ColorPicker
+              value={bannerColor ?? null}
+              onChange={(color) => form.setValue("bannerColor", color)}
+            />
+          </div>
 
-            {/* Name */}
-            <FormField
-              control={form.control}
-              name="name"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Project Name *</FormLabel>
+          <FormField
+            control={form.control}
+            name="name"
+            render={() => (
+              <FormItem>
+                <FormLabel>Project Name *</FormLabel>
+                <FormControl>
+                  <Input
+                    value={name}
+                    onChange={handleNameChange}
+                    placeholder="My Awesome Project"
+                    autoFocus
+                    disabled={mutation.isPending}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="slug"
+            render={() => (
+              <FormItem>
+                <FormLabel>Slug *</FormLabel>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    /{org.slug}/
+                  </span>
                   <FormControl>
                     <Input
-                      value={name}
-                      onChange={handleNameChange}
-                      placeholder="My Awesome Project"
-                      autoFocus
+                      value={slug}
+                      onChange={handleSlugChange}
+                      placeholder="my-awesome-project"
+                      className="flex-1"
                       disabled={mutation.isPending}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                </div>
+                {isSlugReserved && (
+                  <p className="text-xs text-destructive">
+                    &quot;{ORG_ADMIN_PROJECT_SLUG}&quot; is a reserved slug
+                  </p>
+                )}
+                {isSlugInvalid && !isSlugReserved && (
+                  <p className="text-xs text-destructive">
+                    Slug must be lowercase alphanumeric with hyphens only
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-            {/* Slug */}
-            <FormField
-              control={form.control}
-              name="slug"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Slug *</FormLabel>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      /{org.slug}/
-                    </span>
-                    <FormControl>
-                      <Input
-                        value={slug}
-                        onChange={handleSlugChange}
-                        placeholder="my-awesome-project"
-                        className="flex-1"
-                        disabled={mutation.isPending}
-                      />
-                    </FormControl>
-                  </div>
-                  {isSlugReserved && (
-                    <p className="text-xs text-destructive">
-                      "{ORG_ADMIN_PROJECT_SLUG}" is a reserved slug
-                    </p>
-                  )}
-                  {isSlugInvalid && !isSlugReserved && (
-                    <p className="text-xs text-destructive">
-                      Slug must be lowercase alphanumeric with hyphens only
-                    </p>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="What is this project for?"
+                    rows={2}
+                    disabled={mutation.isPending}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-            {/* Description */}
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="What is this project for?"
-                      rows={2}
-                      disabled={mutation.isPending}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
+          <DialogFooter>
+            {onBack && (
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={onBack}
                 disabled={mutation.isPending}
               >
-                Cancel
+                Back
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  mutation.isPending ||
-                  isSlugReserved ||
-                  isSlugInvalid ||
-                  !name ||
-                  !slug
-                }
-              >
-                {mutation.isPending ? "Creating..." : "Create Project"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                mutation.isPending ||
+                isSlugReserved ||
+                isSlugInvalid ||
+                !name ||
+                !slug
+              }
+            >
+              {mutation.isPending ? "Creating..." : "Create Project"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
   );
 }
