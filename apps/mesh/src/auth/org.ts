@@ -90,9 +90,11 @@ interface OrgCreatedEvent {
   timestamp: string;
 }
 
+// maybe should be an event bus event (port Bus to NATS)
 async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
   const webhookUrl = env.SEED_ORG_WEBHOOK_URL;
-  if (!webhookUrl) return;
+  const webhookSecret = env.SEED_ORG_WEBHOOK_SECRET;
+  if (!webhookUrl || !webhookSecret) return;
 
   try {
     const token = await issueSystemToken(
@@ -104,6 +106,7 @@ async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        "X-Webhook-Secret": webhookSecret,
       },
       body: JSON.stringify(event),
     });
