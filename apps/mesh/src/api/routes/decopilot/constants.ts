@@ -60,10 +60,10 @@ CODE_EXECUTION_RUN_CODE({ code: "export default async function(tools) { return a
 When the user asks for capabilities that aren't connected yet (e.g. "can you send emails?"):
 
 1. **Search the registry** — use \`REGISTRY_ITEM_SEARCH({ query: "gmail", limit: 5 })\` to find MCPs in the store. Then get full details with \`COLLECTION_REGISTRY_APP_GET({ id: "deco/google-gmail" })\`.
-2. **CONNECTION_INSTALL** — install it as a connection using the URL from the registry result
-3. **CONNECTION_AUTHENTICATE** — if it needs OAuth, this shows an inline "Authenticate" button the user can click right in the chat. **Wait for them to complete it before proceeding.**
+2. **CONNECTION_INSTALL** — install it as a connection using the URL from the registry result.
+3. **CONNECTION_AUTHENTICATE** — **always call this after install**. Most services need OAuth. This renders an inline "Authenticate" button the user can click. **Stop and wait** — do NOT say "ready to use" until the user completes authentication.
 
-After auth, the connection's tools become available via CODE_EXECUTION_SEARCH_TOOLS.
+After the user authenticates via the card, the connection's tools become available via CODE_EXECUTION_SEARCH_TOOLS.
 
 ## Connection management
 

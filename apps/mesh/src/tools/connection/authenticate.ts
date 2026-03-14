@@ -70,6 +70,11 @@ export const CONNECTION_AUTHENTICATE = defineTool({
       authType = "configuration";
     } else if (!isHealthy && connection.connection_token) {
       authType = "token";
+    } else if (!isHealthy && connection.connection_url) {
+      // Connection is unhealthy with no stored auth config — likely needs OAuth.
+      // Default to "oauth" so the frontend renders the auth card and triggers
+      // MCP OAuth discovery flow against the connection URL.
+      authType = "oauth";
     }
 
     const needsAuth = !isHealthy && authType !== "none";
