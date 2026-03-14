@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createTestDatabase } from "../database/test-db";
-import { closeDatabase, type MeshDatabase } from "../database";
+import {
+  createTestDatabase,
+  closeTestDatabase,
+  type TestDatabase,
+} from "../database/test-db";
 import { ConnectionStorage } from "./connection";
 import { CredentialVault } from "../encryption/credential-vault";
 import { createTestSchema, seedCommonTestFixtures } from "./test-helpers";
 
 describe("ConnectionStorage", () => {
-  let database: MeshDatabase;
+  let database: TestDatabase;
   let storage: ConnectionStorage;
   let vault: CredentialVault;
 
   beforeAll(async () => {
-    database = createTestDatabase();
+    database = await createTestDatabase();
     vault = new CredentialVault(CredentialVault.generateKey());
     storage = new ConnectionStorage(database.db, vault);
     await createTestSchema(database.db);
@@ -19,7 +22,7 @@ describe("ConnectionStorage", () => {
   });
 
   afterAll(async () => {
-    await closeDatabase(database);
+    await closeTestDatabase(database);
   });
 
   describe("create", () => {

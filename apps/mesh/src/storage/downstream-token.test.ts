@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createTestDatabase } from "../database/test-db";
-import { closeDatabase, type MeshDatabase } from "../database";
+import {
+  createTestDatabase,
+  closeTestDatabase,
+  type TestDatabase,
+} from "../database/test-db";
 import { sql } from "kysely";
 import { createTestSchema, seedCommonTestFixtures } from "./test-helpers";
 import { CredentialVault } from "../encryption/credential-vault";
@@ -10,11 +13,11 @@ import {
 } from "./downstream-token";
 
 describe("DownstreamTokenStorage", () => {
-  let database: MeshDatabase;
+  let database: TestDatabase;
   let storage: DownstreamTokenStorage;
 
   beforeAll(async () => {
-    database = createTestDatabase();
+    database = await createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
 
@@ -33,7 +36,7 @@ describe("DownstreamTokenStorage", () => {
   });
 
   afterAll(async () => {
-    await closeDatabase(database);
+    await closeTestDatabase(database);
   });
 
   it("should fail-safe invalid expiration date as expired", async () => {
