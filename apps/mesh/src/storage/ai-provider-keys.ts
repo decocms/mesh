@@ -106,7 +106,6 @@ export class AIProviderKeyStorage {
       .onConflict((oc) =>
         oc.columns(["organization_id", "provider_id", "key_hash"]).doUpdateSet({
           label: params.label,
-          created_by: params.createdBy,
         }),
       )
       .returning([
