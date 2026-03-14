@@ -1,4 +1,4 @@
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { generateConnectionId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import {
@@ -114,7 +114,7 @@ export function CollectionTab({
     const now = new Date().toISOString();
     await actions.create.mutateAsync({
       ...item,
-      id: generatePrefixedId("conn"),
+      id: generateConnectionId(`${item.title} (Copy)`),
       title: `${item.title} (Copy)`,
       created_at: now,
       updated_at: now,
@@ -153,7 +153,7 @@ export function CollectionTab({
 
     const now = new Date().toISOString();
     const newItem: BaseCollectionEntity = {
-      id: generatePrefixedId("conn"),
+      id: generateConnectionId("New Item"),
       title: "New Item",
       description: "A brief description of the item",
       created_at: now,

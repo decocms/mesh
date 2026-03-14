@@ -1,4 +1,4 @@
-import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { generateConnectionId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
@@ -1724,7 +1724,7 @@ function OrgMcpsContent() {
       return;
     }
 
-    const newId = generatePrefixedId("conn");
+    const newId = generateConnectionId(data.title);
     // Create new connection
     await actions.create.mutateAsync({
       id: newId,
