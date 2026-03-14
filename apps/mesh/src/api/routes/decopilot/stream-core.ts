@@ -298,11 +298,6 @@ export async function streamCore(
             });
           }
 
-          // TODO: Implement auth cards for Claude Code path using MCP elicitation
-          // (URL mode). CONNECTION_AUTHENTICATE should trigger an elicitation
-          // request that the onElicitation handler renders as an auth card.
-          // See: MCP protocol ElicitRequestURLParams, Agent SDK onElicitation.
-
           return;
         }
 
