@@ -5,6 +5,7 @@ import {
   ORG_ADMIN_PROJECT_NAME,
   ORG_ADMIN_PROJECT_SLUG,
 } from "@decocms/mesh-sdk";
+import { issueSystemToken } from "./jwt";
 import { getBaseUrl } from "@/core/server-constants";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
@@ -94,9 +95,16 @@ async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
   if (!webhookUrl) return;
 
   try {
+    const token = await issueSystemToken(
+      "org-created-webhook",
+      event.organizationId,
+    );
     const response = await fetch(webhookUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(event),
     });
     if (!response.ok) {
@@ -108,6 +116,10 @@ async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
     console.warn("Failed to notify SEED_ORG_WEBHOOK_URL:", err);
   }
 }
+
+const SHOULD_NOTIFY_ORG_CREATED =
+  env.SEED_ORG_WEBHOOK_URL !== undefined &&
+  typeof env.SEED_ORG_WEBHOOK_URL === "string";
 
 /**
  * Create default MCP connections and org-admin project for a new organization
@@ -197,13 +209,15 @@ export async function seedOrgDb(
         });
       }),
     );
-    notifyOrgCreated({
-      organizationId,
-      slug,
-      name,
-      createdBy,
-      timestamp: new Date().toISOString(),
-    }).catch(() => {});
+    if (SHOULD_NOTIFY_ORG_CREATED) {
+      notifyOrgCreated({
+        organizationId,
+        slug,
+        name,
+        createdBy,
+        timestamp: new Date().toISOString(),
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error("Error creating default MCP connections:", err);
   }

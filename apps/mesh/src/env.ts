@@ -47,6 +47,7 @@ const envSchema = z
       .optional()
       .transform((v) => (v === "" ? undefined : v))
       .pipe(z.string().url().optional()),
+    SEED_ORG_WEBHOOK_SECRET: z.string().default(""),
 
     // Transport
     UNSAFE_ALLOW_STDIO_TRANSPORT: zBooleanString,
@@ -180,6 +181,7 @@ function logConfiguration(e: Env) {
 
   section("Webhooks");
   row("SEED_ORG_WEBHOOK_URL", redactUrl(e.SEED_ORG_WEBHOOK_URL));
+  row("SEED_ORG_WEBHOOK_SECRET", redactUrl(e.SEED_ORG_WEBHOOK_SECRET));
 
   section("Transport");
   row("UNSAFE_ALLOW_STDIO_TRANSPORT", e.UNSAFE_ALLOW_STDIO_TRANSPORT);
