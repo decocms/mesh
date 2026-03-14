@@ -16,8 +16,11 @@ import {
   spyOn,
   mock,
 } from "bun:test";
-import { createTestDatabase } from "../../database/test-db";
-import { closeDatabase, type MeshDatabase } from "../../database";
+import {
+  createTestDatabase,
+  closeTestDatabase,
+  type TestDatabase,
+} from "../../database/test-db";
 import {
   createTestSchema,
   seedCommonTestFixtures,
@@ -93,7 +96,7 @@ function createMockEventBus(): EventBus {
   };
 }
 
-let database: MeshDatabase;
+let database: TestDatabase;
 let app: Awaited<ReturnType<typeof createApp>>;
 const connectionMap = new Map<string, string>();
 
@@ -102,7 +105,7 @@ describe("MCP OAuth Proxy E2E", () => {
     // Restore all mocks in case other tests mocked global.fetch
     mock.restore();
 
-    database = createTestDatabase();
+    database = await createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
     app = await createApp({ database, eventBus: createMockEventBus() });
@@ -173,7 +176,7 @@ describe("MCP OAuth Proxy E2E", () => {
   });
 
   afterAll(async () => {
-    await closeDatabase(database);
+    await closeTestDatabase(database);
   });
 
   // ===========================================================================

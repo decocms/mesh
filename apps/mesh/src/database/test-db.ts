@@ -11,6 +11,10 @@ import { Pool } from "pg";
 import type { Database as DatabaseSchema } from "../storage/types";
 import type { MeshDatabase } from "./index";
 
+export interface TestDatabase extends MeshDatabase {
+  pglite: PGlite;
+}
+
 /**
  * Create an in-memory PGlite-backed MeshDatabase for tests.
  *
@@ -18,8 +22,9 @@ import type { MeshDatabase } from "./index";
  * runtime code. The `pool` field is a dummy Pool that should not be used
  * directly — tests that need LISTEN/NOTIFY should use real PostgreSQL.
  */
-export function createTestDatabase(): MeshDatabase {
+export async function createTestDatabase(): Promise<TestDatabase> {
   const pglite = new PGlite();
+  await pglite.waitReady;
   const dialect = new KyselyPGlite(pglite).dialect;
   const db = new Kysely<DatabaseSchema>({ dialect });
 
@@ -30,5 +35,18 @@ export function createTestDatabase(): MeshDatabase {
   // Immediately end the dummy pool so it doesn't try to connect
   pool.end();
 
-  return { type: "postgres", db, pool };
+  return { type: "postgres", db, pool, pglite };
+}
+
+/**
+ * Close a test database, ensuring PGlite WASM resources are properly released.
+ */
+export async function closeTestDatabase(database: TestDatabase): Promise<void> {
+  await database.db.destroy();
+  if (database.pglite && !database.pglite.closed) {
+    await database.pglite.close();
+  }
+  if (!database.pool.ended) {
+    await database.pool.end();
+  }
 }

@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { createTestDatabase } from "../database/test-db";
-import { closeDatabase, type MeshDatabase } from "../database";
+import {
+  createTestDatabase,
+  closeTestDatabase,
+  type TestDatabase,
+} from "../database/test-db";
 import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
 import { createApp } from "./app";
@@ -54,17 +57,17 @@ function createMockEventBus(): EventBus {
 }
 
 describe("Hono App", () => {
-  let database: MeshDatabase;
+  let database: TestDatabase;
   let app: Awaited<ReturnType<typeof createApp>>;
 
   beforeEach(async () => {
-    database = createTestDatabase();
+    database = await createTestDatabase();
     await createTestSchema(database.db);
     app = await createApp({ database, eventBus: createMockEventBus() });
   });
 
   afterEach(async () => {
-    await closeDatabase(database);
+    await closeTestDatabase(database);
   });
   describe("health check", () => {
     it("should respond to health check", async () => {
