@@ -1,7 +1,8 @@
 /* oxlint-disable no-explicit-any */
 import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
 import type { Meter, Tracer } from "@opentelemetry/api";
-import { closeDatabase, createDatabase, type MeshDatabase } from "../database";
+import { createTestDatabase } from "../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../database";
 import { createTestSchema } from "../storage/test-helpers";
 import { createMeshContextFactory } from "./context-factory";
 import type { BetterAuthInstance } from "./mesh-context";
@@ -33,7 +34,7 @@ describe("createMeshContextFactory", () => {
   let database: MeshDatabase;
 
   beforeAll(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
   });
 

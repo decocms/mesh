@@ -9,7 +9,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { auth } from "../auth";
-import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import { createTestDatabase } from "../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../database";
 import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
 import type { Permission } from "../storage/types";
@@ -117,7 +118,7 @@ describe("Access Control Integration Tests", () => {
 
   beforeEach(async () => {
     // Create in-memory database
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
 
     // Create app instance with test database and mock event bus

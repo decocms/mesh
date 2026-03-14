@@ -2,11 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { CredentialVault } from "../../encryption/credential-vault";
-import {
-  createDatabase,
-  closeDatabase,
-  type MeshDatabase,
-} from "../../database";
+import { createTestDatabase } from "../../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../../database";
 import {
   createTestSchema,
   seedCommonTestFixtures,
@@ -18,7 +15,7 @@ describe("Downstream Token Routes", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
 

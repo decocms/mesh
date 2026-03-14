@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import { createTestDatabase } from "../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../database";
 import { sql } from "kysely";
 import { createTestSchema, seedCommonTestFixtures } from "./test-helpers";
 import { CredentialVault } from "../encryption/credential-vault";
@@ -13,7 +14,7 @@ describe("DownstreamTokenStorage", () => {
   let storage: DownstreamTokenStorage;
 
   beforeAll(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
 

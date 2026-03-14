@@ -8,7 +8,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { RequestInfo } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, vi } from "bun:test";
 import { auth } from "../auth";
-import { createDatabase, closeDatabase, type MeshDatabase } from "../database";
+import { createTestDatabase } from "../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../database";
 import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
 import { createApp } from "./app";
@@ -48,7 +49,7 @@ describe("MCP Integration", () => {
 
     beforeEach(async () => {
       // Create test database and app
-      database = createDatabase(":memory:");
+      database = createTestDatabase();
       await createTestSchema(database.db);
       app = await createApp({ database, eventBus: createMockEventBus() });
 

@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "bun:test";
-import {
-  createDatabase,
-  closeDatabase,
-  type MeshDatabase,
-} from "../../database";
+import { createTestDatabase } from "../../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../../database";
 import {
   createTestSchema,
   seedCommonTestFixtures,
@@ -45,7 +42,7 @@ describe("Connection Tools", () => {
   let vault: CredentialVault;
 
   beforeAll(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
 

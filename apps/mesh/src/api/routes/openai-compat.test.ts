@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import {
-  createDatabase,
-  closeDatabase,
-  type MeshDatabase,
-} from "../../database";
+import { createTestDatabase } from "../../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../../database";
 import { createTestSchema } from "../../storage/test-helpers";
 import openaiCompatRoutes from "./openai-compat";
 
@@ -52,7 +49,7 @@ describe("OpenAI-compat: Schema Validation", () => {
   let mockHasPermission: ReturnType<typeof mock>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
 
     mockFindById = mock(async () => createMockConnection());
@@ -206,7 +203,7 @@ describe("OpenAI-compat: Authentication", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
   });
 
@@ -332,7 +329,7 @@ describe("OpenAI-compat: Authorization", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
   });
 
@@ -391,7 +388,7 @@ describe("OpenAI-compat: Tools Schema", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
 
     const ctx = {
@@ -505,7 +502,7 @@ describe("OpenAI-compat: Response Format", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
 
     const ctx = {
@@ -608,7 +605,7 @@ describe("OpenAI-compat: Message Formats", () => {
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
 
   beforeEach(async () => {
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
 
     const ctx = {

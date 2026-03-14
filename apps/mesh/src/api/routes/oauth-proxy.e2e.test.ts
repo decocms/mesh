@@ -16,11 +16,8 @@ import {
   spyOn,
   mock,
 } from "bun:test";
-import {
-  createDatabase,
-  closeDatabase,
-  type MeshDatabase,
-} from "../../database";
+import { createTestDatabase } from "../../database/test-db";
+import { closeDatabase, type MeshDatabase } from "../../database";
 import {
   createTestSchema,
   seedCommonTestFixtures,
@@ -105,7 +102,7 @@ describe("MCP OAuth Proxy E2E", () => {
     // Restore all mocks in case other tests mocked global.fetch
     mock.restore();
 
-    database = createDatabase(":memory:");
+    database = createTestDatabase();
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
     app = await createApp({ database, eventBus: createMockEventBus() });
