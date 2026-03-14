@@ -71,10 +71,10 @@ export const CONNECTION_AUTHENTICATE = defineTool({
     } else if (!isHealthy && connection.connection_token) {
       authType = "token";
     } else if (!isHealthy && connection.connection_url) {
-      // Connection is unhealthy with no stored auth config — likely needs OAuth.
-      // Default to "oauth" so the frontend renders the auth card and triggers
-      // MCP OAuth discovery flow against the connection URL.
-      authType = "oauth";
+      // Connection is unhealthy with no stored auth config — default to token
+      // input. Only use "oauth" when oauth_config is explicitly set (above).
+      // Many MCPs (e.g. Perplexity) just need a bearer token / API key.
+      authType = "token";
     }
 
     // Auth is needed if unhealthy, OR if scopes exist but no token is stored
