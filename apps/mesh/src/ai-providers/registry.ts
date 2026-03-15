@@ -24,7 +24,7 @@ const claudeCodeAdapter: ProviderAdapter = {
 
 export const PROVIDERS: Record<ProviderId, ProviderAdapter> = {
   deco: decoAiGatewayAdapter,
-  anthropic: anthropicAdapter,
   openrouter: openrouterAdapter,
+  anthropic: anthropicAdapter,
   "claude-code": claudeCodeAdapter,
 };
