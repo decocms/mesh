@@ -10,6 +10,8 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
+import { recordToolExecutionMetrics } from "@/monitoring/record-tool-execution-metrics";
+import { DECOPILOT_CONNECTION_ID } from "@/monitoring/schema";
 import { sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { createUIMessageStream, stepCountIs, streamText } from "ai";
 import { getBuiltInTools } from "./built-in-tools";
@@ -313,6 +315,24 @@ export async function streamCore(
               inputTokens: ccResult.usage.inputTokens,
               outputTokens: ccResult.usage.outputTokens,
             });
+          }
+
+          // Record tool call metrics for monitoring visibility
+          if (ccResult.toolCallCount > 0) {
+            // Emit aggregate tool execution metric so monitoring dashboards
+            // can see Claude Code tool activity.
+            for (const part of ccResult.parts) {
+              if (part.type === "dynamic-tool") {
+                recordToolExecutionMetrics({
+                  ctx,
+                  organizationId: input.organizationId,
+                  connectionId: DECOPILOT_CONNECTION_ID,
+                  toolName: part.toolName,
+                  durationMs: 0,
+                  isError: part.state === "output-error",
+                });
+              }
+            }
           }
 
           // Persist the assistant response so it survives page reload.
