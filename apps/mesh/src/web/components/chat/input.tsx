@@ -36,6 +36,7 @@ import type { Metadata } from "./types.ts";
 import { useChat } from "./context";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { ChatHighlight } from "./highlight";
+import { ImageModeToggle } from "./image-mode-toggle";
 import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
@@ -384,6 +385,7 @@ export function ChatInput({
     stop,
     cancelRun,
     tasks,
+    imageMode,
   } = useChat();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -625,11 +627,14 @@ export function ChatInput({
                       disabled={isStreaming}
                     />
                   )}
-                  <FileUploadButton
-                    selectedModel={model}
-                    isStreaming={isStreaming}
-                  />
+                  {!imageMode && (
+                    <FileUploadButton
+                      selectedModel={model}
+                      isStreaming={isStreaming}
+                    />
+                  )}
                   <PlanModeToggle disabled={isStreaming} />
+                  <ImageModeToggle disabled={isStreaming} />
                   {contextWindow && lastTotalTokens > 0 && (
                     <SessionStats
                       usage={usage}

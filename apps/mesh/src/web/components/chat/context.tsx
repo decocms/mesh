@@ -49,6 +49,12 @@ interface ChatStableValue {
   model: AiProviderModel | null;
   isModelsLoading: boolean;
   setSelectedModel: (model: AiProviderModel) => void;
+
+  imageMode: boolean;
+  imageAspectRatio: string;
+  setImageMode: (enabled: boolean) => void;
+  setImageAspectRatio: (ratio: string) => void;
+
   sendMessage: (
     tiptapDoc: Metadata["tiptapDoc"],
     options?: { toolApprovalLevel?: ToolApprovalLevel },
@@ -114,6 +120,8 @@ export function useChatStable(): ChatStableValue {
     allModelsConnections: state.allModelsConnections,
     credentialId: state.credentialId,
     tiptapDoc: state.tiptapDoc,
+    imageMode: state.imageMode,
+    imageAspectRatio: state.imageAspectRatio,
   }));
 
   return {
@@ -136,6 +144,9 @@ export function useChatStable(): ChatStableValue {
       chatStore.setAgent(agent);
     },
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
+    setImageMode: (enabled: boolean) => chatStore.setImageMode(enabled),
+    setImageAspectRatio: (ratio: string) =>
+      chatStore.setImageAspectRatio(ratio),
     setOwnerFilter: (filter: TaskOwnerFilter) =>
       chatStore.setOwnerFilter(filter),
     sendMessage: (

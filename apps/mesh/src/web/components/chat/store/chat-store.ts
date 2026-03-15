@@ -135,6 +135,8 @@ class ChatStore {
       credentialId: null,
       virtualMcps: [],
       allModelsConnections: [] as ReturnType<typeof useAiProviderKeyList>,
+      imageMode: false,
+      imageAspectRatio: "1:1",
       status: "ready",
       error: null,
       finishReason: null,
@@ -459,6 +461,16 @@ class ChatStore {
   setCredentialId(id: string | null): void {
     this.state = { ...this.state, credentialId: id };
     writeSelectedKeyId(this.state.locator, id);
+    this.notify();
+  }
+
+  setImageMode(enabled: boolean): void {
+    this.state = { ...this.state, imageMode: enabled };
+    this.notify();
+  }
+
+  setImageAspectRatio(ratio: string): void {
+    this.state = { ...this.state, imageAspectRatio: ratio };
     this.notify();
   }
 
@@ -877,6 +889,11 @@ class ChatStore {
             ...mergedMetadata,
             ...(effectiveApproval && {
               toolApprovalLevel: effectiveApproval,
+            }),
+            ...(store.state.imageMode && {
+              imageMode: {
+                aspectRatio: store.state.imageAspectRatio,
+              },
             }),
           },
         };

@@ -154,6 +154,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         memory: memoryConfig,
         thread_id,
         toolApprovalLevel,
+        imageMode,
       } = await validateRequest(c);
 
       const userId = ctx.auth?.user?.id;
@@ -200,6 +201,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           userId,
           threadId: resolvedThreadId,
           windowSize,
+          imageMode,
         },
         ctx,
         { runRegistry, streamBuffer, cancelBroadcast },
