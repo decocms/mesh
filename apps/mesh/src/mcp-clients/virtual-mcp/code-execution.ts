@@ -89,7 +89,6 @@ export class CodeExecutionClient extends BaseSelection {
       callTool: async (name: string, innerArgs: Record<string, unknown>) => {
         return this.routeToolCall({ name, arguments: innerArgs });
       },
-      close: async () => {}, // Proxies managed by BaseSelection
     };
 
     // Use shared run code logic
