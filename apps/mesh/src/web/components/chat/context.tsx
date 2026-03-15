@@ -52,6 +52,11 @@ interface ChatStableValue {
   selectedMode: ToolSelectionStrategy;
   setSelectedMode: (mode: ToolSelectionStrategy) => void;
 
+  imageMode: boolean;
+  imageAspectRatio: string;
+  setImageMode: (enabled: boolean, imageModels?: AiProviderModel[]) => void;
+  setImageAspectRatio: (ratio: string) => void;
+
   sendMessage: (
     tiptapDoc: Metadata["tiptapDoc"],
     options?: { toolApprovalLevel?: ToolApprovalLevel },
@@ -118,6 +123,8 @@ export function useChatStable(): ChatStableValue {
     allModelsConnections: state.allModelsConnections,
     credentialId: state.credentialId,
     tiptapDoc: state.tiptapDoc,
+    imageMode: state.imageMode,
+    imageAspectRatio: state.imageAspectRatio,
   }));
 
   return {
@@ -139,6 +146,10 @@ export function useChatStable(): ChatStableValue {
     },
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
     setSelectedMode: (mode: ToolSelectionStrategy) => chatStore.setMode(mode),
+    setImageMode: (enabled: boolean, imageModels?: AiProviderModel[]) =>
+      chatStore.setImageMode(enabled, imageModels),
+    setImageAspectRatio: (ratio: string) =>
+      chatStore.setImageAspectRatio(ratio),
     setOwnerFilter: (filter: TaskOwnerFilter) =>
       chatStore.setOwnerFilter(filter),
     sendMessage: (

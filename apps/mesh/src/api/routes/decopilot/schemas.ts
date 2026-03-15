@@ -86,6 +86,11 @@ export const StreamRequestSchema = z.object({
   temperature: z.number().default(0.5),
   thread_id: z.string().optional(),
   toolApprovalLevel: z.enum(["none", "readonly", "yolo"]).default("none"),
+  imageMode: z
+    .object({
+      aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional(),
+    })
+    .optional(),
 });
 
 export type StreamRequest = z.infer<typeof StreamRequestSchema>;

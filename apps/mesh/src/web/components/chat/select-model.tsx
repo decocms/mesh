@@ -285,6 +285,10 @@ function getCostLevel(inputPerM: number): { level: number; label: string } {
 const CAPABILITY_CONFIGS: Record<string, { icon: ReactNode; label: string }> = {
   text: { icon: <AlignLeft className="size-3.5" />, label: "Text" },
   vision: { icon: <Image01 className="size-3.5" />, label: "Vision" },
+  "image-generation": {
+    icon: <Image01 className="size-3.5" />,
+    label: "Image generation",
+  },
   tools: { icon: <Tool01 className="size-3.5" />, label: "Tools" },
   reasoning: { icon: <Stars01 className="size-3.5" />, label: "Reasoning" },
   "web-search": {
@@ -769,6 +773,7 @@ function ConnectionModelList({
   onModelSelect,
   managing,
   onToggleManage,
+  imageMode = false,
 }: {
   keyId: string | undefined;
   searchTerm: string;
@@ -776,8 +781,12 @@ function ConnectionModelList({
   onHover: (model: AiProviderModel) => void;
   managing: boolean;
   onToggleManage: () => void;
+  imageMode?: boolean;
 }) {
-  const { models: allModels } = useAiProviderModels(keyId);
+  const { models: rawModels } = useAiProviderModels(keyId);
+  const allModels = imageMode
+    ? rawModels.filter((m) => m.capabilities?.includes("image-generation"))
+    : rawModels;
   const [shortlistSet, setShortlistSet] = useState<Set<string>>(
     () => (keyId ? readShortlist(keyId) : null) ?? DEFAULT_SHORTLIST,
   );
@@ -904,6 +913,8 @@ function SelectedModelDisplay({
   }
 
   const { displayName } = parseModelTitle(model);
+  // Strip parenthetical suffix for compact trigger display (e.g. "Nano Banana 2 (Gemini …)" → "Nano Banana 2")
+  const shortName = displayName.replace(/\s*\(.*\)\s*$/, "").trim();
 
   const providerLogo = getProviderLogo(model);
 
@@ -915,7 +926,7 @@ function SelectedModelDisplay({
         alt={model.title}
       />
       <span className="text-sm truncate whitespace-nowrap hidden md:inline text-muted-foreground">
-        {displayName}
+        {shortName}
       </span>
       <ChevronDown
         size={14}
@@ -996,6 +1007,7 @@ interface ModelSelectorInnerProps {
   onCredentialChange: (id: string | null) => void;
   selectedModel: AiProviderModel | null;
   onModelChange: (model: AiProviderModel) => void;
+  imageMode?: boolean;
 }
 
 function ModelSelectorInner({
@@ -1004,6 +1016,7 @@ function ModelSelectorInner({
   onCredentialChange,
   selectedModel,
   onModelChange,
+  imageMode = false,
 }: ModelSelectorInnerProps) {
   const [hoveredModel, setHoveredModel] = useState<AiProviderModel | null>(
     null,
@@ -1130,6 +1143,7 @@ function ModelSelectorInner({
               onModelSelect={handleModelSelect}
               managing={managing}
               onToggleManage={() => setManaging((v) => !v)}
+              imageMode={imageMode}
             />
           </Suspense>
         </ErrorBoundary>
@@ -1169,6 +1183,7 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
     setCredentialId,
     model: selectedModel,
     setSelectedModel,
+    imageMode,
   } = useChat();
 
   return (
@@ -1181,6 +1196,7 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
         if (!credentialId) return;
         setSelectedModel({ ...model, keyId: credentialId });
       }}
+      imageMode={imageMode}
     />
   );
 }
