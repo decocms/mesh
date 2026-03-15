@@ -769,6 +769,7 @@ function ConnectionModelList({
   onModelSelect,
   managing,
   onToggleManage,
+  imageMode = false,
 }: {
   keyId: string | undefined;
   searchTerm: string;
@@ -776,8 +777,12 @@ function ConnectionModelList({
   onHover: (model: AiProviderModel) => void;
   managing: boolean;
   onToggleManage: () => void;
+  imageMode?: boolean;
 }) {
-  const { models: allModels } = useAiProviderModels(keyId);
+  const { models: rawModels } = useAiProviderModels(keyId);
+  const allModels = imageMode
+    ? rawModels.filter((m) => m.capabilities?.includes("image"))
+    : rawModels;
   const [shortlistSet, setShortlistSet] = useState<Set<string>>(
     () => (keyId ? readShortlist(keyId) : null) ?? DEFAULT_SHORTLIST,
   );
@@ -996,6 +1001,7 @@ interface ModelSelectorInnerProps {
   onCredentialChange: (id: string | null) => void;
   selectedModel: AiProviderModel | null;
   onModelChange: (model: AiProviderModel) => void;
+  imageMode?: boolean;
 }
 
 function ModelSelectorInner({
@@ -1004,6 +1010,7 @@ function ModelSelectorInner({
   onCredentialChange,
   selectedModel,
   onModelChange,
+  imageMode = false,
 }: ModelSelectorInnerProps) {
   const [hoveredModel, setHoveredModel] = useState<AiProviderModel | null>(
     null,
@@ -1130,6 +1137,7 @@ function ModelSelectorInner({
               onModelSelect={handleModelSelect}
               managing={managing}
               onToggleManage={() => setManaging((v) => !v)}
+              imageMode={imageMode}
             />
           </Suspense>
         </ErrorBoundary>
@@ -1169,6 +1177,7 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
     setCredentialId,
     model: selectedModel,
     setSelectedModel,
+    imageMode,
   } = useChat();
 
   return (
@@ -1181,6 +1190,7 @@ function ModelSelectorContent({ onClose }: { onClose: () => void }) {
         if (!credentialId) return;
         setSelectedModel({ ...model, keyId: credentialId });
       }}
+      imageMode={imageMode}
     />
   );
 }

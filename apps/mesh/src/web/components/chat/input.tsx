@@ -33,6 +33,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Metadata } from "./types.ts";
 import { useChat } from "./context";
 import { ChatHighlight } from "./highlight";
+import { ImageModeToggle } from "./image-mode-toggle";
 import { ModeSelector } from "./select-mode";
 import { ModelSelector } from "./select-model";
 import {
@@ -322,6 +323,7 @@ export function ChatInput({
     stop,
     cancelRun,
     tasks,
+    imageMode,
   } = useChat();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -522,15 +524,20 @@ export function ChatInput({
                       disabled={isStreaming}
                     />
                   )}
-                  <FileUploadButton
-                    selectedModel={model}
-                    isStreaming={isStreaming}
-                  />
-                  <ModeSelector
-                    selectedMode={selectedMode}
-                    onModeChange={setSelectedMode}
-                    disabled={isStreaming}
-                  />
+                  {!imageMode && (
+                    <FileUploadButton
+                      selectedModel={model}
+                      isStreaming={isStreaming}
+                    />
+                  )}
+                  <ImageModeToggle disabled={isStreaming} />
+                  {!imageMode && (
+                    <ModeSelector
+                      selectedMode={selectedMode}
+                      onModeChange={setSelectedMode}
+                      disabled={isStreaming}
+                    />
+                  )}
                   {contextWindow && lastTotalTokens > 0 && (
                     <SessionStats
                       usage={usage}
