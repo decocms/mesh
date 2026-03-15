@@ -54,7 +54,7 @@ interface ChatStableValue {
 
   imageMode: boolean;
   imageAspectRatio: string;
-  setImageMode: (enabled: boolean) => void;
+  setImageMode: (enabled: boolean, imageModels?: AiProviderModel[]) => void;
   setImageAspectRatio: (ratio: string) => void;
 
   sendMessage: (
@@ -146,7 +146,8 @@ export function useChatStable(): ChatStableValue {
     },
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
     setSelectedMode: (mode: ToolSelectionStrategy) => chatStore.setMode(mode),
-    setImageMode: (enabled: boolean) => chatStore.setImageMode(enabled),
+    setImageMode: (enabled: boolean, imageModels?: AiProviderModel[]) =>
+      chatStore.setImageMode(enabled, imageModels),
     setImageAspectRatio: (ratio: string) =>
       chatStore.setImageAspectRatio(ratio),
     setOwnerFilter: (filter: TaskOwnerFilter) =>

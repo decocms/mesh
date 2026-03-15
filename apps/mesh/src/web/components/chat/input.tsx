@@ -530,7 +530,6 @@ export function ChatInput({
                       isStreaming={isStreaming}
                     />
                   )}
-                  <ImageModeToggle disabled={isStreaming} />
                   {!imageMode && (
                     <ModeSelector
                       selectedMode={selectedMode}
@@ -548,8 +547,9 @@ export function ChatInput({
                   )}
                 </div>
 
-                {/* Right Actions (model, send) */}
+                {/* Right Actions (image, model, send) */}
                 <div className="flex items-center gap-1.5">
+                  <ImageModeToggle disabled={isStreaming} />
                   <ModelSelector placeholder="Model" variant="borderless" />
 
                   <Button
