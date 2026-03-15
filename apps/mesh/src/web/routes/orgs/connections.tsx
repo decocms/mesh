@@ -129,10 +129,10 @@ import {
 // Auth helpers
 // ---------------------------------------------------------------------------
 
-/** True when connection was flagged as needing auth during install */
+/** True when connection was flagged as needing auth and token is still empty */
 function connectionNeedsAuth(c: ConnectionEntity): boolean {
   const meta = c.metadata as Record<string, unknown> | null;
-  return !!meta?.needs_auth;
+  return !!meta?.needs_auth && !c.connection_token;
 }
 
 // ---------------------------------------------------------------------------
