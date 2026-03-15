@@ -223,10 +223,12 @@ function isProcessAlive(pid: number): boolean {
 }
 
 function acquirePGliteLock(dataDir: string): void {
-  // Skip lock in test environment — tests use in-memory or share the DB read-only
-  if (env.NODE_ENV === "test") return;
+  // Skip lock in test environment and CI — tests use in-memory or share the DB read-only
+  if (env.NODE_ENV === "test" || process.env.CI) return;
 
-  const lockPath = path.join(dataDir, MESH_LOCK_FILE);
+  // Place the lock file OUTSIDE the PGlite data directory to avoid
+  // interfering with PGlite's internal data directory structure.
+  const lockPath = dataDir + "." + MESH_LOCK_FILE;
 
   if (existsSync(lockPath)) {
     try {
