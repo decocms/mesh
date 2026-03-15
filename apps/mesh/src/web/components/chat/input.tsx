@@ -26,6 +26,7 @@ import {
   Edit01,
   Lock01,
   Stop,
+  Target04,
   Users03,
   XCircle,
 } from "@untitledui/icons";
@@ -298,6 +299,46 @@ function VirtualMCPBadge({
 }
 
 // ============================================================================
+// PlanModeToggle - Toggle button for Claude Code plan mode
+// ============================================================================
+
+function PlanModeToggle({
+  enabled,
+  onToggle,
+  disabled = false,
+}: {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => onToggle(!enabled)}
+          disabled={disabled}
+          className={cn(
+            "flex items-center justify-center size-8 rounded-md border transition-colors shrink-0",
+            enabled
+              ? "border-purple-500 bg-purple-500/10 text-purple-500"
+              : "border-border text-muted-foreground/75",
+            disabled
+              ? "cursor-not-allowed opacity-50"
+              : "cursor-pointer hover:text-muted-foreground",
+          )}
+        >
+          <Target04 size={16} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        {enabled ? "Plan mode on — click to disable" : "Plan mode"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ============================================================================
 // ChatInput - Merged component with virtual MCP wrapper, banners, and selectors
 // ============================================================================
 
@@ -316,6 +357,8 @@ export function ChatInput({
     isModelsLoading,
     selectedMode,
     setSelectedMode,
+    planMode,
+    setPlanMode,
     messages,
     isStreaming,
     isRunInProgress,
@@ -499,7 +542,10 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background shadow-sm",
+                "w-full relative rounded-xl min-h-[130px] flex flex-col bg-background shadow-sm",
+                planMode
+                  ? "border border-dashed border-purple-500/50"
+                  : "border border-border",
               )}
             >
               <div className="group/input relative flex flex-col gap-2 flex-1">
@@ -550,6 +596,13 @@ export function ChatInput({
                     onModeChange={setSelectedMode}
                     disabled={isStreaming}
                   />
+                  {model?.modelId?.startsWith("claude-code:") && (
+                    <PlanModeToggle
+                      enabled={planMode}
+                      onToggle={setPlanMode}
+                      disabled={isStreaming}
+                    />
+                  )}
                   {contextWindow && lastTotalTokens > 0 && (
                     <SessionStats
                       usage={usage}
