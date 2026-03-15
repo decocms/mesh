@@ -169,6 +169,7 @@ type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
 function isVisiblePart(part: MessagePart): boolean {
   switch (part.type) {
     case "reasoning":
+      return true;
     case "step-start":
     case "file":
     case "source-url":
@@ -456,9 +457,8 @@ export function MessageAssistant({
   // Handle null message or empty parts
   const hasContent = message !== null && message.parts.length > 0;
 
-  // Use hook to extract reasoning and data parts in a single pass
-  const { reasoningParts, dataParts } = useFilterParts(message);
-  const hasReasoning = reasoningParts.length > 0;
+  // Use hook to extract data parts in a single pass
+  const { dataParts } = useFilterParts(message);
 
   const reasoningStartAt = message?.metadata?.reasoning_start_at
     ? new Date(message.metadata.reasoning_start_at)
@@ -474,6 +474,42 @@ export function MessageAssistant({
 
   // Filter to only visible parts to avoid index-based key shifts from data/metadata parts
   const visibleParts = hasContent ? message.parts.filter(isVisiblePart) : [];
+
+  // Group consecutive reasoning parts into inline ThoughtSummary blocks.
+  // Each group renders where it naturally occurs in the message flow.
+  type RenderItem =
+    | { kind: "part"; part: MessagePart; index: number }
+    | { kind: "reasoning"; parts: ReasoningPart[]; key: string };
+
+  const renderItems: RenderItem[] = [];
+  let pendingReasoning: ReasoningPart[] = [];
+
+  const flushReasoning = () => {
+    if (pendingReasoning.length > 0) {
+      renderItems.push({
+        kind: "reasoning",
+        parts: [...pendingReasoning],
+        key: `reasoning-${renderItems.length}`,
+      });
+      pendingReasoning = [];
+    }
+  };
+
+  for (let i = 0; i < visibleParts.length; i++) {
+    const part = visibleParts[i]!;
+    if (part.type === "reasoning") {
+      pendingReasoning.push(part as ReasoningPart);
+    } else {
+      flushReasoning();
+      renderItems.push({ kind: "part", part, index: i });
+    }
+  }
+  flushReasoning();
+
+  // Check if the last render item is an active reasoning group (still streaming)
+  const lastItem = renderItems[renderItems.length - 1];
+  const isLastItemStreamingReasoning =
+    isStreaming && lastItem?.kind === "reasoning";
 
   return (
     <Container className={className}>
@@ -491,16 +527,25 @@ export function MessageAssistant({
               isPlanMode && "border-l-2 border-purple-500/30 pl-3",
             )}
           >
-            {hasReasoning && (
-              <ThoughtSummary
-                duration={duration}
-                parts={reasoningParts}
-                isStreaming={isStreaming}
-              />
-            )}
-            {visibleParts.map((part, index) => {
-              const isLastPart = index === visibleParts.length - 1;
-              const usage = isLastPart
+            {renderItems.map((item) => {
+              if (item.kind === "reasoning") {
+                // Inline reasoning block — streaming if it's the last item and we're still loading
+                const isThisStreaming = isStreaming && item === lastItem;
+                return (
+                  <ThoughtSummary
+                    key={item.key}
+                    duration={isThisStreaming ? null : duration}
+                    parts={item.parts}
+                    isStreaming={isThisStreaming}
+                  />
+                );
+              }
+
+              const { part, index } = item;
+              const isLastVisible =
+                index === visibleParts.length - 1 &&
+                !isLastItemStreamingReasoning;
+              const usage = isLastVisible
                 ? addUsage(emptyUsageStats(), message.metadata?.usage)
                 : null;
 
@@ -510,7 +555,7 @@ export function MessageAssistant({
                   part={part}
                   id={message.id}
                   usageStats={
-                    isLastPart && (
+                    isLastVisible && (
                       <MessageStatsBar usage={usage} duration={duration} />
                     )
                   }
