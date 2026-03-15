@@ -88,7 +88,7 @@ export const StreamRequestSchema = z.object({
   toolApprovalLevel: z.enum(["none", "readonly", "yolo"]).default("none"),
   imageMode: z
     .object({
-      aspectRatio: z.string().optional(),
+      aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional(),
     })
     .optional(),
 });
