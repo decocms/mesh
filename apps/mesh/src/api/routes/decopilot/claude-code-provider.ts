@@ -291,6 +291,7 @@ class StreamState {
    */
   completedParts: Array<
     | { type: "text"; text: string }
+    | { type: "reasoning"; text: string }
     | {
         type: "dynamic-tool";
         toolCallId: string;
@@ -303,6 +304,13 @@ class StreamState {
 
   /** Tracks how much of responseText has been flushed into completedParts */
   private textFlushedLength = 0;
+
+  /** Accumulated reasoning text for the current thinking block */
+  private reasoningText = "";
+
+  /** Total tool calls completed (for monitoring) */
+  toolCallCount = 0;
+  toolCallErrors = 0;
 
   constructor(writer: UIMessageStreamWriter) {
     this.writer = writer;
@@ -427,6 +435,7 @@ class StreamState {
       this.reasoningPartId
     ) {
       this.streamedReasoning = true;
+      this.reasoningText += delta.thinking;
       this.writer.write({
         type: "reasoning-delta",
         delta: delta.thinking,
@@ -479,6 +488,15 @@ class StreamState {
 
     if (blockType === "thinking" && this.reasoningPartId) {
       this.writer.write({ type: "reasoning-end", id: this.reasoningPartId });
+      // Persist reasoning text as a part so it survives page reload
+      if (this.reasoningText) {
+        this.flushTextPart();
+        this.completedParts.push({
+          type: "reasoning",
+          text: this.reasoningText,
+        });
+        this.reasoningText = "";
+      }
       this.reasoningPartId = null;
     }
 
@@ -512,7 +530,14 @@ class StreamState {
   emitToolResult(toolCallId: string, result: string, isError?: boolean) {
     if (this.resolvedToolCalls.has(toolCallId)) return;
     this.resolvedToolCalls.add(toolCallId);
+
+    // Grab tool info before deleting from pending
+    const toolBlock = this.pendingToolCalls.get(toolCallId);
     this.pendingToolCalls.delete(toolCallId);
+
+    // Track tool call metrics (including suppressed ones for accurate counting)
+    this.toolCallCount++;
+    if (isError) this.toolCallErrors++;
 
     // Skip emitting results for suppressed SDK control tools
     if (this.suppressedToolCalls.has(toolCallId)) return;
@@ -534,9 +559,6 @@ class StreamState {
     }
 
     // Accumulate tool call part for persistence
-    const toolBlock = Array.from(this.toolCallBlocks.values()).find(
-      (t) => t.id === toolCallId,
-    );
     if (toolBlock) {
       // Flush any preceding text before the tool call
       this.flushTextPart();
@@ -560,15 +582,10 @@ class StreamState {
 
     // Emit latency metadata
     const elapsed = this.toolProgressTimes.get(toolCallId);
-    const toolInfo = [...this.streamedToolCalls].includes(toolCallId)
-      ? Array.from(this.toolCallBlocks.values()).find(
-          (t) => t.id === toolCallId,
-        )
-      : undefined;
     const latencyMs = elapsed
       ? elapsed * 1000
-      : toolInfo
-        ? performance.now() - toolInfo.startTime
+      : toolBlock
+        ? performance.now() - toolBlock.startTime
         : undefined;
 
     if (latencyMs != null) {
@@ -885,9 +902,10 @@ export async function streamClaudeCode(
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** Accumulated text from the response, for persistence */
   responseText: string;
-  /** Ordered parts (text + tool calls) for faithful message persistence */
+  /** Ordered parts (text + reasoning + tool calls) for faithful message persistence */
   parts: Array<
     | { type: "text"; text: string }
+    | { type: "reasoning"; text: string }
     | {
         type: "dynamic-tool";
         toolCallId: string;
@@ -897,6 +915,9 @@ export async function streamClaudeCode(
         state: "output-available" | "output-error";
       }
   >;
+  /** Tool call metrics for monitoring */
+  toolCallCount: number;
+  toolCallErrors: number;
 }> {
   const queryFn = await getQuery();
 
@@ -1058,7 +1079,10 @@ export async function streamClaudeCode(
               }
             ).usage;
             if (u) {
-              const inputTokens = u.input_tokens ?? 0;
+              const inputTokens =
+                (u.input_tokens ?? 0) +
+                (u.cache_read_input_tokens ?? 0) +
+                (u.cache_creation_input_tokens ?? 0);
               const outputTokens = u.output_tokens ?? 0;
               usage = {
                 inputTokens,
@@ -1244,5 +1268,7 @@ export async function streamClaudeCode(
     usage,
     responseText: state.responseText,
     parts: state.completedParts,
+    toolCallCount: state.toolCallCount,
+    toolCallErrors: state.toolCallErrors,
   };
 }
