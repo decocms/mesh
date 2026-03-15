@@ -284,7 +284,7 @@ export function SidebarInboxFooter() {
             <div className="flex-1 min-w-0">
               <MeshUserMenu />
             </div>
-            <div className="flex items-center gap-0.5 group-data-[collapsible=icon]:hidden">
+            <div className="group-data-[collapsible=icon]:hidden">
               <Popover>
                 <div className="relative">
                   <PopoverTrigger asChild>

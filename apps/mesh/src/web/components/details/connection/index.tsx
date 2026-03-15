@@ -299,6 +299,7 @@ function ConnectionInspectorViewWithConnection({
     connectionId: connectionId,
   });
   // VIRTUAL connections are always "authenticated" - they don't have OAuth
+  // They're internal connections that aggregate tools from other connections
   const isVirtualConnection = connection?.connection_type === "VIRTUAL";
   const isMCPAuthenticated = isVirtualConnection || authStatus.isAuthenticated;
 

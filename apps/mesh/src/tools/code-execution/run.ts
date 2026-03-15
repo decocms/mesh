@@ -36,11 +36,13 @@ export const CODE_EXECUTION_RUN_CODE = defineTool({
     // Get tools from connections (agent-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
-    try {
-      // Run code with tools
-      return await runCodeWithTools(input.code, toolContext, input.timeoutMs);
-    } finally {
-      await toolContext.close();
-    }
+    // Run code with tools
+    const result = await runCodeWithTools(
+      input.code,
+      toolContext,
+      input.timeoutMs,
+    );
+
+    return result;
   },
 });

@@ -36,21 +36,17 @@ export const CODE_EXECUTION_SEARCH_TOOLS = defineTool({
     // Get tools from connections (agent-specific or all org connections)
     const toolContext = await getToolsWithConnections(ctx);
 
-    try {
-      // Search tools by query
-      const results = searchTools(input.query, toolContext.tools, input.limit);
+    // Search tools by query
+    const results = searchTools(input.query, toolContext.tools, input.limit);
 
-      return {
-        query: input.query,
-        results: results.map((t) => ({
-          name: t.name,
-          description: t.description,
-          connection: t._meta?.connectionTitle ?? "",
-        })),
-        totalAvailable: toolContext.tools.length,
-      };
-    } finally {
-      await toolContext.close();
-    }
+    return {
+      query: input.query,
+      results: results.map((t) => ({
+        name: t.name,
+        description: t.description,
+        connection: t._meta?.connectionTitle ?? "",
+      })),
+      totalAvailable: toolContext.tools.length,
+    };
   },
 });
