@@ -16,17 +16,6 @@ export interface ProxyEntry {
   connection: ConnectionEntity;
 }
 
-/**
- * Aggregator tool selection strategy
- * - "passthrough": Pass tools through as-is (default)
- * - "smart_tool_selection": Smart tool selection behavior
- * - "code_execution": Code execution behavior
- */
-export type ToolSelectionStrategy =
-  | "passthrough"
-  | "smart_tool_selection"
-  | "code_execution";
-
 /** Options for creating an aggregator */
 export interface VirtualClientOptions {
   connections: ConnectionEntity[];
@@ -37,21 +26,4 @@ export interface VirtualClientOptions {
   superUser?: boolean;
   /** Cross-pod NATS KV cache for tool lists (avoids MCP handshake on listTools) */
   toolListCache?: ToolListCache;
-}
-
-/**
- * Parse strategy from mode query parameter
- */
-export function parseStrategyFromMode(
-  mode: string | undefined,
-): ToolSelectionStrategy {
-  switch (mode) {
-    case "smart_tool_selection":
-      return "smart_tool_selection";
-    case "code_execution":
-      return "code_execution";
-    case "passthrough":
-    default:
-      return "passthrough";
-  }
 }
