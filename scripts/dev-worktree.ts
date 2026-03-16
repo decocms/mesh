@@ -1,18 +1,8 @@
 #!/usr/bin/env bun
-import { createConnection } from "net";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { startWorktree } from "worktree-devservers";
-import {
-  ASCII_ART,
-  bold,
-  cyan,
-  dim,
-  green,
-  row,
-  section,
-  underline,
-} from "../apps/mesh/src/fmt.ts";
+import { ASCII_ART, row, section } from "../apps/mesh/src/fmt.ts";
 import { ensureServices } from "./dev-services.ts";
 
 function loadDotEnv(path: string): Record<string, string> {
@@ -34,36 +24,6 @@ function loadDotEnv(path: string): Record<string, string> {
   } catch {
     return {};
   }
-}
-
-function waitForPort(port: number, timeoutMs = 30_000): Promise<void> {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    const check = () => {
-      const sock = createConnection({ port, host: "localhost" });
-      sock.once("connect", () => {
-        sock.destroy();
-        resolve();
-      });
-      sock.once("error", () => {
-        sock.destroy();
-        if (Date.now() - start > timeoutMs) {
-          reject(new Error(`Timed out waiting for port ${port}`));
-        } else {
-          setTimeout(check, 200);
-        }
-      });
-      sock.setTimeout(1000, () => {
-        sock.destroy();
-        if (Date.now() - start > timeoutMs) {
-          reject(new Error(`Timed out waiting for port ${port}`));
-        } else {
-          setTimeout(check, 200);
-        }
-      });
-    };
-    check();
-  });
 }
 
 const slug = process.env.WORKTREE_SLUG;
@@ -148,16 +108,6 @@ startWorktree(slug, async (ctx) => {
     cwd: repoRoot,
     env: childEnv,
     stdio: ["inherit", "inherit", "inherit"],
-  });
-
-  // Wait for server to be ready, then print
-  const url = `http://${ctx.slug}.localhost`;
-  waitForPort(port).then(() => {
-    console.log("");
-    console.log(`${green("✓")} ${bold("Ready")}`);
-    console.log("");
-    console.log(`  ${dim("Open in browser:")}  ${cyan(underline(url))}`);
-    console.log("");
   });
 
   return { port, process: child };
