@@ -851,6 +851,9 @@ function OrgMcpsContent() {
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
+  // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
+  // so the "Connected" badge and modal aren't affected by the search term
+  const allConnections = useConnections();
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
@@ -938,8 +941,9 @@ function OrgMcpsContent() {
   );
 
   // "All" tab: catalog items from registry (includes already-connected ones)
+  // Use allConnections (unfiltered) so the "Connected" badge isn't lost when searching
   const connectedAppNames = new Set(
-    connections
+    allConnections
       .filter((c) => c.connection_type !== "VIRTUAL" && c.app_name)
       .map((c) => c.app_name as string),
   );
@@ -2069,8 +2073,6 @@ function OrgMcpsContent() {
               tabs={[
                 { id: "all", label: "All" },
                 { id: "connected", label: "Connected" },
-                { id: "built-by-me", label: "Built by me" },
-                { id: "needs-config", label: "Needs configuration" },
               ]}
               activeTab={activeTab}
               onTabChange={(id) => setActiveTab(id as ConnectionTab)}
@@ -2146,7 +2148,12 @@ function OrgMcpsContent() {
         {/* Content: Cards */}
         <Page.Content>
           <div className="flex-1 overflow-auto p-5">
-            {tabFilteredConnections.length === 0 ? (
+            {(
+              activeTab === "all"
+                ? verifiedCatalogItems.length === 0 &&
+                  otherCatalogItems.length === 0
+                : tabFilteredConnections.length === 0
+            ) ? (
               <EmptyState
                 image={
                   <img
@@ -2307,13 +2314,26 @@ function OrgMcpsContent() {
                   const description =
                     item.server?.description || item.description || null;
                   const icon = item.server?.icons?.[0]?.src || null;
+                  const appInstances = allConnections.filter(
+                    (c) =>
+                      c.connection_type !== "VIRTUAL" && c.app_name === appName,
+                  );
                   return (
                     <ConnectionCard
                       key={`catalog-${item.id}`}
                       connection={{ title, description, icon }}
                       fallbackIcon={<Container />}
-                      onClick={() => navigateToCatalogItem(item)}
-                      headerActionsAlwaysVisible={!isConnected}
+                      onClick={() =>
+                        isConnected
+                          ? setAppModal({
+                              appName: title,
+                              appIcon: icon,
+                              appDescription: description,
+                              instances: appInstances,
+                            })
+                          : navigateToCatalogItem(item)
+                      }
+                      headerActionsAlwaysVisible
                       headerActions={
                         isConnected ? (
                           <Badge variant="secondary" className="text-xs">
@@ -2363,13 +2383,26 @@ function OrgMcpsContent() {
                   const description =
                     item.server?.description || item.description || null;
                   const icon = item.server?.icons?.[0]?.src || null;
+                  const appInstances = allConnections.filter(
+                    (c) =>
+                      c.connection_type !== "VIRTUAL" && c.app_name === appName,
+                  );
                   return (
                     <ConnectionCard
                       key={`catalog-${item.id}`}
                       connection={{ title, description, icon }}
                       fallbackIcon={<Container />}
-                      onClick={() => navigateToCatalogItem(item)}
-                      headerActionsAlwaysVisible={!isConnected}
+                      onClick={() =>
+                        isConnected
+                          ? setAppModal({
+                              appName: title,
+                              appIcon: icon,
+                              appDescription: description,
+                              instances: appInstances,
+                            })
+                          : navigateToCatalogItem(item)
+                      }
+                      headerActionsAlwaysVisible
                       headerActions={
                         isConnected ? (
                           <Badge variant="secondary" className="text-xs">

@@ -18,7 +18,7 @@ export function ConnectionInfoCard({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
         >
           Configure
         </button>

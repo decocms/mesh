@@ -58,16 +58,35 @@ export function ConnectionInstancesModal({
     onClose();
   }
 
-  // Collect unique tools from instances (deduplicated by name)
+  // Collect unique tools from instances (deduplicated by name), tracking first instance per tool
   const seen = new Set<string>();
-  const tools: { name: string; description?: string }[] = [];
+  const tools: { name: string; description?: string; connectionId: string }[] =
+    [];
   for (const inst of instances) {
     for (const t of inst.tools ?? []) {
       if (!seen.has(t.name)) {
         seen.add(t.name);
-        tools.push({ name: t.name, description: t.description });
+        tools.push({
+          name: t.name,
+          description: t.description,
+          connectionId: inst.id,
+        });
       }
     }
+  }
+
+  function openTool(toolName: string, connectionId: string) {
+    navigate({
+      to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+      params: {
+        org,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        connectionId,
+        collectionName: "tools",
+        itemId: encodeURIComponent(toolName),
+      },
+    });
+    onClose();
   }
 
   return (
@@ -118,7 +137,7 @@ export function ConnectionInstancesModal({
                 <button
                   key={instance.id}
                   type="button"
-                  className="w-full flex items-center gap-3 px-6 py-3 hover:bg-muted/40 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-6 py-3 hover:bg-muted/40 transition-colors text-left cursor-pointer"
                   onClick={() => openInstance(instance.id)}
                 >
                   <div className="flex-1 min-w-0">
@@ -156,9 +175,11 @@ export function ConnectionInstancesModal({
               </div>
               <div className="pb-2">
                 {tools.map((tool) => (
-                  <div
+                  <button
                     key={tool.name}
-                    className="flex items-start gap-3 px-6 py-2.5"
+                    type="button"
+                    className="w-full flex items-start gap-3 px-6 py-2.5 hover:bg-muted/40 transition-colors text-left cursor-pointer"
+                    onClick={() => openTool(tool.name, tool.connectionId)}
                   >
                     <IntegrationIcon
                       icon={appIcon}
@@ -167,7 +188,7 @@ export function ConnectionInstancesModal({
                       className="shrink-0 mt-0.5"
                       fallbackIcon={<Tool01 size={12} />}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">
                         {tool.name}
                       </p>
@@ -177,7 +198,11 @@ export function ConnectionInstancesModal({
                         </p>
                       )}
                     </div>
-                  </div>
+                    <ChevronRight
+                      size={16}
+                      className="text-muted-foreground shrink-0 mt-0.5"
+                    />
+                  </button>
                 ))}
               </div>
             </div>

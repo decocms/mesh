@@ -564,6 +564,8 @@ function ConnectionInspectorViewWithConnection({
                   tools={tools}
                   prompts={prompts}
                   resources={resources}
+                  connectionId={connectionId}
+                  org={org}
                 />
               </div>
               {/* Right column */}

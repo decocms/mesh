@@ -4,7 +4,15 @@ import {
   TabsList,
   TabsTrigger,
 } from "@deco/ui/components/tabs.tsx";
-import { BookOpen01, Columns01, LayersTwo01, Tool01 } from "@untitledui/icons";
+import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
+import {
+  BookOpen01,
+  Columns01,
+  ChevronRight,
+  LayersTwo01,
+  Tool01,
+} from "@untitledui/icons";
+import { useNavigate } from "@tanstack/react-router";
 
 /**
  * Converts a snake_case or dot.case tool function name to readable English.
@@ -76,6 +84,8 @@ interface ConnectionCapabilitiesProps {
   tools: Tool[];
   prompts?: Prompt[];
   resources?: Resource[];
+  connectionId?: string;
+  org?: string;
 }
 
 function EmptyCapabilities({ label }: { label: string }) {
@@ -90,7 +100,24 @@ export function ConnectionCapabilities({
   tools,
   prompts = [],
   resources = [],
+  connectionId,
+  org,
 }: ConnectionCapabilitiesProps) {
+  const navigate = useNavigate();
+
+  function openTool(toolName: string) {
+    if (!connectionId || !org) return;
+    navigate({
+      to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+      params: {
+        org,
+        project: ORG_ADMIN_PROJECT_SLUG,
+        connectionId,
+        collectionName: "tools",
+        itemId: encodeURIComponent(toolName),
+      },
+    });
+  }
   const collectionTools = tools.filter((t) => /^COLLECTION_/i.test(t.name));
   const regularTools = tools.filter((t) => !/^COLLECTION_/i.test(t.name));
 
@@ -145,9 +172,11 @@ export function ConnectionCapabilities({
           <div className="divide-y divide-border">
             {regularTools.length > 0 ? (
               regularTools.map((tool) => (
-                <div
+                <button
                   key={tool.name}
-                  className="flex items-start gap-3 px-5 py-3"
+                  type="button"
+                  className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-muted/40 transition-colors cursor-pointer"
+                  onClick={() => openTool(tool.name)}
                 >
                   <div className="mt-0.5 shrink-0 size-7 rounded-md bg-muted flex items-center justify-center">
                     <Tool01 size={13} className="text-muted-foreground" />
@@ -162,7 +191,11 @@ export function ConnectionCapabilities({
                       </div>
                     )}
                   </div>
-                </div>
+                  <ChevronRight
+                    size={16}
+                    className="text-muted-foreground shrink-0 mt-0.5"
+                  />
+                </button>
               ))
             ) : (
               <EmptyCapabilities label="tools" />
