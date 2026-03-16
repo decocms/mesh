@@ -34,7 +34,6 @@ dist-ssr
 *.sln
 *.sw?
 
-.deco_host
 .wrangler
 dist
 .dev.vars
