@@ -105,39 +105,47 @@ async function mergeDuplicateSSOUser(data: {
   );
 
   try {
-    // Move all accounts from the duplicate to the original user
-    await sql`UPDATE "account" SET "userId" = ${originalUser.id} WHERE "userId" = ${user.id}`.execute(
-      db,
-    );
+    await db.transaction().execute(async (tx) => {
+      // Move all accounts from the duplicate to the original user
+      await sql`UPDATE "account" SET "userId" = ${originalUser.id} WHERE "userId" = ${user.id}`.execute(
+        tx,
+      );
 
-    // Move sessions so the current login session works with the original user
-    await sql`UPDATE "session" SET "userId" = ${originalUser.id} WHERE "userId" = ${user.id}`.execute(
-      db,
-    );
+      // Move sessions so the current login session works with the original user
+      await sql`UPDATE "session" SET "userId" = ${originalUser.id} WHERE "userId" = ${user.id}`.execute(
+        tx,
+      );
 
-    // Move memberships that don't conflict (skip orgs where original is already a member)
-    await sql`
-      UPDATE "member" SET "userId" = ${originalUser.id}
-      WHERE "userId" = ${user.id}
-        AND "organizationId" NOT IN (
-          SELECT "organizationId" FROM "member" WHERE "userId" = ${originalUser.id}
-        )
-    `.execute(db);
+      // Collect orgs where the duplicate is the sole member (auto-created personal orgs)
+      const orgsToDelete = await sql<{ id: string }>`
+        SELECT m."organizationId" AS "id" FROM "member" m
+        WHERE m."userId" = ${user.id}
+          AND (SELECT COUNT(*) FROM "member" m2 WHERE m2."organizationId" = m."organizationId") = 1
+      `.execute(tx);
 
-    // Delete remaining memberships for the duplicate (conflicts)
-    await sql`DELETE FROM "member" WHERE "userId" = ${user.id}`.execute(db);
+      // Move memberships that don't conflict (skip orgs where original is already a member)
+      await sql`
+        UPDATE "member" SET "userId" = ${originalUser.id}
+        WHERE "userId" = ${user.id}
+          AND "organizationId" NOT IN (
+            SELECT "organizationId" FROM "member" WHERE "userId" = ${originalUser.id}
+          )
+      `.execute(tx);
 
-    // Delete organizations that were auto-created for the duplicate and have no other members
-    await sql`
-      DELETE FROM "organization" WHERE "id" IN (
-        SELECT o."id" FROM "organization" o
-        LEFT JOIN "member" m ON m."organizationId" = o."id"
-        WHERE m."organizationId" IS NULL
-      )
-    `.execute(db);
+      // Delete remaining memberships for the duplicate (conflicts)
+      await sql`DELETE FROM "member" WHERE "userId" = ${user.id}`.execute(tx);
 
-    // Delete the duplicate user
-    await sql`DELETE FROM "user" WHERE "id" = ${user.id}`.execute(db);
+      // Delete organizations that were solely owned by the duplicate user
+      const orgIds = orgsToDelete.rows.map((r) => r.id);
+      if (orgIds.length > 0) {
+        await sql`DELETE FROM "organization" WHERE "id" IN (${sql.join(orgIds.map((id) => sql`${id}`))})`.execute(
+          tx,
+        );
+      }
+
+      // Delete the duplicate user
+      await sql`DELETE FROM "user" WHERE "id" = ${user.id}`.execute(tx);
+    });
 
     console.info(
       `[SSO] Successfully merged duplicate user into ${originalUser.id}`,
