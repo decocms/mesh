@@ -22,7 +22,6 @@ interface ConnectionInstancesModalProps {
   appIcon?: string | null;
   appDescription?: string | null;
   instances: ConnectionEntity[];
-  onDelete?: (connection: ConnectionEntity) => void;
 }
 
 export function ConnectionInstancesModal({
@@ -33,15 +32,15 @@ export function ConnectionInstancesModal({
   appDescription,
   instances,
 }: ConnectionInstancesModalProps) {
-  const { locator } = useProjectContext();
+  const { org } = useProjectContext();
   const navigate = useNavigate();
-  const org = locator.split("/")[0];
+  const orgSlug = org.slug;
 
   function openInstance(connectionId: string) {
     navigate({
       to: "/$org/$project/mcps/$connectionId",
       params: {
-        org,
+        org: orgSlug,
         project: ORG_ADMIN_PROJECT_SLUG,
         connectionId,
       },
@@ -52,7 +51,7 @@ export function ConnectionInstancesModal({
   function addConnection() {
     navigate({
       to: "/$org/$project/mcps",
-      params: { org, project: ORG_ADMIN_PROJECT_SLUG },
+      params: { org: orgSlug, project: ORG_ADMIN_PROJECT_SLUG },
       search: { install: appName } as Record<string, string>,
     });
     onClose();
@@ -79,7 +78,7 @@ export function ConnectionInstancesModal({
     navigate({
       to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
       params: {
-        org,
+        org: orgSlug,
         project: ORG_ADMIN_PROJECT_SLUG,
         connectionId,
         collectionName: "tools",

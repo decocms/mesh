@@ -55,6 +55,11 @@ export interface MonitoringLogsResponse {
 // Bucket Logic
 // ============================================================================
 
+const ONE_MINUTE = 60 * 1000;
+const ONE_HOUR = 60 * ONE_MINUTE;
+const ONE_DAY = 24 * ONE_HOUR;
+const HOURS_25 = 25 * ONE_HOUR;
+
 function percentile(values: number[], p: number) {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -66,7 +71,6 @@ function percentile(values: number[], p: number) {
 }
 
 function formatBucketLabel(date: Date, rangeDurationMs: number) {
-  const HOURS_25 = 25 * 60 * 60 * 1000;
   if (rangeDurationMs <= HOURS_25) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
@@ -74,10 +78,6 @@ function formatBucketLabel(date: Date, rangeDurationMs: number) {
 }
 
 function calculateBucketCount(startMs: number, endMs: number): number {
-  const ONE_MINUTE = 60 * 1000;
-  const ONE_HOUR = 60 * ONE_MINUTE;
-  const HOURS_25 = 25 * ONE_HOUR;
-  const ONE_DAY = 24 * ONE_HOUR;
   const totalRange = endMs - startMs;
   if (totalRange <= ONE_HOUR) {
     return Math.max(1, Math.min(60, Math.ceil(totalRange / ONE_MINUTE)));

@@ -55,7 +55,7 @@ function ActivityChart({ connectionId, orgId, timeframe }: ActivityChartProps) {
   const dateRange = getDateRange(timeframe);
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.connectionActivity(connectionId, timeframe),
+    queryKey: KEYS.connectionActivity(connectionId, timeframe, orgId),
     queryFn: async () => {
       const result = (await client.callTool({
         name: "MONITORING_LOGS_LIST",

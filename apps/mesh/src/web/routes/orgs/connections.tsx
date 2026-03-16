@@ -105,8 +105,11 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useEffect, useReducer, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { formatTimeAgo } from "@/web/lib/format-time";
+import {
+  connectionFormSchema,
+  type ConnectionFormData,
+} from "@/web/components/details/connection/settings-tab/schema";
 
 import type {
   HttpConnectionParameters,
@@ -205,69 +208,8 @@ type ConnectionTypeFilter = "ALL" | "HTTP" | "SSE" | "Websocket" | "STDIO";
 type ConnectionStatusFilter = "ALL" | "active" | "inactive" | "error";
 
 // ---------------------------------------------------------------------------
-// Schemas
+// Schemas — imported from shared module
 // ---------------------------------------------------------------------------
-
-// Environment variable schema
-const envVarSchema = z.object({
-  key: z.string(),
-  value: z.string(),
-});
-
-// Form validation schema derived from ConnectionEntitySchema
-// Pick the relevant fields and adapt for form use
-const connectionFormSchema = z
-  .object({
-    title: z.string().min(1, "Name is required"),
-    description: z.string().nullable().optional(),
-    icon: z.string().nullable().optional(),
-    // UI type - includes "NPX" and "STDIO" which both map to STDIO internally
-    ui_type: z.enum(["HTTP", "SSE", "Websocket", "NPX", "STDIO"]),
-    // For HTTP/SSE/Websocket
-    connection_url: z.string().optional(),
-    connection_token: z.string().nullable().optional(),
-    // For NPX
-    npx_package: z.string().optional(),
-    // For STDIO (custom command)
-    stdio_command: z.string().optional(),
-    stdio_args: z.string().optional(),
-    stdio_cwd: z.string().optional(),
-    // Shared: Environment variables for both NPX and STDIO
-    env_vars: z.array(envVarSchema).optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.ui_type === "NPX") {
-        return !!data.npx_package?.trim();
-      }
-      return true;
-    },
-    { message: "NPM package is required", path: ["npx_package"] },
-  )
-  .refine(
-    (data) => {
-      if (data.ui_type === "STDIO") {
-        return !!data.stdio_command?.trim();
-      }
-      return true;
-    },
-    { message: "Command is required", path: ["stdio_command"] },
-  )
-  .refine(
-    (data) => {
-      if (
-        data.ui_type === "HTTP" ||
-        data.ui_type === "SSE" ||
-        data.ui_type === "Websocket"
-      ) {
-        return !!data.connection_url?.trim();
-      }
-      return true;
-    },
-    { message: "URL is required", path: ["connection_url"] },
-  );
-
-type ConnectionFormData = z.infer<typeof connectionFormSchema>;
 
 type ConnectionProviderHint = {
   id: "github" | "perplexity" | "registry";
@@ -866,7 +808,7 @@ function OrgMcpsContent() {
   const [addToAgentOpen, setAddToAgentOpen] = useState(false);
 
   // Tab state
-  type ConnectionTab = "connected" | "all" | "built-by-me" | "needs-config";
+  type ConnectionTab = "connected" | "all";
   const [activeTab, setActiveTab] = useState<ConnectionTab>("all");
 
   // App modal state (instances + tools)
@@ -893,13 +835,7 @@ function OrgMcpsContent() {
     return true;
   });
 
-  // Tab-filtered connections
-  const currentUserId = session?.user?.id;
-  const tabFilteredConnections = nonVirtualConnections.filter((c) => {
-    if (activeTab === "built-by-me") return c.created_by === currentUserId;
-    if (activeTab === "needs-config") return c.status === "error";
-    return true;
-  });
+  const tabFilteredConnections = nonVirtualConnections;
 
   const grouped = groupConnections(tabFilteredConnections);
 
@@ -961,14 +897,6 @@ function OrgMcpsContent() {
     allConnections
       .filter((c) => c.connection_type !== "VIRTUAL" && c.app_name)
       .map((c) => c.app_name as string),
-  );
-
-  // App names that exist in the registry (used to hide custom connections from
-  // the "All" tab so they don't appear twice — once in registry, once as custom)
-  const registryAppNames = new Set(
-    registryItems.map(
-      (item) => item.server?.name || item.name || item.id || "",
-    ),
   );
 
   const searchLower = listState.search.toLowerCase();

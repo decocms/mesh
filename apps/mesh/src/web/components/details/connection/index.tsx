@@ -17,6 +17,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Sheet,
@@ -155,6 +165,7 @@ function connectionToFormValues(
   const baseFields = {
     title: connection.title,
     description: connection.description ?? "",
+    icon: connection.icon ?? null,
     configuration_state: connection.configuration_state ?? {},
     configuration_scopes: scopes || connection.configuration_scopes || [],
   };
@@ -247,6 +258,7 @@ function formValuesToConnectionUpdate(
   return {
     title: data.title,
     description: data.description || null,
+    icon: data.icon ?? null,
     connection_type: connectionType,
     connection_url: connectionUrl,
     ...(connectionToken && { connection_token: connectionToken }),
@@ -287,6 +299,7 @@ function ConnectionInspectorViewWithConnection({
   const connectionActions = useConnectionActions();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
 
   const authStatus = useMCPAuthStatus({
     connectionId: connectionId,
@@ -431,12 +444,6 @@ function ConnectionInspectorViewWithConnection({
   };
 
   const handleDisconnect = async () => {
-    if (
-      !window.confirm(
-        `Disconnect "${connection.title}"? This cannot be undone.`,
-      )
-    )
-      return;
     await connectionActions.delete.mutateAsync(connection.id);
     navigate({
       to: "/$org/$project/mcps",
@@ -467,6 +474,34 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <>
+      {/* Disconnect Confirmation */}
+      <AlertDialog
+        open={disconnectConfirmOpen}
+        onOpenChange={setDisconnectConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect connection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              <span className="font-medium text-foreground">
+                {connection.title}
+              </span>
+              . This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDisconnect}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Settings Sheet */}
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
         <SheetContent
@@ -553,7 +588,7 @@ function ConnectionInspectorViewWithConnection({
           <ConnectionDetailHeader
             connection={connection}
             onOpenSettings={() => setSettingsOpen(true)}
-            onDisconnect={handleDisconnect}
+            onDisconnect={() => setDisconnectConfirmOpen(true)}
           />
           <div className="flex-1 overflow-auto">
             <div className="flex gap-6 p-6">
