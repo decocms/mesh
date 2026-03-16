@@ -239,7 +239,7 @@ if (betterAuthFromFile || encryptionKeyFromFile) {
 // ============================================================================
 
 const { ensureServices } = await import("./services/ensure-services");
-const services = await ensureServices();
+const services = await ensureServices({ quiet: true });
 
 console.log(section("Services"));
 for (const s of services) {
@@ -275,6 +275,9 @@ if (!values["skip-migrations"]) {
     process.exit(1);
   }
 }
+
+const { logConfiguration, env } = await import("./env");
+logConfiguration(env);
 
 console.log("");
 console.log(
