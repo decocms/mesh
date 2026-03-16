@@ -297,7 +297,6 @@ function ConnectionInspectorViewWithConnection({
   const navigate = useNavigate({ from: "/$org/$project/mcps/$connectionId" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
-
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
 

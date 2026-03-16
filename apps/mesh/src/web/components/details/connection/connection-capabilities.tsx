@@ -5,13 +5,7 @@ import {
   TabsTrigger,
 } from "@deco/ui/components/tabs.tsx";
 import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
-import {
-  BookOpen01,
-  Columns01,
-  ChevronRight,
-  LayersTwo01,
-  Tool01,
-} from "@untitledui/icons";
+import { BookOpen01, Columns01, ChevronRight, Tool01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import type { Tool as UiTool } from "@/web/components/tools";
@@ -48,23 +42,6 @@ function humanizeName(name: string): string {
     return [verb, ...words].join(" ");
   }
   return words.join(" ");
-}
-
-/**
- * Extracts a human-readable collection name from a COLLECTION_* tool name.
- * e.g. "COLLECTION_USERS_LIST" -> "Users"
- */
-function collectionNameFromTool(toolName: string): string {
-  const match = toolName.match(
-    /^COLLECTION_(.+?)_(LIST|GET|CREATE|UPDATE|DELETE|FILTERS|SEARCH|VERSIONS|UPSERT|PATCH|ARCHIVE|RESTORE|EXPORT|IMPORT|COUNT|BULK_\w+)$/i,
-  );
-  if (match?.[1]) {
-    return match[1]
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-  }
-  return humanizeName(toolName);
 }
 
 interface Tool {
@@ -123,21 +100,9 @@ export function ConnectionCapabilities({
       },
     });
   }
-  const collectionTools = tools.filter((t) => /^COLLECTION_/i.test(t.name));
   const regularTools = tools.filter((t) => !/^COLLECTION_/i.test(t.name));
   const hasUiTools =
     connectionId && org && tools.some((t) => getUIResourceUri(t._meta));
-
-  // Group collections by name (e.g. "USERS" from COLLECTION_USERS_LIST)
-  const collectionGroups = collectionTools.reduce<Record<string, Tool[]>>(
-    (acc, tool) => {
-      const name = collectionNameFromTool(tool.name);
-      acc[name] = acc[name] ?? [];
-      acc[name].push(tool);
-      return acc;
-    },
-    {},
-  );
 
   const totalItems = tools.length + prompts.length + resources.length;
 
@@ -170,9 +135,6 @@ export function ConnectionCapabilities({
             )}
             <TabsTrigger value="prompts" variant="underline">
               Prompts
-            </TabsTrigger>
-            <TabsTrigger value="collections" variant="underline">
-              Collections
             </TabsTrigger>
             <TabsTrigger value="resources" variant="underline">
               Resources
@@ -250,38 +212,6 @@ export function ConnectionCapabilities({
               ))
             ) : (
               <EmptyCapabilities label="prompts" />
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="collections" className="h-auto">
-          <div className="divide-y divide-border">
-            {Object.keys(collectionGroups).length > 0 ? (
-              Object.entries(collectionGroups).map(([name, groupTools]) => (
-                <div key={name} className="flex items-start gap-3 px-5 py-3">
-                  <div className="mt-0.5 shrink-0 size-7 rounded-md bg-muted flex items-center justify-center">
-                    <LayersTwo01 size={13} className="text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground">
-                      {name}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {groupTools
-                        .map((t) => {
-                          const op = t.name.split("_").pop()?.toLowerCase();
-                          return op
-                            ? op.charAt(0).toUpperCase() + op.slice(1)
-                            : null;
-                        })
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyCapabilities label="collections" />
             )}
           </div>
         </TabsContent>
