@@ -561,20 +561,56 @@ async function stopNats(): Promise<void> {
 // Public API
 // ---------------------------------------------------------------------------
 
+function isLocalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return true; // If we can't parse it, assume local (safe fallback)
+  }
+}
+
 export async function ensureServices(): Promise<void> {
   ensureDir(SERVICES_DIR);
 
-  const [pgInfo, natsInfo] = await Promise.all([
-    ensurePostgres(),
-    ensureNats(),
-  ]);
+  const skipPostgres =
+    process.env.DATABASE_URL && !isLocalUrl(process.env.DATABASE_URL);
+  const skipNats = process.env.NATS_URL && !isLocalUrl(process.env.NATS_URL);
 
-  if (!process.env.DATABASE_URL) {
+  if (skipPostgres) {
+    console.log("PostgreSQL: using external service (DATABASE_URL is set)");
+  }
+  if (skipNats) {
+    console.log("NATS: using external service (NATS_URL is set)");
+  }
+
+  const pgInfo: ServiceInfo = skipPostgres
+    ? {
+        name: "PostgreSQL",
+        state: "external",
+        pid: null,
+        port: PG_PORT,
+        owner: "external",
+      }
+    : await ensurePostgres();
+
+  const natsInfo: ServiceInfo = skipNats
+    ? {
+        name: "NATS",
+        state: "external",
+        pid: null,
+        port: NATS_PORT,
+        owner: "external",
+      }
+    : await ensureNats();
+
+  if (!skipPostgres && !process.env.DATABASE_URL) {
     process.env.DATABASE_URL = PG_CONNECTION_STRING;
     console.log(`DATABASE_URL set to ${PG_CONNECTION_STRING}`);
   }
 
-  if (!process.env.NATS_URL) {
+  if (!skipNats && !process.env.NATS_URL) {
     process.env.NATS_URL = NATS_CONNECTION_STRING;
     console.log(`NATS_URL set to ${NATS_CONNECTION_STRING}`);
   }
