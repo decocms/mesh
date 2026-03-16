@@ -251,13 +251,15 @@ async function ensurePostgres(): Promise<ServiceInfo> {
     },
   });
 
+  // Fix missing .dylib symlinks before any postgres operation
+  fixEmbeddedPostgresLibSymlinks();
+
   const pgVersionFile = join(dataDir, "PG_VERSION");
   if (!existsSync(pgVersionFile)) {
     // Clean up empty/broken data dir — initdb fails if the directory exists
     if (existsSync(dataDir) && readdirSync(dataDir).length === 0) {
       await rm(dataDir, { recursive: true, force: true });
     }
-    fixEmbeddedPostgresLibSymlinks();
     await pg.initialise();
   }
   await pg.start();
