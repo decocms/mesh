@@ -10,7 +10,6 @@ import { resolve, dirname, join, extname, basename, sep } from "path";
  *   hash in the filename changes on every build.
  * - Everything else: no explicit caching directive (browser defaults apply).
  */
-
 function getAssetCacheHeaders(
   filePath: string,
   indexPath: string,
