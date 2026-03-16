@@ -126,6 +126,18 @@ function probePort(port: number, host = "localhost"): Promise<boolean> {
   });
 }
 
+function findPidOnPort(port: number): number | null {
+  try {
+    const proc = Bun.spawnSync(["lsof", "-ti", `tcp:${port}`, "-sTCP:LISTEN"]);
+    const output = new TextDecoder().decode(proc.stdout).trim();
+    if (!output) return null;
+    const pid = Number.parseInt(output.split("\n")[0] ?? "", 10);
+    return Number.isNaN(pid) ? null : pid;
+  } catch {
+    return null;
+  }
+}
+
 async function waitForPort(port: number, timeoutMs = 30_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -219,23 +231,17 @@ async function ensurePostgres(): Promise<ServiceInfo> {
       info.state = "running";
       info.pid = existingPid;
       info.owner = "managed";
-      console.log(`PostgreSQL already running (PID ${existingPid})`);
       return info;
     }
-    console.log("PostgreSQL: stale PID file, cleaning up...");
     await removePid("postgres");
   }
 
   if (await probePort(PG_PORT)) {
-    console.log(
-      `PostgreSQL: port ${PG_PORT} already in use — reusing external instance`,
-    );
-    info.state = "external";
-    info.owner = "external";
+    info.state = "running";
+    info.pid = findPidOnPort(PG_PORT);
+    info.owner = "managed";
     return info;
   }
-
-  console.log("PostgreSQL: starting via embedded-postgres...");
   const dataDir = join(SERVICES_DIR, "postgres", "data");
   ensureDir(dataDir);
 
@@ -289,9 +295,6 @@ async function ensurePostgres(): Promise<ServiceInfo> {
 
   info.state = "running";
   info.owner = "managed";
-  console.log(
-    `PostgreSQL started on port ${PG_PORT} (PID ${pgPid ?? "unknown"})`,
-  );
   return info;
 }
 
@@ -403,8 +406,6 @@ async function downloadNats(): Promise<string> {
 
   const artifact = natsArtifactName();
   const url = `https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/${artifact}`;
-
-  console.log(`NATS: downloading ${artifact}...`);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(
@@ -416,7 +417,6 @@ async function downloadNats(): Promise<string> {
   const arrayBuffer = await response.arrayBuffer();
   writeFileSync(zipPath, Buffer.from(arrayBuffer));
 
-  console.log("NATS: extracting...");
   if (IS_WINDOWS) {
     const proc = Bun.spawn([
       "powershell",
@@ -447,7 +447,6 @@ async function downloadNats(): Promise<string> {
     throw new Error(`NATS binary not found at ${binPath} after extraction`);
   }
 
-  console.log(`NATS: binary installed at ${binPath}`);
   return binPath;
 }
 
@@ -466,19 +465,15 @@ async function ensureNats(): Promise<ServiceInfo> {
       info.state = "running";
       info.pid = existingPid;
       info.owner = "managed";
-      console.log(`NATS already running (PID ${existingPid})`);
       return info;
     }
-    console.log("NATS: stale PID file, cleaning up...");
     await removePid("nats");
   }
 
   if (await probePort(NATS_PORT)) {
-    console.log(
-      `NATS: port ${NATS_PORT} already in use — reusing external instance`,
-    );
-    info.state = "external";
-    info.owner = "external";
+    info.state = "running";
+    info.pid = findPidOnPort(NATS_PORT);
+    info.owner = "managed";
     return info;
   }
 
@@ -487,7 +482,6 @@ async function ensureNats(): Promise<ServiceInfo> {
   const logDir = join(SERVICES_DIR, "nats");
   ensureDir(dataDir);
 
-  console.log("NATS: starting...");
   const logFile = Bun.file(join(logDir, "nats.log"));
   const proc = Bun.spawn(
     [binPath, "-p", String(NATS_PORT), "-store_dir", dataDir, "--jetstream"],
@@ -504,7 +498,6 @@ async function ensureNats(): Promise<ServiceInfo> {
   info.state = "running";
   info.pid = proc.pid;
   info.owner = "managed";
-  console.log(`NATS started on port ${NATS_PORT} (PID ${proc.pid})`);
   return info;
 }
 
@@ -573,19 +566,12 @@ function isLocalUrl(url: string): boolean {
   }
 }
 
-export async function ensureServices(): Promise<void> {
+export async function ensureServices(): Promise<ServiceInfo[]> {
   ensureDir(SERVICES_DIR);
 
   const skipPostgres =
     process.env.DATABASE_URL && !isLocalUrl(process.env.DATABASE_URL);
   const skipNats = process.env.NATS_URL && !isLocalUrl(process.env.NATS_URL);
-
-  if (skipPostgres) {
-    console.log("PostgreSQL: using external service (DATABASE_URL is set)");
-  }
-  if (skipNats) {
-    console.log("NATS: using external service (NATS_URL is set)");
-  }
 
   const pgInfo: ServiceInfo = skipPostgres
     ? {
@@ -609,16 +595,13 @@ export async function ensureServices(): Promise<void> {
 
   if (!skipPostgres && !process.env.DATABASE_URL) {
     process.env.DATABASE_URL = PG_CONNECTION_STRING;
-    console.log(`DATABASE_URL set to ${PG_CONNECTION_STRING}`);
   }
 
   if (!skipNats && !process.env.NATS_URL) {
     process.env.NATS_URL = NATS_CONNECTION_STRING;
-    console.log(`NATS_URL set to ${NATS_CONNECTION_STRING}`);
   }
 
-  console.log("\nServices ready:");
-  printTable([pgInfo, natsInfo]);
+  return [pgInfo, natsInfo];
 }
 
 export async function stopServices(): Promise<void> {
@@ -642,10 +625,10 @@ export async function serviceStatus(): Promise<ServiceInfo[]> {
   } else if (await probePort(PG_PORT)) {
     services.push({
       name: "PostgreSQL",
-      state: "external",
-      pid: null,
+      state: "running",
+      pid: findPidOnPort(PG_PORT),
       port: PG_PORT,
-      owner: "external",
+      owner: "managed",
     });
   } else {
     services.push({
@@ -669,10 +652,10 @@ export async function serviceStatus(): Promise<ServiceInfo[]> {
   } else if (await probePort(NATS_PORT)) {
     services.push({
       name: "NATS",
-      state: "external",
-      pid: null,
+      state: "running",
+      pid: findPidOnPort(NATS_PORT),
       port: NATS_PORT,
-      owner: "external",
+      owner: "managed",
     });
   } else {
     services.push({

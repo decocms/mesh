@@ -184,7 +184,6 @@ export class EventBusWorker {
    */
   stop(): void {
     this.running = false;
-    console.log("[EventBus] Worker stopped");
   }
 
   /**

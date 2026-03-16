@@ -206,7 +206,6 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Stop any existing event bus worker and SSE hub (cleanup during HMR)
   if (currentEventBus && currentEventBus.isRunning()) {
-    console.log("[EventBus] Stopping previous worker (HMR cleanup)");
     // Fire and forget - don't block app creation
     // The stop is mostly synchronous, async part is just UNLISTEN cleanup
     Promise.resolve(currentEventBus.stop()).catch((error) => {
@@ -690,7 +689,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
   Promise.resolve(eventBus.start())
     .then(() => {
-      console.log("[EventBus] Worker started");
       // db is typed as `any` to avoid Kysely version mismatch issues between packages
       return runPluginStartupHooks({
         db: database.db as any,
@@ -825,7 +823,6 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   Promise.resolve(cronWorker.start())
     .then(() => {
-      console.log("[AutomationCron] Worker started");
       cronTimer = setInterval(() => {
         cronWorker.processNow().catch((err) => {
           console.error("[AutomationCron] Error processing:", err);

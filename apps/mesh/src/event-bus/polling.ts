@@ -33,14 +33,12 @@ export class PollingStrategy implements NotifyStrategy {
 
     this.onNotify = onNotify;
     this.scheduleNext();
-    console.log(`[Polling] Started polling every ${this.intervalMs}ms`);
   }
 
   async stop(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
-      console.log("[Polling] Stopped polling");
     }
     this.onNotify = null;
   }

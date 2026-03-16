@@ -93,9 +93,6 @@ export class JetStreamKVModelListCache implements ModelListCache {
         ttl: KV_TTL_MS,
         storage: StorageType.Memory,
       });
-      console.log(
-        "[ModelListCache] JetStream KV ready (memory storage, 10min TTL)",
-      );
     } catch (err) {
       console.warn(
         "[ModelListCache] JetStream KV init failed, cache disabled:",
@@ -146,6 +143,5 @@ export class JetStreamKVModelListCache implements ModelListCache {
 
   teardown(): void {
     this.kv = null;
-    console.log("[ModelListCache] JetStream KV torn down");
   }
 }
