@@ -131,7 +131,7 @@ function findPidOnPort(port: number): number | null {
     const proc = Bun.spawnSync(["lsof", "-ti", `tcp:${port}`, "-sTCP:LISTEN"]);
     const output = new TextDecoder().decode(proc.stdout).trim();
     if (!output) return null;
-    const pid = Number.parseInt(output.split("\n")[0], 10);
+    const pid = Number.parseInt(output.split("\n")[0] ?? "", 10);
     return Number.isNaN(pid) ? null : pid;
   } catch {
     return null;
