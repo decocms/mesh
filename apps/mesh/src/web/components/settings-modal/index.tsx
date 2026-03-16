@@ -112,7 +112,7 @@ export function SettingsModal() {
           </Suspense>
 
           {/* Right content */}
-          <div className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-y-auto relative flex flex-col overflow-hidden">
             <button
               type="button"
               onClick={close}
