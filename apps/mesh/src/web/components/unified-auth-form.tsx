@@ -304,7 +304,7 @@ export function UnifiedAuthForm({
       )}
 
       {/* Social Provider Buttons */}
-      {!isForgotPassword && !isEmailOtp && socialProviders.enabled && (
+      {!isForgotPassword && socialProviders.enabled && (
         <div className="grid gap-3">
           {socialProviders.providers.map((provider) => (
             <Button
@@ -338,7 +338,6 @@ export function UnifiedAuthForm({
 
       {/* Divider between social and email-based auth */}
       {!isForgotPassword &&
-        !isEmailOtp &&
         socialProviders.enabled &&
         (emailAndPassword.enabled || emailOtp.enabled) && (
           <div className="flex items-center gap-3">
