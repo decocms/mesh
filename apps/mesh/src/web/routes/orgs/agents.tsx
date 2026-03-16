@@ -1081,6 +1081,8 @@ function OrgAgentsContent() {
         </Page.Header.Left>
         <Page.Header.Right>
           <CollectionDisplayButton
+            viewMode={listState.viewMode}
+            onViewModeChange={listState.setViewMode}
             sortKey={listState.sortKey}
             sortDirection={listState.sortDirection}
             onSort={listState.handleSort}

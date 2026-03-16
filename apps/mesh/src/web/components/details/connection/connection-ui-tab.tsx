@@ -85,7 +85,7 @@ export function ConnectionUiTab({
               return (
                 <Card
                   key={tool.name}
-                  className="cursor-pointer transition-colors overflow-hidden"
+                  className="cursor-pointer transition-colors overflow-hidden gap-0"
                   onClick={() => handleToolClick(tool)}
                 >
                   {/* App preview */}

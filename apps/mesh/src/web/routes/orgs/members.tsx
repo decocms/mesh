@@ -441,7 +441,7 @@ function OrgMembersContent() {
     null,
   );
   const [search, setSearch] = useState("");
-  const [viewMode] = useState<"table" | "cards">("table");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [sortKey, setSortKey] = useState<string>("member");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
     "asc",
@@ -874,6 +874,8 @@ function OrgMembersContent() {
         </Page.Header.Left>
         <Page.Header.Right>
           <CollectionDisplayButton
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
             sortKey={sortKey}
             sortDirection={sortDirection}
             onSort={handleSort}
