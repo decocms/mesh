@@ -79,6 +79,14 @@ for (const line of ASCII_ART) {
 }
 console.log("");
 
+// Suppress noisy logs from worktree-devservers (e.g. "Cleaned stale route", "is live")
+const _originalLog = console.log;
+console.log = (...args: unknown[]) => {
+  const msg = String(args[0] ?? "");
+  if (msg.includes("is live") || msg.includes("Cleaned stale route")) return;
+  _originalLog(...args);
+};
+
 startWorktree(slug, async (ctx) => {
   const port = await ctx.findFreePort(3000);
   const vitePort = await ctx.findFreePort(4000);
