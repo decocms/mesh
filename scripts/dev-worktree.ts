@@ -2,6 +2,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { startWorktree } from "worktree-devservers";
+import { ensureServices } from "./dev-services.ts";
 
 function loadDotEnv(path: string): Record<string, string> {
   try {
@@ -38,6 +39,9 @@ startWorktree(slug, async (ctx) => {
 
   const repoRoot = join(import.meta.dir, "..");
   const dotEnv = loadDotEnv(join(repoRoot, "apps/mesh/.env"));
+
+  // Ensure PostgreSQL + NATS are running before migrations
+  await ensureServices();
 
   const child = Bun.spawn(["bun", "run", "--cwd=apps/mesh", "dev"], {
     cwd: repoRoot,
