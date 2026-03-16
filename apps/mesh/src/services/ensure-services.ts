@@ -567,7 +567,7 @@ export async function ensureServices(): Promise<ServiceInfo[]> {
         port: PG_PORT,
         owner: "external",
       }
-    : await ensurePostgres(log);
+    : await ensurePostgres();
 
   const natsInfo: ServiceInfo = skipNats
     ? {
@@ -577,7 +577,7 @@ export async function ensureServices(): Promise<ServiceInfo[]> {
         port: NATS_PORT,
         owner: "external",
       }
-    : await ensureNats(log);
+    : await ensureNats();
 
   if (!skipPostgres && !process.env.DATABASE_URL) {
     process.env.DATABASE_URL = PG_CONNECTION_STRING;
