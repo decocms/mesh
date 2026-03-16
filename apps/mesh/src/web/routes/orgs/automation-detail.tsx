@@ -12,7 +12,9 @@ import {
   type AiProviderModel,
 } from "@/web/hooks/collections/use-llm.ts";
 import { ModelSelector } from "@/web/components/chat/select-model.tsx";
-import { VirtualMCPSelector } from "@/web/components/chat/select-virtual-mcp.tsx";
+import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp.tsx";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { User } from "@/web/components/user/user.tsx";
 import {
   useAutomationDetail,
   useAutomationUpdate,
@@ -33,7 +35,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { Badge } from "@deco/ui/components/badge.tsx";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -45,41 +46,43 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import {
-  Table as UITable,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deco/ui/components/table.tsx";
 import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
-  ArrowLeft,
   ArrowUp,
-  Check,
-  ChevronRight,
   Clock,
-  Edit05,
+  Edit01,
   Loading01,
   Plus,
-  SearchMd,
   Trash01,
+  Users03,
   XClose,
 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
-import { Cron } from "croner";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { SELF_MCP_ALIAS_ID, useMCPClient } from "@decocms/mesh-sdk";
+import {
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useVirtualMCPs,
+  isDecopilot,
+} from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys.ts";
 import { STATUS_CONFIG } from "@/web/lib/task-status.ts";
 import { useDecopilotEvents } from "@/web/hooks/use-decopilot-events.ts";
@@ -103,34 +106,146 @@ interface SettingsFormData {
 }
 
 // ============================================================================
-// Add Trigger Popover
+// Helpers
 // ============================================================================
 
-const CRON_PRESETS = [
+function isValidCron(expr: string): boolean {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  return parts.every((p) => /^[\d*/,\-]+$/.test(p));
+}
+
+function humanReadableCron(expr: string): string {
+  if (!expr) return "Unknown schedule";
+  const e = expr.trim();
+
+  // Exact matches
+  if (e === "* * * * *") return "Every minute";
+  if (e === "0 * * * *") return "Every hour";
+  if (e === "0 0 * * *") return "Every day";
+  if (e === "0 0 * * 1") return "Every week";
+
+  // Every N minutes: */N * * * *
+  const everyNMin = e.match(/^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/);
+  if (everyNMin) return `Every ${everyNMin[1]} minutes`;
+
+  // Every N hours: 0 */N * * *
+  const everyNHr = e.match(/^0\s+\*\/(\d+)\s+\*\s+\*\s+\*$/);
+  if (everyNHr) return `Every ${everyNHr[1]} hours`;
+
+  // Every N days (or N*7 days = weeks): 0 0 */N * *
+  const everyNDay = e.match(/^0\s+0\s+\*\/(\d+)\s+\*\s+\*$/);
+  if (everyNDay) {
+    const n = parseInt(everyNDay[1] ?? "1");
+    if (n % 7 === 0) return `Every ${n / 7} weeks`;
+    return `Every ${n} days`;
+  }
+
+  // Daily at specific time: M H * * *
+  const dailyMatch = e.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
+  if (dailyMatch) {
+    const h = (dailyMatch[2] ?? "0").padStart(2, "0");
+    const m = (dailyMatch[1] ?? "0").padStart(2, "0");
+    return `Every day at ${h}:${m} UTC`;
+  }
+
+  // Weekly at specific time: M H * * DOW
+  const weeklyMatch = e.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+(\d)$/);
+  if (weeklyMatch) {
+    const days = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const dayName = days[parseInt(weeklyMatch[3] ?? "0")] ?? "day";
+    const h = (weeklyMatch[2] ?? "0").padStart(2, "0");
+    const m = (weeklyMatch[1] ?? "0").padStart(2, "0");
+    return `Every ${dayName} at ${h}:${m} UTC`;
+  }
+
+  return expr;
+}
+
+type TimeUnit = "minutes" | "hours" | "days" | "weeks";
+
+function buildCronFromInterval(count: number, unit: TimeUnit): string {
+  const n = Math.max(1, count);
+  switch (unit) {
+    case "minutes":
+      return n === 1 ? "* * * * *" : `*/${n} * * * *`;
+    case "hours":
+      return n === 1 ? "0 * * * *" : `0 */${n} * * *`;
+    case "days":
+      return n === 1 ? "0 0 * * *" : `0 0 */${n} * *`;
+    case "weeks":
+      return n === 1 ? "0 0 * * 1" : `0 0 */${n * 7} * *`;
+  }
+}
+
+function parseCronToInterval(
+  expr: string,
+): { count: number; unit: TimeUnit } | null {
+  const e = expr.trim();
+  if (e === "* * * * *") return { count: 1, unit: "minutes" };
+  if (e === "0 * * * *") return { count: 1, unit: "hours" };
+  if (e === "0 0 * * *") return { count: 1, unit: "days" };
+  if (e === "0 0 * * 1") return { count: 1, unit: "weeks" };
+  const m = e.match(/^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/);
+  if (m) return { count: parseInt(m[1]!), unit: "minutes" };
+  const h = e.match(/^0\s+\*\/(\d+)\s+\*\s+\*\s+\*$/);
+  if (h) return { count: parseInt(h[1]!), unit: "hours" };
+  const d = e.match(/^0\s+0\s+\*\/(\d+)\s+\*\s+\*$/);
+  if (d) {
+    const n = parseInt(d[1]!);
+    if (n % 7 === 0) return { count: n / 7, unit: "weeks" };
+    return { count: n, unit: "days" };
+  }
+  return null;
+}
+
+function unitLabel(unit: TimeUnit, count: number): string {
+  const singular: Record<TimeUnit, string> = {
+    minutes: "minute",
+    hours: "hour",
+    days: "day",
+    weeks: "week",
+  };
+  return count === 1 ? (singular[unit] ?? unit) : unit;
+}
+
+// ============================================================================
+// Add Starter Popover
+// ============================================================================
+
+const SCHEDULE_UNITS = [
   { label: "Minute", cron: "* * * * *" },
   { label: "Hour", cron: "0 * * * *" },
   { label: "Day", cron: "0 0 * * *" },
   { label: "Week", cron: "0 0 * * 1" },
 ] as const;
 
-type TriggerView = "menu" | "every" | "custom-cron";
-
-function AddTriggerPopover({ automationId }: { automationId: string }) {
+function AddStarterPopover({
+  automationId,
+  open,
+  onOpenChange,
+  onCustomSelect,
+}: {
+  automationId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onCustomSelect?: () => void;
+}) {
   const addTrigger = useAutomationTriggerAdd();
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<TriggerView>("menu");
-  const [search, setSearch] = useState("");
-  const [cronInput, setCronInput] = useState("");
+  const [internalOpen, setInternalOpen] = useState(false);
 
-  const resetState = () => {
-    setView("menu");
-    setSearch("");
-    setCronInput("");
-  };
+  const isOpen = open ?? internalOpen;
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) resetState();
+    onOpenChange ? onOpenChange(newOpen) : setInternalOpen(newOpen);
   };
 
   const submitCron = async (cron: string) => {
@@ -140,179 +255,64 @@ function AddTriggerPopover({ automationId }: { automationId: string }) {
         type: "cron",
         cron_expression: cron,
       });
-      toast.success("Trigger added");
+      toast.success("Starter added");
       handleOpenChange(false);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to add trigger";
+        err instanceof Error ? err.message : "Failed to add starter";
       toast.error(message);
     }
   };
 
-  const handleCustomSubmit = () => {
-    if (!cronInput.trim()) {
-      toast.error("Cron expression is required");
-      return;
-    }
-    submitCron(cronInput.trim());
-  };
-
-  // Flatten items for search filtering
-  const allItems = [
-    ...CRON_PRESETS.map((p) => ({
-      label: `Every ${p.label}`,
-      action: () => submitCron(p.cron),
-    })),
-    {
-      label: "Custom (cron)",
-      action: () => setView("custom-cron"),
-    },
-  ];
-
-  const filteredItems = search.trim()
-    ? allItems.filter((item) =>
-        item.label.toLowerCase().includes(search.toLowerCase()),
-      )
-    : null;
-
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+    <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm">
           <Plus size={14} />
-          Add Trigger
+          Add Starter
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="end">
-        {/* Search (always visible) */}
-        <div className="border-b px-3 py-2">
-          <div className="relative flex items-center gap-2">
-            <SearchMd
-              size={14}
-              className="text-muted-foreground pointer-events-none shrink-0"
-            />
-            <input
-              type="text"
-              placeholder="Search triggers..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[200px]">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="gap-2.5">
+            <Clock size={14} className="text-muted-foreground shrink-0" />
+            Every...
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-[160px]">
+            {SCHEDULE_UNITS.map((unit) => (
+              <DropdownMenuItem
+                key={unit.cron}
+                className="gap-2.5"
+                onSelect={() => submitCron(unit.cron)}
+                disabled={addTrigger.isPending}
+              >
+                <Clock size={14} className="text-muted-foreground shrink-0" />
+                Every {unit.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
 
-        <div className="py-1">
-          {filteredItems ? (
-            /* Search results */
-            filteredItems.length > 0 ? (
-              filteredItems.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors"
-                  onClick={item.action}
-                  disabled={addTrigger.isPending}
-                >
-                  {item.label}
-                </button>
-              ))
-            ) : (
-              <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                No triggers found
-              </div>
-            )
-          ) : view === "menu" ? (
-            /* Top-level menu */
-            <>
-              <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Clock size={12} />
-                Scheduled
-              </div>
-              <button
-                type="button"
-                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors"
-                onClick={() => setView("every")}
-              >
-                <span>Every...</span>
-                <ChevronRight size={14} className="text-muted-foreground" />
-              </button>
-              <button
-                type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors"
-                onClick={() => setView("custom-cron")}
-              >
-                Custom (cron)
-              </button>
-            </>
-          ) : view === "every" ? (
-            /* Every... submenu */
-            <>
-              <button
-                type="button"
-                className="w-full flex items-center gap-1.5 px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors text-muted-foreground"
-                onClick={() => setView("menu")}
-              >
-                <ArrowLeft size={14} />
-                Back
-              </button>
-              {CRON_PRESETS.map((preset) => (
-                <button
-                  key={preset.cron}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors"
-                  onClick={() => submitCron(preset.cron)}
-                  disabled={addTrigger.isPending}
-                >
-                  Every {preset.label}
-                </button>
-              ))}
-            </>
-          ) : (
-            /* Custom cron input */
-            <>
-              <button
-                type="button"
-                className="w-full flex items-center gap-1.5 px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors text-muted-foreground"
-                onClick={() => setView("menu")}
-              >
-                <ArrowLeft size={14} />
-                Back
-              </button>
-              <div className="px-3 py-2 flex flex-col gap-2">
-                <Input
-                  value={cronInput}
-                  onChange={(e) => setCronInput(e.target.value)}
-                  placeholder="*/5 * * * *"
-                  className="h-8 text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Minimum interval: 60 seconds between runs.
-                </p>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={handleCustomSubmit}
-                  disabled={addTrigger.isPending}
-                >
-                  {addTrigger.isPending && (
-                    <Loading01 size={14} className="animate-spin" />
-                  )}
-                  Add Trigger
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+        <DropdownMenuItem
+          className="gap-2.5"
+          onSelect={() => {
+            handleOpenChange(false);
+            onCustomSelect?.();
+          }}
+        >
+          <Clock size={14} className="text-muted-foreground shrink-0" />
+          Custom (cron)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 // ============================================================================
-// Trigger Row
+// Trigger Card
 // ============================================================================
 
-function TriggerRow({
+function TriggerCard({
   trigger,
   automationId,
 }: {
@@ -322,10 +322,16 @@ function TriggerRow({
   const removeTrigger = useAutomationTriggerRemove();
   const addTrigger = useAutomationTriggerAdd();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [editing, setEditing] = useState(false);
+
+  const interval = trigger.cron_expression
+    ? parseCronToInterval(trigger.cron_expression)
+    : null;
+  const [count, setCount] = useState(interval?.count ?? 1);
+  const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(trigger.cron_expression ?? "");
 
   const isSaving = removeTrigger.isPending || addTrigger.isPending;
+  const isCron = trigger.type === "cron";
 
   const handleRemove = async () => {
     try {
@@ -333,147 +339,150 @@ function TriggerRow({
         trigger_id: trigger.id,
         automation_id: automationId,
       });
-      toast.success("Trigger removed");
+      toast.success("Starter removed");
     } catch {
-      toast.error("Failed to remove trigger");
+      toast.error("Failed to remove starter");
     }
     setConfirmDelete(false);
   };
 
   const handleEditSave = async () => {
-    const trimmed = editValue.trim();
-    if (!trimmed) {
-      toast.error("Cron expression is required");
-      return;
-    }
-    if (trimmed === trigger.cron_expression) {
-      setEditing(false);
+    const val = editValue.trim();
+    if (!val || !isValidCron(val) || val === trigger.cron_expression) {
+      setIsEditing(false);
+      setEditValue(trigger.cron_expression ?? "");
       return;
     }
     try {
       await addTrigger.mutateAsync({
         automation_id: automationId,
         type: "cron",
-        cron_expression: trimmed,
+        cron_expression: val,
       });
       await removeTrigger.mutateAsync({
         trigger_id: trigger.id,
         automation_id: automationId,
       });
-      toast.success("Trigger updated");
-      setEditing(false);
+      setIsEditing(false);
     } catch {
-      toast.error("Failed to update trigger");
+      toast.error("Failed to update starter");
+      setEditValue(trigger.cron_expression ?? "");
+      setIsEditing(false);
     }
   };
 
-  const handleEditCancel = () => {
-    setEditValue(trigger.cron_expression ?? "");
-    setEditing(false);
+  const handleCountSave = async (newCount: number) => {
+    if (!interval) return;
+    const clamped = Math.max(1, newCount);
+    const newCron = buildCronFromInterval(clamped, interval.unit);
+    if (newCron === trigger.cron_expression) return;
+    try {
+      await addTrigger.mutateAsync({
+        automation_id: automationId,
+        type: "cron",
+        cron_expression: newCron,
+      });
+      await removeTrigger.mutateAsync({
+        trigger_id: trigger.id,
+        automation_id: automationId,
+      });
+    } catch {
+      toast.error("Failed to update starter");
+      setCount(interval.count);
+    }
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleEditSave();
-    if (e.key === "Escape") handleEditCancel();
-  };
-
-  const isCron = trigger.type === "cron";
 
   return (
     <>
-      <TableRow>
-        <TableCell>
-          <Badge variant="outline">{isCron ? "Cron" : "Event"}</Badge>
-        </TableCell>
-        <TableCell className="text-muted-foreground font-mono text-xs">
-          {editing ? (
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="*/5 * * * *"
-                className="h-7 text-xs font-mono w-36"
-                autoFocus
-                disabled={isSaving}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={handleEditSave}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <Loading01 size={14} className="animate-spin" />
-                ) : (
-                  <Check size={14} className="text-green-600" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={handleEditCancel}
-                disabled={isSaving}
-              >
-                <XClose size={14} className="text-muted-foreground" />
-              </Button>
-            </div>
-          ) : isCron ? (
-            trigger.cron_expression
-          ) : (
-            `${trigger.event_type} @ ${trigger.connection_id?.slice(0, 8)}...`
-          )}
-        </TableCell>
-        <TableCell className="text-muted-foreground text-xs">
-          {(() => {
-            if (!isCron || !trigger.cron_expression) return "-";
-            try {
-              const nextRun = new Cron(trigger.cron_expression, {
-                timezone: "UTC",
-              }).nextRun();
-              return nextRun
-                ? nextRun.toLocaleString(undefined, {
-                    timeZoneName: "short",
-                  })
-                : "-";
-            } catch {
-              return "-";
-            }
-          })()}
-        </TableCell>
-        <TableCell>
-          <div className="flex items-center gap-0.5">
-            {isCron && !editing && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setEditing(true)}
-              >
-                <Edit05 size={14} className="text-muted-foreground" />
-              </Button>
+      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
+        <Clock size={14} className="text-muted-foreground shrink-0" />
+
+        {interval && isCron ? (
+          <>
+            <span className="text-sm text-muted-foreground">Every</span>
+            <input
+              type="number"
+              min={1}
+              value={count}
+              onChange={(e) => setCount(parseInt(e.target.value) || 1)}
+              onBlur={() => handleCountSave(count)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") setCount(interval.count);
+              }}
+              disabled={isSaving}
+              className="w-12 text-center text-sm h-7 border border-border rounded-md bg-background px-1 focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <span className="text-sm">{unitLabel(interval.unit, count)}</span>
+          </>
+        ) : isCron && isEditing ? (
+          <>
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleEditSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") {
+                  setIsEditing(false);
+                  setEditValue(trigger.cron_expression ?? "");
+                }
+              }}
+              className="flex-1 text-sm font-mono bg-transparent outline-none"
+              autoFocus
+            />
+            {editValue && !isValidCron(editValue) && (
+              <span className="text-xs text-muted-foreground/60 shrink-0">
+                invalid
+              </span>
             )}
+          </>
+        ) : (
+          <span className="text-sm flex-1 font-mono text-xs text-muted-foreground">
+            {isCron
+              ? humanReadableCron(trigger.cron_expression ?? "")
+              : `${trigger.event_type} event`}
+          </span>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          {isSaving && (
+            <Loading01
+              size={13}
+              className="animate-spin text-muted-foreground"
+            />
+          )}
+          {isCron && !interval && !isEditing && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setConfirmDelete(true)}
+              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => {
+                setEditValue(trigger.cron_expression ?? "");
+                setIsEditing(true);
+              }}
             >
-              <Trash01 size={14} className="text-muted-foreground" />
+              <Edit01 size={13} className="text-muted-foreground" />
             </Button>
-          </div>
-        </TableCell>
-      </TableRow>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <XClose size={13} className="text-muted-foreground" />
+          </Button>
+        </div>
+      </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Trigger</AlertDialogTitle>
+            <AlertDialogTitle>Remove Starter</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove this trigger? For event triggers,
-              it will also be disabled on the connection.
+              Are you sure you want to remove this starter?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -488,6 +497,140 @@ function TriggerRow({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+// ============================================================================
+// Agent Picker
+// ============================================================================
+
+function AgentPicker({
+  selectedId,
+  onChange,
+}: {
+  selectedId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const allVirtualMcps = useVirtualMCPs();
+  const virtualMcps = allVirtualMcps.filter((v) => !v.id || !isDecopilot(v.id));
+  const selected = selectedId
+    ? virtualMcps.find((v) => v.id === selectedId)
+    : null;
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
+            >
+              <IntegrationIcon
+                icon={selected.icon}
+                name={selected.title}
+                size="sm"
+                fallbackIcon={<Users03 size={16} />}
+                className="rounded-md shrink-0"
+              />
+              <span className="text-sm font-medium truncate">
+                {selected.title}
+              </span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[550px] p-0 overflow-hidden"
+            align="start"
+            sideOffset={8}
+          >
+            <VirtualMCPPopoverContent
+              virtualMcps={virtualMcps}
+              selectedVirtualMcpId={selectedId}
+              onVirtualMcpChange={(id) => {
+                onChange(id);
+                setOpen(false);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 size-7 text-muted-foreground hover:text-foreground"
+          onClick={() => onChange(null)}
+          title="Remove agent"
+        >
+          <XClose size={13} />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
+        >
+          <div className="relative flex items-center justify-center size-8 rounded-md text-muted-foreground/75 shrink-0">
+            <svg className="absolute inset-0 size-full" fill="none">
+              <defs>
+                <linearGradient
+                  id="agent-picker-border-gradient"
+                  gradientUnits="userSpaceOnUse"
+                  x1="0"
+                  y1="0"
+                  x2="32"
+                  y2="32"
+                >
+                  <animateTransform
+                    attributeName="gradientTransform"
+                    type="rotate"
+                    from="0 16 16"
+                    to="360 16 16"
+                    dur="6s"
+                    repeatCount="indefinite"
+                  />
+                  <stop offset="0%" stopColor="var(--chart-1)" />
+                  <stop offset="100%" stopColor="var(--chart-4)" />
+                </linearGradient>
+              </defs>
+              <rect
+                x="0.5"
+                y="0.5"
+                width="31"
+                height="31"
+                rx="5.5"
+                stroke="url(#agent-picker-border-gradient)"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+              />
+            </svg>
+            <Users03 size={16} />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            No agent selected. All connections available.
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[550px] p-0 overflow-hidden"
+        align="start"
+        sideOffset={8}
+      >
+        <VirtualMCPPopoverContent
+          virtualMcps={virtualMcps}
+          selectedVirtualMcpId={selectedId}
+          onVirtualMcpChange={(id) => {
+            onChange(id);
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -522,10 +665,12 @@ function SettingsTab({
   const [tiptapDoc, setTiptapDocRaw] =
     useState<Metadata["tiptapDoc"]>(initialTiptapDoc);
   const [savedDoc, setSavedDoc] = useState(initialTiptapDoc);
+  const [starterOpen, setStarterOpen] = useState(false);
+  const [showCustomCron, setShowCustomCron] = useState(false);
+  const [cronInput, setCronInput] = useState("");
+  const addTrigger = useAutomationTriggerAdd();
   const editorInitializedRef = useRef(false);
 
-  // Sync savedDoc on the first editor-triggered update so the editor's
-  // initialisation doesn't mark the form as dirty.
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
     setTiptapDocRaw(doc);
     if (!editorInitializedRef.current) {
@@ -551,6 +696,7 @@ function SettingsTab({
     },
   });
 
+  const watchActive = form.watch("active");
   const watchAgentId = form.watch("agent_id");
   const watchConnectionId = form.watch("credential_id");
   const watchModelId = form.watch("model_id");
@@ -616,24 +762,21 @@ function SettingsTab({
     }
 
     if (!tiptapDoc) {
-      toast.error("No message configured for this automation");
+      toast.error("No instructions configured for this automation");
       return;
     }
 
     const values = form.getValues();
 
-    // Set agent and model to match current form values
     setVirtualMcpId(values.agent_id || null);
     setSelectedMode("passthrough");
     if (selectedModel && watchConnectionId) {
       setSelectedModel({ ...selectedModel, keyId: watchConnectionId });
     }
 
-    // Open chat and create a new thread
     setChatOpen(true);
     createTask();
 
-    // Send message after React flushes the new thread state
     setTimeout(() => {
       sendMessage(tiptapDoc, { toolApprovalLevel: "yolo" });
     }, 0);
@@ -652,52 +795,170 @@ function SettingsTab({
         />
       </ViewActions>
 
-      <div className="flex flex-col gap-6 p-6">
-        {/* Name + Active */}
-        <div className="flex items-center justify-between gap-3">
+      <div className="max-w-2xl mx-auto w-full px-6 py-6 flex flex-col gap-8">
+        {/* Header: Name + Status + Creator */}
+        <div className="flex flex-col gap-1.5">
           <Input
             {...form.register("name")}
             placeholder="Automation name"
-            className="flex-1 max-w-xs"
+            className="border-0 shadow-none px-0 text-2xl md:text-2xl font-semibold h-auto focus-visible:ring-0 bg-transparent"
           />
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="active"
+              render={({ field }) => (
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  className="cursor-pointer"
+                />
+              )}
+            />
+            <span className="text-sm text-muted-foreground">
+              {watchActive ? "Active" : "Inactive"}
+            </span>
+            <span className="text-muted-foreground/50 text-sm">·</span>
+            <User
+              id={automation.created_by}
+              size="2xs"
+              className="text-sm text-muted-foreground"
+            />
+          </div>
+        </div>
 
-          <Controller
-            control={form.control}
-            name="active"
-            render={({ field }) => (
-              <Switch
-                checked={field.value}
-                onCheckedChange={field.onChange}
-                className="cursor-pointer"
+        {/* Section: Starter (was Triggers) */}
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground/60">
+              Starter
+            </span>
+            <AddStarterPopover
+              automationId={automationId}
+              open={starterOpen}
+              onOpenChange={setStarterOpen}
+              onCustomSelect={() => {
+                setShowCustomCron(true);
+                setCronInput("");
+              }}
+            />
+          </div>
+
+          {automation.triggers.length === 0 && !showCustomCron ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                When should this automation run?{" "}
+                <button
+                  type="button"
+                  className="text-foreground underline underline-offset-2 cursor-pointer hover:text-foreground/80 transition-colors"
+                  onClick={() => setStarterOpen(true)}
+                >
+                  Add a starter
+                </button>{" "}
+                to get going.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {automation.triggers.map((trigger) => (
+                <TriggerCard
+                  key={trigger.id}
+                  trigger={trigger}
+                  automationId={automationId}
+                />
+              ))}
+            </div>
+          )}
+
+          {showCustomCron && (
+            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
+              <Clock size={14} className="text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={cronInput}
+                onChange={(e) => setCronInput(e.target.value)}
+                onBlur={async () => {
+                  const val = cronInput.trim();
+                  if (!val || !isValidCron(val)) return;
+                  try {
+                    await addTrigger.mutateAsync({
+                      automation_id: automationId,
+                      type: "cron",
+                      cron_expression: val,
+                    });
+                    toast.success("Starter added");
+                    setShowCustomCron(false);
+                    setCronInput("");
+                  } catch {
+                    toast.error("Failed to add starter");
+                  }
+                }}
+                onKeyDown={async (e) => {
+                  const val = cronInput.trim();
+                  if (e.key === "Enter" && val && isValidCron(val)) {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                  if (e.key === "Escape") {
+                    setShowCustomCron(false);
+                    setCronInput("");
+                  }
+                }}
+                placeholder="0 9 * * 1-5"
+                className="flex-1 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40"
+                autoFocus
               />
-            )}
+              {cronInput && !isValidCron(cronInput) && (
+                <span className="text-xs text-muted-foreground/60 shrink-0">
+                  invalid
+                </span>
+              )}
+              {addTrigger.isPending && (
+                <Loading01
+                  size={13}
+                  className="animate-spin text-muted-foreground shrink-0"
+                />
+              )}
+              <button
+                type="button"
+                className="shrink-0 p-0.5 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
+                onClick={() => {
+                  setShowCustomCron(false);
+                  setCronInput("");
+                }}
+              >
+                <XClose size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Section: Agent */}
+        <div className="flex flex-col gap-2.5">
+          <span className="text-xs font-semibold text-muted-foreground/60">
+            Agent
+          </span>
+          <AgentPicker
+            selectedId={watchAgentId || null}
+            onChange={(id) =>
+              form.setValue("agent_id", id ?? "", { shouldDirty: true })
+            }
           />
         </div>
 
-        {/* Messages Editor with bottom actions (mirrors chat input layout) */}
-        <TiptapProvider
-          tiptapDoc={tiptapDoc}
-          setTiptapDoc={setTiptapDoc}
-          placeholder="What should this automation do?"
-        >
-          <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
-            <TiptapInput virtualMcpId={watchAgentId || null} />
+        {/* Section: Instructions */}
+        <div className="flex flex-col gap-2.5">
+          <span className="text-xs font-semibold text-muted-foreground/60">
+            Instructions
+          </span>
+          <TiptapProvider
+            tiptapDoc={tiptapDoc}
+            setTiptapDoc={setTiptapDoc}
+            placeholder="What should this automation do?"
+          >
+            <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
+              <TiptapInput virtualMcpId={watchAgentId || null} />
 
-            {/* Bottom Actions Row */}
-            <div className="flex items-center justify-between p-2.5">
-              {/* Left: Agent selector */}
-              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                <VirtualMCPSelector
-                  selectedVirtualMcpId={watchAgentId || null}
-                  onVirtualMcpChange={(id) =>
-                    form.setValue("agent_id", id ?? "", { shouldDirty: true })
-                  }
-                  placeholder="Select Agent"
-                />
-              </div>
-
-              {/* Right: Model selector + Run button */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-end gap-1.5 p-2.5">
                 <ModelSelector
                   model={selectedModel}
                   isLoading={isModelsLoading}
@@ -727,45 +988,14 @@ function SettingsTab({
                 </Button>
               </div>
             </div>
-          </div>
-        </TiptapProvider>
-
-        {/* Triggers Section */}
-        <div className="flex flex-col gap-3 border-t border-border pt-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Triggers</h3>
-            <AddTriggerPopover automationId={automationId} />
-          </div>
-
-          {automation.triggers.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              No triggers configured. Add a cron schedule or event trigger.
-            </p>
-          ) : (
-            <UITable>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Configuration</TableHead>
-                  <TableHead>Next Run</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {automation.triggers.map((trigger) => (
-                  <TriggerRow
-                    key={trigger.id}
-                    trigger={trigger}
-                    automationId={automationId}
-                  />
-                ))}
-              </TableBody>
-            </UITable>
-          )}
+          </TiptapProvider>
         </div>
-        {/* Run History */}
-        <div className="flex flex-col gap-3 border-t border-border pt-6">
-          <h3 className="text-sm font-medium">Run History</h3>
+
+        {/* Section: Run History */}
+        <div className="flex flex-col gap-2.5">
+          <span className="text-xs font-semibold text-muted-foreground/60">
+            Run History
+          </span>
           <RunHistorySection
             automationId={automationId}
             triggerIds={automation.triggers.map((t) => t.id)}
@@ -832,7 +1062,6 @@ function RunHistorySection({
     triggerIds,
   );
 
-  // Real-time updates via SSE
   useDecopilotEvents({
     orgId: org.id,
     enabled: triggerIds.length > 0,
@@ -841,7 +1070,6 @@ function RunHistorySection({
       const cached = runs ?? [];
       const existingRun = cached.find((r) => r.id === threadId);
       if (existingRun) {
-        // Update status in cache
         queryClient.setQueryData(
           KEYS.automationRuns(org.id, automationId, triggerIds),
           cached.map((r) =>
@@ -855,7 +1083,6 @@ function RunHistorySection({
           ),
         );
       } else {
-        // New run — refetch to pick it up
         queryClient.invalidateQueries({
           queryKey: KEYS.automationRuns(org.id, automationId, triggerIds),
         });
@@ -874,6 +1101,8 @@ function RunHistorySection({
   if (!runs || runs.length === 0) {
     return (
       <EmptyState
+        image={null}
+        className="mt-6"
         title="No run history"
         description="Run history will appear here when the automation has been triggered."
       />

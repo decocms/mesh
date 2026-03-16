@@ -94,7 +94,7 @@ function PageHeader({
       <div className="flex items-center">
         {right}
         {!hideSidebarTrigger && (
-          <div className="flex items-center border-l border-border/50 pl-2 ml-1">
+          <div className="flex items-center pl-2 ml-1">
             <ChatToggleButton />
           </div>
         )}
@@ -128,7 +128,7 @@ function PageHeaderRight({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 shrink-0 overflow-hidden border-l border-border pl-3",
+        "flex items-center gap-2 shrink-0 overflow-hidden",
         className,
       )}
     >
