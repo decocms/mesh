@@ -141,7 +141,7 @@ const setMCPPreferences = async (workspace: string, app: string) => {
     getMCPConfigVersion(),
   ]);
 
-  const prefsPath = join(process.cwd(), ".deco", "preferences.json");
+  const prefsPath = join(process.cwd(), "deco", "preferences.json");
 
   try {
     await ensureDir(dirname(prefsPath));
