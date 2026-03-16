@@ -2,7 +2,14 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { startWorktree } from "worktree-devservers";
-import { ASCII_ART, row, section } from "../apps/mesh/src/fmt.ts";
+import {
+  ASCII_ART,
+  cyan,
+  dim,
+  row,
+  section,
+  underline,
+} from "../apps/mesh/src/fmt.ts";
 import { ensureServices } from "./dev-services.ts";
 
 function loadDotEnv(path: string): Record<string, string> {
@@ -37,6 +44,10 @@ console.log("");
 for (const line of ASCII_ART) {
   console.log(line);
 }
+console.log("");
+console.log(
+  `  ${dim("Open in browser:")}  ${cyan(underline(`http://${slug}.localhost`))}`,
+);
 console.log("");
 
 // Suppress noisy logs from worktree-devservers (e.g. "Cleaned stale route", "is live")
