@@ -127,7 +127,7 @@ export default function LoginRoute() {
   const session = authClient.useSession();
   const searchParams = useSearch({ from: "/login" });
   const {
-    next = "/",
+    next: rawNext = "/",
     client_id,
     redirect_uri,
     response_type,
@@ -136,6 +136,10 @@ export default function LoginRoute() {
     code_challenge,
     code_challenge_method,
   } = searchParams;
+
+  // Prevent open redirect — only allow relative paths
+  const next =
+    rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
   const {
     sso,
     emailAndPassword,
