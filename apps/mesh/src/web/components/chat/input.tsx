@@ -1,4 +1,4 @@
-import { isMac } from "@/web/lib/keyboard-shortcuts";
+import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { getAgentColor } from "@/web/utils/agent-color";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -351,12 +351,17 @@ export function ChatInput({
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
-  // Focus chat input on Cmd+L (dispatched from shell layout)
+  // Focus chat input on Cmd+L
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    const handler = () => tiptapRef.current?.focus();
-    document.addEventListener("mesh:focus-chat-input", handler);
-    return () => document.removeEventListener("mesh:focus-chat-input", handler);
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (isModKey(e) && e.code === "KeyL") {
+        e.preventDefault();
+        tiptapRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
   const usage = calculateUsageStats(messages);

@@ -171,21 +171,9 @@ function ShellLayoutContent() {
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     const handler = (e: globalThis.KeyboardEvent) => {
-      if (!isModKey(e)) return;
-
-      const tag = (e.target as HTMLElement).tagName;
-      const isEditing =
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        (e.target as HTMLElement).isContentEditable;
-
-      if (e.code === "KeyK") {
+      if (isModKey(e) && e.code === "KeyK") {
         e.preventDefault();
         setShortcutsDialogOpen(true);
-      }
-      if (!isEditing && e.code === "KeyL") {
-        e.preventDefault();
-        document.dispatchEvent(new CustomEvent("mesh:focus-chat-input"));
       }
     };
     document.addEventListener("keydown", handler);
