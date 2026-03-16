@@ -573,7 +573,7 @@ function isLocalUrl(url: string): boolean {
   }
 }
 
-export async function ensureServices(): Promise<void> {
+export async function ensureServices(): Promise<ServiceInfo[]> {
   ensureDir(SERVICES_DIR);
 
   const skipPostgres =
@@ -609,16 +609,13 @@ export async function ensureServices(): Promise<void> {
 
   if (!skipPostgres && !process.env.DATABASE_URL) {
     process.env.DATABASE_URL = PG_CONNECTION_STRING;
-    console.log(`DATABASE_URL set to ${PG_CONNECTION_STRING}`);
   }
 
   if (!skipNats && !process.env.NATS_URL) {
     process.env.NATS_URL = NATS_CONNECTION_STRING;
-    console.log(`NATS_URL set to ${NATS_CONNECTION_STRING}`);
   }
 
-  console.log("\nServices ready:");
-  printTable([pgInfo, natsInfo]);
+  return [pgInfo, natsInfo];
 }
 
 export async function stopServices(): Promise<void> {

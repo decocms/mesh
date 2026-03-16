@@ -17,18 +17,11 @@ import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
 import { startDebugServer } from "./debug";
 import { env, logConfiguration } from "./env";
+import { bold, cyan, dim, green, red, underline } from "./fmt";
 
 const port = env.PORT;
 const debugPort = env.DEBUG_PORT;
 const enableDebugServer = env.ENABLE_DEBUG_SERVER;
-
-// ANSI color codes
-const reset = "\x1b[0m";
-const bold = "\x1b[1m";
-const dim = "\x1b[2m";
-const green = "\x1b[32m";
-const cyan = "\x1b[36m";
-const underline = "\x1b[4m";
 
 const url = env.BASE_URL || `http://localhost:${port}`;
 
@@ -39,7 +32,9 @@ if (
   !env.MESH_ALLOW_LOCAL_PROD
 ) {
   console.error(
-    "\x1b[31mError: Local mode is not allowed in production (NODE_ENV=production).\x1b[0m",
+    red(
+      "Error: Local mode is not allowed in production (NODE_ENV=production).",
+    ),
   );
   console.error(
     "Set MESH_ALLOW_LOCAL_PROD=true to override (not recommended).",
@@ -83,11 +78,9 @@ const app = await createApp();
 logConfiguration(env);
 
 console.log("");
-console.log(`${green}✓${reset} ${bold}Ready${reset}`);
+console.log(`${green("✓")} ${bold("Ready")}`);
 console.log("");
-console.log(
-  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
-);
+console.log(`  ${dim("Open in browser:")}  ${cyan(underline(url))}`);
 console.log("");
 
 Bun.serve({
@@ -114,7 +107,7 @@ if (env.MESH_LOCAL_MODE) {
       try {
         const seeded = await seedLocalMode();
         if (seeded) {
-          console.log(`\n${green}Local environment initialized.${reset}`);
+          console.log(`\n${green("Local environment initialized.")}`);
         }
       } catch (error) {
         console.error("Failed to seed local mode:", error);
@@ -140,7 +133,7 @@ if (enableDebugServer) {
   startDebugServer({ port: debugPort });
 
   console.log(
-    `  ${dim}Debug server:${reset}     ${cyan}${underline}http://localhost:${debugPort}${reset}`,
+    `  ${dim("Debug server:")}     ${cyan(underline(`http://localhost:${debugPort}`))}`,
   );
   console.log("");
 }
