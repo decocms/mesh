@@ -41,6 +41,14 @@ const envSchema = z
     CONFIG_PATH: z.string().default("./config.json"),
     AUTH_CONFIG_PATH: z.string().default("./auth-config.json"),
 
+    // Webhooks
+    SEED_ORG_WEBHOOK_URL: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v))
+      .pipe(z.string().url().optional()),
+    SEED_ORG_WEBHOOK_SECRET: z.string().default(""),
+
     // Transport
     UNSAFE_ALLOW_STDIO_TRANSPORT: zBooleanString,
 
@@ -170,6 +178,13 @@ function logConfiguration(e: Env) {
   section("Config Files");
   row("CONFIG_PATH", e.CONFIG_PATH);
   row("AUTH_CONFIG_PATH", e.AUTH_CONFIG_PATH);
+
+  section("Webhooks");
+  row("SEED_ORG_WEBHOOK_URL", redactUrl(e.SEED_ORG_WEBHOOK_URL));
+  row(
+    "SEED_ORG_WEBHOOK_SECRET",
+    e.SEED_ORG_WEBHOOK_SECRET ? "[redacted]" : "not set",
+  );
 
   section("Transport");
   row("UNSAFE_ALLOW_STDIO_TRANSPORT", e.UNSAFE_ALLOW_STDIO_TRANSPORT);

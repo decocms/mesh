@@ -5,6 +5,7 @@ import {
   ORG_ADMIN_PROJECT_NAME,
   ORG_ADMIN_PROJECT_SLUG,
 } from "@decocms/mesh-sdk";
+import { issueSystemToken } from "./jwt";
 import { getBaseUrl } from "@/core/server-constants";
 import { getDb } from "@/database";
 import { CredentialVault } from "@/encryption/credential-vault";
@@ -81,12 +82,59 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
   ];
 }
 
+interface OrgCreatedEvent {
+  organizationId: string;
+  slug: string;
+  name: string;
+  createdBy: string;
+  timestamp: string;
+}
+
+// maybe should be an event bus event (port Bus to NATS)
+async function notifyOrgCreated(event: OrgCreatedEvent): Promise<void> {
+  const webhookUrl = env.SEED_ORG_WEBHOOK_URL;
+  const webhookSecret = env.SEED_ORG_WEBHOOK_SECRET;
+  if (!webhookUrl || !webhookSecret) return;
+
+  try {
+    const token = await issueSystemToken(
+      "org-created-webhook",
+      event.organizationId,
+    );
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Webhook-Secret": webhookSecret,
+      },
+      body: JSON.stringify(event),
+    });
+    if (!response.ok) {
+      console.warn(
+        `SEED_ORG_WEBHOOK_URL returned non-OK status: ${response.status} ${response.statusText}`,
+      );
+    }
+  } catch (err) {
+    console.warn("Failed to notify SEED_ORG_WEBHOOK_URL:", err);
+  }
+}
+
+const SHOULD_NOTIFY_ORG_CREATED =
+  env.SEED_ORG_WEBHOOK_URL !== undefined &&
+  typeof env.SEED_ORG_WEBHOOK_URL === "string";
+
 /**
  * Create default MCP connections and org-admin project for a new organization
  * This is deferred to run after the Better Auth request completes
  * to avoid deadlocks when issuing tokens
  */
-export async function seedOrgDb(organizationId: string, createdBy: string) {
+export async function seedOrgDb(
+  organizationId: string,
+  createdBy: string,
+  slug: string,
+  name: string,
+) {
   try {
     const database = getDb();
     const vault = new CredentialVault(env.ENCRYPTION_KEY);
@@ -164,6 +212,15 @@ export async function seedOrgDb(organizationId: string, createdBy: string) {
         });
       }),
     );
+    if (SHOULD_NOTIFY_ORG_CREATED) {
+      notifyOrgCreated({
+        organizationId,
+        slug,
+        name,
+        createdBy,
+        timestamp: new Date().toISOString(),
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error("Error creating default MCP connections:", err);
   }

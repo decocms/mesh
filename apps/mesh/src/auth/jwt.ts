@@ -54,8 +54,10 @@ export interface MeshTokenPayload {
     state?: Record<string, unknown>;
     /** Mesh instance URL */
     meshUrl: string;
-    /** Connection ID this token was issued for */
-    connectionId: string;
+    /** Connection ID this token was issued for (absent for system tokens) */
+    connectionId?: string;
+    /** Purpose for system-level tokens that have no connection context */
+    purpose?: string;
     /** Organization ID */
     organizationId?: string;
     /** Organization display name */
@@ -118,4 +120,31 @@ export async function verifyMeshToken(
  */
 export function decodeMeshToken(token: string): MeshJwtPayload {
   return decodeJwt<MeshTokenPayload>(token);
+}
+
+/**
+ * Issue a signed JWT for system-level calls that have no connection context
+ * (e.g., outbound webhooks, internal service-to-service calls).
+ *
+ * @param purpose - Identifies the call site (e.g., "org-created-webhook")
+ * @param organizationId - Optional org context
+ * @param expiresIn - Expiration time (default: 5 minutes)
+ */
+export async function issueSystemToken(
+  purpose: string,
+  organizationId?: string,
+  expiresIn: string = "5m",
+): Promise<string> {
+  return issueMeshToken(
+    {
+      sub: "system",
+      metadata: {
+        meshUrl: (await import("@/core/server-constants")).getBaseUrl(),
+        purpose,
+        organizationId,
+      },
+      permissions: {},
+    },
+    expiresIn,
+  );
 }
