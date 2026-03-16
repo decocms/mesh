@@ -23,7 +23,7 @@ export function useSettingsFooterEl() {
   return useContext(SettingsFooterContext).footerEl;
 }
 
-export function useSettingsFooterSetter() {
+function useSettingsFooterSetter() {
   return useContext(SettingsFooterContext).setFooterEl;
 }
 

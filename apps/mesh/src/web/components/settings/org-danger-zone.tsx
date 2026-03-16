@@ -31,11 +31,13 @@ export function OrgDangerZone() {
   const [confirmName, setConfirmName] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: activeMember } = useQuery({
+  const { data: activeMember, isPending: isMemberPending } = useQuery({
     queryKey: [org.id, "active-member"],
     queryFn: () => authClient.organization.getActiveMember(),
   });
-  const isOwner = activeMember?.data?.role === "owner";
+  // While loading we don't know the role yet — don't block the button.
+  // Only disable once we have confirmed the user is NOT an owner.
+  const isOwner = isMemberPending || activeMember?.data?.role === "owner";
 
   const mutation = useMutation({
     mutationFn: async () => {
