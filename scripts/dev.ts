@@ -5,35 +5,12 @@
  *
  * Called by `bun run dev` from the monorepo root.
  */
-import { readFileSync } from "fs";
 import { join } from "path";
 import { ASCII_ART, row, section } from "../apps/mesh/src/fmt.ts";
 import { ensureServices } from "./dev-services.ts";
+import { loadDotEnv } from "./load-dot-env.ts";
 
 const repoRoot = join(import.meta.dir, "..");
-
-// Load apps/mesh/.env early so ensureServices() and migrations see the
-// correct DATABASE_URL / NATS_URL before any module evaluates process.env.
-function loadDotEnv(path: string): Record<string, string> {
-  try {
-    const result: Record<string, string> = {};
-    for (const line of readFileSync(path, "utf8").split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const idx = trimmed.indexOf("=");
-      if (idx === -1) continue;
-      const key = trimmed.slice(0, idx).trim();
-      const val = trimmed
-        .slice(idx + 1)
-        .trim()
-        .replace(/^["']|["']$/g, "");
-      result[key] = val;
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
 
 const dotEnv = loadDotEnv(join(repoRoot, "apps/mesh/.env"));
 for (const [key, value] of Object.entries(dotEnv)) {

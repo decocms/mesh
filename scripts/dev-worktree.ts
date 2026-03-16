@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import { readFileSync } from "fs";
 import { join } from "path";
 import { startWorktree } from "worktree-devservers";
 import {
@@ -11,27 +10,7 @@ import {
   underline,
 } from "../apps/mesh/src/fmt.ts";
 import { ensureServices } from "./dev-services.ts";
-
-function loadDotEnv(path: string): Record<string, string> {
-  try {
-    const result: Record<string, string> = {};
-    for (const line of readFileSync(path, "utf8").split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const idx = trimmed.indexOf("=");
-      if (idx === -1) continue;
-      const key = trimmed.slice(0, idx).trim();
-      const val = trimmed
-        .slice(idx + 1)
-        .trim()
-        .replace(/^["']|["']$/g, "");
-      result[key] = val;
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
+import { loadDotEnv } from "./load-dot-env.ts";
 
 const slug = process.env.WORKTREE_SLUG;
 if (!slug) {
