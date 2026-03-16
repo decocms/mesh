@@ -21,7 +21,7 @@ import { join } from "path";
 // Constants
 // ---------------------------------------------------------------------------
 
-const SERVICES_DIR = join(homedir(), ".deco", "services");
+const SERVICES_DIR = join(homedir(), "deco", "services");
 
 const PG_PORT = 5432;
 const PG_USER = "deco";
