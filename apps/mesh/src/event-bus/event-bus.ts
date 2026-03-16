@@ -271,8 +271,6 @@ export class EventBus implements IEventBus {
         console.error("[EventBus] Error stopping notify strategy:", error);
       }
     }
-
-    console.log("[EventBus] Stopped");
   }
 
   isRunning(): boolean {

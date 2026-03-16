@@ -148,7 +148,6 @@ export function createEventBus(
         notifyStrategy = polling;
         break;
       }
-      console.log(`[EventBus] Using NATS notify strategy (${natsHost})`);
       notifyStrategy = compose(
         polling,
         new NatsNotifyStrategy({
@@ -158,7 +157,6 @@ export function createEventBus(
       break;
     }
     case "postgres": {
-      console.log("[EventBus] Using PostgreSQL LISTEN/NOTIFY strategy");
       notifyStrategy = compose(
         polling,
         new PostgresNotifyStrategy(database.db, database.pool),
@@ -167,7 +165,6 @@ export function createEventBus(
     }
     case "polling":
     default:
-      console.log("[EventBus] Using polling notify strategy");
       notifyStrategy = polling;
   }
 
@@ -183,12 +180,6 @@ export function createEventBus(
   sseHub.start(sseBroadcast).catch((err) => {
     console.error("[SSEHub] Failed to start broadcast strategy:", err);
   });
-
-  if (natsUrl && natsProvider) {
-    console.log("[SSEHub] Using NATS SSE broadcast (cross-pod)");
-  } else {
-    console.log("[SSEHub] Using local SSE broadcast (single-pod)");
-  }
 
   return new EventBusImpl({
     storage,

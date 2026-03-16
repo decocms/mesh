@@ -66,8 +66,6 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
     })().catch((err) => {
       console.error("[NatsSSEBroadcast] Subscription error:", err);
     });
-
-    console.log("[NatsSSEBroadcast] Started, subscribed to", SUBJECT);
   }
 
   broadcast(organizationId: string, event: SSEEvent): void {
@@ -93,6 +91,5 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
     this.sub?.unsubscribe();
     this.sub = null;
     this.localEmit = null;
-    console.log("[NatsSSEBroadcast] Stopped");
   }
 }

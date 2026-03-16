@@ -40,15 +40,12 @@ export class NatsNotifyStrategy implements NotifyStrategy {
     })().catch((err) => {
       console.error("[NatsNotify] Subscription error:", err);
     });
-
-    console.log("[NatsNotify] Started, subscribed to", SUBJECT);
   }
 
   async stop(): Promise<void> {
     this.sub?.unsubscribe();
     this.sub = null;
     this.onNotify = null;
-    console.log("[NatsNotify] Stopped");
   }
 
   async notify(eventId: string): Promise<void> {

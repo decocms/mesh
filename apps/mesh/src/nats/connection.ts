@@ -38,7 +38,6 @@ export function createNatsConnectionProvider(): NatsConnectionProvider {
     async init(url: string | string[]): Promise<void> {
       if (nc) return;
       nc = await connect({ servers: url });
-      console.log("[NATS] Connected");
     },
 
     getConnection(): NatsConnection | null {
@@ -59,7 +58,6 @@ export function createNatsConnectionProvider(): NatsConnectionProvider {
         const conn = nc;
         nc = null;
         await conn.drain().catch(() => {});
-        console.log("[NATS] Connection drained");
       }
     },
   };

@@ -49,8 +49,6 @@ export class NatsCancelBroadcast implements CancelBroadcast {
         }
       }
     })().catch(console.error);
-
-    console.log("[NatsCancelBroadcast] Started, subscribed to", CANCEL_SUBJECT);
   }
 
   broadcast(threadId: string): void {
@@ -82,6 +80,5 @@ export class NatsCancelBroadcast implements CancelBroadcast {
     this.sub?.unsubscribe();
     this.sub = null;
     this.onCancel = null;
-    console.log("[NatsCancelBroadcast] Stopped");
   }
 }
