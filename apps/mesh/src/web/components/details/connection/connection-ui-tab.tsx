@@ -12,13 +12,17 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-interface UiTabProps {
+interface ConnectionUiTabProps {
   tools: Tool[] | undefined;
   connectionId: string;
   org: string;
 }
 
-export function UiTab({ tools, connectionId, org }: UiTabProps) {
+export function ConnectionUiTab({
+  tools,
+  connectionId,
+  org,
+}: ConnectionUiTabProps) {
   const navigate = useNavigate();
   const { org: projectOrg } = useProjectContext();
   const client = useMCPClient({ connectionId, orgId: projectOrg.id });
@@ -81,7 +85,7 @@ export function UiTab({ tools, connectionId, org }: UiTabProps) {
               return (
                 <Card
                   key={tool.name}
-                  className="cursor-pointer transition-colors overflow-hidden"
+                  className="cursor-pointer transition-colors overflow-hidden gap-0"
                   onClick={() => handleToolClick(tool)}
                 >
                   {/* App preview */}

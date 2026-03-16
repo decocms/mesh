@@ -49,6 +49,12 @@ export const KEYS = {
   connection: (locator: ProjectLocator, id: string) =>
     [locator, "connection", id] as const,
 
+  connectionActivity: (
+    connectionId: string,
+    timeframe: string,
+    orgId: string,
+  ) => ["monitoring", "activity", connectionId, timeframe, orgId] as const,
+
   isMCPAuthenticated: (url: string, token: string | null) =>
     ["is-mcp-authenticated", url, token] as const,
 
