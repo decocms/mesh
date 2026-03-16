@@ -28,7 +28,7 @@ function VirtualMCPListItem({
     <Link
       to="/$org/$project/agents/$agentId/"
       params={{ org, project: ORG_ADMIN_PROJECT_SLUG, agentId: virtualMcp.id }}
-      className="flex items-center gap-3 p-2 pr-1 rounded-lg hover:bg-muted/50 transition-colors group"
+      className="flex items-center gap-3 rounded-lg hover:bg-muted/50 transition-colors group"
     >
       <IntegrationIcon
         icon={virtualMcp.icon}
@@ -156,20 +156,7 @@ export function ConnectionVirtualMCPsSection({
 
   // Has virtual MCPs - show the list
   return (
-    <div className="p-5 flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs text-muted-foreground font-medium">Agents</h4>
-          <CreateVirtualMCPButton
-            connectionId={connectionId}
-            connectionTitle={connectionTitle}
-            connectionDescription={connectionDescription}
-            connectionIcon={connectionIcon}
-            org={org}
-            hasExistingVirtualMcps={true}
-          />
-        </div>
-      </div>
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         {virtualMcps.map((virtualMcp) => (
           <VirtualMCPListItem

@@ -12,6 +12,8 @@ import { Page } from "@/web/components/page";
 import type { RegistryItem } from "@/web/components/store/types";
 import { User } from "@/web/components/user/user.tsx";
 import { useRegistryConnections } from "@/web/hooks/use-binding";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
@@ -915,8 +917,22 @@ function OrgMcpsContent() {
   };
 
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
-  const registryConnections = useRegistryConnections(connections);
-  const [selectedRegistryId, setSelectedRegistryId] = useState<string>("");
+  // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
+  // Deco Store should be the default catalog source.
+  const registryConnections = useRegistryConnections(allConnections).sort(
+    (a, b) => {
+      const isSelfA = a.app_name === "@deco/management-mcp";
+      const isSelfB = b.app_name === "@deco/management-mcp";
+      if (isSelfA && !isSelfB) return 1;
+      if (!isSelfA && isSelfB) return -1;
+      return 0;
+    },
+  );
+  const [selectedRegistryId, setSelectedRegistryId] =
+    useLocalStorage<string>(
+      LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
+      (existing) => existing ?? "",
+    );
   const registryConnection =
     (selectedRegistryId
       ? registryConnections.find((r) => r.id === selectedRegistryId)

@@ -23,7 +23,7 @@ export function ConnectionAgentsPanel({
           Used by agents
         </h3>
       </div>
-      <div className="px-2 py-2">
+      <div className="px-5 py-4">
         <ConnectionVirtualMCPsSection
           connectionId={connection.id}
           connectionTitle={connection.title}
