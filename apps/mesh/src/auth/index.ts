@@ -343,7 +343,9 @@ export const auth = betterAuth({
   // When a user logs in via SSO with the same email as an existing account,
   // automatically link the SSO identity to the existing user.
   account: {
+    ...authConfig.account,
     accountLinking: {
+      ...authConfig.account?.accountLinking,
       trustedProviders: authConfig.ssoConfig
         ? [authConfig.ssoConfig.providerId]
         : [],
