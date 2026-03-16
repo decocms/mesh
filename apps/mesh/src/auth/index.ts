@@ -292,7 +292,7 @@ const plugins = [
 
   sso(authConfig.ssoConfig ? createSSOConfig(authConfig.ssoConfig) : undefined),
 
-  ...(authConfig.magicLinkConfig &&
+  ...(authConfig.magicLinkConfig?.enabled &&
   authConfig.emailProviders &&
   authConfig.emailProviders.length > 0
     ? [
@@ -305,7 +305,7 @@ const plugins = [
       ]
     : []),
 
-  ...(authConfig.emailOtpConfig &&
+  ...(authConfig.emailOtpConfig?.enabled &&
   authConfig.emailProviders &&
   authConfig.emailProviders.length > 0
     ? [

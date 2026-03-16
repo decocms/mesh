@@ -25,6 +25,9 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [view, setView] = useState<FormView>(() => {
+    if (!emailAndPassword.enabled && emailOtp.enabled) {
+      return "emailOtp";
+    }
     const hasLoggedIn = globalThis.localStorage?.getItem("hasLoggedIn");
     return hasLoggedIn !== "true" ? "signUp" : "signIn";
   });
@@ -596,7 +599,7 @@ export function UnifiedAuthForm({ redirectUrl }: UnifiedAuthFormProps) {
           >
             Back to sign in
           </Button>
-        ) : !isEmailOtp ? (
+        ) : !isEmailOtp && emailAndPassword.enabled ? (
           <Button
             type="button"
             variant="link"
