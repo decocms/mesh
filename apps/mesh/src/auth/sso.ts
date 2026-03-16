@@ -116,13 +116,6 @@ async function mergeDuplicateSSOUser(data: {
         tx,
       );
 
-      // Collect orgs where the duplicate is the sole member (auto-created personal orgs)
-      const orgsToDelete = await sql<{ id: string }>`
-        SELECT m."organizationId" AS "id" FROM "member" m
-        WHERE m."userId" = ${user.id}
-          AND (SELECT COUNT(*) FROM "member" m2 WHERE m2."organizationId" = m."organizationId") = 1
-      `.execute(tx);
-
       // Move memberships that don't conflict (skip orgs where original is already a member)
       await sql`
         UPDATE "member" SET "userId" = ${originalUser.id}
@@ -132,16 +125,10 @@ async function mergeDuplicateSSOUser(data: {
           )
       `.execute(tx);
 
-      // Delete remaining memberships for the duplicate (conflicts)
+      // Delete remaining memberships for the duplicate (conflicts).
+      // This may leave orphaned auto-created orgs, which is harmless —
+      // deleting them here risks cascading into seeded data (connections, settings).
       await sql`DELETE FROM "member" WHERE "userId" = ${user.id}`.execute(tx);
-
-      // Delete organizations that were solely owned by the duplicate user
-      const orgIds = orgsToDelete.rows.map((r) => r.id);
-      if (orgIds.length > 0) {
-        await sql`DELETE FROM "organization" WHERE "id" IN (${sql.join(orgIds.map((id) => sql`${id}`))})`.execute(
-          tx,
-        );
-      }
 
       // Delete the duplicate user
       await sql`DELETE FROM "user" WHERE "id" = ${user.id}`.execute(tx);
