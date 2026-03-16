@@ -102,9 +102,6 @@ export class NatsStreamBuffer implements StreamBuffer {
 
     this.js = this.options.getJetStream();
     this.jsm = jsm;
-    console.log(
-      "[Decopilot] JetStream stream buffer ready (memory storage, 5min TTL, 20K msgs/subject)",
-    );
   }
 
   relay(
