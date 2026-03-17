@@ -211,28 +211,41 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
   }
 
-  // Create shared NATS provider (must init before event bus)
-  const natsProvider = createNatsConnectionProvider();
-  await natsProvider.init(env.NATS_URL);
-
-  // Create tool list cache (JetStream KV)
-  const toolListCache: ToolListCache = new JetStreamKVToolListCache({
-    getJetStream: () => natsProvider.getJetStream(),
-    getConnection: () => natsProvider.getConnection(),
-  });
-  await (toolListCache as JetStreamKVToolListCache).init();
-
-  // Create model list cache (JetStream KV)
-  const modelListCache: ModelListCache = new JetStreamKVModelListCache({
-    getJetStream: () => natsProvider.getJetStream(),
-    getConnection: () => natsProvider.getConnection(),
-  });
-  await (modelListCache as JetStreamKVModelListCache).init();
-
   let eventBus: EventBus;
+  let toolListCache: ToolListCache;
+  let modelListCache: ModelListCache;
+  let cancelBroadcast: CancelBroadcast;
+  let streamBuffer: StreamBuffer;
+  let natsProvider: ReturnType<typeof createNatsConnectionProvider> | null =
+    null;
 
   if (options.eventBus) {
+    // Test mode: use provided event bus and no-op stubs (no NATS required)
     eventBus = options.eventBus;
+    toolListCache = {
+      get: async () => null,
+      set: async () => {},
+      invalidate: async () => {},
+      teardown: () => {},
+    };
+    modelListCache = {
+      get: async () => null,
+      set: async () => {},
+      invalidate: async () => {},
+      teardown: () => {},
+    };
+    cancelBroadcast = {
+      start: async () => {},
+      broadcast: () => {},
+      stop: async () => {},
+    };
+    streamBuffer = {
+      init: async () => {},
+      relay: (stream: ReadableStream) => stream,
+      createReplayStream: async () => null,
+      purge: () => {},
+      teardown: () => {},
+    };
     sseHub.start().catch((error) => {
       console.error(
         "[SSEHub] Error starting broadcast (custom eventBus):",
@@ -240,9 +253,36 @@ export async function createApp(options: CreateAppOptions = {}) {
       );
     });
   } else {
-    // Create notify function that uses the context factory
-    // This is called by the worker to deliver events to subscribers
-    // EventBus uses the full MeshDatabase (includes Pool for PostgreSQL)
+    // Production/dev mode: connect to NATS and create real services
+    natsProvider = createNatsConnectionProvider();
+    await natsProvider.init(env.NATS_URL);
+
+    // Create tool list cache (JetStream KV)
+    const tlc = new JetStreamKVToolListCache({
+      getJetStream: () => natsProvider!.getJetStream(),
+      getConnection: () => natsProvider!.getConnection(),
+    });
+    await tlc.init();
+    toolListCache = tlc;
+
+    // Create model list cache (JetStream KV)
+    const mlc = new JetStreamKVModelListCache({
+      getJetStream: () => natsProvider!.getJetStream(),
+      getConnection: () => natsProvider!.getConnection(),
+    });
+    await mlc.init();
+    modelListCache = mlc;
+
+    cancelBroadcast = new NatsCancelBroadcast({
+      getConnection: () => natsProvider!.getConnection(),
+    });
+
+    streamBuffer = new NatsStreamBuffer({
+      getConnection: () => natsProvider!.getConnection(),
+      getJetStream: () => natsProvider!.getJetStream(),
+    });
+
+    // Create event bus with NATS provider
     eventBus = createEventBus(database, undefined, natsProvider);
   }
 
@@ -256,15 +296,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   setToolListCache(toolListCache);
 
   const threadStorage = new SqlThreadStorage(database.db);
-
-  const cancelBroadcast: CancelBroadcast = new NatsCancelBroadcast({
-    getConnection: () => natsProvider.getConnection(),
-  });
-
-  const streamBuffer: StreamBuffer = new NatsStreamBuffer({
-    getConnection: () => natsProvider.getConnection(),
-    getJetStream: () => natsProvider.getJetStream(),
-  });
 
   const cancelReactorDeps: RunReactorDeps = {
     storage: threadStorage,
@@ -298,7 +329,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     toolListCache.teardown();
     modelListCache.teardown();
     setToolListCache(null);
-    natsProvider.drain().catch(() => {});
+    natsProvider?.drain().catch(() => {});
   };
 
   const app = new Hono<Env>();
