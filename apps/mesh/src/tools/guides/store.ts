@@ -18,7 +18,8 @@ Recommended tool order:
 4. Enable the registry discovery tools from that connection.
 5. Prefer REGISTRY_ITEM_SEARCH when available. Otherwise use the registry's list tool with search-like filters.
 6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
-7. Summarize the best matches, key tradeoffs, and which one to install next if the user wants to proceed.
+7. Summarize the best matches, key tradeoffs, and which one to install next.
+8. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow that resource before creating the connection.
 
 Checks:
 - Search by the user's outcome, not just product names.
@@ -30,6 +31,66 @@ Checks:
 ];
 
 export const resources: GuideResource[] = [
+  {
+    name: "store-install-connection",
+    uri: "docs://store-install-connection.md",
+    description:
+      "How to turn a chosen registry/store item into a created and tested connection.",
+    text: `# Install connection from store item
+
+## Goal
+
+Take a registry item the user already chose and convert it into a real connection with CONNECTIONS_CREATE, then verify it with CONNECTION_TEST.
+
+## Recommended tool order
+
+1. Use CONNECTIONS_LIST to avoid duplicate installs and confirm the correct registry connection is available.
+2. Enable the relevant registry detail tools from that connection.
+3. Use REGISTRY_ITEM_GET to load the full chosen item.
+4. Derive the connection payload from the registry item instead of inventing values.
+5. Use CONNECTIONS_CREATE with the derived connection fields.
+6. Use CONNECTION_TEST before treating the connection as usable.
+7. Use CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
+
+## How to map a registry item into CONNECTIONS_CREATE
+
+### Base fields
+- title: prefer the store-friendly title from the item.
+- description: copy the server description when available.
+- icon: use the item or publisher icon when available.
+- app_name and app_id: copy the registry/server identifiers when present.
+
+### Transport selection
+- If the item exposes a remote endpoint, create an HTTP, SSE, or Websocket connection using that remote's type and URL.
+- If the item exposes a package command instead, create a STDIO connection.
+- If the item exposes multiple remotes or packages, ask the user before choosing unless one is clearly the default.
+- If the item exposes neither a usable remote nor a package command, stop and report that the item cannot be installed automatically.
+
+### HTTP, SSE, or Websocket shape
+- connection_type: the remote transport type.
+- connection_url: the remote URL.
+- connection_headers: only include headers if the registry item explicitly provides them.
+- connection_token: leave null unless the user already provided a required token.
+
+### STDIO shape
+- connection_type: STDIO.
+- connection_headers: include command, args, cwd, and envVars when the item provides them.
+- For package-based installs, prefer the registry-provided command/package info over reconstructing it manually.
+- If env vars are required but values are missing, ask the user before creation.
+
+### Auth and configuration metadata
+- oauth_config: copy it from the registry item when present.
+- configuration_state and configuration_scopes: copy them when the registry item includes them.
+- metadata: preserve store provenance such as source=store, registry item ID, verification state, repository, and other useful install metadata when available.
+
+## Checks
+
+- Do not create the connection until the user has chosen the specific item.
+- Do not guess secrets, OAuth values, headers, or env var values.
+- Prefer copying structured install data from the registry item over translating descriptions into guessed config.
+- Treat the install as incomplete until CONNECTION_TEST succeeds or the expected next auth step is explicit.
+`,
+  },
   {
     name: "store-inspect-item",
     uri: "docs://store-inspect-item.md",
@@ -116,7 +177,7 @@ Use the Deco Store or another registry connection when the user needs a capabili
 
 - Present a short shortlist with the main tradeoffs.
 - Ask the user which item to proceed with before installing.
-- Once the user chooses, switch to the connection-creation flow.
+- Once the user chooses, read docs://store-install-connection.md and switch to the connection-creation flow.
 `,
   },
 ];
