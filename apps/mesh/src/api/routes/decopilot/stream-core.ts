@@ -269,6 +269,7 @@ export async function streamCore(
             models: input.models,
             toolApprovalLevel: input.toolApprovalLevel,
             toolOutputMap,
+            passthroughClient,
           },
           ctx,
         );
