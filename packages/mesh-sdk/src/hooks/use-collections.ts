@@ -195,7 +195,7 @@ export function useCollectionItem<T extends CollectionEntity>(
   client: Client,
 ) {
   const upperName = collectionName.toUpperCase();
-  const getToolName = `COLLECTION_${upperName}_GET`;
+  const getToolName = `${upperName}_GET`;
 
   const { data } = useSuspenseQuery({
     queryKey: KEYS.collectionItem(
@@ -257,7 +257,7 @@ export function useCollectionList<T extends CollectionEntity>(
   } = options;
 
   const upperName = collectionName.toUpperCase();
-  const listToolName = `COLLECTION_${upperName}_LIST`;
+  const listToolName = `${upperName}_LIST`;
 
   const where = buildWhereExpression(searchTerm, filters, searchFields);
   const orderBy = buildOrderByExpression(
@@ -366,9 +366,9 @@ export function useCollectionActions<T extends CollectionEntity>(
 ) {
   const queryClient = useQueryClient();
   const upperName = collectionName.toUpperCase();
-  const createToolName = `COLLECTION_${upperName}_CREATE`;
-  const updateToolName = `COLLECTION_${upperName}_UPDATE`;
-  const deleteToolName = `COLLECTION_${upperName}_DELETE`;
+  const createToolName = `${upperName}_CREATE`;
+  const updateToolName = `${upperName}_UPDATE`;
+  const deleteToolName = `${upperName}_DELETE`;
 
   // Invalidate all collection queries for this scope and collection
   const invalidateCollection = () => {
