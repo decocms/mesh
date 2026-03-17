@@ -283,7 +283,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
 
     // Create event bus with NATS provider
-    eventBus = createEventBus(database, undefined, natsProvider);
+    eventBus = createEventBus(database, natsProvider);
   }
 
   // Track for cleanup during HMR

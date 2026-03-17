@@ -12,7 +12,7 @@
  *
  * Usage:
  * ```ts
- * const eventBus = createEventBus(database, config, natsProvider);
+ * const eventBus = createEventBus(database, natsProvider, config);
  * await eventBus.start();
  * ```
  */
@@ -63,14 +63,14 @@ export { sseHub, type SSEEvent } from "./sse-hub";
  * net for scheduled/cron event delivery.
  *
  * @param database - MeshDatabase instance
- * @param config - Optional event bus configuration
  * @param natsProvider - Shared NATS connection provider
+ * @param config - Optional event bus configuration
  * @returns EventBus instance
  */
 export function createEventBus(
   database: MeshDatabase,
-  config?: EventBusConfig,
   natsProvider: NatsConnectionProvider,
+  config?: EventBusConfig,
 ): EventBus {
   const storage = createEventBusStorage(database.db);
   const pollIntervalMs =
