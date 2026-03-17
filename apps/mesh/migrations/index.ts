@@ -40,6 +40,7 @@ import * as migration038oauthpkcestatess from "./038-oauth-pkce-states.ts";
 import * as migration039automations from "./039-automations.ts";
 import * as migration040replacenextrunatwithlastrunat from "./040-replace-next-run-at-with-last-run-at.ts";
 import * as migration041aiproviderkeysuniqueconstraint from "./041-ai-provider-keys-unique-constraint.ts";
+import * as migration042renamemeshmcptocmsmcp from "./042-rename-mesh-mcp-to-cms-mcp.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -94,6 +95,7 @@ const migrations: Record<string, Migration> = {
     migration040replacenextrunatwithlastrunat,
   "041-ai-provider-keys-unique-constraint":
     migration041aiproviderkeysuniqueconstraint,
+  "042-rename-mesh-mcp-to-cms-mcp": migration042renamemeshmcptocmsmcp,
 };
 
 export default migrations;
