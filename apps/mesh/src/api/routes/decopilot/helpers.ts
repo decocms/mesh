@@ -20,7 +20,11 @@ import type { Context } from "hono";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { HTTPException } from "hono/http-exception";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "../proxy";
-import { estimateJsonTokens } from "./built-in-tools/read-tool-output";
+import {
+  MAX_RESULT_TOKENS,
+  createOutputPreview,
+  estimateJsonTokens,
+} from "./built-in-tools/read-tool-output";
 
 /**
  * Tool approval levels determine which tools require user approval before executing
@@ -122,15 +126,16 @@ export async function toolsFromMCP(
             const tokens = estimateJsonTokens(
               output.structuredContent ?? output.content,
             );
-            if (tokens > 4000) {
-              toolOutputMap.set(
-                toolCallId,
-                JSON.stringify(output.structuredContent ?? output.content),
+            if (tokens > MAX_RESULT_TOKENS) {
+              const raw = JSON.stringify(
+                output.structuredContent ?? output.content,
               );
+              toolOutputMap.set(toolCallId, raw);
+              const preview = createOutputPreview(raw);
 
               return {
                 type: "text",
-                value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool`,
+                value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool.\n\nPreview:\n${preview}`,
               };
             }
           }

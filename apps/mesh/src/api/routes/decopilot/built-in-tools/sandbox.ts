@@ -5,7 +5,11 @@ import type {
   CallToolRequest,
   ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { estimateJsonTokens } from "./read-tool-output";
+import {
+  MAX_RESULT_TOKENS,
+  createOutputPreview,
+  estimateJsonTokens,
+} from "./read-tool-output";
 
 export interface VirtualClient {
   listTools(): Promise<ListToolsResult>;
@@ -98,11 +102,12 @@ export function createSandboxTool(params: SandboxToolParams) {
             : JSON.stringify(result.returnValue, null, 2);
 
         const tokenCount = estimateJsonTokens(serialized);
-        if (tokenCount > 4000) {
+        if (tokenCount > MAX_RESULT_TOKENS) {
           const toolCallId = `sandbox_${Date.now()}`;
           toolOutputMap.set(toolCallId, serialized);
+          const preview = createOutputPreview(serialized);
           return {
-            result: `Output too large (${tokenCount} tokens). Use read_tool_output with tool_call_id "${toolCallId}" to extract specific data.`,
+            result: `Output too large (${tokenCount} tokens). Use read_tool_output with tool_call_id "${toolCallId}" to extract specific data.\n\nPreview:\n${preview}`,
             error: result.error,
             consoleLogs: result.consoleLogs,
           };
