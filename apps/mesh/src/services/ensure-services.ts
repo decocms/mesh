@@ -12,7 +12,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "fs";
-import { chmod, rm, unlink } from "fs/promises";
+import { chmod, unlink } from "fs/promises";
 import { createConnection } from "net";
 import { arch, homedir, platform } from "os";
 import { join } from "path";
@@ -269,11 +269,29 @@ async function ensurePostgres(): Promise<ServiceInfo> {
 
   const pgVersionFile = join(dataDir, "PG_VERSION");
   if (!existsSync(pgVersionFile)) {
-    // Clean up empty/broken data dir — initdb fails if the directory exists
-    if (existsSync(dataDir) && readdirSync(dataDir).length === 0) {
-      await rm(dataDir, { recursive: true, force: true });
+    try {
+      await pg.initialise();
+    } catch (initErr) {
+      // initdb may have been killed by a signal (exit code null) due to a race
+      // with another process initializing the same data directory. Log the
+      // error for debugging — do NOT remove the data dir as it may contain
+      // important data from a prior run.
+      console.error(
+        `[ensurePostgres] pg.initialise() failed. dataDir=${dataDir}`,
+        initErr,
+      );
+
+      // Another process (e.g. another workspace) may have won the race and
+      // already started postgres on our port.
+      if (await probePort(PG_PORT)) {
+        info.state = "running";
+        info.pid = findPidOnPort(PG_PORT);
+        info.owner = "managed";
+        return info;
+      }
+
+      throw initErr;
     }
-    await pg.initialise();
   }
   await pg.start();
 
