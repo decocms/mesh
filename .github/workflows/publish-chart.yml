@@ -31,7 +31,7 @@ jobs:
         run: helm package deploy/helm/ --dependency-update
 
       - name: Push chart to GHCR
-        run: helm push chart-deco-mcp-mesh-${{ steps.chart.outputs.version }}.tgz oci://ghcr.io/decocms
+        run: helm push chart-deco-studio-${{ steps.chart.outputs.version }}.tgz oci://ghcr.io/decocms
 
       - name: Summary
-        run: echo "Published ghcr.io/decocms/chart-deco-mcp-mesh:${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        run: echo "Published ghcr.io/decocms/chart-deco-studio:${{ steps.chart.outputs.version }}" >> $GITHUB_STEP_SUMMARY

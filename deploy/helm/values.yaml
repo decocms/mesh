@@ -1,4 +1,4 @@
-# Default values for chart-deco-mcp-mesh.
+# Default values for chart-deco-studio.
 # The value below is only considered if autoscaling is disabled.
 replicaCount: 1
 
@@ -145,7 +145,7 @@ affinity: {}
 #         podAffinityTerm:
 #           labelSelector:
 #             matchLabels:
-#               app.kubernetes.io/name: chart-deco-mcp-mesh
+#               app.kubernetes.io/name: chart-deco-studio
 #           topologyKey: kubernetes.io/hostname
 
 # Topology Spread Constraints (optional - leave empty [] to disable)
@@ -157,7 +157,7 @@ topologySpreadConstraints:
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
-        app.kubernetes.io/name: chart-deco-mcp-mesh
+        app.kubernetes.io/name: chart-deco-studio
         app.kubernetes.io/instance: deco-mcp-mesh
 
 # OpenTelemetry configuration (optional)

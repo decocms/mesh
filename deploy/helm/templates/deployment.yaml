@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "chart-deco-mcp-mesh.fullname" . }}
+  name: {{ include "chart-deco-studio.fullname" . }}
   labels:
-    {{- include "chart-deco-mcp-mesh.labels" . | nindent 4 }}
+    {{- include "chart-deco-studio.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   strategy:
-    type: {{ include "chart-deco-mcp-mesh.deploymentStrategy" . }}
-    {{- $strategyType := include "chart-deco-mcp-mesh.deploymentStrategy" . }}
+    type: {{ include "chart-deco-studio.deploymentStrategy" . }}
+    {{- $strategyType := include "chart-deco-studio.deploymentStrategy" . }}
     {{- if eq $strategyType "RollingUpdate" }}
     rollingUpdate:
       {{- if and .Values.strategy .Values.strategy.rollingUpdate }}
@@ -22,7 +22,7 @@ spec:
     {{- end }}
   selector:
     matchLabels:
-      {{- include "chart-deco-mcp-mesh.selectorLabels" . | nindent 6 }}
+      {{- include "chart-deco-studio.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -30,7 +30,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "chart-deco-mcp-mesh.labels" . | nindent 8 }}
+        {{- include "chart-deco-studio.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -42,9 +42,9 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "chart-deco-mcp-mesh.serviceAccountName" . }}
+      serviceAccountName: {{ include "chart-deco-studio.serviceAccountName" . }}
       securityContext:
-        {{- include "chart-deco-mcp-mesh.podSecurityContext" . | nindent 8 }}
+        {{- include "chart-deco-studio.podSecurityContext" . | nindent 8 }}
       {{- if .Values.secret.authConfigSecretName }}
       initContainers:
         - name: build-auth-config
@@ -119,9 +119,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "chart-deco-mcp-mesh.fullname" . }}-config
+                name: {{ include "chart-deco-studio.fullname" . }}-config
             - secretRef:
-                name: {{ include "chart-deco-mcp-mesh.secretName" . }}
+                name: {{ include "chart-deco-studio.secretName" . }}
           env:
             {{- if .Values.otel.enabled }}
             {{- if .Values.otel.protocol }}
@@ -141,11 +141,11 @@ spec:
             {{- end }}
             {{- if and .Values.otel.headers (not .Values.otel.collector.enabled) }}
             - name: OTEL_EXPORTER_OTLP_HEADERS
-              value: {{ include "chart-deco-mcp-mesh.otelHeaders" . | quote }}
+              value: {{ include "chart-deco-studio.otelHeaders" . | quote }}
             {{- end }}
             {{- if .Values.otel.attributes }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: {{ include "chart-deco-mcp-mesh.otelAttributes" . | quote }}
+              value: {{ include "chart-deco-studio.otelAttributes" . | quote }}
             {{- end }}
             {{- end }}
             {{- with .Values.env }}
@@ -262,7 +262,7 @@ spec:
             secretName: {{ .Values.secret.authConfigSecretName }}
         - name: auth-config-base
           configMap:
-            name: {{ include "chart-deco-mcp-mesh.fullname" . }}-auth-config
+            name: {{ include "chart-deco-studio.fullname" . }}-auth-config
             items:
               - key: auth-config.json
                 path: auth-config.json
@@ -271,7 +271,7 @@ spec:
         {{- else }}
         - name: auth-config
           configMap:
-            name: {{ include "chart-deco-mcp-mesh.fullname" . }}-auth-config
+            name: {{ include "chart-deco-studio.fullname" . }}-auth-config
             items:
               - key: auth-config.json
                 path: auth-config.json
@@ -279,7 +279,7 @@ spec:
         {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
         - name: ca-cert
           configMap:
-            name: {{ include "chart-deco-mcp-mesh.fullname" . }}-ca-cert
+            name: {{ include "chart-deco-studio.fullname" . }}-ca-cert
             items:
               - key: ca-cert.pem
                 path: ca-cert.pem
@@ -291,7 +291,7 @@ spec:
             claimName: {{ .Values.persistence.claimName }}
           {{- else }}
           persistentVolumeClaim:
-            claimName: {{ include "chart-deco-mcp-mesh.fullname" . }}-data
+            claimName: {{ include "chart-deco-studio.fullname" . }}-data
           {{- end }}
         {{- else }}
         - name: data
@@ -300,7 +300,7 @@ spec:
         {{- if and .Values.otel.enabled .Values.otel.collector.enabled }}
         - name: otel-collector-config
           configMap:
-            name: {{ include "chart-deco-mcp-mesh.fullname" . }}-otel-collector
+            name: {{ include "chart-deco-studio.fullname" . }}-otel-collector
             items:
               - key: config.yaml
                 path: config.yaml
@@ -308,7 +308,7 @@ spec:
         {{- if .Values.s3Sync.enabled }}
         - name: s3-sync-script
           configMap:
-            name: {{ include "chart-deco-mcp-mesh.fullname" . }}-s3-sync
+            name: {{ include "chart-deco-studio.fullname" . }}-s3-sync
             defaultMode: 0755
             items:
               - key: sync.sh
