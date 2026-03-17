@@ -1,7 +1,7 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { Lock01 } from "@untitledui/icons";
 
-interface SsoRequiredScreenProps {
+export interface SsoRequiredScreenProps {
   orgId: string;
   orgName?: string;
   domain?: string;
