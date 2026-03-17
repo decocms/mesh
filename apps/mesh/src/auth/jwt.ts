@@ -135,12 +135,14 @@ export async function mintGatewayJwt(
   userId: string,
   expiresIn = 3600,
 ): Promise<string> {
-  if (!env.MESH_JWT_SECRET) {
+  const envSecret =
+    env.MESH_JWT_SECRET ?? authConfig.jwt?.secret ?? env.BETTER_AUTH_SECRET;
+  if (!envSecret) {
     throw new Error(
-      "MESH_JWT_SECRET must be set to mint gateway JWTs — the external gateway cannot verify tokens signed with a fallback secret",
+      "A deterministic JWT secret is required to mint gateway JWTs — set MESH_JWT_SECRET, BETTER_AUTH_SECRET, or authConfig.jwt.secret",
     );
   }
-  const secret = new TextEncoder().encode(env.MESH_JWT_SECRET);
+  const secret = new TextEncoder().encode(envSecret);
   return await new SignJWT({ iss: "mesh", sub: userId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()
