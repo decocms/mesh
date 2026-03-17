@@ -11,7 +11,7 @@ strategy:
   #   maxUnavailable: 0
 
 image:
-  repository: ghcr.io/decocms/studio/mesh
+  repository: ghcr.io/decocms/studio/studio
   pullPolicy: Always
 
 service:
@@ -158,7 +158,7 @@ topologySpreadConstraints:
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: chart-deco-studio
-        app.kubernetes.io/instance: deco-mcp-mesh
+        app.kubernetes.io/instance: deco-studio
 
 # OpenTelemetry configuration (optional)
 otel:
@@ -199,7 +199,7 @@ s3Sync:
     pullPolicy: IfNotPresent
   bucket: ""               # Required when enabled
   region: "us-east-1"
-  prefix: ""               # S3 key prefix (e.g. "mesh/production")
+  prefix: ""               # S3 key prefix (e.g. "studio/production")
   interval: 30             # Polling interval in seconds
   roleArn: ""              # IRSA role ARN — adds eks.amazonaws.com/role-arn to ServiceAccount
   syncDirs:                # Directories under /app/data to sync
