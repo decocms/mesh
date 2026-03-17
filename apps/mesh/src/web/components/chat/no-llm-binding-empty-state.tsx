@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CpuChip01 } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
   ProviderCard,
