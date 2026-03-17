@@ -33,6 +33,7 @@ import {
   tracingMiddleware,
 } from "../observability";
 import authRoutes from "./routes/auth";
+import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import decoSitesRoutes from "./routes/deco-sites";
@@ -428,6 +429,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Auth routes (API key management via web UI)
   app.route("/api/auth/custom", authRoutes);
+
+  // Organization-level SSO routes
+  app.route("/api/org-sso", orgSsoRoutes);
 
   // All Better Auth routes (OAuth, session management, etc.)
   app.all("/api/auth/*", async (c) => {
@@ -946,6 +950,50 @@ export async function createApp(options: CreateAppOptions = {}) {
     const meshCtx = await ContextFactory.create(c.req.raw, { timings });
     meshCtx.automationRunner = automationRunner;
     c.set("meshContext", meshCtx);
+
+    return next();
+  });
+
+  // ============================================================================
+  // Server-side SSO Enforcement Middleware
+  // ============================================================================
+  // When an org has SSO enforcement enabled, block API requests from users
+  // who haven't completed the SSO flow. Exempt paths: SSO routes themselves,
+  // auth routes, and non-org-scoped endpoints.
+  app.use("*", async (c, next) => {
+    const path = c.req.path;
+    // Skip SSO enforcement for SSO routes, auth routes, and public endpoints
+    if (
+      path.startsWith("/api/org-sso/") ||
+      path.startsWith("/api/auth/") ||
+      path.startsWith("/api/tools/management") ||
+      path.startsWith("/oauth-proxy/")
+    ) {
+      return next();
+    }
+
+    const ctx = c.get("meshContext") as MeshContext | undefined;
+    if (!ctx?.organization?.id || !ctx.auth.user?.id) {
+      return next();
+    }
+
+    const ssoConfig = await ctx.storage.orgSsoConfig.getByOrgId(
+      ctx.organization.id,
+    );
+    if (!ssoConfig?.enforced) {
+      return next();
+    }
+
+    const hasValidSession = await ctx.storage.orgSsoSessions.isValid(
+      ctx.auth.user.id,
+      ctx.organization.id,
+    );
+    if (!hasValidSession) {
+      return c.json(
+        { error: "SSO authentication required for this organization" },
+        403,
+      );
+    }
 
     return next();
   });
