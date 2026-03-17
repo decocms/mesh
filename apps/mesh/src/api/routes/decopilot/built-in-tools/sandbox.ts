@@ -3,7 +3,10 @@ import { z } from "zod";
 import { runCode, type ToolHandler } from "@/sandbox";
 import type {
   CallToolRequest,
+  ListResourcesResult,
   ListToolsResult,
+  ReadResourceRequest,
+  ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   MAX_RESULT_TOKENS,
@@ -15,6 +18,10 @@ export interface VirtualClient {
   listTools(): Promise<ListToolsResult>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   callTool(params: CallToolRequest["params"]): Promise<any>;
+  listResources(): Promise<ListResourcesResult>;
+  readResource(
+    params: ReadResourceRequest["params"],
+  ): Promise<ReadResourceResult>;
 }
 
 export interface SandboxToolParams {
