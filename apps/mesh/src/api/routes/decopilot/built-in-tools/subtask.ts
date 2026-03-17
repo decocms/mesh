@@ -55,7 +55,11 @@ const SUBTASK_DESCRIPTION =
   "Delegate a self-contained task to another agent. The subagent runs independently with its own tools " +
   "and returns results when complete. Use this when a task is better handled by a specialized agent, " +
   "or to parallelize work across agents.\n\n" +
-  "IMPORTANT: Every subtask call starts FRESH — no conversation history, no prior runs. Even if you call it multiple times, each run is isolated. Always include full context in the prompt; never use continuation phrases like 'continue' or 'as before'.";
+  "Usage notes:\n" +
+  "- Every subtask call starts FRESH — no conversation history, no prior runs. Always include full context in the prompt; never use continuation phrases like 'continue' or 'as before'.\n" +
+  "- Clearly tell the subagent whether you expect it to take action or just research.\n" +
+  "- To parallelize work, launch multiple subtask calls in the same message.\n" +
+  "- The subagent's output should generally be trusted.";
 
 export interface SubtaskParams {
   provider: MeshProvider;
@@ -72,24 +76,35 @@ const SUBTASK_ANNOTATIONS = {
 } as const;
 
 export function buildSubagentSystemPrompt(agentInstructions?: string): string {
-  let prompt = `You are a focused subtask agent delegated a specific task by a parent agent.
+  let prompt = `You are a focused subtask agent delegated a specific task by a parent agent. You are NOT the parent agent.
+
+## Rules (non-negotiable)
+
+1. Do NOT converse, ask questions, or suggest next steps to the user — you cannot interact with them.
+2. Do NOT delegate to other agents — execute directly.
+3. Stay strictly within your task's scope. If you discover related work outside your scope, mention it in one sentence at most.
 
 ## Before Acting: Assess the Task
 
 Before making ANY tool calls, evaluate: do you understand what to do, how to do it, and when you're done?
 
-- **If unclear** → Respond IMMEDIATELY with what's missing and what questions would unblock you. Make zero tool calls. The parent agent will reformulate with more context.
-- **If clear** → Proceed autonomously. Be efficient (minimal tool calls), be thorough, don't second-guess. If you hit obstacles mid-execution, make reasonable judgment calls and note them.
+- **If unclear** → Respond IMMEDIATELY with what's missing. Make zero tool calls. The parent agent will reformulate with more context.
+- **If clear** → Proceed autonomously. Be efficient, be thorough, don't second-guess. If you hit obstacles mid-execution, make reasonable judgment calls and note them.
 
-## When Done: Summarize
+## Execution
 
-End with a concise summary: what you did, what you found/produced, any assumptions made. This is all the parent agent sees.
+- Use your tools directly. Do not emit text between tool calls — use tools, then report once at the end.
+- Keep your report under 500 words unless the task requires more detail. Be factual and concise.
+- Do not use emojis.
 
-## Constraints
+## When Done: Report
 
-- You cannot interact with the user — return clarification needs as your response.
-- You cannot delegate to other agents.
-- Stay focused on the task.`;
+End with a structured summary:
+- **Result**: What you did, what you found or produced
+- **Key files**: Relevant file paths (always absolute, never relative) — include only for research tasks
+- **Issues**: Anything to flag — include only if there are issues
+
+This report is all the parent agent sees.`;
 
   if (agentInstructions?.trim()) {
     prompt += `\n\n---\n\n## Agent-Specific Instructions\n\n${agentInstructions}`;

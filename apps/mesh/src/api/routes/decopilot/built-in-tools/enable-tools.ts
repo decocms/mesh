@@ -26,7 +26,12 @@ export function createEnableToolsTool(
 ) {
   return tool({
     description:
-      "Enable tools from the available tools catalog so they can be called in subsequent steps. Call this before using any tool listed in <available-tools>.",
+      "Enable tools from the available tools catalog so they can be called in subsequent steps. " +
+      "Call this before using any tool listed in <available-tools>.\n\n" +
+      "Usage notes:\n" +
+      "- Batch related tools in a single call to minimize round-trips.\n" +
+      "- Enable only the tools you need for your next step — you can always enable more later.\n" +
+      "- Built-in tools (user_ask, subtask, agent_search, read_tool_output) are always available and do not need enabling.",
     inputSchema: enableToolsInputSchema,
     execute: async ({ tools }) => {
       const enabled: string[] = [];

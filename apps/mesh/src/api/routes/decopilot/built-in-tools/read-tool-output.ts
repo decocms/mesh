@@ -10,7 +10,9 @@ export function createReadToolOutputTool(params: ReadToolOutputParams) {
   const { toolOutputMap } = params;
   return tool({
     description:
-      "The input is a string. Dont make assumptions about its format; prefer using regexes and string manipulation to extract the desired information. You may call this tool multiple times to extract the desired information.",
+      "Extract desired information from a tool output that was too large to display inline. " +
+      "The input is a raw string — don't make assumptions about its format; prefer regexes and string manipulation. " +
+      "You may call this tool multiple times to extract different pieces of information.",
     inputExamples: [
       {
         input: {
