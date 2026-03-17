@@ -1,4 +1,4 @@
-# Default values for chart-decocms.
+# Default values for chart-deco-mcp-mesh.
 # The value below is only considered if autoscaling is disabled.
 replicaCount: 1
 
@@ -56,7 +56,8 @@ configMap:
     BASE_URL: "http://localhost:8080"
     DATA_DIR: "/app/data"
     # PRESTOP_HEAP_SNAPSHOT_DIR: ""  # Optional: Directory for heap snapshots during preStop hook
-  
+    # NATS_URL: ""  # Optional: overrides auto-derived URL when nats.enabled=true (e.g. nats://my-nats:4222)
+    DECO_AI_GATEWAY_ENABLED: "false"
   authConfig:
     emailAndPassword:
       enabled: true
@@ -144,7 +145,7 @@ affinity: {}
 #         podAffinityTerm:
 #           labelSelector:
 #             matchLabels:
-#               app.kubernetes.io/name: chart-decocms
+#               app.kubernetes.io/name: chart-deco-mcp-mesh
 #           topologyKey: kubernetes.io/hostname
 
 # Topology Spread Constraints (optional - leave empty [] to disable)
@@ -156,9 +157,8 @@ topologySpreadConstraints:
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
-        app.kubernetes.io/name: chart-decocms
-        # Should match your Helm release name
-        app.kubernetes.io/instance: decocms
+        app.kubernetes.io/name: chart-deco-mcp-mesh
+        app.kubernetes.io/instance: deco-mcp-mesh
 
 # OpenTelemetry configuration (optional)
 otel:
@@ -213,6 +213,24 @@ s3Sync:
     limits:
       memory: "128Mi"
       cpu: "100m"
+
+# NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
+# When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
+# unless overridden via configMap.meshConfig.NATS_URL
+nats:
+  enabled: true
+  config:
+    jetstream:
+      enabled: true
+      memoryStore:
+        enabled: true
+        maxSize: 1Gi
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 10Gi
+          storageClassName: ""  # empty = use cluster default StorageClass
 
 # Additional environment variables (merged with existing envs)
 env: []
