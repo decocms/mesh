@@ -16,6 +16,8 @@ export const AI_PROVIDERS_LIST = defineTool({
         description: z.string(),
         logo: z.string().optional(),
         supportedMethods: z.array(z.enum(["api-key", "oauth-pkce"])),
+        supportsTopUp: z.boolean().optional(),
+        supportsCredits: z.boolean().optional(),
       }),
     ),
   }),
@@ -28,6 +30,8 @@ export const AI_PROVIDERS_LIST = defineTool({
     const providers = Object.values(PROVIDERS).map((adapter) => ({
       ...adapter.info,
       supportedMethods: adapter.supportedMethods,
+      supportsTopUp: !!adapter.getTopUpUrl,
+      supportsCredits: !!adapter.getCreditsBalance,
     }));
     return { providers };
   },

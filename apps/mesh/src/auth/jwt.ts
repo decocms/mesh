@@ -119,3 +119,26 @@ export async function verifyMeshToken(
 export function decodeMeshToken(token: string): MeshJwtPayload {
   return decodeJwt<MeshTokenPayload>(token);
 }
+
+/**
+ * Mint a gateway-compatible Mesh JWT for the given user.
+ *
+ * Uses the same MESH_JWT_SECRET and payload shape that the AI Gateway's
+ * verifyMeshJwt() expects: { iss: "mesh", sub: userId }.
+ * This is intentionally simpler than issueMeshToken — downstream services
+ * only need the user identity, not the full proxy-token metadata.
+ *
+ * @param userId - The authenticated user's ID
+ * @param expiresIn - Expiration time in seconds (default: 1 hour)
+ */
+export async function mintGatewayJwt(
+  userId: string,
+  expiresIn = 3600,
+): Promise<string> {
+  const secret = getSecret();
+  return await new SignJWT({ iss: "mesh", sub: userId })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + expiresIn)
+    .sign(secret);
+}
