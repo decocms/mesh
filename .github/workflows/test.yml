@@ -85,6 +85,7 @@ jobs:
         run: |
           docker run -d --name nats -p 4222:4222 nats:2.10 -js
           for i in $(seq 1 10); do nc -z localhost 4222 && break || sleep 1; done
+          nc -z localhost 4222
 
       - name: Run tests (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
         run: |

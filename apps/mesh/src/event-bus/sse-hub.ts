@@ -156,7 +156,11 @@ class SSEHub {
    * both local delivery and cross-pod replication.
    */
   emit(organizationId: string, event: SSEEvent): void {
-    this.strategy?.broadcast(organizationId, event);
+    if (this.strategy) {
+      this.strategy.broadcast(organizationId, event);
+    } else {
+      this.localEmit(organizationId, event);
+    }
   }
 
   /**
