@@ -14,10 +14,10 @@ export interface ModelInfo {
   providerId: ProviderId;
   modelId: string;
   title: string;
-  description: string | null;
-  logo: string | null;
+  description?: string | null;
+  logo?: string | null;
   capabilities: ModelCapability[];
-  limits: { contextWindow: number; maxOutputTokens: number | null } | null;
+  limits?: { contextWindow: number; maxOutputTokens: number | null } | null;
   costs: { input: number; output: number } | null;
 }
 
@@ -61,6 +61,20 @@ export interface ProviderAdapter {
     codeVerifier: string;
     codeChallengeMethod: "S256" | "plain";
   }): Promise<OAuthPkceResult>;
+
+  // Only defined for providers that support credit top-ups
+  getTopUpUrl?(
+    apiKey: string,
+    amountCents: number,
+    currency?: "usd" | "brl",
+  ): Promise<string>;
+
+  // Only defined for providers that expose a credits balance.
+  // meshJwt is a gateway-compatible JWT minted by mintGatewayJwt(userId).
+  getCreditsBalance?(
+    meshJwt: string,
+    organizationId: string,
+  ): Promise<{ balanceCents: number }>;
 }
 
 export interface OpenRouterAPIModel {

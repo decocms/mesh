@@ -17,20 +17,11 @@ import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
 import { startDebugServer } from "./debug";
 import { env, logConfiguration } from "./env";
+import { cyan, dim, green, red, underline } from "./fmt";
 
 const port = env.PORT;
 const debugPort = env.DEBUG_PORT;
 const enableDebugServer = env.ENABLE_DEBUG_SERVER;
-
-// ANSI color codes
-const reset = "\x1b[0m";
-const bold = "\x1b[1m";
-const dim = "\x1b[2m";
-const green = "\x1b[32m";
-const cyan = "\x1b[36m";
-const underline = "\x1b[4m";
-
-const url = env.BASE_URL || `http://localhost:${port}`;
 
 // Refuse local mode in production — it disables authentication
 if (
@@ -39,7 +30,9 @@ if (
   !env.MESH_ALLOW_LOCAL_PROD
 ) {
   console.error(
-    "\x1b[31mError: Local mode is not allowed in production (NODE_ENV=production).\x1b[0m",
+    red(
+      "Error: Local mode is not allowed in production (NODE_ENV=production).",
+    ),
   );
   console.error(
     "Set MESH_ALLOW_LOCAL_PROD=true to override (not recommended).",
@@ -60,18 +53,36 @@ const handleAssets = createAssetHandler({
   isServerPath,
 });
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "frame-ancestors 'none'",
+};
+
+function withSecurityHeaders(res: Response): Response {
+  const headers = new Headers(res.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 // Create the Hono app
 const app = await createApp();
 
-logConfiguration(env);
+// When DECO_CLI is set, the calling script handles its own banner/config output
+if (!process.env.DECO_CLI) {
+  const { ASCII_ART } = await import("./fmt");
+  console.log("");
+  for (const line of ASCII_ART) {
+    console.log(line);
+  }
 
-console.log("");
-console.log(`${green}✓${reset} ${bold}Ready${reset}`);
-console.log("");
-console.log(
-  `  ${dim}Open in browser:${reset}  ${cyan}${underline}${url}${reset}`,
-);
-console.log("");
+  logConfiguration(env);
+}
 
 Bun.serve({
   // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
@@ -81,7 +92,9 @@ Bun.serve({
   fetch: async (request, server) => {
     // Try assets first (static files or dev proxy), then API
     // Pass server as env so Hono's getConnInfo can access requestIP
-    return (await handleAssets(request)) ?? app.fetch(request, { server });
+    const assetRes = await handleAssets(request);
+    if (assetRes) return withSecurityHeaders(assetRes);
+    return app.fetch(request, { server });
   },
   development: env.NODE_ENV !== "production",
 });
@@ -95,7 +108,7 @@ if (env.MESH_LOCAL_MODE) {
       try {
         const seeded = await seedLocalMode();
         if (seeded) {
-          console.log(`\n${green}Local environment initialized.${reset}`);
+          console.log(`\n${green("Local environment initialized.")}`);
         }
       } catch (error) {
         console.error("Failed to seed local mode:", error);
@@ -121,7 +134,7 @@ if (enableDebugServer) {
   startDebugServer({ port: debugPort });
 
   console.log(
-    `  ${dim}Debug server:${reset}     ${cyan}${underline}http://localhost:${debugPort}${reset}`,
+    `  ${dim("Debug server:")}     ${cyan(underline(`http://localhost:${debugPort}`))}`,
   );
   console.log("");
 }

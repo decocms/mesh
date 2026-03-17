@@ -19,10 +19,7 @@
   "private": true,
   "scripts": {
     "link": "deco link -p 3000 -e BASE_URL -- bun run dev",
-    "dev": "bun run --env-file=.env --cwd=apps/mesh dev",
-    "dev:local": "bun run --cwd=apps/mesh dev:local",
-    "dev:local:worktree": "bun run scripts/dev-worktree.ts --local",
-    "dev:local:conductor": "WORKTREE_SLUG=$CONDUCTOR_WORKSPACE_NAME bun run dev:local:worktree",
+    "dev": "bun run --env-file=.env scripts/dev.ts",
     "dev:worktree": "bun run scripts/dev-worktree.ts",
     "dev:conductor": "WORKTREE_SLUG=$CONDUCTOR_WORKSPACE_NAME bun run dev:worktree",
     "fmt": "biome format --write",
@@ -39,7 +36,10 @@
     "exorcise": "bun run clean && bun install --force",
     "knip": "knip",
     "benchmark": "bun run --cwd=apps/benchmark benchmark",
-    "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick"
+    "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick",
+    "services:up": "bun run scripts/dev-services-cli.ts up",
+    "services:down": "bun run scripts/dev-services-cli.ts down",
+    "services:status": "bun run scripts/dev-services-cli.ts status"
   },
   "type": "module",
   "workspaces": [
@@ -51,6 +51,35 @@
     "@duckdb/node-bindings"
   ],
   "overrides": {
-    "fast-xml-parser": "5.4.2"
+    "fast-xml-parser": "5.4.2",
+    "@tiptap/core": "3.20.2",
+    "@tiptap/pm": "3.20.2",
+    "@tiptap/react": "3.20.2",
+    "@tiptap/starter-kit": "3.20.2",
+    "@tiptap/suggestion": "3.20.2",
+    "@tiptap/extension-blockquote": "3.20.2",
+    "@tiptap/extension-bold": "3.20.2",
+    "@tiptap/extension-bullet-list": "3.20.2",
+    "@tiptap/extension-code": "3.20.2",
+    "@tiptap/extension-code-block": "3.20.2",
+    "@tiptap/extension-document": "3.20.2",
+    "@tiptap/extension-dropcursor": "3.20.2",
+    "@tiptap/extension-gapcursor": "3.20.2",
+    "@tiptap/extension-hard-break": "3.20.2",
+    "@tiptap/extension-heading": "3.20.2",
+    "@tiptap/extension-horizontal-rule": "3.20.2",
+    "@tiptap/extension-italic": "3.20.2",
+    "@tiptap/extension-link": "3.20.2",
+    "@tiptap/extension-list": "3.20.2",
+    "@tiptap/extension-list-item": "3.20.2",
+    "@tiptap/extension-list-keymap": "3.20.2",
+    "@tiptap/extension-mention": "3.20.2",
+    "@tiptap/extension-ordered-list": "3.20.2",
+    "@tiptap/extension-paragraph": "3.20.2",
+    "@tiptap/extension-placeholder": "3.20.2",
+    "@tiptap/extension-strike": "3.20.2",
+    "@tiptap/extension-text": "3.20.2",
+    "@tiptap/extension-underline": "3.20.2",
+    "@tiptap/extensions": "3.20.2"
   }
 }

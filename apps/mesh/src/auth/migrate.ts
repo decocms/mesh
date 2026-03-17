@@ -22,40 +22,25 @@ import { auth } from "./index";
 /**
  * Run Better Auth migrations programmatically
  */
-export async function migrateBetterAuth(): Promise<void> {
-  console.log("🔐 Running Better Auth migrations...");
-
+export async function migrateBetterAuth(): Promise<string> {
   try {
-    // Create minimal auth config for migrations only
-
-    // Get migration info from Better Auth
-    // This returns tables to be created/updated and a function to run migrations
     const { toBeAdded, toBeCreated, runMigrations } = await getMigrations(
       auth.options,
     );
 
-    // Check if any migrations are needed
     if (!toBeAdded.length && !toBeCreated.length) {
-      console.log("✅ Better Auth schema is up to date (no migrations needed)");
-      return;
+      return "up to date";
     }
 
-    // Log what will be migrated
-    console.log("📋 Better Auth will create/update the following tables:");
-    for (const table of [...toBeCreated, ...toBeAdded]) {
-      console.log(`   - ${table.table}`);
-    }
-
-    // Run the migrations
     await runMigrations();
 
-    console.log("✅ Better Auth migrations completed successfully");
+    const count = toBeCreated.length + toBeAdded.length;
+    return `${count} table(s) migrated`;
   } catch (error) {
-    // If migration fails, log but don't crash the app
-    // Better Auth will attempt to create tables on first request
     console.warn(
-      "⚠️  Better Auth migration failed (tables may be created on first use):",
+      "Better Auth migration failed (tables may be created on first use):",
       error,
     );
+    return "failed (will retry on first use)";
   }
 }

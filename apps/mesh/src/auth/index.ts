@@ -23,6 +23,7 @@ import {
   openAPI,
   OrganizationOptions,
 } from "better-auth/plugins";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import {
   adminAc,
   defaultStatements,
@@ -32,6 +33,7 @@ import { config } from "@/core/config";
 import { getBaseUrl } from "@/core/server-constants";
 import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
+import { createEmailOtpConfig } from "./email-otp";
 import { createEmailSender, findEmailProvider } from "./email-providers";
 import { createMagicLinkConfig } from "./magic-link";
 import { seedOrgDb } from "./org";
@@ -290,13 +292,26 @@ const plugins = [
 
   sso(authConfig.ssoConfig ? createSSOConfig(authConfig.ssoConfig) : undefined),
 
-  ...(authConfig.magicLinkConfig &&
+  ...(authConfig.magicLinkConfig?.enabled &&
   authConfig.emailProviders &&
   authConfig.emailProviders.length > 0
     ? [
         magicLink(
           createMagicLinkConfig(
             authConfig.magicLinkConfig,
+            authConfig.emailProviders,
+          ),
+        ),
+      ]
+    : []),
+
+  ...(authConfig.emailOtpConfig?.enabled &&
+  authConfig.emailProviders &&
+  authConfig.emailProviders.length > 0
+    ? [
+        emailOTP(
+          createEmailOtpConfig(
+            authConfig.emailOtpConfig,
             authConfig.emailProviders,
           ),
         ),
@@ -338,6 +353,20 @@ export const auth = betterAuth({
 
   // Load optional configuration from file
   ...authConfig,
+
+  // Enable automatic account linking for SSO providers.
+  // When a user logs in via SSO with the same email as an existing account,
+  // automatically link the SSO identity to the existing user.
+  account: {
+    ...authConfig.account,
+    accountLinking: {
+      ...authConfig.account?.accountLinking,
+      trustedProviders: [
+        ...(authConfig.account?.accountLinking?.trustedProviders ?? []),
+        ...(authConfig.ssoConfig ? [authConfig.ssoConfig.providerId] : []),
+      ],
+    },
+  },
 
   emailAndPassword: {
     enabled: true,

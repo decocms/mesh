@@ -4,7 +4,7 @@
  * A simple timer-based polling approach for triggering event processing.
  * The timer fires at regular intervals, triggering the worker to check for pending events.
  *
- * Use this when a pub/sub mechanism is not available (e.g., PGlite, file-based storage).
+ * Use this as a safety-net fallback alongside primary pub/sub strategies.
  */
 
 import type { NotifyStrategy } from "./notify-strategy";
@@ -33,14 +33,12 @@ export class PollingStrategy implements NotifyStrategy {
 
     this.onNotify = onNotify;
     this.scheduleNext();
-    console.log(`[Polling] Started polling every ${this.intervalMs}ms`);
   }
 
   async stop(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
-      console.log("[Polling] Stopped polling");
     }
     this.onNotify = null;
   }

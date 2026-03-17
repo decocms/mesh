@@ -34,8 +34,7 @@ const envSchema = z
     OTEL_SERVICE_NAME: z.string().default("mesh"),
 
     // Event Bus & Networking
-    NATS_URL: z.string().optional(),
-    NOTIFY_STRATEGY: z.enum(["nats", "postgres", "polling"]).optional(),
+    NATS_URL: z.string().default("nats://localhost:4222"),
 
     // Config files
     CONFIG_PATH: z.string().default("./config.json"),
@@ -61,7 +60,9 @@ const envSchema = z
   })
   .transform((e) => ({
     ...e,
-    DATABASE_URL: e.DATABASE_URL ?? `file://${join(e.DATA_DIR, "db.pglite")}`,
+    DATABASE_URL:
+      e.DATABASE_URL ??
+      "postgresql://postgres:postgres@localhost:5432/postgres",
   }));
 
 export type Env = z.infer<typeof envSchema>;
@@ -94,10 +95,7 @@ function redactUrl(url: string | undefined): string {
   }
 }
 
-const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
-const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
-const yellow = (s: string) => `\x1b[33m${s}\x1b[39m`;
-const cyan = (s: string) => `\x1b[36m${s}\x1b[39m`;
+import { KEY_WIDTH, RULE_WIDTH, cyan, dim, green, yellow } from "./fmt";
 
 const SECRET_KEYS = new Set([
   "BETTER_AUTH_SECRET",
@@ -129,75 +127,65 @@ function formatValue(key: string, raw: unknown): string {
 }
 
 function logConfiguration(e: Env) {
-  const KEY_WIDTH = 32;
-  const RULE_WIDTH = 42;
   const lines: string[] = [];
 
-  const section = (title: string) => {
+  const sect = (title: string) => {
     lines.push("");
     lines.push(
       `  ${dim(`── ${title} ${"─".repeat(Math.max(0, RULE_WIDTH - title.length - 4))}`)}`,
     );
   };
 
-  const row = (key: string, value: unknown) => {
+  const r = (key: string, value: unknown) => {
     lines.push(`  ${dim(key.padEnd(KEY_WIDTH))}${formatValue(key, value)}`);
   };
 
-  lines.push("");
-  lines.push(green("       _                    ____ __  __ ____"));
-  lines.push(green("    __| | ___  ___ ___     / ___|  \\/  / ___|"));
-  lines.push(green("   / _` |/ _ \\/ __/ _ \\   | |   | |\\/| \\___ \\"));
-  lines.push(green("  | (_| |  __/ (_| (_) |  | |___| |  | |___) |"));
-  lines.push(green("   \\__,_|\\___|\\___\\___/    \\____|_|  |_|____/"));
+  sect("Core");
+  r("NODE_ENV", e.NODE_ENV);
+  r("PORT", e.PORT);
+  r("BASE_URL", e.BASE_URL ?? `http://localhost:${e.PORT}`);
+  r("DATA_DIR", e.DATA_DIR);
 
-  section("Core");
-  row("NODE_ENV", e.NODE_ENV);
-  row("PORT", e.PORT);
-  row("BASE_URL", e.BASE_URL ?? `http://localhost:${e.PORT}`);
-  row("DATA_DIR", e.DATA_DIR);
+  sect("Database");
+  r("DATABASE_URL", e.DATABASE_URL);
+  r("DATABASE_PG_SSL", e.DATABASE_PG_SSL);
 
-  section("Database");
-  row("DATABASE_URL", e.DATABASE_URL);
-  row("DATABASE_PG_SSL", e.DATABASE_PG_SSL);
+  sect("Auth & Secrets");
+  r("BETTER_AUTH_SECRET", e.BETTER_AUTH_SECRET);
+  r("ENCRYPTION_KEY", e.ENCRYPTION_KEY);
+  r("MESH_JWT_SECRET", e.MESH_JWT_SECRET);
+  r("MESH_LOCAL_MODE", e.MESH_LOCAL_MODE);
+  r("MESH_ALLOW_LOCAL_PROD", e.MESH_ALLOW_LOCAL_PROD);
+  r("DISABLE_RATE_LIMIT", e.DISABLE_RATE_LIMIT);
 
-  section("Auth & Secrets");
-  row("BETTER_AUTH_SECRET", e.BETTER_AUTH_SECRET);
-  row("ENCRYPTION_KEY", e.ENCRYPTION_KEY);
-  row("MESH_JWT_SECRET", e.MESH_JWT_SECRET);
-  row("MESH_LOCAL_MODE", e.MESH_LOCAL_MODE);
-  row("MESH_ALLOW_LOCAL_PROD", e.MESH_ALLOW_LOCAL_PROD);
-  row("DISABLE_RATE_LIMIT", e.DISABLE_RATE_LIMIT);
+  sect("Observability");
+  r("CLICKHOUSE_URL", e.CLICKHOUSE_URL);
+  r("OTEL_SERVICE_NAME", e.OTEL_SERVICE_NAME);
 
-  section("Observability");
-  row("CLICKHOUSE_URL", e.CLICKHOUSE_URL);
-  row("OTEL_SERVICE_NAME", e.OTEL_SERVICE_NAME);
+  sect("Event Bus & Networking");
+  r("NATS_URL", e.NATS_URL);
 
-  section("Event Bus & Networking");
-  row("NATS_URL", e.NATS_URL);
-  row("NOTIFY_STRATEGY", e.NOTIFY_STRATEGY ?? "auto");
+  sect("Config Files");
+  r("CONFIG_PATH", e.CONFIG_PATH);
+  r("AUTH_CONFIG_PATH", e.AUTH_CONFIG_PATH);
 
-  section("Config Files");
-  row("CONFIG_PATH", e.CONFIG_PATH);
-  row("AUTH_CONFIG_PATH", e.AUTH_CONFIG_PATH);
+  sect("Transport");
+  r("UNSAFE_ALLOW_STDIO_TRANSPORT", e.UNSAFE_ALLOW_STDIO_TRANSPORT);
 
-  section("Transport");
-  row("UNSAFE_ALLOW_STDIO_TRANSPORT", e.UNSAFE_ALLOW_STDIO_TRANSPORT);
+  sect("Object Storage");
+  r("S3_ENDPOINT", e.S3_ENDPOINT);
+  r("S3_BUCKET", e.S3_BUCKET);
+  r("S3_REGION", e.S3_REGION);
+  r("S3_ACCESS_KEY_ID", e.S3_ACCESS_KEY_ID);
+  r("S3_SECRET_ACCESS_KEY", e.S3_SECRET_ACCESS_KEY);
+  r("S3_FORCE_PATH_STYLE", e.S3_FORCE_PATH_STYLE);
 
-  section("Object Storage");
-  row("S3_ENDPOINT", e.S3_ENDPOINT);
-  row("S3_BUCKET", e.S3_BUCKET);
-  row("S3_REGION", e.S3_REGION);
-  row("S3_ACCESS_KEY_ID", e.S3_ACCESS_KEY_ID);
-  row("S3_SECRET_ACCESS_KEY", e.S3_SECRET_ACCESS_KEY);
-  row("S3_FORCE_PATH_STYLE", e.S3_FORCE_PATH_STYLE);
-
-  section("Debug / K8s");
-  row("DEBUG_PORT", e.DEBUG_PORT);
-  row("ENABLE_DEBUG_SERVER", e.ENABLE_DEBUG_SERVER);
-  row("PRESTOP_HEAP_SNAPSHOT_DIR", e.PRESTOP_HEAP_SNAPSHOT_DIR);
-  row("POD_NAME", e.POD_NAME);
-  row("HOSTNAME", e.HOSTNAME);
+  sect("Debug / K8s");
+  r("DEBUG_PORT", e.DEBUG_PORT);
+  r("ENABLE_DEBUG_SERVER", e.ENABLE_DEBUG_SERVER);
+  r("PRESTOP_HEAP_SNAPSHOT_DIR", e.PRESTOP_HEAP_SNAPSHOT_DIR);
+  r("POD_NAME", e.POD_NAME);
+  r("HOSTNAME", e.HOSTNAME);
 
   lines.push("");
   console.log(lines.join("\n"));

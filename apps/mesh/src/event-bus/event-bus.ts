@@ -5,12 +5,12 @@
  * - Publishing events
  * - Managing subscriptions
  * - Background event delivery via EventBusWorker
- * - Optional immediate notification via NotifyStrategy
+ * - Immediate notification via NotifyStrategy (NATS + polling)
  *
  * Architecture:
- * - EventBusStorage: Database operations (unified for PGlite/PostgreSQL via Kysely)
+ * - EventBusStorage: Database operations (PostgreSQL via Kysely)
  * - EventBusWorker: Polling and delivery logic
- * - NotifyStrategy: Optional - wakes up worker immediately (e.g., PostgreSQL LISTEN/NOTIFY)
+ * - NotifyStrategy: Wakes up worker immediately via NATS, with polling safety net
  */
 
 import { Cron } from "croner";
@@ -38,15 +38,15 @@ export interface EventBusOptions {
   storage: EventBusStorage;
   /** Optional event bus configuration */
   config?: EventBusConfig;
-  /** Optional notify strategy for immediate wake-up (e.g., PostgreSQL LISTEN/NOTIFY) */
+  /** Notify strategy for immediate wake-up (NATS + polling) */
   notifyStrategy?: NotifyStrategy;
 }
 
 /**
  * Unified EventBus implementation
  *
- * Works with any database (PGlite, PostgreSQL) via EventBusStorage.
- * Supports optional immediate notification via NotifyStrategy.
+ * Works with PostgreSQL via EventBusStorage.
+ * Uses NATS + polling NotifyStrategy for immediate wake-up.
  */
 export class EventBus implements IEventBus {
   private storage: EventBusStorage;
@@ -237,7 +237,7 @@ export class EventBus implements IEventBus {
     await this.worker.start();
 
     // Start notify strategy if available
-    // Use compose() to combine multiple strategies (e.g., polling + postgres notify)
+    // Uses compose() to combine NATS notify + polling safety net
     if (this.notifyStrategy) {
       await this.notifyStrategy.start(() => {
         // When notified, trigger immediate processing
@@ -271,8 +271,6 @@ export class EventBus implements IEventBus {
         console.error("[EventBus] Error stopping notify strategy:", error);
       }
     }
-
-    console.log("[EventBus] Stopped");
   }
 
   isRunning(): boolean {

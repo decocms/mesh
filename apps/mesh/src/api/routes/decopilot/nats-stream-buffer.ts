@@ -58,8 +58,8 @@ function createPublishTracker(threadId: string) {
 }
 
 export interface NatsStreamBufferOptions {
-  getConnection: () => NatsConnection | null;
-  getJetStream: () => JetStreamClient | null;
+  getConnection: () => NatsConnection;
+  getJetStream: () => JetStreamClient;
 }
 
 export class NatsStreamBuffer implements StreamBuffer {
@@ -71,8 +71,6 @@ export class NatsStreamBuffer implements StreamBuffer {
 
   async init(): Promise<void> {
     const nc = this.options.getConnection();
-    if (!nc) return;
-
     const jsm = await nc.jetstreamManager();
 
     const config = {
@@ -102,9 +100,6 @@ export class NatsStreamBuffer implements StreamBuffer {
 
     this.js = this.options.getJetStream();
     this.jsm = jsm;
-    console.log(
-      "[Decopilot] JetStream stream buffer ready (memory storage, 5min TTL, 20K msgs/subject)",
-    );
   }
 
   relay(

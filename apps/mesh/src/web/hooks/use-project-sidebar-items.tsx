@@ -7,11 +7,9 @@ import type {
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
-  Building02,
   CheckDone01,
   Container,
   Dataflow03,
-  FaceSmile,
   Folder,
   Home02,
   LayoutLeft,
@@ -121,18 +119,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
       }),
   };
 
-  const storeItem: NavigationSidebarItem = {
-    key: "store",
-    label: "Store",
-    icon: <Building02 />,
-    isActive: isActiveRoute("store"),
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/store",
-        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-      }),
-  };
-
   const agentsItem: NavigationSidebarItem = {
     key: "agents",
     label: "Agents",
@@ -165,18 +151,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
     onClick: () =>
       navigate({
         to: "/$org/$project/monitoring",
-        params: { org, project: ORG_ADMIN_PROJECT_SLUG },
-      }),
-  };
-
-  const membersItem: NavigationSidebarItem = {
-    key: "members",
-    label: "Members",
-    icon: <FaceSmile />,
-    isActive: isActiveRoute("members"),
-    onClick: () =>
-      navigate({
-        to: "/$org/$project/members",
         params: { org, project: ORG_ADMIN_PROJECT_SLUG },
       }),
   };
@@ -273,7 +247,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     // Org-admin sidebar layout:
     // - Home, Tasks (if enabled), Projects (if enabled) (top-level)
     // - Build group: Agents, Connections, Store
-    // - Manage group: Monitor, Members, Settings
+    // - Manage group: Monitor, Settings
     // - Plugin items / groups
     const settingsItem: NavigationSidebarItem = {
       key: "settings",
@@ -301,7 +275,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
             ...(preferences.experimentalAutomations ? [automationsItem] : []),
             agentsItem,
             connectionsItem,
-            storeItem,
           ],
           defaultExpanded: true,
         },
@@ -311,7 +284,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
         group: {
           id: "manage",
           label: "Manage",
-          items: [monitorItem, membersItem, settingsItem],
+          items: [monitorItem, settingsItem],
           defaultExpanded: true,
         },
       },

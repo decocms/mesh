@@ -49,6 +49,12 @@ export const KEYS = {
   connection: (locator: ProjectLocator, id: string) =>
     [locator, "connection", id] as const,
 
+  connectionActivity: (
+    connectionId: string,
+    timeframe: string,
+    orgId: string,
+  ) => ["monitoring", "activity", connectionId, timeframe, orgId] as const,
+
   isMCPAuthenticated: (url: string, token: string | null) =>
     ["is-mcp-authenticated", url, token] as const,
 
@@ -260,4 +266,8 @@ export const KEYS = {
 
   // AI provider stored keys (scoped by locator)
   aiProviderKeys: (locator: string) => ["ai-provider-keys", locator] as const,
+
+  // AI provider credits balance (scoped by locator + keyId)
+  aiProviderCredits: (locator: string, keyId: string) =>
+    ["ai-provider-credits", locator, keyId] as const,
 } as const;

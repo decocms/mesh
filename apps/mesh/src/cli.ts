@@ -67,7 +67,7 @@ Options:
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
   DATA_DIR              Data directory (default: ~/deco/)
-  DATABASE_URL          Database connection URL (default: file://$HOME/deco/db.pglite)
+  DATABASE_URL          Database connection URL (default: postgresql://postgres:postgres@localhost:5432/postgres)
   NODE_ENV              Set to 'production' for production mode
   BETTER_AUTH_SECRET    Secret for authentication (auto-generated if not set)
   ENCRYPTION_KEY        Key for encrypting secrets (auto-generated if not set)
@@ -140,11 +140,7 @@ if (localMode) {
 // Secrets (auto-generate on first run, persist to ~/deco/secrets.json)
 // ============================================================================
 
-const dim = "\x1b[2m";
-const reset = "\x1b[0m";
-const bold = "\x1b[1m";
-const cyan = "\x1b[36m";
-const yellow = "\x1b[33m";
+const { ASCII_ART, dim, green, row, section, yellow } = await import("./fmt");
 
 const crypto = await import("crypto");
 const { chmod, mkdir, writeFile } = await import("fs/promises");
@@ -207,9 +203,7 @@ if (secretsModified) {
     });
     await chmod(secretsFilePath, 0o600);
   } catch (error) {
-    console.warn(
-      `${yellow}Warning: Could not save secrets file: ${error}${reset}`,
-    );
+    console.warn(yellow(`Warning: Could not save secrets file: ${error}`));
   }
 }
 
@@ -219,19 +213,41 @@ if (secretsModified) {
 
 const displayHome = decoHome.replace(homedir(), "~");
 
+// ============================================================================
+// Banner (ASCII art first)
+// ============================================================================
+
 console.log("");
-console.log(`${bold}${cyan}Deco Studio${reset}`);
-console.log(`${dim}Open-source control plane for your AI agents${reset}`);
+for (const line of ASCII_ART) {
+  console.log(line);
+}
 console.log("");
 
 if (betterAuthFromFile || encryptionKeyFromFile) {
   console.log(
-    `${dim}Using generated secrets from: ${displayHome}/secrets.json${reset}`,
+    dim(`  Using generated secrets from: ${displayHome}/secrets.json`),
   );
   console.log(
-    `${dim}For production, set BETTER_AUTH_SECRET and ENCRYPTION_KEY env vars.${reset}`,
+    dim(
+      "  For production, set BETTER_AUTH_SECRET and ENCRYPTION_KEY env vars.",
+    ),
   );
-  console.log("");
+}
+
+// ============================================================================
+// Services (PostgreSQL + NATS)
+// ============================================================================
+
+const { ensureServices } = await import("./services/ensure-services");
+const services = await ensureServices();
+
+console.log(section("Services"));
+for (const s of services) {
+  const details: string[] = [s.state];
+  if (s.pid) details.push(`pid ${s.pid}`);
+  if (s.owner !== "external") details.push(`:${s.port}`);
+  details.push(s.owner);
+  console.log(row(s.name, details.join(" · ")));
 }
 
 // ============================================================================
@@ -239,20 +255,38 @@ if (betterAuthFromFile || encryptionKeyFromFile) {
 // ============================================================================
 
 if (!values["skip-migrations"]) {
-  console.log(`${dim}Running database migrations...${reset}`);
   try {
     const { migrateToLatest } = await import("./database/migrate");
-    await migrateToLatest({ keepOpen: true });
-    console.log(`${dim}Migrations complete.${reset}`);
+    const result = await migrateToLatest({ keepOpen: true });
+
+    console.log(section("Migrations"));
+    console.log(
+      row(
+        "Kysely",
+        result.kysely > 0 ? `${result.kysely} applied` : "up to date",
+      ),
+    );
+    if (result.plugins > 0) {
+      console.log(row("Plugins", `${result.plugins} applied`));
+    }
+    console.log(row("Better Auth", result.betterAuth));
   } catch (error) {
     console.error("Failed to run migrations:", error);
     process.exit(1);
   }
 }
 
+const { logConfiguration, env } = await import("./env");
+logConfiguration(env);
+
 console.log("");
 console.log(
-  `${bold}  Mode:       ${localMode ? `\x1b[32mLocal${reset}${bold} (auto-login enabled)` : "Standard (login required)"}${reset}`,
+  row(
+    "Mode",
+    localMode
+      ? `${green("Local")} (auto-login enabled)`
+      : "Standard (login required)",
+  ),
 );
 console.log("");
 
@@ -260,4 +294,5 @@ console.log("");
 // Start server
 // ============================================================================
 
+process.env.DECO_CLI = "1";
 await import("./index");

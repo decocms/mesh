@@ -48,7 +48,6 @@ async function ensurePluginMigrationsTable(
     return;
   }
 
-  console.log("📦 Creating plugin_migrations table...");
   await sql`
     CREATE TABLE plugin_migrations (
       plugin_id TEXT NOT NULL,
@@ -83,9 +82,7 @@ async function migrateExistingPluginRecords(
     return; // No plugin migrations to migrate
   }
 
-  console.log(
-    `🔄 Migrating ${oldRecords.rows.length} plugin migration record(s) to new system...`,
-  );
+  // Silently migrate old plugin records to the new system
 
   for (const { name, timestamp } of oldRecords.rows) {
     // Extract plugin ID and migration name from various formats:
@@ -104,7 +101,7 @@ async function migrateExistingPluginRecords(
     // Now pluginPart is "pluginId/migrationName"
     const slashIndex = pluginPart.indexOf("/");
     if (slashIndex === -1) {
-      console.warn(`   ⚠️  Skipping malformed plugin migration: ${name}`);
+      console.warn(`Skipping malformed plugin migration: ${name}`);
       continue;
     }
 
@@ -117,7 +114,7 @@ async function migrateExistingPluginRecords(
         INSERT INTO plugin_migrations (plugin_id, name, timestamp)
         VALUES (${pluginId}, ${migrationName}, ${timestamp})
       `.execute(db);
-      console.log(`   Migrated: ${pluginId}/${migrationName}`);
+      // Record migrated successfully
     } catch {
       // INSERT failed - could be duplicate key or other error
       // Verify record exists in new table before proceeding
@@ -129,7 +126,7 @@ async function migrateExistingPluginRecords(
       if (Number(exists.rows[0]?.cnt) === 0) {
         // Record doesn't exist in new table - INSERT failed for unexpected reason
         console.warn(
-          `   ⚠️  Failed to migrate ${pluginId}/${migrationName}, keeping in old table`,
+          `Failed to migrate ${pluginId}/${migrationName}, keeping in old table`,
         );
         continue;
       }
@@ -149,11 +146,11 @@ async function migrateExistingPluginRecords(
  * Each plugin's migrations are tracked independently in the plugin_migrations table.
  * Migrations are run in order within each plugin (sorted by name).
  */
-async function runPluginMigrations(db: Kysely<Database>): Promise<void> {
+async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
   const pluginMigrations = collectPluginMigrations();
 
   if (pluginMigrations.length === 0) {
-    return; // No plugins with migrations
+    return 0;
   }
 
   // Note: plugin_migrations table and old record migration are handled
@@ -200,12 +197,7 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<void> {
         continue; // Already executed
       }
 
-      if (totalPending === 0) {
-        console.log("🔌 Running plugin migrations...");
-      }
       totalPending++;
-
-      console.log(`   Running: ${key}`);
       await migration.up(db);
 
       // Record as executed
@@ -217,9 +209,7 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<void> {
     }
   }
 
-  if (totalPending > 0) {
-    console.log(`✅ ${totalPending} plugin migration(s) completed`);
-  }
+  return totalPending;
 }
 
 // ============================================================================
@@ -261,7 +251,9 @@ export interface MigrateOptions {
 /**
  * Run Kysely migrations on a specific database instance
  */
-export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
+export async function runKyselyMigrations(
+  db: Kysely<Database>,
+): Promise<number> {
   // IMPORTANT: Clean up plugin migrations from kysely_migration BEFORE running
   // Kysely's migrator. Kysely checks for missing migrations at startup and will
   // fail if it finds records like "user-sandbox/001-user-sandbox" that aren't
@@ -276,11 +268,12 @@ export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
 
   const { error, results } = await migrator.migrateToLatest();
 
+  let executed = 0;
   results?.forEach((it) => {
     if (it.status === "Success") {
-      console.log(`✅ Migration "${it.migrationName}" executed successfully`);
+      executed++;
     } else if (it.status === "Error") {
-      console.error(`❌ Failed to execute migration "${it.migrationName}"`);
+      console.error(`Failed to execute migration "${it.migrationName}"`);
     }
   });
 
@@ -289,6 +282,8 @@ export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
     console.error(error);
     throw error;
   }
+
+  return executed;
 }
 
 /**
@@ -296,6 +291,9 @@ export async function runKyselyMigrations(db: Kysely<Database>): Promise<void> {
  */
 export interface MigrateResult<T = unknown> {
   seedResult?: T;
+  betterAuth: string;
+  kysely: number;
+  plugins: number;
 }
 
 /**
@@ -312,8 +310,9 @@ export async function migrateToLatest<T = unknown>(
   } = options ?? {};
 
   // Run Better Auth migrations (unless skipped or using custom db)
+  let betterAuth = "skipped";
   if (!skipBetterAuth && !customDb) {
-    await migrateBetterAuth();
+    betterAuth = await migrateBetterAuth();
   }
 
   // Get database instance
@@ -321,10 +320,7 @@ export async function migrateToLatest<T = unknown>(
 
   // Helper to close database if needed
   const maybeCloseDatabase = async () => {
-    // Only close database connection if not keeping open for server
-    // and we're using the global database (not a custom one)
     if (!keepOpen && !customDb) {
-      console.log("🔒 Closing database connection...");
       await closeDatabase(database).catch((err: unknown) => {
         console.warn("Warning: Error closing database:", err);
       });
@@ -332,14 +328,8 @@ export async function migrateToLatest<T = unknown>(
   };
 
   try {
-    // Phase 1: Run core Kysely migrations
-    // (This also migrates any old plugin records from kysely_migration first)
-    console.log("📊 Running Kysely migrations...");
-    await runKyselyMigrations(database.db);
-    console.log("🎉 Core migrations completed successfully");
-
-    // Phase 2: Run plugin migrations (separate tracking)
-    await runPluginMigrations(database.db);
+    const kysely = await runKyselyMigrations(database.db);
+    const plugins = await runPluginMigrations(database.db);
 
     // Run seed if specified
     let seedResult: T | undefined;
@@ -350,7 +340,7 @@ export async function migrateToLatest<T = unknown>(
     // Close database on success if needed
     await maybeCloseDatabase();
 
-    return { seedResult };
+    return { seedResult, betterAuth, kysely, plugins };
   } catch (error) {
     // Ensure database is closed on failure
     await maybeCloseDatabase();
@@ -390,17 +380,13 @@ export async function migrateDown(): Promise<void> {
 
 // Entry point: Run migrations when executed directly
 if (import.meta.main) {
-  console.log("🚀 Migration script starting...");
-  console.log("📦 Imported migrateToLatest function");
-
   (async () => {
-    console.log("🏃 Executing migration function...");
     try {
       await migrateToLatest();
-      console.log("✅ All migrations completed. Exiting...");
+      console.log("Migrations completed.");
       process.exit(0);
     } catch (error) {
-      console.error("❌ Migration failed:", error);
+      console.error("Migration failed:", error);
       process.exit(1);
     }
   })();

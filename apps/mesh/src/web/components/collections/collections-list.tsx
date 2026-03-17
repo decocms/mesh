@@ -70,7 +70,6 @@ export function CollectionsList<T extends BaseCollectionEntity>({
   data,
   schema,
   viewMode,
-  onViewModeChange = () => {},
   search,
   sortKey,
   sortDirection = "asc",
@@ -108,8 +107,6 @@ export function CollectionsList<T extends BaseCollectionEntity>({
             {/* View Mode + Sort Controls */}
             <div className="flex items-center gap-2 shrink-0">
               <CollectionDisplayButton
-                viewMode={viewMode}
-                onViewModeChange={onViewModeChange}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onSort={onSort}
