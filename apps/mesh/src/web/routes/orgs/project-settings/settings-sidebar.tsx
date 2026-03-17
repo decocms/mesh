@@ -36,23 +36,10 @@ export function ProjectSettingsSidebar() {
   };
 
   const handleNavigate = (key: string) => {
-    if (params.slug) {
-      navigate({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        to: `/$org/$project/projects/$slug/settings/${key}` as any,
-        params: {
-          org: params.org,
-          project: ORG_ADMIN_PROJECT_SLUG,
-          slug: params.slug,
-        },
-      });
-    } else {
-      navigate({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        to: `/$org/$project/settings/${key}` as any,
-        params: { org: params.org, project: params.project },
-      });
-    }
+    const href = params.slug
+      ? `/${params.org}/${ORG_ADMIN_PROJECT_SLUG}/projects/${params.slug}/settings/${key}`
+      : `/${params.org}/${params.project}/settings/${key}`;
+    navigate({ href });
   };
 
   return (
