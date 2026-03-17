@@ -143,6 +143,8 @@ class BridgeStore {
   private timeout: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
   private unsubTheme: (() => void) | null = null;
+  private iframe: HTMLIFrameElement | null = null;
+  private contentObserver: ResizeObserver | null = null;
 
   // --- observable snapshot (React subscribes to this) ---
   private snapshot: BridgeSnapshot;
@@ -230,6 +232,9 @@ class BridgeStore {
     this.disposed = true;
     this.unsubTheme?.();
     this.unsubTheme = null;
+    this.contentObserver?.disconnect();
+    this.contentObserver = null;
+    this.iframe = null;
     if (this.bridge) {
       this.bridge.teardownResource({}).catch(() => {});
       this.bridge.close();
@@ -254,6 +259,8 @@ class BridgeStore {
     });
 
     if (!iframe) return;
+
+    this.iframe = iframe;
 
     iframe.onerror = () => {
       if (this.disposed) return;
@@ -360,6 +367,7 @@ class BridgeStore {
       if (this.disposed) return;
       this.clearTimeout();
       this.set({ isLoading: false });
+      this.startContentObserver();
 
       const { toolInput, toolResult } = this.config;
       if (toolInput != null) {
@@ -369,6 +377,25 @@ class BridgeStore {
         bridge.sendToolResult(toolResult);
       }
     };
+  }
+
+  /** Observe iframe content height as a fallback when the app doesn't send sizechange. */
+  private startContentObserver() {
+    const body = this.iframe?.contentDocument?.body;
+    if (!body) return;
+
+    const update = () => {
+      if (this.disposed) return;
+      const h = body.scrollHeight;
+      if (h > 0) {
+        const { minHeight, maxHeight } = this.config;
+        this.set({ height: Math.max(minHeight, Math.min(maxHeight, h)) });
+      }
+    };
+
+    this.contentObserver = new ResizeObserver(update);
+    this.contentObserver.observe(body);
+    update();
   }
 
   private startInitTimeout() {
