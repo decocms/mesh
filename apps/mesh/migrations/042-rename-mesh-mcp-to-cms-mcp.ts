@@ -1,20 +1,19 @@
 /**
  * Rename "Mesh MCP" to "CMS MCP" and Reset Tools Cache
  *
- * This migration:
- * 1. Renames the self-management MCP title from "Mesh MCP" to "CMS MCP"
- *    to align with the Deco CMS rebranding.
- * 2. Resets the `tools` column to NULL so the tool cache is regenerated
- *    from the management MCP endpoint.
+ * The CMS MCP is the connection that exposes the Deco CMS APIs via MCP.
  *
- * Setting tools to NULL causes the proxy to fall back to fetching tools
- * directly from the MCP endpoint on next request.
+ * This migration:
+ * 1. Renames its title from "Mesh MCP" to "CMS MCP" to align with the
+ *    Deco CMS rebranding.
+ * 2. Resets the `tools` column to NULL so the tool cache is regenerated
+ *    on next request.
  */
 
 import { type Kysely, sql } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
-  // Rename title and clear tools cache for all management MCP connections
+  // Rename title and clear tools cache for the CMS MCP connection
   await sql`
     UPDATE connections
     SET title = 'CMS MCP',
