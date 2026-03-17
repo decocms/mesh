@@ -232,8 +232,8 @@ docker compose -f deploy/docker-compose.postgres.yml up
 # Bun
 bun run build:client && bun run build:server && bun run start
 
-# Kubernetes
-kubectl apply -f k8s/
+# Kubernetes (Helm)
+helm install deco-studio oci://ghcr.io/decocms/chart-deco-studio --version <version> -n deco-studio --create-namespace
 ```
 
 No vendor lock-in. Runs on Docker, Kubernetes, AWS, GCP, or local runtimes.
