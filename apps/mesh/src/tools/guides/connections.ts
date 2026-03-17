@@ -2,7 +2,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 
 export const prompts: GuidePrompt[] = [
   {
-    name: "create-connection",
+    name: "connections-create",
     description:
       "Create and validate a new connection to an external MCP server.",
     text: `# Create connection
@@ -27,7 +27,7 @@ Checks:
 `,
   },
   {
-    name: "update-connection",
+    name: "connections-update",
     description:
       "Update connection settings or authentication without losing track of health.",
     text: `# Update connection
@@ -51,7 +51,7 @@ Checks:
 `,
   },
   {
-    name: "troubleshoot-connection",
+    name: "connections-troubleshoot",
     description:
       "Diagnose connection failures and identify likely remediation steps.",
     text: `# Troubleshoot connection

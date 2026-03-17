@@ -2,7 +2,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 
 export const prompts: GuidePrompt[] = [
   {
-    name: "create-agent",
+    name: "agents-create",
     description:
       "Create a new agent with the right connections and instructions.",
     text: `# Create agent
@@ -27,7 +27,7 @@ Checks:
 `,
   },
   {
-    name: "update-agent",
+    name: "agents-update",
     description:
       "Update an existing agent's scope, connections, or instructions.",
     text: `# Update agent
@@ -52,29 +52,33 @@ Checks:
 `,
   },
   {
-    name: "improve-agent-instructions",
+    name: "writing-prompts",
     description:
-      "Review and strengthen an agent's instructions using the XML-based guidance and workflow best practices.",
-    text: `# Improve agent instructions
+      "Review and strengthen instructions for either an agent or an automation using XML-based guidance and workflow best practices.",
+    text: `# Writing instructions
 
-Goal: rewrite or refine an agent's instructions so they clearly describe the agent's purpose, constraints, and workflows in a reliable format.
+Goal: rewrite or refine instructions for either an agent or an automation so they clearly describe the purpose, constraints, and workflows in a reliable format.
 
-Read docs://agents.md for the instruction-writing pattern, XML-style structure, and workflow guidance.
+Read docs://agents.md for the instruction-writing pattern, XML-style structure, and workflow guidance. Read docs://automations.md if you are improving automation behavior rather than agent behavior.
 
 Recommended tool order:
-1. Use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to identify the target agent and inspect its current instructions.
-2. Review the current instructions against docs://agents.md.
-3. If the intended purpose, audience, or boundaries are unclear, use user_ask before rewriting.
-4. Rewrite the instructions with explicit XML-style sections such as <role>, <capabilities>, <constraints>, and <workflows>.
-5. Use VIRTUAL_MCP_UPDATE to save the improved instructions.
-6. Use VIRTUAL_MCP_GET to verify the final stored version.
+1. Identify whether the target is an agent or an automation.
+2. For agents, use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to inspect the current instructions.
+3. For automations, use AUTOMATION_LIST or AUTOMATION_GET to inspect the current messages/instructions.
+4. Review the current instructions against docs://agents.md.
+5. If the intended purpose, audience, or boundaries are unclear, use user_ask before rewriting.
+6. Rewrite the instructions with explicit XML-style sections such as <role>, <capabilities>, <constraints>, and <workflows>.
+7. For agents, use VIRTUAL_MCP_UPDATE to save the improved instructions.
+8. For automations, use AUTOMATION_UPDATE to save the improved messages/instructions.
+9. Re-read the updated entity with VIRTUAL_MCP_GET or AUTOMATION_GET to verify the final stored version.
 
 Checks:
-- Make the agent's purpose explicit in a <role> section.
+- Make the purpose explicit in a <role> section.
 - Detect whether the current instructions already contain a workflow. If they do, improve the workflow to be concrete, ordered, and operational. If they do not, add one.
 - Keep workflows numbered and focused on real execution steps, not vague advice.
 - Add or tighten constraints when the current instructions are too open-ended.
 - Preserve the user's intended domain and responsibilities while improving clarity.
+- If the target is an automation, keep the instructions aligned with the trigger and expected background execution behavior.
 `,
   },
 ];

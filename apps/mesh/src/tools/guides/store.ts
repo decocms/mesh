@@ -2,7 +2,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 
 export const prompts: GuidePrompt[] = [
   {
-    name: "search-store",
+    name: "store-search",
     description:
       "Search the Deco Store or registry for new connections that match a user need.",
     text: `# Search store
@@ -16,8 +16,8 @@ Recommended tool order:
 2. If the user has not clearly described the target capability, data source, or authentication constraints, use user_ask.
 3. Use CONNECTIONS_GET if you need more detail about the chosen registry connection.
 4. Enable the registry discovery tools from that connection.
-5. Prefer REGISTRY_ITEM_SEARCH or COLLECTION_REGISTRY_APP_SEARCH when available. Otherwise use COLLECTION_REGISTRY_APP_LIST with search-like filters.
-6. Use REGISTRY_ITEM_GET or COLLECTION_REGISTRY_APP_GET on the most promising results.
+5. Prefer REGISTRY_ITEM_SEARCH when available. Otherwise use the registry's list tool with search-like filters.
+6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
 7. Summarize the best matches, key tradeoffs, and which one to install next if the user wants to proceed.
 
 Checks:
@@ -27,33 +27,36 @@ Checks:
 - Do not install anything until the user picks a candidate or asks you to proceed.
 `,
   },
+];
+
+export const resources: GuideResource[] = [
   {
-    name: "inspect-store-item",
+    name: "store-inspect-item",
+    uri: "docs://store-inspect-item.md",
     description:
-      "Inspect a registry/store result in detail before recommending or installing it.",
+      "How to inspect a registry/store item in detail before recommending or installing it.",
     text: `# Inspect store item
 
-Goal: validate that a specific store or registry item actually matches the user's requirements.
+## Goal
 
-Read docs://store.md for evaluation criteria and registry tool patterns.
+Validate that a specific store or registry item actually matches the user's requirements.
 
-Recommended tool order:
+## Recommended tool order
+
 1. Use CONNECTIONS_LIST to confirm which registry connection should be queried.
 2. Enable the relevant registry detail tools from that connection.
-3. Use REGISTRY_ITEM_GET or COLLECTION_REGISTRY_APP_GET to inspect the candidate item.
-4. If multiple versions are available and a versions tool exists, use REGISTRY_ITEM_VERSIONS or COLLECTION_REGISTRY_APP_VERSIONS.
+3. Use REGISTRY_ITEM_GET to inspect the candidate item.
+4. If multiple versions are available and a versions tool exists, use REGISTRY_ITEM_VERSIONS.
 5. Report whether the item fits the user's use case and what the next step should be.
 
-Checks:
+## Checks
+
 - Confirm the item exposes the capability the user asked for.
 - Look for auth requirements, transport type, and tool coverage.
 - Prefer verified or clearly maintained items when the registry exposes that signal.
 - Call out uncertainty instead of over-promising.
 `,
   },
-];
-
-export const resources: GuideResource[] = [
   {
     name: "store",
     uri: "docs://store.md",

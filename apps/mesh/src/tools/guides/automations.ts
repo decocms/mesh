@@ -2,7 +2,7 @@ import type { GuidePrompt, GuideResource } from "./index";
 
 export const prompts: GuidePrompt[] = [
   {
-    name: "create-automation",
+    name: "automations-create",
     description: "Create an automation and attach the right trigger pattern.",
     text: `# Create automation
 
@@ -26,7 +26,7 @@ Checks:
 `,
   },
   {
-    name: "update-automation",
+    name: "automations-update",
     description:
       "Update automation behavior or triggers without breaking existing workflows.",
     text: `# Update automation
