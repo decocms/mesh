@@ -56,7 +56,6 @@ describe("Collection Cache Prefill Logic", () => {
       "THREAD_MESSAGES",
       "list",
       JSON.stringify({
-        orderBy: [{ field: ["updated_at"], direction: "asc" }],
         limit: 100,
         offset: 0,
       }),
@@ -79,7 +78,6 @@ describe("Collection Cache Prefill Logic", () => {
       "THREAD_MESSAGES",
       "list",
       JSON.stringify({
-        orderBy: [{ field: ["updated_at"], direction: "asc" }],
         limit: 100,
         offset: 0,
       }),

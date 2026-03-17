@@ -9,12 +9,13 @@ import {
   createCollectionListOutputSchema,
   type WhereExpression,
 } from "@decocms/bindings/collections";
+import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { ThreadMessageEntitySchema } from "./schema";
 
 /**
- * Extract threadId from where clause
+ * Extract threadId from where clause (backward compat)
  */
 function extractThreadIdFromWhere(
   where: WhereExpression | undefined,
@@ -37,6 +38,16 @@ function extractThreadIdFromWhere(
 }
 
 /**
+ * Input schema with top-level thread_id
+ */
+const ListMessagesInputSchema = CollectionListInputSchema.extend({
+  thread_id: z
+    .string()
+    .optional()
+    .describe("ID of the thread to list messages for (required)"),
+});
+
+/**
  * Output schema for thread messages list
  */
 const ListMessagesOutputSchema = createCollectionListOutputSchema(
@@ -46,7 +57,7 @@ const ListMessagesOutputSchema = createCollectionListOutputSchema(
 export const THREAD_MESSAGES_LIST = defineTool({
   name: "THREAD_MESSAGES_LIST",
   description:
-    "List messages in a thread with pagination. Returns messages in chronological order.",
+    "List messages in a thread with pagination. Requires thread_id. Returns messages in chronological order.",
   annotations: {
     title: "List Thread Messages",
     readOnlyHint: true,
@@ -54,7 +65,7 @@ export const THREAD_MESSAGES_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
-  inputSchema: CollectionListInputSchema,
+  inputSchema: ListMessagesInputSchema,
   outputSchema: ListMessagesOutputSchema,
 
   handler: async (input, ctx) => {
@@ -62,10 +73,12 @@ export const THREAD_MESSAGES_LIST = defineTool({
 
     await ctx.access.check();
 
-    // Extract threadId from where clause
-    const threadId = extractThreadIdFromWhere(input.where);
+    // Use top-level thread_id, fall back to extracting from where clause
+    const threadId = input.thread_id ?? extractThreadIdFromWhere(input.where);
     if (!threadId) {
-      throw new Error("thread_id filter is required in where clause");
+      throw new Error(
+        "thread_id is required (provide as top-level param or in where clause)",
+      );
     }
 
     const offset = input.offset ?? 0;

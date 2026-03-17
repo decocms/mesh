@@ -1,8 +1,8 @@
 import type { Filter } from "@deco/ui/components/filter-bar.tsx";
 import { usePersistedFilters } from "@deco/ui/hooks/use-persisted-filters.ts";
-import { useSortable } from "@deco/ui/hooks/use-sortable.ts";
 import { useViewMode } from "@deco/ui/hooks/use-view-mode.ts";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
+import type { SortPreset } from "@decocms/bindings/collections";
 import { useDeferredValue, useState } from "react";
 
 // Custom collection entity type that allows nullable IDs
@@ -10,18 +10,18 @@ export type ListStateEntity = Omit<BaseCollectionEntity, "id"> & {
   id: string | null;
 };
 
-export interface UseListStateOptions<T extends ListStateEntity> {
+export interface UseListStateOptions {
   /** Organization/namespace for storage keys */
   namespace: string;
   /** Resource name for storage keys (e.g., "connections", "models") */
   resource: string;
-  /** Default sort key */
-  defaultSortKey?: keyof T;
+  /** Default sort preset */
+  defaultSort?: SortPreset;
   /** Default view mode */
   defaultViewMode?: "table" | "cards";
 }
 
-export interface ListState<T extends ListStateEntity> {
+export interface ListState {
   // Search
   search: string;
   searchTerm: string;
@@ -39,22 +39,19 @@ export interface ListState<T extends ListStateEntity> {
   setViewMode: (mode: "table" | "cards") => void;
 
   // Sorting
-  sortKey: keyof T;
-  sortDirection: "asc" | "desc" | null;
-  handleSort: (key: string) => void;
+  sort: SortPreset;
+  setSort: (sort: SortPreset) => void;
 }
 
 /**
  * Hook to consolidate list UI state (search, filters, sorting, view mode)
  * with localStorage persistence for applicable state.
  */
-export function useListState<T extends ListStateEntity>(
-  options: UseListStateOptions<T>,
-): ListState<T> {
+export function useListState(options: UseListStateOptions): ListState {
   const {
     namespace,
     resource,
-    defaultSortKey = "title",
+    defaultSort = "newest",
     defaultViewMode = "table",
   } = options;
 
@@ -88,10 +85,25 @@ export function useListState<T extends ListStateEntity>(
     defaultViewMode,
   );
 
-  // Sorting
-  const { sortKey, sortDirection, handleSort } = useSortable(
-    defaultSortKey as string,
-  );
+  // Sort preset (persisted in localStorage)
+  const sortKey = `mesh-${resource}-sort-${namespace}`;
+  const [sort, setSortState] = useState<SortPreset>(() => {
+    const stored = globalThis.localStorage?.getItem(sortKey);
+    if (
+      stored === "newest" ||
+      stored === "oldest" ||
+      stored === "a-z" ||
+      stored === "z-a"
+    ) {
+      return stored;
+    }
+    return defaultSort;
+  });
+
+  const setSort = (newSort: SortPreset) => {
+    setSortState(newSort);
+    globalThis.localStorage?.setItem(sortKey, newSort);
+  };
 
   return {
     // Search
@@ -111,8 +123,7 @@ export function useListState<T extends ListStateEntity>(
     setViewMode,
 
     // Sorting
-    sortKey: sortKey as keyof T,
-    sortDirection,
-    handleSort,
+    sort,
+    setSort,
   };
 }

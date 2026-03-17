@@ -789,7 +789,7 @@ function OrgMcpsContent() {
   const { stdioEnabled } = useAuthConfig();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
-  const listState = useListState<ConnectionEntity>({
+  const listState = useListState({
     namespace: org.slug,
     resource: "connections",
   });
@@ -2069,15 +2069,18 @@ function OrgMcpsContent() {
           </Page.Header.Left>
           <Page.Header.Right>
             <CollectionDisplayButton
-              sortKey={listState.sortKey}
-              sortDirection={listState.sortDirection}
-              onSort={listState.handleSort}
+              sortKey={listState.sort}
+              sortDirection={null}
+              onSort={(key) =>
+                listState.setSort(
+                  key as import("@decocms/bindings/collections").SortPreset,
+                )
+              }
               sortOptions={[
-                { id: "title", label: "Name" },
-                { id: "description", label: "Description" },
-                { id: "connection_type", label: "Type" },
-                { id: "updated_by", label: "Updated by" },
-                { id: "updated_at", label: "Updated" },
+                { id: "newest", label: "Newest" },
+                { id: "oldest", label: "Oldest" },
+                { id: "a-z", label: "A → Z" },
+                { id: "z-a", label: "Z → A" },
               ]}
               filters={[
                 {

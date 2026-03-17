@@ -17,7 +17,7 @@ import {
   type CollectionListOutput,
   type CollectionUpdateInput,
   type CollectionUpdateOutput,
-  type OrderByExpression,
+  type SortPreset,
   type WhereExpression,
 } from "@decocms/bindings/collections";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -51,20 +51,24 @@ export interface CollectionFilter {
  * Options for useCollectionList hook
  */
 export interface UseCollectionListOptions<T extends CollectionEntity> {
-  /** Text search term (searches configured searchable fields) */
+  /** Text search term (searches title and description) */
   searchTerm?: string;
-  /** Field filters */
+  /** Sort preset */
+  sort?: SortPreset;
+  /** Field filters (converted to where clause internally) */
   filters?: CollectionFilter[];
-  /** Sort key (field to sort by) */
-  sortKey?: keyof T;
-  /** Sort direction */
-  sortDirection?: "asc" | "desc" | null;
-  /** Fields to search when searchTerm is provided (default: ["title", "description"]) */
-  searchFields?: (keyof T)[];
-  /** Default sort key when none provided */
-  defaultSortKey?: keyof T;
   /** Page size for pagination (default: 100) */
   pageSize?: number;
+
+  // Legacy options — kept for backward compatibility
+  /** @deprecated Use `sort` preset instead */
+  sortKey?: keyof T;
+  /** @deprecated Use `sort` preset instead */
+  sortDirection?: "asc" | "desc" | null;
+  /** @deprecated Search fields are now always title + description */
+  searchFields?: (keyof T)[];
+  /** @deprecated Use `sort` preset instead */
+  defaultSortKey?: keyof T;
 }
 
 /**
@@ -81,77 +85,62 @@ export type CollectionQueryKey = readonly [
 ];
 
 /**
- * Build a where expression from search term and filters
+ * Convert CollectionFilter[] to WhereExpression
  */
-export function buildWhereExpression<T extends CollectionEntity>(
-  searchTerm: string | undefined,
-  filters: CollectionFilter[] | undefined,
-  searchFields: (keyof T)[],
-): WhereExpression | undefined {
-  const conditions: WhereExpression[] = [];
+function filtersToWhere(filters: CollectionFilter[]): WhereExpression {
+  const conditions: WhereExpression[] = filters.map((f) => ({
+    field: [f.column],
+    operator: "eq" as const,
+    value: f.value,
+  }));
 
-  // Add search conditions (OR)
-  if (searchTerm?.trim()) {
-    const trimmedSearchTerm = searchTerm.trim();
-    const searchConditions = searchFields.map((field) => ({
-      field: [String(field)],
-      operator: "contains" as const,
-      value: trimmedSearchTerm,
-    }));
-
-    if (searchConditions.length === 1 && searchConditions[0]) {
-      conditions.push(searchConditions[0]);
-    } else if (searchConditions.length > 1) {
-      conditions.push({
-        operator: "or",
-        conditions: searchConditions,
-      });
-    }
-  }
-
-  // Add filter conditions (AND)
-  if (filters && filters.length > 0) {
-    for (const filter of filters) {
-      conditions.push({
-        field: [filter.column],
-        operator: "eq" as const,
-        value: filter.value,
-      });
-    }
-  }
-
-  if (conditions.length === 0) {
-    return undefined;
-  }
-
-  if (conditions.length === 1) {
-    return conditions[0];
-  }
-
-  // Combine all conditions with AND
-  return {
-    operator: "and",
-    conditions,
-  };
+  if (conditions.length === 1) return conditions[0]!;
+  return { operator: "and" as const, conditions };
 }
 
 /**
- * Build orderBy expression from sort key and direction
+ * Build tool arguments from UseCollectionListOptions
  */
-export function buildOrderByExpression<T extends CollectionEntity>(
-  sortKey: keyof T | undefined,
-  sortDirection: "asc" | "desc" | null | undefined,
-  defaultSortKey: keyof T,
-): OrderByExpression[] | undefined {
-  const key = sortKey ?? defaultSortKey;
-  const direction = sortDirection ?? "asc";
+function buildToolArguments<T extends CollectionEntity>(
+  options: UseCollectionListOptions<T>,
+): CollectionListInput {
+  const {
+    searchTerm,
+    sort,
+    filters,
+    pageSize = 100,
+    // Legacy fallback
+    sortKey,
+    sortDirection,
+    defaultSortKey,
+  } = options;
 
-  return [
-    {
-      field: [String(key)],
-      direction,
-    },
-  ];
+  const args: CollectionListInput = {
+    limit: pageSize,
+    offset: 0,
+  };
+
+  // Simple search param
+  if (searchTerm?.trim()) {
+    args.search = searchTerm.trim();
+  }
+
+  // Sort: prefer new preset, fall back to legacy sortKey/sortDirection
+  if (sort) {
+    args.sort = sort;
+  } else if (sortKey || defaultSortKey) {
+    const key = sortKey ?? defaultSortKey;
+    const direction = sortDirection ?? "asc";
+    args.orderBy = [{ field: [String(key)], direction }];
+  }
+
+  // Filters → where
+  if (filters && filters.length > 0) {
+    const filterWhere = filtersToWhere(filters);
+    args.where = filterWhere;
+  }
+
+  return args;
 }
 
 /**
@@ -246,32 +235,10 @@ export function useCollectionList<T extends CollectionEntity>(
   client: Client | null | undefined,
   options: UseCollectionListOptions<T> = {},
 ) {
-  const {
-    searchTerm,
-    filters,
-    sortKey,
-    sortDirection,
-    searchFields = ["title", "description"] satisfies (keyof T)[],
-    defaultSortKey = "updated_at" satisfies keyof T,
-    pageSize = 100,
-  } = options;
-
   const upperName = collectionName.toUpperCase();
   const listToolName = `${upperName}_LIST`;
 
-  const where = buildWhereExpression(searchTerm, filters, searchFields);
-  const orderBy = buildOrderByExpression(
-    sortKey,
-    sortDirection,
-    defaultSortKey,
-  );
-
-  const toolArguments: CollectionListInput = {
-    ...(where && { where }),
-    ...(orderBy && { orderBy }),
-    limit: pageSize,
-    offset: 0,
-  };
+  const toolArguments = buildToolArguments(options);
 
   const argsKey = JSON.stringify(toolArguments);
   const queryKey = KEYS.collectionList(
@@ -321,32 +288,8 @@ export function buildCollectionQueryKey<T extends CollectionEntity>(
   scopeKey: string,
   options: UseCollectionListOptions<T> = {},
 ): CollectionQueryKey {
-  const {
-    searchTerm,
-    filters,
-    sortKey,
-    sortDirection,
-    searchFields = ["title", "description"] satisfies (keyof T)[],
-    defaultSortKey = "updated_at" satisfies keyof T,
-    pageSize = 100,
-  } = options;
-
   const upperName = collectionName.toUpperCase();
-
-  const where = buildWhereExpression(searchTerm, filters, searchFields);
-  const orderBy = buildOrderByExpression(
-    sortKey,
-    sortDirection,
-    defaultSortKey,
-  );
-
-  const toolArguments: CollectionListInput = {
-    ...(where && { where }),
-    ...(orderBy && { orderBy }),
-    limit: pageSize,
-    offset: 0,
-  };
-
+  const toolArguments = buildToolArguments(options);
   const argsKey = JSON.stringify(toolArguments);
   return KEYS.collectionList(client, scopeKey, "", upperName, argsKey);
 }

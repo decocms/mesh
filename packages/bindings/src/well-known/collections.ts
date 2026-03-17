@@ -81,10 +81,24 @@ export const OrderByExpressionSchema = z.object({
 });
 
 /**
+ * Sort preset type for collection queries
+ */
+export const SortPresetSchema = z
+  .enum(["newest", "oldest", "a-z", "z-a"])
+  .describe("Sort preset: newest/oldest by updated_at, a-z/z-a by title");
+
+export type SortPreset = z.infer<typeof SortPresetSchema>;
+
+/**
  * List/Query input schema for collections
  * Compatible with TanStack DB LoadSubsetOptions
  */
 export const CollectionListInputSchema = z.object({
+  search: z
+    .string()
+    .optional()
+    .describe("Search by title and description (case-insensitive)"),
+  sort: SortPresetSchema.optional(),
   where: WhereExpressionSchema.optional().describe("Filter expression"),
   orderBy: z
     .array(OrderByExpressionSchema)
@@ -436,3 +450,214 @@ export type CollectionDeleteOutput<T> = {
  * Base collection entity type - inferred from BaseCollectionEntitySchema
  */
 export type BaseCollectionEntity = z.infer<typeof BaseCollectionEntitySchema>;
+
+// ---------------------------------------------------------------------------
+// Shared utilities for resolving simple params and in-memory filtering/sorting
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a sort preset to an OrderByExpression
+ */
+const SORT_PRESET_MAP: Record<SortPreset, OrderByExpression> = {
+  newest: { field: ["updated_at"], direction: "desc" },
+  oldest: { field: ["updated_at"], direction: "asc" },
+  "a-z": { field: ["title"], direction: "asc" },
+  "z-a": { field: ["title"], direction: "desc" },
+};
+
+/**
+ * Resolve the simple `search` and `sort` params into the canonical
+ * `where` / `orderBy` fields, merging with any explicit values.
+ *
+ * - `search` → OR-contains across `searchFields`, AND-ed with existing `where`
+ * - `sort`   → mapped to `orderBy`; explicit `orderBy` takes precedence
+ */
+export function resolveCollectionListInput(
+  input: CollectionListInput,
+  searchFields: string[] = ["title", "description"],
+): {
+  where?: WhereExpression;
+  orderBy?: OrderByExpression[];
+  limit?: number;
+  offset?: number;
+} {
+  let where: WhereExpression | undefined = input.where;
+
+  // Build search where clause
+  if (input.search?.trim()) {
+    const term = input.search.trim();
+    const searchConditions: WhereExpression[] = searchFields.map((field) => ({
+      field: [field],
+      operator: "contains" as const,
+      value: term,
+    }));
+
+    const searchWhere: WhereExpression =
+      searchConditions.length === 1
+        ? searchConditions[0]!
+        : { operator: "or" as const, conditions: searchConditions };
+
+    // AND with existing where
+    where = where
+      ? { operator: "and" as const, conditions: [where, searchWhere] }
+      : searchWhere;
+  }
+
+  // Resolve orderBy: explicit orderBy wins, then sort preset
+  const orderBy =
+    input.orderBy ?? (input.sort ? [SORT_PRESET_MAP[input.sort]] : undefined);
+
+  return {
+    ...(where && { where }),
+    ...(orderBy && { orderBy }),
+    ...(input.limit != null && { limit: input.limit }),
+    ...(input.offset != null && { offset: input.offset }),
+  };
+}
+
+/**
+ * Convert SQL LIKE pattern to regex pattern by tokenizing.
+ * Handles % (any chars) and _ (single char) wildcards.
+ */
+function convertLikeToRegex(likePattern: string): string {
+  const result: string[] = [];
+  for (let i = 0; i < likePattern.length; i++) {
+    const char = likePattern[i] as string;
+    if (char === "%") {
+      result.push(".*");
+    } else if (char === "_") {
+      result.push(".");
+    } else if (/[.*+?^${}()|[\]\\]/.test(char)) {
+      result.push("\\" + char);
+    } else {
+      result.push(char);
+    }
+  }
+  return result.join("");
+}
+
+function isStringOrNumber(value: unknown): value is string | number {
+  return typeof value === "string" || typeof value === "number";
+}
+
+/**
+ * Get a nested field value from an object using a dot-separated path.
+ */
+function getFieldValue(
+  entity: Record<string, unknown>,
+  fieldPath: string,
+): unknown {
+  const parts = fieldPath.split(".");
+  let value: unknown = entity;
+  for (const part of parts) {
+    if (value == null || typeof value !== "object") return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return value;
+}
+
+/**
+ * Evaluate a WhereExpression against an entity object in memory.
+ */
+export function evaluateWhereExpression(
+  entity: Record<string, unknown>,
+  where: WhereExpression,
+): boolean {
+  if ("conditions" in where) {
+    const { operator, conditions } = where;
+    switch (operator) {
+      case "and":
+        return conditions.every((c) => evaluateWhereExpression(entity, c));
+      case "or":
+        return conditions.some((c) => evaluateWhereExpression(entity, c));
+      case "not":
+        return !conditions.every((c) => evaluateWhereExpression(entity, c));
+      default:
+        return true;
+    }
+  }
+
+  const { field, operator, value } = where;
+  const fieldPath = field.join(".");
+  const fieldValue = getFieldValue(entity, fieldPath);
+
+  switch (operator) {
+    case "eq":
+      return fieldValue === value;
+    case "gt":
+      return (
+        isStringOrNumber(fieldValue) &&
+        isStringOrNumber(value) &&
+        fieldValue > value
+      );
+    case "gte":
+      return (
+        isStringOrNumber(fieldValue) &&
+        isStringOrNumber(value) &&
+        fieldValue >= value
+      );
+    case "lt":
+      return (
+        isStringOrNumber(fieldValue) &&
+        isStringOrNumber(value) &&
+        fieldValue < value
+      );
+    case "lte":
+      return (
+        isStringOrNumber(fieldValue) &&
+        isStringOrNumber(value) &&
+        fieldValue <= value
+      );
+    case "in":
+      return Array.isArray(value) && value.includes(fieldValue);
+    case "like":
+      if (typeof fieldValue !== "string" || typeof value !== "string") {
+        return false;
+      }
+      if (value.length > 100) return false;
+      return new RegExp(`^${convertLikeToRegex(value)}$`, "i").test(fieldValue);
+    case "contains":
+      if (typeof fieldValue !== "string" || typeof value !== "string") {
+        return false;
+      }
+      return fieldValue.toLowerCase().includes(value.toLowerCase());
+    default:
+      return true;
+  }
+}
+
+/**
+ * Sort an array of entities by OrderByExpression list (in memory).
+ */
+export function applyOrderBy<T extends Record<string, unknown>>(
+  items: T[],
+  orderBy: OrderByExpression[],
+): T[] {
+  return [...items].sort((a, b) => {
+    for (const order of orderBy) {
+      const fieldPath = order.field.join(".");
+      const aValue = getFieldValue(a, fieldPath);
+      const bValue = getFieldValue(b, fieldPath);
+
+      let comparison = 0;
+
+      if (aValue == null && bValue == null) continue;
+      if (aValue == null) {
+        comparison = order.nulls === "first" ? -1 : 1;
+      } else if (bValue == null) {
+        comparison = order.nulls === "first" ? 1 : -1;
+      } else if (typeof aValue === "string" && typeof bValue === "string") {
+        comparison = aValue.localeCompare(bValue);
+      } else if (typeof aValue === "number" && typeof bValue === "number") {
+        comparison = aValue - bValue;
+      } else {
+        comparison = String(aValue).localeCompare(String(bValue));
+      }
+
+      if (comparison !== 0) {
+        return order.direction === "desc" ? -comparison : comparison;
+      }
+    }
+    return 0;
+  });
+}

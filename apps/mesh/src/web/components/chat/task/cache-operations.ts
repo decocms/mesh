@@ -1,13 +1,6 @@
-import type {
-  CollectionListInput,
-  CollectionListOutput,
-} from "@decocms/bindings/collections";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
 import type { CollectionEntity } from "@decocms/mesh-sdk";
-import {
-  buildCollectionQueryKey,
-  buildOrderByExpression,
-  buildWhereExpression,
-} from "@decocms/mesh-sdk";
+import { buildCollectionQueryKey } from "@decocms/mesh-sdk";
 import type { QueryClient } from "@tanstack/react-query";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { KEYS } from "../../../lib/query-keys";
@@ -176,22 +169,10 @@ export async function prefetchTaskMessages(
     return;
   }
 
-  // Fetch messages and populate cache (matches useCollectionList queryFn)
+  // Fetch messages using the new top-level thread_id param
   const listToolName = "THREAD_MESSAGES_LIST";
-  const where = buildWhereExpression(
-    undefined,
-    [{ column: "thread_id", value: taskId }],
-    [],
-  );
-  const orderBy = buildOrderByExpression(
-    undefined,
-    undefined,
-    "updated_at" as keyof (CollectionEntity & ChatMessage),
-  );
-
-  const toolArguments: CollectionListInput = {
-    ...(where && { where }),
-    ...(orderBy && { orderBy }),
+  const toolArguments = {
+    thread_id: taskId,
     limit: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
     offset: 0,
   };
