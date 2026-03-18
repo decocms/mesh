@@ -215,16 +215,6 @@ export function ImportFromDecoDialog({
             </div>
           )}
 
-          {!isLoading && sitesError && (
-            <div className="flex flex-col items-center justify-center h-24 gap-2 text-sm text-destructive">
-              <span>{(sitesError as Error).message}</span>
-              <p className="text-xs text-muted-foreground">
-                Make sure DECO_SUPABASE_URL and DECO_SUPABASE_SERVICE_KEY are
-                configured.
-              </p>
-            </div>
-          )}
-
           {!isLoading && !sitesError && sites.length === 0 && (
             <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">
               No sites found for this account.
