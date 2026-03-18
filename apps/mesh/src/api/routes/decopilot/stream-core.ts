@@ -409,6 +409,12 @@ export async function streamCore(
           "enable_tools",
           ...enabledTools,
         ]);
+        passthroughClient.listPrompts().then((result) => {
+          console.log(
+            "[decopilot:stream] Available prompts:\n",
+            result.prompts.map((p) => `${p.name}: ${p.description}`),
+          );
+        });
 
         const result = streamText({
           model: createLanguageModel(provider, input.models.thinking),
