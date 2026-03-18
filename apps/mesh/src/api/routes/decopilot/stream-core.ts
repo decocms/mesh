@@ -404,6 +404,11 @@ export async function streamCore(
           "[decopilot:stream] System prompt:\n",
           processedSystemMessages,
         );
+        console.log("[decopilot:stream] Available tools:\n", [
+          ...builtInToolNames,
+          "enable_tools",
+          ...enabledTools,
+        ]);
 
         const result = streamText({
           model: createLanguageModel(provider, input.models.thinking),
