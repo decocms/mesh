@@ -54,7 +54,6 @@ import { Input } from "@deco/ui/components/input.tsx";
 import {
   isStdioParameters,
   ORG_ADMIN_PROJECT_SLUG,
-  useConnection,
   useConnectionActions,
   useConnections,
   useMCPClient,
@@ -74,6 +73,7 @@ import { Loading01, Trash01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -301,7 +301,7 @@ function ConnectionInspectorViewWithConnection({
   resources: Array<{ name: string; description?: string; uri?: string }>;
   siblings: ConnectionEntity[];
 }) {
-  const navigate = useNavigate({ from: "/$org/$project/mcps/$connectionId" });
+  const navigate = useNavigate({ from: "/$org/$project/mcps/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
   const [configureInstance, setConfigureInstance] =
@@ -461,26 +461,14 @@ function ConnectionInspectorViewWithConnection({
 
   const handleDisconnect = async (instance: ConnectionEntity) => {
     await connectionActions.delete.mutateAsync(instance.id);
-    // If we deleted the currently viewed connection or last sibling, go back
-    if (instance.id === connectionId || siblings.length <= 1) {
+    // If we deleted the last sibling, go back to list
+    if (siblings.length <= 1) {
       navigate({
         to: "/$org/$project/mcps",
         params: { org, project: ORG_ADMIN_PROJECT_SLUG },
       });
-    } else {
-      // Navigate to another sibling
-      const remaining = siblings.filter((s) => s.id !== instance.id);
-      if (remaining.length > 0) {
-        navigate({
-          to: "/$org/$project/mcps/$connectionId",
-          params: {
-            org,
-            project: ORG_ADMIN_PROJECT_SLUG,
-            connectionId: remaining[0]!.id,
-          },
-        });
-      }
     }
+    // Otherwise stay on same slug — remaining siblings still share it
     setDisconnectInstance(null);
   };
 
@@ -685,6 +673,7 @@ function ConnectionInspectorViewWithConnection({
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
+                  onDelete={(inst) => setDisconnectInstance(inst)}
                   isAdding={isAddingInstance}
                   onAdd={async () => {
                     setIsAddingInstance(true);
@@ -730,14 +719,8 @@ function ConnectionInspectorViewWithConnection({
                       ) {
                         await handleAuthenticateForId(newId);
                       }
-                      navigate({
-                        to: "/$org/$project/mcps/$connectionId",
-                        params: {
-                          org,
-                          project: ORG_ADMIN_PROJECT_SLUG,
-                          connectionId: newId,
-                        },
-                      });
+                      // New instance shares the same app slug — no navigation needed
+                      // The page will re-render with the new sibling
                     } finally {
                       setIsAddingInstance(false);
                     }
@@ -764,19 +747,25 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/$project/mcps/$connectionId" });
-  const { connectionId, org } = useParams({
-    from: "/shell/$org/$project/mcps/$connectionId",
+  const navigate = useNavigate({ from: "/$org/$project/mcps/$appSlug" });
+  const { appSlug, org } = useParams({
+    from: "/shell/$org/$project/mcps/$appSlug",
   });
   const { org: projectOrg } = useProjectContext();
 
-  const connection = useConnection(connectionId);
   const allConnections = useConnections();
   const actions = useConnectionActions();
 
+  // Resolve appSlug → matching connections
+  const siblings = allConnections.filter(
+    (c) => c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === appSlug,
+  );
+  const connection = siblings[0] ?? null;
+  const connectionId = connection?.id ?? "";
+
   // Get MCP client for this connection (suspense-based)
   const client = useMCPClient({
-    connectionId,
+    connectionId: connectionId || null,
     orgId: projectOrg.id,
   });
 
@@ -793,7 +782,7 @@ function ConnectionInspectorViewContent() {
   });
 
   const tools = hasCachedTools
-    ? (connection.tools ?? [])
+    ? (connection?.tools ?? [])
     : (toolsData?.tools ?? []).map((t) => ({
         name: t.name,
         description: t.description,
@@ -801,20 +790,6 @@ function ConnectionInspectorViewContent() {
         annotations: t.annotations,
         _meta: t._meta as Record<string, unknown> | undefined,
       }));
-
-  // Compute siblings: all non-virtual connections sharing the same app_name or url
-  const siblings = connection
-    ? (() => {
-        const matched = allConnections.filter(
-          (c) =>
-            c.connection_type !== "VIRTUAL" &&
-            ((connection.app_name && c.app_name === connection.app_name) ||
-              (connection.connection_url &&
-                c.connection_url === connection.connection_url)),
-        );
-        return matched.length > 0 ? matched : [connection];
-      })()
-    : [];
 
   // Aggregate tools from all siblings (deduped by name)
   const aggregatedTools = (() => {

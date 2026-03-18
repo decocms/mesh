@@ -4,7 +4,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@deco/ui/components/tabs.tsx";
-import { ORG_ADMIN_PROJECT_SLUG } from "@decocms/mesh-sdk";
+import { ORG_ADMIN_PROJECT_SLUG, useConnection } from "@decocms/mesh-sdk";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { BookOpen01, Columns01, ChevronRight, Tool01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
@@ -86,15 +87,19 @@ export function ConnectionCapabilities({
   org,
 }: ConnectionCapabilitiesProps) {
   const navigate = useNavigate();
+  const connectionData = useConnection(connectionId ?? "");
+  const appSlug = connectionData
+    ? getConnectionSlug(connectionData)
+    : connectionId;
 
   function openTool(toolName: string) {
     if (!connectionId || !org) return;
     navigate({
-      to: "/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+      to: "/$org/$project/mcps/$appSlug/$collectionName/$itemId",
       params: {
         org,
         project: ORG_ADMIN_PROJECT_SLUG,
-        connectionId,
+        appSlug: appSlug!,
         collectionName: "tools",
         itemId: encodeURIComponent(toolName),
       },

@@ -5,9 +5,11 @@ import {
   ORG_ADMIN_PROJECT_SLUG,
   useCollectionActions,
   useConnection,
+  useConnections,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import {
   Breadcrumb,
@@ -45,7 +47,7 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 function ToolDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$appSlug/$collectionName/$itemId",
   });
 
   const itemId = decodeURIComponent(params.itemId);
@@ -84,10 +86,9 @@ function formatCollectionName(name: string): string {
 function CollectionDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$appSlug/$collectionName/$itemId",
   });
 
-  const connectionId = params.connectionId;
   const collectionName = decodeURIComponent(params.collectionName);
   const itemId = decodeURIComponent(params.itemId);
 
@@ -95,10 +96,16 @@ function CollectionDetailsContent() {
     router.history.back();
   };
 
-  const scopeKey = connectionId ?? "no-connection";
-
   const { org } = useProjectContext();
-  const connection = useConnection(connectionId);
+  const allConnections = useConnections();
+  const connection =
+    allConnections.find(
+      (c) =>
+        c.connection_type !== "VIRTUAL" &&
+        getConnectionSlug(c) === params.appSlug,
+    ) ?? null;
+  const connectionId = connection?.id ?? "";
+  const scopeKey = connectionId || "no-connection";
   const client = useMCPClient({
     connectionId: connectionId ?? null,
     orgId: org.id,
@@ -143,11 +150,11 @@ function CollectionDetailsContent() {
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/$project/mcps/$connectionId"
+                  to="/$org/$project/mcps/$appSlug"
                   params={{
                     org: org.slug,
                     project: ORG_ADMIN_PROJECT_SLUG,
-                    connectionId,
+                    appSlug: params.appSlug,
                   }}
                   search={{ tab: collectionName }}
                 >
@@ -192,7 +199,7 @@ function CollectionDetailsContent() {
 
 function CollectionDetailsRouter() {
   const params = useParams({
-    from: "/shell/$org/$project/mcps/$connectionId/$collectionName/$itemId",
+    from: "/shell/$org/$project/mcps/$appSlug/$collectionName/$itemId",
   });
 
   const collectionName = decodeURIComponent(params.collectionName);

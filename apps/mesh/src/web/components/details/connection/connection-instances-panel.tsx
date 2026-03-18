@@ -3,13 +3,14 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
-import { Loading01, Plus, Settings01 } from "@untitledui/icons";
+import { Loading01, Plus, Settings01, Trash01 } from "@untitledui/icons";
 import { Suspense } from "react";
 
 interface ConnectionInstancesPanelProps {
   instances: ConnectionEntity[];
   onConfigure: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
+  onDelete: (instance: ConnectionEntity) => void;
   onAdd: () => void;
   isAdding?: boolean;
 }
@@ -18,10 +19,12 @@ function InstanceItem({
   instance,
   onConfigure,
   onAuthenticate,
+  onDelete,
 }: {
   instance: ConnectionEntity;
   onConfigure: (instance: ConnectionEntity) => void;
   onAuthenticate: (instance: ConnectionEntity) => void;
+  onDelete: (instance: ConnectionEntity) => void;
 }) {
   const authStatus = useMCPAuthStatus({ connectionId: instance.id });
   const isVirtual = instance.connection_type === "VIRTUAL";
@@ -71,6 +74,15 @@ function InstanceItem({
         >
           <Settings01 size={13} />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          onClick={() => onDelete(instance)}
+          title="Delete"
+        >
+          <Trash01 size={13} />
+        </Button>
       </div>
     </div>
   );
@@ -113,6 +125,7 @@ export function ConnectionInstancesPanel({
   instances,
   onConfigure,
   onAuthenticate,
+  onDelete,
   onAdd,
   isAdding,
 }: ConnectionInstancesPanelProps) {
@@ -153,6 +166,7 @@ export function ConnectionInstancesPanel({
               instance={instance}
               onConfigure={onConfigure}
               onAuthenticate={onAuthenticate}
+              onDelete={onDelete}
             />
           </Suspense>
         ))}

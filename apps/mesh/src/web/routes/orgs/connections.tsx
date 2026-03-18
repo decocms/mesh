@@ -18,6 +18,7 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { findListToolName } from "@/web/utils/registry-utils";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { slugify } from "@/web/utils/slugify";
 import {
   AlertDialog,
@@ -143,7 +144,7 @@ interface SingleConnection {
 type GroupedItem = SingleConnection | ConnectionGroup;
 
 function getGroupKey(c: ConnectionEntity): string {
-  return c.app_name ?? c.title.trim().replace(/\s+\(\d+\)$/, "");
+  return getConnectionSlug(c);
 }
 
 function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
@@ -1498,11 +1499,16 @@ function OrgMcpsContent() {
     closeCreateDialog();
     form.reset();
     navigate({
-      to: "/$org/$project/mcps/$connectionId",
+      to: "/$org/$project/mcps/$appSlug",
       params: {
         org: org.slug,
         project: ORG_ADMIN_PROJECT_SLUG,
-        connectionId: newId,
+        appSlug: getConnectionSlug({
+          app_name: null,
+          connection_url: connectionUrl,
+          title: data.title,
+          id: newId,
+        }),
       },
     });
   };
@@ -2232,17 +2238,14 @@ function OrgMcpsContent() {
                         key={item.key}
                         group={item}
                         onOpen={() => {
-                          const firstId = item.connections[0]?.id;
-                          if (firstId) {
-                            navigate({
-                              to: "/$org/$project/mcps/$connectionId",
-                              params: {
-                                org: org.slug,
-                                project: ORG_ADMIN_PROJECT_SLUG,
-                                connectionId: firstId,
-                              },
-                            });
-                          }
+                          navigate({
+                            to: "/$org/$project/mcps/$appSlug",
+                            params: {
+                              org: org.slug,
+                              project: ORG_ADMIN_PROJECT_SLUG,
+                              appSlug: item.key,
+                            },
+                          });
                         }}
                         selectionMode={selectionMode}
                         selectedIds={selectedIds}
@@ -2262,11 +2265,11 @@ function OrgMcpsContent() {
                         selectionMode
                           ? toggleSelect(connection.id)
                           : navigate({
-                              to: "/$org/$project/mcps/$connectionId",
+                              to: "/$org/$project/mcps/$appSlug",
                               params: {
                                 org: org.slug,
                                 project: ORG_ADMIN_PROJECT_SLUG,
-                                connectionId: connection.id,
+                                appSlug: getConnectionSlug(connection),
                               },
                             })
                       }
@@ -2316,11 +2319,11 @@ function OrgMcpsContent() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigate({
-                                      to: "/$org/$project/mcps/$connectionId",
+                                      to: "/$org/$project/mcps/$appSlug",
                                       params: {
                                         org: org.slug,
                                         project: ORG_ADMIN_PROJECT_SLUG,
-                                        connectionId: connection.id,
+                                        appSlug: getConnectionSlug(connection),
                                       },
                                     });
                                   }}
@@ -2401,14 +2404,14 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const firstId = appInstances[0]?.id;
-                          if (firstId) {
+                          const first = appInstances[0];
+                          if (first) {
                             navigate({
-                              to: "/$org/$project/mcps/$connectionId",
+                              to: "/$org/$project/mcps/$appSlug",
                               params: {
                                 org: org.slug,
                                 project: ORG_ADMIN_PROJECT_SLUG,
-                                connectionId: firstId,
+                                appSlug: getConnectionSlug(first),
                               },
                             });
                           }
@@ -2485,14 +2488,14 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const firstId = appInstances[0]?.id;
-                          if (firstId) {
+                          const first = appInstances[0];
+                          if (first) {
                             navigate({
-                              to: "/$org/$project/mcps/$connectionId",
+                              to: "/$org/$project/mcps/$appSlug",
                               params: {
                                 org: org.slug,
                                 project: ORG_ADMIN_PROJECT_SLUG,
-                                connectionId: firstId,
+                                appSlug: getConnectionSlug(first),
                               },
                             });
                           }
