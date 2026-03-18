@@ -7,6 +7,7 @@ import { CollectionSearch } from "@/web/components/collections/collection-search
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { CreateProjectDialog } from "@/web/components/create-project-dialog";
+import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,6 +15,24 @@ import {
   BreadcrumbPage,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { FolderClosed, Plus } from "@untitledui/icons";
+
+function ImportFromDecoButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        size="sm"
+        className="h-7 px-3 rounded-lg text-sm font-medium"
+      >
+        Import from deco.cx
+      </Button>
+      <ImportFromDecoDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
 
 export default function ProjectsListPage() {
   const { org } = useProjectContext();
@@ -60,12 +79,10 @@ export default function ProjectsListPage() {
           </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
-          <Button
-            onClick={handleCreateProject}
-            size="sm"
-            className="h-7 px-3 rounded-lg text-sm font-medium"
-          >
-            Create new project
+          {__ENABLE_DECO_IMPORT__ && <ImportFromDecoButton />}
+          <Button onClick={handleCreateProject} size="sm">
+            <Plus size={14} />
+            Create Project
           </Button>
         </Page.Header.Right>
       </Page.Header>
@@ -99,26 +116,26 @@ export default function ProjectsListPage() {
           </div>
         )}
 
-        {/* Empty State - No projects after filtering */}
-        {!isLoading && userProjects.length === 0 && search && (
-          <div className="flex items-center justify-center h-full">
+        {/* Empty State */}
+        {!isLoading && userProjects.length === 0 && (
+          <div className="flex items-center h-full">
             <EmptyState
-              title="No projects found"
-              description={`No projects match "${search}"`}
-            />
-          </div>
-        )}
-
-        {/* Empty State - No projects at all */}
-        {!isLoading && userProjects.length === 0 && !search && (
-          <div className="flex items-center justify-center h-full">
-            <EmptyState
-              title="No projects yet"
-              description="Create a project to get started."
+              image={
+                <FolderClosed size={48} className="text-muted-foreground" />
+              }
+              title={search ? "No projects found" : "No projects yet"}
+              description={
+                search
+                  ? `No projects match "${search}"`
+                  : "Create a project to get started."
+              }
               actions={
-                <Button onClick={handleCreateProject}>
-                  Create new project
-                </Button>
+                !search && (
+                  <Button size="sm" onClick={handleCreateProject}>
+                    <Plus size={14} />
+                    Create Project
+                  </Button>
+                )
               }
             />
           </div>
