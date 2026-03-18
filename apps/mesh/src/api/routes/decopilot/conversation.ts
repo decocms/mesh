@@ -151,12 +151,9 @@ export async function processConversation(
     messages: nonSystemModelMessages,
   } = splitMessages(modelMessages);
 
-  const modelSupportsReasoning =
-    config.models.thinking.capabilities?.reasoning !== false;
-
   const prunedModelMessages = pruneMessages({
     messages: nonSystemModelMessages,
-    reasoning: modelSupportsReasoning ? "all" : "none",
+    reasoning: "none",
     emptyMessages: "remove",
     toolCalls: "none",
   });

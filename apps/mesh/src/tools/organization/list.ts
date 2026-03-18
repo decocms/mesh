@@ -18,6 +18,7 @@ export const ORGANIZATION_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
+  _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
     userId: z.string().optional(), // Optional: filter by user
   }),
