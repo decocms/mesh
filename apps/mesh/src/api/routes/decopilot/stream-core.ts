@@ -312,13 +312,22 @@ export async function streamCore(
 
         const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
         if (shouldGenerateTitle) {
+          const fastCandidate = getFastModel(provider.info.id);
+          const titleModelId =
+            input.models.fast?.id ??
+            (fastCandidate &&
+            checkModelPermission(
+              allowedModels,
+              input.models.credentialId,
+              fastCandidate,
+            )
+              ? fastCandidate
+              : null) ??
+            input.models.thinking.id;
+
           genTitle({
             abortSignal: registrySignal,
-            model: provider.aiSdk.languageModel(
-              input.models.fast?.id ??
-                getFastModel(provider.info.id) ??
-                input.models.thinking.id,
-            ),
+            model: provider.aiSdk.languageModel(titleModelId),
             userMessage: JSON.stringify(processedMessages[0]?.content),
           })
             .then(async (title) => {

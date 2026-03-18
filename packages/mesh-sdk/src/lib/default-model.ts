@@ -33,7 +33,7 @@ export const FAST_MODEL_PREFERENCES: Partial<Record<ProviderId, string[]>> = {
   anthropic: ["claude-haiku-4-5", "claude-haiku"],
   openrouter: [
     "qwen/qwen3.5-flash",
-    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-haiku-4.5",
     "anthropic/claude-haiku",
     "google/gemini-3-flash",
   ],
