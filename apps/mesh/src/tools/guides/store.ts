@@ -20,12 +20,40 @@ Recommended tool order:
 6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
 7. Summarize the best matches, key tradeoffs, and which one to install next.
 8. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow that resource before creating the connection.
+9. Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification.
 
 Checks:
 - Search by the user's outcome, not just product names.
 - Prefer curated Deco Store results first when they satisfy the need.
 - Note authentication expectations, verification status, and obvious capability gaps.
 - Do not install anything until the user picks a candidate or asks you to proceed.
+`,
+  },
+  {
+    name: "store-install",
+    description:
+      "Step-by-step tool calling sequence for installing an MCP server from the store.",
+    text: `# Install MCP server from store
+
+Goal: install a specific MCP server from a registry into the workspace as a working connection.
+
+Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification. Read docs://store-install-connection.md for detailed mapping rules when building the connection payload.
+
+Recommended tool order:
+1. COLLECTION_CONNECTIONS_LIST — find registry connections and check for duplicates of the target server.
+2. Enable registry tools from the chosen registry connection.
+3. REGISTRY_ITEM_SEARCH or the registry list tool — find the MCP server by name or capability.
+4. REGISTRY_ITEM_GET — load full details for the chosen item.
+5. Extract connection parameters per docs://install-workflow.md (transport selection, URL, auth, headers).
+6. COLLECTION_CONNECTIONS_CREATE with the extracted payload wrapped in \`{ data: ... }\`.
+7. CONNECTION_TEST to verify the new connection is healthy.
+8. COLLECTION_CONNECTIONS_GET to confirm the saved result and explain next steps.
+
+Checks:
+- Do not install until the user has chosen or confirmed the specific item.
+- Prefer HTTP/SSE/Websocket transports over STDIO.
+- Do not guess secrets, OAuth values, or env var values — ask the user.
+- Treat the install as incomplete until CONNECTION_TEST succeeds or the expected auth step is clear.
 `,
   },
 ];
@@ -179,6 +207,129 @@ Use the Deco Store or another registry connection when the user needs a capabili
 - Present a short shortlist with the main tradeoffs.
 - Ask the user which item to proceed with before installing.
 - Once the user chooses, read docs://store-install-connection.md and switch to the connection-creation flow.
+`,
+  },
+  {
+    name: "install-workflow",
+    uri: "docs://install-workflow.md",
+    description:
+      "Complete end-to-end workflow for installing an MCP server from a registry, including transport selection, parameter extraction, and verification.",
+    text: `# Install workflow
+
+## Purpose
+
+End-to-end guide for programmatically installing an MCP server from a registry into the workspace. Covers everything from registry discovery through post-install verification.
+
+## 1. Find registry connections
+
+Use COLLECTION_CONNECTIONS_LIST to discover available registries in the workspace. Look for connections that expose tools like REGISTRY_ITEM_SEARCH or REGISTRY_ITEM_LIST. Common registries include the Deco Store and community registries.
+
+Also check whether the target server is already installed to avoid duplicates.
+
+## 2. Search the registry
+
+Use REGISTRY_ITEM_SEARCH when available — it supports keyword and capability-based queries. Otherwise use the registry's list tool with search-like filters.
+
+Search by the user's intended outcome (e.g. "send email", "query database") rather than just product names.
+
+## 3. Inspect the registry item
+
+Use REGISTRY_ITEM_GET on the chosen item. The response typically includes:
+- \`server.remotes[]\` — remote transport endpoints (HTTP, SSE, Websocket)
+- \`server.packages[]\` — STDIO package commands (npx, uvx, docker, etc.)
+- \`_meta["mcp.mesh"]\` — Mesh-specific metadata (oauth_config, configuration_state, configuration_scopes)
+- Tool listings, auth requirements, and publisher info
+
+## 4. Extract connection parameters
+
+### Transport selection rules
+1. **Prefer remote transports** (HTTP, SSE, Websocket) over STDIO packages.
+2. If multiple remotes exist, prefer HTTP > SSE > Websocket unless one is clearly the default.
+3. Only use STDIO if no remote endpoint is available. Warn the user that STDIO may be unavailable in production.
+4. If neither remote nor package is available, stop and report that the item cannot be installed.
+
+### HTTP / SSE / Websocket payload template
+\`\`\`json
+{
+  "data": {
+    "title": "<item title>",
+    "description": "<server description>",
+    "icon": "<item or publisher icon>",
+    "app_name": "<registry/server identifier>",
+    "app_id": "<registry item ID>",
+    "connection_type": "<HTTP | SSE | WEBSOCKET>",
+    "connection_url": "<remote URL>",
+    "connection_headers": null,
+    "connection_token": null,
+    "oauth_config": "<from _meta if present>",
+    "configuration_state": "<from _meta if present>",
+    "configuration_scopes": "<from _meta if present>",
+    "metadata": {
+      "source": "store",
+      "registry_item_id": "<item ID>",
+      "verified": "<verification state>"
+    }
+  }
+}
+\`\`\`
+
+### STDIO payload template
+\`\`\`json
+{
+  "data": {
+    "title": "<item title>",
+    "description": "<server description>",
+    "icon": "<item or publisher icon>",
+    "app_name": "<registry/server identifier>",
+    "app_id": "<registry item ID>",
+    "connection_type": "STDIO",
+    "connection_headers": {
+      "command": "<package command>",
+      "args": ["<arguments>"],
+      "cwd": "<working directory if specified>",
+      "envVars": { "<KEY>": "<value or ask user>" }
+    },
+    "metadata": {
+      "source": "store",
+      "registry_item_id": "<item ID>"
+    }
+  }
+}
+\`\`\`
+
+### Auth config mapping
+- Copy \`oauth_config\` from the registry item when present.
+- Copy \`configuration_state\` and \`configuration_scopes\` when available.
+- Never guess OAuth client IDs, secrets, or tokens — ask the user if required values are missing.
+- For API key auth, prompt the user for the key value.
+
+## 5. Create the connection
+
+Use COLLECTION_CONNECTIONS_CREATE with the payload from step 4. Always wrap in \`{ data: ... }\`.
+
+## 6. Verify
+
+Use CONNECTION_TEST on the new connection. Expect \`{ healthy: true, latencyMs: ... }\` on success.
+- If the connection requires OAuth, the test may fail until the user completes the auth flow — explain the next step.
+- If it fails for other reasons, check the connection_url, headers, and transport type.
+
+## 7. Confirm
+
+Use COLLECTION_CONNECTIONS_GET to retrieve the saved connection and confirm its final state. Report the result to the user.
+
+## Common patterns
+
+### Install by name
+User says "install Slack MCP" → search by "Slack" → pick the best match → extract and create.
+
+### Install by capability
+User says "I need to send emails" → search by "send email" → evaluate results → pick and install.
+
+### OAuth handling
+If the registry item includes oauth_config, copy it into the connection. After creation, CONNECTION_TEST may return unhealthy until the user completes the OAuth consent flow. Guide them to the auth URL if available.
+
+### Missing env vars
+For STDIO packages that require environment variables, list the required vars and ask the user for values before creating the connection. Do not use placeholder or empty values.
 `,
   },
 ];
