@@ -170,7 +170,7 @@ export async function prefetchTaskMessages(
   }
 
   // Fetch messages using the new top-level thread_id param
-  const listToolName = "THREAD_MESSAGES_LIST";
+  const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
   const toolArguments = {
     thread_id: taskId,
     limit: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,

@@ -61,8 +61,8 @@ function buildFiltersFromItems(
   };
 }
 
-export const REGISTRY_LIST: ServerPluginToolDefinition = {
-  name: "REGISTRY_LIST",
+export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
+  name: "COLLECTION_REGISTRY_APP_LIST",
   description:
     "List registry items for Store discovery. Supports private-only mode from plugin settings.",
   inputSchema: RegistryListInputSchema,
@@ -80,8 +80,8 @@ export const REGISTRY_LIST: ServerPluginToolDefinition = {
   }),
 };
 
-export const REGISTRY_GET: ServerPluginToolDefinition = {
-  name: "REGISTRY_GET",
+export const COLLECTION_REGISTRY_APP_GET: ServerPluginToolDefinition = {
+  name: "COLLECTION_REGISTRY_APP_GET",
   description:
     "Get a registry item for Store details. Respects private-only mode from plugin settings.",
   inputSchema: RegistryGetInputSchema,
@@ -101,8 +101,8 @@ export const REGISTRY_GET: ServerPluginToolDefinition = {
   }),
 };
 
-export const REGISTRY_VERSIONS: ServerPluginToolDefinition = {
-  name: "REGISTRY_VERSIONS",
+export const COLLECTION_REGISTRY_APP_VERSIONS: ServerPluginToolDefinition = {
+  name: "COLLECTION_REGISTRY_APP_VERSIONS",
   description:
     "Get registry item versions for Store details. Respects private-only mode from plugin settings.",
   inputSchema: RegistryGetInputSchema,
@@ -124,8 +124,8 @@ export const REGISTRY_VERSIONS: ServerPluginToolDefinition = {
   }),
 };
 
-export const REGISTRY_FILTERS: ServerPluginToolDefinition = {
-  name: "REGISTRY_FILTERS",
+export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
+  name: "COLLECTION_REGISTRY_APP_FILTERS",
   description:
     "List Store filter facets for registry items. Respects private-only mode from plugin settings.",
   inputSchema: z.object({}),

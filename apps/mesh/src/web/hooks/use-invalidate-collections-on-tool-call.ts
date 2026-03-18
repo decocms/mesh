@@ -25,8 +25,10 @@ export function useInvalidateCollectionsOnToolCall() {
   return (event: { toolCall: { toolName: string } }) => {
     const toolName = event.toolCall.toolName;
 
-    // Match <NAME>_(CREATE|UPDATE|DELETE) pattern
-    const match = toolName.match(/^([A-Z_]+)_(CREATE|UPDATE|DELETE)$/);
+    // Match COLLECTION_<NAME>_(CREATE|UPDATE|DELETE) pattern
+    const match = toolName.match(
+      /^COLLECTION_([A-Z_]+)_(CREATE|UPDATE|DELETE)$/,
+    );
     if (!match || !match[1]) {
       return; // Not a collection CRUD tool
     }
@@ -42,17 +44,11 @@ export function useInvalidateCollectionsOnToolCall() {
       return;
     }
 
-    // Only invalidate if there are actually cached queries for this collection.
-    // This avoids false positives from non-collection CRUD tools (e.g. PROJECT_CREATE)
-    // that happen to match the <NAME>_(CREATE|UPDATE|DELETE) pattern.
-    const queryKey = KEYS.collection(org.slug, connectionId, collectionName);
-    const matchingQueries = queryClient.getQueriesData({ queryKey });
-
-    if (matchingQueries.length === 0) {
-      return;
-    }
-
-    queryClient.invalidateQueries({ queryKey });
+    // Invalidate all queries for this collection using the base prefix
+    // This will invalidate both list and item queries
+    queryClient.invalidateQueries({
+      queryKey: KEYS.collection(org.slug, connectionId, collectionName),
+    });
 
     // Notify user that collection was updated
     const formattedCollectionName = collectionName

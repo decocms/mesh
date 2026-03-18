@@ -6,11 +6,11 @@
  */
 
 // Collection-compliant CRUD tools
-export { VIRTUAL_TOOLS_CREATE } from "./create";
-export { VIRTUAL_TOOLS_LIST } from "./list";
-export { VIRTUAL_TOOLS_GET } from "./get";
-export { VIRTUAL_TOOLS_UPDATE } from "./update";
-export { VIRTUAL_TOOLS_DELETE } from "./delete";
+export { COLLECTION_VIRTUAL_TOOLS_CREATE } from "./create";
+export { COLLECTION_VIRTUAL_TOOLS_LIST } from "./list";
+export { COLLECTION_VIRTUAL_TOOLS_GET } from "./get";
+export { COLLECTION_VIRTUAL_TOOLS_UPDATE } from "./update";
+export { COLLECTION_VIRTUAL_TOOLS_DELETE } from "./delete";
 
 // Re-export schema types
 export type {

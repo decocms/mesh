@@ -1,5 +1,5 @@
 /**
- * CONNECTIONS_UPDATE Tool
+ * COLLECTION_CONNECTIONS_UPDATE Tool
  *
  * Update an existing MCP connection (organization-scoped) with collection binding compliance.
  * Also handles MCP configuration state and scopes validation.
@@ -71,7 +71,7 @@ async function validateConfiguration(
   state: Record<string, unknown>,
   scopes: string[],
   organizationId: string,
-  ctx: Parameters<typeof CONNECTIONS_UPDATE.execute>[1],
+  ctx: Parameters<typeof COLLECTION_CONNECTIONS_UPDATE.execute>[1],
 ): Promise<void> {
   // Validate scope format and state keys
   for (const scope of scopes) {
@@ -120,8 +120,8 @@ async function validateConfiguration(
   }
 }
 
-export const CONNECTIONS_UPDATE = defineTool({
-  name: "CONNECTIONS_UPDATE",
+export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
+  name: "COLLECTION_CONNECTIONS_UPDATE",
   description:
     "Update a connection's configuration. Re-fetches tools from the server on URL change.",
   annotations: {

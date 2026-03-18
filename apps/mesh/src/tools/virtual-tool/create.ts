@@ -1,5 +1,5 @@
 /**
- * VIRTUAL_TOOLS_CREATE Tool
+ * COLLECTION_VIRTUAL_TOOLS_CREATE Tool
  *
  * Create a new virtual tool on a Virtual MCP.
  * The creator specifies which connections the tool depends on.
@@ -30,8 +30,8 @@ const CreateOutputSchema = z.object({
   item: VirtualToolEntitySchema.describe("The created virtual tool"),
 });
 
-export const VIRTUAL_TOOLS_CREATE = defineTool({
-  name: "VIRTUAL_TOOLS_CREATE",
+export const COLLECTION_VIRTUAL_TOOLS_CREATE = defineTool({
+  name: "COLLECTION_VIRTUAL_TOOLS_CREATE",
   description:
     "Create a virtual tool on a Virtual MCP with custom JavaScript code.\n\n- Code must be a JS ES module: `export default async (tools, args) => { ... }`\n- Specify connection_dependencies for tools this code calls.",
   annotations: {

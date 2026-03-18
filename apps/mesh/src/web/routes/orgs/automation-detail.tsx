@@ -1038,7 +1038,7 @@ function useAutomationRuns(
     queryFn: async () => {
       if (!client) throw new Error("MCP client not available");
       const result = (await client.callTool({
-        name: "THREADS_LIST",
+        name: "COLLECTION_THREADS_LIST",
         arguments: { where: { trigger_ids: triggerIds }, limit: 20 },
       })) as { structuredContent?: unknown };
       const payload = (result.structuredContent ?? result) as {

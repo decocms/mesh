@@ -1,5 +1,5 @@
 /**
- * VIRTUAL_TOOLS_LIST Tool
+ * COLLECTION_VIRTUAL_TOOLS_LIST Tool
  *
  * List all virtual tools for a Virtual MCP with collection binding compliance.
  * Supports pagination via limit/offset.
@@ -52,8 +52,8 @@ const ListOutputSchema = z.object({
     .describe("Whether there are more items available"),
 });
 
-export const VIRTUAL_TOOLS_LIST = defineTool({
-  name: "VIRTUAL_TOOLS_LIST",
+export const COLLECTION_VIRTUAL_TOOLS_LIST = defineTool({
+  name: "COLLECTION_VIRTUAL_TOOLS_LIST",
   description:
     "List virtual tools defined on a Virtual MCP with their code and dependencies.",
   annotations: {

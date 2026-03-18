@@ -1,5 +1,5 @@
 /**
- * CONNECTIONS_CREATE Tool
+ * COLLECTION_CONNECTIONS_CREATE Tool
  *
  * Create a new MCP connection (organization-scoped) with collection binding compliance.
  */
@@ -37,8 +37,8 @@ const CreateOutputSchema = z.object({
   item: ConnectionEntitySchema.describe("The created connection entity"),
 });
 
-export const CONNECTIONS_CREATE = defineTool({
-  name: "CONNECTIONS_CREATE",
+export const COLLECTION_CONNECTIONS_CREATE = defineTool({
+  name: "COLLECTION_CONNECTIONS_CREATE",
   description:
     "Create a new MCP connection. Auto-fetches and caches the server's tool list.",
   annotations: {

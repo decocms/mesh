@@ -1,5 +1,5 @@
 /**
- * VIRTUAL_TOOLS_GET Tool
+ * COLLECTION_VIRTUAL_TOOLS_GET Tool
  *
  * Get a single virtual tool by name from a Virtual MCP.
  */
@@ -28,8 +28,8 @@ const GetOutputSchema = z.object({
   ),
 });
 
-export const VIRTUAL_TOOLS_GET = defineTool({
-  name: "VIRTUAL_TOOLS_GET",
+export const COLLECTION_VIRTUAL_TOOLS_GET = defineTool({
+  name: "COLLECTION_VIRTUAL_TOOLS_GET",
   description:
     "Get a virtual tool's code, schema, and dependencies by name from a Virtual MCP.",
   annotations: {

@@ -28,7 +28,7 @@ export function useWorkflowExecutions() {
   const { data, isLoading, refetch } =
     useMCPToolCallQuery<WorkflowExecutionsListResponse>({
       client,
-      toolName: "WORKFLOW_EXECUTION_LIST",
+      toolName: "COLLECTION_WORKFLOW_EXECUTION_LIST",
       toolArguments: {
         where: {
           field: ["workflow"],

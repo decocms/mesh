@@ -10,10 +10,10 @@ import {
 } from "../../storage/test-helpers";
 import { CredentialVault } from "../../encryption/credential-vault";
 import {
-  CONNECTIONS_CREATE,
-  CONNECTIONS_LIST,
-  CONNECTIONS_GET,
-  CONNECTIONS_UPDATE,
+  COLLECTION_CONNECTIONS_CREATE,
+  COLLECTION_CONNECTIONS_LIST,
+  COLLECTION_CONNECTIONS_GET,
+  COLLECTION_CONNECTIONS_UPDATE,
   CONNECTION_TEST,
 } from "./index";
 import type { BoundAuthClient, MeshContext } from "../../core/mesh-context";
@@ -143,9 +143,9 @@ describe("Connection Tools", () => {
     await closeTestDatabase(database);
   });
 
-  describe("CONNECTIONS_CREATE", () => {
+  describe("COLLECTION_CONNECTIONS_CREATE", () => {
     it("should create organization-scoped connection", async () => {
-      const result = await CONNECTIONS_CREATE.execute(
+      const result = await COLLECTION_CONNECTIONS_CREATE.execute(
         {
           data: {
             title: "Company Slack",
@@ -165,7 +165,7 @@ describe("Connection Tools", () => {
     });
   });
 
-  describe("CONNECTIONS_UPDATE (OAuth tool refresh)", () => {
+  describe("COLLECTION_CONNECTIONS_UPDATE (OAuth tool refresh)", () => {
     it("should refresh tools using downstream OAuth token when connection_token is not set", async () => {
       const connection = await ctx.storage.connections.create({
         id: "conn_oauth_tools",
@@ -197,7 +197,7 @@ describe("Connection Tools", () => {
           return {
             tools: [
               {
-                name: "LLM_LIST",
+                name: "COLLECTION_LLM_LIST",
                 description: "List models",
                 inputSchema: {},
               },
@@ -206,19 +206,21 @@ describe("Connection Tools", () => {
           };
         });
 
-      const result = await CONNECTIONS_UPDATE.execute(
+      const result = await COLLECTION_CONNECTIONS_UPDATE.execute(
         { id: connection.id, data: {} },
         ctx,
       );
 
       expect(fetchSpy).toHaveBeenCalled();
-      expect(result.item.tools?.some((t) => t.name === "LLM_LIST")).toBe(true);
+      expect(
+        result.item.tools?.some((t) => t.name === "COLLECTION_LLM_LIST"),
+      ).toBe(true);
     });
   });
 
-  describe("CONNECTIONS_LIST", () => {
+  describe("COLLECTION_CONNECTIONS_LIST", () => {
     it("should list all connections in organization", async () => {
-      const result = await CONNECTIONS_LIST.execute({}, ctx);
+      const result = await COLLECTION_CONNECTIONS_LIST.execute({}, ctx);
 
       expect(result.items.length).toBeGreaterThan(0);
       expect(result.items.every((c) => c.organization_id === "org_123")).toBe(
@@ -227,7 +229,7 @@ describe("Connection Tools", () => {
     });
 
     it("should include connection details", async () => {
-      const result = await CONNECTIONS_LIST.execute({}, ctx);
+      const result = await COLLECTION_CONNECTIONS_LIST.execute({}, ctx);
 
       const conn = result.items[0];
       expect(conn).toHaveProperty("id");
@@ -239,9 +241,9 @@ describe("Connection Tools", () => {
     });
   });
 
-  describe("CONNECTIONS_GET", () => {
+  describe("COLLECTION_CONNECTIONS_GET", () => {
     it("should get connection by ID", async () => {
-      const created = await CONNECTIONS_CREATE.execute(
+      const created = await COLLECTION_CONNECTIONS_CREATE.execute(
         {
           data: {
             title: "Get Test",
@@ -252,7 +254,7 @@ describe("Connection Tools", () => {
         ctx,
       );
 
-      const result = await CONNECTIONS_GET.execute(
+      const result = await COLLECTION_CONNECTIONS_GET.execute(
         {
           id: created.item.id,
         },
@@ -264,7 +266,7 @@ describe("Connection Tools", () => {
     });
 
     it("should return null when connection not found", async () => {
-      const result = await CONNECTIONS_GET.execute(
+      const result = await COLLECTION_CONNECTIONS_GET.execute(
         {
           id: "conn_nonexistent",
         },
@@ -275,13 +277,13 @@ describe("Connection Tools", () => {
     });
   });
 
-  describe("CONNECTIONS_DELETE", () => {
+  describe("COLLECTION_CONNECTIONS_DELETE", () => {
     // Delete test removed - was timing out due to network calls
   });
 
   describe("CONNECTION_TEST", () => {
     it("should test connection health", async () => {
-      const created = await CONNECTIONS_CREATE.execute(
+      const created = await COLLECTION_CONNECTIONS_CREATE.execute(
         {
           data: {
             title: "Test Health",

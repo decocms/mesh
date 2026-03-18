@@ -219,7 +219,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
 
     createConnection: async (mcpUrl: string): Promise<string> => {
       const result = await callMcpTool<{ item: { id: string } }>(
-        "CONNECTIONS_CREATE",
+        "COLLECTION_CONNECTIONS_CREATE",
         {
           data: {
             title: "Benchmark MCP",
@@ -243,7 +243,7 @@ export async function startMesh(port: number): Promise<MeshServerHandle> {
       strategy: VirtualMCPtoolSelectionStrategy,
     ): Promise<string> => {
       const result = await callMcpTool<{ item: { id: string } }>(
-        "VIRTUAL_MCP_CREATE",
+        "COLLECTION_VIRTUAL_MCP_CREATE",
         {
           data: {
             title: `Benchmark Agent (${strategy})`,

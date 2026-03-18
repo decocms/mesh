@@ -207,7 +207,7 @@ function ConnectionRow({
         id: 1,
         method: "tools/call",
         params: {
-          name: "CONNECTIONS_UPDATE",
+          name: "COLLECTION_CONNECTIONS_UPDATE",
           arguments: {
             id: connectionId,
             data: { connection_token: token },

@@ -1,5 +1,5 @@
 /**
- * THREADS_LIST Tool
+ * COLLECTION_THREADS_LIST Tool
  *
  * List all threads in the organization with collection binding compliance.
  * Supports filtering, sorting, and pagination.
@@ -30,8 +30,8 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
 const ThreadListOutputSchema =
   createCollectionListOutputSchema(ThreadEntitySchema);
 
-export const THREADS_LIST = defineTool({
-  name: "THREADS_LIST",
+export const COLLECTION_THREADS_LIST = defineTool({
+  name: "COLLECTION_THREADS_LIST",
   description: "List threads with filtering, sorting, and pagination.",
   annotations: {
     title: "List Threads",

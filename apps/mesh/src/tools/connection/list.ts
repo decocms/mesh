@@ -1,5 +1,5 @@
 /**
- * CONNECTIONS_LIST Tool
+ * COLLECTION_CONNECTIONS_LIST Tool
  *
  * List all connections in the organization with collection binding compliance.
  * Supports filtering, sorting, and pagination.
@@ -50,8 +50,8 @@ const ConnectionListOutputSchema = createCollectionListOutputSchema(
   ConnectionEntitySchema,
 );
 
-export const CONNECTIONS_LIST = defineTool({
-  name: "CONNECTIONS_LIST",
+export const COLLECTION_CONNECTIONS_LIST = defineTool({
+  name: "COLLECTION_CONNECTIONS_LIST",
   description:
     "List connections. Use 'search' to find by name/description, 'sort' for ordering (newest, oldest, a-z, z-a).",
   annotations: {

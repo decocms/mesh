@@ -15,7 +15,7 @@ export async function callUpdateTaskTool(
     throw new Error("MCP client is not available");
   }
   const result = (await client.callTool({
-    name: "THREADS_UPDATE",
+    name: "COLLECTION_THREADS_UPDATE",
     arguments: {
       id: taskId,
       data,

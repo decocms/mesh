@@ -396,18 +396,25 @@ describe("Access Control Integration Tests", () => {
       const apiKey = await createApiKeyWithPermissions(
         user.id,
         {
-          self: ["CONNECTIONS_CREATE", "CONNECTIONS_LIST"],
+          self: [
+            "COLLECTION_CONNECTIONS_CREATE",
+            "COLLECTION_CONNECTIONS_LIST",
+          ],
         },
         org.id,
       );
 
-      const response = await makeMcpRequest(apiKey.key, "CONNECTIONS_CREATE", {
-        data: {
-          title: "Test Connection",
-          connection_type: "HTTP",
-          connection_url: "https://test.example.com",
+      const response = await makeMcpRequest(
+        apiKey.key,
+        "COLLECTION_CONNECTIONS_CREATE",
+        {
+          data: {
+            title: "Test Connection",
+            connection_type: "HTTP",
+            connection_url: "https://test.example.com",
+          },
         },
-      });
+      );
 
       // Authorization should not block the request
       // The request may fail for other reasons (MCP protocol, etc.) but not authorization
@@ -428,13 +435,17 @@ describe("Access Control Integration Tests", () => {
         org.id,
       );
 
-      const response = await makeMcpRequest(apiKey.key, "CONNECTIONS_CREATE", {
-        data: {
-          title: "Admin Connection",
-          connection_type: "HTTP",
-          connection_url: "https://admin.example.com",
+      const response = await makeMcpRequest(
+        apiKey.key,
+        "COLLECTION_CONNECTIONS_CREATE",
+        {
+          data: {
+            title: "Admin Connection",
+            connection_type: "HTTP",
+            connection_url: "https://admin.example.com",
+          },
         },
-      });
+      );
 
       const responseText = await response.text();
       // Admin bypass should allow access (no access denied error)
@@ -613,7 +624,7 @@ describe("Access Control Integration Tests", () => {
       const apiKey = await createApiKeyWithPermissions(
         user.id,
         {
-          self: ["CONNECTIONS_LIST"],
+          self: ["COLLECTION_CONNECTIONS_LIST"],
         },
         orgA.id,
       );

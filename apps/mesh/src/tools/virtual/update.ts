@@ -1,5 +1,5 @@
 /**
- * VIRTUAL_MCP_UPDATE Tool
+ * COLLECTION_VIRTUAL_MCP_UPDATE Tool
  *
  * Update an existing virtual MCP with collection binding compliance.
  */
@@ -32,8 +32,8 @@ const UpdateOutputSchema = z.object({
   item: VirtualMCPEntitySchema.describe("The updated virtual MCP entity"),
 });
 
-export const VIRTUAL_MCP_UPDATE = defineTool({
-  name: "VIRTUAL_MCP_UPDATE",
+export const COLLECTION_VIRTUAL_MCP_UPDATE = defineTool({
+  name: "COLLECTION_VIRTUAL_MCP_UPDATE",
   description: "Update a Virtual MCP's name, slug, or connection list.",
   annotations: {
     title: "Update Virtual MCP",

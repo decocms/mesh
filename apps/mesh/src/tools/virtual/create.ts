@@ -1,5 +1,5 @@
 /**
- * VIRTUAL_MCP_CREATE Tool
+ * COLLECTION_VIRTUAL_MCP_CREATE Tool
  *
  * Create a new MCP virtual MCP (organization-scoped) with collection binding compliance.
  * Note: Virtual MCPs are stored as connections with connection_type = 'VIRTUAL',
@@ -32,8 +32,8 @@ const CreateOutputSchema = z.object({
   item: VirtualMCPEntitySchema.describe("The created virtual MCP entity"),
 });
 
-export const VIRTUAL_MCP_CREATE = defineTool({
-  name: "VIRTUAL_MCP_CREATE",
+export const COLLECTION_VIRTUAL_MCP_CREATE = defineTool({
+  name: "COLLECTION_VIRTUAL_MCP_CREATE",
   description:
     "Create a Virtual MCP that aggregates tools from multiple connections into one endpoint.",
   annotations: {

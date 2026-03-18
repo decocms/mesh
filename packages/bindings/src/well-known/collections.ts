@@ -10,7 +10,7 @@ import type { ToolBinder } from "../core/binder";
  *
  * Key Features:
  * - Generic collection bindings that work with any entity type
- * - Standardized tool naming: `{COLLECTION}_*`
+ * - Standardized tool naming: `COLLECTION_{COLLECTION}_*`
  * - Compatible with TanStack DB query-collection
  * - Full TypeScript support with proper type constraints
  * - Support for filtering, sorting, and pagination
@@ -244,11 +244,11 @@ export interface CollectionBindingOptions {
  *
  * This function generates standardized tool bindings that work with any collection/table
  * by accepting a custom entity schema and collection name. The bindings provide:
- * - {NAME}_LIST - Query/search entities with filtering and sorting (required)
- * - {NAME}_GET - Get a single entity by ID (required)
- * - {NAME}_CREATE - Create a new entity (optional, excluded if readOnly=true)
- * - {NAME}_UPDATE - Update an existing entity (optional, excluded if readOnly=true)
- * - {NAME}_DELETE - Delete an entity (optional, excluded if readOnly=true)
+ * - COLLECTION_{NAME}_LIST - Query/search entities with filtering and sorting (required)
+ * - COLLECTION_{NAME}_GET - Get a single entity by ID (required)
+ * - COLLECTION_{NAME}_CREATE - Create a new entity (optional, excluded if readOnly=true)
+ * - COLLECTION_{NAME}_UPDATE - Update an existing entity (optional, excluded if readOnly=true)
+ * - COLLECTION_{NAME}_DELETE - Delete an entity (optional, excluded if readOnly=true)
  *
  * @param collectionName - The name of the collection/table (e.g., "users", "products", "orders")
  * @param entitySchema - The Zod schema for the entity type (must extend BaseCollectionEntitySchema)
@@ -287,12 +287,12 @@ export function createCollectionBindings<
 
   const bindings: ToolBinder[] = [
     {
-      name: `${upperName}_LIST` as const,
+      name: `COLLECTION_${upperName}_LIST` as const,
       inputSchema: CollectionListInputSchema,
       outputSchema: createCollectionListOutputSchema(entitySchema),
     },
     {
-      name: `${upperName}_GET` as const,
+      name: `COLLECTION_${upperName}_GET` as const,
       inputSchema: CollectionGetInputSchema,
       outputSchema: createCollectionGetOutputSchema(entitySchema),
     },
@@ -302,19 +302,19 @@ export function createCollectionBindings<
   if (!readOnly) {
     bindings.push(
       {
-        name: `${upperName}_CREATE` as const,
+        name: `COLLECTION_${upperName}_CREATE` as const,
         inputSchema: createCollectionInsertInputSchema(entitySchema),
         outputSchema: createCollectionInsertOutputSchema(entitySchema),
         opt: true,
       },
       {
-        name: `${upperName}_UPDATE` as const,
+        name: `COLLECTION_${upperName}_UPDATE` as const,
         inputSchema: createCollectionUpdateInputSchema(entitySchema),
         outputSchema: createCollectionUpdateOutputSchema(entitySchema),
         opt: true,
       },
       {
-        name: `${upperName}_DELETE` as const,
+        name: `COLLECTION_${upperName}_DELETE` as const,
         inputSchema: CollectionDeleteInputSchema,
         outputSchema: createCollectionDeleteOutputSchema(entitySchema),
         opt: true,
@@ -351,29 +351,29 @@ export type CollectionBinding<
     : TEntitySchema,
 > = [
   ToolBinding<
-    `${TUpperName}_LIST`,
+    `COLLECTION_${TUpperName}_LIST`,
     CollectionListInput,
     CollectionListOutput<TEntity>
   >,
   ToolBinding<
-    `${TUpperName}_GET`,
+    `COLLECTION_${TUpperName}_GET`,
     CollectionGetInput,
     CollectionGetOutput<TEntity>
   >,
   ToolBinding<
-    `${TUpperName}_CREATE`,
+    `COLLECTION_${TUpperName}_CREATE`,
     CollectionInsertInput<TEntity>,
     CollectionInsertOutput<TEntity>,
     true
   >,
   ToolBinding<
-    `${TUpperName}_UPDATE`,
+    `COLLECTION_${TUpperName}_UPDATE`,
     CollectionUpdateInput<TEntity>,
     CollectionUpdateOutput<TEntity>,
     true
   >,
   ToolBinding<
-    `${TUpperName}_DELETE`,
+    `COLLECTION_${TUpperName}_DELETE`,
     CollectionDeleteInput,
     CollectionDeleteOutput<TEntity>,
     true
