@@ -4,6 +4,7 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { ArrowLeft, X } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useState } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
@@ -135,7 +136,10 @@ export function SettingsModal() {
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Sidebar - always visible on desktop, toggleable on mobile */}
           <div
-            className={`${mobileShowContent ? "hidden" : "flex"} sm:flex flex-col w-full sm:w-auto`}
+            className={cn(
+              mobileShowContent ? "hidden" : "flex",
+              "sm:flex flex-col w-full sm:w-auto",
+            )}
           >
             {/* Mobile header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border sm:hidden">
@@ -163,7 +167,10 @@ export function SettingsModal() {
 
           {/* Content - always visible on desktop, toggleable on mobile */}
           <div
-            className={`${mobileShowContent ? "flex" : "hidden"} sm:flex flex-1 min-w-0 overflow-y-auto relative flex-col overflow-hidden`}
+            className={cn(
+              mobileShowContent ? "flex" : "hidden",
+              "sm:flex flex-1 min-w-0 overflow-y-auto relative flex-col overflow-hidden",
+            )}
           >
             {/* Mobile back header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border sm:hidden">

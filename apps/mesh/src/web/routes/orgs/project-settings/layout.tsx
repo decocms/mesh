@@ -22,6 +22,7 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { ArrowLeft } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { ProjectSettingsSidebar, SETTINGS_ITEMS } from "./settings-sidebar";
 
 function ContentSkeleton() {
@@ -145,7 +146,10 @@ function ProjectSettingsContent() {
         <Page.Content className="flex">
           {/* Sidebar - always visible on desktop, toggleable on mobile */}
           <div
-            className={`${mobileShowContent ? "hidden" : "flex"} sm:flex flex-col w-full sm:w-auto`}
+            className={cn(
+              mobileShowContent ? "hidden" : "flex",
+              "sm:flex flex-col w-full sm:w-auto",
+            )}
           >
             <ProjectSettingsSidebar
               onNavigate={() => setMobileShowContent(true)}
@@ -154,7 +158,10 @@ function ProjectSettingsContent() {
 
           {/* Content - always visible on desktop, toggleable on mobile */}
           <div
-            className={`${mobileShowContent ? "flex" : "hidden"} sm:flex flex-1 min-w-0 flex-col overflow-hidden`}
+            className={cn(
+              mobileShowContent ? "flex" : "hidden",
+              "sm:flex flex-1 min-w-0 flex-col overflow-hidden",
+            )}
           >
             {/* Mobile back header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border sm:hidden">
