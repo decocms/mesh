@@ -1,7 +1,10 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { CollectionsList } from "@/web/components/collections/collections-list.tsx";
+import {
+  CollectionsList,
+  generateSortOptionsFromSchema,
+} from "@/web/components/collections/collections-list.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
@@ -76,11 +79,13 @@ export function CollectionTab({
     setSearch,
     viewMode,
     setViewMode,
-    sort,
-    setSort,
-  } = useListState({
+    sortKey,
+    sortDirection,
+    handleSort,
+  } = useListState<BaseCollectionEntity>({
     namespace: org,
     resource: `${connectionId}-${collectionName}`,
+    defaultSortKey: "updated_at",
   });
 
   const items = useCollectionList<BaseCollectionEntity>(
@@ -89,7 +94,8 @@ export function CollectionTab({
     client,
     {
       searchTerm,
-      sort,
+      sortKey,
+      sortDirection,
     },
   );
 
@@ -182,12 +188,8 @@ export function CollectionTab({
     }
   };
 
-  const sortPresetOptions = [
-    { id: "newest", label: "Newest" },
-    { id: "oldest", label: "Oldest" },
-    { id: "a-z", label: "A → Z" },
-    { id: "z-a", label: "Z → A" },
-  ];
+  // Generate sort options from schema
+  const sortOptions = generateSortOptionsFromSchema(schema);
 
   const hasItems = (items?.length ?? 0) > 0;
   const showCreateInToolbar = hasCreateTool && hasItems;
@@ -209,12 +211,10 @@ export function CollectionTab({
     <>
       <ViewActions>
         <CollectionDisplayButton
-          sortKey={sort}
-          sortDirection={null}
-          onSort={(key) =>
-            setSort(key as import("@decocms/bindings/collections").SortPreset)
-          }
-          sortOptions={sortPresetOptions}
+          sortKey={sortKey as string}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          sortOptions={sortOptions}
         />
         {showCreateInToolbar && createButton}
       </ViewActions>
@@ -243,11 +243,9 @@ export function CollectionTab({
             onViewModeChange={setViewMode}
             search={search}
             onSearchChange={setSearch}
-            sortKey={sort}
-            sortDirection={null}
-            onSort={(key) =>
-              setSort(key as import("@decocms/bindings/collections").SortPreset)
-            }
+            sortKey={sortKey as string}
+            sortDirection={sortDirection}
+            onSort={handleSort}
             actions={listItemActions}
             onItemClick={(item) => handleEdit(item)}
             readOnly={isReadOnly}

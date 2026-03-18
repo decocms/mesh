@@ -3,6 +3,8 @@ export {
   useCollectionItem,
   useCollectionList,
   useCollectionActions,
+  buildWhereExpression,
+  buildOrderByExpression,
   buildCollectionQueryKey,
   EMPTY_COLLECTION_LIST_RESULT,
   type CollectionEntity,

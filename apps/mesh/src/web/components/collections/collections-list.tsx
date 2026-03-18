@@ -39,6 +39,33 @@ function findIconFieldByName(
   );
 }
 
+// Helper to generate sort options from JSONSchema
+export function generateSortOptionsFromSchema(
+  schema: JsonSchema,
+  sortableFields?: string[],
+): Array<{ id: string; label: string }> {
+  return Object.keys(schema.properties || {})
+    .filter((key) => {
+      // Filter out internal fields
+      if (
+        ["id", "created_at", "updated_at", "created_by", "updated_by"].includes(
+          key,
+        )
+      ) {
+        return false;
+      }
+      // If sortableFields is provided, only include those
+      if (sortableFields) {
+        return sortableFields.includes(key);
+      }
+      return true;
+    })
+    .map((key) => ({
+      id: key,
+      label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+    }));
+}
+
 export function CollectionsList<T extends BaseCollectionEntity>({
   data,
   schema,
@@ -65,22 +92,7 @@ export function CollectionsList<T extends BaseCollectionEntity>({
           id: col.id,
           label: typeof col.header === "string" ? col.header : col.id,
         }))
-    : Object.keys(schema.properties || {})
-        .filter(
-          (key) =>
-            ![
-              "id",
-              "created_at",
-              "updated_at",
-              "created_by",
-              "updated_by",
-            ].includes(key) &&
-            (!sortableFields || sortableFields.includes(key)),
-        )
-        .map((key) => ({
-          id: key,
-          label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
-        }));
+    : generateSortOptionsFromSchema(schema, sortableFields);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

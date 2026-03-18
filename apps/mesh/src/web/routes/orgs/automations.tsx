@@ -14,7 +14,6 @@ import {
   useAutomationDelete,
 } from "@/web/hooks/use-automations";
 import { useListState } from "@/web/hooks/use-list-state";
-import { useSortable } from "@deco/ui/hooks/use-sortable.ts";
 import { User } from "@/web/components/user/user.tsx";
 import {
   AlertDialog,
@@ -81,16 +80,13 @@ export default function AutomationsPage() {
     defaultViewMode: "table",
   });
 
-  // Automations use local column-based sorting (not collection sort presets)
-  const { sortKey, sortDirection, handleSort } = useSortable("name");
-
   const orgSlug = locator.split("/")[0] ?? org.slug ?? ORG_ADMIN_PROJECT_SLUG;
 
   const handleCreate = async () => {
     try {
       const result = await createMutation.mutateAsync({
         name: "New Automation",
-        agent: { id: "" },
+        agent: { id: "", mode: "passthrough" },
         messages: [],
         models: {
           credentialId: "",
@@ -141,9 +137,9 @@ export default function AutomationsPage() {
       return a.name.toLowerCase().includes(listState.searchTerm.toLowerCase());
     })
     .sort((a, b) => {
-      if (!sortDirection) return 0;
-      const dir = sortDirection === "asc" ? 1 : -1;
-      const key = sortKey as string;
+      if (!listState.sortDirection) return 0;
+      const dir = listState.sortDirection === "asc" ? 1 : -1;
+      const key = listState.sortKey as string;
       if (key === "name") return a.name.localeCompare(b.name) * dir;
       if (key === "active")
         return ((a.active ? 1 : 0) - (b.active ? 1 : 0)) * dir;
@@ -265,25 +261,27 @@ export default function AutomationsPage() {
                     { id: "_actions", label: "", className: "w-12 shrink-0" },
                   ] as const
                 ).map(({ id, label, className }) => {
-                  const isActive = sortKey === id;
+                  const isActive = listState.sortKey === id;
                   const sortable = id !== "created_by" && id !== "_actions";
                   return (
                     <TableHead
                       key={id}
                       className={cn(headerCell, className)}
-                      onClick={sortable ? () => handleSort(id) : undefined}
+                      onClick={
+                        sortable ? () => listState.handleSort(id) : undefined
+                      }
                     >
                       <span className="flex items-center gap-1">
                         {label}
                         {sortable && (
                           <span className="w-4 flex items-center justify-center">
-                            {isActive && sortDirection === "asc" && (
+                            {isActive && listState.sortDirection === "asc" && (
                               <ArrowUp
                                 size={12}
                                 className="text-muted-foreground"
                               />
                             )}
-                            {isActive && sortDirection === "desc" && (
+                            {isActive && listState.sortDirection === "desc" && (
                               <ArrowDown
                                 size={12}
                                 className="text-muted-foreground"

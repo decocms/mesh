@@ -338,16 +338,16 @@ Models bindings provide a well-known interface for AI model providers. They use 
 ### Using Models Bindings
 
 ```typescript
-import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/models";
+import { MODELS_BINDING, MODELS_COLLECTION_BINDING } from "@decocms/bindings/models";
 import { createBindingChecker } from "@decocms/bindings";
 
-// Use the pre-defined LANGUAGE_MODEL_BINDING
-const modelsChecker = createBindingChecker(LANGUAGE_MODEL_BINDING);
+// Use the pre-defined MODELS_BINDING
+const modelsChecker = createBindingChecker(MODELS_BINDING);
 
 // Check if available tools implement the binding
 const availableTools = [
-  { name: "COLLECTION_LLM_LIST" },
-  { name: "COLLECTION_LLM_GET" },
+  { name: "COLLECTION_MODELS_LIST" },
+  { name: "COLLECTION_MODELS_GET" },
 ];
 
 const isImplemented = modelsChecker.isImplementedBy(availableTools);
@@ -356,15 +356,15 @@ console.log(isImplemented); // true if all required tools are present
 
 ### Models Binding Tools
 
-The `LANGUAGE_MODEL_BINDING` includes:
+The `MODELS_BINDING` includes:
 
-1. **COLLECTION_LLM_LIST** (required)
+1. **COLLECTION_MODELS_LIST** (required)
    - List available AI models with their capabilities and streaming endpoints
    - Uses collection binding LIST operation
    - Input: `where?`, `orderBy?`, `limit?`, `offset?`
    - Output: `items[]` (array of model entities with endpoint info)
 
-2. **COLLECTION_LLM_GET** (required)
+2. **COLLECTION_MODELS_GET** (required)
    - Get a single model by ID
    - Uses collection binding GET operation
    - Input: `id` (string)
@@ -407,10 +407,10 @@ Models follow the collection entity schema with additional model-specific fields
 Here's how you would implement the models binding in an MCP server:
 
 ```typescript
-import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/models";
+import { MODELS_BINDING } from "@decocms/bindings/models";
 import { impl } from "@decocms/sdk/mcp/bindings/binder";
 
-const modelTools = impl(LANGUAGE_MODEL_BINDING, [
+const modelTools = impl(MODELS_BINDING, [
   {
     description: "List available AI models",
     handler: async ({ where, orderBy, limit, offset }) => {

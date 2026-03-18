@@ -9,10 +9,9 @@ import { type Binder, createBindingChecker } from "@decocms/bindings";
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
   CollectionListInputSchema,
-  applyOrderBy,
   createCollectionListOutputSchema,
-  evaluateWhereExpression,
-  resolveCollectionListInput,
+  type OrderByExpression,
+  type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
@@ -29,6 +28,165 @@ const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   ASSISTANTS: ASSISTANTS_BINDING,
   OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
+
+/**
+ * Convert SQL LIKE pattern to regex pattern by tokenizing
+ * Handles % (any chars) and _ (single char) wildcards
+ */
+function convertLikeToRegex(likePattern: string): string {
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < likePattern.length) {
+    const char = likePattern[i] as string;
+    if (char === "%") {
+      result.push(".*");
+    } else if (char === "_") {
+      result.push(".");
+    } else if (/[.*+?^${}()|[\]\\]/.test(char)) {
+      // Escape regex special characters
+      result.push("\\" + char);
+    } else {
+      result.push(char);
+    }
+    i++;
+  }
+
+  return result.join("");
+}
+
+function isStringOrValue(value: unknown): value is string | number {
+  return typeof value === "string" || typeof value === "number";
+}
+
+/**
+ * Evaluate a where expression against a connection entity
+ */
+function evaluateWhereExpression(
+  connection: ConnectionEntity,
+  where: WhereExpression,
+): boolean {
+  if ("conditions" in where) {
+    // Logical operator
+    const { operator, conditions } = where;
+    switch (operator) {
+      case "and":
+        return conditions.every((c) => evaluateWhereExpression(connection, c));
+      case "or":
+        return conditions.some((c) => evaluateWhereExpression(connection, c));
+      case "not":
+        return !conditions.every((c) => evaluateWhereExpression(connection, c));
+      default:
+        return true;
+    }
+  }
+
+  // Comparison expression
+  const { field, operator, value } = where;
+  const fieldPath = field.join(".");
+  const fieldValue = getFieldValue(connection, fieldPath);
+
+  switch (operator) {
+    case "eq":
+      return fieldValue === value;
+    case "gt":
+      return (
+        isStringOrValue(fieldValue) &&
+        isStringOrValue(value) &&
+        fieldValue > value
+      );
+    case "gte":
+      return (
+        isStringOrValue(fieldValue) &&
+        isStringOrValue(value) &&
+        fieldValue >= value
+      );
+    case "lt":
+      return (
+        isStringOrValue(fieldValue) &&
+        isStringOrValue(value) &&
+        fieldValue < value
+      );
+    case "lte":
+      return (
+        isStringOrValue(fieldValue) &&
+        isStringOrValue(value) &&
+        fieldValue <= value
+      );
+    case "in":
+      return Array.isArray(value) && value.includes(fieldValue);
+    case "like":
+      if (typeof fieldValue !== "string" || typeof value !== "string") {
+        return false;
+      }
+      // Limit pattern length to prevent ReDoS
+      if (value.length > 100) return false;
+      // Convert SQL LIKE pattern to regex by tokenizing and escaping
+      const pattern = convertLikeToRegex(value);
+      return new RegExp(`^${pattern}$`, "i").test(fieldValue);
+    case "contains":
+      if (typeof fieldValue !== "string" || typeof value !== "string") {
+        return false;
+      }
+      return fieldValue.toLowerCase().includes(value.toLowerCase());
+    default:
+      return true;
+  }
+}
+
+/**
+ * Get a field value from a connection, handling nested paths
+ * Since ConnectionEntity now uses snake_case matching the entity schema, no mapping needed
+ */
+function getFieldValue(
+  connection: ConnectionEntity,
+  fieldPath: string,
+): unknown {
+  const parts = fieldPath.split(".");
+  let value: unknown = connection;
+  for (const part of parts) {
+    if (value == null || typeof value !== "object") return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return value;
+}
+
+/**
+ * Apply orderBy expressions to sort connections
+ */
+function applyOrderBy(
+  connections: ConnectionEntity[],
+  orderBy: OrderByExpression[],
+): ConnectionEntity[] {
+  return [...connections].sort((a, b) => {
+    for (const order of orderBy) {
+      const fieldPath = order.field.join(".");
+      const aValue = getFieldValue(a, fieldPath);
+      const bValue = getFieldValue(b, fieldPath);
+
+      let comparison = 0;
+
+      // Handle nulls
+      if (aValue == null && bValue == null) continue;
+      if (aValue == null) {
+        comparison = order.nulls === "first" ? -1 : 1;
+      } else if (bValue == null) {
+        comparison = order.nulls === "first" ? 1 : -1;
+      } else if (typeof aValue === "string" && typeof bValue === "string") {
+        comparison = aValue.localeCompare(bValue);
+      } else if (typeof aValue === "number" && typeof bValue === "number") {
+        comparison = aValue - bValue;
+      } else {
+        comparison = String(aValue).localeCompare(String(bValue));
+      }
+
+      if (comparison !== 0) {
+        return order.direction === "desc" ? -comparison : comparison;
+      }
+    }
+    return 0;
+  });
+}
 
 /**
  * Extended input schema with optional binding and include_virtual parameters
@@ -53,7 +211,7 @@ const ConnectionListOutputSchema = createCollectionListOutputSchema(
 export const COLLECTION_CONNECTIONS_LIST = defineTool({
   name: "COLLECTION_CONNECTIONS_LIST",
   description:
-    "List connections. Use 'search' to find by name/description, 'sort' for ordering (newest, oldest, a-z, z-a).",
+    "List all connections in the organization with filtering, sorting, and pagination",
   annotations: {
     title: "List Connections",
     readOnlyHint: true,
@@ -61,7 +219,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
-  _meta: { ui: { visibility: "app" } },
   inputSchema: ConnectionListInputSchema,
   outputSchema: ConnectionListOutputSchema,
 
@@ -69,9 +226,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     await ctx.access.check();
 
     const organization = requireOrganization(ctx);
-
-    // Resolve simple search/sort params into where/orderBy
-    const resolved = resolveCollectionListInput(input);
 
     // Determine which binding to use: well-known binding (string) or provided JSON schema (object)
     const bindingDefinition: Binder | undefined = input.binding
@@ -139,27 +293,21 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       : connections;
 
     // Apply where filter if specified
-    if (resolved.where) {
+    if (input.where) {
       filteredConnections = filteredConnections.filter((conn) =>
-        evaluateWhereExpression(
-          conn as unknown as Record<string, unknown>,
-          resolved.where!,
-        ),
+        evaluateWhereExpression(conn, input.where!),
       );
     }
 
     // Apply orderBy if specified
-    if (resolved.orderBy && resolved.orderBy.length > 0) {
-      filteredConnections = applyOrderBy(
-        filteredConnections as unknown as Record<string, unknown>[],
-        resolved.orderBy,
-      ) as unknown as ConnectionEntity[];
+    if (input.orderBy && input.orderBy.length > 0) {
+      filteredConnections = applyOrderBy(filteredConnections, input.orderBy);
     }
 
     // Calculate pagination
     const totalCount = filteredConnections.length;
-    const offset = resolved.offset ?? 0;
-    const limit = resolved.limit ?? 100;
+    const offset = input.offset ?? 0;
+    const limit = input.limit ?? 100;
     const paginatedConnections = filteredConnections.slice(
       offset,
       offset + limit,

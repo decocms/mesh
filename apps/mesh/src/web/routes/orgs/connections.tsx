@@ -789,7 +789,7 @@ function OrgMcpsContent() {
   const { stdioEnabled } = useAuthConfig();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
-  const listState = useListState({
+  const listState = useListState<ConnectionEntity>({
     namespace: org.slug,
     resource: "connections",
   });
@@ -852,7 +852,7 @@ function OrgMcpsContent() {
   };
 
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
-  // Sort so the self/management MCP (Deco CMS) appears last — external registries like
+  // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
   // Deco Store / MCP Registry should be the default catalog source.
   const registryConnections = useRegistryConnections(allConnections).sort(
     (a, b) => {
@@ -2069,18 +2069,15 @@ function OrgMcpsContent() {
           </Page.Header.Left>
           <Page.Header.Right>
             <CollectionDisplayButton
-              sortKey={listState.sort}
-              sortDirection={null}
-              onSort={(key) =>
-                listState.setSort(
-                  key as import("@decocms/bindings/collections").SortPreset,
-                )
-              }
+              sortKey={listState.sortKey}
+              sortDirection={listState.sortDirection}
+              onSort={listState.handleSort}
               sortOptions={[
-                { id: "newest", label: "Newest" },
-                { id: "oldest", label: "Oldest" },
-                { id: "a-z", label: "A → Z" },
-                { id: "z-a", label: "Z → A" },
+                { id: "title", label: "Name" },
+                { id: "description", label: "Description" },
+                { id: "connection_type", label: "Type" },
+                { id: "updated_by", label: "Updated by" },
+                { id: "updated_at", label: "Updated" },
               ]}
               filters={[
                 {
