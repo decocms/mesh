@@ -50,7 +50,12 @@ export const UserAskOutputSchema = z.object({
 export type UserAskOutput = z.infer<typeof UserAskOutputSchema>;
 
 const description =
-  "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, or before destructive changes. Prefer this tool over asking in plain text.";
+  "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, " +
+  "or before actions with significant consequences. Prefer this tool over asking in plain text.\n\n" +
+  "Guidelines:\n" +
+  "- For 'choice' type: put the recommended option first. Provide 2-5 options.\n" +
+  "- For 'confirm' type: use for yes/no decisions, especially before destructive or hard-to-reverse actions.\n" +
+  "- For 'text' type: use when the answer is open-ended and cannot be anticipated with options.";
 
 /**
  * user_ask tool definition (AI SDK)

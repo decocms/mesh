@@ -33,7 +33,7 @@ const CreateOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_TOOLS_CREATE = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_CREATE",
   description:
-    "Create a new virtual tool on a Virtual MCP. The tool code should be a JavaScript ES module that exports a default async function: export default async (tools, args) => { ... }. Specify connection_dependencies to indicate which connections this tool uses.",
+    "Create a virtual tool on a Virtual MCP with custom JavaScript code.\n\n- Code must be a JS ES module: `export default async (tools, args) => { ... }`\n- Specify connection_dependencies for tools this code calls.",
   annotations: {
     title: "Create Virtual Tool",
     readOnlyHint: false,

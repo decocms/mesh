@@ -43,10 +43,20 @@ export async function genTitle(config: {
       abortSignal: titleAbortController.signal,
     });
 
-    // Extract just the first line, clean up any formatting
+    // Try JSON parse first (preferred format), fall back to raw text
     const rawTitle = result.text.trim();
-    const firstLine = rawTitle.split("\n")[0] ?? rawTitle;
-    const title = firstLine
+    let title: string;
+
+    try {
+      const parsed = JSON.parse(rawTitle);
+      title = typeof parsed.title === "string" ? parsed.title : rawTitle;
+    } catch {
+      // Fallback: extract first line and clean up formatting
+      const firstLine = rawTitle.split("\n")[0] ?? rawTitle;
+      title = firstLine;
+    }
+
+    title = title
       .replace(/^["']|["']$/g, "") // Remove quotes
       .replace(/^(Title:|title:)\s*/i, "") // Remove "Title:" prefix
       .replace(/[.!?]$/, "") // Remove trailing punctuation

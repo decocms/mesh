@@ -31,7 +31,7 @@ const UpdateOutputSchema = z.object({
 
 export const COLLECTION_THREADS_UPDATE = defineTool({
   name: "COLLECTION_THREADS_UPDATE",
-  description: "Update an existing thread in the organization",
+  description: "Update a thread's title, description, or visibility.",
   annotations: {
     title: "Update Thread",
     readOnlyHint: false,

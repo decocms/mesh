@@ -45,7 +45,11 @@ const AgentSearchOutputSchema = z.object({
 
 const description =
   "Search for agents configured in the organization. Returns agent metadata including purpose " +
-  "and capabilities. Use this to discover specialized agents before delegating work with subtask_run.";
+  "and capabilities. Use this to discover specialized agents before delegating work with subtask.\n\n" +
+  "Usage notes:\n" +
+  "- Call this before subtask when you're unsure which agent to delegate to.\n" +
+  "- Leave search_term empty to see all available agents.\n" +
+  "- This is a read-only operation — safe to call at any time.";
 
 export interface AgentSearchParams {
   organization: OrganizationScope;

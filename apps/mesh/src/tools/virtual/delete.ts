@@ -27,7 +27,7 @@ const DeleteOutputSchema = z.object({
 
 export const COLLECTION_VIRTUAL_MCP_DELETE = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_DELETE",
-  description: "Delete an MCP virtual MCP",
+  description: "Permanently delete a Virtual MCP and its virtual tools.",
   annotations: {
     title: "Delete Virtual MCP",
     readOnlyHint: false,

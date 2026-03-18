@@ -13,7 +13,7 @@ import { configureTriggerOnMcp } from "./configure-trigger";
 export const AUTOMATION_UPDATE = defineTool({
   name: "AUTOMATION_UPDATE",
   description:
-    "Update an automation. When active state changes, event triggers are configured on their MCP connections.",
+    "Update an automation's config. Toggling active state reconfigures event triggers on MCPs.",
   annotations: {
     title: "Update Automation",
     readOnlyHint: false,
@@ -28,18 +28,20 @@ export const AUTOMATION_UPDATE = defineTool({
     agent: z
       .object({
         id: z.string(),
-        mode: z.enum(["passthrough", "smart_tool_selection", "code_execution"]),
       })
       .optional(),
     messages: z
-      .array(
-        z.looseObject({
-          id: z.string().optional(),
-          role: z.enum(["user", "assistant", "system"]),
-          parts: z.array(z.record(z.string(), z.unknown())),
-          metadata: z.unknown().optional(),
-        }),
-      )
+      .union([
+        z.string(),
+        z.array(
+          z.looseObject({
+            id: z.string().optional(),
+            role: z.enum(["user", "assistant", "system"]),
+            parts: z.array(z.record(z.string(), z.unknown())),
+            metadata: z.unknown().optional(),
+          }),
+        ),
+      ])
       .optional(),
     models: z
       .object({
@@ -105,8 +107,18 @@ export const AUTOMATION_UPDATE = defineTool({
     if (input.active !== undefined) updateData.active = input.active;
     if (input.agent !== undefined)
       updateData.agent = JSON.stringify(input.agent);
-    if (input.messages !== undefined)
-      updateData.messages = JSON.stringify(input.messages);
+    if (input.messages !== undefined) {
+      const normalizedMessages =
+        typeof input.messages === "string"
+          ? [
+              {
+                role: "user" as const,
+                parts: [{ type: "text", text: input.messages }],
+              },
+            ]
+          : input.messages;
+      updateData.messages = JSON.stringify(normalizedMessages);
+    }
     if (input.models !== undefined)
       updateData.models = JSON.stringify(input.models);
     if (input.temperature !== undefined)

@@ -15,7 +15,7 @@ import { ThreadEntitySchema } from "./schema";
 
 export const COLLECTION_THREADS_DELETE = defineTool({
   name: "COLLECTION_THREADS_DELETE",
-  description: "Delete a thread",
+  description: "Permanently delete a thread and all its messages.",
   annotations: {
     title: "Delete Thread",
     readOnlyHint: false,

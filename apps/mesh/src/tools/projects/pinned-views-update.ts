@@ -19,11 +19,12 @@ const pinnedViewSchema = z.object({
 
 export const PROJECT_PINNED_VIEWS_UPDATE = defineTool({
   name: "PROJECT_PINNED_VIEWS_UPDATE" as const,
-  description: "Update the pinned sidebar views for a project",
+  description:
+    "Update the pinned sidebar views for a project. Replaces all current pins.",
   annotations: {
     title: "Update Pinned Views",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: false,
   },

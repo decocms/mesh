@@ -27,6 +27,10 @@ const mockParams: BuiltinToolParams = {
     thinking: { id: "model_test" },
   } as never,
   toolOutputMap: new Map(),
+  passthroughClient: {
+    listTools: () => Promise.resolve({ tools: [] }),
+    callTool: () => Promise.resolve({ content: [] }),
+  } as never,
 };
 
 const mockCtx = {
@@ -73,8 +77,8 @@ describe("user_ask E2E Integration", () => {
     test("has correct description", () => {
       const tools = getTools();
 
-      expect(tools.user_ask?.description).toBe(
-        "Ask the user instead of guessing when requirements are ambiguous, multiple valid approaches exist, or before destructive changes. Prefer this tool over asking in plain text.",
+      expect(tools.user_ask?.description).toContain(
+        "Ask the user instead of guessing when requirements are ambiguous",
       );
     });
 

@@ -122,7 +122,8 @@ async function validateConfiguration(
 
 export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
   name: "COLLECTION_CONNECTIONS_UPDATE",
-  description: "Update an existing MCP connection in the organization",
+  description:
+    "Update a connection's configuration. Re-fetches tools from the server on URL change.",
   annotations: {
     title: "Update Connection",
     readOnlyHint: false,

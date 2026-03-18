@@ -33,7 +33,7 @@ const UpdateOutputSchema = z.object({
 export const COLLECTION_VIRTUAL_TOOLS_UPDATE = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_UPDATE",
   description:
-    "Update an existing virtual tool on a Virtual MCP. Specify connection_dependencies to update which connections this tool uses.",
+    "Update a virtual tool's code, schema, or connection dependencies on a Virtual MCP.",
   annotations: {
     title: "Update Virtual Tool",
     readOnlyHint: false,

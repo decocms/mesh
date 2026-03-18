@@ -29,7 +29,7 @@ const DeleteOutputSchema = z.object({
 
 export const COLLECTION_VIRTUAL_TOOLS_DELETE = defineTool({
   name: "COLLECTION_VIRTUAL_TOOLS_DELETE",
-  description: "Delete a virtual tool from a Virtual MCP",
+  description: "Remove a virtual tool from a Virtual MCP by name.",
   annotations: {
     title: "Delete Virtual Tool",
     readOnlyHint: false,

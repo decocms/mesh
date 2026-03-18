@@ -1,6 +1,5 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import { runTransform } from "@/sandbox";
 
 export interface ReadToolOutputParams {
   readonly toolOutputMap: Map<string, string>;
@@ -10,61 +9,113 @@ export function createReadToolOutputTool(params: ReadToolOutputParams) {
   const { toolOutputMap } = params;
   return tool({
     description:
-      "The input is a string. Dont make assumptions about its format; prefer using regexes and string manipulation to extract the desired information. You may call this tool multiple times to extract the desired information.",
+      "Filter a tool output that was too large to display inline. " +
+      "Returns all lines matching the given regular expression pattern (grep-like). " +
+      "You may call this tool multiple times with different patterns to extract different pieces of information.",
     inputExamples: [
       {
-        input: {
-          tool_call_id: "tool_call_id_1",
-          code: "export default (input) => { return input.match(/[a-z]/g); }",
-        },
+        input: { tool_call_id: "id_1", pattern: "error|warning" },
       },
       {
         input: {
-          tool_call_id: "tool_call_id_2",
-          code: "export default (input) => { return input.split(' ').map(word => word.length); }",
+          tool_call_id: "id_2",
+          pattern: '"status":\\s*"failed"',
         },
       },
     ],
     inputSchema: zodSchema(
       z.object({
         tool_call_id: z.string(),
-        code: z
+        pattern: z
           .string()
           .min(1)
           .describe(
-            "JavaScript code to transform the tool output. The code must be an ES module: `export default (input) => { ... }`",
+            "Regular expression pattern to filter tool output lines. Returns all matching lines.",
           ),
       }),
     ),
-    execute: async ({ tool_call_id, code }) => {
+    execute: async ({ tool_call_id, pattern }) => {
       if (!toolOutputMap.has(tool_call_id)) {
-        throw new Error(
-          `Tool output not found for tool call id: ${tool_call_id}`,
-        );
+        return {
+          result: `Tool output not found for tool call id: ${tool_call_id}. Available ids: ${[...toolOutputMap.keys()].join(", ") || "(none)"}`,
+          matchCount: 0,
+          totalLines: 0,
+        };
       }
       const input = toolOutputMap.get(tool_call_id)!;
 
-      const result = await runTransform({
-        input,
-        code,
-        timeoutMs: 5_000,
-      });
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern);
+      } catch {
+        return {
+          result: `Invalid regex pattern: ${pattern}`,
+          matchCount: 0,
+          totalLines: 0,
+        };
+      }
 
-      const tokenCount = estimateJsonTokens({ return: result.returnValue });
-      if (tokenCount > 4000) {
-        throw new Error(
-          `Tool call ${tool_call_id} output is too long to display (${tokenCount} tokens), reduce or truncate the output`,
-        );
+      const lines = input.split("\n");
+      const matching = lines.filter((line) => regex.test(line));
+      const result = matching.join("\n");
+
+      const tokenCount = estimateJsonTokens(result);
+      if (tokenCount > MAX_RESULT_TOKENS) {
+        const preview = createOutputPreview(result);
+        return {
+          result: `Output is still too long (${tokenCount} tokens), use a more specific pattern to reduce output.\n\nPreview:\n${preview}`,
+          matchCount: matching.length,
+          totalLines: lines.length,
+        };
       }
 
       return {
-        result: result.returnValue as string,
-        error: result.error,
-        consoleLogs: result.consoleLogs,
+        result,
+        matchCount: matching.length,
+        totalLines: lines.length,
       };
     },
   });
 }
+/** Maximum tokens for the full result returned to the model */
+export const MAX_RESULT_TOKENS = 4000;
+
+const MAX_PREVIEW_TOKENS = 120;
+
+/**
+ * Create a head+tail preview of a large text output.
+ * Adaptively trims lines so the preview stays under MAX_PREVIEW_TOKENS (~120 tokens),
+ * keeping it compact enough that the surrounding message fits well within 4000 tokens.
+ */
+export function createOutputPreview(
+  text: string,
+  maxLines = 20,
+  tailLines = 5,
+): string {
+  const lines = text.split("\n");
+  if (lines.length <= maxLines + tailLines) {
+    if (estimateTokens(text) <= MAX_PREVIEW_TOKENS) return text;
+  }
+
+  let headCount = Math.min(maxLines, lines.length);
+  const tailCount = Math.min(tailLines, lines.length);
+
+  while (headCount > 1) {
+    const head = lines.slice(0, headCount);
+    const tail = lines.slice(-tailCount);
+    const omitted = lines.length - headCount - tailCount;
+    const separator = `\n--- truncated (${omitted} more lines) ---\n`;
+    const candidate = [...head, separator, ...tail].join("\n");
+
+    if (estimateTokens(candidate) <= MAX_PREVIEW_TOKENS) return candidate;
+    headCount = Math.floor(headCount * 0.6);
+  }
+
+  // Fallback: character-truncate to fit the budget
+  const maxChars = MAX_PREVIEW_TOKENS * 4;
+  return text.slice(0, maxChars) + "\n--- truncated ---";
+}
+
 /**
  * Lightweight Token Estimator
  *

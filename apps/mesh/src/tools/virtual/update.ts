@@ -34,7 +34,7 @@ const UpdateOutputSchema = z.object({
 
 export const COLLECTION_VIRTUAL_MCP_UPDATE = defineTool({
   name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-  description: "Update an MCP virtual MCP",
+  description: "Update a Virtual MCP's name, slug, or connection list.",
   annotations: {
     title: "Update Virtual MCP",
     readOnlyHint: false,

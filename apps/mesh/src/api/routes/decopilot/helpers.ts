@@ -20,7 +20,11 @@ import type { Context } from "hono";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { HTTPException } from "hono/http-exception";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "../proxy";
-import { estimateJsonTokens } from "./built-in-tools/read-tool-output";
+import {
+  MAX_RESULT_TOKENS,
+  createOutputPreview,
+  estimateJsonTokens,
+} from "./built-in-tools/read-tool-output";
 
 /**
  * Tool approval levels determine which tools require user approval before executing
@@ -63,6 +67,21 @@ export function ensureOrganization(
 /**
  * Convert MCP tools to AI SDK ToolSet
  */
+/**
+ * Check if a tool should be visible to the LLM based on MCP Apps visibility metadata.
+ * Default (no visibility set) = visible to model.
+ */
+export function isToolVisibleToModel(tool: {
+  _meta?: Record<string, unknown>;
+}): boolean {
+  const ui = tool._meta?.ui as { visibility?: string | string[] } | undefined;
+  const visibility = ui?.visibility;
+  if (visibility == null) return true;
+  if (typeof visibility === "string") return visibility === "model";
+  if (Array.isArray(visibility)) return visibility.includes("model");
+  return true;
+}
+
 export async function toolsFromMCP(
   client: Client,
   toolOutputMap: Map<string, string>,
@@ -72,8 +91,9 @@ export async function toolsFromMCP(
 ): Promise<ToolSet> {
   const truncate = !options?.disableOutputTruncation;
   const list = await client.listTools();
+  const visibleTools = list.tools.filter(isToolVisibleToModel);
 
-  const toolEntries = list.tools.map((t) => {
+  const toolEntries = visibleTools.map((t) => {
     const { name, title, description, inputSchema, annotations, _meta } = t;
 
     return [
@@ -122,15 +142,20 @@ export async function toolsFromMCP(
             const tokens = estimateJsonTokens(
               output.structuredContent ?? output.content,
             );
-            if (tokens > 4000) {
-              toolOutputMap.set(
-                toolCallId,
-                JSON.stringify(output.structuredContent ?? output.content),
-              );
+            if (tokens > MAX_RESULT_TOKENS) {
+              const value = output.structuredContent ?? output.content;
+              let raw: string;
+              try {
+                raw = JSON.stringify(value, null, 2);
+              } catch {
+                raw = String(value);
+              }
+              toolOutputMap.set(toolCallId, raw);
+              const preview = createOutputPreview(raw);
 
               return {
                 type: "text",
-                value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool`,
+                value: `Tool call ${toolCallId} output is too long to display (${tokens} tokens), use the read_tool_output tool.\n\nPreview:\n${preview}`,
               };
             }
           }

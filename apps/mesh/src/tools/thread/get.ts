@@ -21,7 +21,7 @@ const ThreadGetOutputSchema =
 
 export const COLLECTION_THREADS_GET = defineTool({
   name: "COLLECTION_THREADS_GET",
-  description: "Get thread details by ID",
+  description: "Get a thread's details and metadata by ID.",
   annotations: {
     title: "Get Thread",
     readOnlyHint: true,

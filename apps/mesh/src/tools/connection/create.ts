@@ -39,7 +39,8 @@ const CreateOutputSchema = z.object({
 
 export const COLLECTION_CONNECTIONS_CREATE = defineTool({
   name: "COLLECTION_CONNECTIONS_CREATE",
-  description: "Create a new MCP connection in the organization",
+  description:
+    "Create a new MCP connection. Auto-fetches and caches the server's tool list.",
   annotations: {
     title: "Create Connection",
     readOnlyHint: false,

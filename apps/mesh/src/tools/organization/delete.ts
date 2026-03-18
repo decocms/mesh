@@ -10,7 +10,7 @@ import { requireAuth } from "../../core/mesh-context";
 
 export const ORGANIZATION_DELETE = defineTool({
   name: "ORGANIZATION_DELETE",
-  description: "Delete an organization",
+  description: "Delete an organization.",
   annotations: {
     title: "Delete Organization",
     readOnlyHint: false,

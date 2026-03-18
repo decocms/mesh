@@ -34,7 +34,7 @@ const CreateOutputSchema = z.object({
 
 export const COLLECTION_THREADS_CREATE = defineTool({
   name: "COLLECTION_THREADS_CREATE",
-  description: "Create a new thread in the organization",
+  description: "Create a new thread for organizing messages and conversations.",
   annotations: {
     title: "Create Thread",
     readOnlyHint: false,

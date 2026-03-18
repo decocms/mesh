@@ -27,7 +27,8 @@ const ConnectionGetOutputSchema = createCollectionGetOutputSchema(
 
 export const COLLECTION_CONNECTIONS_GET = defineTool({
   name: "COLLECTION_CONNECTIONS_GET",
-  description: "Get connection details by ID",
+  description:
+    "Get a connection's configuration, tools list, and status by ID.",
   annotations: {
     title: "Get Connection",
     readOnlyHint: true,
@@ -35,6 +36,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
+  _meta: { ui: { visibility: ["app"] } },
   inputSchema: CollectionGetInputSchema,
   outputSchema: ConnectionGetOutputSchema,
 

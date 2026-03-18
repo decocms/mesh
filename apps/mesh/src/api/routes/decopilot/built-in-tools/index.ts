@@ -9,10 +9,13 @@ import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import type { UIMessageStreamWriter } from "ai";
 import { toolNeedsApproval, type ToolApprovalLevel } from "../helpers";
 import { createAgentSearchTool } from "./agent-search";
+import { createReadToolOutputTool } from "./read-tool-output";
+import { createReadPromptTool } from "./prompts";
+import { createReadResourceTool } from "./resources";
+import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import type { ModelsConfig } from "../types";
-import { createReadToolOutputTool } from "./read-tool-output";
 import { MeshProvider } from "@/ai-providers/types";
 
 export interface BuiltinToolParams {
@@ -21,6 +24,7 @@ export interface BuiltinToolParams {
   models: ModelsConfig;
   toolApprovalLevel?: ToolApprovalLevel;
   toolOutputMap: Map<string, string>;
+  passthroughClient: VirtualClient;
 }
 
 /**
@@ -39,6 +43,7 @@ export function getBuiltInTools(
     models,
     toolApprovalLevel = "none",
     toolOutputMap,
+    passthroughClient,
   } = params;
   return {
     user_ask: userAskTool,
@@ -61,6 +66,19 @@ export function getBuiltInTools(
       ctx,
     ),
     read_tool_output: createReadToolOutputTool({
+      toolOutputMap,
+    }),
+    sandbox: createSandboxTool({
+      passthroughClient,
+      toolOutputMap,
+      needsApproval: toolNeedsApproval(toolApprovalLevel, false),
+    }),
+    read_resource: createReadResourceTool({
+      passthroughClient,
+      toolOutputMap,
+    }),
+    read_prompt: createReadPromptTool({
+      passthroughClient,
       toolOutputMap,
     }),
   } as const;

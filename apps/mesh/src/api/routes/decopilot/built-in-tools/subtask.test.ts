@@ -21,6 +21,10 @@ const mockParams: BuiltinToolParams = {
     thinking: { id: "model_test", limits: {} },
   } as never,
   toolOutputMap: new Map(),
+  passthroughClient: {
+    listTools: () => Promise.resolve({ tools: [] }),
+    callTool: () => Promise.resolve({ content: [] }),
+  } as never,
 };
 
 const mockCtx = {
@@ -153,34 +157,35 @@ describe("createSubtaskTool", () => {
 });
 
 describe("buildSubagentSystemPrompt", () => {
-  test("includes base instructions when no agent instructions provided", () => {
-    const prompt = buildSubagentSystemPrompt();
+  test("returns array with base prompt when no agent instructions provided", () => {
+    const prompts = buildSubagentSystemPrompt();
 
-    expect(prompt).toContain("focused subtask agent");
-    expect(prompt).toContain("Assess the Task");
-    expect(prompt).toContain("When Done: Summarize");
-    expect(prompt).toContain("Constraints");
-    expect(prompt).not.toContain("Agent-Specific Instructions");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("focused subtask agent");
+    expect(prompts[0]).toContain("Assess the Task");
+    expect(prompts[0]).toContain("When Done: Report");
+    expect(prompts[0]).toContain("Rules (non-negotiable)");
   });
 
-  test("includes agent instructions when provided", () => {
+  test("returns array with base and agent instructions when provided", () => {
     const agentInstructions = "Always use the search tool first.";
-    const prompt = buildSubagentSystemPrompt(agentInstructions);
+    const prompts = buildSubagentSystemPrompt(agentInstructions);
 
-    expect(prompt).toContain("Agent-Specific Instructions");
-    expect(prompt).toContain("Always use the search tool first.");
+    expect(prompts).toHaveLength(2);
+    expect(prompts[0]).toContain("focused subtask agent");
+    expect(prompts[1]).toBe("Always use the search tool first.");
   });
 
   test("excludes agent instructions when empty string", () => {
-    const prompt = buildSubagentSystemPrompt("");
+    const prompts = buildSubagentSystemPrompt("");
 
-    expect(prompt).not.toContain("Agent-Specific Instructions");
+    expect(prompts).toHaveLength(1);
   });
 
   test("excludes agent instructions when whitespace-only", () => {
-    const prompt = buildSubagentSystemPrompt("   \n  ");
+    const prompts = buildSubagentSystemPrompt("   \n  ");
 
-    expect(prompt).not.toContain("Agent-Specific Instructions");
+    expect(prompts).toHaveLength(1);
   });
 });
 

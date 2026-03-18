@@ -10,11 +10,13 @@ import type { MeshContext } from "@/core/mesh-context";
 import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
-import { getFastModel, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { createUIMessageStream, stepCountIs, streamText } from "ai";
 import { getBuiltInTools } from "./built-in-tools";
+import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
-  DECOPILOT_BASE_PROMPT,
+  buildBasePlatformPrompt,
+  buildDecopilotAgentPrompt,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
   DEFAULT_WINDOW_SIZE,
@@ -22,7 +24,7 @@ import {
   PARENT_STEP_LIMIT,
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
-import { toolsFromMCP } from "./helpers";
+import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
@@ -34,9 +36,26 @@ import type { RunRegistry } from "./run-registry";
 import { resolveThreadStatus } from "./status";
 import type { StreamBuffer } from "./stream-buffer";
 import { genTitle } from "./title-generator";
-import type { ChatMessage, ModelsConfig } from "./types";
+import type { ChatMessage, ModelInfo, ModelsConfig } from "./types";
 import type { CancelBroadcast } from "./cancel-broadcast";
 import { ThreadMessage } from "@/storage/types";
+import type { MeshProvider } from "@/ai-providers/types";
+
+/**
+ * Creates a language model from the provider, enabling reasoning when the
+ * model advertises the "reasoning" capability (e.g. OpenRouter thinking models).
+ */
+export function createLanguageModel(provider: MeshProvider, model: ModelInfo) {
+  if (model.capabilities?.reasoning !== false) {
+    // Provider-specific settings (e.g. OpenRouter reasoning) are not part of
+    // the generic ProviderV3 interface, so we cast to pass them through.
+    const lm = (provider.aiSdk.languageModel as Function)(model.id, {
+      reasoning: { enabled: true, effort: "medium" },
+    });
+    return lm as ReturnType<typeof provider.aiSdk.languageModel>;
+  }
+  return provider.aiSdk.languageModel(model.id);
+}
 
 // ============================================================================
 // Types
@@ -44,7 +63,6 @@ import { ThreadMessage } from "@/storage/types";
 
 export interface AgentConfig {
   id: string;
-  mode: "passthrough" | "smart_tool_selection" | "code_execution";
 }
 
 export interface StreamCoreInput {
@@ -216,18 +234,17 @@ export async function streamCore(
       closeClients?.();
     });
 
-    const isGatewayMode = input.agent.mode !== "passthrough";
     const maxOutputTokens =
       input.models.thinking.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
 
     let streamFinished = false;
     const pendingOps: Promise<void>[] = [];
 
-    // Pre-load conversation
+    // Pre-load conversation (no system messages — those are built separately)
     const allMessages = await loadAndMergeMessages(
       mem,
       requestMessage,
-      [DECOPILOT_BASE_PROMPT(), ...systemMessages],
+      systemMessages,
       windowSize,
     );
 
@@ -237,27 +254,15 @@ export async function streamCore(
     const uiStream = createUIMessageStream({
       originalMessages: allMessages,
       execute: async ({ writer }) => {
-        const [passthroughClient, strategyClient] = await Promise.all([
-          createVirtualClientFrom(virtualMcp, ctx, "passthrough"),
-          isGatewayMode
-            ? createVirtualClientFrom(virtualMcp, ctx, input.agent.mode)
-            : Promise.resolve(null),
-        ]);
+        const passthroughClient = await createVirtualClientFrom(
+          virtualMcp,
+          ctx,
+          "passthrough",
+        );
 
         closeClients = () => {
           passthroughClient.close().catch(() => {});
-          strategyClient?.close().catch(() => {});
         };
-
-        // Enrich with agent-specific instructions
-        const serverInstructions = passthroughClient.getInstructions();
-        const enrichedMessages = serverInstructions?.trim()
-          ? allMessages.map((msg) =>
-              msg.id === "decopilot-system"
-                ? DECOPILOT_BASE_PROMPT(serverInstructions)
-                : msg,
-            )
-          : allMessages;
 
         const passthroughTools = await toolsFromMCP(
           passthroughClient,
@@ -265,15 +270,6 @@ export async function streamCore(
           writer,
           input.toolApprovalLevel,
         );
-
-        const strategyTools = strategyClient
-          ? await toolsFromMCP(
-              strategyClient,
-              toolOutputMap,
-              writer,
-              input.toolApprovalLevel,
-            )
-          : {};
 
         const builtInTools = await getBuiltInTools(
           writer,
@@ -283,28 +279,54 @@ export async function streamCore(
             models: input.models,
             toolApprovalLevel: input.toolApprovalLevel,
             toolOutputMap,
+            passthroughClient,
           },
           ctx,
         );
 
+        // Progressive tool disclosure: enable_tools + prepareStep
+        const passthroughToolNames = new Set(Object.keys(passthroughTools));
+        const builtInToolNames = Object.keys(builtInTools);
+        const enabledTools = reconstructEnabledTools(
+          allMessages,
+          passthroughToolNames,
+        );
+
         const tools = {
           ...passthroughTools,
-          ...strategyTools,
           ...builtInTools,
+          enable_tools: createEnableToolsTool(
+            enabledTools,
+            passthroughToolNames,
+          ),
         };
 
-        const activeToolNames = strategyClient
-          ? ([
-              ...Object.keys(strategyTools),
-              ...Object.keys(builtInTools),
-            ] as (keyof typeof tools)[])
-          : undefined;
+        // Build composable system prompt array
+        const basePrompt = buildBasePlatformPrompt();
+
+        const [toolCatalog, promptCatalog] = await Promise.all([
+          buildToolCatalog(passthroughClient, enabledTools),
+          buildPromptCatalog(passthroughClient),
+        ]);
+
+        // Agent prompt: decopilot-specific or custom agent instructions
+        const serverInstructions = passthroughClient.getInstructions();
+        const agentPrompt = isDecopilot(input.agent.id)
+          ? buildDecopilotAgentPrompt()
+          : serverInstructions;
+
+        const systemPrompts = [
+          basePrompt,
+          toolCatalog,
+          promptCatalog,
+          agentPrompt,
+        ].filter((s): s is string => Boolean(s?.trim()));
 
         const {
           systemMessages: processedSystemMessages,
           messages: processedMessages,
           originalMessages,
-        } = await processConversation(enrichedMessages, {
+        } = await processConversation(allMessages, {
           windowSize,
           models: input.models,
           tools,
@@ -314,21 +336,12 @@ export async function streamCore(
 
         const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
         if (shouldGenerateTitle) {
-          const isAllowed = (id: string) =>
-            checkModelPermission(allowedModels, input.models.credentialId, id);
-          const fastCandidate = getFastModel(provider.info.id);
-          const titleModelId =
-            (input.models.fast?.id && isAllowed(input.models.fast.id)
-              ? input.models.fast.id
-              : null) ??
-            (fastCandidate && isAllowed(fastCandidate)
-              ? fastCandidate
-              : null) ??
-            input.models.thinking.id;
-
           genTitle({
             abortSignal: registrySignal,
-            model: provider.aiSdk.languageModel(titleModelId),
+            model: createLanguageModel(
+              provider,
+              input.models.fast ?? input.models.thinking,
+            ),
             userMessage: JSON.stringify(processedMessages[0]?.content),
           })
             .then(async (title) => {
@@ -364,11 +377,23 @@ export async function streamCore(
         llmCallStartTime = Date.now();
 
         const result = streamText({
-          model: provider.aiSdk.languageModel(input.models.thinking.id),
-          system: processedSystemMessages,
+          model: createLanguageModel(provider, input.models.thinking),
+          system: [
+            ...systemPrompts.map((content) => ({
+              role: "system" as const,
+              content,
+            })),
+            ...processedSystemMessages,
+          ],
           messages: processedMessages,
           tools,
-          activeTools: activeToolNames,
+          prepareStep: () => ({
+            activeTools: [
+              ...builtInToolNames,
+              "enable_tools",
+              ...enabledTools,
+            ] as (keyof typeof tools)[],
+          }),
           temperature: input.temperature,
           maxOutputTokens,
           abortSignal: registrySignal,
@@ -468,7 +493,6 @@ export async function streamCore(
               return {
                 agent: {
                   id: input.agent.id ?? null,
-                  mode: input.agent.mode,
                 },
                 models: {
                   credentialId: input.models.credentialId,
@@ -660,6 +684,128 @@ function sanitizeStreamError(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+/**
+ * Reconstruct the set of enabled tools from conversation history.
+ * Scans for prior `enable_tools` calls and re-adds their tool names.
+ */
+function reconstructEnabledTools(
+  messages: ChatMessage[],
+  availableToolNames: Set<string>,
+): Set<string> {
+  const enabled = new Set<string>();
+  for (const msg of messages) {
+    if (msg.role !== "assistant") continue;
+    for (const part of msg.parts) {
+      if (
+        "toolName" in part &&
+        part.toolName === "enable_tools" &&
+        "result" in part &&
+        part.result
+      ) {
+        const result = part.result as { enabled?: string[] };
+        if (Array.isArray(result.enabled)) {
+          for (const name of result.enabled) {
+            if (availableToolNames.has(name)) {
+              enabled.add(name);
+            }
+          }
+        }
+      }
+    }
+  }
+  return enabled;
+}
+
+const REDUNDANT_PREFIXES =
+  /^(this tool |use this to |allows you to |a tool that |a tool to |tool to |tool that )/i;
+
+function trimToolDescription(desc: string, maxLen = 80): string {
+  let trimmed = desc.replace(REDUNDANT_PREFIXES, "").trim();
+  if (trimmed.length > 0) {
+    trimmed = trimmed[0]!.toUpperCase() + trimmed.slice(1);
+  }
+  if (trimmed.length > maxLen) {
+    return trimmed.slice(0, maxLen - 1) + "…";
+  }
+  return trimmed;
+}
+
+/**
+ * Build a compact tool catalog for the system prompt, grouped by connection.
+ * Format: <available-connections><connection name="..." id="...">TOOL|desc</connection></available-connections>
+ */
+async function buildToolCatalog(
+  client: {
+    listTools(): Promise<{
+      tools: Array<{
+        name: string;
+        description?: string;
+        _meta?: Record<string, unknown>;
+      }>;
+    }>;
+  },
+  enabledTools: Set<string>,
+): Promise<string | null> {
+  const { tools } = await client.listTools();
+
+  const connections = new Map<
+    string,
+    { name: string; id: string; lines: string[] }
+  >();
+
+  for (const t of tools) {
+    if (enabledTools.has(t.name)) continue;
+    if (!isToolVisibleToModel(t)) continue;
+
+    const connId = (t._meta?.connectionId as string) ?? "unknown";
+    const connName = (t._meta?.connectionTitle as string) || connId;
+    const desc = trimToolDescription(t.description ?? "");
+
+    let group = connections.get(connId);
+    if (!group) {
+      group = { name: connName, id: connId, lines: [] };
+      connections.set(connId, group);
+    }
+    group.lines.push(`${t.name}|${desc}`);
+  }
+
+  if (connections.size === 0) return null;
+
+  const sections: string[] = [];
+  for (const { name, id, lines } of connections.values()) {
+    sections.push(
+      `<connection name="${escapeXmlAttr(name)}" id="${escapeXmlAttr(id)}">\n${lines.join("\n")}\n</connection>`,
+    );
+  }
+
+  return `\n\n<available-connections>\n${sections.join("\n")}\n</available-connections>`;
+}
+
+function escapeXmlAttr(s: string): string {
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/**
+ * Build a compact prompt catalog for the system prompt.
+ * Format: <available-prompts>name|description\n...</available-prompts>
+ */
+async function buildPromptCatalog(client: {
+  listPrompts(): Promise<{
+    prompts: Array<{ name: string; description?: string }>;
+  }>;
+}): Promise<string | null> {
+  const { prompts } = await client.listPrompts();
+  if (prompts.length === 0) return null;
+
+  const lines = prompts.map((p) => `${p.name}|${p.description ?? ""}`);
+
+  return `\n\n<available-prompts>\n${lines.join("\n")}\n</available-prompts>`;
 }
 
 /**

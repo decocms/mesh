@@ -32,8 +32,7 @@ const ThreadListOutputSchema =
 
 export const COLLECTION_THREADS_LIST = defineTool({
   name: "COLLECTION_THREADS_LIST",
-  description:
-    "List all threads in the organization with filtering, sorting, and pagination",
+  description: "List threads with filtering, sorting, and pagination.",
   annotations: {
     title: "List Threads",
     readOnlyHint: true,

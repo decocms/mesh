@@ -5,10 +5,7 @@
  * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
  */
 
-import type {
-  CollectionListInput,
-  CollectionListOutput,
-} from "@decocms/bindings/collections";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
 import type { CollectionEntity } from "@decocms/mesh-sdk";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import {
@@ -73,7 +70,7 @@ function useTasks(ownerFilter: TaskOwnerFilter, userId: string | undefined) {
         if (ownerFilter === "me" && !userId) {
           return { items: [], hasMore: false, totalCount: 0 };
         }
-        const baseInput: CollectionListInput = {
+        const baseInput = {
           limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
           offset: pageParam,
         };

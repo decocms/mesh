@@ -16,7 +16,6 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as ApiKeyTools from "./apiKeys";
-import * as CodeExecutionTools from "./code-execution";
 import * as ConnectionTools from "./connection";
 import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
@@ -31,6 +30,7 @@ import * as ThreadTools from "./thread";
 import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
+import { getPrompts, getResources } from "./guides";
 import { ToolName } from "./registry";
 // Core tools - always available
 const CORE_TOOLS = [
@@ -102,10 +102,6 @@ const CORE_TOOLS = [
   // User tools
   UserTools.USER_GET,
 
-  // Code Execution tools
-  CodeExecutionTools.CODE_EXECUTION_SEARCH_TOOLS,
-  CodeExecutionTools.CODE_EXECUTION_DESCRIBE_TOOLS,
-  CodeExecutionTools.CODE_EXECUTION_RUN_CODE,
   // Thread collection tools
   ThreadTools.COLLECTION_THREADS_CREATE,
   ThreadTools.COLLECTION_THREADS_LIST,
@@ -211,8 +207,8 @@ export const managementMCP = async (ctx: MeshContext) => {
 
   // Create MCP server directly
   const server = new McpServer(
-    { name: "mcp-mesh-management", version: "1.0.0" },
-    { capabilities: { tools: {} } },
+    { name: "mcp-cms-management", version: "1.0.0" },
+    { capabilities: { tools: {}, prompts: {}, resources: {} } },
   );
 
   // Register each tool with the server
@@ -257,6 +253,44 @@ export const managementMCP = async (ctx: MeshContext) => {
             isError: true,
           };
         }
+      },
+    );
+  }
+
+  // Register action prompts
+  const prompts = getPrompts();
+  for (const prompt of prompts) {
+    server.prompt(prompt.name, prompt.description, () => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: { type: "text" as const, text: prompt.text },
+        },
+      ],
+    }));
+  }
+
+  // Register reference resources
+  const resources = getResources();
+  for (const resource of resources) {
+    server.resource(
+      resource.name,
+      resource.uri,
+      {
+        description: resource.description,
+        mimeType: resource.mimeType ?? "text/markdown",
+      },
+      async (uri) => {
+        const resourceUri = typeof uri === "string" ? uri : uri.href;
+        return {
+          contents: [
+            {
+              uri: resourceUri,
+              mimeType: resource.mimeType ?? "text/markdown",
+              text: resource.text,
+            },
+          ],
+        };
       },
     );
   }
