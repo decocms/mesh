@@ -810,7 +810,7 @@ async function buildToolCatalog(
 
 /**
  * Build a compact prompt catalog for the system prompt.
- * Format: <available_prompts>name|description\n...</available_prompts>
+ * Format: <available-prompts>name|description\n...</available-prompts>
  */
 async function buildPromptCatalog(client: {
   listPrompts(): Promise<{
@@ -822,7 +822,7 @@ async function buildPromptCatalog(client: {
 
   const lines = prompts.map((p) => `${p.name}|${p.description ?? ""}`);
 
-  return `\n\n<available_prompts>\n${lines.join("\n")}\n</available_prompts>`;
+  return `\n\n<available-prompts>\n${lines.join("\n")}\n</available-prompts>`;
 }
 
 /**

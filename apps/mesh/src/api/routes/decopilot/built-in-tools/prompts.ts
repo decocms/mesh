@@ -54,7 +54,7 @@ export function createReadPromptTool(params: PromptToolParams) {
   const { passthroughClient, toolOutputMap } = params;
   return tool({
     description:
-      "Read a prompt by name from <available_prompts>. " +
+      "Read a prompt by name from <available-prompts>. " +
       "Returns the prompt messages with action-oriented guide content. " +
       "Use this to load step-by-step instructions for common tasks.",
     inputSchema: zodSchema(
@@ -62,7 +62,7 @@ export function createReadPromptTool(params: PromptToolParams) {
         name: z
           .string()
           .min(1)
-          .describe("The name of the prompt from <available_prompts>."),
+          .describe("The name of the prompt from <available-prompts>."),
         arguments: z
           .record(z.string(), z.string())
           .optional()
