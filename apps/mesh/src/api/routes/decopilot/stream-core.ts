@@ -136,12 +136,14 @@ export async function streamCore(
       const now = Date.now();
       const messagesToSave = [
         ...new Map(messages.filter(Boolean).map((m) => [m!.id, m!])).values(),
-      ].map((message, i) => ({
-        ...message,
-        thread_id: mem.thread.id,
-        created_at: new Date(now + i).toISOString(),
-        updated_at: new Date(now + i).toISOString(),
-      }));
+      ]
+        .filter((m) => m.parts && m.parts.length > 0)
+        .map((message, i) => ({
+          ...message,
+          thread_id: mem.thread.id,
+          created_at: new Date(now + i).toISOString(),
+          updated_at: new Date(now + i).toISOString(),
+        }));
       if (messagesToSave.length === 0) return;
       await mem.save(messagesToSave as ThreadMessage[]).catch((error) => {
         console.error("[decopilot:stream] Error saving messages", error);
