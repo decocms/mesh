@@ -42,11 +42,17 @@ export function useInvalidateCollectionsOnToolCall() {
       return;
     }
 
-    // Invalidate all queries for this collection using the base prefix
-    // This will invalidate both list and item queries
-    queryClient.invalidateQueries({
-      queryKey: KEYS.collection(org.slug, connectionId, collectionName),
-    });
+    // Only invalidate if there are actually cached queries for this collection.
+    // This avoids false positives from non-collection CRUD tools (e.g. PROJECT_CREATE)
+    // that happen to match the <NAME>_(CREATE|UPDATE|DELETE) pattern.
+    const queryKey = KEYS.collection(org.slug, connectionId, collectionName);
+    const matchingQueries = queryClient.getQueriesData({ queryKey });
+
+    if (matchingQueries.length === 0) {
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey });
 
     // Notify user that collection was updated
     const formattedCollectionName = collectionName

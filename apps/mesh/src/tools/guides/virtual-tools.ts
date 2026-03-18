@@ -71,7 +71,7 @@ Do not use them when a single existing tool already solves the task.
 
 ## Sandbox contract
 
-Virtual tools run as JavaScript in a sandbox with access to the agent's enabled tools.
+Virtual tools run as JavaScript in a sandbox with access to the downstream connection tools (not the full agent toolset).
 
 \`\`\`javascript
 export default async function (tools, args) {

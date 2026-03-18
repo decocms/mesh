@@ -58,6 +58,7 @@ Always available, never need enabling:
 - agent_search — discover specialized agents before delegating with subtask.
 - read_tool_output — grep large tool outputs that were truncated. Provide a regexp pattern.
 - sandbox — run JavaScript code with access to all agent tools.
+- list_resources — list available resources from connected servers. Use to discover resource URIs before reading.
 - read_resource — read a resource by URI (used when a prompt references a docs:// resource).
 - read_prompt — load an action prompt by name from <available_prompts>.
 </built-in-tools>

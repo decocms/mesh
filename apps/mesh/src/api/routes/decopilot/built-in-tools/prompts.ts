@@ -13,9 +13,16 @@ import {
  * to avoid dumping base64 into the model context.
  */
 function normalizePromptContent(
-  content: { type: string; [key: string]: unknown } | string,
+  content:
+    | { type: string; [key: string]: unknown }
+    | { type: string; [key: string]: unknown }[]
+    | string,
 ): string {
   if (typeof content === "string") return content;
+
+  if (Array.isArray(content)) {
+    return content.map(normalizePromptContent).join("\n");
+  }
 
   if (content.type === "text" && typeof content.text === "string") {
     return content.text;

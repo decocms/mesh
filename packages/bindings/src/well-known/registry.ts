@@ -116,7 +116,7 @@ export type RegistryAppCollectionEntity = z.infer<
  * - REGISTRY_LIST: List available items with filtering and pagination
  * - REGISTRY_GET: Get a single item by ID
  */
-export const REGISTRY_APP_BINDING: ToolBinder[] = [
+export const REGISTRY_APP_BINDING = [
   {
     name: "REGISTRY_LIST",
     inputSchema: CollectionListInputSchema,
@@ -127,4 +127,4 @@ export const REGISTRY_APP_BINDING: ToolBinder[] = [
     inputSchema: CollectionGetInputSchema,
     outputSchema: createCollectionGetOutputSchema(MCPRegistryServerSchema),
   },
-];
+] as const satisfies readonly ToolBinder[];
