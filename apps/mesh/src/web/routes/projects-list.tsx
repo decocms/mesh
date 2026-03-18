@@ -7,6 +7,7 @@ import { CollectionSearch } from "@/web/components/collections/collection-search
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { CreateProjectDialog } from "@/web/components/create-project-dialog";
+import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,6 +16,23 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { FolderClosed, Plus } from "@untitledui/icons";
+
+function ImportFromDecoButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        size="sm"
+        className="h-7 px-3 rounded-lg text-sm font-medium"
+      >
+        Import from deco.cx
+      </Button>
+      <ImportFromDecoDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
 
 export default function ProjectsListPage() {
   const { org } = useProjectContext();
@@ -61,6 +79,7 @@ export default function ProjectsListPage() {
           </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
+          {__ENABLE_DECO_IMPORT__ && <ImportFromDecoButton />}
           <Button onClick={handleCreateProject} size="sm">
             <Plus size={14} />
             Create Project
