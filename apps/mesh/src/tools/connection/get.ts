@@ -36,6 +36,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
+  _meta: { ui: { visibility: ["app", "model"] } },
   inputSchema: CollectionGetInputSchema,
   outputSchema: ConnectionGetOutputSchema,
 

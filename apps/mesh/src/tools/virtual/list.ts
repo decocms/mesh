@@ -86,6 +86,7 @@ export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
+  _meta: { ui: { visibility: "app" } },
   inputSchema: ListInputSchema,
   outputSchema: ListOutputSchema,
 

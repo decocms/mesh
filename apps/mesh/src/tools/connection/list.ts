@@ -61,6 +61,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
+  _meta: { ui: { visibility: "app" } },
   inputSchema: ConnectionListInputSchema,
   outputSchema: ConnectionListOutputSchema,
 
