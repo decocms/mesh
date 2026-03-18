@@ -26,6 +26,7 @@ import { UserProjectItems, ProjectListSkeleton } from "./project-panel";
 import { useProject } from "@/web/hooks/use-project";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { useState } from "react";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -59,6 +60,8 @@ export function MeshAccountSwitcher({
   const currentOrg = organizations?.find((o) => o.slug === orgParam);
 
   const [creatingOrganization, setCreatingOrganization] = useState(false);
+  const [showOrgList, setShowOrgList] = useState(false);
+  const isMobile = useIsMobile();
 
   const isStudio = projectParam === ORG_ADMIN_PROJECT_SLUG;
 
@@ -118,7 +121,11 @@ export function MeshAccountSwitcher({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open) setShowOrgList(false);
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -218,61 +225,8 @@ export function MeshAccountSwitcher({
           className="w-64 flex flex-col gap-0.5"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          {/* Studio */}
-          <DropdownMenuItem
-            className={cn("gap-2.5", isStudio && "bg-accent")}
-            onClick={handleSelectStudio}
-          >
-            <Avatar
-              url={currentOrg?.logo ?? ""}
-              fallback={currentOrg?.name ?? ""}
-              size="sm"
-              className="size-6 rounded-md shrink-0"
-              objectFit="cover"
-            />
-            <span className="flex-1 truncate">Studio · {currentOrg?.name}</span>
-            {isStudio && (
-              <Check
-                size={14}
-                className="ml-auto text-muted-foreground shrink-0"
-              />
-            )}
-          </DropdownMenuItem>
-
-          <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider">
-            Projects
-          </p>
-
-          {currentOrg && (
-            <Suspense fallback={<ProjectListSkeleton />}>
-              <UserProjectItems
-                organizationId={currentOrg.id}
-                currentProjectSlug={projectParam}
-                orgSlug={orgParam ?? ""}
-                onSelect={handleSelectProject}
-              />
-            </Suspense>
-          )}
-
-          {handleCreateProject && (
-            <DropdownMenuItem className="gap-2.5" onClick={handleCreateProject}>
-              <Plus size={14} className="shrink-0 text-muted-foreground" />
-              <span>Create project</span>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-
-          {/* Footer actions — equal weight */}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="gap-2.5">
-              <Building02
-                size={14}
-                className="shrink-0 text-muted-foreground"
-              />
-              <span>Switch organization</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-48 flex flex-col gap-0.5">
+          {isMobile && showOrgList ? (
+            <>
               {sortedOrgs.map((org) => (
                 <DropdownMenuItem
                   key={org.id}
@@ -306,13 +260,133 @@ export function MeshAccountSwitcher({
                 <Plus size={14} className="shrink-0 text-muted-foreground" />
                 <span>Create organization</span>
               </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+            </>
+          ) : (
+            <>
+              {/* Studio */}
+              <DropdownMenuItem
+                className={cn("gap-2.5", isStudio && "bg-accent")}
+                onClick={handleSelectStudio}
+              >
+                <Avatar
+                  url={currentOrg?.logo ?? ""}
+                  fallback={currentOrg?.name ?? ""}
+                  size="sm"
+                  className="size-6 rounded-md shrink-0"
+                  objectFit="cover"
+                />
+                <span className="flex-1 truncate">
+                  Studio · {currentOrg?.name}
+                </span>
+                {isStudio && (
+                  <Check
+                    size={14}
+                    className="ml-auto text-muted-foreground shrink-0"
+                  />
+                )}
+              </DropdownMenuItem>
 
-          <DropdownMenuItem className="gap-2.5" onClick={handleSettings}>
-            <Settings01 size={14} className="shrink-0 text-muted-foreground" />
-            <span>Settings</span>
-          </DropdownMenuItem>
+              <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+                Projects
+              </p>
+
+              {currentOrg && (
+                <Suspense fallback={<ProjectListSkeleton />}>
+                  <UserProjectItems
+                    organizationId={currentOrg.id}
+                    currentProjectSlug={projectParam}
+                    orgSlug={orgParam ?? ""}
+                    onSelect={handleSelectProject}
+                  />
+                </Suspense>
+              )}
+
+              {handleCreateProject && (
+                <DropdownMenuItem
+                  className="gap-2.5"
+                  onClick={handleCreateProject}
+                >
+                  <Plus size={14} className="shrink-0 text-muted-foreground" />
+                  <span>Create project</span>
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              {/* Switch organization — flyout on desktop, inline on mobile */}
+              {isMobile ? (
+                <DropdownMenuItem
+                  className="gap-2.5"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowOrgList(true);
+                  }}
+                >
+                  <Building02
+                    size={14}
+                    className="shrink-0 text-muted-foreground"
+                  />
+                  <span>Switch organization</span>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2.5">
+                    <Building02
+                      size={14}
+                      className="shrink-0 text-muted-foreground"
+                    />
+                    <span>Switch organization</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48 flex flex-col gap-0.5">
+                    {sortedOrgs.map((org) => (
+                      <DropdownMenuItem
+                        key={org.id}
+                        className={cn(
+                          "gap-2.5",
+                          org.slug === orgParam && "bg-accent",
+                        )}
+                        onClick={() => handleSelectOrg(org.slug)}
+                      >
+                        <Avatar
+                          url={org.logo ?? ""}
+                          fallback={org.name}
+                          size="xs"
+                          className="size-5 rounded-md shrink-0"
+                          objectFit="cover"
+                        />
+                        <span className="flex-1 truncate">{org.name}</span>
+                        {org.slug === orgParam && (
+                          <Check
+                            size={14}
+                            className="ml-auto text-muted-foreground shrink-0"
+                          />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="gap-2.5"
+                      onClick={() => setCreatingOrganization(true)}
+                    >
+                      <Plus
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                      <span>Create organization</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+
+              <DropdownMenuItem className="gap-2.5" onClick={handleSettings}>
+                <Settings01
+                  size={14}
+                  className="shrink-0 text-muted-foreground"
+                />
+                <span>Settings</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

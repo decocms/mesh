@@ -276,7 +276,7 @@ export function OrganizationsHome() {
 
   if (isPending) {
     return (
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-4 md:p-8">
         <div className="@container">
           <EntityGrid.Skeleton count={8} columns={{ sm: 2, md: 3, lg: 4 }} />
         </div>
@@ -286,29 +286,29 @@ export function OrganizationsHome() {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-4 md:p-8">
         <ErrorState error={error} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
       <div className="@container">
         <Suspense fallback={null}>
           <InvitationsGrid query={deferredQuery} />
         </Suspense>
         <div>
-          <div className="flex items-center justify-between pb-2 border-b border-border/50 mb-6 px-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/50 mb-6 px-2">
             <h2 className="text-lg font-medium">My organizations</h2>
             <div className="flex items-center gap-3">
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-initial">
                 <SearchMd
                   size={14}
                   className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
-                  className="pl-8 h-8 w-52 border-none shadow-none focus-visible:ring-0"
+                  className="pl-8 h-8 w-full sm:w-52 border-none shadow-none focus-visible:ring-0"
                   placeholder="Search organizations..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -316,7 +316,7 @@ export function OrganizationsHome() {
               </div>
               <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus size={16} />
-                <span>New organization</span>
+                <span className="hidden sm:inline">New organization</span>
               </Button>
             </div>
           </div>

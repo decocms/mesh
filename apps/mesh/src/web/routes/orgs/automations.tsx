@@ -161,7 +161,7 @@ export default function AutomationsPage() {
                 <BreadcrumbPage className="flex items-center gap-2">
                   Automations
                   {automations && automations.length > 0 && (
-                    <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                    <span className="hidden sm:inline text-xs font-normal text-muted-foreground tabular-nums">
                       {automations.length} total
                     </span>
                   )}
@@ -175,13 +175,14 @@ export default function AutomationsPage() {
             size="sm"
             onClick={handleCreate}
             disabled={createMutation.isPending}
+            className="h-7 w-7 px-0 sm:w-auto sm:px-3"
           >
             {createMutation.isPending ? (
               <Loading01 size={14} className="animate-spin" />
             ) : (
               <Plus size={14} />
             )}
-            Create Automation
+            <span className="hidden sm:inline">Create Automation</span>
           </Button>
         </Page.Header.Right>
       </Page.Header>

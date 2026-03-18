@@ -29,6 +29,7 @@ import {
   Users03,
   XCircle,
 } from "@untitledui/icons";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Metadata } from "./types.ts";
@@ -68,6 +69,7 @@ function DecopilotIconButton({
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { org } = useProjectContext();
+  const isMobile = useIsMobile();
 
   const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
 
@@ -76,15 +78,15 @@ function DecopilotIconButton({
     (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
   );
 
-  // Focus search input when popover opens
+  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (open) {
+    if (open && !isMobile) {
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
     }
-  }, [open]);
+  }, [open, isMobile]);
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -146,10 +148,11 @@ function DecopilotIconButton({
         {!open && <TooltipContent side="top">Decopilot</TooltipContent>}
       </Tooltip>
       <PopoverContent
-        className="w-[550px] p-0 overflow-hidden"
+        className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
         align="start"
         side="top"
         sideOffset={8}
+        collisionPadding={16}
       >
         <VirtualMCPPopoverContent
           virtualMcps={filteredVirtualMcps}
@@ -183,18 +186,19 @@ function VirtualMCPBadge({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { org } = useProjectContext();
+  const isMobile = useIsMobile();
 
   const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
 
-  // Focus search input when popover opens
+  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (open) {
+    if (open && !isMobile) {
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
     }
-  }, [open]);
+  }, [open, isMobile]);
 
   const color = getAgentColor(virtualMcpId);
 
@@ -247,7 +251,7 @@ function VirtualMCPBadge({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[550px] p-0 overflow-hidden"
+          className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
           align="start"
           side="top"
           sideOffset={8}
@@ -496,7 +500,7 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background shadow-sm",
+                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col border border-border bg-background shadow-sm",
               )}
             >
               <div className="group/input relative flex flex-col gap-2 flex-1">
@@ -509,7 +513,7 @@ export function ChatInput({
                   selectedModel={model}
                 />
                 {/* Focus hint — hidden when editor is focused */}
-                <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden">
+                <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
                   {isMac ? "⌘" : "Ctrl+"}L to focus
                 </span>
               </div>

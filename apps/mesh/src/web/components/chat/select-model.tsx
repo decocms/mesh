@@ -8,6 +8,13 @@ import {
   DialogTrigger,
 } from "@deco/ui/components/dialog.tsx";
 import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@deco/ui/components/drawer.tsx";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -850,7 +857,7 @@ function ConnectionModelList({
   const grouped = groupByTier(filterModels(browseable));
 
   return (
-    <div className="flex-1 overflow-y-auto px-0.5 pt-1">
+    <div className="flex-1 overflow-y-auto px-0.5 pt-1 [touch-action:pan-y]">
       {TIER_IDS.map((tierId) => (
         <ModelTierSection
           key={tierId}
@@ -915,12 +922,12 @@ function SelectedModelDisplay({
         className="w-3.5 h-3.5 shrink-0 rounded-sm"
         alt={model.title}
       />
-      <span className="text-sm truncate whitespace-nowrap hidden md:inline text-muted-foreground">
+      <span className="text-sm truncate whitespace-nowrap text-muted-foreground max-w-[100px] sm:max-w-none">
         {displayName}
       </span>
       <ChevronDown
         size={14}
-        className="text-muted-foreground opacity-50 shrink-0 hidden md:inline"
+        className="text-muted-foreground opacity-50 shrink-0"
       />
     </div>
   );
@@ -941,8 +948,8 @@ export function modelSupportsFiles(
 
 function ModelSelectorContentFallback() {
   return (
-    <div className="flex flex-col md:flex-row h-[460px]">
-      <div className="flex-1 flex flex-col md:border-r md:w-[420px] md:min-w-[420px]">
+    <div className="flex flex-col md:flex-row h-full sm:h-[460px] min-h-0">
+      <div className="flex-1 flex flex-col md:border-r md:w-[420px] md:min-w-[420px] min-h-0 overflow-hidden">
         <div className="border-b border-border h-12 bg-background/95 backdrop-blur sticky top-0 z-10">
           <div className="flex items-center gap-2.5 h-12 px-4">
             <Skeleton className="size-4 shrink-0" />
@@ -1044,10 +1051,10 @@ function ModelSelectorInner({
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-[460px]">
-      <div className="flex-1 flex flex-col md:border-r md:w-[420px] md:min-w-[420px]">
+    <div className="flex flex-col md:flex-row h-full sm:h-[460px] min-h-0">
+      <div className="flex-1 flex flex-col md:border-r md:w-[420px] md:min-w-[420px] min-h-0 overflow-hidden">
         <div className="border-b border-border h-12 bg-background/95 backdrop-blur sticky top-0 z-10">
-          <label className="flex items-center gap-2.5 h-12 px-4 cursor-text">
+          <label className="flex items-center gap-2.5 h-12 px-4 pr-12 md:pr-4 cursor-text">
             <SearchMd size={16} className="text-muted-foreground shrink-0" />
             <Input
               ref={searchInputRef}
@@ -1066,7 +1073,7 @@ function ModelSelectorInner({
               >
                 <SelectTrigger
                   size="sm"
-                  className="w-auto h-8 shrink-0 gap-1 px-2 [&>svg:last-child]:hidden"
+                  className="w-auto max-w-[140px] h-8 shrink-0 gap-1.5 px-2 [&>svg:last-child]:hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <SelectValue placeholder="Key">
@@ -1075,18 +1082,25 @@ function ModelSelectorInner({
                       const provider = key
                         ? providerMap[key.providerId]
                         : undefined;
-                      return provider?.logo ? (
-                        <img
-                          src={provider.logo}
-                          alt={provider.name}
-                          className="w-4 h-4 rounded"
-                        />
-                      ) : (
-                        <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
-                          {(provider?.name ?? key?.providerId ?? "?")
-                            .slice(0, 1)
-                            .toUpperCase()}
-                        </div>
+                      return (
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {provider?.logo ? (
+                            <img
+                              src={provider.logo}
+                              alt={provider.name}
+                              className="w-4 h-4 rounded shrink-0"
+                            />
+                          ) : (
+                            <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                              {(provider?.name ?? key?.providerId ?? "?")
+                                .slice(0, 1)
+                                .toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-xs truncate">
+                            {provider?.name ?? key?.providerId ?? "Key"}
+                          </span>
+                        </span>
                       );
                     })()}
                   </SelectValue>
@@ -1225,48 +1239,69 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const standalone = onModelChange !== undefined;
+  const isMobile = useIsMobile();
+
+  const triggerButton = (
+    <Button
+      variant={variant === "borderless" ? "ghost" : "outline"}
+      size="sm"
+      className={cn(
+        "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 shrink justify-start overflow-hidden",
+        variant === "borderless" && "md:border-none",
+        className,
+      )}
+    >
+      {standalone ? (
+        <SelectedModelDisplay
+          model={modelProp ?? null}
+          placeholder={placeholder}
+          isLoading={isLoadingProp}
+        />
+      ) : (
+        <ModelSelectorTriggerContent placeholder={placeholder} />
+      )}
+    </Button>
+  );
+
+  const selectorContent = (
+    <Suspense fallback={<ModelSelectorContentFallback />}>
+      {standalone ? (
+        <ModelSelectorInner
+          onClose={() => setOpen(false)}
+          credentialId={credentialIdProp ?? null}
+          onCredentialChange={onCredentialChange ?? (() => {})}
+          selectedModel={modelProp ?? null}
+          onModelChange={onModelChange}
+        />
+      ) : (
+        <ModelSelectorContent onClose={() => setOpen(false)} />
+      )}
+    </Suspense>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
+        <DrawerContent className="p-0 flex flex-col max-h-[95vh]">
+          <DrawerTitle className="sr-only">Select model</DrawerTitle>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {selectorContent}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant={variant === "borderless" ? "ghost" : "outline"}
-          size="sm"
-          className={cn(
-            "text-sm hover:bg-accent rounded-lg py-0.5 px-1 gap-1 shadow-none cursor-pointer border-0 group focus-visible:ring-0 focus-visible:ring-offset-0 min-w-0 shrink justify-start overflow-hidden",
-            variant === "borderless" && "md:border-none",
-            className,
-          )}
-        >
-          {standalone ? (
-            <SelectedModelDisplay
-              model={modelProp ?? null}
-              placeholder={placeholder}
-              isLoading={isLoadingProp}
-            />
-          ) : (
-            <ModelSelectorTriggerContent placeholder={placeholder} />
-          )}
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{triggerButton}</DialogTrigger>
       <DialogContent
-        className="p-0 gap-0 sm:max-w-fit overflow-hidden"
+        className="p-0 gap-0 sm:max-w-fit overflow-hidden h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[85vh] w-full max-w-full sm:max-w-fit rounded-none sm:rounded-xl border-0 sm:border"
         closeButtonClassName="top-3.5 right-3.5 z-20"
       >
         <DialogTitle className="sr-only">Select model</DialogTitle>
-        <Suspense fallback={<ModelSelectorContentFallback />}>
-          {standalone ? (
-            <ModelSelectorInner
-              onClose={() => setOpen(false)}
-              credentialId={credentialIdProp ?? null}
-              onCredentialChange={onCredentialChange ?? (() => {})}
-              selectedModel={modelProp ?? null}
-              onModelChange={onModelChange}
-            />
-          ) : (
-            <ModelSelectorContent onClose={() => setOpen(false)} />
-          )}
-        </Suspense>
+        {selectorContent}
       </DialogContent>
     </Dialog>
   );

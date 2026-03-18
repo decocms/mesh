@@ -47,6 +47,16 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@deco/ui/components/drawer.tsx";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -787,6 +797,7 @@ function OrgMcpsContent() {
   };
   const { data: session } = authClient.useSession();
   const { stdioEnabled } = useAuthConfig();
+  const isMobile = useIsMobile();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<ConnectionEntity>({
@@ -1621,9 +1632,10 @@ function OrgMcpsContent() {
         variant="outline"
         onClick={openCreateDialog}
         size="sm"
-        className="h-7 px-3 rounded-lg text-sm font-medium"
+        className="h-7 w-7 px-0 sm:w-auto sm:px-3 rounded-lg text-sm font-medium"
       >
-        Custom Connection
+        <Plus size={14} className="sm:hidden" />
+        <span className="hidden sm:inline">Custom Connection</span>
       </Button>
     </div>
   );
@@ -1631,345 +1643,386 @@ function OrgMcpsContent() {
   return (
     <>
       <Page>
-        <Dialog
-          open={isCreating || dialogState.mode === "editing"}
-          onOpenChange={handleDialogClose}
-        >
-          <DialogContent className="sm:max-w-[525px]">
-            <DialogHeader>
-              <DialogTitle>
-                {editingConnection ? "Edit Connection" : "Create Connection"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingConnection
-                  ? "Update the connection details below."
-                  : "Create a custom connection in your organization. Fill in the details below."}
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)}>
-                <div className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="ui_type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Type *</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="HTTP">
-                              <span className="flex items-center gap-2">
-                                <Globe02 className="w-4 h-4" />
-                                HTTP
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="SSE">
-                              <span className="flex items-center gap-2">
-                                <Globe02 className="w-4 h-4" />
-                                SSE
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="Websocket">
-                              <span className="flex items-center gap-2">
-                                <Globe02 className="w-4 h-4" />
-                                Websocket
-                              </span>
-                            </SelectItem>
-                            {stdioEnabled && (
-                              <>
-                                <SelectItem value="NPX">
-                                  <span className="flex items-center gap-2">
-                                    <Container className="w-4 h-4" />
-                                    NPX Package
-                                  </span>
-                                </SelectItem>
-                                <SelectItem value="STDIO">
-                                  <span className="flex items-center gap-2">
-                                    <Terminal className="w-4 h-4" />
-                                    Custom Command
-                                  </span>
-                                </SelectItem>
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        {(() => {
+          const dialogTitle = editingConnection
+            ? "Edit Connection"
+            : "Create Connection";
+          const dialogDescription = editingConnection
+            ? "Update the connection details below."
+            : "Create a custom connection in your organization. Fill in the details below.";
+          const submitLabel = form.formState.isSubmitting
+            ? "Saving..."
+            : editingConnection
+              ? "Update Connection"
+              : "Create Connection";
 
-                  {/* NPX-specific fields */}
-                  {uiType === "NPX" && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="npx_package"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>NPM Package *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="@perplexity-ai/mcp-server"
-                                {...field}
-                                value={field.value ?? ""}
-                                onPaste={(e) => {
-                                  const pasted =
-                                    e.clipboardData.getData("text");
-                                  if (!pasted) return;
-                                  e.preventDefault();
-                                  form.setValue("npx_package", pasted.trim(), {
-                                    shouldDirty: true,
-                                  });
-                                  applyInferenceFromInput(pasted);
-                                }}
-                                onBlur={(e) => {
-                                  applyInferenceFromInput(e.target.value);
-                                  field.onBlur();
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
+          const formFields = (
+            <div className="grid gap-4">
+              <FormField
+                control={form.control}
+                name="ui_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="HTTP">
+                          <span className="flex items-center gap-2">
+                            <Globe02 className="w-4 h-4" />
+                            HTTP
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="SSE">
+                          <span className="flex items-center gap-2">
+                            <Globe02 className="w-4 h-4" />
+                            SSE
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="Websocket">
+                          <span className="flex items-center gap-2">
+                            <Globe02 className="w-4 h-4" />
+                            Websocket
+                          </span>
+                        </SelectItem>
+                        {stdioEnabled && (
+                          <>
+                            <SelectItem value="NPX">
+                              <span className="flex items-center gap-2">
+                                <Container className="w-4 h-4" />
+                                NPX Package
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="STDIO">
+                              <span className="flex items-center gap-2">
+                                <Terminal className="w-4 h-4" />
+                                Custom Command
+                              </span>
+                            </SelectItem>
+                          </>
                         )}
-                      />
-                    </>
-                  )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                  {/* STDIO/Custom Command fields */}
-                  {uiType === "STDIO" && (
-                    <>
-                      <div className="grid grid-cols-2 gap-4 items-start">
-                        <FormField
-                          control={form.control}
-                          name="stdio_command"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Command *</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="node, bun, python..."
-                                  {...field}
-                                  value={field.value ?? ""}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
+              {/* NPX-specific fields */}
+              {uiType === "NPX" && (
+                <FormField
+                  control={form.control}
+                  name="npx_package"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>NPM Package *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="@perplexity-ai/mcp-server"
+                          {...field}
+                          value={field.value ?? ""}
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData.getData("text");
+                            if (!pasted) return;
+                            e.preventDefault();
+                            form.setValue("npx_package", pasted.trim(), {
+                              shouldDirty: true,
+                            });
+                            applyInferenceFromInput(pasted);
+                          }}
+                          onBlur={(e) => {
+                            applyInferenceFromInput(e.target.value);
+                            field.onBlur();
+                          }}
                         />
-
-                        <FormField
-                          control={form.control}
-                          name="stdio_args"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Arguments</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="arg1 arg2 --flag value"
-                                  {...field}
-                                  value={field.value ?? ""}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <FormField
-                        control={form.control}
-                        name="stdio_cwd"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Working Directory</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="/path/to/project (optional)"
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            <p className="text-xs text-muted-foreground">
-                              Directory where the command will be executed
-                            </p>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
+                />
+              )}
 
-                  {/* Shared: Environment Variables for NPX and STDIO */}
-                  {(uiType === "NPX" || uiType === "STDIO") && (
+              {/* STDIO/Custom Command fields */}
+              {uiType === "STDIO" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4 items-start">
                     <FormField
                       control={form.control}
-                      name="env_vars"
+                      name="stdio_command"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Environment Variables</FormLabel>
+                          <FormLabel>Command *</FormLabel>
                           <FormControl>
-                            <EnvVarsEditor
-                              value={field.value ?? []}
-                              onChange={field.onChange}
+                            <Input
+                              placeholder="node, bun, python..."
+                              {...field}
+                              value={field.value ?? ""}
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
 
-                  {/* HTTP/SSE/Websocket fields */}
-                  {uiType !== "NPX" && uiType !== "STDIO" && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="connection_url"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>URL *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="https://example.com/mcp"
-                                {...field}
-                                value={field.value ?? ""}
-                                onPaste={(e) => {
-                                  const pasted =
-                                    e.clipboardData.getData("text");
-                                  if (!pasted) return;
-                                  e.preventDefault();
-                                  form.setValue(
-                                    "connection_url",
-                                    pasted.trim(),
-                                    {
-                                      shouldDirty: true,
-                                    },
-                                  );
-                                  applyInferenceFromInput(pasted);
-                                }}
-                                onBlur={(e) => {
-                                  applyInferenceFromInput(e.target.value);
-                                  field.onBlur();
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <FormField
+                      control={form.control}
+                      name="stdio_args"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Arguments</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="arg1 arg2 --flag value"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                      <FormField
-                        control={form.control}
-                        name="connection_token"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              {providerHint?.token?.label ?? "Token (optional)"}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder={
-                                  providerHint?.token?.placeholder ??
-                                  "Bearer token or API key"
-                                }
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            {providerHint?.token?.helperText && (
-                              <p className="text-xs text-muted-foreground">
-                                {providerHint.token.helperText}
-                                {providerHint.id === "github" && (
-                                  <>
-                                    {" "}
-                                    ·{" "}
-                                    <a
-                                      className="text-foreground underline underline-offset-4 hover:text-foreground/80"
-                                      href="https://github.com/settings/personal-access-tokens"
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      Open GitHub PAT settings
-                                    </a>
-                                  </>
-                                )}
-                              </p>
-                            )}
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
-
-                  {/* Name/description come after connection mode/inputs so we can infer them */}
                   <FormField
                     control={form.control}
-                    name="title"
+                    name="stdio_cwd"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name *</FormLabel>
+                        <FormLabel>Working Directory</FormLabel>
                         <FormControl>
-                          <Input placeholder="My Connection" {...field} />
+                          <Input
+                            placeholder="/path/to/project (optional)"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
                         </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Directory where the command will be executed
+                        </p>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                </>
+              )}
 
+              {/* Shared: Environment Variables for NPX and STDIO */}
+              {(uiType === "NPX" || uiType === "STDIO") && (
+                <FormField
+                  control={form.control}
+                  name="env_vars"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Environment Variables</FormLabel>
+                      <FormControl>
+                        <EnvVarsEditor
+                          value={field.value ?? []}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* HTTP/SSE/Websocket fields */}
+              {uiType !== "NPX" && uiType !== "STDIO" && (
+                <>
                   <FormField
                     control={form.control}
-                    name="description"
+                    name="connection_url"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>URL *</FormLabel>
                         <FormControl>
-                          <Textarea
-                            placeholder="A brief description of this connection"
-                            rows={3}
+                          <Input
+                            placeholder="https://example.com/mcp"
                             {...field}
                             value={field.value ?? ""}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData.getData("text");
+                              if (!pasted) return;
+                              e.preventDefault();
+                              form.setValue("connection_url", pasted.trim(), {
+                                shouldDirty: true,
+                              });
+                              applyInferenceFromInput(pasted);
+                            }}
+                            onBlur={(e) => {
+                              applyInferenceFromInput(e.target.value);
+                              field.onBlur();
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
 
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleDialogClose(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={form.formState.isSubmitting}
-                    className="min-w-40"
-                  >
-                    {form.formState.isSubmitting
-                      ? "Saving..."
-                      : editingConnection
-                        ? "Update Connection"
-                        : "Create Connection"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  <FormField
+                    control={form.control}
+                    name="connection_token"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {providerHint?.token?.label ?? "Token (optional)"}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder={
+                              providerHint?.token?.placeholder ??
+                              "Bearer token or API key"
+                            }
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        {providerHint?.token?.helperText && (
+                          <p className="text-xs text-muted-foreground">
+                            {providerHint.token.helperText}
+                            {providerHint.id === "github" && (
+                              <>
+                                {" "}
+                                ·{" "}
+                                <a
+                                  className="text-foreground underline underline-offset-4 hover:text-foreground/80"
+                                  href="https://github.com/settings/personal-access-tokens"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open GitHub PAT settings
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {/* Name/description come after connection mode/inputs so we can infer them */}
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="My Connection" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="A brief description of this connection"
+                        rows={3}
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          );
+
+          const isOpen = isCreating || dialogState.mode === "editing";
+
+          if (isMobile) {
+            return (
+              <Drawer open={isOpen} onOpenChange={handleDialogClose}>
+                <DrawerContent className="max-h-[90vh]">
+                  <DrawerHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 text-left">
+                        <DrawerTitle>{dialogTitle}</DrawerTitle>
+                        <DrawerDescription className="mt-1">
+                          {dialogDescription}
+                        </DrawerDescription>
+                      </div>
+                      <DrawerClose asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 -mt-1"
+                        >
+                          <XClose size={16} />
+                        </Button>
+                      </DrawerClose>
+                    </div>
+                  </DrawerHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)}>
+                      <div className="overflow-y-auto px-4 pb-4">
+                        {formFields}
+                      </div>
+                      <DrawerFooter>
+                        <Button
+                          type="submit"
+                          disabled={form.formState.isSubmitting}
+                          className="w-full"
+                        >
+                          {submitLabel}
+                        </Button>
+                      </DrawerFooter>
+                    </form>
+                  </Form>
+                </DrawerContent>
+              </Drawer>
+            );
+          }
+
+          return (
+            <Dialog open={isOpen} onOpenChange={handleDialogClose}>
+              <DialogContent className="sm:max-w-[525px]">
+                <DialogHeader>
+                  <DialogTitle>{dialogTitle}</DialogTitle>
+                  <DialogDescription>{dialogDescription}</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)}>
+                    <div className="py-4">{formFields}</div>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleDialogClose(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={form.formState.isSubmitting}
+                        className="min-w-40"
+                      >
+                        {submitLabel}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog

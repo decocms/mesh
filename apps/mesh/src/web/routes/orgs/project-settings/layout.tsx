@@ -1,5 +1,10 @@
-import { Outlet, useParams, Link } from "@tanstack/react-router";
-import { Suspense } from "react";
+import {
+  Outlet,
+  useParams,
+  Link,
+  useRouterState,
+} from "@tanstack/react-router";
+import { Suspense, useState } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { useProject } from "@/web/hooks/use-project";
 import {
@@ -16,7 +21,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
-import { ProjectSettingsSidebar } from "./settings-sidebar";
+import { ArrowLeft } from "@untitledui/icons";
+import { ProjectSettingsSidebar, SETTINGS_ITEMS } from "./settings-sidebar";
 
 function ContentSkeleton() {
   return (
@@ -38,8 +44,16 @@ function ProjectSettingsContent() {
   };
   const { org } = useProjectContext();
   const slug = params.project;
+  const { location } = useRouterState();
+  const [mobileShowContent, setMobileShowContent] = useState(true);
 
   const { data: project, isLoading } = useProject(org.id, slug);
+
+  // Find the active settings page label for the mobile header
+  const activeItem = SETTINGS_ITEMS.find((item) =>
+    location.pathname.endsWith(`/settings/${item.key}`),
+  );
+  const activeLabel = activeItem?.label ?? "Settings";
 
   if (isLoading || !project) {
     return (
@@ -129,11 +143,37 @@ function ProjectSettingsContent() {
           </Page.Header.Left>
         </Page.Header>
         <Page.Content className="flex">
-          <ProjectSettingsSidebar />
-          <div className="flex-1 overflow-y-auto p-8">
-            <Suspense fallback={<ContentSkeleton />}>
-              <Outlet />
-            </Suspense>
+          {/* Sidebar - always visible on desktop, toggleable on mobile */}
+          <div
+            className={`${mobileShowContent ? "hidden" : "flex"} sm:flex flex-col w-full sm:w-auto`}
+          >
+            <ProjectSettingsSidebar
+              onNavigate={() => setMobileShowContent(true)}
+            />
+          </div>
+
+          {/* Content - always visible on desktop, toggleable on mobile */}
+          <div
+            className={`${mobileShowContent ? "flex" : "hidden"} sm:flex flex-1 min-w-0 flex-col overflow-hidden`}
+          >
+            {/* Mobile back header */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border sm:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileShowContent(false)}
+                className="rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <ArrowLeft size={16} />
+                <span className="sr-only">Back</span>
+              </button>
+              <span className="text-sm font-semibold">{activeLabel}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8">
+              <Suspense fallback={<ContentSkeleton />}>
+                <Outlet />
+              </Suspense>
+            </div>
           </div>
         </Page.Content>
       </Page>

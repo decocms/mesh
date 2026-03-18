@@ -68,7 +68,7 @@ export function SettingsSidebar({
   ];
 
   return (
-    <div className="w-52 shrink-0 border-r border-border bg-sidebar/50 overflow-y-auto py-3 flex flex-col gap-4">
+    <div className="w-full sm:w-52 shrink-0 sm:border-r border-border bg-sidebar/50 overflow-y-auto py-3 flex flex-col gap-4 flex-1">
       {/* Account */}
       <div className="flex flex-col gap-0.5 px-2">
         <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground/60">

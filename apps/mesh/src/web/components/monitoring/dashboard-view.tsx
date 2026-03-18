@@ -451,7 +451,7 @@ function DashboardViewContent({
 
         {/* Widgets Bento Grid — row height matches 1-col width for square metrics */}
         <div
-          className="grid grid-cols-5 gap-4"
+          className="grid grid-cols-2 lg:grid-cols-5 gap-4"
           ref={(el) => {
             if (!el) return;
             const update = () => {

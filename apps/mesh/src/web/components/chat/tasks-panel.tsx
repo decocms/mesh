@@ -344,7 +344,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
                               <button
                                 type="button"
                                 onClick={(e) => startEditing(task, e)}
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded transition-opacity"
+                                className="sm:opacity-0 sm:group-hover:opacity-100 p-1 hover:bg-accent rounded transition-opacity"
                                 title="Rename task"
                               >
                                 <Edit01
@@ -383,7 +383,11 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 
 // --- Home page panel wrapper ---
 
-function TasksPanelContent() {
+function TasksPanelContent({
+  onTaskSelect,
+}: {
+  onTaskSelect?: (taskId: string) => void;
+}) {
   const { createTask, isChatEmpty } = useChat();
 
   return (
@@ -402,7 +406,7 @@ function TasksPanelContent() {
         </button>
       </div>
 
-      <TaskListContent />
+      <TaskListContent onTaskSelect={onTaskSelect} />
     </div>
   );
 }
@@ -418,7 +422,13 @@ function TasksPanelSkeleton() {
   );
 }
 
-export function TasksPanel({ className }: { className?: string }) {
+export function TasksPanel({
+  className,
+  onTaskSelect,
+}: {
+  className?: string;
+  onTaskSelect?: (taskId: string) => void;
+}) {
   return (
     <div className={cn("h-full", className)}>
       <ErrorBoundary
@@ -434,7 +444,7 @@ export function TasksPanel({ className }: { className?: string }) {
         )}
       >
         <Suspense fallback={<TasksPanelSkeleton />}>
-          <TasksPanelContent />
+          <TasksPanelContent onTaskSelect={onTaskSelect} />
         </Suspense>
       </ErrorBoundary>
     </div>

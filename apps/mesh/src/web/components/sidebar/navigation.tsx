@@ -7,6 +7,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -27,10 +28,17 @@ interface NavigationSidebarProps {
 }
 
 function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleClick = () => {
+    item.onClick?.();
+    if (isMobile) setOpenMobile(false);
+  };
+
   return (
     <SidebarMenuItem key={item.key}>
       <SidebarMenuButton
-        onClick={item.onClick}
+        onClick={handleClick}
         isActive={item.isActive}
         tooltip={item.label}
         className={cn(item.isExternal && "group/external")}
