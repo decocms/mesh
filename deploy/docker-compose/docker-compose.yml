@@ -1,8 +1,8 @@
 services:
-  mesh:
-    image: ${IMAGE_REPOSITORY:-ghcr.io/decocms/mesh/mesh}:${IMAGE_TAG:-latest}
+  studio:
+    image: ${IMAGE_REPOSITORY:-ghcr.io/decocms/studio/studio}:${IMAGE_TAG:-latest}
     platform: linux/amd64
-    container_name: deco-mcp-mesh
+    container_name: decocms
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
@@ -20,10 +20,10 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       
       # Database URL
-      - DATABASE_URL=${DATABASE_URL:-file:///app/data/mesh.pglite}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/postgres}
     volumes:
-      # Persistent volume for data (PGlite or other files)
-      - mesh-data:/app/data
+      # Persistent volume for data (embedded PostgreSQL or other files)
+      - studio-data:/app/data
       
       # Auth config - mounts the JSON authentication configuration file
       # The file is mounted at /app/apps/mesh/auth-config.json
@@ -41,5 +41,5 @@ services:
     user: "1001:1001"
 
 volumes:
-  mesh-data:
+  studio-data:
     driver: local

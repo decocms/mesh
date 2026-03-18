@@ -51,6 +51,10 @@ const envSchema = z
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).optional().default("true"),
 
+    // AI Gateway
+    DECO_AI_GATEWAY_ENABLED: zBooleanString,
+    DECO_AI_GATEWAY_URL: z.string().default("https://ai-site.decocache.com"),
+
     // Debug / K8s
     DEBUG_PORT: z.coerce.number().default(9090),
     ENABLE_DEBUG_SERVER: zBooleanString,
@@ -179,6 +183,10 @@ function logConfiguration(e: Env) {
   r("S3_ACCESS_KEY_ID", e.S3_ACCESS_KEY_ID);
   r("S3_SECRET_ACCESS_KEY", e.S3_SECRET_ACCESS_KEY);
   r("S3_FORCE_PATH_STYLE", e.S3_FORCE_PATH_STYLE);
+
+  sect("AI Gateway");
+  r("DECO_AI_GATEWAY_ENABLED", e.DECO_AI_GATEWAY_ENABLED);
+  r("DECO_AI_GATEWAY_URL", e.DECO_AI_GATEWAY_URL);
 
   sect("Debug / K8s");
   r("DEBUG_PORT", e.DEBUG_PORT);

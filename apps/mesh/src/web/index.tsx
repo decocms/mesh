@@ -210,7 +210,7 @@ const tasksRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
 });
 
-// Project settings redirect
+// Project settings — layout for /$org/$project/settings/*
 const projectSettingsRoute = createRoute({
   getParentRoute: () => projectLayout,
   path: "/settings",
@@ -223,17 +223,62 @@ const projectSettingsRoute = createRoute({
         search: { settings: "org.general" },
       });
     }
-    // Regular projects: redirect to org-admin project settings page
+  },
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/layout.tsx"),
+  ),
+});
+
+const projectSettingsDirectIndexRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/",
+  beforeLoad: ({ params }) => {
     throw redirect({
-      to: "/$org/$project/projects/$slug/settings/general",
-      params: {
-        org: params.org,
-        project: ORG_ADMIN_PROJECT_SLUG,
-        slug: params.project,
-      },
+      to: "/$org/$project/settings/general",
+      params: { org: params.org, project: params.project },
     });
   },
   component: () => null,
+});
+
+const projectSettingsDirectGeneralRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/general",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/general.tsx"),
+  ),
+});
+
+const projectSettingsDirectDependenciesRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/dependencies",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/dependencies.tsx"),
+  ),
+});
+
+const projectSettingsDirectSidebarRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/sidebar",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/sidebar-settings.tsx"),
+  ),
+});
+
+const projectSettingsDirectPluginsRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/plugins",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/plugins.tsx"),
+  ),
+});
+
+const projectSettingsDirectDangerRoute = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/danger",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/danger.tsx"),
+  ),
 });
 
 // ============================================
@@ -260,68 +305,6 @@ const projectsListRoute = createRoute({
   path: "/projects",
   beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(() => import("./routes/projects-list.tsx")),
-});
-
-// Project settings (org-admin only - dedicated page)
-const projectSettingsLayout = createRoute({
-  getParentRoute: () => projectLayout,
-  path: "/projects/$slug/settings",
-  beforeLoad: orgAdminGuard,
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/layout.tsx"),
-  ),
-});
-
-const projectSettingsIndexRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/$project/projects/$slug/settings/general",
-      params,
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsGeneralRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/general",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/general.tsx"),
-  ),
-});
-
-const projectSettingsDependenciesRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/dependencies",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/dependencies.tsx"),
-  ),
-});
-
-const projectSettingsSidebarRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/sidebar",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/sidebar-settings.tsx"),
-  ),
-});
-
-const projectSettingsPluginsRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/plugins",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/plugins.tsx"),
-  ),
-});
-
-const projectSettingsDangerRoute = createRoute({
-  getParentRoute: () => projectSettingsLayout,
-  path: "/danger",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/danger.tsx"),
-  ),
 });
 
 // Members
@@ -563,21 +546,20 @@ const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
 const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
 
-const projectSettingsWithChildren = projectSettingsLayout.addChildren([
-  projectSettingsIndexRoute,
-  projectSettingsGeneralRoute,
-  projectSettingsDependenciesRoute,
-  projectSettingsSidebarRoute,
-  projectSettingsPluginsRoute,
-  projectSettingsDangerRoute,
+const projectSettingsDirectWithChildren = projectSettingsRoute.addChildren([
+  projectSettingsDirectIndexRoute,
+  projectSettingsDirectGeneralRoute,
+  projectSettingsDirectDependenciesRoute,
+  projectSettingsDirectSidebarRoute,
+  projectSettingsDirectPluginsRoute,
+  projectSettingsDirectDangerRoute,
 ]);
 
 const projectRoutes = [
   projectHomeRoute,
   tasksRoute,
-  projectSettingsRoute,
+  projectSettingsDirectWithChildren,
   projectsListRoute,
-  projectSettingsWithChildren,
   membersRoute,
   connectionsRoute,
   connectionDetailRoute,
