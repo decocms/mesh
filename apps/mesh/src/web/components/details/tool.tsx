@@ -22,7 +22,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { Link, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -51,6 +51,7 @@ import {
   OAuthAuthenticationState,
   ManualAuthRequiredState,
 } from "./connection/settings-tab";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   ORG_ADMIN_PROJECT_SLUG,
@@ -58,6 +59,7 @@ import {
   useMCPClient,
   useMCPToolsListQuery,
   useProjectContext,
+  type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -68,6 +70,7 @@ import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
 export interface ToolDetailsViewProps {
   itemId: string;
+  siblings: ConnectionEntity[];
   onBack: () => void;
   onUpdate: (updates: Record<string, unknown>) => Promise<void>;
 }
@@ -352,11 +355,11 @@ function ToolDetailsAuthenticated({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/$project/mcps/$connectionId"
+                  to="/$org/$project/mcps/$appSlug"
                   params={{
                     org: org.slug,
                     project: ORG_ADMIN_PROJECT_SLUG,
-                    connectionId,
+                    appSlug: getConnectionSlug(connection),
                   }}
                   search={{ tab: "tools" }}
                 >
@@ -729,12 +732,19 @@ function ToolDetailsAuthenticated({
 
 export function ToolDetailsView({
   itemId: toolName,
+  siblings,
   onBack,
 }: ToolDetailsViewProps) {
-  const params = useParams({ strict: false });
-  const connectionId = params.connectionId;
+  const [selectedConnectionId, setSelectedConnectionId] = useState(
+    siblings[0]?.id ?? "",
+  );
 
-  const connection = useConnection(connectionId);
+  const connectionId =
+    siblings.find((s) => s.id === selectedConnectionId)?.id ??
+    siblings[0]?.id ??
+    "";
+
+  const connection = useConnection(connectionId || undefined);
 
   if (!connection || !connectionId) {
     return (
@@ -757,6 +767,25 @@ export function ToolDetailsView({
         </div>
       }
     >
+      {siblings.length > 1 && (
+        <div className="flex items-center gap-2 px-6 py-3 border-b border-border bg-muted/30">
+          <span className="text-xs font-medium text-muted-foreground">
+            Instance
+          </span>
+          <Select value={connectionId} onValueChange={setSelectedConnectionId}>
+            <SelectTrigger className="h-8 w-auto min-w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {siblings.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <ToolDetailsContent
         toolName={toolName}
         connectionId={connectionId}

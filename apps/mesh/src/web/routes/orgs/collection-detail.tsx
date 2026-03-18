@@ -51,6 +51,13 @@ function ToolDetailsContent() {
 
   const itemId = decodeURIComponent(params.itemId);
 
+  const allConnections = useConnections();
+  const siblings = allConnections.filter(
+    (c) =>
+      c.connection_type !== "VIRTUAL" &&
+      getConnectionSlug(c) === params.appSlug,
+  );
+
   const handleBack = () => {
     router.history.back();
   };
@@ -64,6 +71,7 @@ function ToolDetailsContent() {
   return (
     <ToolDetailsView
       itemId={itemId}
+      siblings={siblings}
       onBack={handleBack}
       onUpdate={handleUpdate}
     />
