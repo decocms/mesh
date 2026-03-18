@@ -675,21 +675,12 @@ function ConnectionInspectorViewWithConnection({
                 : first.title;
             })()}
           />
-          <div className="flex-1 overflow-auto">
-            <div className="flex gap-6 p-6">
-              {/* Left column */}
-              <div className="flex-1 min-w-0 flex flex-col gap-5">
-                <ConnectionActivity connectionId={connectionId} />
-                <ConnectionCapabilities
-                  tools={tools}
-                  prompts={prompts}
-                  resources={resources}
-                  connectionId={connectionId}
-                  org={org}
-                />
-              </div>
-              {/* Right column */}
-              <div className="w-96 shrink-0 flex flex-col gap-5">
+          <div className="flex-1 overflow-auto @container">
+            <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5 p-6">
+              {/* Activity - col 1 */}
+              <ConnectionActivity connectionId={connectionId} />
+              {/* Instances + Agents - col 2 */}
+              <div className="flex flex-col gap-5">
                 <ConnectionInstancesPanel
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
@@ -754,6 +745,16 @@ function ConnectionInspectorViewWithConnection({
                 />
                 <ConnectionAgentsPanel connection={connection} />
               </div>
+              {/* Capabilities - full width */}
+              <div className="@3xl:col-span-2">
+                <ConnectionCapabilities
+                  tools={tools}
+                  prompts={prompts}
+                  resources={resources}
+                  connectionId={connectionId}
+                  org={org}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -801,15 +802,19 @@ function ConnectionInspectorViewContent() {
         _meta: t._meta as Record<string, unknown> | undefined,
       }));
 
-  // Compute siblings: all non-virtual connections sharing the same app_name
-  const siblings = connection?.app_name
-    ? allConnections.filter(
-        (c) =>
-          c.app_name === connection.app_name && c.connection_type !== "VIRTUAL",
-      )
-    : connection
-      ? [connection]
-      : [];
+  // Compute siblings: all non-virtual connections sharing the same app_name or url
+  const siblings = connection
+    ? (() => {
+        const matched = allConnections.filter(
+          (c) =>
+            c.connection_type !== "VIRTUAL" &&
+            ((connection.app_name && c.app_name === connection.app_name) ||
+              (connection.connection_url &&
+                c.connection_url === connection.connection_url)),
+        );
+        return matched.length > 0 ? matched : [connection];
+      })()
+    : [];
 
   // Aggregate tools from all siblings (deduped by name)
   const aggregatedTools = (() => {
