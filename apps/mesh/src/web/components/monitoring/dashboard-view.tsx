@@ -456,7 +456,8 @@ function DashboardViewContent({
             if (!el) return;
             const update = () => {
               const gap = 16; // gap-4
-              const colW = (el.clientWidth - gap * 4) / 5;
+              const cols = el.clientWidth >= 1024 ? 5 : 2;
+              const colW = (el.clientWidth - gap * (cols - 1)) / cols;
               el.style.gridAutoRows = `${colW}px`;
             };
             update();

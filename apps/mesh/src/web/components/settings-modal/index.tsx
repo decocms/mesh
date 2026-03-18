@@ -103,6 +103,11 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
 export function SettingsModal() {
   const { isOpen, activeSection, open, close } = useSettingsModal();
   const [mobileShowContent, setMobileShowContent] = useState(false);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    setMobileShowContent(isOpen);
+  }
 
   const handleNavigate = (section: SettingsSection) => {
     open(section);
