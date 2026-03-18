@@ -67,6 +67,21 @@ export function ensureOrganization(
 /**
  * Convert MCP tools to AI SDK ToolSet
  */
+/**
+ * Check if a tool should be visible to the LLM based on MCP Apps visibility metadata.
+ * Default (no visibility set) = visible to model.
+ */
+export function isToolVisibleToModel(tool: {
+  _meta?: Record<string, unknown>;
+}): boolean {
+  const ui = tool._meta?.ui as { visibility?: string | string[] } | undefined;
+  const visibility = ui?.visibility;
+  if (visibility == null) return true;
+  if (typeof visibility === "string") return visibility === "model";
+  if (Array.isArray(visibility)) return visibility.includes("model");
+  return true;
+}
+
 export async function toolsFromMCP(
   client: Client,
   toolOutputMap: Map<string, string>,
@@ -76,8 +91,9 @@ export async function toolsFromMCP(
 ): Promise<ToolSet> {
   const truncate = !options?.disableOutputTruncation;
   const list = await client.listTools();
+  const visibleTools = list.tools.filter(isToolVisibleToModel);
 
-  const toolEntries = list.tools.map((t) => {
+  const toolEntries = visibleTools.map((t) => {
     const { name, title, description, inputSchema, annotations, _meta } = t;
 
     return [

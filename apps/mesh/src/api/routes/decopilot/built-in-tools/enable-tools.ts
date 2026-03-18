@@ -27,7 +27,7 @@ export function createEnableToolsTool(
   return tool({
     description:
       "Enable tools from the available tools catalog so they can be called in subsequent steps. " +
-      "Call this before using any tool listed in <available-tools>.\n\n" +
+      "Call this before using any tool listed in <available-connections>.\n\n" +
       "Usage notes:\n" +
       "- Batch related tools in a single call to minimize round-trips.\n" +
       "- Enable only the tools you need for your next step — you can always enable more later.\n" +

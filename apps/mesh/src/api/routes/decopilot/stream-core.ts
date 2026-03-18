@@ -23,7 +23,7 @@ import {
   PARENT_STEP_LIMIT,
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
-import { toolsFromMCP } from "./helpers";
+import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
@@ -716,28 +716,69 @@ function reconstructEnabledTools(
   return enabled;
 }
 
+const REDUNDANT_PREFIXES =
+  /^(this tool |use this to |allows you to |a tool that |a tool to |tool to |tool that )/i;
+
+function trimToolDescription(desc: string, maxLen = 80): string {
+  let trimmed = desc.replace(REDUNDANT_PREFIXES, "").trim();
+  if (trimmed.length > 0) {
+    trimmed = trimmed[0]!.toUpperCase() + trimmed.slice(1);
+  }
+  if (trimmed.length > maxLen) {
+    return trimmed.slice(0, maxLen - 1) + "…";
+  }
+  return trimmed;
+}
+
 /**
- * Build a compact tool catalog for the system prompt.
- * Format: <available-tools>\nTOOL_NAME|Description (80 chars)\n</available-tools>
+ * Build a compact tool catalog for the system prompt, grouped by connection.
+ * Format: <available-connections><connection name="..." id="...">TOOL|desc</connection></available-connections>
  */
 async function buildToolCatalog(
   client: {
-    listTools(): Promise<{ tools: { name: string; description?: string }[] }>;
+    listTools(): Promise<{
+      tools: Array<{
+        name: string;
+        description?: string;
+        _meta?: Record<string, unknown>;
+      }>;
+    }>;
   },
   enabledTools: Set<string>,
 ): Promise<string | null> {
   const { tools } = await client.listTools();
-  const catalogLines: string[] = [];
+
+  const connections = new Map<
+    string,
+    { name: string; id: string; lines: string[] }
+  >();
 
   for (const t of tools) {
     if (enabledTools.has(t.name)) continue;
-    const desc = (t.description ?? "").slice(0, 80);
-    catalogLines.push(`${t.name}|${desc}`);
+    if (!isToolVisibleToModel(t)) continue;
+
+    const connId = (t._meta?.connectionId as string) ?? "unknown";
+    const connName = (t._meta?.connectionTitle as string) || connId;
+    const desc = trimToolDescription(t.description ?? "");
+
+    let group = connections.get(connId);
+    if (!group) {
+      group = { name: connName, id: connId, lines: [] };
+      connections.set(connId, group);
+    }
+    group.lines.push(`${t.name}|${desc}`);
   }
 
-  if (catalogLines.length === 0) return null;
+  if (connections.size === 0) return null;
 
-  return `\n\n<available-tools>\n${catalogLines.join("\n")}\n</available-tools>`;
+  const sections: string[] = [];
+  for (const { name, id, lines } of connections.values()) {
+    sections.push(
+      `<connection name="${name}" id="${id}">\n${lines.join("\n")}\n</connection>`,
+    );
+  }
+
+  return `\n\n<available-connections>\n${sections.join("\n")}\n</available-connections>`;
 }
 
 /**
