@@ -339,7 +339,9 @@ function AgentGroupCard({
                   <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
                     <User id={a.created_by} size="3xs" />
                     <span>
-                      {a.created_at ? formatTimeAgo(new Date(a.created_at)) : "—"}
+                      {a.created_at
+                        ? formatTimeAgo(new Date(a.created_at))
+                        : "—"}
                     </span>
                   </div>
                   <DropdownMenu>
@@ -435,7 +437,9 @@ function AgentGroupCard({
                   <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
                     <User id={a.created_by} size="3xs" />
                     <span>
-                      {a.created_at ? formatTimeAgo(new Date(a.created_at)) : "—"}
+                      {a.created_at
+                        ? formatTimeAgo(new Date(a.created_at))
+                        : "—"}
                     </span>
                   </div>
                   <DropdownMenu>
