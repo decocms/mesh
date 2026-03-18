@@ -11,11 +11,11 @@ Goal: add a focused JavaScript tool to an agent when built-in tools are insuffic
 Read docs://virtual-tools.md for code format, sandbox expectations, and schema guidance. Read docs://agents.md if you also need instruction-writing context for the parent agent.
 
 Recommended tool order:
-1. Use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to identify the target agent.
-2. Use VIRTUAL_TOOLS_LIST to avoid duplicate names and inspect the current tool set.
+1. Use COLLECTION_VIRTUAL_MCP_LIST or COLLECTION_VIRTUAL_MCP_GET to identify the target agent.
+2. Use COLLECTION_VIRTUAL_TOOLS_LIST to avoid duplicate names and inspect the current tool set.
 3. If behavior, schema, or the target agent is ambiguous, use user_ask.
-4. Use VIRTUAL_TOOLS_CREATE with a clear name, description, input schema, JavaScript implementation, and connection_dependencies for any tools the code calls.
-5. Use VIRTUAL_TOOLS_GET to verify the saved code and schema.
+4. Use COLLECTION_VIRTUAL_TOOLS_CREATE with a clear name, description, input schema, JavaScript implementation, and connection_dependencies for any tools the code calls.
+5. Use COLLECTION_VIRTUAL_TOOLS_GET to verify the saved code and schema.
 
 Checks:
 - Prefer a virtual tool only when existing tools do not already solve the task directly.
@@ -37,11 +37,11 @@ Goal: modify an existing virtual tool safely and confirm the final definition is
 Read docs://virtual-tools.md for schema and sandbox guidance.
 
 Recommended tool order:
-1. Use VIRTUAL_TOOLS_LIST or VIRTUAL_TOOLS_GET to locate the existing tool.
-2. Use VIRTUAL_MCP_GET if you need more context about the parent agent.
+1. Use COLLECTION_VIRTUAL_TOOLS_LIST or COLLECTION_VIRTUAL_TOOLS_GET to locate the existing tool.
+2. Use COLLECTION_VIRTUAL_MCP_GET if you need more context about the parent agent.
 3. Use user_ask if the requested behavior change is not precise.
-4. Use VIRTUAL_TOOLS_UPDATE with the exact fields to change.
-5. Use VIRTUAL_TOOLS_GET to confirm the final code and schema.
+4. Use COLLECTION_VIRTUAL_TOOLS_UPDATE with the exact fields to change.
+5. Use COLLECTION_VIRTUAL_TOOLS_GET to confirm the final code and schema.
 
 Checks:
 - Preserve compatibility unless the user explicitly wants a breaking change.
@@ -89,7 +89,7 @@ export default async function (tools, args) {
 When the code calls tools from specific connections, list those connection IDs in \`connection_dependencies\`. This metadata:
 - Lets the platform sync and protect the downstream connections.
 - Ensures the virtual tool breaks visibly if a dependency is removed.
-- Is required for VIRTUAL_TOOLS_CREATE and can be updated via VIRTUAL_TOOLS_UPDATE.
+- Is required for COLLECTION_VIRTUAL_TOOLS_CREATE and can be updated via COLLECTION_VIRTUAL_TOOLS_UPDATE.
 
 ## Input schema guidance
 

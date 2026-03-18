@@ -12,11 +12,11 @@ Goal: create a new agent that has a clear role, the correct connections, and ins
 Read docs://agents.md for naming and instruction guidelines. Read docs://platform.md if you need a refresher on connections, agents, or virtual tools.
 
 Recommended tool order:
-1. Use CONNECTIONS_LIST to inspect what capabilities already exist.
-2. If the user names a specific connection, use CONNECTIONS_GET to verify details.
+1. Use COLLECTION_CONNECTIONS_LIST to inspect what capabilities already exist.
+2. If the user names a specific connection, use COLLECTION_CONNECTIONS_GET to verify details.
 3. If requirements are ambiguous, use user_ask before creating anything.
-4. Use VIRTUAL_MCP_CREATE with a focused title, description, connectionIds, and instructions.
-5. Use VIRTUAL_MCP_GET to verify the saved configuration.
+4. Use COLLECTION_VIRTUAL_MCP_CREATE with a focused title, description, connectionIds, and instructions.
+5. Use COLLECTION_VIRTUAL_MCP_GET to verify the saved configuration.
 
 Checks:
 - Confirm the agent's purpose, target user, and scope.
@@ -37,11 +37,11 @@ Goal: safely modify an existing agent without broadening its scope unintentional
 Read docs://agents.md for naming and instruction guidelines. Read docs://platform.md if you need context on how agents relate to connections and virtual tools.
 
 Recommended tool order:
-1. Use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to identify the target agent.
-2. Use CONNECTIONS_LIST or CONNECTIONS_GET if the update changes connected capabilities.
+1. Use COLLECTION_VIRTUAL_MCP_LIST or COLLECTION_VIRTUAL_MCP_GET to identify the target agent.
+2. Use COLLECTION_CONNECTIONS_LIST or COLLECTION_CONNECTIONS_GET if the update changes connected capabilities.
 3. If the requested change is unclear or materially changes behavior, use user_ask.
-4. Use VIRTUAL_MCP_UPDATE with the smallest necessary change set.
-5. Use VIRTUAL_MCP_GET to confirm the final state.
+4. Use COLLECTION_VIRTUAL_MCP_UPDATE with the smallest necessary change set.
+5. Use COLLECTION_VIRTUAL_MCP_GET to confirm the final state.
 
 Checks:
 - Preserve existing behavior unless the user explicitly wants it changed.
@@ -63,14 +63,14 @@ Read docs://agents.md for the instruction-writing pattern, XML-style structure, 
 
 Recommended tool order:
 1. Identify whether the target is an agent or an automation.
-2. For agents, use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to inspect the current instructions.
+2. For agents, use COLLECTION_VIRTUAL_MCP_LIST or COLLECTION_VIRTUAL_MCP_GET to inspect the current instructions.
 3. For automations, use AUTOMATION_LIST or AUTOMATION_GET to inspect the current messages/instructions.
 4. Review the current instructions against docs://agents.md.
 5. If the intended purpose, audience, or boundaries are unclear, use user_ask before rewriting.
 6. Rewrite the instructions with explicit XML-style sections such as <role>, <capabilities>, <constraints>, and <workflows>.
-7. For agents, use VIRTUAL_MCP_UPDATE to save the improved instructions.
+7. For agents, use COLLECTION_VIRTUAL_MCP_UPDATE to save the improved instructions.
 8. For automations, use AUTOMATION_UPDATE to save the improved messages/instructions.
-9. Re-read the updated entity with VIRTUAL_MCP_GET or AUTOMATION_GET to verify the final stored version.
+9. Re-read the updated entity with COLLECTION_VIRTUAL_MCP_GET or AUTOMATION_GET to verify the final stored version.
 
 Checks:
 - Make the purpose explicit in a <role> section.

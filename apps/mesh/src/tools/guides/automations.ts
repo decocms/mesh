@@ -11,7 +11,7 @@ Goal: create a background workflow that runs the right agent with the correct tr
 Read docs://automations.md for trigger types and workflow patterns. Read docs://platform.md if you need context on how automations relate to agents.
 
 Recommended tool order:
-1. Use VIRTUAL_MCP_LIST or VIRTUAL_MCP_GET to identify the agent that should run.
+1. Use COLLECTION_VIRTUAL_MCP_LIST or COLLECTION_VIRTUAL_MCP_GET to identify the agent that should run.
 2. If the trigger type or payload is unclear, use user_ask.
 3. Use AUTOMATION_CREATE with a clear title, description, and agent.
 4. Use AUTOMATION_TRIGGER_ADD to attach the schedule, event trigger, or webhook.
@@ -37,7 +37,7 @@ Read docs://automations.md for trigger semantics and design patterns.
 
 Recommended tool order:
 1. Use AUTOMATION_LIST or AUTOMATION_GET to locate the automation.
-2. Use VIRTUAL_MCP_GET if you need to confirm the assigned agent context.
+2. Use COLLECTION_VIRTUAL_MCP_GET if you need to confirm the assigned agent context.
 3. Use user_ask if the requested trigger or behavior change is not exact.
 4. Use AUTOMATION_UPDATE for metadata or agent changes.
 5. Use AUTOMATION_TRIGGER_ADD then AUTOMATION_TRIGGER_REMOVE if the trigger itself must change (add before remove so the automation is never left untriggered if the add fails).

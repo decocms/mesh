@@ -12,9 +12,9 @@ Goal: find good candidate connections in the Deco Store or another registry befo
 Read docs://store.md for registry types, search patterns, and evaluation criteria. Read docs://connections.md if you need a refresher on how installed connections behave after discovery.
 
 Recommended tool order:
-1. Use CONNECTIONS_LIST to find available registry connections such as Deco Store or MCP Registry.
+1. Use COLLECTION_CONNECTIONS_LIST to find available registry connections such as Deco Store or MCP Registry.
 2. If the user has not clearly described the target capability, data source, or authentication constraints, use user_ask.
-3. Use CONNECTIONS_GET if you need more detail about the chosen registry connection.
+3. Use COLLECTION_CONNECTIONS_GET if you need more detail about the chosen registry connection.
 4. Enable the registry discovery tools from that connection.
 5. Prefer REGISTRY_ITEM_SEARCH when available. Otherwise use the registry's list tool with search-like filters.
 6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
@@ -40,19 +40,19 @@ export const resources: GuideResource[] = [
 
 ## Goal
 
-Take a registry item the user already chose and convert it into a real connection with CONNECTIONS_CREATE, then verify it with CONNECTION_TEST.
+Take a registry item the user already chose and convert it into a real connection with COLLECTION_CONNECTIONS_CREATE, then verify it with CONNECTION_TEST.
 
 ## Recommended tool order
 
-1. Use CONNECTIONS_LIST to avoid duplicate installs and confirm the correct registry connection is available.
+1. Use COLLECTION_CONNECTIONS_LIST to avoid duplicate installs and confirm the correct registry connection is available.
 2. Enable the relevant registry detail tools from that connection.
 3. Use REGISTRY_ITEM_GET to load the full chosen item.
 4. Derive the connection payload from the registry item instead of inventing values.
-5. Use CONNECTIONS_CREATE with the derived connection fields.
+5. Use COLLECTION_CONNECTIONS_CREATE with the derived connection fields.
 6. Use CONNECTION_TEST before treating the connection as usable.
-7. Use CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
+7. Use COLLECTION_CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
 
-## How to map a registry item into CONNECTIONS_CREATE
+## How to map a registry item into COLLECTION_CONNECTIONS_CREATE
 
 ### Base fields
 - title: prefer the store-friendly title from the item.
@@ -105,7 +105,7 @@ Validate that a specific store or registry item actually matches the user's requ
 
 ## Recommended tool order
 
-1. Use CONNECTIONS_LIST to confirm which registry connection should be queried.
+1. Use COLLECTION_CONNECTIONS_LIST to confirm which registry connection should be queried.
 2. Enable the relevant registry detail tools from that connection.
 3. Use REGISTRY_ITEM_GET to inspect the candidate item.
 4. If multiple versions are available and a versions tool exists, use REGISTRY_ITEM_VERSIONS.
