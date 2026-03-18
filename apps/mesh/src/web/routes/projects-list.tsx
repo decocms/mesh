@@ -79,19 +79,10 @@ export default function ProjectsListPage() {
           </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
-<<<<<<< tavano/add-deco-import
           {__ENABLE_DECO_IMPORT__ && <ImportFromDecoButton />}
-          <Button
-            onClick={handleCreateProject}
-            size="sm"
-            className="h-7 px-3 rounded-lg text-sm font-medium"
-          >
-            Create new project
-=======
           <Button onClick={handleCreateProject} size="sm">
             <Plus size={14} />
             Create Project
->>>>>>> main
           </Button>
         </Page.Header.Right>
       </Page.Header>
