@@ -116,6 +116,12 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
+import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import {
+  isConnectionAuthenticated,
+  authenticateMcp,
+} from "@/web/lib/mcp-oauth";
+import { KEYS } from "@/web/lib/query-keys";
 
 // ---------------------------------------------------------------------------
 // Grouping helpers
@@ -953,6 +959,120 @@ function OrgMcpsContent() {
       },
       search: { registryId, serverName },
     });
+  };
+
+  // Inline connect state
+  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
+
+  const handleInlineConnect = async (item: RegistryItem) => {
+    if (!org || !session?.user?.id) return;
+    setConnectingItemId(item.id);
+
+    try {
+      const connectionData = extractConnectionData(
+        item,
+        org.id,
+        session.user.id,
+        { remoteIndex: 0 },
+      );
+
+      // Validate connection data
+      const isStdioConnection = connectionData.connection_type === "STDIO";
+      const hasUrl = Boolean(connectionData.connection_url);
+      const hasStdioConfig =
+        isStdioConnection &&
+        connectionData.connection_headers &&
+        typeof connectionData.connection_headers === "object" &&
+        "command" in connectionData.connection_headers;
+
+      if (!hasUrl && !hasStdioConfig) {
+        toast.error(
+          "This MCP Server cannot be connected: no connection method available",
+        );
+        setConnectingItemId(null);
+        return;
+      }
+
+      // Check for duplicates — auto-suffix the name
+      const appName = item.id ?? item.title;
+      const existing = allConnections.filter(
+        (c) => c.app_name === appName || c.title === connectionData.title,
+      );
+      if (existing.length > 0) {
+        const baseName = connectionData.title || "MCP Server";
+        connectionData.title = `${baseName} (${existing.length + 1})`;
+      }
+
+      const { id } = await actions.create.mutateAsync(connectionData);
+
+      // Handle OAuth flow
+      const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      const authStatus = await isConnectionAuthenticated({
+        url: mcpProxyUrl.href,
+        token: null,
+      });
+
+      if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+        const { token, tokenInfo, error } = await authenticateMcp({
+          connectionId: id,
+        });
+        if (error || !token) {
+          toast.error(`Authentication failed: ${error}`);
+        } else {
+          if (tokenInfo) {
+            try {
+              const response = await fetch(
+                `/api/connections/${id}/oauth-token`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({
+                    accessToken: tokenInfo.accessToken,
+                    refreshToken: tokenInfo.refreshToken,
+                    expiresIn: tokenInfo.expiresIn,
+                    scope: tokenInfo.scope,
+                    clientId: tokenInfo.clientId,
+                    clientSecret: tokenInfo.clientSecret,
+                    tokenEndpoint: tokenInfo.tokenEndpoint,
+                  }),
+                },
+              );
+              if (!response.ok) {
+                await actions.update.mutateAsync({
+                  id,
+                  data: { connection_token: token },
+                });
+              } else {
+                await actions.update.mutateAsync({ id, data: {} });
+              }
+            } catch {
+              await actions.update.mutateAsync({
+                id,
+                data: { connection_token: token },
+              });
+            }
+          } else {
+            await actions.update.mutateAsync({
+              id,
+              data: { connection_token: token },
+            });
+          }
+          await queryClient.invalidateQueries({
+            queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+          });
+          toast.success("Authentication successful");
+        }
+      }
+
+      toast.success("Connected successfully");
+    } catch (error) {
+      toast.error(
+        `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setConnectingItemId(null);
+    }
   };
 
   // Create dialog state is derived from search params
@@ -2299,20 +2419,43 @@ function OrgMcpsContent() {
                       headerActionsAlwaysVisible
                       headerActions={
                         isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-7 px-3 rounded-lg text-sm font-medium"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigateToCatalogItem(item);
+                              const firstId = appInstances[0]?.id;
+                              if (firstId) {
+                                navigate({
+                                  to: "/$org/$project/mcps/$connectionId",
+                                  params: {
+                                    org: org.slug,
+                                    project: ORG_ADMIN_PROJECT_SLUG,
+                                    connectionId: firstId,
+                                  },
+                                });
+                              }
                             }}
                           >
-                            Connect
+                            See connection
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 rounded-lg text-sm font-medium"
+                            disabled={connectingItemId === item.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInlineConnect(item);
+                            }}
+                          >
+                            {connectingItemId === item.id ? (
+                              <Loading01 size={14} className="animate-spin" />
+                            ) : (
+                              "Connect"
+                            )}
                           </Button>
                         )
                       }
@@ -2378,20 +2521,43 @@ function OrgMcpsContent() {
                       headerActionsAlwaysVisible
                       headerActions={
                         isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-7 px-3 rounded-lg text-sm font-medium"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigateToCatalogItem(item);
+                              const firstId = appInstances[0]?.id;
+                              if (firstId) {
+                                navigate({
+                                  to: "/$org/$project/mcps/$connectionId",
+                                  params: {
+                                    org: org.slug,
+                                    project: ORG_ADMIN_PROJECT_SLUG,
+                                    connectionId: firstId,
+                                  },
+                                });
+                              }
                             }}
                           >
-                            Connect
+                            See connection
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 rounded-lg text-sm font-medium"
+                            disabled={connectingItemId === item.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInlineConnect(item);
+                            }}
+                          >
+                            {connectingItemId === item.id ? (
+                              <Loading01 size={14} className="animate-spin" />
+                            ) : (
+                              "Connect"
+                            )}
                           </Button>
                         )
                       }
