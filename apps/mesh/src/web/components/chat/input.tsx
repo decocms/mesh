@@ -1,6 +1,6 @@
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
-import { getAgentColor } from "@/web/utils/agent-color";
+import { getAgentWrapperColor } from "@/web/components/agent-icon";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Popover,
@@ -196,9 +196,9 @@ function VirtualMCPBadge({
     }
   }, [open]);
 
-  const color = getAgentColor(virtualMcpId);
-
   if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
+
+  const color = getAgentWrapperColor(virtualMcp.icon, virtualMcp.title);
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
@@ -411,11 +411,11 @@ export function ChatInput({
   const lastAgentRef = useRef<{
     id: string;
     virtualMcps: VirtualMCPInfo[];
-    color: ReturnType<typeof getAgentColor>;
+    color: ReturnType<typeof getAgentWrapperColor> | null;
   } | null>(null);
 
   const color = selectedVirtualMcp
-    ? getAgentColor(selectedVirtualMcp.id)
+    ? getAgentWrapperColor(selectedVirtualMcp.icon, selectedVirtualMcp.title)
     : null;
 
   if (hasAgentBadge && selectedVirtualMcp?.id) {
@@ -496,8 +496,12 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[130px] flex flex-col border border-border bg-background shadow-sm",
+                "w-full relative rounded-xl min-h-[130px] flex flex-col bg-background",
               )}
+              style={{
+                boxShadow:
+                  "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 1px hsla(0, 0%, 0%, 0.05), 0 0.3px 0.4px hsla(0, 0%, 0%, 0.02), 0 0.9px 1.5px hsla(0, 0%, 0%, 0.045), 0 3.5px 6px hsla(0, 0%, 0%, 0.09)",
+              }}
             >
               <div className="group/input relative flex flex-col gap-2 flex-1">
                 {/* Input Area with Tiptap */}

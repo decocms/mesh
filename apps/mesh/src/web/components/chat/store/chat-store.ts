@@ -49,7 +49,8 @@ function toMetadataModelInfo(model: AiProviderModel): MetadataModelInfo {
   const capabilities =
     caps && caps.length > 0
       ? {
-          vision: caps.includes("vision") || undefined,
+          vision:
+            caps.includes("vision") || caps.includes("image") || undefined,
           text: caps.includes("text") || undefined,
           reasoning: caps.includes("reasoning") || undefined,
         }

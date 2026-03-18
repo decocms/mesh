@@ -60,16 +60,15 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const allConnections = useConnections();
   const registryConnections = useRegistryConnections(allConnections);
 
-  // Installation function - queries registries directly with MCP Server name filter
-  const installByBinding = async (
-    bindingType: string,
+  // Shared installation logic — queries registries and creates connection
+  const installFromRegistry = async (
+    queryAppName: string,
+    displayName: string,
   ): Promise<InstallResult | undefined> => {
     if (!org || !session?.user?.id) {
       toast.error("Not authenticated");
       return undefined;
     }
-
-    const parsedServerName = parseServerName(bindingType);
 
     // Query all registries in parallel to find the MCP Server
     const results = await Promise.all(
@@ -83,7 +82,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
             org.id,
             listToolName,
             {
-              where: { appName: parsedServerName },
+              where: { appName: queryAppName },
             },
           );
           const items = extractItemsFromResponse<RegistryItem>(result ?? []);
@@ -101,7 +100,7 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     );
 
     if (!registryItem) {
-      toast.error(`MCP Server not found in registry: ${bindingType}`);
+      toast.error(`MCP Server not found in registry: ${displayName}`);
       return undefined;
     }
 
@@ -135,6 +134,13 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
       id: connectionData.id,
       connection: connectionData as ConnectionEntity,
     };
+  };
+
+  // Install by binding type (e.g., "@deco/database") — normalizes with @ prefix
+  const installByBinding = async (
+    bindingType: string,
+  ): Promise<InstallResult | undefined> => {
+    return installFromRegistry(parseServerName(bindingType), bindingType);
   };
 
   return {

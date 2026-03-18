@@ -11,7 +11,7 @@ import { TasksPanel } from "@/web/components/chat/tasks-panel";
 import { EditableTaskTitle } from "@/web/components/chat/editable-task-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { Page } from "@/web/components/page";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -23,15 +23,16 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
+  ORG_ADMIN_PROJECT_SLUG,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { LayoutRight, MessageChatSquare, Users03 } from "@untitledui/icons";
+import { LayoutRight, MessageChatSquare } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 
 // ---------- Main Content ----------
 
 function HomeContent() {
-  const { org } = useProjectContext();
+  const { org, project } = useProjectContext();
   const { data: session } = authClient.useSession();
   const {
     allModelsConnections,
@@ -44,6 +45,7 @@ function HomeContent() {
   const [showContext, setShowContext] = useState(false);
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
+  const isOrgAdmin = project.slug === ORG_ADMIN_PROJECT_SLUG;
 
   // Use Decopilot as default agent
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
@@ -108,38 +110,45 @@ function HomeContent() {
               </Chat.Footer>
             </>
           ) : (
-            <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-10 pb-32 pt-10">
-              <div className="flex flex-col items-center w-full max-w-[600px]">
-                {/* Agent Image */}
-                <div className="flex justify-center mb-4">
-                  <IntegrationIcon
-                    icon={displayAgent.icon}
-                    name={displayAgent.title}
-                    size="md"
-                    fallbackIcon={<Users03 size={20} />}
-                    className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
-                  />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {/* Hero area */}
+              <div className="flex flex-col items-center justify-center px-10 pt-10 w-full min-h-full pb-32">
+                <div className="flex flex-col items-center w-full max-w-[600px]">
+                  {/* Agent Image — hidden for default Decopilot, visible for custom agents */}
+                  <div className="flex justify-center mb-4">
+                    <AgentAvatar
+                      icon={displayAgent.icon}
+                      name={displayAgent.title}
+                      size="md"
+                      className={cn(
+                        "transition-opacity duration-200",
+                        !selectedVirtualMcp && "invisible",
+                      )}
+                    />
+                  </div>
+
+                  {/* Greeting */}
+                  <div className="text-center mb-8">
+                    <p className="text-xl font-medium text-foreground">
+                      {`What's on your mind, ${userName}?`}
+                    </p>
+                  </div>
+
+                  {/* Chat Input */}
+                  <div className="w-full">
+                    <Chat.Input />
+                  </div>
+
+                  {/* Ice breakers for selected agent */}
+                  <Chat.IceBreakers className="w-full" />
                 </div>
 
-                {/* Greeting */}
-                <div className="text-center mb-8">
-                  <p className="text-xl font-medium text-foreground">
-                    What's on your mind, {userName}?
-                  </p>
-                </div>
-
-                {/* Chat Input */}
-                <div className="w-full">
-                  <Chat.Input />
-                </div>
-
-                {/* Ice breakers for selected agent */}
-                <Chat.IceBreakers className="w-full" />
-              </div>
-
-              {/* Agents List - Separate container to allow wider width */}
-              <div className="flex flex-col items-center w-full mt-4">
-                <AgentsList />
+                {/* Agents List (org home only) */}
+                {isOrgAdmin && (
+                  <div className="flex flex-col items-center w-full mt-10">
+                    <AgentsList />
+                  </div>
+                )}
               </div>
             </div>
           )}

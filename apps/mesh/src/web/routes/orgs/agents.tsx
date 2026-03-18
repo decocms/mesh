@@ -11,7 +11,7 @@ import { ConnectionCard } from "@/web/components/connections/connection-card.tsx
 import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import {
@@ -66,7 +66,6 @@ import {
   DotsVertical,
   Eye,
   Loading01,
-  Plus,
   Trash01,
   Users03,
   XClose,
@@ -291,13 +290,7 @@ function AgentGroupCard({
         <DialogContent className="sm:max-w-lg p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4">
             <div className="flex items-center gap-3">
-              <IntegrationIcon
-                icon={group.icon}
-                name={group.title}
-                size="md"
-                className="shrink-0 shadow-sm"
-                fallbackIcon={<Users03 />}
-              />
+              <AgentAvatar icon={group.icon} name={group.title} size="md" />
               <div>
                 <DialogTitle>
                   {group.title}
@@ -324,13 +317,7 @@ function AgentGroupCard({
                   onNavigate(a.id);
                 }}
               >
-                <IntegrationIcon
-                  icon={a.icon}
-                  name={a.title}
-                  size="sm"
-                  className="shrink-0"
-                  fallbackIcon={<Users03 />}
-                />
+                <AgentAvatar icon={a.icon} name={a.title} size="sm" />
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground truncate">
                     {a.title}
@@ -630,12 +617,10 @@ function GroupedAgentTable({
                       return (
                         <TableCell key={col.id} className={base}>
                           <div className="flex items-center gap-2 min-w-0">
-                            <IntegrationIcon
+                            <AgentAvatar
                               icon={group.icon}
                               name={group.title}
                               size="sm"
-                              className="shrink-0 shadow-sm"
-                              fallbackIcon={<Users03 size={16} />}
                             />
                             <span className="text-sm font-medium text-foreground truncate">
                               {group.title}
@@ -858,12 +843,10 @@ function OrgAgentsContent() {
       header: "Name",
       render: (virtualMcp) => (
         <div className="flex items-center gap-2 min-w-0">
-          <IntegrationIcon
+          <AgentAvatar
             icon={virtualMcp.icon}
             name={virtualMcp.title}
             size="sm"
-            className="shrink-0 shadow-sm"
-            fallbackIcon={<Users03 size={16} />}
           />
           <span className="text-sm font-medium text-foreground truncate">
             {virtualMcp.title}
@@ -1133,31 +1116,15 @@ function OrgAgentsContent() {
         {listState.viewMode === "cards" ? (
           <div className="flex-1 overflow-auto p-5">
             {filteredAgents.length === 0 ? (
-              <div className="flex items-center h-full">
-                <EmptyState
-                  image={
-                    <Users03 size={48} className="text-muted-foreground" />
-                  }
-                  title={listState.search ? "No agents found" : "No agents yet"}
-                  description={
-                    listState.search
-                      ? `No agents match "${listState.search}"`
-                      : "Create an agent to aggregate tools from multiple Connections."
-                  }
-                  actions={
-                    !listState.search && (
-                      <Button
-                        size="sm"
-                        onClick={createVirtualMCP}
-                        disabled={isCreating}
-                      >
-                        <Plus size={14} />
-                        {isCreating ? "Creating..." : "Create Agent"}
-                      </Button>
-                    )
-                  }
-                />
-              </div>
+              <EmptyState
+                image={<Users03 size={36} className="text-muted-foreground" />}
+                title={listState.search ? "No agents found" : "No agents yet"}
+                description={
+                  listState.search
+                    ? `No agents match "${listState.search}"`
+                    : "Create an agent to aggregate tools from multiple Connections."
+                }
+              />
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
                 {grouped.map((item) => {
@@ -1274,49 +1241,44 @@ function OrgAgentsContent() {
         ) : (
           <div className="h-full flex flex-col overflow-hidden">
             <div className="flex-1 overflow-auto min-w-0">
-              {grouped.length === 0 ? (
-                <div className="flex items-center h-full">
-                  <EmptyState
-                    image={
-                      <Users03 size={48} className="text-muted-foreground" />
-                    }
-                    title={
-                      listState.search ? "No agents found" : "No agents yet"
-                    }
-                    description={
-                      listState.search
-                        ? `No agents match "${listState.search}"`
-                        : "Create an agent to aggregate tools from multiple Connections."
-                    }
-                    actions={
-                      !listState.search && (
-                        <Button
-                          size="sm"
-                          onClick={createVirtualMCP}
-                          disabled={isCreating}
-                        >
-                          <Plus size={14} />
-                          {isCreating ? "Creating..." : "Create Agent"}
-                        </Button>
-                      )
-                    }
-                  />
-                </div>
-              ) : (
-                <div className="min-w-[1000px]">
-                  <GroupedAgentTable
-                    columns={columns}
-                    grouped={grouped}
-                    sortKey={listState.sortKey}
-                    sortDirection={listState.sortDirection}
-                    onSort={listState.handleSort}
-                    onRowClick={(agent) => navigateToAgent(agent.id)}
-                    selectionMode={selectionMode}
-                    selectedIds={selectedIds}
-                    onToggleSelect={toggleSelect}
-                  />
-                </div>
-              )}
+              <div className="min-w-[1000px]">
+                <GroupedAgentTable
+                  columns={columns}
+                  grouped={grouped}
+                  sortKey={listState.sortKey}
+                  sortDirection={listState.sortDirection}
+                  onSort={listState.handleSort}
+                  onRowClick={(agent) => navigateToAgent(agent.id)}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  emptyState={
+                    listState.search ? (
+                      <EmptyState
+                        image={
+                          <Users03
+                            size={36}
+                            className="text-muted-foreground"
+                          />
+                        }
+                        title="No agents found"
+                        description={`No agents match "${listState.search}"`}
+                      />
+                    ) : (
+                      <EmptyState
+                        image={
+                          <Users03
+                            size={36}
+                            className="text-muted-foreground"
+                          />
+                        }
+                        title="No agents yet"
+                        description="Create an agent to aggregate tools from multiple Connections."
+                      />
+                    )
+                  }
+                />
+              </div>
             </div>
           </div>
         )}
