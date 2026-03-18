@@ -324,6 +324,7 @@ const connectionsRoute = createRoute({
   validateSearch: z.lazy(() =>
     z.object({
       action: z.enum(["create"]).optional(),
+      tab: z.enum(["all", "connected"]).optional(),
     }),
   ),
 });
@@ -331,7 +332,7 @@ const connectionsRoute = createRoute({
 // Connection detail
 const connectionDetailRoute = createRoute({
   getParentRoute: () => projectLayout,
-  path: "/mcps/$connectionId",
+  path: "/mcps/$appSlug",
   beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(
     () => import("./routes/orgs/connection-detail.tsx"),
@@ -346,7 +347,7 @@ const connectionDetailRoute = createRoute({
 // Collection detail
 const collectionDetailRoute = createRoute({
   getParentRoute: () => projectLayout,
-  path: "/mcps/$connectionId/$collectionName/$itemId",
+  path: "/mcps/$appSlug/$collectionName/$itemId",
   beforeLoad: orgAdminGuard,
   component: lazyRouteComponent(
     () => import("./routes/orgs/collection-detail.tsx"),
