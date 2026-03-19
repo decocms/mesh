@@ -247,6 +247,10 @@ app.all("/:connectionId", async (c) => {
   // SELF MCP connections ({orgId}_self) route to the management MCP server
   // instead of creating an outbound client connection
   if (connectionId.endsWith("_self")) {
+    const selfOrgId = connectionId.slice(0, -"_self".length);
+    if (!ctx.organization || ctx.organization.id !== selfOrgId) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
     const server = await managementMCP(ctx);
     const transport = new WebStandardStreamableHTTPServerTransport({
       enableJsonResponse:

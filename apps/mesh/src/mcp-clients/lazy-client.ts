@@ -51,8 +51,8 @@ export function createLazyClient(
 
   function getRealClient(): Promise<Client> {
     if (!realClientPromise) {
-      realClientPromise = clientFromConnection(connection, ctx, superUser).then(
-        (client) => {
+      realClientPromise = clientFromConnection(connection, ctx, superUser)
+        .then((client) => {
           // Apply streaming support for HTTP connections so callStreamableTool
           // can stream responses via direct fetch instead of MCP transport
           if (
@@ -71,8 +71,13 @@ export function createLazyClient(
             );
           }
           return client;
-        },
-      );
+        })
+        .catch((err) => {
+          // Clear cached promise so transient failures don't permanently
+          // break the client — next call will retry the connection.
+          realClientPromise = null;
+          throw err;
+        });
     }
     return realClientPromise;
   }
