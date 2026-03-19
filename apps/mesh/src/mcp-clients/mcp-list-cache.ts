@@ -100,10 +100,22 @@ export async function fetchWithCache(
   fetchLive: () => Promise<unknown[]>,
   cache: McpListCache | null,
 ): Promise<unknown[] | null> {
+  const t0 = performance.now();
+
   if (!cache) {
+    console.log(
+      `[fetchWithCache] ${type}:${connectionId} no-cache, fetching live`,
+    );
     try {
-      return await fetchLive();
-    } catch {
+      const data = await fetchLive();
+      console.log(
+        `[fetchWithCache] ${type}:${connectionId} no-cache live OK (${(performance.now() - t0).toFixed(1)}ms, ${data.length} items)`,
+      );
+      return data;
+    } catch (err) {
+      console.log(
+        `[fetchWithCache] ${type}:${connectionId} no-cache live FAILED (${(performance.now() - t0).toFixed(1)}ms): ${err}`,
+      );
       return null;
     }
   }
@@ -111,27 +123,52 @@ export async function fetchWithCache(
   // Start upstream and cache check in parallel
   const upstreamPromise = fetchLive();
   const cached = await cache.get(type, connectionId);
+  const cacheMs = (performance.now() - t0).toFixed(1);
 
   if (cached === null) {
     // Cache miss: wait for upstream
+    console.log(
+      `[fetchWithCache] ${type}:${connectionId} MISS (cache lookup ${cacheMs}ms), waiting for upstream`,
+    );
     try {
       const data = await upstreamPromise;
+      console.log(
+        `[fetchWithCache] ${type}:${connectionId} MISS→live OK (${(performance.now() - t0).toFixed(1)}ms, ${data.length} items)`,
+      );
       cache.set(type, connectionId, data).catch(() => {});
       return data;
-    } catch {
+    } catch (err) {
+      console.log(
+        `[fetchWithCache] ${type}:${connectionId} MISS→live FAILED (${(performance.now() - t0).toFixed(1)}ms): ${err}`,
+      );
       return null;
     }
   }
 
   // Cache hit: return immediately, revalidate in background
+  console.log(
+    `[fetchWithCache] ${type}:${connectionId} HIT (${cacheMs}ms, ${cached.length} items), returning cached`,
+  );
   const revalKey = `${type}:${connectionId}`;
   if (!revalidating.has(revalKey)) {
     revalidating.add(revalKey);
     upstreamPromise
-      .then((data) => cache.set(type, connectionId, data))
-      .catch(() => {})
+      .then((data) => {
+        console.log(
+          `[fetchWithCache] ${type}:${connectionId} background reval OK (${(performance.now() - t0).toFixed(1)}ms, ${data.length} items)`,
+        );
+        return cache.set(type, connectionId, data);
+      })
+      .catch((err) => {
+        console.log(
+          `[fetchWithCache] ${type}:${connectionId} background reval FAILED: ${err}`,
+        );
+      })
       .finally(() => revalidating.delete(revalKey));
   } else {
+    console.log(
+      `[fetchWithCache] ${type}:${connectionId} reval already in-flight, skipping`,
+    );
     upstreamPromise.catch(() => {}); // prevent unhandled rejection
   }
 
