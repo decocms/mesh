@@ -18,6 +18,7 @@ export const migration: ServerPluginMigration = {
     // workflow_collection: Reusable workflow templates
     await db.schema
       .createTable("workflow_collection")
+      .ifNotExists()
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("organization_id", "text", (col) =>
         col.notNull().references("organization.id").onDelete("cascade"),
@@ -38,12 +39,14 @@ export const migration: ServerPluginMigration = {
 
     await db.schema
       .createIndex("idx_wf_collection_org")
+      .ifNotExists()
       .on("workflow_collection")
       .column("organization_id")
       .execute();
 
     await db.schema
       .createIndex("idx_wf_collection_created_at")
+      .ifNotExists()
       .on("workflow_collection")
       .column("created_at")
       .execute();
@@ -51,6 +54,7 @@ export const migration: ServerPluginMigration = {
     // workflow: Immutable snapshot of a workflow definition (one per execution)
     await db.schema
       .createTable("workflow")
+      .ifNotExists()
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("workflow_collection_id", "text")
       .addColumn("organization_id", "text", (col) =>
@@ -65,12 +69,14 @@ export const migration: ServerPluginMigration = {
 
     await db.schema
       .createIndex("idx_workflow_created_at")
+      .ifNotExists()
       .on("workflow")
       .column("created_at_epoch_ms")
       .execute();
 
     await db.schema
       .createIndex("idx_workflow_collection_id")
+      .ifNotExists()
       .on("workflow")
       .column("workflow_collection_id")
       .execute();
@@ -78,6 +84,7 @@ export const migration: ServerPluginMigration = {
     // workflow_execution: Execution state
     await db.schema
       .createTable("workflow_execution")
+      .ifNotExists()
       .addColumn("id", "text", (col) => col.primaryKey())
       .addColumn("workflow_id", "text", (col) =>
         col.notNull().references("workflow.id").onDelete("cascade"),
@@ -101,24 +108,28 @@ export const migration: ServerPluginMigration = {
 
     await db.schema
       .createIndex("idx_wf_execution_status")
+      .ifNotExists()
       .on("workflow_execution")
       .column("status")
       .execute();
 
     await db.schema
       .createIndex("idx_wf_execution_workflow_id")
+      .ifNotExists()
       .on("workflow_execution")
       .column("workflow_id")
       .execute();
 
     await db.schema
       .createIndex("idx_wf_execution_org")
+      .ifNotExists()
       .on("workflow_execution")
       .column("organization_id")
       .execute();
 
     await db.schema
       .createIndex("idx_wf_execution_created_at")
+      .ifNotExists()
       .on("workflow_execution")
       .column("created_at")
       .execute();
@@ -126,6 +137,7 @@ export const migration: ServerPluginMigration = {
     // workflow_execution_step_result: Per-step results
     await db.schema
       .createTable("workflow_execution_step_result")
+      .ifNotExists()
       .addColumn("execution_id", "text", (col) =>
         col.notNull().references("workflow_execution.id").onDelete("cascade"),
       )
@@ -140,6 +152,7 @@ export const migration: ServerPluginMigration = {
     // Composite primary key via unique index
     await db.schema
       .createIndex("idx_wf_step_result_pk")
+      .ifNotExists()
       .on("workflow_execution_step_result")
       .columns(["execution_id", "step_id"])
       .unique()
@@ -147,6 +160,7 @@ export const migration: ServerPluginMigration = {
 
     await db.schema
       .createIndex("idx_wf_step_result_execution")
+      .ifNotExists()
       .on("workflow_execution_step_result")
       .column("execution_id")
       .execute();
