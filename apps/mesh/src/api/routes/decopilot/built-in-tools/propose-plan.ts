@@ -12,7 +12,7 @@ import { z } from "zod";
  * Input schema for propose_plan (Zod)
  * Exported for testing and type inference
  */
-export const ProposePlanInputSchema = z.object({
+const ProposePlanInputSchema = z.object({
   plan: z
     .string()
     .max(50000)
@@ -25,7 +25,7 @@ export type ProposePlanInput = z.infer<typeof ProposePlanInputSchema>;
  * Output schema for propose_plan (Zod)
  * Exported for testing and type inference
  */
-export const ProposePlanOutputSchema = z.object({
+const ProposePlanOutputSchema = z.object({
   approved: z.boolean().describe("Whether the user approved the plan"),
 });
 
