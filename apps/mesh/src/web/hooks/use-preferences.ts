@@ -17,9 +17,21 @@ const DEFAULT_PREFERENCES: Preferences = {
   experimentalAutomations: false,
 };
 
+const VALID_TOOL_APPROVAL_LEVELS: ToolApprovalLevel[] = [
+  "auto",
+  "readonly",
+  "plan",
+];
+
 export function usePreferences() {
   return useLocalStorage<Preferences>(
     LOCALSTORAGE_KEYS.preferences(),
-    (existing) => ({ ...DEFAULT_PREFERENCES, ...existing }),
+    (existing) => {
+      const merged = { ...DEFAULT_PREFERENCES, ...existing };
+      if (!VALID_TOOL_APPROVAL_LEVELS.includes(merged.toolApprovalLevel)) {
+        merged.toolApprovalLevel = "readonly";
+      }
+      return merged;
+    },
   );
 }
