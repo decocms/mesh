@@ -545,7 +545,7 @@ function ConnectionInspectorViewWithConnection({
           side="right"
           className="sm:max-w-[520px] p-0 flex flex-col gap-0 overflow-hidden"
         >
-          <SheetHeader className="px-6 py-4 border-b border-border shrink-0">
+          <SheetHeader className="px-4 py-3 md:px-6 md:py-4 border-b border-border shrink-0">
             <SheetTitle className="text-base">
               {configureInstance?.title ?? connection.title}
             </SheetTitle>
@@ -574,8 +574,8 @@ function ConnectionInspectorViewWithConnection({
             )}
           </SheetHeader>
           <Form key={configureInstance?.id ?? connection.id} {...form}>
-            <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
-              <div className="flex flex-col gap-4">
+            <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6 md:py-5 flex flex-col gap-4 md:gap-6">
+              <div className="flex flex-col gap-3 md:gap-4">
                 <FormField
                   control={form.control}
                   name="title"

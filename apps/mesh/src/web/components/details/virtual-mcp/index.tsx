@@ -203,7 +203,7 @@ function VirtualMcpDetailViewWithData({
     shareDialogOpen: false,
     connectionDialogOpen: false,
     editingConnectionId: null,
-    skillsOpen: false,
+    skillsOpen: localStorage.getItem("agent-connections-open") === "true",
   });
 
   // Auto-open chat with this agent selected
@@ -359,9 +359,10 @@ function VirtualMcpDetailViewWithData({
           {/* Skills section - Collapsible */}
           <Collapsible
             open={dialogState.skillsOpen}
-            onOpenChange={(open) =>
-              dispatch({ type: "SET_SKILLS_OPEN", payload: open })
-            }
+            onOpenChange={(open) => {
+              localStorage.setItem("agent-connections-open", String(open));
+              dispatch({ type: "SET_SKILLS_OPEN", payload: open });
+            }}
             className="border-t border-border shrink-0 max-h-[400px] overflow-hidden flex flex-col"
           >
             {connections.length === 0 ? (

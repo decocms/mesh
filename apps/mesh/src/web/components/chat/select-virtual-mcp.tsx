@@ -26,6 +26,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { useCreateVirtualMCP } from "../../hooks/use-create-virtual-mcp";
 
 export interface VirtualMCPInfo
@@ -125,7 +126,7 @@ export function VirtualMCPPopoverContent({
   };
 
   return (
-    <div className="flex flex-col max-h-[400px]">
+    <div className="flex flex-col max-h-[min(400px,60dvh)]">
       {/* Search input */}
       <div className="border-b px-4 py-3 bg-background/95 backdrop-blur sticky top-0 z-10">
         <div className="relative flex items-center gap-2">
@@ -154,9 +155,9 @@ export function VirtualMCPPopoverContent({
       </div>
 
       {/* Virtual MCP grid */}
-      <div className="overflow-y-auto p-1.5">
+      <div className="overflow-y-auto p-1.5 flex-1 min-h-0 [touch-action:pan-y]">
         {filteredVirtualMcps.length > 0 ? (
-          <div className="grid grid-cols-2 gap-0.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
             {filteredVirtualMcps.map((virtualMcp) => (
               <div
                 key={virtualMcp.id}
@@ -237,20 +238,22 @@ export function VirtualMCPSelector({
     setOpen(false);
   };
 
+  const isMobile = useIsMobile();
+
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
   };
 
-  // Focus search input when dialog opens
+  // Focus search input when dialog opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (open) {
+    if (open && !isMobile) {
       // Small delay to ensure the dialog is fully rendered
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
     }
-  }, [open]);
+  }, [open, isMobile]);
 
   return (
     <Popover
@@ -329,10 +332,11 @@ export function VirtualMCPSelector({
         </Tooltip>
       </TooltipProvider>
       <PopoverContent
-        className="w-[550px] p-0 overflow-hidden"
+        className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
         align="start"
         side="top"
         sideOffset={8}
+        collisionPadding={16}
       >
         <VirtualMCPPopoverContent
           virtualMcps={virtualMcps}

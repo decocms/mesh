@@ -65,7 +65,7 @@ function ChatPanelContent() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
+              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
               title="Close chat"
             >
               <X
@@ -114,7 +114,7 @@ function ChatPanelContent() {
               type="button"
               onClick={handleNewTask}
               disabled={isPending}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="New chat"
             >
               <Plus
@@ -125,7 +125,7 @@ function ChatPanelContent() {
             <button
               type="button"
               onClick={() => setActivePanel("tasks")}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent group cursor-pointer"
+              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer"
               title="Tasks"
             >
               <CheckDone01
@@ -136,7 +136,7 @@ function ChatPanelContent() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
+              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
               title="Close chat"
             >
               <X
@@ -150,19 +150,19 @@ function ChatPanelContent() {
         <Chat.Main>
           {isChatEmpty ? (
             <Chat.EmptyState>
-              <div className="flex flex-col items-center gap-6 w-full px-4">
-                <div className="flex flex-col items-center justify-center gap-4 p-0 text-center">
+              <div className="flex flex-col items-center gap-3 md:gap-6 w-full px-4">
+                <div className="flex flex-col items-center justify-center gap-2 md:gap-4 p-0 text-center">
                   <IntegrationIcon
                     icon={displayAgent.icon}
                     name={displayAgent.title}
                     size="lg"
                     fallbackIcon={<Users03 size={32} />}
-                    className="size-[60px]! rounded-[18px]!"
+                    className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
                   />
-                  <h3 className="text-xl font-medium text-foreground">
+                  <h3 className="text-base md:text-xl font-medium text-foreground">
                     {displayAgent.title}
                   </h3>
-                  <div className="text-muted-foreground text-center text-sm max-w-md">
+                  <div className="text-muted-foreground text-center text-xs md:text-sm max-w-md line-clamp-2">
                     {displayAgent.description ??
                       "Ask anything about configuring model providers or using MCP Mesh."}
                   </div>
@@ -197,7 +197,7 @@ function ChatPanelContent() {
             <button
               type="button"
               onClick={() => setActivePanel("chat")}
-              className="flex size-6 items-center justify-center rounded-full p-1 hover:bg-transparent transition-colors group cursor-pointer"
+              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
               title="Back to chat"
             >
               <ChevronLeft

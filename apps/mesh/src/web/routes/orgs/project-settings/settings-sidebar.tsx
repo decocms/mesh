@@ -9,7 +9,7 @@ import {
 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 
-const SETTINGS_ITEMS: Array<{
+export const SETTINGS_ITEMS: Array<{
   key: string;
   label: string;
   icon: ReactNode;
@@ -25,7 +25,11 @@ const SETTINGS_ITEMS: Array<{
   },
 ];
 
-export function ProjectSettingsSidebar() {
+export function ProjectSettingsSidebar({
+  onNavigate,
+}: {
+  onNavigate?: (key: string) => void;
+}) {
   const { location } = useRouterState();
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as {
@@ -36,10 +40,11 @@ export function ProjectSettingsSidebar() {
   const handleNavigate = (key: string) => {
     const href = `/${params.org}/${params.project}/settings/${key}`;
     navigate({ href });
+    onNavigate?.(key);
   };
 
   return (
-    <div className="w-52 shrink-0 border-r border-border bg-sidebar/50 overflow-y-auto py-3 flex flex-col gap-0.5 px-2">
+    <div className="w-full sm:w-52 shrink-0 sm:border-r border-border bg-sidebar/50 overflow-y-auto py-3 flex flex-col gap-0.5 px-2 flex-1">
       {SETTINGS_ITEMS.map((item) => {
         const isActive = location.pathname.endsWith(`/settings/${item.key}`);
 

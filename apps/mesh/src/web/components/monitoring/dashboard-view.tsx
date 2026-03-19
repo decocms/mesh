@@ -451,17 +451,23 @@ function DashboardViewContent({
 
         {/* Widgets Bento Grid — row height matches 1-col width for square metrics */}
         <div
-          className="grid grid-cols-5 gap-4"
+          className="grid grid-cols-2 lg:grid-cols-5 gap-4"
           ref={(el) => {
             if (!el) return;
             const update = () => {
               const gap = 16; // gap-4
-              const colW = (el.clientWidth - gap * 4) / 5;
+              const cols = window.innerWidth >= 1024 ? 5 : 2;
+              const colW = (el.clientWidth - gap * (cols - 1)) / cols;
               el.style.gridAutoRows = `${colW}px`;
             };
             update();
             const observer = new ResizeObserver(update);
             observer.observe(el);
+            window.addEventListener("resize", update);
+            return () => {
+              observer.disconnect();
+              window.removeEventListener("resize", update);
+            };
           }}
         >
           {dashboard.widgets.map((widget) => {

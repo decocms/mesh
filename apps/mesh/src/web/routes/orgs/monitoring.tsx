@@ -499,7 +499,7 @@ function MonitoringStatsContent({
           Tool Calls
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
         {STAT_KPI_CONFIG.map((config) => {
           const {
             id,
@@ -726,7 +726,7 @@ function LlmStatsContent({
           AI Usage
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
         {llmKpiConfigs.map(
           ({ id, dataKey, colorNum, barColor, chartMetric, renderTitle }) => {
             const isSelected = selectedMetric === chartMetric;
@@ -770,7 +770,7 @@ function LlmStatsSkeleton() {
       <div className="px-5 py-2 bg-muted/30 border-b border-border">
         <div className="h-3 w-16 rounded bg-muted animate-pulse" />
       </div>
-      <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
         {[...Array(3)].map((_, i) => (
           <HomeGridCell
             key={i}
@@ -937,16 +937,28 @@ function FiltersPopover({
   return (
     <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 w-7 px-0 sm:w-auto sm:px-3 relative"
+        >
           <FilterLines size={16} />
-          Filters
+          <span className="hidden sm:inline">Filters</span>
           {activeFiltersCount > 0 && (
-            <Badge
-              variant="default"
-              className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-            >
-              {activeFiltersCount}
-            </Badge>
+            <>
+              <Badge
+                variant="default"
+                className="sm:hidden absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] leading-none"
+              >
+                {activeFiltersCount}
+              </Badge>
+              <Badge
+                variant="default"
+                className="hidden sm:flex ml-1 h-5 w-5 rounded-full p-0 items-center justify-center text-xs"
+              >
+                {activeFiltersCount}
+              </Badge>
+            </>
           )}
         </Button>
       </PopoverTrigger>
@@ -1369,8 +1381,8 @@ function MonitoringLogsTableContent({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto">
+    <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 overflow-auto min-w-0">
         <div className="min-w-[600px] md:min-w-0 bg-background">
           <Table className="w-full border-collapse">
             <TableHeader className="border-b-0 z-20">
@@ -1441,8 +1453,8 @@ function MonitoringLogsTableContent({
 
 function MonitoringLogsTableSkeleton() {
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto">
+    <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 overflow-auto min-w-0">
         <div className="min-w-[600px] md:min-w-0 bg-background">
           <Table className="w-full border-collapse">
             <TableHeader className="border-b-0 z-20">
@@ -1596,7 +1608,7 @@ function AuditTabContent({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden min-w-0">
       {/* Search Bar */}
       <CollectionSearch
         value={searchQuery}
@@ -1612,7 +1624,7 @@ function AuditTabContent({
       />
 
       {/* Logs Table */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <MonitoringLogsTable
           connectionIds={connectionIds}
           virtualMcpIds={virtualMcpIds}
@@ -1781,12 +1793,9 @@ function MonitoringDashboardContent({
 
               {/* Streaming Toggle */}
               <Button
-                variant={isStreaming ? "secondary" : "outline"}
+                variant="outline"
                 size="sm"
-                className={cn(
-                  "h-7 px-2 sm:px-3 gap-1.5",
-                  isStreaming && "bg-muted hover:bg-muted/80",
-                )}
+                className="h-7 w-7 px-0 sm:w-auto sm:px-3 gap-1.5"
                 onClick={onStreamingToggle}
               >
                 {isStreaming ? (
@@ -1841,7 +1850,7 @@ function MonitoringDashboardContent({
           membersData={membersData}
         />
       ) : (
-        <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden min-w-0">
           {/* Top Tools Chart */}
           <div className="border-b border-border relative z-10">
             <ErrorBoundary fallback={null}>

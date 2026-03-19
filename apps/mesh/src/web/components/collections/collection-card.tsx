@@ -97,7 +97,7 @@ export function CollectionCard<T extends BaseCollectionEntity>({
       </div>
       {hasActions && (
         <div
-          className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-6 right-6 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >

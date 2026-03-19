@@ -192,7 +192,7 @@ export default function LoginRoute() {
     socialProviders.enabled
   ) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-brand to-brand/75 p-4">
+      <main className="relative flex min-h-screen items-stretch md:items-center justify-center bg-gradient-to-br from-brand to-brand/75 p-1 md:p-4">
         <div
           className="absolute inset-0"
           style={{
@@ -202,7 +202,7 @@ export default function LoginRoute() {
           }}
         />
 
-        <div className="relative z-10">
+        <div className="relative z-10 w-full md:w-auto">
           {/* Blueprint lines - glued to card edges, extending full screen */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-screen h-px bg-brand-foreground/15" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-screen h-px bg-brand-foreground/15" />

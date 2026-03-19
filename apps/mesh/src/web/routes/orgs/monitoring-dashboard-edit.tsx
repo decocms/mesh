@@ -366,10 +366,10 @@ function WidgetEditor({
       </div>
 
       <div className="p-4">
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left: Configuration */}
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium block mb-1.5">
                   Widget Name
@@ -443,7 +443,7 @@ function WidgetEditor({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium block mb-1.5">
                   Extract From
@@ -824,7 +824,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Dashboard Info */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium block mb-1.5">
                 Dashboard Name
@@ -861,7 +861,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
                 (applied to all widgets)
               </span>
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium block mb-1.5">
                   Servers
