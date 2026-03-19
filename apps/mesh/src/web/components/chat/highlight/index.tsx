@@ -209,6 +209,13 @@ export function ChatHighlight() {
       output: { approved },
     });
 
+    if (!approved) {
+      // Focus the chat input so the user can immediately type feedback
+      const editor = document.querySelector<HTMLElement>("[data-chat-input]");
+      editor?.focus();
+      return;
+    }
+
     if (approved) {
       // Find the assistant message containing this propose_plan call
       const planMessage = messages.findLast(

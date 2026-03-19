@@ -329,7 +329,7 @@ function PlanModeToggle({ disabled }: { disabled?: boolean }) {
             disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
             isPlanMode
               ? "border border-purple-500 text-purple-500 bg-purple-500/10 hover:bg-purple-500/20"
-              : "border border-purple-300 text-purple-300 hover:border-purple-400 hover:text-purple-400",
+              : "border border-border text-muted-foreground/75 hover:text-muted-foreground",
           )}
           aria-label={isPlanMode ? "Exit plan mode" : "Enter plan mode"}
         >
