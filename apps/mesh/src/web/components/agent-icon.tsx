@@ -334,7 +334,7 @@ export function buildImageIconString(url: string, color: string): string {
  * Get a deterministic icon component from the registry based on a name hash.
  * Used as fallback when no icon is explicitly set.
  */
-export function getDeterministicIcon(name: string): {
+function getDeterministicIcon(name: string): {
   IconComp: IconComponent;
   color: AgentIconColor;
 } {
