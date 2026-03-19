@@ -108,6 +108,15 @@ export async function streamCore(
   let llmCallLogged = false;
 
   try {
+    console.log("[decopilot:stream] start", {
+      threadId: input.threadId ?? "(new)",
+      agentId: input.agent.id,
+      modelId: input.models.thinking.id,
+      credentialId: input.models.credentialId,
+      toolApprovalLevel: input.toolApprovalLevel,
+      messageCount: input.messages.length,
+    });
+
     // 1. Check model permissions
     const allowedModels = await fetchModelPermissions(
       ctx.db,
@@ -141,6 +150,13 @@ export async function streamCore(
     ]);
 
     threadId = mem.thread.id;
+
+    console.log("[decopilot:stream] loaded entities", {
+      threadId: mem.thread.id,
+      virtualMcpId: virtualMcp?.id ?? null,
+      hasProvider: !!provider,
+      threadTitle: mem.thread.title,
+    });
 
     if (mem.thread.created_by !== input.userId) {
       throw new Error(
@@ -251,9 +267,18 @@ export async function streamCore(
     const toolOutputMap = new Map<string, string>();
     const organization = ctx.organization!;
 
+    console.log("[decopilot:stream] conversation ready", {
+      threadId: mem.thread.id,
+      totalMessages: allMessages.length,
+    });
+
     const uiStream = createUIMessageStream({
       originalMessages: allMessages,
       execute: async ({ writer }) => {
+        console.log("[decopilot:stream] execute started", {
+          threadId: mem.thread.id,
+        });
+
         const passthroughClient = await createVirtualClientFrom(
           virtualMcp,
           ctx,
@@ -402,6 +427,16 @@ export async function streamCore(
         let lastProviderMetadata: Record<string, unknown> | undefined;
         llmCallStartTime = Date.now();
 
+        console.log("[decopilot:stream] calling streamText", {
+          threadId: mem.thread.id,
+          modelId: input.models.thinking.id,
+          systemPromptCount: systemPrompts.length,
+          processedMessageCount: processedMessages.length,
+          toolCount: Object.keys(tools).length,
+          enabledToolCount: enabledTools.size,
+          maxOutputTokens,
+        });
+
         const result = streamText({
           model: createLanguageModel(provider, input.models.thinking),
           system: [
@@ -452,6 +487,13 @@ export async function streamCore(
             request,
             response,
           }) => {
+            console.log("[decopilot:stream] streamText onFinish", {
+              threadId: mem.thread.id,
+              finishReason,
+              inputTokens: totalUsage.inputTokens,
+              outputTokens: totalUsage.outputTokens,
+              aborted: registrySignal.aborted,
+            });
             if (registrySignal.aborted) return;
             const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
             llmCallLogged = true;
@@ -494,7 +536,12 @@ export async function streamCore(
             });
           },
           onError: async (error) => {
-            console.error("[decopilot:stream] Error", error);
+            console.error("[decopilot:stream] streamText onError", {
+              threadId: mem.thread.id,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+              aborted: registrySignal.aborted,
+            });
             if (registrySignal.aborted) {
               throw error;
             }
@@ -612,6 +659,14 @@ export async function streamCore(
         }
       },
       onFinish: async ({ responseMessage, finishReason }) => {
+        console.log("[decopilot:stream] uiStream onFinish", {
+          threadId: mem.thread.id,
+          finishReason,
+          hasResponseMessage: !!responseMessage,
+          responseParts: responseMessage?.parts?.length ?? 0,
+          aborted: registrySignal.aborted,
+        });
+
         streamFinished = true;
         closeClients?.();
 
@@ -628,6 +683,11 @@ export async function streamCore(
             text?: string;
           }[],
         );
+
+        console.log("[decopilot:stream] finishing run", {
+          threadId: mem.thread.id,
+          threadStatus,
+        });
 
         await runRegistry.execute({
           type: "FINISH",
@@ -658,12 +718,18 @@ export async function streamCore(
         }
       },
       onError: (error) => {
+        console.error("[decopilot:stream] uiStream onError", {
+          threadId: mem.thread.id,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          aborted: registrySignal.aborted,
+        });
+
         streamFinished = true;
         closeClients?.();
         if (registrySignal.aborted) {
           return sanitizeStreamError(error);
         }
-        console.error("[decopilot] stream error:", error);
 
         runRegistry
           .execute({
@@ -684,6 +750,12 @@ export async function streamCore(
       stream: uiStream,
     };
   } catch (err) {
+    console.error("[decopilot:stream] top-level catch", {
+      threadId: threadId ?? "(unknown)",
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+
     closeClients?.();
 
     if (runStarted && threadId) {
