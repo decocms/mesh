@@ -257,7 +257,6 @@ describe("Access Control Integration Tests", () => {
         connection_headers: null,
         oauth_config: null,
         metadata: null,
-        tools: null,
         bindings: null,
         status: "active",
         created_at: new Date().toISOString(),

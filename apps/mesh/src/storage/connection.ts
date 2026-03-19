@@ -12,7 +12,6 @@ import type {
   ConnectionParameters,
   OAuthConfig,
   StdioConnectionParameters,
-  ToolDefinition,
 } from "../tools/connection/schema";
 import { isStdioParameters } from "../tools/connection/schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
@@ -29,7 +28,6 @@ const JSON_FIELDS = [
   "oauth_config",
   "configuration_scopes",
   "metadata",
-  "tools",
   "bindings",
 ] as const;
 
@@ -52,7 +50,6 @@ type RawConnectionRow = {
   configuration_state: string | null; // Encrypted
   configuration_scopes: string | string[] | null;
   metadata: string | Record<string, unknown> | null;
-  tools: string | ToolDefinition[] | null;
   bindings: string | string[] | null;
   status: "active" | "inactive" | "error";
   created_at: Date | string;
@@ -247,6 +244,8 @@ export class ConnectionStorage implements ConnectionStoragePort {
 
     for (const [key, value] of Object.entries(data)) {
       if (value === undefined) continue;
+      // tools column was dropped — skip to avoid inserting into non-existent column
+      if (key === "tools") continue;
 
       if (key === "connection_token" && value) {
         result[key] = await this.vault.encrypt(value as string);
@@ -365,7 +364,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       configuration_state: decryptedConfigState,
       configuration_scopes: parseJson<string[]>(row.configuration_scopes),
       metadata: parseJson<Record<string, unknown>>(row.metadata),
-      tools: parseJson<ToolDefinition[]>(row.tools),
+      tools: null,
       bindings: parseJson<string[]>(row.bindings),
       status: row.status,
       created_at: row.created_at as string,

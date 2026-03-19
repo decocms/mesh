@@ -82,7 +82,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         configuration_state: null,
         configuration_scopes: null,
         metadata: data.metadata ? JSON.stringify(data.metadata) : null,
-        tools: null,
         bindings: null,
         status: data.status ?? "active",
         created_at: now,
