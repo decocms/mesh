@@ -74,6 +74,7 @@ import {
   DotsVertical,
   Eye,
   Loading01,
+  Plus,
   Trash01,
   Users03,
   XClose,
