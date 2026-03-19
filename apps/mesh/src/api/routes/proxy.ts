@@ -14,10 +14,10 @@
 import {
   clientFromConnection,
   serverFromConnection,
-  withMcpCaching,
   type ClientWithOptionalStreamingSupport,
   type ClientWithStreamingSupport,
 } from "@/mcp-clients";
+import { createLazyClient } from "@/mcp-clients/lazy-client";
 import { getMcpListCache } from "@/mcp-clients/mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
@@ -146,26 +146,17 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Create base client with auth + monitoring transports
-  const baseClient = await clientFromConnection(connection, ctx, superUser);
-
-  // Apply tool caching decorator (pass cross-pod cache if available)
-  const cachedClient = withMcpCaching(
-    baseClient,
+  // Create lazy client — defers MCP handshake until needed (cache hits avoid it)
+  const cachedClient = createLazyClient(
     connection,
+    ctx,
+    superUser,
     getMcpListCache() ?? undefined,
   );
 
-  // Create server directly from decorated client
-  // Tool caching is handled by the decorated client
-  // For VIRTUAL connections (PassthroughClient), getServerCapabilities() returns undefined
-  // because the client is synthetic (never connected to a real server).
-  // Fall back to default capabilities that include tools/resources/prompts.
-  const capabilities = cachedClient.getServerCapabilities() ?? {
-    tools: {},
-    resources: {},
-    prompts: {},
-  };
+  // Create server from lazy client with default capabilities
+  // The lazy client placeholder has no server capabilities (never connected),
+  // so we always provide defaults that include tools/resources/prompts.
   const server = createServerFromClient(
     cachedClient,
     {
@@ -173,8 +164,11 @@ async function createMCPProxyDoNotUseDirectly(
       version: "1.0.0",
     },
     {
-      capabilities,
-      instructions: cachedClient.getInstructions(),
+      capabilities: {
+        tools: {},
+        resources: {},
+        prompts: {},
+      },
     },
   );
 
@@ -290,7 +284,7 @@ app.all("/:connectionId", async (c) => {
       }
 
       // Create enhanced server directly (no need for bridge - server is used directly!)
-      const server = await serverFromConnection(connection, ctx, false);
+      const server = serverFromConnection(connection, ctx, false);
 
       // Create HTTP transport
       const transport = new WebStandardStreamableHTTPServerTransport({

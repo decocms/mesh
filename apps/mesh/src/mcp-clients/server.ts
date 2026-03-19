@@ -2,7 +2,8 @@
  * Enhanced MCP Server
  *
  * Creates an MCP Server that wraps a client connection with custom behaviors:
- * - Indexed tools optimization (uses cached DB tools when available)
+ * - Lazy connection: defers MCP handshake until needed (cache hits avoid it entirely)
+ * - SWR caching: tool/resource/prompt lists served from NATS KV with background revalidation
  * - Graceful error handling for resources/prompts (returns empty arrays for MethodNotFound)
  * - Uniform capabilities (all servers appear to support tools/resources/prompts)
  *
@@ -23,8 +24,7 @@ import {
   ListResourceTemplatesRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshContext } from "../core/mesh-context";
-import { clientFromConnection } from "./client";
-import { withMcpCaching } from "./decorators/with-mcp-caching";
+import { createLazyClient } from "./lazy-client";
 import { getMcpListCache } from "./mcp-list-cache";
 import { fallbackOnMethodNotFoundError } from "./utils";
 
@@ -42,10 +42,10 @@ const DEFAULT_SERVER_CAPABILITIES = {
 /**
  * Creates an enhanced MCP Server with custom request handlers from a connection.
  *
- * The server wraps a client connection and adds:
- * - SWR caching for tool/resource/prompt lists (via withMcpCaching + NATS KV)
- * - Graceful error handling for optional features
- * - Uniform capabilities for consistent client experience
+ * The server wraps a lazy-connecting client that defers the MCP handshake until
+ * the first operation that actually needs it. List operations (tools, resources,
+ * prompts) are served from NATS KV cache when available, avoiding the ~80-120ms
+ * connection cost entirely on cache hits.
  *
  * @param connection - The connection entity to create a server for
  * @param ctx - Mesh context with storage and organization info
@@ -55,22 +55,22 @@ const DEFAULT_SERVER_CAPABILITIES = {
  * @example
  * ```ts
  * // Use in HTTP proxy route
- * const server = await serverFromConnection(connection, ctx, false);
+ * const server = serverFromConnection(connection, ctx, false);
  * const transport = new WebStandardStreamableHTTPServerTransport({});
  * await server.connect(transport);
  * return await transport.handleRequest(req);
  * ```
  */
-export async function serverFromConnection(
+export function serverFromConnection(
   connection: ConnectionEntity,
   ctx: MeshContext,
   superUser: boolean,
-): Promise<McpServer> {
-  // Create base client with auth + monitoring transports, then wrap with SWR cache
-  const baseClient = await clientFromConnection(connection, ctx, superUser);
-  const client = withMcpCaching(
-    baseClient,
+): McpServer {
+  // Create lazy client — no MCP connection is established until needed
+  const client = createLazyClient(
     connection,
+    ctx,
+    superUser,
     getMcpListCache() ?? undefined,
   );
 
@@ -83,7 +83,6 @@ export async function serverFromConnection(
     },
     {
       capabilities: DEFAULT_SERVER_CAPABILITIES,
-      instructions: client.getInstructions(),
     },
   );
 
