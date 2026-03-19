@@ -307,8 +307,8 @@ export async function listManagementTools(
     InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: "tools-hydration", version: "1.0.0" });
-  await client.connect(clientTransport);
   try {
+    await client.connect(clientTransport);
     const result = await client.listTools();
     return result.tools;
   } finally {
