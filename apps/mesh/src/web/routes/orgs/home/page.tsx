@@ -33,7 +33,6 @@ import {
   LayoutRight,
   MessageChatSquare,
   Plus,
-  Users03,
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 
@@ -147,12 +146,14 @@ function HomeChatContent({
           <div className="flex-1 flex flex-col items-center justify-center px-4">
             <div className="flex flex-col items-center w-full max-w-[600px]">
               <div className="flex justify-center mb-4">
-                <IntegrationIcon
+                <AgentAvatar
                   icon={displayAgent.icon}
                   name={displayAgent.title}
                   size="md"
-                  fallbackIcon={<Users03 size={20} />}
-                  className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
+                  className={cn(
+                    "transition-opacity duration-200",
+                    !selectedVirtualMcp && "invisible",
+                  )}
                 />
               </div>
               <div className="text-center">
@@ -179,12 +180,14 @@ function HomeChatContent({
         <div className="flex-1 flex flex-col items-center justify-center px-10">
           <div className="flex flex-col items-center w-full max-w-[600px]">
             <div className="flex justify-center mb-4">
-              <IntegrationIcon
+              <AgentAvatar
                 icon={displayAgent.icon}
                 name={displayAgent.title}
                 size="md"
-                fallbackIcon={<Users03 size={20} />}
-                className="size-12 rounded-xl border border-stone-200/60 shadow-sm aspect-square transition-opacity duration-200"
+                className={cn(
+                  "transition-opacity duration-200",
+                  !selectedVirtualMcp && "invisible",
+                )}
               />
             </div>
             <div className="text-center mb-6">

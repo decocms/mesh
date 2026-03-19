@@ -290,12 +290,11 @@ function AgentGroupCard({
           >
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
               <div className="flex items-center gap-3">
-                <IntegrationIcon
+                <AgentAvatar
                   icon={group.icon}
                   name={group.title}
                   size="md"
-                  className="shrink-0 shadow-sm"
-                  fallbackIcon={<Users03 />}
+                  className="shrink-0"
                 />
                 <div>
                   <SheetTitle>
@@ -323,12 +322,11 @@ function AgentGroupCard({
                     onNavigate(a.id);
                   }}
                 >
-                  <IntegrationIcon
+                  <AgentAvatar
                     icon={a.icon}
                     name={a.title}
                     size="sm"
                     className="shrink-0"
-                    fallbackIcon={<Users03 />}
                   />
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground truncate">
@@ -388,12 +386,11 @@ function AgentGroupCard({
           <DialogContent className="sm:max-w-lg p-0 gap-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <div className="flex items-center gap-3">
-                <IntegrationIcon
+                <AgentAvatar
                   icon={group.icon}
                   name={group.title}
                   size="md"
-                  className="shrink-0 shadow-sm"
-                  fallbackIcon={<Users03 />}
+                  className="shrink-0"
                 />
                 <div>
                   <DialogTitle>
@@ -421,12 +418,11 @@ function AgentGroupCard({
                     onNavigate(a.id);
                   }}
                 >
-                  <IntegrationIcon
+                  <AgentAvatar
                     icon={a.icon}
                     name={a.title}
                     size="sm"
                     className="shrink-0"
-                    fallbackIcon={<Users03 />}
                   />
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground truncate">
