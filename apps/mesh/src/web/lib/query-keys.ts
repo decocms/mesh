@@ -257,4 +257,7 @@ export const KEYS = {
     ["org-sso-config", organizationId] as const,
   orgSsoStatus: (organizationId: string) =>
     ["org-sso-status", organizationId] as const,
+
+  // Context repo
+  contextRepo: (orgId: string) => ["context-repo", orgId] as const,
 } as const;

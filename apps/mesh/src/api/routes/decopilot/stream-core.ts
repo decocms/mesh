@@ -17,6 +17,7 @@ import { getBuiltInTools } from "./built-in-tools";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
   buildBasePlatformPrompt,
+  buildContextRepoPrompt,
   buildDecopilotAgentPrompt,
   DEFAULT_MAX_TOKENS,
   DEFAULT_THREAD_TITLE,
@@ -446,11 +447,19 @@ async function streamCoreInner(
               "</plan-mode>"
             : null;
 
+        // Context repo prompt: inject if a GITHUB context repo is configured
+        const orgConnections = await ctx.storage.connections.list(
+          input.organizationId,
+          { includeVirtual: true },
+        );
+        const contextRepoPrompt = buildContextRepoPrompt(orgConnections);
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           toolCatalog,
           promptCatalog,
+          contextRepoPrompt,
           agentPrompt,
         ].filter((s): s is string => Boolean(s?.trim()));
 
