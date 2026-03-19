@@ -2,10 +2,16 @@
  * Authorization Transport
  *
  * Intercepts tool calls to check permissions before forwarding to downstream.
- * Uses cached connection.tools metadata for public tool checks.
+ * Uses NATS KV cached tools metadata for public tool checks,
+ * falling back to a live tools/list request on cache miss.
  */
 
 import type { MeshContext } from "@/core/mesh-context";
+import {
+  type McpListCache,
+  getMcpListCache,
+  fetchWithCache,
+} from "@/mcp-clients/mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { AccessControl } from "@/core/access-control";
 import type {
@@ -22,23 +28,84 @@ interface AuthTransportOptions {
   ctx: MeshContext;
   connection: ConnectionEntity;
   superUser?: boolean;
+  cache?: McpListCache;
 }
 
 export class AuthTransport extends WrapperTransport {
-  private cachedToolsMap: Map<string, any> | null = null;
-
   constructor(
     innerTransport: Transport,
     private options: AuthTransportOptions,
   ) {
     super(innerTransport);
+  }
 
-    // Pre-build tool metadata map from cached connection.tools
-    if (options.connection.tools) {
-      this.cachedToolsMap = new Map(
-        options.connection.tools.map((tool) => [tool.name, tool]),
-      );
+  private toolsListPromise: Promise<unknown[] | null> | null = null;
+
+  /**
+   * Fetch tools by sending a tools/list JSON-RPC request through the inner transport.
+   * Single-flighted: concurrent callers share the same in-flight request.
+   */
+  private fetchToolsFromServer(): Promise<unknown[] | null> {
+    if (!this.toolsListPromise) {
+      this.toolsListPromise = new Promise<unknown[] | null>((resolve) => {
+        const requestId = `auth-tools-${Date.now()}`;
+        const prev = this.innerTransport.onmessage;
+
+        this.innerTransport.onmessage = (message: JSONRPCMessage) => {
+          if ("id" in message && message.id === requestId) {
+            this.innerTransport.onmessage = prev;
+            this.toolsListPromise = null;
+            if ("result" in message) {
+              const tools =
+                (message.result as { tools?: unknown[] })?.tools ?? null;
+              resolve(tools);
+            } else {
+              // JSON-RPC error response — resolve null so callers degrade gracefully
+              resolve(null);
+            }
+          } else {
+            prev?.(message);
+          }
+        };
+
+        this.innerTransport
+          .send({
+            jsonrpc: "2.0",
+            id: requestId,
+            method: "tools/list",
+            params: {},
+          } as JSONRPCMessage)
+          .catch(() => {
+            this.innerTransport.onmessage = prev;
+            this.toolsListPromise = null;
+            resolve(null);
+          });
+      });
     }
+    return this.toolsListPromise;
+  }
+
+  private async ensureToolsMap(): Promise<Map<string, any>> {
+    const cache = this.options.cache ?? getMcpListCache();
+
+    const tools = await fetchWithCache(
+      "tools",
+      this.options.connection.id,
+      async () => {
+        const tools = await this.fetchToolsFromServer();
+        if (tools === null) {
+          throw new Error("Failed to fetch tools list");
+        }
+        return tools;
+      },
+      cache,
+    );
+
+    if (!tools) {
+      return new Map();
+    }
+
+    return new Map((tools as Array<{ name: string }>).map((t) => [t.name, t]));
   }
 
   protected override async handleOutgoingMessage(
@@ -71,7 +138,7 @@ export class AuthTransport extends WrapperTransport {
     const { ctx, connection } = this.options;
 
     // Check if tool is public (using cached metadata)
-    if (this.isPublicTool(toolName)) {
+    if (await this.isPublicTool(toolName)) {
       return; // Public tools skip auth
     }
 
@@ -84,7 +151,8 @@ export class AuthTransport extends WrapperTransport {
 
     // Create getToolMeta callback for AccessControl
     const getToolMeta = async () => {
-      const tool = this.cachedToolsMap?.get(toolName);
+      const toolsMap = await this.ensureToolsMap();
+      const tool = toolsMap.get(toolName);
       return tool?._meta as Record<string, unknown> | undefined;
     };
 
@@ -103,18 +171,13 @@ export class AuthTransport extends WrapperTransport {
     await connectionAccessControl.check(toolName);
   }
 
-  private isPublicTool(toolName: string): boolean {
-    // Check MESH_PUBLIC_ prefix
+  private async isPublicTool(toolName: string): Promise<boolean> {
     if (toolName.startsWith("MESH_PUBLIC_")) {
       return true;
     }
 
-    // Check cached metadata
-    if (!this.cachedToolsMap) {
-      return false;
-    }
-
-    const tool = this.cachedToolsMap.get(toolName);
+    const toolsMap = await this.ensureToolsMap();
+    const tool = toolsMap.get(toolName);
     if (!tool?._meta) {
       return false;
     }

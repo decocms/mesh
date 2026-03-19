@@ -6,14 +6,27 @@
 
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { VirtualMCPEntity } from "../../tools/virtual/schema";
-import type { VirtualToolDefinition } from "../../tools/virtual-tool/schema";
 import type { MCPProxyClient } from "../../api/routes/proxy";
-import type { ToolListCache } from "../../mcp-clients/tool-list-cache";
+import type { McpListCache } from "../../mcp-clients/mcp-list-cache";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 /** Entry in the proxy map (connection ID -> proxy entry) */
 export interface ProxyEntry {
   proxy: MCPProxyClient;
   connection: ConnectionEntity;
+}
+
+export interface VirtualToolDefinition
+  extends Pick<
+    Tool,
+    "name" | "description" | "inputSchema" | "outputSchema" | "annotations"
+  > {
+  _meta: {
+    "mcp.mesh": {
+      "tool.fn": string;
+    };
+    connectionDependencies?: string[];
+  };
 }
 
 /** Options for creating an aggregator */
@@ -24,6 +37,6 @@ export interface VirtualClientOptions {
   virtualTools?: VirtualToolDefinition[];
   /** Whether to use superuser mode for background processes (bypasses auth checks on sub-clients) */
   superUser?: boolean;
-  /** Cross-pod NATS KV cache for tool lists (avoids MCP handshake on listTools) */
-  toolListCache?: ToolListCache;
+  /** Cross-pod NATS KV cache for MCP lists (avoids MCP handshake on listTools/listResources/listPrompts) */
+  mcpListCache?: McpListCache;
 }

@@ -14,11 +14,11 @@
 import {
   clientFromConnection,
   serverFromConnection,
-  withToolCaching,
   type ClientWithOptionalStreamingSupport,
   type ClientWithStreamingSupport,
 } from "@/mcp-clients";
-import { getToolListCache } from "@/mcp-clients/tool-list-cache";
+import { createLazyClient } from "@/mcp-clients/lazy-client";
+import { getMcpListCache } from "@/mcp-clients/mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import type { ServerClient } from "@decocms/bindings/mcp";
 import {
@@ -29,6 +29,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Context, Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
 
@@ -145,26 +146,17 @@ async function createMCPProxyDoNotUseDirectly(
     throw new Error(`Connection inactive: ${connection.status}`);
   }
 
-  // Create base client with auth + monitoring transports
-  const baseClient = await clientFromConnection(connection, ctx, superUser);
-
-  // Apply tool caching decorator (pass cross-pod cache if available)
-  const cachedClient = withToolCaching(
-    baseClient,
+  // Create lazy client — defers MCP handshake until needed (cache hits avoid it)
+  const cachedClient = createLazyClient(
     connection,
-    getToolListCache() ?? undefined,
+    ctx,
+    superUser,
+    getMcpListCache() ?? undefined,
   );
 
-  // Create server directly from decorated client
-  // Tool caching is handled by the decorated client
-  // For VIRTUAL connections (PassthroughClient), getServerCapabilities() returns undefined
-  // because the client is synthetic (never connected to a real server).
-  // Fall back to default capabilities that include tools/resources/prompts.
-  const capabilities = cachedClient.getServerCapabilities() ?? {
-    tools: {},
-    resources: {},
-    prompts: {},
-  };
+  // Create server from lazy client with default capabilities
+  // The lazy client placeholder has no server capabilities (never connected),
+  // so we always provide defaults that include tools/resources/prompts.
   const server = createServerFromClient(
     cachedClient,
     {
@@ -172,8 +164,11 @@ async function createMCPProxyDoNotUseDirectly(
       version: "1.0.0",
     },
     {
-      capabilities,
-      instructions: cachedClient.getInstructions(),
+      capabilities: {
+        tools: {},
+        resources: {},
+        prompts: {},
+      },
     },
   );
 
@@ -249,6 +244,22 @@ app.all("/:connectionId", async (c) => {
   const connectionId = c.req.param("connectionId");
   const ctx = c.get("meshContext");
 
+  // SELF MCP connections ({orgId}_self) route to the management MCP server
+  // instead of creating an outbound client connection
+  if (connectionId.endsWith("_self")) {
+    const selfOrgId = connectionId.slice(0, -"_self".length);
+    if (!ctx.organization || ctx.organization.id !== selfOrgId) {
+      return c.json({ error: "Connection not found" }, 404);
+    }
+    const server = await managementMCP(ctx);
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse:
+        c.req.raw.headers.get("Accept")?.includes("application/json") ?? false,
+    });
+    await server.connect(transport);
+    return await transport.handleRequest(c.req.raw);
+  }
+
   try {
     try {
       // Fetch connection
@@ -276,8 +287,19 @@ app.all("/:connectionId", async (c) => {
         throw new Error(`Connection inactive: ${connection.status}`);
       }
 
+      // For HTTP connections, eagerly attempt the upstream MCP handshake to
+      // surface auth errors (e.g. OAuth 401). The lazy client inside
+      // serverFromConnection defers the connection, so without this probe
+      // the proxy would handle "initialize" locally and return 200 OK —
+      // hiding the 401 the frontend needs to trigger the OAuth popup.
+      // On success this also warms the per-request client pool, so the
+      // lazy client reuses the same connection instead of double-connecting.
+      if (connection.connection_url) {
+        await clientFromConnection(connection, ctx, false);
+      }
+
       // Create enhanced server directly (no need for bridge - server is used directly!)
-      const server = await serverFromConnection(connection, ctx, false);
+      const server = serverFromConnection(connection, ctx, false);
 
       // Create HTTP transport
       const transport = new WebStandardStreamableHTTPServerTransport({

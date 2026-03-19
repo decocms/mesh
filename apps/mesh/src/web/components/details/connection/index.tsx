@@ -773,21 +773,32 @@ function ConnectionInspectorViewContent() {
   // VIRTUAL connections always fetch dynamically because:
   // 1. Their tools column contains virtual tool definitions (code), not cached downstream tools
   // 2. The actual tools list (virtual + downstream) comes from the MCP proxy
-  const isVirtualConnection = connection?.connection_type === "VIRTUAL";
-  const hasCachedTools =
-    !isVirtualConnection && connection?.tools && connection.tools.length > 0;
+  // Always fetch tools live from the MCP proxy — cached tools from
+  // the connection list are used as placeholder while the live query loads.
+  // This ensures newly added downstream tools appear after a page refresh.
   const { data: toolsData } = useMCPToolsListQuery({
     client,
-    enabled: !hasCachedTools,
   });
 
-  const tools = hasCachedTools
-    ? (connection?.tools ?? [])
-    : (toolsData?.tools ?? []).map((t) => ({
+  const tools = toolsData
+    ? toolsData.tools.map((t) => ({
         name: t.name,
         description: t.description,
         inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+        outputSchema: (t as any).outputSchema as
+          | Record<string, unknown>
+          | undefined,
         annotations: t.annotations,
+        _meta: t._meta as Record<string, unknown> | undefined,
+      }))
+    : (connection?.tools ?? []).map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+        outputSchema: (t as any).outputSchema as
+          | Record<string, unknown>
+          | undefined,
+        annotations: (t as any).annotations,
         _meta: t._meta as Record<string, unknown> | undefined,
       }));
 
@@ -796,20 +807,31 @@ function ConnectionInspectorViewContent() {
     if (siblings.length <= 1) return tools;
     const seen = new Set<string>();
     const result: typeof tools = [];
+
+    const toToolList = (
+      source:
+        | typeof tools
+        | NonNullable<(typeof siblings)[number]["tools"]>
+        | null
+        | undefined,
+    ) =>
+      (source ?? []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
+        outputSchema: tool.outputSchema as Record<string, unknown> | undefined,
+        annotations: tool.annotations,
+        _meta: tool._meta as Record<string, unknown> | undefined,
+      }));
+
     for (const sibling of siblings) {
-      for (const tool of sibling.tools ?? []) {
+      const siblingTools =
+        sibling.id === connectionId ? tools : toToolList(sibling.tools);
+
+      for (const tool of siblingTools) {
         if (!seen.has(tool.name)) {
           seen.add(tool.name);
-          result.push({
-            name: tool.name,
-            description: tool.description,
-            inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
-            outputSchema: tool.outputSchema as
-              | Record<string, unknown>
-              | undefined,
-            annotations: tool.annotations,
-            _meta: tool._meta as Record<string, unknown> | undefined,
-          });
+          result.push(tool);
         }
       }
     }

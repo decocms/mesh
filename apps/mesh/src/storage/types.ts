@@ -12,7 +12,7 @@
  */
 
 import type { ColumnType } from "kysely";
-import type { OAuthConfig, ToolDefinition } from "../tools/connection/schema";
+import type { OAuthConfig } from "../tools/connection/schema";
 import type { ChatMessage } from "../api/routes/decopilot/types";
 import { ThreadStatus, type ProviderId } from "@decocms/mesh-sdk";
 
@@ -172,7 +172,6 @@ export interface MCPConnectionTable {
 
   // Metadata and discovery
   metadata: JsonObject<Record<string, unknown>> | null;
-  tools: JsonArray<ToolDefinition[]> | null; // Discovered tools from MCP
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
   status: "active" | "inactive" | "error";
@@ -181,7 +180,7 @@ export interface MCPConnectionTable {
 }
 
 // MCPConnection runtime type is now ConnectionEntity from "../tools/connection/schema"
-// OAuthConfig and ToolDefinition are also exported from schema.ts
+// OAuthConfig is also exported from schema.ts
 
 /**
  * API Key table definition
