@@ -13,6 +13,7 @@ import type {
   Resource,
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { McpListCache, McpListType } from "./mcp-list-cache";
 import { withMcpCaching } from "./decorators/with-mcp-caching";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -124,6 +125,59 @@ describe("withMcpCaching with TestMcpListCache", () => {
     expect(callCount).toBe(1);
   });
 
+  it("caches empty tool lists so removals are reflected immediately", async () => {
+    let callCount = 0;
+    const connection = makeConnection({ tools: null });
+    const client = {
+      listTools: async () => {
+        callCount++;
+        return { tools: [] };
+      },
+    } as any as Client;
+
+    const cache = new TestMcpListCache();
+    const cached = withMcpCaching(client, connection, cache);
+
+    await cached.listTools();
+    await cached.listTools();
+
+    expect(callCount).toBe(1);
+    expect(await cache.get("tools", connection.id)).toEqual([]);
+  });
+
+  it("bypasses cache and preserves params/options for paginated listTools calls", async () => {
+    const connection = makeConnection({ tools: null });
+    const params = { cursor: "cursor_1" };
+    const options = { timeout: 123 } as RequestOptions;
+    let receivedParams: unknown;
+    let receivedOptions: unknown;
+
+    const client = {
+      listTools: async (
+        incomingParams?: unknown,
+        incomingOptions?: unknown,
+      ) => {
+        receivedParams = incomingParams;
+        receivedOptions = incomingOptions;
+        return {
+          tools: [makeTool("page_2_tool")],
+          nextCursor: "cursor_2",
+        };
+      },
+    } as any as Client;
+
+    const cache = new TestMcpListCache();
+    await cache.set("tools", connection.id, [makeTool("stale_tool")]);
+
+    const cached = withMcpCaching(client, connection, cache);
+    const result = await cached.listTools(params as never, options);
+
+    expect(receivedParams).toEqual(params);
+    expect(receivedOptions).toBe(options);
+    expect(result.tools.map((tool) => tool.name)).toEqual(["page_2_tool"]);
+    expect(result.nextCursor).toBe("cursor_2");
+  });
+
   it("VIRTUAL connection always calls originalListTools (bypasses cache)", async () => {
     let callCount = 0;
     const connection = makeConnection({
@@ -211,6 +265,26 @@ describe("withMcpCaching resources", () => {
     expect(callCount).toBe(1);
   });
 
+  it("caches empty resource lists so removals are reflected immediately", async () => {
+    let callCount = 0;
+    const connection = makeConnection();
+    const client = {
+      listResources: async () => {
+        callCount++;
+        return { resources: [] };
+      },
+    } as any as Client;
+
+    const cache = new TestMcpListCache();
+    const cached = withMcpCaching(client, connection, cache);
+
+    await cached.listResources();
+    await cached.listResources();
+
+    expect(callCount).toBe(1);
+    expect(await cache.get("resources", connection.id)).toEqual([]);
+  });
+
   it("VIRTUAL connection bypasses cache", async () => {
     let callCount = 0;
     const connection = makeConnection({ connection_type: "VIRTUAL" });
@@ -274,6 +348,26 @@ describe("withMcpCaching prompts", () => {
     await cached.listPrompts();
     await cached.listPrompts();
     expect(callCount).toBe(1);
+  });
+
+  it("caches empty prompt lists so removals are reflected immediately", async () => {
+    let callCount = 0;
+    const connection = makeConnection();
+    const client = {
+      listPrompts: async () => {
+        callCount++;
+        return { prompts: [] };
+      },
+    } as any as Client;
+
+    const cache = new TestMcpListCache();
+    const cached = withMcpCaching(client, connection, cache);
+
+    await cached.listPrompts();
+    await cached.listPrompts();
+
+    expect(callCount).toBe(1);
+    expect(await cache.get("prompts", connection.id)).toEqual([]);
   });
 
   it("VIRTUAL connection bypasses cache", async () => {

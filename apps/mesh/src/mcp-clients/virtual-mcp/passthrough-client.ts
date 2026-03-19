@@ -3,20 +3,24 @@
  *
  * Base client class that aggregates tools, resources, and prompts from multiple connections.
  * Extends the MCP SDK Client class and provides passthrough behavior for tools.
- * Routes tool calls to the appropriate downstream connection.
+ * Also supports virtual tools defined on the Virtual MCP itself.
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
 import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
 import { fallbackOnMethodNotFoundError } from "@/mcp-clients/utils";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import {
   type CallToolRequest,
   type CallToolResult,
   type GetPromptRequest,
   type GetPromptResult,
+  type ListPromptsRequest,
   type ListPromptsResult,
+  type ListResourcesRequest,
   type ListResourcesResult,
+  type ListToolsRequest,
   type ListToolsResult,
   type Prompt,
   type ReadResourceRequest,
@@ -26,6 +30,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../../common";
 import type { MeshContext } from "../../core/mesh-context";
+import { runCode, type ToolHandler } from "../../sandbox/run-code";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 
 /** Tool with connection metadata for routing */
@@ -36,8 +41,8 @@ interface ToolWithConnection extends Tool {
   };
 }
 import type { VirtualMCPConnection } from "../../tools/virtual/schema";
-import { type McpListCache, getMcpListCache } from "../mcp-list-cache";
-import type { VirtualClientOptions } from "./types";
+import type { McpListCache } from "../mcp-list-cache";
+import type { VirtualClientOptions, VirtualToolDefinition } from "./types";
 
 interface Cache<T> {
   data: T[];
@@ -45,7 +50,9 @@ interface Cache<T> {
 }
 
 /** Cached tool data structure */
-interface ToolCache extends Cache<ToolWithConnection> {}
+interface ToolCache extends Cache<ToolWithConnection> {
+  virtualTools: Map<string, VirtualToolDefinition>;
+}
 
 /** Cached resource data structure */
 interface ResourceCache extends Cache<Resource> {}
@@ -109,55 +116,92 @@ function createLazyClient(
     return realClientPromise;
   }
 
-  // SWR helper: return cached data immediately, revalidate in background
-  // Only revalidates if realClientPromise already exists (don't create connections just for refresh)
-  // Single-flight deduplication via revalidating Set
-  const swrList = <T>(
+  const shouldBypassCache = (params?: unknown, options?: unknown) =>
+    params !== undefined || options !== undefined;
+  const canStoreResult = (result: { nextCursor?: string | undefined }) =>
+    result.nextCursor === undefined;
+
+  // SWR helper: return cached data immediately and refresh the shared cache in
+  // the background, even on a cold load. That keeps subsequent reloads from
+  // serving the same stale list forever.
+  const swrList = <T extends { nextCursor?: string | undefined }>(
     type: "tools" | "resources" | "prompts",
-    listFn: (client: Client) => Promise<T>,
+    listFn: (
+      client: Client,
+      params?: unknown,
+      options?: RequestOptions,
+    ) => Promise<T>,
     extractData: (result: T) => unknown[],
+    buildCachedResult: (cached: unknown[]) => T,
   ) => {
-    return async (): Promise<T> => {
-      if (connection.connection_type !== "VIRTUAL" && cache) {
+    return async (params?: unknown, options?: RequestOptions): Promise<T> => {
+      if (
+        connection.connection_type !== "VIRTUAL" &&
+        cache &&
+        !shouldBypassCache(params, options)
+      ) {
         const cached = await cache.get(type, connection.id);
-        if (cached) {
-          // SWR: background revalidation only if real client already exists
+        if (cached !== null) {
           const revalKey = `${type}:${connection.id}`;
-          if (realClientPromise && !revalidating.has(revalKey)) {
+          if (!revalidating.has(revalKey)) {
             revalidating.add(revalKey);
-            realClientPromise
-              .then((r) => listFn(r))
-              .then((r) => cache.set(type, connection.id, extractData(r)))
+            getRealClient()
+              .then((client) => listFn(client))
+              .then((result) => {
+                if (canStoreResult(result)) {
+                  void cache.set(type, connection.id, extractData(result));
+                }
+              })
               .catch(() => {})
               .finally(() => revalidating.delete(revalKey));
           }
-          return { [type]: cached } as T;
+          return buildCachedResult(cached);
         }
       }
+
       // No cached data — must connect
       const real = await getRealClient();
-      const result = await listFn(real);
-      cache?.set(type, connection.id, extractData(result)).catch(() => {});
+      const result = await listFn(real, params, options);
+      if (
+        connection.connection_type !== "VIRTUAL" &&
+        cache &&
+        !shouldBypassCache(params, options) &&
+        canStoreResult(result)
+      ) {
+        cache.set(type, connection.id, extractData(result)).catch(() => {});
+      }
       return result;
     };
   };
 
   placeholder.listTools = swrList(
     "tools",
-    (c) => c.listTools(),
+    (c, params, options) =>
+      c.listTools(params as ListToolsRequest["params"] | undefined, options),
     (r) => r.tools,
+    (cached) => ({ tools: cached as ListToolsResult["tools"] }),
   );
 
   placeholder.listResources = swrList(
     "resources",
-    (c) => c.listResources(),
+    (c, params, options) =>
+      c.listResources(
+        params as ListResourcesRequest["params"] | undefined,
+        options,
+      ),
     (r) => r.resources,
+    (cached) => ({ resources: cached as ListResourcesResult["resources"] }),
   );
 
   placeholder.listPrompts = swrList(
     "prompts",
-    (c) => c.listPrompts(),
+    (c, params, options) =>
+      c.listPrompts(
+        params as ListPromptsRequest["params"] | undefined,
+        options,
+      ),
     (r) => r.prompts,
+    (cached) => ({ prompts: cached as ListPromptsResult["prompts"] }),
   );
 
   // Proxy callTool to the real client (always needs a connection)
@@ -300,7 +344,7 @@ export class PassthroughClient extends Client {
       this.options.connections,
       this.ctx,
       this.options.superUser,
-      getMcpListCache() ?? undefined,
+      this.options.mcpListCache,
     );
 
     // Initialize lazy caches - all share the same ProxyCollection
@@ -310,7 +354,7 @@ export class PassthroughClient extends Client {
   }
 
   /**
-   * Load tools cache from downstream connections
+   * Load tools cache from downstream connections plus any virtual tools.
    */
   private async loadToolsCache(): Promise<ToolCache> {
     const clients = this._clients;
@@ -339,6 +383,21 @@ export class PassthroughClient extends Client {
 
     const flattened: ToolWithConnection[] = [];
     const mappings = new Map<string, string>();
+    const virtualToolsMap = new Map<string, VirtualToolDefinition>();
+
+    for (const virtualTool of this.options.virtualTools ?? []) {
+      if (mappings.has(virtualTool.name)) continue;
+
+      flattened.push({
+        ...virtualTool,
+        _meta: {
+          connectionId: this.options.virtualMcp.id ?? "__VIRTUAL__",
+          connectionTitle: this.options.virtualMcp.title,
+        },
+      });
+      mappings.set(virtualTool.name, "__VIRTUAL__");
+      virtualToolsMap.set(virtualTool.name, virtualTool);
+    }
 
     // Add downstream tools
     for (const result of results) {
@@ -367,7 +426,7 @@ export class PassthroughClient extends Client {
       }
     }
 
-    return { data: flattened, mappings };
+    return { data: flattened, mappings, virtualTools: virtualToolsMap };
   }
 
   private async loadCache<T>(
@@ -456,7 +515,8 @@ export class PassthroughClient extends Client {
   }
 
   /**
-   * Call a tool by name, routing to the correct connection
+   * Call a tool by name, routing to the correct connection or executing a
+   * virtual tool when the Virtual MCP defines one.
    */
   override async callTool(
     params: CallToolRequest["params"],
@@ -470,6 +530,15 @@ export class PassthroughClient extends Client {
         content: [{ type: "text", text: `Tool not found: ${params.name}` }],
         isError: true,
       };
+    }
+
+    if (connectionId === "__VIRTUAL__") {
+      return this.executeVirtualTool(
+        params.name,
+        params.arguments ?? {},
+        cache,
+        clients,
+      );
     }
 
     const client = clients.get(connectionId);
@@ -491,6 +560,108 @@ export class PassthroughClient extends Client {
     });
 
     return result as CallToolResult;
+  }
+
+  private async executeVirtualTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    cache: ToolCache,
+    clients: Map<string, Client>,
+  ): Promise<CallToolResult> {
+    const virtualTool = cache.virtualTools.get(toolName);
+    if (!virtualTool) {
+      return {
+        content: [
+          { type: "text", text: `Virtual tool not found: ${toolName}` },
+        ],
+        isError: true,
+      };
+    }
+
+    const code = virtualTool._meta["mcp.mesh"]["tool.fn"];
+    const toolsRecord: Record<string, ToolHandler> = {};
+
+    for (const [name, connId] of cache.mappings) {
+      if (connId === "__VIRTUAL__") continue;
+
+      const client = clients.get(connId);
+      if (!client) continue;
+
+      toolsRecord[name] = async (innerArgs: Record<string, unknown>) => {
+        const result = await client.callTool({
+          name,
+          arguments: innerArgs,
+        });
+
+        if (
+          result.structuredContent &&
+          typeof result.structuredContent === "object"
+        ) {
+          return result.structuredContent;
+        }
+
+        const content = result.content as
+          | Array<{ type: string; text?: string }>
+          | undefined;
+        if (content?.[0]?.type === "text" && content[0].text) {
+          try {
+            return JSON.parse(content[0].text);
+          } catch {
+            return content[0].text;
+          }
+        }
+
+        return result;
+      };
+    }
+
+    try {
+      const strippedCode = code.replace(/^\s*export\s+default\s+/, "").trim();
+      const wrappedCode = `
+        const __virtualToolFn = ${strippedCode};
+        export default async (tools) => {
+          const args = ${JSON.stringify(args)};
+          return await __virtualToolFn(tools, args);
+        };
+      `;
+
+      const result = await runCode({
+        code: wrappedCode,
+        tools: toolsRecord,
+        timeoutMs: 30000,
+      });
+
+      if (result.error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Virtual tool error: ${result.error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result.returnValue ?? null),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Virtual tool execution failed: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 
   /**

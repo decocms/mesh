@@ -30,41 +30,24 @@ interface AuthTransportOptions {
 }
 
 export class AuthTransport extends WrapperTransport {
-  private cachedToolsMap: Map<string, any> | null = null;
-  private toolsMapPromise: Promise<Map<string, any>> | null = null;
-
   constructor(
     innerTransport: Transport,
     private options: AuthTransportOptions,
   ) {
     super(innerTransport);
-
-    // Pre-build tool metadata map from cached connection.tools
-    if (options.connection.tools) {
-      this.cachedToolsMap = new Map(
-        options.connection.tools.map((tool) => [tool.name, tool]),
-      );
-    }
   }
 
   private async ensureToolsMap(): Promise<Map<string, any>> {
-    if (this.cachedToolsMap) return this.cachedToolsMap;
-    if (!this.toolsMapPromise) {
-      this.toolsMapPromise = (async () => {
-        const cache = this.options.cache ?? getMcpListCache();
-        if (cache) {
-          const tools = await cache.get("tools", this.options.connection.id);
-          if (tools) {
-            this.cachedToolsMap = new Map(
-              (tools as Array<{ name: string }>).map((t) => [t.name, t]),
-            );
-            return this.cachedToolsMap;
-          }
-        }
-        return new Map();
-      })();
+    const cache = this.options.cache ?? getMcpListCache();
+    const tools =
+      (cache ? await cache.get("tools", this.options.connection.id) : null) ??
+      this.options.connection.tools;
+
+    if (!tools) {
+      return new Map();
     }
-    return this.toolsMapPromise;
+
+    return new Map((tools as Array<{ name: string }>).map((t) => [t.name, t]));
   }
 
   protected override async handleOutgoingMessage(

@@ -12,7 +12,28 @@ import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { VirtualMCPEntity } from "../../tools/virtual/schema";
 import { PassthroughClient } from "./passthrough-client";
-import { type VirtualClientOptions } from "./types";
+import { type VirtualClientOptions, type VirtualToolDefinition } from "./types";
+
+function isVirtualTool(tool: unknown): tool is VirtualToolDefinition {
+  if (!tool || typeof tool !== "object") {
+    return false;
+  }
+
+  const meta = (tool as { _meta?: Record<string, unknown> })._meta;
+  if (!meta || typeof meta !== "object") {
+    return false;
+  }
+
+  const meshMeta = meta["mcp.mesh"];
+  if (!meshMeta || typeof meshMeta !== "object") {
+    return false;
+  }
+
+  return (
+    typeof (meshMeta as Record<string, unknown>)["tool.fn"] === "string" &&
+    typeof (tool as { name?: unknown }).name === "string"
+  );
+}
 
 /**
  * Check if a connection would cause a self-reference for a Virtual MCP
@@ -72,12 +93,31 @@ export async function createVirtualClientFrom(
   // Inclusion mode: use only the connections specified in virtual MCP
   const connectionIds = virtualMcp.connections.map((c) => c.connection_id);
 
-  // Load all connections in parallel
+  // Load all connections in parallel, plus the VIRTUAL connection itself for
+  // legacy virtual-tool definitions that may still be attached to it.
   const connectionPromises = connectionIds.map((connId) =>
     ctx.storage.connections.findById(connId),
   );
+  const virtualMcpConnectionPromise = virtualMcp.id
+    ? ctx.storage.connections.findById(virtualMcp.id)
+    : Promise.resolve(null);
 
-  const allConnections = await Promise.all(connectionPromises);
+  const [allConnections, virtualMcpConnection] = await Promise.all([
+    Promise.all(connectionPromises),
+    virtualMcpConnectionPromise,
+  ]);
+
+  const metadataVirtualTools = (
+    (virtualMcp.metadata?.virtualTools ??
+      virtualMcp.metadata?.virtual_tools ??
+      []) as unknown[]
+  ).filter(isVirtualTool);
+
+  const legacyVirtualTools = (virtualMcpConnection?.tools ?? []).filter(
+    isVirtualTool,
+  );
+  const virtualTools =
+    metadataVirtualTools.length > 0 ? metadataVirtualTools : legacyVirtualTools;
 
   // Filter out inactive connections and self-referencing VIRTUAL connections
   const loadedConnections = allConnections.filter(
@@ -91,6 +131,7 @@ export async function createVirtualClientFrom(
   const options: VirtualClientOptions = {
     connections: loadedConnections,
     virtualMcp,
+    virtualTools: virtualTools.length > 0 ? virtualTools : undefined,
     superUser,
     mcpListCache: getMcpListCache() ?? undefined,
   };

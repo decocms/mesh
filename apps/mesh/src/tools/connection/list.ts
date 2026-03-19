@@ -22,6 +22,7 @@ import { getBaseUrl } from "../../core/server-constants";
 import { requireOrganization } from "../../core/mesh-context";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { getMcpListCache } from "../../mcp-clients/mcp-list-cache";
+import { clientFromConnection } from "../../mcp-clients";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
@@ -253,20 +254,38 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       includeVirtual: input.include_virtual ?? false,
     });
 
-    // Hydrate tools from NATS KV for connections with null tools
+    // Hydrate tools from NATS KV for connections with null tools.
+    // Falls back to a live MCP fetch when the cache is cold or unavailable
+    // (e.g. fresh server start — NATS uses in-memory storage and wipes on restart).
     const cache = getMcpListCache();
-    if (cache) {
-      await Promise.all(
-        connections.map(async (connection) => {
-          if (!connection.tools || connection.tools.length === 0) {
-            const cached = await cache.get("tools", connection.id);
-            if (cached) {
-              connection.tools = cached as Tool[];
-            }
+    await Promise.all(
+      connections.map(async (connection) => {
+        if (connection.tools !== null) return;
+
+        // Try NATS cache first
+        if (cache) {
+          const cached = await cache.get("tools", connection.id);
+          if (cached !== null) {
+            connection.tools = cached as Tool[];
+            return;
           }
-        }),
-      );
-    }
+        }
+
+        // Cache miss: connect to the MCP and fetch live, then warm the cache
+        try {
+          const client = await clientFromConnection(connection, ctx, true);
+          try {
+            const result = await client.listTools();
+            connection.tools = result.tools as Tool[];
+            cache?.set("tools", connection.id, result.tools).catch(() => {});
+          } finally {
+            await client.close().catch(() => {});
+          }
+        } catch {
+          // Connection unreachable — leave tools as null
+        }
+      }),
+    );
 
     // In dev mode, inject the dev-assets connection for local file storage
     // This provides object storage functionality without requiring an external S3 bucket

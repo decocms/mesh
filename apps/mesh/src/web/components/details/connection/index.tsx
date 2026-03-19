@@ -807,20 +807,31 @@ function ConnectionInspectorViewContent() {
     if (siblings.length <= 1) return tools;
     const seen = new Set<string>();
     const result: typeof tools = [];
+
+    const toToolList = (
+      source:
+        | typeof tools
+        | NonNullable<(typeof siblings)[number]["tools"]>
+        | null
+        | undefined,
+    ) =>
+      (source ?? []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
+        outputSchema: tool.outputSchema as Record<string, unknown> | undefined,
+        annotations: tool.annotations,
+        _meta: tool._meta as Record<string, unknown> | undefined,
+      }));
+
     for (const sibling of siblings) {
-      for (const tool of sibling.tools ?? []) {
+      const siblingTools =
+        sibling.id === connectionId ? tools : toToolList(sibling.tools);
+
+      for (const tool of siblingTools) {
         if (!seen.has(tool.name)) {
           seen.add(tool.name);
-          result.push({
-            name: tool.name,
-            description: tool.description,
-            inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
-            outputSchema: tool.outputSchema as
-              | Record<string, unknown>
-              | undefined,
-            annotations: tool.annotations,
-            _meta: tool._meta as Record<string, unknown> | undefined,
-          });
+          result.push(tool);
         }
       }
     }

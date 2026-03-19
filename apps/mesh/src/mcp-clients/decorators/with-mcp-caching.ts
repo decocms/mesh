@@ -26,19 +26,32 @@ export function withMcpCaching(
   cache?: McpListCache,
 ): Client {
   const isVirtualConnection = connection.connection_type === "VIRTUAL";
+  const shouldBypassCache = (params?: unknown, options?: unknown) =>
+    params !== undefined || options !== undefined;
+  const canStoreResult = (result: { nextCursor?: string | undefined }) =>
+    result.nextCursor === undefined;
 
   // --- listTools ---
   if (client.listTools) {
     const originalListTools = client.listTools.bind(client);
-    client.listTools = async (): Promise<ListToolsResult> => {
-      if (!isVirtualConnection && cache) {
+    client.listTools = async (params, options): Promise<ListToolsResult> => {
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options)
+      ) {
         const cached = await cache.get("tools", connection.id);
-        if (cached) {
+        if (cached !== null) {
           return { tools: cached as ListToolsResult["tools"] };
         }
       }
-      const result = await originalListTools();
-      if (!isVirtualConnection && cache && result.tools.length > 0) {
+      const result = await originalListTools(params, options);
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options) &&
+        canStoreResult(result)
+      ) {
         cache.set("tools", connection.id, result.tools).catch(() => {});
       }
       return result;
@@ -48,15 +61,27 @@ export function withMcpCaching(
   // --- listResources ---
   if (client.listResources) {
     const originalListResources = client.listResources.bind(client);
-    client.listResources = async (): Promise<ListResourcesResult> => {
-      if (!isVirtualConnection && cache) {
+    client.listResources = async (
+      params,
+      options,
+    ): Promise<ListResourcesResult> => {
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options)
+      ) {
         const cached = await cache.get("resources", connection.id);
-        if (cached) {
+        if (cached !== null) {
           return { resources: cached as ListResourcesResult["resources"] };
         }
       }
-      const result = await originalListResources();
-      if (!isVirtualConnection && cache && result.resources.length > 0) {
+      const result = await originalListResources(params, options);
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options) &&
+        canStoreResult(result)
+      ) {
         cache.set("resources", connection.id, result.resources).catch(() => {});
       }
       return result;
@@ -66,15 +91,27 @@ export function withMcpCaching(
   // --- listPrompts ---
   if (client.listPrompts) {
     const originalListPrompts = client.listPrompts.bind(client);
-    client.listPrompts = async (): Promise<ListPromptsResult> => {
-      if (!isVirtualConnection && cache) {
+    client.listPrompts = async (
+      params,
+      options,
+    ): Promise<ListPromptsResult> => {
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options)
+      ) {
         const cached = await cache.get("prompts", connection.id);
-        if (cached) {
+        if (cached !== null) {
           return { prompts: cached as ListPromptsResult["prompts"] };
         }
       }
-      const result = await originalListPrompts();
-      if (!isVirtualConnection && cache && result.prompts.length > 0) {
+      const result = await originalListPrompts(params, options);
+      if (
+        !isVirtualConnection &&
+        cache &&
+        !shouldBypassCache(params, options) &&
+        canStoreResult(result)
+      ) {
         cache.set("prompts", connection.id, result.prompts).catch(() => {});
       }
       return result;
