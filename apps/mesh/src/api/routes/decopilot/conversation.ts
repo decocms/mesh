@@ -165,13 +165,14 @@ export async function processConversation(
   } = splitMessages(modelMessages);
 
   // Strip reasoning from all previous assistant messages.
-  // Reasoning parts carry provider-specific metadata (e.g. OpenRouter
-  // reasoning_details with cryptographic signatures). When OpenRouter
-  // load-balances across backends (Anthropic direct, Azure, GCP), the
-  // signatures from one backend are invalid on another, causing
-  // "Invalid signature in thinking block" errors on subsequent turns.
-  // Pruning reasoning from prior turns prevents sending stale signatures
-  // while the current turn generates fresh thinking blocks.
+  // pruneMessages removes reasoning content parts, but leaves message-level
+  // and part-level providerOptions/providerMetadata intact. The AI SDK's
+  // Anthropic provider reconstructs thinking blocks from that metadata
+  // (including cryptographic signatures). When OpenRouter load-balances
+  // across backends (Anthropic direct, Azure, GCP), stale signatures from
+  // one backend cause "Invalid signature in thinking block" on another.
+  // We strip both reasoning parts AND all provider metadata from assistant
+  // messages to prevent this.
   const prunedModelMessages = pruneMessages({
     messages: nonSystemModelMessages,
     reasoning: "all",
@@ -179,9 +180,42 @@ export async function processConversation(
     toolCalls: "none",
   });
 
+  const cleanedModelMessages = prunedModelMessages.map((msg) => {
+    if (msg.role !== "assistant") return msg;
+
+    const msgAny = msg as Record<string, unknown>;
+    const content = Array.isArray(msg.content)
+      ? msg.content
+          .filter(
+            (part: { type: string }) =>
+              part.type !== "reasoning" &&
+              part.type !== "thinking" &&
+              part.type !== "redacted-reasoning",
+          )
+          .map((part) => {
+            const p = part as Record<string, unknown>;
+            if ("providerOptions" in p || "providerMetadata" in p) {
+              const { providerOptions, providerMetadata, ...rest } = p;
+              return rest;
+            }
+            return part;
+          })
+      : msg.content;
+
+    return {
+      ...msg,
+      content:
+        Array.isArray(content) && content.length === 0
+          ? [{ type: "text" as const, text: "" }]
+          : content,
+      providerOptions: undefined,
+      providerMetadata: undefined,
+    };
+  });
+
   return {
     systemMessages: systemModelMessages,
-    messages: prunedModelMessages,
+    messages: cleanedModelMessages,
     originalMessages: validUIMessages,
   };
 }

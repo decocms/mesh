@@ -244,6 +244,7 @@ class ChatStore {
 
   createThread(): string {
     // Reset interaction state
+    this.reset();
     this.state = {
       ...this.state,
       finishReason: null,
