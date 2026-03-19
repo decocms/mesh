@@ -85,7 +85,7 @@ export function createClientPool(): (<T extends Transport>(
   const getOrCreateClient = Object.assign(getOrCreateClientImpl, {
     [Symbol.asyncDispose]: async (): Promise<void> => {
       const closePromises: Promise<void>[] = [];
-      for (const [key, clientPromise] of clientMap) {
+      for (const [_key, clientPromise] of clientMap) {
         closePromises.push(
           clientPromise.then((client) => client.close()).catch(() => {}),
         );
