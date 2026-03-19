@@ -183,7 +183,6 @@ export async function processConversation(
   const cleanedModelMessages = prunedModelMessages.map((msg) => {
     if (msg.role !== "assistant") return msg;
 
-    const msgAny = msg as Record<string, unknown>;
     const content = Array.isArray(msg.content)
       ? msg.content
           .filter(
@@ -196,7 +195,7 @@ export async function processConversation(
             const p = part as Record<string, unknown>;
             if ("providerOptions" in p || "providerMetadata" in p) {
               const { providerOptions, providerMetadata, ...rest } = p;
-              return rest;
+              return rest as typeof part;
             }
             return part;
           })
@@ -210,7 +209,7 @@ export async function processConversation(
           : content,
       providerOptions: undefined,
       providerMetadata: undefined,
-    };
+    } as typeof msg;
   });
 
   return {
