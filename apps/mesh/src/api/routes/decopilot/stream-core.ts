@@ -229,6 +229,21 @@ export async function streamCore(
 
     await saveMessagesToThread(requestMessage);
 
+    // Detect propose_plan approval → set context truncation for future requests
+    if (requestMessage.role === "assistant") {
+      const planApproved = requestMessage.parts?.some(
+        (part: Record<string, unknown>) =>
+          part.type === "tool-propose_plan" &&
+          part.state === "output-available" &&
+          (part.output as { approved?: boolean })?.approved === true,
+      );
+      if (planApproved) {
+        await ctx.storage.threads.update(mem.thread.id, {
+          context_start_message_id: requestMessage.id,
+        });
+      }
+    }
+
     // Close MCP clients on abort
     registrySignal.addEventListener("abort", () => {
       closeClients?.();

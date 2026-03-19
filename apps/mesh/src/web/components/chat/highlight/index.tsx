@@ -1,9 +1,9 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AlertCircle, AlertTriangle, X } from "@untitledui/icons";
-import { useProjectContext } from "@decocms/mesh-sdk";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useChat } from "../context";
+import { chatStore } from "../store/chat-store";
 import { ApprovalHighlight, extractPendingApprovals } from "./approval";
 import { ProposePlanHighlight, extractPendingPlans } from "./propose-plan";
 import { UserAskQuestionHighlight } from "./user-ask-question";
@@ -132,9 +132,7 @@ export function ChatHighlight() {
     addToolOutput,
     addToolApprovalResponse,
     sendMessage,
-    activeTaskId,
   } = useChat();
-  const { org } = useProjectContext();
   const [preferences, setPreferences] = usePreferences();
 
   const lastMessage = messages.at(-1);
@@ -201,70 +199,30 @@ export function ChatHighlight() {
     });
   };
 
-  const handlePlanRespond = async (toolCallId: string, approved: boolean) => {
-    // Submit the tool output first
-    addToolOutput({
-      tool: "propose_plan",
-      toolCallId,
-      output: { approved },
-    });
-
+  const handlePlanRespond = (toolCallId: string, approved: boolean) => {
     if (!approved) {
-      // Focus the chat input so the user can immediately type feedback
+      addToolOutput({
+        tool: "propose_plan",
+        toolCallId,
+        output: { approved },
+      });
       const editor = document.querySelector<HTMLElement>("[data-chat-input]");
       editor?.focus();
       return;
     }
 
-    if (approved) {
-      // Find the assistant message containing this propose_plan call
-      const planMessage = messages.findLast(
-        (m) =>
-          m.role === "assistant" &&
-          m.parts.some(
-            (p) =>
-              "toolCallId" in p &&
-              (p as { toolCallId: string }).toolCallId === toolCallId,
-          ),
-      );
+    // Set approval level BEFORE addToolOutput because addToolOutput
+    // triggers sendAutomaticallyWhen → auto-resend reads toolApprovalLevel immediately.
+    // Call setToolApprovalLevel directly (synchronous) rather than waiting for
+    // React to re-render via setPreferences.
+    chatStore.setToolApprovalLevel("auto");
+    setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
-      if (planMessage) {
-        // Set context truncation anchor on the server
-        try {
-          await fetch(
-            `/api/${org.slug}/decopilot/threads/${activeTaskId}/context-start`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({ messageId: planMessage.id }),
-            },
-          );
-        } catch (err) {
-          console.error("[plan-approve] Failed to set context start", err);
-        }
-      }
-
-      // Switch to auto mode
-      setPreferences({ ...preferences, toolApprovalLevel: "auto" });
-
-      // Auto-send "Approved. Begin implementation."
-      const doc = {
-        type: "doc" as const,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: "Approved. Begin implementation.",
-              },
-            ],
-          },
-        ],
-      };
-      void sendMessage(doc, { toolApprovalLevel: "auto" });
-    }
+    addToolOutput({
+      tool: "propose_plan",
+      toolCallId,
+      output: { approved },
+    });
   };
 
   const handleApprovalRespond = (
