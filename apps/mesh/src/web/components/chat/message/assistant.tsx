@@ -334,7 +334,7 @@ export function MessageAssistant({
   return (
     <Container className={className}>
       {hasContent ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3 sm:gap-2">
           {hasReasoning && (
             <ThoughtSummary
               duration={duration}

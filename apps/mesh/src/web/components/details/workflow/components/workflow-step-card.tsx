@@ -250,7 +250,7 @@ export function WorkflowStepCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="size-7 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <DotsHorizontal size={14} />

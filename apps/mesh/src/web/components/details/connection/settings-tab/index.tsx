@@ -68,12 +68,12 @@ export function OAuthAuthenticationState({
     <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
         <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-semibold">Authentication Required</h3>
-          <p className="text-sm text-muted-foreground max-w-md text-center">
+          <h3 className="text-sm font-semibold">Authentication Required</h3>
+          <p className="text-xs text-muted-foreground max-w-md text-center">
             This connection requires OAuth authentication to access resources.
           </p>
         </div>
-        <Button onClick={onAuthenticate} size="lg">
+        <Button onClick={onAuthenticate} size="default">
           {buttonText}
         </Button>
       </div>
@@ -93,12 +93,12 @@ export function ManualAuthRequiredState({
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 max-w-md text-center">
-        <Key01 size={48} className="text-muted-foreground" />
+        <Key01 size={36} className="text-muted-foreground" />
         <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-sm font-semibold">
             Manual Authentication Required
           </h3>
-          <p className="text-sm text-muted-foreground max-w-md text-center">
+          <p className="text-xs text-muted-foreground max-w-md text-center">
             This server requires an API key or token that must be configured
             manually. Check the server's documentation for instructions on
             obtaining credentials.

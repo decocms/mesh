@@ -1,11 +1,13 @@
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { Button } from "@deco/ui/components/button.tsx";
+import { SidebarTrigger } from "@deco/ui/components/sidebar.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { MessageTextCircle02 } from "@untitledui/icons";
 import { useParams, useRouterState } from "@tanstack/react-router";
 import type { PropsWithChildren, ReactElement, ReactNode } from "react";
@@ -27,13 +29,15 @@ function findChild<T>(
 
 function ChatToggleButton() {
   const [isChatOpen, setChatOpen] = useDecoChatOpen();
+  const isMobile = useIsMobile();
   const { org, project } = useParams({ strict: false });
   const { location } = useRouterState();
   const isHomeRoute =
     location.pathname === `/${org}/${project}` ||
     location.pathname === `/${org}/${project}/`;
 
-  if (isHomeRoute) return null;
+  // On mobile, the FAB handles chat toggle instead
+  if (isHomeRoute || isMobile) return null;
 
   return (
     <Tooltip>
@@ -85,12 +89,17 @@ function PageHeader({
   return (
     <div
       className={cn(
-        "shrink-0 w-full border-b border-border/50 h-11 overflow-x-auto",
-        "flex items-center justify-between gap-3 pr-2 pl-4 min-w-max",
+        "shrink-0 w-full border-b border-border/50 h-11",
+        "flex items-center justify-between gap-3 pr-2 pl-2 md:pl-4",
         className,
       )}
     >
-      <div className="flex items-center gap-1">{left}</div>
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        {!hideSidebarTrigger && (
+          <SidebarTrigger className="md:hidden shrink-0" />
+        )}
+        {left}
+      </div>
       <div className="flex items-center">
         {right}
         {!hideSidebarTrigger && (
@@ -111,7 +120,7 @@ function PageHeaderLeft({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 shrink-0 overflow-hidden",
+        "flex items-center gap-2 min-w-0 overflow-hidden",
         className,
       )}
     >

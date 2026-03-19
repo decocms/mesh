@@ -12,6 +12,7 @@ import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -23,6 +24,8 @@ import {
   SidebarProvider,
 } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import { MessageTextCircle02 } from "@untitledui/icons";
 import {
   ORG_ADMIN_PROJECT_SLUG,
   ProjectContextProvider,
@@ -67,15 +70,42 @@ function PersistentResizablePanel({
  * Also, it's important to keep it like this to avoid unnecessary re-renders.
  */
 function PersistentSidebarProvider({ children }: PropsWithChildren) {
+  const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useLocalStorage(
     LOCALSTORAGE_KEYS.sidebarOpen(),
     true,
   );
 
   return (
-    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+    <SidebarProvider
+      open={isMobile ? true : sidebarOpen}
+      onOpenChange={setSidebarOpen}
+    >
       {children}
     </SidebarProvider>
+  );
+}
+
+function MobileChatFAB({
+  onClick,
+  isOpen,
+}: {
+  onClick: () => void;
+  isOpen: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "fixed bottom-4 right-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
+        "bg-primary text-primary-foreground hover:bg-primary/90",
+        isOpen && "bg-accent text-foreground",
+      )}
+      aria-label="Toggle chat"
+    >
+      <MessageTextCircle02 size={20} />
+    </button>
   );
 }
 
@@ -86,7 +116,8 @@ function ShellLayoutInner({
   isHomeRoute: boolean;
   onCreateProject: () => void;
 }) {
-  const [chatOpen] = useDecoChatOpen();
+  const [chatOpen, setChatOpen] = useDecoChatOpen();
+  const isMobile = useIsMobile();
   const [chatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
     30,
@@ -127,7 +158,8 @@ function ShellLayoutInner({
                 "border-t border-l border-sidebar-border",
                 "rounded-tl-[0.75rem]",
                 "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                chatOpen && "rounded-tr-[0.75rem] border-r",
+                !isMobile && chatOpen && "rounded-tr-[0.75rem] border-r",
+                isMobile && "rounded-tr-[0.75rem] border-r",
               )}
             >
               <div className="flex-1 overflow-hidden">
@@ -136,8 +168,8 @@ function ShellLayoutInner({
             </div>
           </ResizablePanel>
 
-          {/* Chat card — separate floating card, no shared border with main content */}
-          {!isHomeRoute && (
+          {/* Desktop: Chat card as resizable side panel */}
+          {!isHomeRoute && !isMobile && (
             <>
               <ResizableHandle className="bg-sidebar" />
               <PersistentResizablePanel
@@ -158,6 +190,21 @@ function ShellLayoutInner({
           )}
         </ResizablePanelGroup>
       </SidebarInset>
+
+      {/* Mobile: FAB + bottom Drawer for chat */}
+      {!isHomeRoute && isMobile && (
+        <>
+          <MobileChatFAB
+            onClick={() => setChatOpen((prev) => !prev)}
+            isOpen={chatOpen}
+          />
+          <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
+            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
+              <ChatPanel />
+            </DrawerContent>
+          </Drawer>
+        </>
+      )}
     </SidebarLayout>
   );
 }
@@ -253,7 +300,7 @@ function ShellLayoutContent() {
   return (
     <ProjectContextProvider {...contextWithCurrentProject}>
       <PersistentSidebarProvider>
-        <div className="flex flex-col h-screen overflow-hidden">
+        <div className="flex flex-col h-dvh overflow-hidden">
           <Chat.Provider>
             <ShellLayoutInner
               isHomeRoute={isHomeRoute}

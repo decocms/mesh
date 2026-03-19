@@ -248,7 +248,7 @@ export function KPIChart({
 
 export function MonitoringStatsRowSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
       {[...Array(3)].map((_, i) => (
         <HomeGridCell
           key={i}

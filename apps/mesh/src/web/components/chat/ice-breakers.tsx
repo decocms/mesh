@@ -312,7 +312,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   }
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full mb-3">
       <IceBreakersUI
         prompts={prompts}
         onSelect={handlePromptSelection}
@@ -341,7 +341,6 @@ export function IceBreakers({ className }: IceBreakersProps) {
 
   return (
     <div
-      style={{ minHeight: "32px" }}
       className={cn(
         "flex flex-wrap items-center justify-center gap-2",
         className,

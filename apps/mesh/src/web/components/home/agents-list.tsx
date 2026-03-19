@@ -20,6 +20,7 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { isDecopilot, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { ChevronRight, Users03 } from "@untitledui/icons";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 /**
@@ -46,7 +47,7 @@ function AgentPreview({
       type="button"
       onClick={handleClick}
       className={cn(
-        "flex flex-col items-center gap-3 p-2 rounded-lg",
+        "flex flex-col items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2 rounded-lg",
         "transition-colors hover:bg-accent/30",
         "cursor-pointer",
         "self-stretch",
@@ -56,9 +57,11 @@ function AgentPreview({
       <IntegrationIcon
         icon={agent.icon}
         name={agent.title}
-        fallbackIcon={<Users03 size={20} />}
+        size="sm"
+        fallbackIcon={<Users03 size={16} />}
+        className="sm:h-12 sm:w-12 sm:min-w-[3rem]"
       />
-      <p className="text-sm text-foreground text-center leading-tight line-clamp-2">
+      <p className="text-xs sm:text-sm text-foreground text-center leading-tight line-clamp-2">
         {agent.title}
       </p>
     </button>
@@ -79,16 +82,17 @@ function SeeAllButton({
 }) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
-  // Focus search input when popover opens
+  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (open) {
+    if (open && !isMobile) {
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
     }
-  }, [open]);
+  }, [open, isMobile]);
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -101,17 +105,17 @@ function SeeAllButton({
         <button
           type="button"
           className={cn(
-            "flex flex-col items-center gap-3 p-2 rounded-lg",
+            "flex flex-col items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2 rounded-lg",
             "transition-colors hover:bg-accent/30",
             "cursor-pointer",
             "self-stretch",
           )}
           aria-label="See all agents"
         >
-          <div className="size-12 rounded-lg bg-accent flex items-center justify-center shrink-0">
-            <ChevronRight size={24} className="text-foreground" />
+          <div className="h-9 w-9 sm:size-12 rounded-lg bg-accent flex items-center justify-center shrink-0">
+            <ChevronRight size={20} className="text-foreground" />
           </div>
-          <p className="text-sm text-foreground text-center leading-tight">
+          <p className="text-xs sm:text-sm text-foreground text-center leading-tight">
             See all
           </p>
         </button>
@@ -163,10 +167,7 @@ function AgentsListContent() {
 
   return (
     <div className="w-full max-w-[800px]">
-      <h2 className="text-sm font-medium text-muted-foreground mb-4">
-        Recently used agents
-      </h2>
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+      <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 sm:py-0 sm:grid sm:grid-cols-4 md:grid-cols-7 sm:gap-6">
         {agents.map((agent) => (
           <AgentPreview key={agent.id ?? "default"} agent={agent} />
         ))}
@@ -186,15 +187,14 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full max-w-[800px]">
-      <Skeleton className="h-5 w-40 mb-4" />
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+      <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 sm:py-0 sm:grid sm:grid-cols-4 md:grid-cols-7 sm:gap-6">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-3 p-2 self-stretch"
+            className="flex flex-col items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2 self-stretch"
           >
-            <Skeleton className="size-6 rounded-md shrink-0" />
-            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-9 w-9 sm:size-12 rounded-md shrink-0" />
+            <Skeleton className="h-3 sm:h-4 w-full" />
           </div>
         ))}
       </div>

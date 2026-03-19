@@ -3,8 +3,9 @@ import {
   DialogContent,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
-import { X } from "@untitledui/icons";
-import { Suspense } from "react";
+import { ArrowLeft, X } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
+import { Suspense, useState } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
   useSettingsModal,
@@ -90,36 +91,113 @@ function SettingsContent({ section }: { section: SettingsSection }) {
   }
 }
 
+const SECTION_LABELS: Record<SettingsSection, string> = {
+  "account.profile": "Profile",
+  "account.preferences": "Preferences",
+  "org.general": "General",
+  "org.plugins": "Features",
+  "org.ai-providers": "AI Providers",
+  "org.billing": "Billing",
+  "org.members": "Members",
+};
+
 export function SettingsModal() {
   const { isOpen, activeSection, open, close } = useSettingsModal();
+  const [mobileShowContent, setMobileShowContent] = useState(false);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    setMobileShowContent(isOpen);
+  }
+
+  const handleNavigate = (section: SettingsSection) => {
+    open(section);
+    setMobileShowContent(true);
+  };
+
+  const handleBack = () => {
+    setMobileShowContent(false);
+  };
+
+  const handleClose = (v: boolean) => {
+    if (!v) {
+      close();
+      setMobileShowContent(false);
+    }
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(v) => !v && close()}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[1100px] h-[85vh] p-0 overflow-hidden flex flex-col gap-0"
+        className="sm:max-w-[1100px] h-[100dvh] sm:h-[85vh] max-h-[100dvh] sm:max-h-[85vh] w-full max-w-full sm:max-w-[1100px] rounded-none sm:rounded-xl p-0 overflow-hidden flex flex-col gap-0 border-0 sm:border"
         closeButtonClassName="hidden"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left sidebar */}
-          <Suspense
-            fallback={<div className="w-52 shrink-0 border-r border-border" />}
+          {/* Sidebar - always visible on desktop, toggleable on mobile */}
+          <div
+            className={cn(
+              mobileShowContent ? "hidden" : "flex",
+              "sm:flex flex-col w-full sm:w-auto",
+            )}
           >
-            <SettingsSidebar activeSection={activeSection} onNavigate={open} />
-          </Suspense>
+            {/* Mobile header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border sm:hidden">
+              <span className="text-base font-semibold">Settings</span>
+              <button
+                type="button"
+                onClick={() => handleClose(false)}
+                className="rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <X size={16} />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+            <Suspense
+              fallback={
+                <div className="w-full sm:w-52 shrink-0 border-r border-border" />
+              }
+            >
+              <SettingsSidebar
+                activeSection={activeSection}
+                onNavigate={handleNavigate}
+              />
+            </Suspense>
+          </div>
 
-          {/* Right content */}
-          <div className="flex-1 min-w-0 overflow-y-auto relative flex flex-col overflow-hidden">
+          {/* Content - always visible on desktop, toggleable on mobile */}
+          <div
+            className={cn(
+              mobileShowContent ? "flex" : "hidden",
+              "sm:flex flex-1 min-w-0 overflow-y-auto relative flex-col overflow-hidden",
+            )}
+          >
+            {/* Mobile back header */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border sm:hidden">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <ArrowLeft size={16} />
+                <span className="sr-only">Back</span>
+              </button>
+              <span className="text-base font-semibold">
+                {SECTION_LABELS[activeSection]}
+              </span>
+            </div>
+
+            {/* Desktop close button */}
             <button
               type="button"
-              onClick={close}
-              className="absolute top-4 right-4 z-10 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring"
+              onClick={() => handleClose(false)}
+              className="hidden sm:block absolute top-4 right-4 z-10 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <X size={16} />
               <span className="sr-only">Close</span>
             </button>
 
-            <div className="p-8">
+            <div className="p-5 sm:p-8 flex-1 overflow-y-auto">
               <Suspense fallback={<ContentSkeleton />}>
                 <SettingsContent section={activeSection} />
               </Suspense>

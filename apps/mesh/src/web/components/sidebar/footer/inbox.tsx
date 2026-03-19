@@ -256,7 +256,8 @@ export function SidebarInboxFooter() {
                   side="right"
                   align="end"
                   sideOffset={24}
-                  className="w-[400px] p-0 h-[650px] flex flex-col"
+                  collisionPadding={16}
+                  className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
                 >
                   <div className="px-4 py-3 border-b border-border shrink-0">
                     <h3 className="text-sm font-medium">Inbox</h3>
