@@ -24,7 +24,6 @@ import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
-  ORG_ADMIN_PROJECT_SLUG,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
@@ -60,7 +59,6 @@ function HomeChatContent({
   const [showTasks, setShowTasks] = useState(false);
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
-  const isOrgAdmin = project.slug === ORG_ADMIN_PROJECT_SLUG;
 
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
