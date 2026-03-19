@@ -52,16 +52,17 @@ export class AuthTransport extends WrapperTransport {
         const prev = this.innerTransport.onmessage;
 
         this.innerTransport.onmessage = (message: JSONRPCMessage) => {
-          if (
-            "id" in message &&
-            message.id === requestId &&
-            "result" in message
-          ) {
+          if ("id" in message && message.id === requestId) {
             this.innerTransport.onmessage = prev;
             this.toolsListPromise = null;
-            const tools =
-              (message.result as { tools?: unknown[] })?.tools ?? null;
-            resolve(tools);
+            if ("result" in message) {
+              const tools =
+                (message.result as { tools?: unknown[] })?.tools ?? null;
+              resolve(tools);
+            } else {
+              // JSON-RPC error response — resolve null so callers degrade gracefully
+              resolve(null);
+            }
           } else {
             prev?.(message);
           }
@@ -90,7 +91,13 @@ export class AuthTransport extends WrapperTransport {
     const tools = await hydrateList(
       "tools",
       this.options.connection.id,
-      async () => (await this.fetchToolsFromServer()) ?? [],
+      async () => {
+        const tools = await this.fetchToolsFromServer();
+        if (tools === null) {
+          throw new Error("Failed to fetch tools list");
+        }
+        return tools;
+      },
       cache,
     );
 
