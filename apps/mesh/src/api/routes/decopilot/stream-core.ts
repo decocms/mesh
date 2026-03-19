@@ -86,7 +86,7 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
-  imageMode?: { aspectRatio?: string };
+  imageModel?: { id: string; aspectRatio?: string };
 }
 
 export interface StreamCoreDeps {
@@ -304,206 +304,6 @@ async function streamCoreInner(
 
     await saveMessagesToThread(requestMessage);
 
-    // ================================================================
-    // Image generation mode — skip MCP/tool setup, call generateImage
-    // ================================================================
-    if (input.imageMode) {
-      // Validate the provider supports image generation
-      if (typeof provider.aiSdk.imageModel !== "function") {
-        throw new Error(
-          "The selected provider does not support image generation",
-        );
-      }
-
-      const textPrompt = requestMessage.parts
-        .filter(
-          (p): p is { type: "text"; text: string } =>
-            p.type === "text" && !!(p as { text?: string }).text?.trim(),
-        )
-        .map((p) => p.text.trim())
-        .join("\n");
-
-      if (!textPrompt) {
-        throw new Error("Image mode requires a text prompt");
-      }
-
-      const ALLOWED_IMAGE_TYPES = new Set([
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "image/gif",
-      ]);
-
-      const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
-      let streamFinished = false;
-
-      const uiStream = createUIMessageStream({
-        execute: async ({ writer }) => {
-          const llmStart = Date.now();
-          try {
-            const result = await generateImage({
-              model: provider.aiSdk.imageModel(input.models.thinking.id),
-              prompt: textPrompt,
-              aspectRatio: input.imageMode!.aspectRatio as
-                | `${number}:${number}`
-                | undefined,
-              abortSignal: registrySignal,
-            });
-
-            const durationMs = Date.now() - llmStart;
-            recordLlmCallMetrics({
-              ctx,
-              organizationId: input.organizationId,
-              modelId: input.models.thinking.id,
-              durationMs,
-              isError: false,
-            });
-            monitorLlmCall({
-              ctx,
-              organizationId: input.organizationId,
-              agentId: input.agent.id,
-              modelId: input.models.thinking.id,
-              modelTitle:
-                input.models.thinking.title ?? input.models.thinking.id,
-              credentialId: input.models.credentialId,
-              threadId: mem.thread.id,
-              durationMs,
-              isError: false,
-              finishReason: "stop",
-              userId: input.userId,
-              requestId: ctx.metadata.requestId,
-              userAgent: ctx.metadata.userAgent ?? null,
-            });
-
-            const base64 = result.image.base64;
-            const rawMediaType = result.image.mediaType ?? "image/png";
-            const mediaType = ALLOWED_IMAGE_TYPES.has(rawMediaType)
-              ? rawMediaType
-              : "image/png";
-
-            // Emit metadata for the response message
-            writer.write({
-              type: "start",
-              messageMetadata: {
-                agent: {
-                  id: input.agent.id ?? null,
-                  mode: input.agent.mode,
-                },
-                models: {
-                  credentialId: input.models.credentialId,
-                  thinking: {
-                    ...input.models.thinking,
-                    provider: input.models.thinking.provider ?? undefined,
-                  },
-                },
-                created_at: new Date(),
-                thread_id: mem.thread.id,
-              },
-            });
-
-            // Emit the image as a file part
-            writer.write({
-              type: "file",
-              url: `data:${mediaType};base64,${base64}`,
-              mediaType,
-            });
-
-            // Emit finish
-            writer.write({
-              type: "finish",
-              finishReason: "stop",
-              messageMetadata: {
-                thread_id: mem.thread.id,
-              },
-            });
-          } catch (error) {
-            const durationMs = Date.now() - llmStart;
-            recordLlmCallMetrics({
-              ctx,
-              organizationId: input.organizationId,
-              modelId: input.models.thinking.id,
-              durationMs,
-              isError: true,
-              errorType: error instanceof Error ? error.name : "Error",
-            });
-            monitorLlmCall({
-              ctx,
-              organizationId: input.organizationId,
-              agentId: input.agent.id,
-              modelId: input.models.thinking.id,
-              modelTitle:
-                input.models.thinking.title ?? input.models.thinking.id,
-              credentialId: input.models.credentialId,
-              threadId: mem.thread.id,
-              durationMs,
-              isError: true,
-              errorMessage:
-                error instanceof Error ? error.message : String(error),
-              userId: input.userId,
-              requestId: ctx.metadata.requestId,
-              userAgent: ctx.metadata.userAgent ?? null,
-            });
-
-            console.error("[decopilot:image] generation failed", error);
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
-            throw new Error(
-              `Image generation failed: ${errorMsg}. Try describing what you'd like to see as an image.`,
-            );
-          }
-        },
-        onFinish: async ({ responseMessage }) => {
-          if (streamFinished) return;
-          streamFinished = true;
-
-          await saveMessagesToThread(responseMessage as unknown as ChatMessage);
-
-          await runRegistry.execute({
-            type: "FINISH",
-            threadId: mem.thread.id,
-            threadStatus: "completed",
-          });
-        },
-        onError: (error) => {
-          if (streamFinished) {
-            return error instanceof Error ? error.message : String(error);
-          }
-          streamFinished = true;
-
-          runRegistry
-            .execute({
-              type: "FINISH",
-              threadId: mem.thread.id,
-              threadStatus: "failed",
-            })
-            .catch((e) => {
-              console.error("[decopilot:image] onError reactor failed", e);
-            });
-          return error instanceof Error ? error.message : String(error);
-        },
-      });
-
-      // Title generation in background
-      if (shouldGenerateTitle) {
-        genTitle({
-          abortSignal: registrySignal,
-          model: provider.aiSdk.languageModel(
-            input.models.fast?.id ?? input.models.thinking.id,
-          ),
-          userMessage: textPrompt,
-        })
-          .then(async (title) => {
-            if (!title) return;
-            await ctx.storage.threads
-              .update(mem.thread.id, { title })
-              .catch(() => {});
-          })
-          .catch(() => {});
-      }
-
-      return { threadId: mem.thread.id, stream: uiStream };
-    }
-
     // Close MCP clients on abort
     registrySignal.addEventListener("abort", () => {
       closeClients?.();
@@ -580,6 +380,16 @@ async function streamCoreInner(
                 toolApprovalLevel: input.toolApprovalLevel,
                 toolOutputMap,
                 passthroughClient,
+                ...(input.imageModel && {
+                  imageConfig: {
+                    imageModelId: input.imageModel.id,
+                    defaultAspectRatio: input.imageModel.aspectRatio,
+                    organizationId: input.organizationId,
+                    agentId: input.agent.id,
+                    userId: input.userId,
+                    threadId: mem.thread.id,
+                  },
+                }),
               },
               ctx,
             );
@@ -649,12 +459,18 @@ async function streamCoreInner(
               "</plan-mode>"
             : null;
 
+        // Image generation hint when an image model is selected
+        const imagePrompt = input.imageModel
+          ? `<image-generation>\nThe user has selected an image generation model. When they describe something they want as an image, use the generate_image tool immediately without asking for confirmation.\n</image-generation>`
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,
+          imagePrompt,
         ].filter((s): s is string => Boolean(s?.trim()));
 
         const {
