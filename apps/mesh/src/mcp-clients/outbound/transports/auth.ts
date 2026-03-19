@@ -10,7 +10,7 @@ import type { MeshContext } from "@/core/mesh-context";
 import {
   type McpListCache,
   getMcpListCache,
-  hydrateList,
+  fetchWithCache,
 } from "@/mcp-clients/mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { AccessControl } from "@/core/access-control";
@@ -88,7 +88,7 @@ export class AuthTransport extends WrapperTransport {
   private async ensureToolsMap(): Promise<Map<string, any>> {
     const cache = this.options.cache ?? getMcpListCache();
 
-    const tools = await hydrateList(
+    const tools = await fetchWithCache(
       "tools",
       this.options.connection.id,
       async () => {

@@ -41,7 +41,7 @@ interface ToolWithConnection extends Tool {
   };
 }
 import type { VirtualMCPConnection } from "../../tools/virtual/schema";
-import type { McpListCache } from "../mcp-list-cache";
+import { fetchWithCache, type McpListCache } from "../mcp-list-cache";
 import type { VirtualClientOptions, VirtualToolDefinition } from "./types";
 
 interface Cache<T> {
@@ -59,9 +59,6 @@ interface ResourceCache extends Cache<Resource> {}
 
 /** Cached prompt data structure */
 interface PromptCache extends Cache<Prompt> {}
-
-// Module-level revalidation tracking (prevents thundering herd)
-const revalidating = new Set<string>();
 
 /**
  * Create a lazy-connecting client wrapper for a connection.
@@ -118,12 +115,8 @@ function createLazyClient(
 
   const shouldBypassCache = (params?: unknown, options?: unknown) =>
     params !== undefined || options !== undefined;
-  const canStoreResult = (result: { nextCursor?: string | undefined }) =>
-    result.nextCursor === undefined;
-
-  // SWR helper: return cached data immediately and refresh the shared cache in
-  // the background, even on a cold load. That keeps subsequent reloads from
-  // serving the same stale list forever.
+  // SWR helper: delegates to fetchWithCache for cache-hit/miss logic.
+  // VIRTUAL connections and paginated requests bypass the cache entirely.
   const swrList = <T extends { nextCursor?: string | undefined }>(
     type: "tools" | "resources" | "prompts",
     listFn: (
@@ -135,42 +128,28 @@ function createLazyClient(
     buildCachedResult: (cached: unknown[]) => T,
   ) => {
     return async (params?: unknown, options?: RequestOptions): Promise<T> => {
+      // Bypass cache for VIRTUAL connections or paginated requests
       if (
-        connection.connection_type !== "VIRTUAL" &&
-        cache &&
-        !shouldBypassCache(params, options)
+        connection.connection_type === "VIRTUAL" ||
+        !cache ||
+        shouldBypassCache(params, options)
       ) {
-        const cached = await cache.get(type, connection.id);
-        if (cached !== null) {
-          const revalKey = `${type}:${connection.id}`;
-          if (!revalidating.has(revalKey)) {
-            revalidating.add(revalKey);
-            getRealClient()
-              .then((client) => listFn(client))
-              .then((result) => {
-                if (canStoreResult(result)) {
-                  void cache.set(type, connection.id, extractData(result));
-                }
-              })
-              .catch(() => {})
-              .finally(() => revalidating.delete(revalKey));
-          }
-          return buildCachedResult(cached);
-        }
+        const real = await getRealClient();
+        return listFn(real, params, options);
       }
 
-      // No cached data — must connect
-      const real = await getRealClient();
-      const result = await listFn(real, params, options);
-      if (
-        connection.connection_type !== "VIRTUAL" &&
-        cache &&
-        !shouldBypassCache(params, options) &&
-        canStoreResult(result)
-      ) {
-        cache.set(type, connection.id, extractData(result)).catch(() => {});
-      }
-      return result;
+      const result = await fetchWithCache(
+        type,
+        connection.id,
+        async () => {
+          const real = await getRealClient();
+          const res = await listFn(real);
+          return extractData(res);
+        },
+        cache,
+      );
+
+      return buildCachedResult(result ?? []);
     };
   };
 

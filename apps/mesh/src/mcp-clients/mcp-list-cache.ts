@@ -86,28 +86,56 @@ export class JetStreamKVMcpListCache implements McpListCache {
   }
 }
 
+// Module-level revalidation tracking (prevents thundering herd)
+const revalidating = new Set<string>();
+
 /**
- * Hydrate a list from cache, falling back to a live fetch.
- * Stores the result in cache on a successful live fetch.
+ * Fetch with cache: starts upstream and cache check in parallel.
+ * On cache hit, returns cached data immediately and revalidates in background.
+ * On cache miss, waits for upstream and populates cache.
  */
-export async function hydrateList(
+export async function fetchWithCache(
   type: McpListType,
   connectionId: string,
   fetchLive: () => Promise<unknown[]>,
   cache: McpListCache | null,
 ): Promise<unknown[] | null> {
-  if (cache) {
-    const cached = await cache.get(type, connectionId);
-    if (cached !== null) return cached;
+  if (!cache) {
+    try {
+      return await fetchLive();
+    } catch {
+      return null;
+    }
   }
 
-  try {
-    const data = await fetchLive();
-    cache?.set(type, connectionId, data).catch(() => {});
-    return data;
-  } catch {
-    return null;
+  // Start upstream and cache check in parallel
+  const upstreamPromise = fetchLive();
+  const cached = await cache.get(type, connectionId);
+
+  if (cached === null) {
+    // Cache miss: wait for upstream
+    try {
+      const data = await upstreamPromise;
+      cache.set(type, connectionId, data).catch(() => {});
+      return data;
+    } catch {
+      return null;
+    }
   }
+
+  // Cache hit: return immediately, revalidate in background
+  const revalKey = `${type}:${connectionId}`;
+  if (!revalidating.has(revalKey)) {
+    revalidating.add(revalKey);
+    upstreamPromise
+      .then((data) => cache.set(type, connectionId, data))
+      .catch(() => {})
+      .finally(() => revalidating.delete(revalKey));
+  } else {
+    upstreamPromise.catch(() => {}); // prevent unhandled rejection
+  }
+
+  return cached;
 }
 
 // Module-level active cache — set once at app startup, read by withMcpCaching

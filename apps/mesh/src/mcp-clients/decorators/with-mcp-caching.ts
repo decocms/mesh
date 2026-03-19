@@ -2,11 +2,15 @@
  * MCP Caching Decorator
  *
  * Adds tool, resource, and prompt list caching to an MCP client.
- * Simple cache-read/write layer — no SWR (that lives in createLazyClient).
+ * Delegates to fetchWithCache for unified cache-hit/miss + SWR logic.
  * VIRTUAL connections bypass the cache entirely.
  */
 
-import type { McpListCache, McpListType } from "../mcp-list-cache";
+import {
+  fetchWithCache,
+  type McpListCache,
+  type McpListType,
+} from "../mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
@@ -27,7 +31,7 @@ const LIST_METHODS = [
 /**
  * Decorator that adds caching for listTools, listResources, and listPrompts.
  *
- * Checks cache on read, populates on miss. VIRTUAL connections bypass cache.
+ * Delegates to fetchWithCache. VIRTUAL connections bypass cache.
  */
 export function withMcpCaching(
   client: Client,
@@ -37,8 +41,6 @@ export function withMcpCaching(
   const isVirtual = connection.connection_type === "VIRTUAL";
   const shouldBypassCache = (params?: unknown, options?: unknown) =>
     params !== undefined || options !== undefined;
-  const canStoreResult = (result: { nextCursor?: string | undefined }) =>
-    result.nextCursor === undefined;
 
   for (const { method, type, key } of LIST_METHODS) {
     const original = client[method]?.bind(client);
@@ -48,25 +50,22 @@ export function withMcpCaching(
       params?: unknown,
       options?: unknown,
     ): Promise<Record<string, unknown>> => {
-      if (!isVirtual && cache && !shouldBypassCache(params, options)) {
-        const cached = await cache.get(type, connection.id);
-        if (cached !== null) {
-          return { [key]: cached };
-        }
+      // Bypass cache for VIRTUAL connections or paginated requests
+      if (isVirtual || !cache || shouldBypassCache(params, options)) {
+        return (original as any)(params, options);
       }
 
-      const result = await (original as any)(params, options);
+      const data = await fetchWithCache(
+        type,
+        connection.id,
+        async () => {
+          const result = await (original as any)();
+          return (result as any)[key];
+        },
+        cache,
+      );
 
-      if (
-        !isVirtual &&
-        cache &&
-        !shouldBypassCache(params, options) &&
-        canStoreResult(result)
-      ) {
-        cache.set(type, connection.id, (result as any)[key]).catch(() => {});
-      }
-
-      return result;
+      return { [key]: data ?? [] };
     };
   }
 

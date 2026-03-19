@@ -13,7 +13,10 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { defineTool } from "../../core/define-tool";
 import { requireOrganization } from "../../core/mesh-context";
 import { getBaseUrl } from "../../core/server-constants";
-import { getMcpListCache, hydrateList } from "../../mcp-clients/mcp-list-cache";
+import {
+  getMcpListCache,
+  fetchWithCache,
+} from "../../mcp-clients/mcp-list-cache";
 import { clientFromConnection } from "../../mcp-clients";
 import {
   createDevAssetsConnectionEntity,
@@ -83,7 +86,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
                 await client.close().catch(() => {});
               }
             };
-      const tools = await hydrateList(
+      const tools = await fetchWithCache(
         "tools",
         connection.id,
         fetchLive,
