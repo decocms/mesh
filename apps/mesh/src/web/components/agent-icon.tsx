@@ -434,6 +434,10 @@ export function AgentAvatar({
           "flex items-center justify-center shrink-0 overflow-hidden",
           className,
         )}
+        style={{
+          boxShadow:
+            "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+        }}
       >
         {IconComp ? (
           <IconComp size={sizeConfig.icon} />
@@ -472,6 +476,10 @@ export function AgentAvatar({
         "flex items-center justify-center shrink-0 overflow-hidden",
         className,
       )}
+      style={{
+        boxShadow:
+          "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+      }}
     >
       <FallbackIcon size={sizeConfig.icon} />
     </div>
@@ -510,6 +518,10 @@ function AgentAvatarImage({
           "flex items-center justify-center shrink-0 overflow-hidden",
           className,
         )}
+        style={{
+          boxShadow:
+            "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+        }}
       >
         <FallbackIcon size={sizeConfig.icon} />
       </div>
@@ -521,9 +533,13 @@ function AgentAvatarImage({
       className={cn(
         sizeConfig.container,
         sizeConfig.radius,
-        "shrink-0 overflow-hidden border border-border",
+        "shrink-0 overflow-hidden",
         className,
       )}
+      style={{
+        boxShadow:
+          "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+      }}
     >
       <img
         src={url}

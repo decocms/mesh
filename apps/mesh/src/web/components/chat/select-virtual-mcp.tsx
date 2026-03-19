@@ -268,7 +268,7 @@ export function VirtualMCPSelector({
                 type="button"
                 disabled={disabled}
                 className={cn(
-                  "relative flex items-center justify-center size-8 rounded-md text-muted-foreground/75 transition-colors shrink-0",
+                  "relative flex items-center justify-center size-8 rounded-lg text-muted-foreground/75 transition-colors shrink-0",
                   disabled
                     ? "cursor-not-allowed opacity-50"
                     : "cursor-pointer hover:text-muted-foreground",
@@ -312,7 +312,7 @@ export function VirtualMCPSelector({
                         y="0.5"
                         width="31"
                         height="31"
-                        rx="5.5"
+                        rx="7.5"
                         stroke="url(#agent-border-gradient)"
                         strokeWidth="1"
                         strokeDasharray="3 3"
