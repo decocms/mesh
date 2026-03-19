@@ -844,13 +844,26 @@ function escapeXmlAttr(s: string): string {
  */
 async function buildPromptCatalog(client: {
   listPrompts(): Promise<{
-    prompts: Array<{ name: string; description?: string }>;
+    prompts: Array<{
+      name: string;
+      description?: string;
+      arguments?: Array<{ name: string; required?: boolean }>;
+    }>;
   }>;
 }): Promise<string | null> {
   const { prompts } = await client.listPrompts();
   if (prompts.length === 0) return null;
 
-  const lines = prompts.map((p) => `${p.name}|${p.description ?? ""}`);
+  const lines = prompts.map((p) => {
+    let line = `${p.name}|${p.description ?? ""}`;
+    if (p.arguments && p.arguments.length > 0) {
+      const args = p.arguments
+        .map((a) => (a.required ? `${a.name} (required)` : a.name))
+        .join(", ");
+      line += `|args: ${args}`;
+    }
+    return line;
+  });
 
   return `\n\n<available-prompts>\n${lines.join("\n")}\n</available-prompts>`;
 }
