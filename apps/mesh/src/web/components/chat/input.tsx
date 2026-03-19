@@ -336,8 +336,18 @@ function PlanModeToggle({ disabled }: { disabled?: boolean }) {
           <BookOpen01 size={16} />
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top">
+      <TooltipContent side="top" className="flex items-center gap-1.5">
         {isPlanMode ? "Exit plan mode" : "Plan mode"}
+        <span className="flex items-center gap-0.5">
+          {(isMac ? ["⌘", "⇧", "L"] : ["Ctrl", "⇧", "L"]).map((key) => (
+            <kbd
+              key={key}
+              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
+            >
+              {key}
+            </kbd>
+          ))}
+        </span>
       </TooltipContent>
     </Tooltip>
   );
