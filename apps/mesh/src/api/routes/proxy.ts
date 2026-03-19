@@ -29,6 +29,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Context, Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
 
@@ -248,6 +249,18 @@ app.all("/", async (c) => {
 app.all("/:connectionId", async (c) => {
   const connectionId = c.req.param("connectionId");
   const ctx = c.get("meshContext");
+
+  // SELF MCP connections ({orgId}_self) route to the management MCP server
+  // instead of creating an outbound client connection
+  if (connectionId.endsWith("_self")) {
+    const server = await managementMCP(ctx);
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse:
+        c.req.raw.headers.get("Accept")?.includes("application/json") ?? false,
+    });
+    await server.connect(transport);
+    return await transport.handleRequest(c.req.raw);
+  }
 
   try {
     try {
