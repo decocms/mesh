@@ -90,7 +90,7 @@ export class JetStreamKVMcpListCache implements McpListCache {
 const revalidating = new Set<string>();
 
 /**
- * Fetch with cache: starts upstream and cache check in parallel.
+ * Fetch with cache: checks cache first, then revalidates in background.
  * On cache hit, returns cached data immediately and revalidates in background.
  * On cache miss, waits for upstream and populates cache.
  */
@@ -120,18 +120,17 @@ export async function fetchWithCache(
     }
   }
 
-  // Start upstream and cache check in parallel
-  const upstreamPromise = fetchLive();
+  // Check cache first
   const cached = await cache.get(type, connectionId);
   const cacheMs = (performance.now() - t0).toFixed(1);
 
   if (cached === null) {
-    // Cache miss: wait for upstream
+    // Cache miss: fetch live and populate cache
     console.log(
       `[fetchWithCache] ${type}:${connectionId} MISS (cache lookup ${cacheMs}ms), waiting for upstream`,
     );
     try {
-      const data = await upstreamPromise;
+      const data = await fetchLive();
       console.log(
         `[fetchWithCache] ${type}:${connectionId} MISS→live OK (${(performance.now() - t0).toFixed(1)}ms, ${data.length} items)`,
       );
@@ -152,7 +151,7 @@ export async function fetchWithCache(
   const revalKey = `${type}:${connectionId}`;
   if (!revalidating.has(revalKey)) {
     revalidating.add(revalKey);
-    upstreamPromise
+    fetchLive()
       .then((data) => {
         console.log(
           `[fetchWithCache] ${type}:${connectionId} background reval OK (${(performance.now() - t0).toFixed(1)}ms, ${data.length} items)`,
@@ -169,7 +168,6 @@ export async function fetchWithCache(
     console.log(
       `[fetchWithCache] ${type}:${connectionId} reval already in-flight, skipping`,
     );
-    upstreamPromise.catch(() => {}); // prevent unhandled rejection
   }
 
   return cached;

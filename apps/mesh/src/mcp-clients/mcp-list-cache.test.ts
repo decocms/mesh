@@ -206,10 +206,9 @@ describe("fetchWithCache", () => {
 
     expect(r1).toEqual(stale);
     expect(r2).toEqual(stale);
-    // Both calls started an upstream (fetchLive is called each time),
-    // but only one revalidation should write to cache
-    // The second call's upstream promise is just caught to avoid unhandled rejection
-    expect(callCount).toBe(2);
+    // Only one revalidation should be started (the second is skipped
+    // because the first is already in-flight)
+    expect(callCount).toBe(1);
     // Wait for background
     await new Promise((r) => setTimeout(r, 60));
     expect(await cache.get("tools", "conn1")).toEqual([makeTool("fresh")]);
