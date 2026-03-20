@@ -116,7 +116,12 @@ const SECRET_KEYS = new Set([
   "S3_ACCESS_KEY_ID",
   "S3_SECRET_ACCESS_KEY",
 ]);
-const URL_KEYS = new Set(["DATABASE_URL", "CLICKHOUSE_URL", "NATS_URL"]);
+const URL_KEYS = new Set([
+  "DATABASE_URL",
+  "CLICKHOUSE_URL",
+  "NATS_URL",
+  "S3_ENDPOINT",
+]);
 
 function formatValue(key: string, raw: unknown): string {
   if (SECRET_KEYS.has(key)) {

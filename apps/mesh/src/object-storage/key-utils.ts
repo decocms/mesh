@@ -125,8 +125,9 @@ const TEXT_CONTENT_TYPES = new Set([
  * Check if a content type represents text data (should be returned as UTF-8 string).
  */
 export function isTextContentType(contentType: string): boolean {
-  // Check exact match or prefix match for text/* types
-  if (TEXT_CONTENT_TYPES.has(contentType)) return true;
-  if (contentType.startsWith("text/")) return true;
+  // Strip parameters (e.g. "application/json; charset=utf-8" → "application/json")
+  const mediaType = contentType.split(";")[0]!.trim();
+  if (TEXT_CONTENT_TYPES.has(mediaType)) return true;
+  if (mediaType.startsWith("text/")) return true;
   return false;
 }

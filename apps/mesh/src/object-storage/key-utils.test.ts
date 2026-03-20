@@ -162,6 +162,12 @@ describe("isTextContentType", () => {
     expect(isTextContentType("text/x-custom")).toBe(true);
   });
 
+  it("should handle content types with parameters", () => {
+    expect(isTextContentType("application/json; charset=utf-8")).toBe(true);
+    expect(isTextContentType("text/html; charset=iso-8859-1")).toBe(true);
+    expect(isTextContentType("image/png; quality=80")).toBe(false);
+  });
+
   it("should return false for binary types", () => {
     expect(isTextContentType("image/png")).toBe(false);
     expect(isTextContentType("application/pdf")).toBe(false);
