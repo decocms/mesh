@@ -6,7 +6,7 @@ let cached: S3Service | null | undefined;
 /**
  * Check if object storage is configured via environment variables.
  */
-export function isObjectStorageConfigured(): boolean {
+function isObjectStorageConfigured(): boolean {
   return !!(
     env.S3_ENDPOINT &&
     env.S3_BUCKET &&
