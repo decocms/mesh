@@ -6,6 +6,7 @@
  */
 
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
+export const underline = (s: string) => `\x1b[4m${s}\x1b[24m`;
 export const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
 export const yellow = (s: string) => `\x1b[33m${s}\x1b[39m`;
 export const cyan = (s: string) => `\x1b[36m${s}\x1b[39m`;
