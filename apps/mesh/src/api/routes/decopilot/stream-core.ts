@@ -40,6 +40,8 @@ import type { ChatMessage, ModelInfo, ModelsConfig } from "./types";
 import type { CancelBroadcast } from "./cancel-broadcast";
 import { ThreadMessage } from "@/storage/types";
 import type { MeshProvider } from "@/ai-providers/types";
+import { createClaudeCodeModel } from "@/ai-providers/adapters/claude-code";
+import { getInternalUrl } from "@/core/server-constants";
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -108,21 +110,28 @@ export async function streamCore(
   let llmCallLogged = false;
 
   try {
-    // 1. Check model permissions
-    const allowedModels = await fetchModelPermissions(
-      ctx.db,
-      input.organizationId,
-      ctx.auth.user?.role,
-    );
+    const credentialKey = await ctx.storage.aiProviderKeys
+      .findById(input.models.credentialId, input.organizationId)
+      .catch(() => null);
+    const isClaudeCode = credentialKey?.providerId === "claude-code";
 
-    if (
-      !checkModelPermission(
-        allowedModels,
-        input.models.credentialId,
-        input.models.thinking.id,
-      )
-    ) {
-      throw new Error("Model not allowed for your role");
+    // 1. Check model permissions (skip for Claude Code in local mode)
+    if (!isClaudeCode) {
+      const allowedModels = await fetchModelPermissions(
+        ctx.db,
+        input.organizationId,
+        ctx.auth.user?.role,
+      );
+
+      if (
+        !checkModelPermission(
+          allowedModels,
+          input.models.credentialId,
+          input.models.thinking.id,
+        )
+      ) {
+        throw new Error("Model not allowed for your role");
+      }
     }
 
     const windowSize = input.windowSize ?? DEFAULT_WINDOW_SIZE;
@@ -130,7 +139,12 @@ export async function streamCore(
     // 2. Load entities and create/load memory in parallel
     const [virtualMcp, provider, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(input.agent.id, input.organizationId),
-      ctx.aiProviders.activate(input.models.credentialId, input.organizationId),
+      isClaudeCode
+        ? Promise.resolve(null)
+        : ctx.aiProviders.activate(
+            input.models.credentialId,
+            input.organizationId,
+          ),
       createMemory(ctx.storage.threads, {
         organization_id: input.organizationId,
         thread_id: input.threadId,
@@ -266,25 +280,29 @@ export async function streamCore(
           passthroughClient.close().catch(() => {});
         };
 
-        const passthroughTools = await toolsFromMCP(
-          passthroughClient,
-          toolOutputMap,
-          writer,
-          input.toolApprovalLevel,
-        );
+        const passthroughTools = isClaudeCode
+          ? {}
+          : await toolsFromMCP(
+              passthroughClient,
+              toolOutputMap,
+              writer,
+              input.toolApprovalLevel,
+            );
 
-        const builtInTools = await getBuiltInTools(
-          writer,
-          {
-            provider,
-            organization,
-            models: input.models,
-            toolApprovalLevel: input.toolApprovalLevel,
-            toolOutputMap,
-            passthroughClient,
-          },
-          ctx,
-        );
+        const builtInTools = isClaudeCode
+          ? {}
+          : await getBuiltInTools(
+              writer,
+              {
+                provider: provider!,
+                organization,
+                models: input.models,
+                toolApprovalLevel: input.toolApprovalLevel,
+                toolOutputMap,
+                passthroughClient,
+              },
+              ctx,
+            );
 
         // Progressive tool disclosure: enable_tools + prepareStep
         const passthroughToolNames = new Set(Object.keys(passthroughTools));
@@ -296,7 +314,7 @@ export async function streamCore(
 
         // Build tool annotations map for plan-mode gating in enable_tools
         const toolAnnotations = new Map<string, { readOnlyHint?: boolean }>();
-        if (input.toolApprovalLevel === "plan") {
+        if (input.toolApprovalLevel === "plan" && !isClaudeCode) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
             toolAnnotations.set(t.name, {
@@ -305,18 +323,20 @@ export async function streamCore(
           }
         }
 
-        const tools = {
-          ...passthroughTools,
-          ...builtInTools,
-          enable_tools: createEnableToolsTool(
-            enabledTools,
-            passthroughToolNames,
-            {
-              toolApprovalLevel: input.toolApprovalLevel,
-              toolAnnotations,
-            },
-          ),
-        };
+        const tools = isClaudeCode
+          ? {}
+          : {
+              ...passthroughTools,
+              ...builtInTools,
+              enable_tools: createEnableToolsTool(
+                enabledTools,
+                passthroughToolNames,
+                {
+                  toolApprovalLevel: input.toolApprovalLevel,
+                  toolAnnotations,
+                },
+              ),
+            };
 
         // Build composable system prompt array
         const basePrompt = buildBasePlatformPrompt();
@@ -362,12 +382,13 @@ export async function streamCore(
 
         ensureModelCompatibility(input.models, originalMessages);
 
-        const shouldGenerateTitle = mem.thread.title === DEFAULT_THREAD_TITLE;
+        const shouldGenerateTitle =
+          mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
         if (shouldGenerateTitle) {
           genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
-              provider,
+              provider!,
               input.models.fast ?? input.models.thinking,
             ),
             userMessage: JSON.stringify(processedMessages[0]?.content),
@@ -404,8 +425,36 @@ export async function streamCore(
         let lastProviderMetadata: Record<string, unknown> | undefined;
         llmCallStartTime = Date.now();
 
+        // Build language model based on provider type
+        let languageModel;
+
+        if (isClaudeCode) {
+          // Mint a short-lived API key for Claude Code to auth with the MCP endpoint
+          const apiKey = await ctx.boundAuth.apiKey.create({
+            name: "claude-code-session",
+            expiresIn: 3600,
+          });
+
+          const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
+          languageModel = createClaudeCodeModel(input.models.thinking.id, {
+            mcpServers: {
+              mesh: {
+                type: "http",
+                url: mcpUrl,
+                headers: {
+                  Authorization: `Bearer ${apiKey.key}`,
+                  "x-org-id": input.organizationId,
+                },
+              },
+            },
+            toolApprovalLevel: input.toolApprovalLevel,
+          });
+        } else {
+          languageModel = createLanguageModel(provider!, input.models.thinking);
+        }
+
         const result = streamText({
-          model: createLanguageModel(provider, input.models.thinking),
+          model: languageModel,
           system: [
             ...systemPrompts.map((content) => ({
               role: "system" as const,
@@ -415,38 +464,42 @@ export async function streamCore(
           ],
           messages: processedMessages,
           tools,
-          prepareStep: () => {
-            let activeToolNames = [
-              ...builtInToolNames,
-              "enable_tools",
-              ...enabledTools,
-            ];
+          ...(isClaudeCode
+            ? {}
+            : {
+                prepareStep: () => {
+                  let activeToolNames = [
+                    ...builtInToolNames,
+                    "enable_tools",
+                    ...enabledTools,
+                  ];
 
-            // Layer 2: In plan mode, filter out any non-read-only tools that
-            // somehow got enabled (safety net for Layer 1 in enable_tools)
-            if (input.toolApprovalLevel === "plan") {
-              activeToolNames = activeToolNames.filter((name) => {
-                // Built-in tools and enable_tools are always allowed
-                if (
-                  builtInToolNames.includes(name) ||
-                  name === "enable_tools"
-                ) {
-                  return true;
-                }
-                // Only allow passthrough tools with readOnlyHint
-                const annotations = toolAnnotations.get(name);
-                return annotations?.readOnlyHint === true;
-              });
-            }
+                  // Layer 2: In plan mode, filter out any non-read-only tools that
+                  // somehow got enabled (safety net for Layer 1 in enable_tools)
+                  if (input.toolApprovalLevel === "plan") {
+                    activeToolNames = activeToolNames.filter((name) => {
+                      // Built-in tools and enable_tools are always allowed
+                      if (
+                        builtInToolNames.includes(name) ||
+                        name === "enable_tools"
+                      ) {
+                        return true;
+                      }
+                      // Only allow passthrough tools with readOnlyHint
+                      const annotations = toolAnnotations.get(name);
+                      return annotations?.readOnlyHint === true;
+                    });
+                  }
 
-            return {
-              activeTools: activeToolNames as (keyof typeof tools)[],
-            };
-          },
-          temperature: input.temperature,
-          maxOutputTokens,
+                  return {
+                    activeTools: activeToolNames as (keyof typeof tools)[],
+                  };
+                },
+                temperature: input.temperature,
+                maxOutputTokens,
+                stopWhen: stepCountIs(PARENT_STEP_LIMIT),
+              }),
           abortSignal: registrySignal,
-          stopWhen: stepCountIs(PARENT_STEP_LIMIT),
           onFinish: async ({
             usage,
             totalUsage,

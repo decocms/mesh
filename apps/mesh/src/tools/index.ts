@@ -146,6 +146,7 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_OAUTH_EXCHANGE,
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
+  AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

@@ -5,6 +5,7 @@ import {
   checkModelPermission,
   fetchModelPermissions,
 } from "@/api/routes/decopilot/model-permissions";
+import { CLAUDE_CODE_MODELS } from "@/ai-providers/adapters/claude-code";
 
 export const AI_PROVIDERS_LIST_MODELS = defineTool({
   name: "AI_PROVIDERS_LIST_MODELS",
@@ -41,6 +42,15 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
     requireAuth(ctx);
     const org = requireOrganization(ctx);
     await ctx.access.check();
+
+    // Claude Code uses a DB key with providerId "claude-code"
+    const keyInfo = await ctx.storage.aiProviderKeys
+      .findById(input.keyId, org.id)
+      .catch(() => null);
+
+    if (keyInfo?.providerId === "claude-code") {
+      return { models: CLAUDE_CODE_MODELS };
+    }
 
     const allowedModels = await fetchModelPermissions(
       ctx.db,
