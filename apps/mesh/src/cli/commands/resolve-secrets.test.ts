@@ -7,11 +7,9 @@ describe("resolveSecrets", () => {
   describe("empty string preservation (regression test)", () => {
     it("should preserve ENCRYPTION_KEY empty string from secrets.json", () => {
       const saved: SecretsFile = { ENCRYPTION_KEY: "" };
-      const { secrets, modified } = resolveSecrets(saved, emptyEnv);
+      const { secrets } = resolveSecrets(saved, emptyEnv);
 
       expect(secrets.ENCRYPTION_KEY).toBe("");
-      // BETTER_AUTH_SECRET is missing so it gets generated → modified is true
-      // but ENCRYPTION_KEY itself should NOT trigger modification
     });
 
     it("should preserve BETTER_AUTH_SECRET empty string from secrets.json", () => {
