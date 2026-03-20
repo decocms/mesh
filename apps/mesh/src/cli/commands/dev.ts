@@ -4,9 +4,7 @@
  * Loads .env, starts services, runs migrations, and spawns dev servers.
  * Reports progress via the CLI store so the Ink UI can update live.
  */
-import crypto from "crypto";
 import { readFileSync } from "fs";
-import { chmod, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import type { Subprocess } from "bun";
 import {
@@ -75,68 +73,6 @@ export async function startDevServer(
 
   if (baseUrl) {
     process.env.BASE_URL = baseUrl;
-  }
-
-  // ── Secrets ─────────────────────────────────────────────────────────
-  const secretsFilePath = join(home, "secrets.json");
-  await mkdir(home, { recursive: true, mode: 0o700 });
-
-  interface SecretsFile {
-    BETTER_AUTH_SECRET?: string;
-    ENCRYPTION_KEY?: string;
-    LOCAL_ADMIN_PASSWORD?: string;
-  }
-
-  let savedSecrets: SecretsFile = {};
-  try {
-    const file = Bun.file(secretsFilePath);
-    if (await file.exists()) {
-      savedSecrets = await file.json();
-    }
-  } catch {
-    // File doesn't exist or is invalid
-  }
-
-  let secretsModified = false;
-
-  if (!process.env.BETTER_AUTH_SECRET) {
-    if (savedSecrets.BETTER_AUTH_SECRET) {
-      process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
-    } else {
-      savedSecrets.BETTER_AUTH_SECRET = crypto
-        .randomBytes(32)
-        .toString("base64");
-      process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
-      secretsModified = true;
-    }
-  }
-
-  if (!process.env.ENCRYPTION_KEY) {
-    if (savedSecrets.ENCRYPTION_KEY) {
-      process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
-    } else {
-      savedSecrets.ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
-      process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
-      secretsModified = true;
-    }
-  }
-
-  if (!savedSecrets.LOCAL_ADMIN_PASSWORD) {
-    savedSecrets.LOCAL_ADMIN_PASSWORD = crypto
-      .randomBytes(24)
-      .toString("base64");
-    secretsModified = true;
-  }
-
-  if (secretsModified) {
-    try {
-      await writeFile(secretsFilePath, JSON.stringify(savedSecrets, null, 2), {
-        mode: 0o600,
-      });
-      await chmod(secretsFilePath, 0o600);
-    } catch {
-      // Non-fatal — continue
-    }
   }
 
   // ── Services ──────────────────────────────────────────────────────
