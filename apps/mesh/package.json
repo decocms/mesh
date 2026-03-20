@@ -57,8 +57,8 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.8",
-    "@electric-sql/pglite": "^0.3.15",
     "@ai-sdk/react": "^3.0.118",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.80",
     "@better-auth/sso": "1.4.1",
     "@daveyplate/better-auth-ui": "^3.2.7",
     "@deco/ui": "workspace:*",
@@ -67,6 +67,7 @@
     "@decocms/mesh-sdk": "workspace:*",
     "@decocms/runtime": "workspace:*",
     "@decocms/vite-plugin": "workspace:*",
+    "@electric-sql/pglite": "^0.3.15",
     "@floating-ui/react": "^0.27.16",
     "@hookform/resolvers": "^5.2.2",
     "@modelcontextprotocol/sdk": "1.27.1",

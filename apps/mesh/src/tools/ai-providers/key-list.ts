@@ -6,7 +6,6 @@ import {
   checkKeyPermission,
   fetchModelPermissions,
 } from "@/api/routes/decopilot/model-permissions";
-import { env } from "../../env";
 
 export const AI_PROVIDER_KEY_LIST = defineTool({
   name: "AI_PROVIDER_KEY_LIST",
@@ -48,19 +47,6 @@ export const AI_PROVIDER_KEY_LIST = defineTool({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       ({ organizationId, ...key }) => key,
     );
-
-    if (
-      env.MESH_LOCAL_MODE &&
-      (!input.providerId || input.providerId === "claude-code")
-    ) {
-      result.push({
-        id: "claude-code",
-        providerId: "claude-code",
-        label: "Claude CLI",
-        createdBy: "system",
-        createdAt: new Date().toISOString(),
-      });
-    }
 
     return { keys: result };
   },

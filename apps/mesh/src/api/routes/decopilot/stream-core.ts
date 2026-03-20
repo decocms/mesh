@@ -42,7 +42,6 @@ import { ThreadMessage } from "@/storage/types";
 import type { MeshProvider } from "@/ai-providers/types";
 import { createClaudeCodeModel } from "@/ai-providers/adapters/claude-code";
 import { getInternalUrl } from "@/core/server-constants";
-import { env } from "@/env";
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -111,8 +110,10 @@ export async function streamCore(
   let llmCallLogged = false;
 
   try {
-    const isClaudeCode =
-      input.models.credentialId === "claude-code" && env.MESH_LOCAL_MODE;
+    const credentialKey = await ctx.storage.aiProviderKeys
+      .findById(input.models.credentialId, input.organizationId)
+      .catch(() => null);
+    const isClaudeCode = credentialKey?.providerId === "claude-code";
 
     // 1. Check model permissions (skip for Claude Code in local mode)
     if (!isClaudeCode) {
@@ -444,6 +445,7 @@ export async function streamCore(
                 },
               },
             },
+            toolApprovalLevel: input.toolApprovalLevel,
           });
         } else {
           languageModel = createLanguageModel(provider!, input.models.thinking);
