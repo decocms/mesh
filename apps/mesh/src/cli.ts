@@ -6,8 +6,10 @@
  *
  * Usage:
  *   bunx decocms                    # Start server (Ink UI)
+ *   bunx decocms dev                # Start dev server (Ink UI + Vite)
  *   bunx decocms init <directory>   # Scaffold from decocms/mcp-app
  *   bunx decocms completion         # Shell completion setup
+ *   bunx decocms services <up|down|status>  # Service management
  */
 
 import { parseArgs } from "util";
@@ -22,7 +24,17 @@ const { values, positionals } = parseArgs({
       short: "p",
       default: process.env.PORT || "3000",
     },
+    "vite-port": {
+      type: "string",
+      default: process.env.VITE_PORT || "4000",
+    },
     home: {
+      type: "string",
+    },
+    "base-url": {
+      type: "string",
+    },
+    "env-file": {
       type: "string",
     },
     help: {
@@ -58,6 +70,8 @@ Deco CMS — Open-source control plane for your AI agents
 
 Usage:
   deco [options]                  Start server with Ink UI
+  deco dev [options]              Start dev server (Vite + hot reload)
+  deco services <up|down|status>  Manage services (Postgres, NATS)
   deco init <directory>           Scaffold a new MCP app
   deco completion [shell]         Install shell completions
 
@@ -69,6 +83,11 @@ Server Options:
   --no-tui              Disable Ink UI, plain stdout (CI mode)
   -h, --help            Show this help message
   -v, --version         Show version
+
+Dev Options:
+  --vite-port <port>    Vite dev server port (default: 4000)
+  --base-url <url>      Base URL for the server
+  --env-file <path>     Path to .env file to load
 
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
@@ -83,6 +102,12 @@ Examples:
   deco -p 8080                    Start on port 8080
   deco --home ~/my-project        Custom data directory
   deco --local-mode               Enable auto-login (local dev)
+  deco dev                        Start dev server
+  deco dev --vite-port 5000       Dev server with custom Vite port
+  deco dev --env-file .env        Dev server with env file
+  deco services up                Start Postgres and NATS
+  deco services status            Show service status
+  deco services down              Stop services
   deco init my-app                Scaffold a new MCP app
   deco --no-tui                   Start without terminal UI
 
@@ -132,7 +157,78 @@ if (command === "completion") {
   process.exit(0);
 }
 
-if (command && command !== "init" && command !== "completion") {
+// ── Services command (plain output, no TUI) ────────────────────────────
+if (command === "services") {
+  const subcommand = positionals[1];
+  if (!subcommand) {
+    console.error("Usage: deco services <up|down|status>");
+    process.exit(1);
+  }
+
+  const decoHome =
+    values.home ||
+    process.env.DATA_DIR ||
+    process.env.DECOCMS_HOME ||
+    join(homedir(), "deco");
+
+  const { servicesCommand } = await import("./cli/commands/services");
+  await servicesCommand({
+    subcommand,
+    home: decoHome,
+    envFile: values["env-file"],
+  });
+  process.exit(0);
+}
+
+// ── Dev command (Ink TUI + dev servers) ─────────────────────────────────
+if (command === "dev") {
+  const decoHome =
+    values.home ||
+    process.env.DATA_DIR ||
+    process.env.DECOCMS_HOME ||
+    join(homedir(), "deco");
+
+  const devOptions = {
+    port: values.port!,
+    vitePort: values["vite-port"]!,
+    home: decoHome,
+    baseUrl: values["base-url"],
+    skipMigrations: values["skip-migrations"] === true,
+    envFile: values["env-file"],
+  };
+
+  const noTui = values["no-tui"] === true || !process.stdout.isTTY;
+
+  if (noTui) {
+    const { ASCII_ART } = await import("./fmt");
+    console.log("");
+    for (const line of ASCII_ART) {
+      console.log(line);
+    }
+    console.log("");
+
+    const { startDevServer } = await import("./cli/commands/dev");
+    const result = await startDevServer(devOptions);
+    const code = await result.process.exited;
+    process.exit(code);
+  } else {
+    const { render } = await import("ink");
+    const { createElement } = await import("react");
+    const { App } = await import("./cli/app");
+    const { startDevServer } = await import("./cli/commands/dev");
+    const { setDevMode } = await import("./cli/cli-store");
+
+    const displayHome = decoHome.replace(homedir(), "~");
+    setDevMode();
+    render(createElement(App, { home: displayHome }));
+
+    const result = await startDevServer(devOptions);
+    const code = await result.process.exited;
+    process.exit(code);
+  }
+}
+
+if (command && !["init", "completion", "dev", "services"].includes(command)) {
   console.error(`Unknown command: ${command}`);
   process.exit(1);
 }

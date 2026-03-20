@@ -76,6 +76,14 @@ export function addLogEntry(entry: LogEntry) {
   emit();
 }
 
+export function setDevMode() {
+  state = {
+    ...state,
+    services: [...state.services, { name: "Vite", status: "pending", port: 0 }],
+  };
+  emit();
+}
+
 export function toggleViewMode() {
   state = {
     ...state,

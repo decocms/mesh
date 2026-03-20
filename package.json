@@ -37,9 +37,9 @@
     "knip": "knip",
     "benchmark": "bun run --cwd=apps/benchmark benchmark",
     "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick",
-    "services:up": "bun run scripts/dev-services-cli.ts up",
-    "services:down": "bun run scripts/dev-services-cli.ts down",
-    "services:status": "bun run scripts/dev-services-cli.ts status"
+    "services:up": "bun run apps/mesh/src/cli.ts services up",
+    "services:down": "bun run apps/mesh/src/cli.ts services down",
+    "services:status": "bun run apps/mesh/src/cli.ts services status"
   },
   "type": "module",
   "workspaces": [
