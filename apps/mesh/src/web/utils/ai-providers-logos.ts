@@ -7,7 +7,7 @@ const OPENROUTER_ICON_URL =
 
 /** Anthropic icon URL */
 const ANTHROPIC_ICON_URL =
-  "https://assets.decocache.com/decocms/4fa4f3ed-1bf3-4e5a-8d05-4f3787df5966/anthropic-icon-tdvkiqisswbrmtkiygb0ia.webp";
+  "https://assets.decocache.com/decocms/51a209ae-14bc-4b6f-8216-8eb670695bd7/Anthropic-Icon--Streamline-Svg-Logos.svg";
 
 export function getProviderLogo(model: {
   providerId: string;
