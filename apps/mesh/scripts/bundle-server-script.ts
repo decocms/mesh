@@ -24,6 +24,10 @@ const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
 const ALWAYS_INCLUDE = [
   "@jitl/quickjs-wasmfile-release-sync",
   "embedded-postgres",
+  "ink",
+  "react",
+  "react-dom",
+  "@inkjs/ui",
 ];
 const ALWAYS_EXCLUDE = [
   "kysely-codegen",
