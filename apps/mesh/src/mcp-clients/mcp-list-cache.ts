@@ -18,7 +18,6 @@ export interface McpListCache {
 }
 
 const KV_BUCKET = "DECOCMS_MCP_LISTS";
-const KV_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export interface JetStreamKVMcpListCacheOptions {
   getJetStream: () => JetStreamClient;
@@ -33,7 +32,6 @@ export class JetStreamKVMcpListCache implements McpListCache {
   async init(): Promise<void> {
     const js = this.options.getJetStream();
     this.kv = await js.views.kv(KV_BUCKET, {
-      ttl: KV_TTL_MS,
       storage: StorageType.Memory,
     });
   }
