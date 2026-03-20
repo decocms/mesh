@@ -8,6 +8,7 @@ import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { CreateProjectDialog } from "@/web/components/create-project-dialog";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -37,6 +38,7 @@ function ImportFromDecoButton() {
 export default function ProjectsListPage() {
   const { org } = useProjectContext();
   const { data: projects, isLoading } = useProjects(org.id);
+  const { enableDecoImport } = usePublicConfig();
   const [search, setSearch] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const navigate = useNavigate();
@@ -79,7 +81,7 @@ export default function ProjectsListPage() {
           </Breadcrumb>
         </Page.Header.Left>
         <Page.Header.Right>
-          {__ENABLE_DECO_IMPORT__ && <ImportFromDecoButton />}
+          {enableDecoImport && <ImportFromDecoButton />}
           <Button onClick={handleCreateProject} size="sm">
             <Plus size={14} />
             Create Project
