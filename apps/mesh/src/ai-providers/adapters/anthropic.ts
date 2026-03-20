@@ -12,7 +12,7 @@ export const anthropicAdapter: ProviderAdapter = {
     id: "anthropic",
     name: "Anthropic",
     description: "Claude language models",
-    logo: "https://anthropic.com/favicon.ico",
+    logo: "https://assets.decocache.com/decocms/51a209ae-14bc-4b6f-8216-8eb670695bd7/Anthropic-Icon--Streamline-Svg-Logos.svg",
   },
 
   supportedMethods: ["api-key"],
