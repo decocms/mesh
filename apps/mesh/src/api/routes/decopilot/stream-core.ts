@@ -448,11 +448,16 @@ async function streamCoreInner(
             : null;
 
         // Context repo prompt: inject if a GITHUB context repo is configured
-        const orgConnections = await ctx.storage.connections.list(
-          input.organizationId,
-          { includeVirtual: true },
-        );
-        const contextRepoPrompt = buildContextRepoPrompt(orgConnections);
+        let contextRepoPrompt: string | null = null;
+        try {
+          const orgConnections = await ctx.storage.connections.list(
+            input.organizationId,
+            { includeVirtual: true },
+          );
+          contextRepoPrompt = buildContextRepoPrompt(orgConnections);
+        } catch {
+          // Non-critical — skip context repo prompt if lookup fails
+        }
 
         const systemPrompts = [
           basePrompt,
