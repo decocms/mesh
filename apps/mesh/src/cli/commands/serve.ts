@@ -61,7 +61,7 @@ export async function startServer(options: ServeOptions): Promise<void> {
   let secretsModified = false;
 
   if (!process.env.BETTER_AUTH_SECRET) {
-    if (savedSecrets.BETTER_AUTH_SECRET) {
+    if (savedSecrets.BETTER_AUTH_SECRET != null) {
       process.env.BETTER_AUTH_SECRET = savedSecrets.BETTER_AUTH_SECRET;
     } else {
       savedSecrets.BETTER_AUTH_SECRET = crypto
@@ -73,7 +73,7 @@ export async function startServer(options: ServeOptions): Promise<void> {
   }
 
   if (!process.env.ENCRYPTION_KEY) {
-    if (savedSecrets.ENCRYPTION_KEY) {
+    if (savedSecrets.ENCRYPTION_KEY != null) {
       process.env.ENCRYPTION_KEY = savedSecrets.ENCRYPTION_KEY;
     } else {
       savedSecrets.ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
