@@ -34,7 +34,7 @@ export interface MeshProvider {
   listModels(): Promise<ModelInfo[]>;
 }
 
-export type ConnectionMethod = "api-key" | "oauth-pkce";
+export type ConnectionMethod = "api-key" | "oauth-pkce" | "cli-activate";
 
 export interface OAuthPkceParams {
   callbackUrl: string;

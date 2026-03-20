@@ -217,8 +217,8 @@ export type AiProvider = {
   name: string;
   description: string;
   logo?: string | null;
-  connectionMethod?: "api-key" | "oauth-pkce";
-  supportedMethods: ("api-key" | "oauth-pkce")[];
+  connectionMethod?: "api-key" | "oauth-pkce" | "cli-activate";
+  supportedMethods: ("api-key" | "oauth-pkce" | "cli-activate")[];
   supportsTopUp?: boolean;
   supportsCredits?: boolean;
 };
@@ -399,6 +399,7 @@ export function ProviderCard({
   const [oauthStateToken, setOauthStateToken] = useState<string | null>(null);
   const [topUpKeyId, setTopUpKeyId] = useState<string | null>(null);
 
+  const isCliActivate = provider.supportedMethods.includes("cli-activate");
   const isActive = keys.length > 0;
 
   const { mutate: deleteKey, isPending: isDeleting } = useMutation({
@@ -459,6 +460,37 @@ export function ProviderCard({
     },
   });
 
+  const { mutate: activateCli, isPending: isActivating } = useMutation({
+    mutationFn: async () => {
+      const result = (await client.callTool({
+        name: "AI_PROVIDER_CLI_ACTIVATE",
+        arguments: {},
+      })) as {
+        structuredContent?: { activated: boolean; error?: string };
+        isError?: boolean;
+        content?: { text?: string }[];
+      };
+      if (result?.isError) {
+        throw new Error(result.content?.[0]?.text ?? "CLI activation failed");
+      }
+      return result.structuredContent;
+    },
+    onSuccess: (data) => {
+      if (!data?.activated) {
+        toast.error(data?.error ?? "CLI activation failed");
+        return;
+      }
+      queryClient.invalidateQueries({
+        queryKey: KEYS.aiProviderKeys(locator),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.aiProviders(locator),
+      });
+      toast.success("Claude Code activated");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (!isOAuthPending || !oauthStateToken) return;
@@ -499,7 +531,11 @@ export function ProviderCard({
   const supportsApiKey = provider.supportedMethods.includes("api-key");
 
   const handleCardClick = () => {
-    if (isConnectFormOpen || isOAuthPending) return;
+    if (isConnectFormOpen || isOAuthPending || isActivating) return;
+    if (isCliActivate) {
+      if (!isActive) activateCli();
+      return;
+    }
     if (supportsOAuth) {
       handleConnectOAuth();
     } else if (supportsApiKey) {
@@ -548,8 +584,10 @@ export function ProviderCard({
           className={cn(
             "p-4 flex flex-col gap-3 transition-colors relative",
             isActive && "border-primary/20",
-            !isOAuthPending && "cursor-pointer hover:bg-muted/30",
-            isOAuthPending && "cursor-wait",
+            !isOAuthPending &&
+              !isActivating &&
+              "cursor-pointer hover:bg-muted/30",
+            (isOAuthPending || isActivating) && "cursor-wait",
           )}
           onClick={handleCardClick}
         >
@@ -574,7 +612,11 @@ export function ProviderCard({
               <div>
                 <h3 className="font-medium text-base">{provider.name}</h3>
                 <p className="text-sm text-muted-foreground line-clamp-1">
-                  {isOAuthPending ? "Authorizing..." : provider.description}
+                  {isActivating
+                    ? "Checking CLI..."
+                    : isOAuthPending
+                      ? "Authorizing..."
+                      : provider.description}
                 </p>
               </div>
             </div>
@@ -582,48 +624,65 @@ export function ProviderCard({
 
           {isActive && (
             <div className="mt-1">
-              {provider.supportsCredits && (
-                <div className="mb-2">
-                  <CreditsBalance providerId={provider.id} />
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                </p>
-                {provider.supportsTopUp && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        setTopUpKeyId(topUpKeyId ? null : (keys[0]?.id ?? null))
-                      }
-                    >
-                      <CreditCard01 size={12} />
-                      Add credits
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
-                <div
-                  className="mt-2 p-3 rounded-md border bg-muted/30"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <TopUpForm
-                    keyId={topUpKeyId}
-                    providerId={provider.id}
-                    onCancel={() => setTopUpKeyId(null)}
+              {isCliActivate ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Authenticated via Claude CLI
+                  </p>
+                  <KeyList
+                    keys={keys}
+                    onDelete={deleteKey}
+                    isDeleting={isDeleting}
                   />
-                </div>
+                </>
+              ) : (
+                <>
+                  {provider.supportsCredits && (
+                    <div className="mb-2">
+                      <CreditsBalance providerId={provider.id} />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                    </p>
+                    {provider.supportsTopUp && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() =>
+                            setTopUpKeyId(
+                              topUpKeyId ? null : (keys[0]?.id ?? null),
+                            )
+                          }
+                        >
+                          <CreditCard01 size={12} />
+                          Add credits
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
+                    <div
+                      className="mt-2 p-3 rounded-md border bg-muted/30"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <TopUpForm
+                        keyId={topUpKeyId}
+                        providerId={provider.id}
+                        onCancel={() => setTopUpKeyId(null)}
+                      />
+                    </div>
+                  )}
+                  <KeyList
+                    keys={keys}
+                    onDelete={deleteKey}
+                    isDeleting={isDeleting}
+                  />
+                </>
               )}
-              <KeyList
-                keys={keys}
-                onDelete={deleteKey}
-                isDeleting={isDeleting}
-              />
             </div>
           )}
         </Card>

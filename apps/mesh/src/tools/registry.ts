@@ -135,6 +135,7 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_OAUTH_EXCHANGE",
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
+  "AI_PROVIDER_CLI_ACTIVATE",
 ] as const;
 
 /**
@@ -619,6 +620,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Get current credit balance for a provider",
     category: "AI Providers",
   },
+  {
+    name: "AI_PROVIDER_CLI_ACTIVATE",
+    description: "Activate Claude Code via local CLI",
+    category: "AI Providers",
+  },
 ];
 
 /**
@@ -711,6 +717,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_OAUTH_EXCHANGE: "Connect via OAuth",
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
+  AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
 };
 
 // ============================================================================

@@ -47,6 +47,9 @@ const envSchema = z
     DECO_AI_GATEWAY_ENABLED: zBooleanString,
     DECO_AI_GATEWAY_URL: z.string().default("https://ai-site.decocache.com"),
 
+    // Feature Flags
+    ENABLE_DECO_IMPORT: zBooleanString,
+
     // Debug / K8s
     DEBUG_PORT: z.coerce.number().default(9090),
     ENABLE_DEBUG_SERVER: zBooleanString,
@@ -169,6 +172,9 @@ function logConfiguration(e: Env) {
   sect("AI Gateway");
   r("DECO_AI_GATEWAY_ENABLED", e.DECO_AI_GATEWAY_ENABLED);
   r("DECO_AI_GATEWAY_URL", e.DECO_AI_GATEWAY_URL);
+
+  sect("Feature Flags");
+  r("ENABLE_DECO_IMPORT", e.ENABLE_DECO_IMPORT);
 
   sect("Debug / K8s");
   r("DEBUG_PORT", e.DEBUG_PORT);

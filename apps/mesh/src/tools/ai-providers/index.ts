@@ -8,3 +8,4 @@ export { AI_PROVIDER_OAUTH_URL } from "./oauth-url";
 export { AI_PROVIDER_OAUTH_EXCHANGE } from "./oauth-exchange";
 export { AI_PROVIDER_TOPUP_URL } from "./topup-url";
 export { AI_PROVIDER_CREDITS } from "./credits";
+export { AI_PROVIDER_CLI_ACTIVATE } from "./cli-activate";

@@ -7,6 +7,7 @@ export const PROVIDER_IDS = [
   "anthropic",
   "openrouter",
   "google",
+  "claude-code",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
