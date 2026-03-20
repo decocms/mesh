@@ -79,3 +79,6 @@ apps/mesh/playwright-report/
 
 # Generated docs (root-level only, not apps/docs/)
 /docs
+
+# Local dev data directory
+.deco
