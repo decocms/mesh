@@ -17,7 +17,8 @@ if (!projectName) {
   process.exit(1);
 }
 
-const child = spawn("npx", ["decocms", "init", projectName], {
+const packageManager = typeof Bun !== "undefined" ? "bunx" : "npx";
+const child = spawn(packageManager, ["decocms", "init", projectName], {
   stdio: "inherit",
   cwd: process.cwd(),
 });

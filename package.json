@@ -36,9 +36,9 @@
     "knip": "knip",
     "benchmark": "bun run --cwd=apps/benchmark benchmark",
     "benchmark:quick": "bun run --cwd=apps/benchmark benchmark:quick",
-    "services:up": "bun run apps/mesh/src/cli.ts services up",
-    "services:down": "bun run apps/mesh/src/cli.ts services down",
-    "services:status": "bun run apps/mesh/src/cli.ts services status"
+    "services:up": "bun run --env-file apps/mesh/.env apps/mesh/src/cli.ts services up",
+    "services:down": "bun run --env-file apps/mesh/.env apps/mesh/src/cli.ts services down",
+    "services:status": "bun run --env-file apps/mesh/.env apps/mesh/src/cli.ts services status"
   },
   "type": "module",
   "workspaces": [
