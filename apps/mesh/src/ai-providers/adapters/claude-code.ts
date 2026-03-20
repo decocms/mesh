@@ -41,7 +41,11 @@ export function createClaudeCodeModel(
   options?: {
     mcpServers?: Record<
       string,
-      { type: "sse"; url: string; headers?: Record<string, string> }
+      {
+        type: "sse" | "http";
+        url: string;
+        headers?: Record<string, string>;
+      }
     >;
   },
 ) {
