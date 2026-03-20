@@ -22,6 +22,14 @@ export function RequestLog({ logs, headerHeight }: RequestLogProps) {
   return (
     <Box flexDirection="column">
       {visible.map((entry, i) => {
+        if (entry.rawLine) {
+          return (
+            <Text key={i} dimColor>
+              {entry.rawLine}
+            </Text>
+          );
+        }
+
         const durationStr =
           entry.duration < 1000
             ? `${entry.duration}ms`

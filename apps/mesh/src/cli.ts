@@ -188,6 +188,8 @@ if (command === "dev") {
     process.env.DECOCMS_HOME ||
     join(homedir(), "deco");
 
+  const noTui = values["no-tui"] === true || !process.stdout.isTTY;
+
   const devOptions = {
     port: values.port!,
     vitePort: values["vite-port"]!,
@@ -195,9 +197,8 @@ if (command === "dev") {
     baseUrl: values["base-url"],
     skipMigrations: values["skip-migrations"] === true,
     envFile: values["env-file"],
+    noTui,
   };
-
-  const noTui = values["no-tui"] === true || !process.stdout.isTTY;
 
   if (noTui) {
     const { ASCII_ART } = await import("./fmt");

@@ -9,6 +9,7 @@ export interface LogEntry {
   status: number;
   duration: number;
   timestamp: Date;
+  rawLine?: string;
 }
 
 // Auto-forward events to the CLI store for Ink rendering

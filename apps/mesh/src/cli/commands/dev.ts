@@ -8,6 +8,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import type { Subprocess } from "bun";
 import {
+  addLogEntry,
   setEnv,
   setMigrationsDone,
   setServerUrl,
@@ -22,6 +23,7 @@ export interface DevOptions {
   baseUrl?: string;
   skipMigrations: boolean;
   envFile?: string;
+  noTui?: boolean;
 }
 
 function loadDotEnv(path: string): Record<string, string> {
@@ -48,10 +50,58 @@ function loadDotEnv(path: string): Record<string, string> {
   }
 }
 
+// Strip ANSI escape codes from a string
+function stripAnsi(str: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI codes requires matching control chars
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/**
+ * Pipe a readable stream line-by-line into the CLI store log entries.
+ * Lines are stripped of ANSI codes and concurrently prefixes like "[0] " / "[1] ".
+ */
+function pipeToLogStore(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  function processLines() {
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const raw of lines) {
+      const stripped = stripAnsi(raw)
+        .replace(/^\[\d+\]\s*/, "")
+        .trim();
+      if (!stripped) continue;
+      addLogEntry({
+        method: "",
+        path: "",
+        status: 0,
+        duration: 0,
+        timestamp: new Date(),
+        rawLine: stripped,
+      });
+    }
+  }
+
+  (async () => {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      processLines();
+    }
+    if (buffer.trim()) {
+      processLines();
+    }
+  })();
+}
+
 export async function startDevServer(
   options: DevOptions,
 ): Promise<{ port: number; process: Subprocess }> {
-  const { port, vitePort, home, baseUrl, skipMigrations, envFile } = options;
+  const { port, vitePort, home, baseUrl, skipMigrations, envFile, noTui } =
+    options;
 
   // ── .env loading ────────────────────────────────────────────────────
   if (envFile) {
@@ -108,11 +158,23 @@ export async function startDevServer(
   // import.meta.dir = apps/mesh/src/cli/commands → go up 5 levels to repo root
   const repoRoot = join(import.meta.dir, "..", "..", "..", "..", "..");
 
+  // When TUI is active, pipe stdout/stderr so child output doesn't corrupt
+  // Ink's cursor-based rendering. Lines are fed into the CLI store instead.
+  const useInherit = noTui === true;
   const child = Bun.spawn(["bun", "run", "--cwd=apps/mesh", "dev:servers"], {
     cwd: repoRoot,
     env: process.env,
-    stdio: ["inherit", "inherit", "inherit"],
+    stdio: [
+      "inherit",
+      useInherit ? "inherit" : "pipe",
+      useInherit ? "inherit" : "pipe",
+    ],
   });
+
+  if (!useInherit) {
+    pipeToLogStore(child.stdout as ReadableStream<Uint8Array>);
+    pipeToLogStore(child.stderr as ReadableStream<Uint8Array>);
+  }
 
   const serverUrl = baseUrl || `http://localhost:${port}`;
   setServerUrl(serverUrl);
