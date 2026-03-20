@@ -5,6 +5,8 @@ import {
   checkModelPermission,
   fetchModelPermissions,
 } from "@/api/routes/decopilot/model-permissions";
+import { CLAUDE_CODE_MODELS } from "@/ai-providers/adapters/claude-code";
+import { env } from "../../env";
 
 export const AI_PROVIDERS_LIST_MODELS = defineTool({
   name: "AI_PROVIDERS_LIST_MODELS",
@@ -41,6 +43,10 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
     requireAuth(ctx);
     const org = requireOrganization(ctx);
     await ctx.access.check();
+
+    if (input.keyId === "claude-code" && env.MESH_LOCAL_MODE) {
+      return { models: CLAUDE_CODE_MODELS };
+    }
 
     const allowedModels = await fetchModelPermissions(
       ctx.db,

@@ -399,7 +399,8 @@ export function ProviderCard({
   const [oauthStateToken, setOauthStateToken] = useState<string | null>(null);
   const [topUpKeyId, setTopUpKeyId] = useState<string | null>(null);
 
-  const isActive = keys.length > 0;
+  const isClaudeCode = provider.id === "claude-code";
+  const isActive = isClaudeCode || keys.length > 0;
 
   const { mutate: deleteKey, isPending: isDeleting } = useMutation({
     mutationFn: async (keyId: string) => {
@@ -499,7 +500,7 @@ export function ProviderCard({
   const supportsApiKey = provider.supportedMethods.includes("api-key");
 
   const handleCardClick = () => {
-    if (isConnectFormOpen || isOAuthPending) return;
+    if (isClaudeCode || isConnectFormOpen || isOAuthPending) return;
     if (supportsOAuth) {
       handleConnectOAuth();
     } else if (supportsApiKey) {
@@ -582,48 +583,58 @@ export function ProviderCard({
 
           {isActive && (
             <div className="mt-1">
-              {provider.supportsCredits && (
-                <div className="mb-2">
-                  <CreditsBalance providerId={provider.id} />
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+              {isClaudeCode ? (
+                <p className="text-xs text-muted-foreground">
+                  Authenticated via Claude CLI
                 </p>
-                {provider.supportsTopUp && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        setTopUpKeyId(topUpKeyId ? null : (keys[0]?.id ?? null))
-                      }
-                    >
-                      <CreditCard01 size={12} />
-                      Add credits
-                    </Button>
+              ) : (
+                <>
+                  {provider.supportsCredits && (
+                    <div className="mb-2">
+                      <CreditsBalance providerId={provider.id} />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                    </p>
+                    {provider.supportsTopUp && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() =>
+                            setTopUpKeyId(
+                              topUpKeyId ? null : (keys[0]?.id ?? null),
+                            )
+                          }
+                        >
+                          <CreditCard01 size={12} />
+                          Add credits
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
-                <div
-                  className="mt-2 p-3 rounded-md border bg-muted/30"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <TopUpForm
-                    keyId={topUpKeyId}
-                    providerId={provider.id}
-                    onCancel={() => setTopUpKeyId(null)}
+                  {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
+                    <div
+                      className="mt-2 p-3 rounded-md border bg-muted/30"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <TopUpForm
+                        keyId={topUpKeyId}
+                        providerId={provider.id}
+                        onCancel={() => setTopUpKeyId(null)}
+                      />
+                    </div>
+                  )}
+                  <KeyList
+                    keys={keys}
+                    onDelete={deleteKey}
+                    isDeleting={isDeleting}
                   />
-                </div>
+                </>
               )}
-              <KeyList
-                keys={keys}
-                onDelete={deleteKey}
-                isDeleting={isDeleting}
-              />
             </div>
           )}
         </Card>
