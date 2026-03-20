@@ -131,6 +131,7 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
 
   // Context repo tools
+  ContextRepoTools.CONTEXT_REPO_STATUS,
   ContextRepoTools.CONTEXT_REPO_SETUP,
   ContextRepoTools.CONTEXT_REPO_SYNC,
   ContextRepoTools.CONTEXT_REPO_SEARCH,
