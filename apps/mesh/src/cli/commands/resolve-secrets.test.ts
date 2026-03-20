@@ -50,6 +50,14 @@ describe("resolveSecrets", () => {
 
       expect(secrets.ENCRYPTION_KEY).toBe("env-value");
     });
+
+    it("should preserve env ENCRYPTION_KEY empty string over saved value", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-value" };
+      const env = { ENCRYPTION_KEY: "" };
+      const { secrets } = resolveSecrets(saved, env);
+
+      expect(secrets.ENCRYPTION_KEY).toBe("");
+    });
   });
 
   describe("generation of missing secrets", () => {
@@ -61,12 +69,10 @@ describe("resolveSecrets", () => {
       expect(modified).toBe(true);
     });
 
-    it("should generate ENCRYPTION_KEY when missing from both env and file", () => {
-      const { secrets, modified } = resolveSecrets({}, emptyEnv);
+    it("should default ENCRYPTION_KEY to empty string when missing from both env and file", () => {
+      const { secrets } = resolveSecrets({}, emptyEnv);
 
-      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
-      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
-      expect(modified).toBe(true);
+      expect(secrets.ENCRYPTION_KEY).toBe("");
     });
 
     it("should generate LOCAL_ADMIN_PASSWORD when missing", () => {

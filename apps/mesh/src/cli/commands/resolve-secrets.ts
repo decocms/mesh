@@ -43,14 +43,19 @@ export function resolveSecrets(
   }
 
   // ENCRYPTION_KEY
+  // Use != null (not truthy) so that an empty-string env var is preserved.
+  // When neither env nor saved provides a value, default to "" rather than a
+  // random key — CredentialVault hashes "" deterministically via SHA-256,
+  // which keeps all replicas / restarts consistent.  A random fallback would
+  // silently produce a different key on every pod start, making previously
+  // encrypted data unreadable.
   let encryptionKey: string;
-  if (env.ENCRYPTION_KEY) {
+  if (env.ENCRYPTION_KEY != null) {
     encryptionKey = env.ENCRYPTION_KEY;
   } else if (saved.ENCRYPTION_KEY != null) {
     encryptionKey = saved.ENCRYPTION_KEY;
   } else {
-    encryptionKey = crypto.randomBytes(32).toString("base64");
-    modified = true;
+    encryptionKey = "";
   }
 
   // LOCAL_ADMIN_PASSWORD
