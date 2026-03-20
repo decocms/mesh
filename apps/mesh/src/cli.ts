@@ -132,6 +132,11 @@ if (command === "completion") {
   process.exit(0);
 }
 
+if (command && command !== "init" && command !== "completion") {
+  console.error(`Unknown command: ${command}`);
+  process.exit(1);
+}
+
 // ── Server mode (default) ──────────────────────────────────────────────
 const decoHome =
   values.home ||

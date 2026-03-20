@@ -55,7 +55,11 @@ export async function initCommand(directory?: string): Promise<void> {
     stdout: "inherit",
     stderr: "inherit",
   });
-  await install.exited;
+  const installCode = await install.exited;
+  if (installCode !== 0) {
+    console.error("Failed to install dependencies.");
+    process.exit(1);
+  }
 
   // Print next steps
   console.log("\nDone! Next steps:");

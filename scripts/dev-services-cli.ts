@@ -7,6 +7,15 @@ import {
   printTable,
   stopServices,
 } from "./dev-services.ts";
+import { loadDotEnv } from "./load-dot-env.ts";
+
+const repoRoot = join(import.meta.dir, "..");
+const dotEnv = loadDotEnv(join(repoRoot, "apps/mesh/.env"));
+for (const [key, value] of Object.entries(dotEnv)) {
+  if (!(key in process.env)) {
+    process.env[key] = value;
+  }
+}
 
 const decoHome =
   process.env.DATA_DIR || process.env.DECOCMS_HOME || join(homedir(), "deco");

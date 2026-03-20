@@ -153,7 +153,7 @@ export function devLogger() {
       // Emit to Ink UI log emitter
       logEmitter.emit("request", {
         method,
-        path,
+        path: sanitizeForLog(path),
         status,
         duration,
         timestamp: new Date(),

@@ -5,11 +5,20 @@ interface TerminalSize {
   columns: number;
 }
 
+let cachedSnapshot: TerminalSize = {
+  rows: process.stdout.rows || 24,
+  columns: process.stdout.columns || 80,
+};
+
 function getSnapshot(): TerminalSize {
-  return {
-    rows: process.stdout.rows || 24,
-    columns: process.stdout.columns || 80,
-  };
+  const rows = process.stdout.rows || 24;
+  const columns = process.stdout.columns || 80;
+
+  if (rows !== cachedSnapshot.rows || columns !== cachedSnapshot.columns) {
+    cachedSnapshot = { rows, columns };
+  }
+
+  return cachedSnapshot;
 }
 
 function subscribe(callback: () => void): () => void {
