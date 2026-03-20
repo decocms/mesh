@@ -16,6 +16,15 @@ if (!slug) {
 
 const repoRoot = join(import.meta.dir, "..");
 
+// Suppress noisy logs from worktree-devservers — they corrupt the Ink TUI
+// by writing to stdout while Ink manages cursor-based re-rendering.
+const _originalLog = console.log;
+console.log = (...args: unknown[]) => {
+  const msg = String(args[0] ?? "");
+  if (msg.includes("is live") || msg.includes("Cleaned stale route")) return;
+  _originalLog(...args);
+};
+
 startWorktree(slug, async (ctx) => {
   const port = await ctx.findFreePort(3000);
   const vitePort = await ctx.findFreePort(4000);
