@@ -433,6 +433,7 @@ function VirtualMcpDetailViewWithData({
         description: null,
         icon: null,
       },
+      toolApprovalLevel: "plan",
     });
   };
 

@@ -718,6 +718,7 @@ function SettingsTab({
         description: null,
         icon: null,
       },
+      toolApprovalLevel: "plan",
     });
   };
 
