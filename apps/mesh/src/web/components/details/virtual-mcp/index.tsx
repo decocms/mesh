@@ -1,6 +1,6 @@
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { useChatStable } from "@/web/components/chat/context";
-import { useChatStore } from "@/web/components/chat/store/selectors";
+import { chatStore } from "@/web/components/chat/store/chat-store";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -29,6 +29,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  getDecopilotId,
   ORG_ADMIN_PROJECT_SLUG,
   useConnection,
   useConnectionActions,
@@ -413,55 +414,26 @@ function VirtualMcpDetailViewWithData({
     localStorage.getItem("agent-detail-tab") || "instructions",
   );
 
-  // Improve prompt state
-  const [isImprovingPrompt, setIsImprovingPrompt] = useState(false);
-  const chatCredentialId = useChatStore((s) => s.credentialId);
-
-  const handleImprovePrompt = async () => {
+  const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
-    const credentialId = chatCredentialId;
-    if (!credentialId) {
-      toast.error("No AI provider configured");
-      return;
-    }
+    setChatOpen(true);
 
-    setIsImprovingPrompt(true);
-    try {
-      const response = await fetch(
-        `/api/${org.slug}/decopilot/improve-prompt`,
+    chatStore.createThreadAndSend({
+      parts: [
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            credentialId,
-            instructions: currentInstructions,
-          }),
+          type: "text",
+          text: `/writing-prompts ${virtualMcp.id}\n\n<instructions>\n${currentInstructions}\n</instructions>`,
         },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to improve prompt");
-      }
-
-      const { improved } = (await response.json()) as { improved: string };
-
-      if (improved?.trim()) {
-        form.setValue("metadata.instructions", improved.trim(), {
-          shouldDirty: true,
-        });
-        toast.success("Instructions improved — save to keep or undo to revert");
-      } else {
-        toast.error("Failed to improve instructions");
-      }
-    } catch (err) {
-      console.error("Failed to improve prompt:", err);
-      toast.error("Failed to improve instructions");
-    } finally {
-      setIsImprovingPrompt(false);
-    }
+      ],
+      agent: {
+        id: getDecopilotId(org.id),
+        title: "Decopilot",
+        description: null,
+        icon: null,
+      },
+    });
   };
 
   // Auto-open chat with this agent selected
@@ -774,18 +746,11 @@ function VirtualMcpDetailViewWithData({
                   variant="outline"
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
-                  disabled={
-                    isImprovingPrompt ||
-                    !form.watch("metadata.instructions")?.trim()
-                  }
+                  disabled={!form.watch("metadata.instructions")?.trim()}
                   onClick={handleImprovePrompt}
                 >
-                  {isImprovingPrompt ? (
-                    <Loading01 size={13} className="animate-spin" />
-                  ) : (
-                    <Stars01 size={13} />
-                  )}
-                  {isImprovingPrompt ? "Improving..." : "Improve"}
+                  <Stars01 size={13} />
+                  Improve
                 </Button>
               </div>
             )}
