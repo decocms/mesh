@@ -346,20 +346,33 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     }
 
     const body = await c.req.json().catch(() => ({}));
-    const target = (body as { target?: string }).target;
+    const { target, tokenOnly } = body as {
+      target?: string;
+      tokenOnly?: boolean;
+    };
     const origin = buildMcpOrigin();
 
-    if (target === "claude-code") {
-      const apiKey = await ctx.boundAuth.apiKey.create({
-        name: `studio-connect-claude-code-${userId}`,
-        permissions: { "*": ["*"] },
-        metadata: { internal: true, target: "claude-code", organization },
-      });
+    if (!target || !["claude-code", "cursor", "codex"].includes(target)) {
+      throw new HTTPException(400, { message: `Unknown target: ${target}` });
+    }
 
+    // Create API key for this target
+    const apiKey = await ctx.boundAuth.apiKey.create({
+      name: `studio-connect-${target}-${userId}`,
+      permissions: { "*": ["*"] },
+      metadata: { internal: true, target, organization },
+    });
+
+    // Token-only mode: just return the key, let the frontend build the snippet
+    if (tokenOnly) {
+      return c.json({ success: true, token: apiKey.key });
+    }
+
+    // Auto-configure mode: write config to IDE
+    if (target === "claude-code") {
       const config = buildClaudeCodeConfig(origin, apiKey.key, organization.id);
       const configJson = JSON.stringify(config);
 
-      // Remove existing MCP first (ignore failure — may not exist yet)
       await runCli("claude", [
         "mcp",
         "remove",
@@ -378,23 +391,23 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           stdout: result.stdout,
           stderr: result.stderr,
         });
-        // Return config for manual setup even if CLI fails
-        return c.json({ success: false, config, configRaw: configJson });
+        return c.json({
+          success: false,
+          token: apiKey.key,
+          configRaw: configJson,
+        });
       }
-      return c.json({ success: true, config, configRaw: configJson });
+      return c.json({
+        success: true,
+        token: apiKey.key,
+        configRaw: configJson,
+      });
     }
 
     if (target === "cursor") {
-      const apiKey = await ctx.boundAuth.apiKey.create({
-        name: `studio-connect-cursor-${userId}`,
-        permissions: { "*": ["*"] },
-        metadata: { internal: true, target: "cursor", organization },
-      });
-
       const config = buildCursorConfig(origin, apiKey.key, organization.id);
       const configRaw = JSON.stringify(config, null, 2);
 
-      // Try to write to ~/.cursor/mcp.json
       try {
         const { readFile, writeFile, mkdir } = await import("node:fs/promises");
         const { homedir } = await import("node:os");
@@ -419,53 +432,42 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         };
 
         await writeFile(configPath, JSON.stringify(merged, null, 2));
-        return c.json({ success: true, config, configRaw });
+        return c.json({ success: true, token: apiKey.key, configRaw });
       } catch (err) {
         console.error("[connect-studio] cursor config write failed", err);
-        return c.json({ success: false, config, configRaw });
+        return c.json({ success: false, token: apiKey.key, configRaw });
       }
     }
 
-    if (target === "codex") {
-      const apiKey = await ctx.boundAuth.apiKey.create({
-        name: `studio-connect-codex-${userId}`,
-        permissions: { "*": ["*"] },
-        metadata: { internal: true, target: "codex", organization },
-      });
+    // codex
+    const configRaw = buildCodexConfig(origin, apiKey.key, organization.id);
 
-      const configRaw = buildCodexConfig(origin, apiKey.key, organization.id);
+    try {
+      const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+      const { homedir } = await import("node:os");
+      const codexDir = `${homedir()}/.codex`;
+      const configPath = `${codexDir}/config.toml`;
 
-      // Try to append to ~/.codex/config.toml
+      await mkdir(codexDir, { recursive: true });
+
+      let existing = "";
       try {
-        const { readFile, writeFile, mkdir } = await import("node:fs/promises");
-        const { homedir } = await import("node:os");
-        const codexDir = `${homedir()}/.codex`;
-        const configPath = `${codexDir}/config.toml`;
-
-        await mkdir(codexDir, { recursive: true });
-
-        let existing = "";
-        try {
-          existing = await readFile(configPath, "utf-8");
-        } catch {
-          // File doesn't exist yet
-        }
-
-        // Remove existing deco-studio section if present
-        const cleaned = existing.replace(
-          /\[mcp_servers\.deco-studio\][^\[]*/s,
-          "",
-        );
-        const updated = cleaned.trimEnd() + "\n\n" + configRaw + "\n";
-        await writeFile(configPath, updated);
-        return c.json({ success: true, configRaw });
-      } catch (err) {
-        console.error("[connect-studio] codex config write failed", err);
-        return c.json({ success: false, configRaw });
+        existing = await readFile(configPath, "utf-8");
+      } catch {
+        // File doesn't exist yet
       }
-    }
 
-    throw new HTTPException(400, { message: `Unknown target: ${target}` });
+      const cleaned = existing.replace(
+        /\[mcp_servers\.deco-studio\][^\[]*/s,
+        "",
+      );
+      const updated = cleaned.trimEnd() + "\n\n" + configRaw + "\n";
+      await writeFile(configPath, updated);
+      return c.json({ success: true, token: apiKey.key, configRaw });
+    } catch (err) {
+      console.error("[connect-studio] codex config write failed", err);
+      return c.json({ success: false, token: apiKey.key, configRaw });
+    }
   });
 
   app.delete("/:org/decopilot/connect-studio", async (c) => {
