@@ -48,6 +48,7 @@ import * as migration046removeobjectstorageplugin from "./046-remove-object-stor
 import * as migration047addnextrunat from "./047-add-next-run-at.ts";
 import * as migration048mergeprojectsagents from "./048-merge-projects-agents.ts";
 import * as migration049removeorgadminprojects from "./049-remove-org-admin-projects.ts";
+import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -110,6 +111,7 @@ const migrations: Record<string, Migration> = {
   "047-add-next-run-at": migration047addnextrunat,
   "048-merge-projects-agents": migration048mergeprojectsagents,
   "049-remove-org-admin-projects": migration049removeorgadminprojects,
+  "050-durable-agent-runs": migration050durableagentruns,
 };
 
 export default migrations;
