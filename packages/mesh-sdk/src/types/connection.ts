@@ -5,7 +5,6 @@
  * Uses snake_case field names matching the database schema directly.
  */
 
-import { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 /**
@@ -24,26 +23,22 @@ const OAuthConfigSchema = z.object({
 export type OAuthConfig = z.infer<typeof OAuthConfigSchema>;
 
 /**
- * JSON-Schema-safe JSON Schema object.
- *
- * The MCP SDK's ToolSchema uses z.custom() (AssertObjectSchema) for property
- * values inside inputSchema/outputSchema. Zod 4's toJSONSchema() cannot
- * represent z.custom(), throwing "Custom types cannot be represented in JSON
- * Schema". We override only these two fields with a safe equivalent so that
- * all other ToolSchema fields (name, annotations, execution, icons, _meta, …)
- * still flow through automatically when the MCP SDK is updated.
+ * Tool definition schema from MCP discovery.
+ * Covers all known MCP tool fields so new properties (execution, icons,
+ * title, etc.) are accepted.  We cannot reuse ToolSchema from the SDK
+ * directly because it contains z.custom() types that fail JSON Schema
+ * serialization inside the MCP server's tools/list handler.
  */
-const JsonSchemaObjectSchema = z
-  .object({
-    type: z.literal("object"),
-    properties: z.record(z.string(), z.unknown()).optional(),
-    required: z.array(z.string()).optional(),
-  })
-  .catchall(z.unknown());
-
-const ToolDefinitionSchema = ToolSchema.extend({
-  inputSchema: JsonSchemaObjectSchema,
-  outputSchema: JsonSchemaObjectSchema.optional(),
+const ToolDefinitionSchema = z.object({
+  name: z.string(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
+  annotations: z.record(z.string(), z.unknown()).optional(),
+  execution: z.record(z.string(), z.unknown()).optional(),
+  icons: z.array(z.record(z.string(), z.unknown())).optional(),
+  _meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
