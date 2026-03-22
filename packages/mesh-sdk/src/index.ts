@@ -73,6 +73,10 @@ export {
   type UseMcpPromptsListOptions,
   type UseMcpPromptsListQueryOptions,
   type UseMcpGetPromptOptions,
+  // Connection install hook
+  useConnectionInstall,
+  type ConnectionInstallInput,
+  type ConnectionInstallOutput,
   // Virtual MCP hooks
   useVirtualMCPs,
   useVirtualMCP,
