@@ -48,9 +48,6 @@ export class AutomationJobStream {
   constructor(private readonly options: AutomationJobStreamOptions) {}
 
   async init(): Promise<void> {
-    console.log(
-      "[AutomationJobStream] Initializing JetStream stream and consumer...",
-    );
     const nc = this.options.getConnection();
     const jsm = await nc.jetstreamManager();
 
@@ -65,18 +62,12 @@ export class AutomationJobStream {
     };
 
     try {
-      const info = await jsm.streams.info(STREAM_NAME);
-      console.log(
-        `[AutomationJobStream] Stream ${STREAM_NAME} exists, messages=${info.state.messages}, updating config`,
-      );
+      await jsm.streams.info(STREAM_NAME);
       await jsm.streams.update(STREAM_NAME, config);
     } catch (err: unknown) {
       const isNotFound =
         err instanceof Error && err.message.includes("stream not found");
       if (isNotFound) {
-        console.log(
-          `[AutomationJobStream] Stream ${STREAM_NAME} not found, creating`,
-        );
         await jsm.streams.add(config);
       } else {
         throw err;
@@ -85,17 +76,11 @@ export class AutomationJobStream {
 
     // Ensure durable pull consumer exists
     try {
-      const cInfo = await jsm.consumers.info(STREAM_NAME, CONSUMER_NAME);
-      console.log(
-        `[AutomationJobStream] Consumer ${CONSUMER_NAME} exists, pending=${cInfo.num_pending} waiting=${cInfo.num_waiting}`,
-      );
+      await jsm.consumers.info(STREAM_NAME, CONSUMER_NAME);
     } catch (err: unknown) {
       const isNotFound =
         err instanceof Error && err.message.includes("consumer not found");
       if (isNotFound) {
-        console.log(
-          `[AutomationJobStream] Consumer ${CONSUMER_NAME} not found, creating`,
-        );
         await jsm.consumers.add(STREAM_NAME, {
           durable_name: CONSUMER_NAME,
           ack_policy: AckPolicy.Explicit,
@@ -110,23 +95,12 @@ export class AutomationJobStream {
     }
 
     this.js = this.options.getJetStream();
-    console.log("[AutomationJobStream] Initialization complete");
   }
 
   async publish(payload: AutomationJobPayload): Promise<void> {
     if (!this.js) throw new Error("AutomationJobStream not initialized");
     const subj = `${SUBJECT_PREFIX}.${payload.triggerId}`;
-    console.log(
-      `[AutomationJobStream] Publishing to ${subj}:`,
-      JSON.stringify(payload),
-    );
-    const ack = await this.js.publish(
-      subj,
-      this.encoder.encode(JSON.stringify(payload)),
-    );
-    console.log(
-      `[AutomationJobStream] Published, stream=${ack.stream} seq=${ack.seq}`,
-    );
+    await this.js.publish(subj, this.encoder.encode(JSON.stringify(payload)));
   }
 
   async startConsumer(
@@ -135,7 +109,6 @@ export class AutomationJobStream {
     if (!this.js) throw new Error("AutomationJobStream not initialized");
     this.running = true;
 
-    console.log("[AutomationJobStream] Starting consumer pull loop...");
     const consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);
 
     (async () => {
@@ -151,14 +124,8 @@ export class AutomationJobStream {
               const payload: AutomationJobPayload = JSON.parse(
                 this.decoder.decode(msg.data),
               );
-              console.log(
-                `[AutomationJobStream] Received job: trigger=${payload.triggerId} automation=${payload.automationId} subject=${msg.subject} redelivered=${msg.redelivered}`,
-              );
               await handler(payload);
               msg.ack();
-              console.log(
-                `[AutomationJobStream] Job acked: trigger=${payload.triggerId}`,
-              );
             } catch (err) {
               console.error(
                 "[AutomationJobStream] Handler error, nacking:",
@@ -170,7 +137,6 @@ export class AutomationJobStream {
         } catch (err) {
           if (this.running) {
             console.error("[AutomationJobStream] Consumer fetch error:", err);
-            // Brief pause before retry
             await new Promise((r) => setTimeout(r, 1000));
           }
         }

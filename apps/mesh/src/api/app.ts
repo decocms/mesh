@@ -806,22 +806,11 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Start JetStream consumer (pulls jobs and fires automations)
   await automationJobStream.startConsumer(async (payload) => {
-    console.log(
-      `[AutomationCron] Consumer received job: automation=${payload.automationId} trigger=${payload.triggerId} org=${payload.organizationId}`,
-    );
     const automation = await automationsStorage.findById(
       payload.automationId,
       payload.organizationId,
     );
-    if (!automation) {
-      console.warn(
-        `[AutomationCron] Automation ${payload.automationId} not found in org ${payload.organizationId}, skipping`,
-      );
-      return;
-    }
-    console.log(
-      `[AutomationCron] Firing automation "${automation.name}" (${automation.id})`,
-    );
+    if (!automation) return;
     await fireAutomation({
       automation,
       triggerId: payload.triggerId,
