@@ -266,7 +266,7 @@ if (noTui) {
   console.log("");
 
   const { startServer } = await import("./cli/commands/serve");
-  await startServer(serveOptions);
+  await startServer({ ...serveOptions, noTui: true });
 } else {
   // Ink UI mode
   const { render } = await import("ink");
