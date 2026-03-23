@@ -905,7 +905,14 @@ function OrgMcpsContent() {
       ? registryConnections.find((r) => r.id === selectedRegistryId)
       : undefined) ?? registryConnections[0];
   const registryId = registryConnection?.id ?? "";
-  const registryListToolName = findListToolName(registryConnection?.tools);
+  const registryMeta = registryConnection?.metadata as Record<
+    string,
+    unknown
+  > | null;
+  const registryListToolName =
+    (registryMeta?.registry_list_tool as string) ||
+    findListToolName(registryConnection?.tools);
+
   const registryDiscovery = useStoreDiscovery({
     registryId,
     listToolName: registryListToolName,
