@@ -11,7 +11,6 @@
 
 import { Outlet, useParams, useNavigate } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { SplashScreen } from "@/web/components/splash-screen";
 import { useProject } from "@/web/hooks/use-project";
 import {
   ORG_ADMIN_PROJECT_SLUG,
@@ -101,16 +100,11 @@ function ProjectLayoutContent() {
   const orgSlug = params.org as string;
   const projectSlug = params.project as string;
 
-  // Fetch project data from storage
+  // Fetch project data from storage (non-blocking)
   const { data: project, isLoading, error } = useProject(org.id, projectSlug);
 
-  // Loading state
-  if (isLoading) {
-    return <SplashScreen />;
-  }
-
   // Error handling - request failed (network/permission errors)
-  if (error) {
+  if (!isLoading && error) {
     return (
       <ProjectRequestError
         projectSlug={projectSlug}
@@ -120,26 +114,38 @@ function ProjectLayoutContent() {
     );
   }
 
-  // Project not found
-  if (!project) {
+  // Project not found (only after loading completes)
+  if (!isLoading && !project) {
     return <ProjectNotFoundError projectSlug={projectSlug} orgSlug={orgSlug} />;
   }
 
-  // Build enhanced context value with full project data
-  const enhancedProject = {
-    id: project.id,
-    organizationId: project.organizationId,
-    slug: project.slug,
-    name: project.name,
-    description: project.description,
-    enabledPlugins: project.enabledPlugins,
-    ui: project.ui,
-    isOrgAdmin: project.slug === ORG_ADMIN_PROJECT_SLUG,
-  };
+  // Build enhanced context value with full project data when available,
+  // or a minimal placeholder so children can render immediately
+  const enhancedProject = project
+    ? {
+        id: project.id,
+        organizationId: project.organizationId,
+        slug: project.slug,
+        name: project.name,
+        description: project.description,
+        enabledPlugins: project.enabledPlugins,
+        ui: project.ui,
+        isOrgAdmin: project.slug === ORG_ADMIN_PROJECT_SLUG,
+      }
+    : {
+        id: "",
+        organizationId: org.id,
+        slug: projectSlug,
+        name: projectSlug,
+        description: null,
+        enabledPlugins: null,
+        ui: null,
+        isOrgAdmin: projectSlug === ORG_ADMIN_PROJECT_SLUG,
+      };
 
   return (
     <ProjectContextProvider org={org} project={enhancedProject}>
-      <Suspense fallback={<SplashScreen />}>
+      <Suspense fallback={null}>
         <Outlet />
       </Suspense>
       <SettingsModal />
@@ -148,9 +154,5 @@ function ProjectLayoutContent() {
 }
 
 export default function ProjectLayout() {
-  return (
-    <Suspense fallback={<SplashScreen />}>
-      <ProjectLayoutContent />
-    </Suspense>
-  );
+  return <ProjectLayoutContent />;
 }

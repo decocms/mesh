@@ -21,6 +21,7 @@ export {
   // Collection hooks
   useCollectionItem,
   useCollectionList,
+  useCollectionListAsync,
   useCollectionActions,
   buildWhereExpression,
   buildOrderByExpression,
@@ -32,6 +33,7 @@ export {
   type CollectionQueryKey,
   // Connection hooks
   useConnections,
+  useConnectionsAsync,
   useConnection,
   useConnectionActions,
   type ConnectionFilter,

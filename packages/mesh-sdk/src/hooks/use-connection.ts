@@ -12,6 +12,7 @@ import {
   useCollectionActions,
   useCollectionItem,
   useCollectionList,
+  useCollectionListAsync,
   type UseCollectionListOptions,
 } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
@@ -40,6 +41,24 @@ export function useConnections(options: UseConnectionsOptions = {}) {
     orgId: org.id,
   });
   return useCollectionList<ConnectionEntity>(
+    org.id,
+    "CONNECTIONS",
+    client,
+    options,
+  );
+}
+
+/**
+ * Non-suspense variant of useConnections for background/lazy loading.
+ * Returns { data, isLoading } instead of blocking render.
+ */
+export function useConnectionsAsync(options: UseConnectionsOptions = {}) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  return useCollectionListAsync<ConnectionEntity>(
     org.id,
     "CONNECTIONS",
     client,
