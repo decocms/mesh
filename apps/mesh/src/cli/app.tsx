@@ -3,7 +3,12 @@ import { useSyncExternalStore } from "react";
 import { ConfigView } from "./config-view";
 import { Header } from "./header";
 import { RequestLog } from "./request-log";
-import { getCliState, subscribeCliState, toggleViewMode } from "./cli-store";
+import {
+  getCliState,
+  subscribeCliState,
+  toggleLogFlow,
+  toggleViewMode,
+} from "./cli-store";
 
 const HEADER_HEIGHT = 13;
 
@@ -11,8 +16,11 @@ export function App({ home }: { home: string }) {
   const state = useSyncExternalStore(subscribeCliState, getCliState);
 
   useInput((_input) => {
-    if (_input === "k") {
+    if (_input === "k" || _input === "K") {
       toggleViewMode();
+    }
+    if (_input === "l" || _input === "L") {
+      toggleLogFlow();
     }
   });
 
