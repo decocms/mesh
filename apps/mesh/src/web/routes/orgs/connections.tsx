@@ -814,12 +814,6 @@ function OrgMcpsContent() {
     isLoadingMore: isLoadingMoreConnections,
     loadMore: loadMoreConnections,
   } = useConnectionsInfinite(listState);
-  // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
-  // so the "Connected" badge and modal aren't affected by the search term.
-  // Always fetches the full list (non-paginated) so badges are accurate regardless
-  // of which page of the infinite scroll the user has reached.
-  const { data: allConnectionsData } = useConnectionsAsync();
-  const allConnections = allConnectionsData ?? connections;
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
@@ -872,11 +866,15 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Fetch connections with tools in background (non-blocking) for registry discovery
+  // Fetch connections with tools in background (non-blocking) for registry discovery.
+  // Also serves as the full (non-paginated) connection list for catalog badges,
+  // so we don't need a separate allConnections query.
   const { data: connectionsWithTools, isLoading: isLoadingTools } =
     useConnectionsAsync({
       extraArguments: { include_tools: true },
     });
+  // Use the full tools query for catalog badges; fall back to paginated results while loading.
+  const allConnections = connectionsWithTools ?? connections;
 
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
   // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
