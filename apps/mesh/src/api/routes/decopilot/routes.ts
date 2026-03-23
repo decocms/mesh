@@ -363,25 +363,16 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         });
       }
 
-      // Atomic CAS claim — handles both orphaned (null) and stale-pod cases
-      const stalePodId = thread.run_owner_pod;
-      const claimed = stalePodId
-        ? await threadStorage.claimStaleRun(
-            threadId,
-            organization.id,
-            POD_ID,
-            stalePodId,
-          )
-        : await threadStorage.claimOrphanedRun(
-            threadId,
-            organization.id,
-            POD_ID,
-          );
+      // Atomic CAS claim — succeeds for null or stale run_owner_pod
+      const claimed = await threadStorage.claimOrphanedRun(
+        threadId,
+        organization.id,
+        POD_ID,
+      );
       if (!claimed) {
         console.log("[decopilot:attach] 204: CAS claim failed", {
           threadId,
           podId: POD_ID,
-          stalePodId,
         });
         return c.body(null, 204);
       }
@@ -389,7 +380,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       console.log("[decopilot:attach] Orphan claimed, resuming", {
         threadId,
         podId: POD_ID,
-        previousPod: stalePodId,
+        previousPod: thread.run_owner_pod,
       });
 
       // Resume the run — identity from auth context, NOT stored config

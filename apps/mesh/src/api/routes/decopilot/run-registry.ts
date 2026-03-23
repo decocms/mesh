@@ -150,7 +150,7 @@ export class RunRegistry {
   async recoverOrphanedRuns(
     resumeFn: (thread: Thread) => Promise<void>,
   ): Promise<void> {
-    const orphans = await this.deps.storage.listOrphanedRuns();
+    const orphans = await this.deps.storage.listOrphanedRuns(this.podId);
     if (orphans.length === 0) return;
 
     console.log(`[RunRegistry] Found ${orphans.length} orphaned runs`);

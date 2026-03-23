@@ -182,25 +182,26 @@ describe("SqlThreadStorage", () => {
           created_by: "user_1",
           status: "in_progress",
         });
-        // Ensure run_owner_pod is null (default)
         await storage.claimOrphanedRun(thread.id, "org_1", "pod-1");
         const loaded = await storage.get(thread.id, "org_1");
         expect(loaded?.run_owner_pod).toBe("pod-1");
       });
 
-      it("fails when run_owner_pod is already set", async () => {
+      it("claims from a different (stale) pod", async () => {
         const thread = await storage.create({
           organization_id: "org_1",
           created_by: "user_1",
           status: "in_progress",
         });
-        // First claim sets the pod
-        await storage.claimOrphanedRun(thread.id, "org_1", "pod-1");
-        // Second claim should not overwrite because run_owner_pod IS NULL no longer matches
-        await storage.claimOrphanedRun(thread.id, "org_1", "pod-2");
+        // Simulate a crashed pod owning this thread
+        await storage.update(thread.id, "org_1", {
+          run_owner_pod: "dead-pod",
+        });
+        // New pod should be able to claim it (verify via side effect —
+        // PGlite doesn't report numUpdatedRows correctly)
+        await storage.claimOrphanedRun(thread.id, "org_1", "new-pod");
         const loaded = await storage.get(thread.id, "org_1");
-        // pod-1 should still own it
-        expect(loaded?.run_owner_pod).toBe("pod-1");
+        expect(loaded?.run_owner_pod).toBe("new-pod");
       });
 
       it("does not claim when status is not in_progress", async () => {
@@ -227,7 +228,7 @@ describe("SqlThreadStorage", () => {
         await storage.update(thread.id, "org_1", {
           run_config: { agent: { id: "a" } },
         });
-        const orphans = await storage.listOrphanedRuns();
+        const orphans = await storage.listOrphanedRuns("current-pod");
         const found = orphans.find((t) => t.id === thread.id);
         expect(found).toBeDefined();
       });
@@ -239,7 +240,7 @@ describe("SqlThreadStorage", () => {
           status: "in_progress",
         });
         // No run_config set
-        const orphans = await storage.listOrphanedRuns();
+        const orphans = await storage.listOrphanedRuns("current-pod");
         const found = orphans.find((t) => t.id === thread.id);
         expect(found).toBeUndefined();
       });
@@ -253,7 +254,7 @@ describe("SqlThreadStorage", () => {
         await storage.update(thread.id, "org_1", {
           run_config: { agent: { id: "a" } },
         });
-        const orphans = await storage.listOrphanedRuns();
+        const orphans = await storage.listOrphanedRuns("current-pod");
         const found = orphans.find((t) => t.id === thread.id);
         expect(found).toBeUndefined();
       });

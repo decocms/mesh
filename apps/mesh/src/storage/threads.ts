@@ -442,45 +442,35 @@ export class SqlThreadStorage implements ThreadStoragePort {
     organizationId: string,
     podId: string,
   ): Promise<boolean> {
+    // Claim any in-progress run not already owned by this pod.
+    // Matches both orphaned (NULL) and stale-pod (different pod) runs.
+    // Uses raw SQL for the OR because Kysely's eb.or with IS NULL + != can
+    // behave unexpectedly on some PG drivers.
     const result = await this.db
       .updateTable("threads")
       .set({ run_owner_pod: podId, updated_at: new Date().toISOString() })
       .where("id", "=", threadId)
       .where("organization_id", "=", organizationId)
       .where("status", "=", "in_progress")
-      .where("run_owner_pod", "is", null)
+      .where(({ eb, or }) =>
+        or([eb("run_owner_pod", "is", null), eb("run_owner_pod", "!=", podId)]),
+      )
       .executeTakeFirst();
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  /**
-   * Claim a run that is still owned by a different (presumably crashed) pod.
-   * CAS: only succeeds if run_owner_pod still equals stalePodId.
-   */
-  async claimStaleRun(
-    threadId: string,
-    organizationId: string,
-    newPodId: string,
-    stalePodId: string,
-  ): Promise<boolean> {
-    const result = await this.db
-      .updateTable("threads")
-      .set({ run_owner_pod: newPodId, updated_at: new Date().toISOString() })
-      .where("id", "=", threadId)
-      .where("organization_id", "=", organizationId)
-      .where("status", "=", "in_progress")
-      .where("run_owner_pod", "=", stalePodId)
-      .executeTakeFirst();
-    return (result?.numUpdatedRows ?? 0n) > 0n;
-  }
-
-  async listOrphanedRuns(): Promise<Thread[]> {
+  async listOrphanedRuns(currentPodId: string): Promise<Thread[]> {
     const rows = await this.db
       .selectFrom("threads")
       .selectAll()
       .where("status", "=", "in_progress")
       .where("run_config", "is not", null)
-      .where("run_owner_pod", "is", null)
+      .where((eb) =>
+        eb.or([
+          eb("run_owner_pod", "is", null),
+          eb("run_owner_pod", "!=", currentPodId),
+        ]),
+      )
       .orderBy("run_started_at", "asc")
       .limit(100)
       .execute();
