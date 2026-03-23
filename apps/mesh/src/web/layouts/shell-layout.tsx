@@ -246,7 +246,7 @@ function ShellLayoutContent() {
         // Provide a minimal project stub at shell level.
         // The org-layout and virtual-mcp-layout will override with proper context.
         project: {
-          id: "_org",
+          id: data?.id ?? "_org",
           slug: "_org",
           isOrgAdmin: true,
         },
