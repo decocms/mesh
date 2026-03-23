@@ -274,13 +274,20 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       organization.id,
     );
 
-    // Detect if this connection is a registry/store based on its tools
+    // Detect if this connection is a registry/store based on its tools.
+    // When tool fetch fails (tools is null), preserve existing metadata to
+    // avoid declassifying a registry on transient errors.
     const registryListTool = findRegistryListTool(tools);
-
-    // Update the connection with the refreshed tools and configuration
     const existingMetadata =
       (existing.metadata as Record<string, unknown>) ?? {};
     const incomingMetadata = (data.metadata as Record<string, unknown>) ?? {};
+    const registryMeta = registryListTool
+      ? { is_registry: true, registry_list_tool: registryListTool }
+      : tools !== null
+        ? { is_registry: false, registry_list_tool: null }
+        : {};
+
+    // Update the connection with the refreshed tools and configuration
     const updatePayload: Partial<ConnectionEntity> = {
       ...data,
       connection_url: finalConnectionUrl,
@@ -291,9 +298,7 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       metadata: {
         ...existingMetadata,
         ...incomingMetadata,
-        ...(registryListTool
-          ? { is_registry: true, registry_list_tool: registryListTool }
-          : { is_registry: false, registry_list_tool: null }),
+        ...registryMeta,
       },
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
