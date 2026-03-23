@@ -1,6 +1,5 @@
 import { authClient } from "@/web/lib/auth-client";
 import {
-  useConnectionActions,
   useConnectionInstall,
   useProjectContext,
   type ConnectionCreateData,
