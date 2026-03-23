@@ -448,39 +448,18 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .where("id", "=", threadId)
       .where("organization_id", "=", organizationId)
       .where("status", "=", "in_progress")
-      .where((eb) =>
-        eb.or([
-          eb("run_owner_pod", "is", null),
-          eb.and([
-            eb("run_started_at", "is not", null),
-            eb("run_started_at", "<", new Date(Date.now() - 15 * 60 * 1000)),
-          ]),
-        ]),
-      )
+      .where("run_owner_pod", "is", null)
       .executeTakeFirst();
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  async listOrphanedRuns(
-    staleThresholdMinutes: number = 15,
-  ): Promise<Thread[]> {
-    const staleThreshold = new Date(
-      Date.now() - staleThresholdMinutes * 60 * 1000,
-    );
+  async listOrphanedRuns(): Promise<Thread[]> {
     const rows = await this.db
       .selectFrom("threads")
       .selectAll()
       .where("status", "=", "in_progress")
       .where("run_config", "is not", null)
-      .where((eb) =>
-        eb.or([
-          eb("run_owner_pod", "is", null),
-          eb.and([
-            eb("run_started_at", "is not", null),
-            eb("run_started_at", "<", staleThreshold),
-          ]),
-        ]),
-      )
+      .where("run_owner_pod", "is", null)
       .orderBy("run_started_at", "asc")
       .limit(100)
       .execute();

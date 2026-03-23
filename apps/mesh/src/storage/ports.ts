@@ -54,8 +54,8 @@ export interface ThreadStoragePort {
     podId: string,
   ): Promise<boolean>;
 
-  /** List all in_progress threads with no active owner (orphaned or dead-pod). */
-  listOrphanedRuns(staleThresholdMinutes?: number): Promise<Thread[]>;
+  /** List all in_progress threads with no active owner (run_owner_pod IS NULL). */
+  listOrphanedRuns(): Promise<Thread[]>;
 
   /** Release ownership for all runs owned by this pod (graceful shutdown). */
   orphanRunsByPod(podId: string): Promise<string[]>;
