@@ -34,6 +34,7 @@ export {
   // Connection hooks
   useConnections,
   useConnectionsAsync,
+  useConnectionsInfinite,
   useConnection,
   useConnectionActions,
   type ConnectionFilter,

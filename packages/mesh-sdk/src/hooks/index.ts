@@ -3,6 +3,7 @@ export {
   useCollectionItem,
   useCollectionList,
   useCollectionListAsync,
+  useCollectionListInfinite,
   useCollectionActions,
   buildWhereExpression,
   buildOrderByExpression,
@@ -18,6 +19,7 @@ export {
 export {
   useConnections,
   useConnectionsAsync,
+  useConnectionsInfinite,
   useConnection,
   useConnectionActions,
   type ConnectionFilter,

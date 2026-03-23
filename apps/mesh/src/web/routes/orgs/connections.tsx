@@ -85,6 +85,7 @@ import {
   SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnectionsAsync,
+  useConnectionsInfinite,
   useMCPClient,
   useProjectContext,
   useVirtualMCPs,
@@ -806,9 +807,13 @@ function OrgMcpsContent() {
   });
 
   const actions = useConnectionActions();
-  const { data: connectionsData, isLoading: isLoadingConnections } =
-    useConnectionsAsync(listState);
-  const connections = connectionsData ?? [];
+  const {
+    items: connections,
+    isLoading: isLoadingConnections,
+    hasMore: hasMoreConnections,
+    isLoadingMore: isLoadingMoreConnections,
+    loadMore: loadMoreConnections,
+  } = useConnectionsInfinite(listState);
   // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
   // so the "Connected" badge and modal aren't affected by the search term.
   // Only fires a separate query when search is active; otherwise reuses the main query result.
@@ -909,6 +914,12 @@ function OrgMcpsContent() {
     registryDiscovery.loadMore,
     registryDiscovery.hasMore,
     registryDiscovery.isLoadingMore,
+  );
+
+  const connectedSentinelRef = useInfiniteScroll(
+    loadMoreConnections,
+    hasMoreConnections,
+    isLoadingMoreConnections,
   );
 
   // "All" tab: catalog items from registry (includes already-connected ones)
@@ -2450,6 +2461,20 @@ function OrgMcpsContent() {
                     />
                   );
                 })}
+                {/* Infinite scroll sentinel for connected items */}
+                {(activeTab === "connected" || searchLower) &&
+                  hasMoreConnections && (
+                    <div
+                      ref={connectedSentinelRef}
+                      className="col-span-full h-4"
+                    />
+                  )}
+                {isLoadingMoreConnections && (
+                  <div className="col-span-full flex items-center justify-center gap-2 py-4 text-muted-foreground">
+                    <Loading01 size={16} className="animate-spin" />
+                    <span className="text-sm">Loading more connections...</span>
+                  </div>
+                )}
                 {/* Loading indicator while registry tools are being discovered */}
                 {activeTab === "all" &&
                   isLoadingTools &&
