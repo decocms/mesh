@@ -109,7 +109,7 @@ export function Header({
           <Text bold dimColor>
             V
           </Text>{" "}
-          toggle vibe {vibe ? "♪ Music by Nihilore (CC BY 4.0)" : ""}
+          toggle vibe {vibe ? "♪ Nihilore · CC BY 4.0" : ""}
         </Text>
       </Box>
     </Box>
