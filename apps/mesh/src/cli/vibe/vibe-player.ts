@@ -111,7 +111,7 @@ export function startVibe(dataDir: string): void {
   }
 }
 
-export function stopVibe(): void {
+function stopVibe(): void {
   playing = false;
   generation++;
   if (currentProcess) {
