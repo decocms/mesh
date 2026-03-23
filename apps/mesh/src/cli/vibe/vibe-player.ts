@@ -91,7 +91,3 @@ export function toggleVibe(dataDir: string): void {
     startVibe(dataDir);
   }
 }
-
-export function isVibePlaying(): boolean {
-  return playing;
-}
