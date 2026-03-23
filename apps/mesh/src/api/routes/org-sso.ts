@@ -269,9 +269,7 @@ app.get("/callback", async (c) => {
     stateData.orgId,
   );
 
-  const redirectPath = membership?.orgSlug
-    ? `/${membership.orgSlug}/org-admin`
-    : "/";
+  const redirectPath = membership?.orgSlug ? `/${membership.orgSlug}` : "/";
   return c.redirect(redirectPath);
 });
 

@@ -430,9 +430,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Auth routes (API key management via web UI)
   app.route("/api/auth/custom", authRoutes);
 
-  // Organization-level SSO routes
-  app.route("/api/org-sso", orgSsoRoutes);
-
   // All Better Auth routes (OAuth, session management, etc.)
   app.all("/api/auth/*", async (c) => {
     return await auth.handler(c.req.raw);
@@ -973,7 +970,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     }
 
     const ctx = c.get("meshContext") as MeshContext | undefined;
-    if (!ctx?.organization?.id || !ctx.auth.user?.id) {
+    if (!ctx?.organization?.id || !ctx?.auth?.user?.id) {
       return next();
     }
 
@@ -997,6 +994,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
     return next();
   });
+
+  // Organization-level SSO routes (must be after context middleware)
+  app.route("/api/org-sso", orgSsoRoutes);
 
   // Get all management tools (for OAuth consent UI)
   app.get("/api/tools/management", (c) => {
