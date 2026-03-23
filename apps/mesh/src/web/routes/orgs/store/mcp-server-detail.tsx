@@ -651,7 +651,7 @@ function StoreMCPServerDetailContent() {
             to: "/$org/$project/mcps",
             params: {
               org: org.slug,
-              project: ORG_ADMIN_PROJECT_SLUG,
+              project: "org-admin",
             },
             search: {
               tab: "connected",
