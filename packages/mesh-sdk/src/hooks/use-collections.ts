@@ -406,6 +406,7 @@ export function useCollectionListInfinite<T extends CollectionEntity>(
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 20,
     extraArguments,
+    enabled,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -461,6 +462,7 @@ export function useCollectionListInfinite<T extends CollectionEntity>(
       },
       staleTime: 30_000,
       retry: false,
+      enabled: enabled ?? true,
     });
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];

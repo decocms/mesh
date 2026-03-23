@@ -816,14 +816,10 @@ function OrgMcpsContent() {
   } = useConnectionsInfinite(listState);
   // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
   // so the "Connected" badge and modal aren't affected by the search term.
-  // Only fires a separate query when search is active; otherwise reuses the main query result.
-  const hasSearch = !!listState.searchTerm;
-  const { data: allConnectionsAsync } = useConnectionsAsync({
-    enabled: hasSearch,
-  });
-  const allConnections = hasSearch
-    ? (allConnectionsAsync ?? connections)
-    : connections;
+  // Always fetches the full list (non-paginated) so badges are accurate regardless
+  // of which page of the infinite scroll the user has reached.
+  const { data: allConnectionsData } = useConnectionsAsync();
+  const allConnections = allConnectionsData ?? connections;
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
@@ -2462,13 +2458,12 @@ function OrgMcpsContent() {
                   );
                 })}
                 {/* Infinite scroll sentinel for connected items */}
-                {(activeTab === "connected" || searchLower) &&
-                  hasMoreConnections && (
-                    <div
-                      ref={connectedSentinelRef}
-                      className="col-span-full h-4"
-                    />
-                  )}
+                {hasMoreConnections && (
+                  <div
+                    ref={connectedSentinelRef}
+                    className="col-span-full h-4"
+                  />
+                )}
                 {isLoadingMoreConnections && (
                   <div className="col-span-full flex items-center justify-center gap-2 py-4 text-muted-foreground">
                     <Loading01 size={16} className="animate-spin" />
