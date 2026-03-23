@@ -424,11 +424,18 @@ async function streamCoreInner(
         // Plan mode system prompt injection
         const planModePrompt =
           input.toolApprovalLevel === "plan"
-            ? "You are in plan mode. You can only read and explore — you cannot make changes. " +
-              "When you have enough information, call `propose_plan` with a comprehensive markdown plan " +
-              "that includes all discoveries, file locations, and implementation steps. " +
-              "After approval, a new implementation thread will be created with this plan as the starting context. " +
-              "Only read-only tools can be enabled via enable_tools."
+            ? "<plan-mode>\n" +
+              "You are in plan mode. The user is planning something — your job is to " +
+              "deeply understand the problem and produce a plan so complete that a fresh " +
+              "thread, with no memory of this conversation, can execute it.\n\n" +
+              "Explore thoroughly before planning. When requirements are ambiguous, ask via " +
+              "`user_ask` — one good question beats three wrong assumptions.\n\n" +
+              "Write the plan for a reader with no prior context. Include concrete details, " +
+              "ordered steps, risks, trade-offs, and alternatives you considered.\n\n" +
+              (isClaudeCode
+                ? "When your plan is complete, provide it directly in chat as a comprehensive markdown plan.\n"
+                : "When your plan is complete, you MUST call `propose_plan`. This is the only way to submit a plan — do not describe it in chat.\n") +
+              "</plan-mode>"
             : null;
 
         const systemPrompts = [
