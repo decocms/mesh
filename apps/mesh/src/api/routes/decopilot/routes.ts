@@ -197,104 +197,6 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
   });
 
   // ============================================================================
-  // Resume Endpoint — resume an orphaned in-progress run
-  // ============================================================================
-
-  app.post("/:org/decopilot/resume/:threadId", async (c) => {
-    try {
-      const { threadId, thread, organization } =
-        await validateThreadOwnership(c);
-      const ctx = c.get("meshContext");
-      const userId = ctx.auth?.user?.id;
-      if (!userId)
-        throw new HTTPException(401, { message: "User ID is required" });
-
-      // Precondition checks
-      if (thread.status !== "in_progress")
-        throw new HTTPException(409, {
-          message: "Thread is not available for resume",
-        });
-      if (runRegistry.isRunning(threadId))
-        throw new HTTPException(409, {
-          message: "Thread is not available for resume",
-        });
-      if (!thread.run_config)
-        throw new HTTPException(409, {
-          message: "Thread is not available for resume",
-        });
-
-      // Validate stored config (schema drift protection)
-      const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
-      if (!parsed.success) {
-        await threadStorage.forceFailIfInProgress(threadId, organization.id);
-        throw new HTTPException(409, {
-          message: "Thread is not available for resume",
-        });
-      }
-      const config = parsed.data;
-
-      // Re-check model permissions with CURRENT user role
-      const allowedModels = await fetchModelPermissions(
-        ctx.db,
-        organization.id,
-        ctx.auth.user?.role,
-      );
-      if (
-        allowedModels !== undefined &&
-        !checkModelPermission(
-          allowedModels,
-          config.models.credentialId,
-          config.models.thinking.id,
-        )
-      ) {
-        throw new HTTPException(403, {
-          message: "Model not allowed for your role",
-        });
-      }
-
-      // Atomic CAS claim
-      const claimed = await threadStorage.claimOrphanedRun(
-        threadId,
-        organization.id,
-        POD_ID,
-      );
-      if (!claimed)
-        throw new HTTPException(409, {
-          message: "Thread is not available for resume",
-        });
-
-      // Resume — identity from auth context, NOT stored config
-      const result = await streamCore(
-        {
-          messages: [],
-          models: toModelsConfig(config.models),
-          agent: config.agent,
-          temperature: config.temperature,
-          toolApprovalLevel: config.toolApprovalLevel,
-          organizationId: organization.id,
-          userId,
-          threadId,
-          windowSize: config.windowSize,
-          isResume: true,
-        },
-        ctx,
-        { runRegistry, streamBuffer, cancelBroadcast },
-      );
-
-      return createUIMessageStreamResponse({
-        stream: result.stream,
-        consumeSseStream: consumeStream,
-      });
-    } catch (err) {
-      if (err instanceof HTTPException) throw err;
-      if (err instanceof Error && err.name === "AbortError")
-        return c.body(null, 204);
-      console.error("[decopilot:resume] Unexpected error:", err);
-      throw new HTTPException(500, { message: "Internal server error" });
-    }
-  });
-
-  // ============================================================================
   // Cancel Endpoint — cancel ongoing run (local or via NATS to owning pod)
   // ============================================================================
 
@@ -347,34 +249,109 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
   app.get("/:org/decopilot/attach/:threadId", async (c) => {
     try {
-      const { threadId } = await validateThreadAccess(c);
+      const { threadId, thread, organization } = await validateThreadAccess(c);
 
-      if (!runRegistry.isRunning(threadId)) {
-        return c.body(null, 204);
-      }
+      // ── Fast path: run is active on this pod → replay buffer ──
+      if (runRegistry.isRunning(threadId)) {
+        const replayChunkStream =
+          await streamBuffer.createReplayStream(threadId);
+        if (!replayChunkStream) {
+          return c.body(null, 204);
+        }
 
-      const replayChunkStream = await streamBuffer.createReplayStream(threadId);
-      if (!replayChunkStream) {
-        return c.body(null, 204);
-      }
-
-      const replayStream = createUIMessageStream({
-        execute: async ({ writer }) => {
-          const reader = replayChunkStream.getReader();
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              writer.write(value);
+        const replayStream = createUIMessageStream({
+          execute: async ({ writer }) => {
+            const reader = replayChunkStream.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                writer.write(value);
+              }
+            } finally {
+              reader.releaseLock();
             }
-          } finally {
-            reader.releaseLock();
-          }
+          },
+        });
+
+        return createUIMessageStreamResponse({
+          stream: replayStream,
+          consumeSseStream: consumeStream,
+        });
+      }
+
+      // ── Orphan resume path ──
+      const ctx = c.get("meshContext");
+      const userId = ctx.auth?.user?.id;
+
+      // Not in_progress → nothing to resume
+      if (thread.status !== "in_progress") return c.body(null, 204);
+
+      // Still owned by a pod → not orphaned (pod may be on another node)
+      if (thread.run_owner_pod !== null) return c.body(null, 204);
+
+      // Only the thread owner can trigger orphan resume
+      if (thread.created_by !== userId) return c.body(null, 204);
+
+      // No persisted config → can't resume; force-fail so user can retry
+      if (!thread.run_config) {
+        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        return c.body(null, 204);
+      }
+
+      // Validate stored config (schema drift protection)
+      const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
+      if (!parsed.success) {
+        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        return c.body(null, 204);
+      }
+      const config = parsed.data;
+
+      // Re-check model permissions with CURRENT user role
+      const allowedModels = await fetchModelPermissions(
+        ctx.db,
+        organization.id,
+        ctx.auth.user?.role,
+      );
+      if (
+        allowedModels !== undefined &&
+        !checkModelPermission(
+          allowedModels,
+          config.models.credentialId,
+          config.models.thinking.id,
+        )
+      ) {
+        return c.body(null, 204);
+      }
+
+      // Atomic CAS claim — another pod may beat us
+      const claimed = await threadStorage.claimOrphanedRun(
+        threadId,
+        organization.id,
+        POD_ID,
+      );
+      if (!claimed) return c.body(null, 204);
+
+      // Resume the run — identity from auth context, NOT stored config
+      const result = await streamCore(
+        {
+          messages: [],
+          models: toModelsConfig(config.models),
+          agent: config.agent,
+          temperature: config.temperature,
+          toolApprovalLevel: config.toolApprovalLevel,
+          organizationId: organization.id,
+          userId,
+          threadId,
+          windowSize: config.windowSize,
+          isResume: true,
         },
-      });
+        ctx,
+        { runRegistry, streamBuffer, cancelBroadcast },
+      );
 
       return createUIMessageStreamResponse({
-        stream: replayStream,
+        stream: result.stream,
         consumeSseStream: consumeStream,
       });
     } catch (err) {
