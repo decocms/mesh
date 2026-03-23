@@ -8,9 +8,11 @@ import {
   subscribeCliState,
   toggleLogFlow,
   toggleViewMode,
+  toggleVibeState,
 } from "./cli-store";
+import { toggleVibe } from "./vibe/vibe-player";
 
-const HEADER_HEIGHT = 13;
+const HEADER_HEIGHT = 15;
 
 export function App({ home }: { home: string }) {
   const state = useSyncExternalStore(subscribeCliState, getCliState);
@@ -22,6 +24,10 @@ export function App({ home }: { home: string }) {
     if (_input === "l" || _input === "L") {
       toggleLogFlow();
     }
+    if ((_input === "v" || _input === "V") && state.dataDir) {
+      toggleVibe(state.dataDir);
+      toggleVibeState();
+    }
   });
 
   return (
@@ -31,6 +37,7 @@ export function App({ home }: { home: string }) {
         migrationsStatus={state.migrationsStatus}
         home={home}
         serverUrl={state.serverUrl}
+        vibe={state.vibe}
       />
 
       {state.viewMode === "config" ? (
