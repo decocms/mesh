@@ -110,6 +110,18 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     updated_at: string;
   }>;
 
+  // Build a map of organization_id -> owner user_id for created_by attribution
+  const orgOwners = (await db
+    .selectFrom("member" as never)
+    .select(["organizationId" as never, "userId" as never])
+    .where("role" as never, "=", "owner")
+    .execute()) as Array<{ organizationId: string; userId: string }>;
+
+  const orgOwnerMap = new Map<string, string>();
+  for (const row of orgOwners) {
+    orgOwnerMap.set(row.organizationId, row.userId);
+  }
+
   // Map from old project ID to new virtual MCP connection ID
   const projectIdToConnectionId = new Map<string, string>();
 
@@ -129,12 +141,16 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       migrated_project_slug: project.slug,
     });
 
+    // Use org owner as created_by (FK constraint requires valid user id)
+    const createdBy = orgOwnerMap.get(project.organization_id);
+    if (!createdBy) continue; // skip orphaned projects with no org owner
+
     await db
       .insertInto("connections" as never)
       .values({
         id: connectionId,
         organization_id: project.organization_id,
-        created_by: "system",
+        created_by: createdBy,
         updated_by: null,
         title: project.name,
         description: project.description,
