@@ -114,7 +114,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   const orgOwners = (await db
     .selectFrom("member" as never)
     .select(["organizationId" as never, "userId" as never])
-    .where("role" as never, "=", "owner")
+    .where("role" as never, "=", "owner" as never)
     .execute()) as Array<{ organizationId: string; userId: string }>;
 
   const orgOwnerMap = new Map<string, string>();
