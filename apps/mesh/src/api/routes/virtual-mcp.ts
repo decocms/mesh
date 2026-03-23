@@ -18,7 +18,7 @@ import { createServerFromClient, getDecopilotId } from "@decocms/mesh-sdk";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
-import { MCP_TOOL_CALL_TIMEOUT_MS } from "./proxy";
+import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { createVirtualClientFrom } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../hono-env";
 
