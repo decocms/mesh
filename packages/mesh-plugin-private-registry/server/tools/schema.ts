@@ -1,46 +1,48 @@
 import { CollectionListInputSchema } from "@decocms/bindings/collections";
 import { z } from "zod";
 
-const RegistryServerSchema = z.object({
-  name: z.string(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  version: z.string().optional(),
-  websiteUrl: z.string().optional(),
-  icons: z
-    .array(
-      z.object({
-        src: z.string(),
-      }),
-    )
-    .optional(),
-  remotes: z
-    .array(
-      z.object({
-        type: z.string().optional(),
+const RegistryServerSchema = z
+  .object({
+    name: z.string(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    version: z.string().optional(),
+    websiteUrl: z.string().optional(),
+    icons: z
+      .array(
+        z.object({
+          src: z.string(),
+        }),
+      )
+      .optional(),
+    remotes: z
+      .array(
+        z.object({
+          type: z.string().optional(),
+          url: z.string().optional(),
+          name: z.string().optional(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+        }),
+      )
+      .optional(),
+    packages: z
+      .array(
+        z.object({
+          identifier: z.string(),
+          version: z.string().optional(),
+        }),
+      )
+      .optional(),
+    repository: z
+      .object({
         url: z.string().optional(),
-        name: z.string().optional(),
-        title: z.string().optional(),
-        description: z.string().optional(),
-      }),
-    )
-    .optional(),
-  packages: z
-    .array(
-      z.object({
-        identifier: z.string(),
-        version: z.string().optional(),
-      }),
-    )
-    .optional(),
-  repository: z
-    .object({
-      url: z.string().optional(),
-      source: z.string().optional(),
-      subfolder: z.string().optional(),
-    })
-    .optional(),
-});
+        source: z.string().optional(),
+        subfolder: z.string().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
 const RegistryToolSchema = z.object({
   name: z.string(),
@@ -76,6 +78,7 @@ export const RegistryItemSchema = z.object({
   _meta: RegistryItemMetaSchema.optional(),
   server: RegistryServerSchema,
   is_public: z.boolean().optional(),
+  is_unlisted: z.boolean().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   created_by: z.string().optional(),

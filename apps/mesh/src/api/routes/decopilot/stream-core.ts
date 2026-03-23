@@ -48,6 +48,7 @@ import {
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
 import { POD_ID } from "@/core/pod-identity";
+import { createBuiltinMcpServer } from "./built-in-tools/built-in-mcp-server";
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -523,6 +524,10 @@ async function streamCoreInner(
           });
 
           const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
+          const builtinServer = createBuiltinMcpServer(
+            passthroughClient,
+            toolOutputMap,
+          );
           languageModel = createClaudeCodeModel(
             resolveClaudeCodeModelId(input.models.thinking.id),
             {
@@ -535,6 +540,7 @@ async function streamCoreInner(
                     "x-org-id": input.organizationId,
                   },
                 },
+                builtins: builtinServer,
               },
               toolApprovalLevel: input.toolApprovalLevel,
               resume: resumeSessionId,

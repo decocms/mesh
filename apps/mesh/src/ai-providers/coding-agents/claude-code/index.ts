@@ -1,4 +1,5 @@
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
+import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { ToolApprovalLevel } from "@/api/routes/decopilot/helpers";
 
 /**
@@ -9,14 +10,7 @@ import type { ToolApprovalLevel } from "@/api/routes/decopilot/helpers";
 export function createClaudeCodeModel(
   modelId: string,
   options?: {
-    mcpServers?: Record<
-      string,
-      {
-        type: "sse" | "http";
-        url: string;
-        headers?: Record<string, string>;
-      }
-    >;
+    mcpServers?: Record<string, McpServerConfig>;
     toolApprovalLevel?: ToolApprovalLevel;
     resume?: string;
   },

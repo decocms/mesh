@@ -12,7 +12,7 @@ import {
  * Replaces image/audio blobs and embedded resources with placeholders
  * to avoid dumping base64 into the model context.
  */
-function normalizePromptContent(
+export function normalizePromptContent(
   content:
     | { type: string; [key: string]: unknown }
     | { type: string; [key: string]: unknown }[]
