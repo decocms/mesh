@@ -11,6 +11,9 @@ const tracks: Track[] = playlist.tracks;
 
 let currentProcess: ReturnType<typeof Bun.spawn> | null = null;
 let playing = false;
+let generation = 0;
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 function toSlug(title: string): string {
   return title
@@ -40,8 +43,8 @@ function pickRandom(): Track {
   return tracks[Math.floor(Math.random() * tracks.length)]!;
 }
 
-async function playTrack(dataDir: string) {
-  if (!playing) return;
+async function playTrack(dataDir: string, gen: number) {
+  if (!playing || gen !== generation) return;
 
   const track = pickRandom();
   const soundsDir = join(dataDir, "sounds");
@@ -49,7 +52,7 @@ async function playTrack(dataDir: string) {
 
   try {
     const filePath = await downloadIfNeeded(track, soundsDir);
-    if (!playing) return;
+    if (!playing || gen !== generation) return;
 
     currentProcess = Bun.spawn(["afplay", filePath], {
       stdio: ["ignore", "ignore", "ignore"],
@@ -57,27 +60,41 @@ async function playTrack(dataDir: string) {
 
     await currentProcess.exited;
     currentProcess = null;
+    consecutiveFailures = 0;
 
-    // Play next track when current one ends
-    if (playing) {
-      playTrack(dataDir);
+    if (playing && gen === generation) {
+      playTrack(dataDir, gen);
     }
   } catch {
-    // If download or playback fails, try another track after a short delay
-    if (playing) {
-      setTimeout(() => playTrack(dataDir), 2000);
+    consecutiveFailures++;
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      playing = false;
+      return;
+    }
+    if (playing && gen === generation) {
+      setTimeout(() => playTrack(dataDir, gen), 2000);
     }
   }
 }
 
+let cleanupRegistered = false;
+
 export function startVibe(dataDir: string): void {
   if (playing) return;
   playing = true;
-  playTrack(dataDir);
+  consecutiveFailures = 0;
+  generation++;
+  playTrack(dataDir, generation);
+
+  if (!cleanupRegistered) {
+    cleanupRegistered = true;
+    process.on("exit", stopVibe);
+  }
 }
 
 export function stopVibe(): void {
   playing = false;
+  generation++;
   if (currentProcess) {
     currentProcess.kill();
     currentProcess = null;

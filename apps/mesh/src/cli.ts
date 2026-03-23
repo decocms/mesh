@@ -216,6 +216,11 @@ if (command === "dev") {
     console.log(dim(`  v${await getVersion()}`));
     console.log("");
 
+    if (values.vibe === true) {
+      const { startVibe } = await import("./cli/vibe/vibe-player");
+      startVibe(decoHome);
+    }
+
     const { startDevServer } = await import("./cli/commands/dev");
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -235,10 +240,9 @@ if (command === "dev") {
     });
 
     if (values.vibe === true) {
-      const { startVibe, stopVibe } = await import("./cli/vibe/vibe-player");
+      const { startVibe } = await import("./cli/vibe/vibe-player");
       setVibe(true);
       startVibe(decoHome);
-      process.on("exit", stopVibe);
     }
 
     const result = await startDevServer(devOptions);
@@ -278,6 +282,11 @@ if (noTui) {
   console.log(dim(`  v${await getVersion()}`));
   console.log("");
 
+  if (values.vibe === true) {
+    const { startVibe } = await import("./cli/vibe/vibe-player");
+    startVibe(decoHome);
+  }
+
   const { startServer } = await import("./cli/commands/serve");
   await startServer({ ...serveOptions, noTui: true });
 } else {
@@ -301,11 +310,10 @@ if (noTui) {
   }
 
   if (values.vibe === true) {
-    const { startVibe, stopVibe } = await import("./cli/vibe/vibe-player");
+    const { startVibe } = await import("./cli/vibe/vibe-player");
     const { setVibe } = await import("./cli/cli-store");
     setVibe(true);
     startVibe(decoHome);
-    process.on("exit", stopVibe);
   }
 
   await startServer(serveOptions);
