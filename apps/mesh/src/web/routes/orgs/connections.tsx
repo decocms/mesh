@@ -866,14 +866,15 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Fetch connections with tools in background (non-blocking) for registry discovery.
-  // Also serves as the full (non-paginated) connection list for catalog badges,
-  // so we don't need a separate allConnections query.
+  // Fetch connections with tools only when the "All" tab (store) needs it.
+  // This query discovers which connections are registries and provides catalog badges.
+  // On the "Connected" tab it's skipped entirely — only the paginated query above runs.
+  const needsStore = activeTab === "all" || !!listState.searchTerm;
   const { data: connectionsWithTools, isLoading: isLoadingTools } =
     useConnectionsAsync({
       extraArguments: { include_tools: true },
+      enabled: needsStore,
     });
-  // Use the full tools query for catalog badges; fall back to paginated results while loading.
   const allConnections = connectionsWithTools ?? connections;
 
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
