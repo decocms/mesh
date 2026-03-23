@@ -87,7 +87,7 @@ function ProjectContextWrapper({
 }
 
 function SettingsContent({ section }: { section: SettingsSection }) {
-  const { org } = useProjectContext();
+  const { project } = useProjectContext();
   switch (section) {
     case "account.profile":
       return <AccountProfilePage />;
@@ -96,8 +96,16 @@ function SettingsContent({ section }: { section: SettingsSection }) {
     case "org.general":
       return <OrgGeneralPage />;
     case "org.plugins":
+      // When on a project route, project.id is a real virtual MCP ID — wrap
+      // in ProjectContextWrapper to fetch the full entity.
+      // On org-level routes (isOrgAdmin), project.id is just the org ID and
+      // there is no backing virtual MCP, so render directly with the existing
+      // project context.
+      if (project.isOrgAdmin) {
+        return <ProjectPluginsPage />;
+      }
       return (
-        <ProjectContextWrapper projectId={org.id}>
+        <ProjectContextWrapper projectId={project.id}>
           <ProjectPluginsPage />
         </ProjectContextWrapper>
       );
