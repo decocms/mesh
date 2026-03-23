@@ -68,6 +68,8 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
   pageSize?: number;
   /** Extra arguments to pass to the collection tool (e.g., include_tools for connections) */
   extraArguments?: Record<string, unknown>;
+  /** Whether to enable the query (default: true). When false, the query is skipped. */
+  enabled?: boolean;
 }
 
 /**
@@ -329,6 +331,7 @@ export function useCollectionListAsync<T extends CollectionEntity>(
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
     extraArguments,
+    enabled,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -372,6 +375,7 @@ export function useCollectionListAsync<T extends CollectionEntity>(
     },
     staleTime: 30_000,
     retry: false,
+    enabled: enabled ?? true,
     select: (result) => {
       const payload = extractPayload<CollectionListOutput<T>>(result ?? {});
       return payload?.items ?? [];

@@ -811,9 +811,14 @@ function OrgMcpsContent() {
   const connections = connectionsData ?? [];
   // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
   // so the "Connected" badge and modal aren't affected by the search term.
-  // Uses non-suspense query to avoid re-suspending the component after the first query resolves.
-  const { data: allConnectionsAsync } = useConnectionsAsync();
-  const allConnections = allConnectionsAsync ?? connections;
+  // Only fires a separate query when search is active; otherwise reuses the main query result.
+  const hasSearch = !!listState.searchTerm;
+  const { data: allConnectionsAsync } = useConnectionsAsync({
+    enabled: hasSearch,
+  });
+  const allConnections = hasSearch
+    ? (allConnectionsAsync ?? connections)
+    : connections;
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
