@@ -7,7 +7,11 @@
  */
 
 import { AccessControl } from "@/core/access-control";
-import { ContextFactory, createBoundAuthClient } from "@/core/context-factory";
+import {
+  ContextFactory,
+  createBoundAuthClient,
+  fetchRolePermissions,
+} from "@/core/context-factory";
 import type { MeshContext } from "@/core/mesh-context";
 import type { Database } from "@/storage/types";
 import { OrgScopedThreadStorage } from "@/storage/threads";
@@ -63,6 +67,14 @@ export function createAutomationContextFactory(
       name: membership.orgName,
     };
 
+    // Fetch custom-role permissions so that non-built-in roles can pass
+    // authorization checks without HTTP headers (background context).
+    const permissions = await fetchRolePermissions(
+      deps.db,
+      orgId,
+      membership.role,
+    );
+
     // Reconstruct boundAuth and access with the correct identity so that
     // permission checks use the automation user's role instead of stale
     // undefined values from the unauthenticated base context.
@@ -70,6 +82,7 @@ export function createAutomationContextFactory(
       auth: ctx.authInstance,
       headers: new Headers(),
       role: membership.role,
+      permissions,
       userId,
     });
     ctx.access = new AccessControl(

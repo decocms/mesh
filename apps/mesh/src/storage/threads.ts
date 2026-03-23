@@ -448,7 +448,15 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .where("id", "=", threadId)
       .where("organization_id", "=", organizationId)
       .where("status", "=", "in_progress")
-      .where("run_owner_pod", "is", null)
+      .where((eb) =>
+        eb.or([
+          eb("run_owner_pod", "is", null),
+          eb.and([
+            eb("run_started_at", "is not", null),
+            eb("run_started_at", "<", new Date(Date.now() - 15 * 60 * 1000)),
+          ]),
+        ]),
+      )
       .executeTakeFirst();
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }

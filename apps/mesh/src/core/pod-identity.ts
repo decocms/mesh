@@ -1,5 +1,6 @@
 /**
  * Stable pod identifier for the lifetime of this process.
- * In Kubernetes, HOSTNAME is the pod name. In local dev, random UUID.
+ * In Kubernetes, set POD_NAME via the downward API (metadata.name).
+ * Outside Kubernetes, each process gets a unique random UUID.
  */
-export const POD_ID = process.env.HOSTNAME ?? crypto.randomUUID();
+export const POD_ID = process.env.POD_NAME ?? crypto.randomUUID();

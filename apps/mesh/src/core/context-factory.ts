@@ -410,7 +410,7 @@ import { createBoundObjectStorage } from "../object-storage/bound-object-storage
  * Fetch role permissions from the database
  * Returns undefined for built-in roles (they bypass permission checks)
  */
-async function fetchRolePermissions(
+export async function fetchRolePermissions(
   db: Kysely<Database>,
   organizationId: string,
   role: string,

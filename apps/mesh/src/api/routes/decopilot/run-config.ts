@@ -11,8 +11,22 @@ import { z } from "zod";
 const PersistedModelInfoSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
-  capabilities: z.record(z.string(), z.unknown()).optional(),
-  limits: z.record(z.string(), z.unknown()).optional(),
+  capabilities: z
+    .object({
+      vision: z.boolean().optional(),
+      text: z.boolean().optional(),
+      tools: z.boolean().optional(),
+      reasoning: z.boolean().optional(),
+    })
+    .passthrough()
+    .optional(),
+  limits: z
+    .object({
+      contextWindow: z.number().optional(),
+      maxOutputTokens: z.number().optional(),
+    })
+    .passthrough()
+    .optional(),
   provider: z.string().nullish(),
 });
 
