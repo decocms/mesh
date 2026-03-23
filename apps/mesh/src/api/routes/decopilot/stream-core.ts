@@ -432,8 +432,9 @@ async function streamCoreInner(
               "`user_ask` — one good question beats three wrong assumptions.\n\n" +
               "Write the plan for a reader with no prior context. Include concrete details, " +
               "ordered steps, risks, trade-offs, and alternatives you considered.\n\n" +
-              "When your plan is complete, you MUST call `propose_plan`. This is the " +
-              "only way to submit a plan — do not describe it in chat.\n" +
+              (isClaudeCode
+                ? "When your plan is complete, provide it directly in chat as a comprehensive markdown plan.\n"
+                : "When your plan is complete, you MUST call `propose_plan`. This is the only way to submit a plan — do not describe it in chat.\n") +
               "</plan-mode>"
             : null;
 
