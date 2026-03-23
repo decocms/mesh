@@ -277,11 +277,8 @@ export function useRegistryConnections(
   return !connections
     ? []
     : connections.filter((conn) => {
-        // Fast path: check metadata flag set at create/update time
-        const meta = conn.metadata as Record<string, unknown> | null;
-        if (meta?.is_registry === true) return true;
-
-        // Fallback: check tools for connections that haven't been re-saved yet
+        // Any connection exposing REGISTRY_APP collection tools can act as a store registry.
+        // This includes the org self MCP when private-registry tools are enabled.
         return (
           extractCollectionNames(conn.tools).includes("REGISTRY_APP") ||
           hasRegistryListTool(conn.tools)
