@@ -352,13 +352,15 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           config.models.thinking.id,
         )
       ) {
-        console.log("[decopilot:attach] 204: model permission denied", {
+        console.log("[decopilot:attach] 403: model permission denied", {
           threadId,
           credentialId: config.models.credentialId,
           modelId: config.models.thinking.id,
           role: ctx.auth.user?.role,
         });
-        return c.body(null, 204);
+        throw new HTTPException(403, {
+          message: "Model not allowed for your role",
+        });
       }
 
       // Atomic CAS claim — handles both orphaned (null) and stale-pod cases
