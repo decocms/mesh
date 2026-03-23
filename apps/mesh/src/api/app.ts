@@ -667,6 +667,13 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   ContextFactory.set(factory);
 
+  // Initialize plugin storage BEFORE starting the event bus, because the
+  // startup hooks (runPluginStartupHooks) need storage to be ready and they
+  // run as soon as eventBus.start() resolves — which can happen during any
+  // `await` between here and where initializePluginStorage used to live.
+  const vault = new CredentialVault(env.ENCRYPTION_KEY);
+  initializePluginStorage(database.db, vault);
+
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
   Promise.resolve(eventBus.start())
@@ -1150,10 +1157,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Mount routes from registered server plugins
   // - Public routes are mounted at root level (e.g., /connect/:sessionId)
   // - Authenticated routes are mounted at /api/plugins/:pluginId/*
-  const vault = new CredentialVault(env.ENCRYPTION_KEY);
-
-  // Initialize plugin storage (creates storage instances for all plugins)
-  initializePluginStorage(database.db, vault);
+  // Note: vault and initializePluginStorage are called earlier (before eventBus.start)
+  // to avoid race conditions with plugin onStartup hooks.
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mountPluginRoutes(app, { db: database.db as any, vault });
