@@ -128,6 +128,14 @@ async function streamCoreInner(
 ): Promise<StreamCoreResult> {
   const { runRegistry, streamBuffer } = deps;
 
+  // Normalize: ensure every message has an id (runtime callers may omit it)
+  input = {
+    ...input,
+    messages: input.messages.map((m) =>
+      m.id ? m : { ...m, id: generateMessageId() },
+    ),
+  };
+
   let closeClients: (() => void) | undefined;
   let runStarted = false;
   let threadId: string | undefined;

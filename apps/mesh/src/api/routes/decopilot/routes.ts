@@ -30,7 +30,7 @@ import {
   parseModelsToMap,
 } from "./model-permissions";
 import { StreamRequestSchema } from "./schemas";
-import type { ChatMessage } from "./types";
+import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
 
 // ============================================================================
@@ -57,6 +57,37 @@ async function validateRequest(
     systemMessages,
     requestMessage,
     ...rest,
+  };
+}
+
+// ============================================================================
+// Default Model Resolution
+// ============================================================================
+
+async function resolveDefaultModels(
+  ctx: MeshContext,
+  organizationId: string,
+): Promise<ModelsConfig> {
+  const keys = await ctx.storage.aiProviderKeys.list({ organizationId });
+  if (keys.length === 0) {
+    throw new HTTPException(400, {
+      message: "No AI provider credentials configured for this organization",
+    });
+  }
+  const credential = keys[0]!;
+  const modelList = await ctx.aiProviders.listModels(
+    credential.id,
+    organizationId,
+  );
+  if (modelList.length === 0) {
+    throw new HTTPException(400, {
+      message: "No models available from the configured AI provider",
+    });
+  }
+  const model = modelList[0]!;
+  return {
+    credentialId: credential.id,
+    thinking: { id: model.modelId, title: model.title },
   };
 }
 
@@ -110,7 +141,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       // 1. Validate request
       const {
         organization,
-        models,
+        models: clientModels,
         agent,
         systemMessages,
         requestMessage,
@@ -125,7 +156,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         throw new HTTPException(401, { message: "User ID is required" });
       }
 
-      // 2. Check model permissions
+      // 2. Resolve models — use client-provided or fall back to org defaults
+      const models =
+        clientModels ?? (await resolveDefaultModels(ctx, organization.id));
+
+      // 3. Check model permissions
       const allowedModels = await fetchModelPermissions(
         ctx.db,
         organization.id,
@@ -148,7 +183,100 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
       const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
 
-      // 3. Delegate to streamCore
+      // 4. Delegate to streamCore
+      const result = await streamCore(
+        {
+          messages: [...systemMessages, requestMessage],
+          models,
+          agent,
+          temperature,
+          toolApprovalLevel,
+          organizationId: organization.id,
+          userId,
+          threadId: resolvedThreadId,
+          windowSize,
+        },
+        ctx,
+        { runRegistry, streamBuffer, cancelBroadcast },
+      );
+
+      return createUIMessageStreamResponse({
+        stream: result.stream,
+        consumeSseStream: consumeStream,
+      });
+    } catch (err) {
+      console.error("[decopilot:stream] Error", err);
+
+      if (err instanceof HTTPException) {
+        return c.json({ error: err.message }, err.status);
+      }
+
+      if (err instanceof Error && err.name === "AbortError") {
+        console.warn("[decopilot:stream] Aborted", { error: err.message });
+        return c.json({ error: "Request aborted" }, 400);
+      }
+
+      console.error("[decopilot:stream] Failed", {
+        error: err instanceof Error ? err.message : JSON.stringify(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      return c.json(
+        { error: err instanceof Error ? err.message : JSON.stringify(err) },
+        500,
+      );
+    }
+  });
+
+  app.post("/:org/decopilot/runtime/stream", async (c) => {
+    try {
+      const ctx = c.get("meshContext");
+
+      // 1. Validate request
+      const {
+        organization,
+        models: clientModels,
+        agent,
+        systemMessages,
+        requestMessage,
+        temperature,
+        memory: memoryConfig,
+        thread_id,
+        toolApprovalLevel,
+      } = await validateRequest(c);
+
+      const userId = ctx.auth?.user?.id;
+      if (!userId) {
+        throw new HTTPException(401, { message: "User ID is required" });
+      }
+
+      // 2. Resolve models — use client-provided or fall back to org defaults
+      const models =
+        clientModels ?? (await resolveDefaultModels(ctx, organization.id));
+
+      // 3. Check model permissions
+      const allowedModels = await fetchModelPermissions(
+        ctx.db,
+        organization.id,
+        ctx.auth.user?.role,
+      );
+
+      if (
+        allowedModels !== undefined &&
+        !checkModelPermission(
+          allowedModels,
+          models.credentialId,
+          models.thinking.id,
+        )
+      ) {
+        throw new HTTPException(403, {
+          message: "Model not allowed for your role",
+        });
+      }
+
+      const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
+      const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
+
+      // 4. Delegate to streamCore
       const result = await streamCore(
         {
           messages: [...systemMessages, requestMessage],
