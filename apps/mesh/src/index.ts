@@ -16,7 +16,7 @@ import {
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
 import { env, logConfiguration } from "./env";
-import { green, red } from "./fmt";
+import { red } from "./fmt";
 
 const port = env.PORT;
 
@@ -104,9 +104,7 @@ if (env.DECOCMS_LOCAL_MODE) {
     .then(async ({ seedLocalMode, markSeedComplete }) => {
       try {
         const seeded = await seedLocalMode();
-        if (seeded) {
-          console.log(`\n${green("Local environment initialized.")}`);
-        }
+        void seeded;
       } catch (error) {
         console.error("Failed to seed local mode:", error);
       } finally {

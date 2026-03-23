@@ -122,13 +122,7 @@ export class RunRegistry {
     // 1. DB: orphan all runs owned by this pod FIRST
     //    (if process dies after this, runs are resumable)
     try {
-      const orphaned = await this.deps.storage.orphanRunsByPod(this.podId);
-      if (orphaned.length > 0) {
-        console.log(
-          `[RunRegistry] Orphaned ${orphaned.length} runs on shutdown:`,
-          orphaned,
-        );
-      }
+      await this.deps.storage.orphanRunsByPod(this.podId);
     } catch (err) {
       console.error("[RunRegistry] Failed to orphan runs in DB:", err);
     }
@@ -153,8 +147,6 @@ export class RunRegistry {
     const orphans = await this.deps.storage.listOrphanedRuns(this.podId);
     if (orphans.length === 0) return;
 
-    console.log(`[RunRegistry] Found ${orphans.length} orphaned runs`);
-
     // Concurrency cap: max 5 concurrent resumes
     const CONCURRENCY = 5;
     for (let i = 0; i < orphans.length; i += CONCURRENCY) {
@@ -168,7 +160,6 @@ export class RunRegistry {
           );
           if (!claimed) return; // Another pod got it
 
-          console.log(`[RunRegistry] Auto-resuming orphaned run ${thread.id}`);
           try {
             await resumeFn(thread);
           } catch (err) {
@@ -195,10 +186,6 @@ export class RunRegistry {
     const orphans = await this.deps.storage.listOrphanedRunsByPod(deadPodId);
     if (orphans.length === 0) return;
 
-    console.log(
-      `[RunRegistry] Pod ${deadPodId} died, recovering ${orphans.length} orphans`,
-    );
-
     // Cancel running threads on the dead pod (in case it's alive but partitioned)
     for (const thread of orphans) {
       cancelBroadcast?.broadcast(thread.id);
@@ -217,9 +204,6 @@ export class RunRegistry {
           );
           if (!claimed) return;
 
-          console.log(
-            `[RunRegistry] Resuming orphan ${thread.id} from dead pod ${deadPodId}`,
-          );
           try {
             await resumeFn(thread);
           } catch (err) {
