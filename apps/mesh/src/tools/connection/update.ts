@@ -275,15 +275,16 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
     );
 
     // Detect if this connection is a registry/store based on its tools.
-    // When tool fetch fails (tools is null), preserve existing metadata to
-    // avoid declassifying a registry on transient errors.
+    // Only update registry flags when the fetch succeeded (fetchResult !== null).
+    // When fetch fails, preserve existing metadata to avoid declassifying a
+    // registry on transient errors.
     const registryListTool = findRegistryListTool(tools);
     const existingMetadata =
       (existing.metadata as Record<string, unknown>) ?? {};
     const incomingMetadata = (data.metadata as Record<string, unknown>) ?? {};
     const registryMeta = registryListTool
       ? { is_registry: true, registry_list_tool: registryListTool }
-      : tools !== null
+      : fetchResult !== null
         ? { is_registry: false, registry_list_tool: null }
         : {};
 
