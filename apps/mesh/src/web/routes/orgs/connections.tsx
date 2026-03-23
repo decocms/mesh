@@ -806,24 +806,7 @@ function OrgMcpsContent() {
     resource: "connections",
   });
 
-  const actions = useConnectionActions();
-  const {
-    items: connections,
-    isLoading: isLoadingConnections,
-    hasMore: hasMoreConnections,
-    isLoadingMore: isLoadingMoreConnections,
-    loadMore: loadMoreConnections,
-  } = useConnectionsInfinite(listState);
-
-  const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
-
-  // Selection / bulk-action state — no explicit mode; selection is implicit
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const selectionMode = selectedIds.size > 0;
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [addToAgentOpen, setAddToAgentOpen] = useState(false);
-
-  // Tab state
+  // Tab state (before queries so we can skip unnecessary fetches per tab)
   type ConnectionTab = "connected" | "all";
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
     LOCALSTORAGE_KEYS.connectionsTab(org.slug),
@@ -832,6 +815,32 @@ function OrgMcpsContent() {
         ? search.tab
         : (existing ?? "all"),
   );
+
+  const actions = useConnectionActions();
+
+  // Paginated connections for the "Connected" tab grid.
+  // On "All" tab this is skipped — the store query provides connections for badges.
+  const needsConnectedQuery =
+    activeTab === "connected" || !!listState.searchTerm;
+  const {
+    items: paginatedConnections,
+    isLoading: isLoadingConnections,
+    hasMore: hasMoreConnections,
+    isLoadingMore: isLoadingMoreConnections,
+    loadMore: loadMoreConnections,
+  } = useConnectionsInfinite({
+    ...listState,
+    enabled: needsConnectedQuery,
+  });
+  const connections = needsConnectedQuery ? paginatedConnections : [];
+
+  const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
+
+  // Selection / bulk-action state — no explicit mode; selection is implicit
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectionMode = selectedIds.size > 0;
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [addToAgentOpen, setAddToAgentOpen] = useState(false);
 
   // Type & status filters
   const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
