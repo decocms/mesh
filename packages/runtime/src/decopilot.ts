@@ -173,7 +173,7 @@ export interface DecopilotClientOptions {
 
 export function createDecopilotClient(options: DecopilotClientOptions) {
   const { baseUrl, orgSlug, token } = options;
-  const streamUrl = `${baseUrl}/${orgSlug}/decopilot/stream`;
+  const streamUrl = `${baseUrl}/${orgSlug}/decopilot/runtime/stream`;
 
   return {
     stream(
