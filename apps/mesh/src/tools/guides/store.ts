@@ -11,15 +11,13 @@ Goal: find good candidate connections in the Deco Store or another registry befo
 Read docs://store.md for registry types, search patterns, and evaluation criteria. Read docs://connections.md if you need a refresher on how installed connections behave after discovery.
 
 Recommended tool order:
-1. Use COLLECTION_CONNECTIONS_LIST to find available registry connections such as Deco Store or MCP Registry.
+1. Use COLLECTION_CONNECTIONS_LIST to check if the target is already installed.
 2. If the user has not clearly described the target capability, data source, or authentication constraints, use user_ask.
-3. Use COLLECTION_CONNECTIONS_GET if you need more detail about the chosen registry connection.
-4. Enable the registry discovery tools from that connection.
-5. Prefer REGISTRY_ITEM_SEARCH when available. Otherwise use the registry's list tool with search-like filters.
-6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
-7. Summarize the best matches, key tradeoffs, and which one to install next.
-8. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow that resource before creating the connection.
-9. Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification.
+3. Enable the registry discovery tools from the registry connection.
+4. Use COLLECTION_REGISTRY_APP_SEARCH to find candidates by keyword or capability.
+5. Use COLLECTION_REGISTRY_APP_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
+6. Summarize the best matches, key tradeoffs, and which one to install next.
+7. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow the install workflow using CONNECTION_INSTALL.
 
 Checks:
 - Search by the user's outcome, not just product names.
@@ -33,25 +31,26 @@ Checks:
     description: "Install an MCP server from a store or registry.",
     text: `# Install MCP server from store
 
-Goal: install a specific MCP server from a registry into the workspace as a working connection.
+Goal: install a specific MCP server from a registry into the workspace as a working connection, then handle authentication if needed.
 
-Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification. Read docs://store-install-connection.md for detailed mapping rules when building the connection payload.
+Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification.
 
 Recommended tool order:
-1. COLLECTION_CONNECTIONS_LIST — find registry connections and check for duplicates of the target server.
+1. COLLECTION_CONNECTIONS_LIST — check for duplicates of the target server.
 2. Enable registry tools from the chosen registry connection.
-3. REGISTRY_ITEM_SEARCH or the registry list tool — find the MCP server by name or capability.
-4. REGISTRY_ITEM_GET — load full details for the chosen item.
-5. Extract connection parameters per docs://install-workflow.md (transport selection, URL, auth, headers).
-6. COLLECTION_CONNECTIONS_CREATE with the extracted payload wrapped in \`{ data: ... }\`.
-7. CONNECTION_TEST to verify the new connection is healthy.
-8. COLLECTION_CONNECTIONS_GET to confirm the saved result and explain next steps.
+3. COLLECTION_REGISTRY_APP_SEARCH or the registry list tool — find the MCP server by name or capability.
+4. COLLECTION_REGISTRY_APP_GET — load full details for the chosen item.
+5. Extract connection parameters per docs://install-workflow.md (transport selection, URL, auth).
+6. CONNECTION_INSTALL — install the connection. This tool checks for duplicates, validates the endpoint, detects auth requirements, and creates the connection in one step.
+7. If CONNECTION_INSTALL returns needs_auth=true, use CONNECTION_AUTHENTICATE to show the inline auth card so the user can complete OAuth or enter an API key.
+8. After auth, use CONNECTION_TEST to verify the connection is healthy.
 
 Checks:
 - Do not install until the user has chosen or confirmed the specific item.
 - Prefer HTTP/SSE/Websocket transports over STDIO.
 - Do not guess secrets, OAuth values, or env var values — ask the user.
-- Treat the install as incomplete until CONNECTION_TEST succeeds or the expected auth step is clear.
+- If CONNECTION_INSTALL returns is_existing=true, the connection already exists — check if it needs auth instead of creating a new one.
+- Treat the install as incomplete until the user has authenticated (if needed) and CONNECTION_TEST succeeds.
 `,
   },
 ];
@@ -61,24 +60,22 @@ export const resources: GuideResource[] = [
     name: "store-install-connection",
     uri: "docs://store-install-connection.md",
     description:
-      "How to turn a chosen registry/store item into a created and tested connection.",
+      "How to turn a chosen registry/store item into an installed and authenticated connection.",
     text: `# Install connection from store item
 
 ## Goal
 
-Take a registry item the user already chose and convert it into a real connection with COLLECTION_CONNECTIONS_CREATE, then verify it with CONNECTION_TEST.
+Take a registry item the user already chose, install it with CONNECTION_INSTALL, handle authentication if needed, and verify health.
 
 ## Recommended tool order
 
-1. Use COLLECTION_CONNECTIONS_LIST to avoid duplicate installs and confirm the correct registry connection is available.
-2. Enable the relevant registry detail tools from that connection.
-3. Use REGISTRY_ITEM_GET to load the full chosen item.
-4. Derive the connection payload from the registry item instead of inventing values.
-5. Use COLLECTION_CONNECTIONS_CREATE with the derived connection fields.
-6. Use CONNECTION_TEST before treating the connection as usable.
-7. Use COLLECTION_CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
+1. Use COLLECTION_REGISTRY_APP_GET to load the full chosen item.
+2. Extract the connection URL from the registry item's remote endpoints.
+3. Use CONNECTION_INSTALL with the extracted parameters. This tool handles duplicate detection, endpoint validation, auth detection, and connection creation in one step.
+4. If CONNECTION_INSTALL returns needs_auth=true, use CONNECTION_AUTHENTICATE to render the inline auth card so the user can complete OAuth or enter an API key directly in the chat.
+5. After auth, use CONNECTION_TEST to verify the connection is healthy.
 
-## How to map a registry item into COLLECTION_CONNECTIONS_CREATE
+## How to map a registry item into CONNECTION_INSTALL
 
 ### Base fields
 - title: prefer the store-friendly title from the item.
@@ -87,35 +84,31 @@ Take a registry item the user already chose and convert it into a real connectio
 - app_name and app_id: copy the registry/server identifiers when present.
 
 ### Transport selection
-- Always prefer remote endpoints (HTTP, SSE, or Websocket) over package commands. STDIO transport is disabled by default in production.
-- If the item exposes a remote endpoint, create an HTTP, SSE, or Websocket connection using that remote's type and URL.
-- If the item only exposes a package command, warn the user that STDIO transport may be unavailable in production before creating the connection.
-- If the item exposes multiple remotes or packages, prefer remote transports. Ask the user before choosing unless one is clearly the default.
+- Always prefer remote endpoints (HTTP, SSE, or Websocket) over package commands.
+- If the item exposes a remote endpoint, use its type and URL.
+- For Deco-hosted MCPs, the URL pattern is: https://[app-name].mcp.deco.cx/mcp
+- If the item exposes multiple remotes, prefer HTTP > SSE > Websocket.
 - If the item exposes neither a usable remote nor a package command, stop and report that the item cannot be installed automatically.
-
-### HTTP, SSE, or Websocket shape
-- connection_type: the remote transport type.
-- connection_url: the remote URL.
-- connection_headers: only include headers if the registry item explicitly provides them.
-- connection_token: leave null unless the user already provided a required token.
-
-### STDIO shape
-- connection_type: STDIO.
-- connection_headers: include command, args, cwd, and envVars when the item provides them.
-- For package-based installs, prefer the registry-provided command/package info over reconstructing it manually.
-- If env vars are required but values are missing, ask the user before creation.
 
 ### Auth and configuration metadata
 - oauth_config: copy it from the registry item when present.
-- configuration_state: copy them when the registry item includes them.
-- metadata: preserve store provenance such as source=store, registry item ID, verification state, repository, and other useful install metadata when available.
+- configuration_state: copy when the registry item includes it.
+- configuration_scopes: copy when available.
+- metadata: preserve store provenance such as source=store, registry item ID, verification state.
+
+## Authentication flow
+
+After CONNECTION_INSTALL:
+- If needs_auth=true: call CONNECTION_AUTHENTICATE with the connection_id. This returns auth card data that the frontend renders as an inline OAuth button or API key input.
+- If needs_auth=false: the connection is ready — verify with CONNECTION_TEST.
+- If is_existing=true: the connection already existed. If it needs auth, guide the user to authenticate it.
 
 ## Checks
 
-- Do not create the connection until the user has chosen the specific item.
+- Do not install until the user has chosen the specific item.
 - Do not guess secrets, OAuth values, headers, or env var values.
-- Prefer copying structured install data from the registry item over translating descriptions into guessed config.
-- Treat the install as incomplete until CONNECTION_TEST succeeds or the expected next auth step is explicit.
+- CONNECTION_INSTALL handles duplicate detection — no need to check separately.
+- Treat the install as incomplete until the user has authenticated (if needed) and CONNECTION_TEST returns healthy.
 `,
   },
   {
@@ -131,11 +124,10 @@ Validate that a specific store or registry item actually matches the user's requ
 
 ## Recommended tool order
 
-1. Use COLLECTION_CONNECTIONS_LIST to confirm which registry connection should be queried.
-2. Enable the relevant registry detail tools from that connection.
-3. Use REGISTRY_ITEM_GET to inspect the candidate item.
-4. If multiple versions are available and a versions tool exists, use REGISTRY_ITEM_VERSIONS.
-5. Report whether the item fits the user's use case and what the next step should be.
+1. Enable the relevant registry detail tools from the registry connection.
+2. Use COLLECTION_REGISTRY_APP_GET to inspect the candidate item.
+3. If multiple versions are available and a versions tool exists, use COLLECTION_REGISTRY_APP_VERSIONS.
+4. Report whether the item fits the user's use case and what the next step should be.
 
 ## Checks
 
@@ -211,122 +203,99 @@ Use the Deco Store or another registry connection when the user needs a capabili
     name: "install-workflow",
     uri: "docs://install-workflow.md",
     description:
-      "Complete end-to-end workflow for installing an MCP server from a registry, including transport selection, parameter extraction, and verification.",
+      "Complete end-to-end workflow for installing an MCP server from a registry, including transport selection, parameter extraction, authentication, and verification.",
     text: `# Install workflow
 
 ## Purpose
 
-End-to-end guide for programmatically installing an MCP server from a registry into the workspace. Covers everything from registry discovery through post-install verification.
+End-to-end guide for installing an MCP server from a registry into the workspace. Covers discovery, installation with CONNECTION_INSTALL, authentication, and verification.
 
-## 1. Find registry connections
+## 1. Search the registry
 
-Use COLLECTION_CONNECTIONS_LIST to discover available registries in the workspace. Look for connections that expose tools like REGISTRY_ITEM_SEARCH or REGISTRY_ITEM_LIST. Common registries include the Deco Store and community registries.
+Use COLLECTION_REGISTRY_APP_SEARCH to find MCP servers by keyword or capability. Search by the user's intended outcome (e.g. "send email", "query database") rather than just product names.
 
-Also check whether the target server is already installed to avoid duplicates.
+## 2. Inspect the registry item
 
-## 2. Search the registry
-
-Use REGISTRY_ITEM_SEARCH when available — it supports keyword and capability-based queries. Otherwise use the registry's list tool with search-like filters.
-
-Search by the user's intended outcome (e.g. "send email", "query database") rather than just product names.
-
-## 3. Inspect the registry item
-
-Use REGISTRY_ITEM_GET on the chosen item. The response typically includes:
+Use COLLECTION_REGISTRY_APP_GET on the chosen item. The response typically includes:
 - \`server.remotes[]\` — remote transport endpoints (HTTP, SSE, Websocket)
 - \`server.packages[]\` — STDIO package commands (npx, uvx, docker, etc.)
-- \`_meta["mcp.mesh"]\` — Mesh-specific metadata (oauth_config, configuration_state)
-- Tool listings, auth requirements, and publisher info
+- \`_meta["mcp.mesh"]\` — Mesh-specific metadata (tags, categories, tools, verified status)
+- Tool listings and publisher info
 
-## 4. Extract connection parameters
+## 3. Extract connection parameters
 
 ### Transport selection rules
 1. **Prefer remote transports** (HTTP, SSE, Websocket) over STDIO packages.
-2. If multiple remotes exist, prefer HTTP > SSE > Websocket unless one is clearly the default.
-3. Only use STDIO if no remote endpoint is available. Warn the user that STDIO may be unavailable in production.
+2. If multiple remotes exist, prefer HTTP > SSE > Websocket.
+3. For Deco-hosted MCPs, the URL pattern is: \`https://[app-name].mcp.deco.cx/mcp\`
 4. If neither remote nor package is available, stop and report that the item cannot be installed.
 
-### HTTP / SSE / Websocket payload template
+### CONNECTION_INSTALL payload
 \`\`\`json
 {
-  "data": {
-    "title": "<item title>",
-    "description": "<server description>",
-    "icon": "<item or publisher icon>",
-    "app_name": "<registry/server identifier>",
-    "app_id": "<registry item ID>",
-    "connection_type": "<HTTP | SSE | Websocket>",
-    "connection_url": "<remote URL>",
-    "connection_headers": null,
-    "connection_token": null,
-    "oauth_config": "<from _meta if present>",
-    "configuration_state": "<from _meta if present>",
-    "metadata": {
-      "source": "store",
-      "registry_item_id": "<item ID>",
-      "verified": "<verification state>"
-    }
+  "title": "<item title>",
+  "connection_url": "<remote URL>",
+  "description": "<server description>",
+  "icon": "<item or publisher icon>",
+  "app_name": "<registry/server name>",
+  "app_id": "<registry item ID>",
+  "connection_type": "HTTP",
+  "oauth_config": "<from registry item if present>",
+  "configuration_state": "<from registry item if present>",
+  "configuration_scopes": "<from registry item if present>",
+  "metadata": {
+    "source": "store",
+    "registry_item_id": "<item ID>"
   }
 }
 \`\`\`
 
-### STDIO payload template
-\`\`\`json
-{
-  "data": {
-    "title": "<item title>",
-    "description": "<server description>",
-    "icon": "<item or publisher icon>",
-    "app_name": "<registry/server identifier>",
-    "app_id": "<registry item ID>",
-    "connection_type": "STDIO",
-    "connection_headers": {
-      "command": "<package command>",
-      "args": ["<arguments>"],
-      "cwd": "<working directory if specified>",
-      "envVars": { "<KEY>": "<value or ask user>" }
-    },
-    "metadata": {
-      "source": "store",
-      "registry_item_id": "<item ID>"
-    }
-  }
-}
-\`\`\`
+## 4. Install the connection
 
-### Auth config mapping
-- Copy \`oauth_config\` from the registry item when present.
-- Copy \`configuration_state\` and \`configuration_scopes\` when available.
-- Never guess OAuth client IDs, secrets, or tokens — ask the user if required values are missing.
-- For API key auth, prompt the user for the key value.
+Use CONNECTION_INSTALL with the payload from step 3. This tool:
+- Checks for duplicate connections by URL or app_name
+- Validates the endpoint by fetching tools
+- Detects auth requirements (OAuth, scopes, MCP_CONFIGURATION)
+- Creates the connection and returns the result
 
-## 5. Create the connection
+The response includes:
+- \`connection_id\` — the new connection ID
+- \`needs_auth\` — whether authentication is required
+- \`is_existing\` — whether a duplicate was found (no new connection created)
+- \`message\` — human-readable status
 
-Use COLLECTION_CONNECTIONS_CREATE with the payload from step 4. Always wrap in \`{ data: ... }\`.
+## 5. Handle authentication
+
+If CONNECTION_INSTALL returns \`needs_auth: true\`:
+1. Call CONNECTION_AUTHENTICATE with the \`connection_id\`.
+2. This returns auth card data that the frontend renders as an inline OAuth button or API key input.
+3. The user completes auth directly in the chat UI — no need to redirect them elsewhere.
+4. After auth, proceed to verification.
+
+If \`needs_auth: false\`, skip to verification.
 
 ## 6. Verify
 
-Use CONNECTION_TEST on the new connection. Expect \`{ healthy: true, latencyMs: ... }\` on success.
-- If the connection requires OAuth, the test may fail until the user completes the auth flow — explain the next step.
-- If it fails for other reasons, check the connection_url, headers, and transport type.
-
-## 7. Confirm
-
-Use COLLECTION_CONNECTIONS_GET to retrieve the saved connection and confirm its final state. Report the result to the user.
+Use CONNECTION_TEST on the connection. Expect \`{ healthy: true, latencyMs: ... }\`.
+- If the connection was just authenticated, it should now be healthy.
+- If it fails, use CONNECTION_AUTH_STATUS to check if auth is still needed.
 
 ## Common patterns
 
 ### Install by name
-User says "install Slack MCP" → search by "Slack" → pick the best match → extract and create.
+User says "install HyperDX" → search "hyperdx" → find deco/hyperdx → extract URL → CONNECTION_INSTALL → authenticate if needed.
 
 ### Install by capability
-User says "I need to send emails" → search by "send email" → evaluate results → pick and install.
+User says "I need to send emails" → search "gmail" or "send email" → pick best match → CONNECTION_INSTALL → authenticate.
 
-### OAuth handling
-If the registry item includes oauth_config, copy it into the connection. After creation, CONNECTION_TEST may return unhealthy until the user completes the OAuth consent flow. Guide them to the auth URL if available.
+### Duplicate handling
+CONNECTION_INSTALL automatically detects duplicates by URL or app_name. If \`is_existing: true\`, the connection already exists — check if it needs auth and guide the user accordingly.
 
-### Missing env vars
-For STDIO packages that require environment variables, list the required vars and ask the user for values before creating the connection. Do not use placeholder or empty values.
+### OAuth flow
+After CONNECTION_INSTALL returns needs_auth=true, call CONNECTION_AUTHENTICATE. The frontend renders an OAuth button. The user clicks it, completes consent, and the auth card updates to show success.
+
+### API key flow
+After CONNECTION_INSTALL returns needs_auth=true with auth_type="token", call CONNECTION_AUTHENTICATE. The frontend renders a token input field. The user pastes their API key and saves it.
 `,
   },
 ];

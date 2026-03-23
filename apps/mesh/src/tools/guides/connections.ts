@@ -6,21 +6,21 @@ export const prompts: GuidePrompt[] = [
     description: "Add a new MCP server connection to the workspace.",
     text: `# Create connection
 
-Goal: install a new connection, capture the correct authentication method, and confirm it is healthy before treating it as usable.
+Goal: install a new connection, handle authentication if needed, and confirm it is healthy before treating it as usable.
 
 Read docs://connections.md for authentication modes, lifecycle guidance, and error patterns. Read docs://platform.md if you need the broader model.
 
 Recommended tool order:
-1. Use COLLECTION_CONNECTIONS_LIST to avoid duplicate installs and inspect similar existing connections.
-2. If the user has not provided a server URL or auth details, use user_ask.
-3. Use COLLECTION_CONNECTIONS_CREATE with the MCP server URL and required authentication payload.
-4. Use CONNECTION_TEST to verify the connection is reachable and healthy.
+1. If the user has not provided a server URL, use user_ask.
+2. Use CONNECTION_INSTALL with the MCP server URL. This tool checks for duplicates, validates the endpoint, detects auth requirements, and creates the connection in one step.
+3. If CONNECTION_INSTALL returns needs_auth=true, use CONNECTION_AUTHENTICATE to show the inline auth card so the user can complete OAuth or enter an API key directly in the chat.
+4. After auth, use CONNECTION_TEST to verify the connection is reachable and healthy.
 5. Use COLLECTION_CONNECTIONS_GET if you need the saved details for follow-up.
 
 Checks:
-- Confirm the server URL before creation.
-- Choose the correct auth type from docs://connections.md.
-- If the connection requires user interaction, explain that an OAuth or credential step is needed.
+- Confirm the server URL before installation.
+- If CONNECTION_INSTALL returns is_existing=true, the connection already exists — check if it needs auth.
+- If needs_auth=true, always call CONNECTION_AUTHENTICATE to render the auth card.
 - Treat a connection as usable only after CONNECTION_TEST succeeds.
 - Surface any missing auth, timeout, or schema issues clearly.
 `,
