@@ -169,6 +169,7 @@ async function getPluginSettings(
     )
     .select(["virtual_mcp_plugin_configs.settings as settings"])
     .where("connections.organization_id", "=", orgId)
+    .where("connections.subtype", "=", "project")
     .where("virtual_mcp_plugin_configs.plugin_id", "=", PLUGIN_ID)
     .execute();
 
