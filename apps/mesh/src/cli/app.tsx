@@ -12,7 +12,7 @@ import {
 } from "./cli-store";
 import { toggleVibe } from "./vibe/vibe-player";
 
-const HEADER_HEIGHT = 13;
+const HEADER_HEIGHT = 15;
 
 export function App({ home }: { home: string }) {
   const state = useSyncExternalStore(subscribeCliState, getCliState);
