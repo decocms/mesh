@@ -492,6 +492,7 @@ function validateOIDCUrl(url: string): void {
     /^\[::1\]$/, // IPv6 loopback
     /^\[fd/, // IPv6 unique local
     /^\[fe80:/, // IPv6 link-local
+    /^localhost$/i, // localhost hostname
   ];
 
   // Allow loopback in dev for local OIDC providers (e.g. Keycloak)
