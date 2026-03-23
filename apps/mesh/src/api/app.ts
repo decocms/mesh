@@ -931,12 +931,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   for (const dir of SIGNAL_DIRS) {
     cleanupOldMonitoringFiles(dir)
-      .then((deleted) => {
-        if (deleted > 0)
-          console.log(
-            `[monitoring] Cleaned up ${deleted} old partitions from ${dir}`,
-          );
-      })
+      .then(() => {})
       .catch((err) =>
         console.error("[monitoring] Retention cleanup failed:", err),
       );
@@ -948,12 +943,7 @@ export async function createApp(options: CreateAppOptions = {}) {
       .deleteFrom("apikey" as any)
       .where("expiresAt" as any, "<", new Date())
       .execute()
-      .then((result) => {
-        const deleted = Number(result[0]?.numDeletedRows ?? 0);
-        if (deleted > 0) {
-          console.log(`[auth] Cleaned up ${deleted} expired API keys`);
-        }
-      })
+      .then(() => {})
       .catch((err: unknown) =>
         console.error("[auth] Expired API key cleanup failed:", err),
       );

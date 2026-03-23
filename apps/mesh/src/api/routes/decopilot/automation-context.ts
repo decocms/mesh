@@ -54,10 +54,6 @@ export function createAutomationContextFactory(
       return null;
     }
 
-    console.log(
-      `[automationContextFactory] Resolved context: user=${userId}, org=${orgId}, role=${membership.role}`,
-    );
-
     // Create a base context (unauthenticated) and override auth/org/access fields
     const ctx = await ContextFactory.create();
     ctx.auth.user = { id: userId, role: membership.role };
