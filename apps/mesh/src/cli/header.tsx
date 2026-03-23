@@ -91,6 +91,13 @@ export function Header({
               </Text>{" "}
               toggle config
             </Text>
+            {"  "}
+            <Text dimColor>
+              <Text bold dimColor>
+                L
+              </Text>{" "}
+              toggle log flow
+            </Text>
           </Text>
         ) : (
           <Text dimColor>Starting...</Text>

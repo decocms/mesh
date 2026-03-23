@@ -15,6 +15,7 @@ interface CliState {
   env: Env | null;
   logs: LogEntry[];
   viewMode: "requests" | "config";
+  logFlow: boolean;
 }
 
 let state: CliState = {
@@ -27,6 +28,7 @@ let state: CliState = {
   env: null,
   logs: [],
   viewMode: "requests",
+  logFlow: false,
 };
 
 const listeners = new Set<() => void>();
@@ -88,6 +90,14 @@ export function toggleViewMode() {
   state = {
     ...state,
     viewMode: state.viewMode === "requests" ? "config" : "requests",
+  };
+  emit();
+}
+
+export function toggleLogFlow() {
+  state = {
+    ...state,
+    logFlow: !state.logFlow,
   };
   emit();
 }
