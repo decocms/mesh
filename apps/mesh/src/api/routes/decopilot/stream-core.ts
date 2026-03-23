@@ -11,6 +11,7 @@ import { createVirtualClientFrom } from "@/mcp-clients/virtual-mcp";
 import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
 import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
+import { SpanStatusCode } from "@opentelemetry/api";
 import { createUIMessageStream, stepCountIs, streamText } from "ai";
 import { getBuiltInTools } from "./built-in-tools";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
@@ -45,6 +46,7 @@ import {
   resolveClaudeCodeModelId,
 } from "@/ai-providers/adapters/claude-code";
 import { getInternalUrl } from "@/core/server-constants";
+import { traced, tracer } from "@/observability";
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -104,6 +106,26 @@ export async function streamCore(
   ctx: MeshContext,
   deps: StreamCoreDeps,
 ): Promise<StreamCoreResult> {
+  return traced(
+    "decopilot.streamCore",
+    (rootSpan) => streamCoreInner(input, ctx, deps, rootSpan),
+    {
+      "decopilot.agent.id": input.agent.id,
+      "decopilot.model.id": input.models.thinking.id,
+      "decopilot.credential.id": input.models.credentialId,
+      "decopilot.organization.id": input.organizationId,
+      "decopilot.user.id": input.userId,
+      "decopilot.thread.id": input.threadId,
+    },
+  );
+}
+
+async function streamCoreInner(
+  input: StreamCoreInput,
+  ctx: MeshContext,
+  deps: StreamCoreDeps,
+  rootSpan: import("@opentelemetry/api").Span,
+): Promise<StreamCoreResult> {
   const { runRegistry, streamBuffer } = deps;
 
   let closeClients: (() => void) | undefined;
@@ -117,6 +139,7 @@ export async function streamCore(
       .findById(input.models.credentialId, input.organizationId)
       .catch(() => null);
     const isClaudeCode = credentialKey?.providerId === "claude-code";
+    rootSpan.setAttribute("decopilot.isClaudeCode", isClaudeCode);
 
     // 1. Check model permissions (skip for Claude Code in local mode)
     if (!isClaudeCode) {
@@ -158,6 +181,7 @@ export async function streamCore(
     ]);
 
     threadId = mem.thread.id;
+    rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
       throw new Error(
@@ -485,107 +509,85 @@ export async function streamCore(
           languageModel = createLanguageModel(provider!, input.models.thinking);
         }
 
-        const result = streamText({
-          model: languageModel,
-          system: [
-            ...systemPrompts.map((content) => ({
-              role: "system" as const,
-              content,
-            })),
-            ...processedSystemMessages,
-          ],
-          messages: processedMessages,
-          tools,
-          ...(isClaudeCode
-            ? {}
-            : {
-                prepareStep: () => {
-                  let activeToolNames = [
-                    ...builtInToolNames,
-                    "enable_tools",
-                    ...enabledTools,
-                  ];
+        // Span for the LLM streaming call — manually managed because it starts
+        // here but ends asynchronously in the onFinish/onError callbacks.
+        const llmSpan = tracer.startSpan("decopilot.streamText", {
+          attributes: {
+            "decopilot.model.id": input.models.thinking.id,
+            "decopilot.credential.id": input.models.credentialId,
+            "decopilot.isClaudeCode": isClaudeCode,
+          },
+        });
 
-                  // Layer 2: In plan mode, filter out any non-read-only tools that
-                  // somehow got enabled (safety net for Layer 1 in enable_tools)
-                  if (input.toolApprovalLevel === "plan") {
-                    activeToolNames = activeToolNames.filter((name) => {
-                      // Built-in tools and enable_tools are always allowed
-                      if (
-                        builtInToolNames.includes(name) ||
-                        name === "enable_tools"
-                      ) {
-                        return true;
-                      }
-                      // Only allow passthrough tools with readOnlyHint
-                      const annotations = toolAnnotations.get(name);
-                      return annotations?.readOnlyHint === true;
-                    });
-                  }
+        let result;
+        try {
+          result = streamText({
+            model: languageModel,
+            system: [
+              ...systemPrompts.map((content) => ({
+                role: "system" as const,
+                content,
+              })),
+              ...processedSystemMessages,
+            ],
+            messages: processedMessages,
+            tools,
+            ...(isClaudeCode
+              ? {}
+              : {
+                  prepareStep: () => {
+                    let activeToolNames = [
+                      ...builtInToolNames,
+                      "enable_tools",
+                      ...enabledTools,
+                    ];
 
-                  return {
-                    activeTools: activeToolNames as (keyof typeof tools)[],
-                  };
-                },
-                temperature: input.temperature,
-                maxOutputTokens,
-                stopWhen: stepCountIs(PARENT_STEP_LIMIT),
-              }),
-          abortSignal: registrySignal,
-          onFinish: async ({
-            usage,
-            totalUsage,
-            finishReason,
-            request,
-            response,
-          }) => {
-            if (registrySignal.aborted) return;
-            const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
-            llmCallLogged = true;
-            recordLlmCallMetrics({
-              ctx,
-              organizationId: input.organizationId,
-              modelId: input.models.thinking.id,
-              durationMs,
-              isError: false,
-              inputTokens: totalUsage.inputTokens,
-              outputTokens: totalUsage.outputTokens,
-            });
-            monitorLlmCall({
-              ctx,
-              organizationId: input.organizationId,
-              agentId: input.agent.id,
-              modelId: input.models.thinking.id,
-              modelTitle:
-                input.models.thinking.title ?? input.models.thinking.id,
-              credentialId: input.models.credentialId,
-              threadId: mem.thread.id,
-              durationMs,
-              isError: false,
+                    // Layer 2: In plan mode, filter out any non-read-only tools that
+                    // somehow got enabled (safety net for Layer 1 in enable_tools)
+                    if (input.toolApprovalLevel === "plan") {
+                      activeToolNames = activeToolNames.filter((name) => {
+                        // Built-in tools and enable_tools are always allowed
+                        if (
+                          builtInToolNames.includes(name) ||
+                          name === "enable_tools"
+                        ) {
+                          return true;
+                        }
+                        // Only allow passthrough tools with readOnlyHint
+                        const annotations = toolAnnotations.get(name);
+                        return annotations?.readOnlyHint === true;
+                      });
+                    }
+
+                    return {
+                      activeTools: activeToolNames as (keyof typeof tools)[],
+                    };
+                  },
+                  temperature: input.temperature,
+                  maxOutputTokens,
+                  stopWhen: stepCountIs(PARENT_STEP_LIMIT),
+                }),
+            abortSignal: registrySignal,
+            onFinish: async ({
+              usage,
+              totalUsage,
               finishReason,
-              usage: {
-                inputTokens: usage.inputTokens ?? 0,
-                outputTokens: usage.outputTokens ?? 0,
-                totalTokens: usage.totalTokens ?? 0,
-              },
-              totalUsage: {
-                inputTokens: totalUsage.inputTokens ?? 0,
-                outputTokens: totalUsage.outputTokens ?? 0,
-                totalTokens: totalUsage.totalTokens ?? 0,
-              },
               request,
               response,
-              userId: input.userId,
-              requestId: ctx.metadata.requestId,
-              userAgent: ctx.metadata.userAgent ?? null,
-            });
-          },
-          onError: async (error) => {
-            console.error("[decopilot:stream] Error", error);
-            if (registrySignal.aborted) {
-              throw error;
-            }
-            if (!llmCallLogged) {
+            }) => {
+              llmSpan.setAttribute(
+                "decopilot.llm.inputTokens",
+                totalUsage.inputTokens ?? 0,
+              );
+              llmSpan.setAttribute(
+                "decopilot.llm.outputTokens",
+                totalUsage.outputTokens ?? 0,
+              );
+              llmSpan.setAttribute("decopilot.llm.finishReason", finishReason);
+              llmSpan.setStatus({ code: SpanStatusCode.OK });
+              llmSpan.end();
+
+              if (registrySignal.aborted) return;
               const durationMs = Date.now() - (llmCallStartTime ?? Date.now());
               llmCallLogged = true;
               recordLlmCallMetrics({
@@ -593,8 +595,9 @@ export async function streamCore(
                 organizationId: input.organizationId,
                 modelId: input.models.thinking.id,
                 durationMs,
-                isError: true,
-                errorType: error instanceof Error ? error.name : "Error",
+                isError: false,
+                inputTokens: totalUsage.inputTokens,
+                outputTokens: totalUsage.outputTokens,
               });
               monitorLlmCall({
                 ctx,
@@ -606,17 +609,81 @@ export async function streamCore(
                 credentialId: input.models.credentialId,
                 threadId: mem.thread.id,
                 durationMs,
-                isError: true,
-                errorMessage:
-                  error instanceof Error ? error.message : String(error),
+                isError: false,
+                finishReason,
+                usage: {
+                  inputTokens: usage.inputTokens ?? 0,
+                  outputTokens: usage.outputTokens ?? 0,
+                  totalTokens: usage.totalTokens ?? 0,
+                },
+                totalUsage: {
+                  inputTokens: totalUsage.inputTokens ?? 0,
+                  outputTokens: totalUsage.outputTokens ?? 0,
+                  totalTokens: totalUsage.totalTokens ?? 0,
+                },
+                request,
+                response,
                 userId: input.userId,
                 requestId: ctx.metadata.requestId,
                 userAgent: ctx.metadata.userAgent ?? null,
               });
-            }
-            throw error;
-          },
-        });
+            },
+            onError: async (error) => {
+              const err =
+                error instanceof Error ? error : new Error(String(error));
+              llmSpan.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err.message,
+              });
+              llmSpan.recordException(err);
+              llmSpan.end();
+
+              console.error("[decopilot:stream] Error", error);
+              if (registrySignal.aborted) {
+                throw error;
+              }
+              if (!llmCallLogged) {
+                const durationMs =
+                  Date.now() - (llmCallStartTime ?? Date.now());
+                llmCallLogged = true;
+                recordLlmCallMetrics({
+                  ctx,
+                  organizationId: input.organizationId,
+                  modelId: input.models.thinking.id,
+                  durationMs,
+                  isError: true,
+                  errorType: error instanceof Error ? error.name : "Error",
+                });
+                monitorLlmCall({
+                  ctx,
+                  organizationId: input.organizationId,
+                  agentId: input.agent.id,
+                  modelId: input.models.thinking.id,
+                  modelTitle:
+                    input.models.thinking.title ?? input.models.thinking.id,
+                  credentialId: input.models.credentialId,
+                  threadId: mem.thread.id,
+                  durationMs,
+                  isError: true,
+                  errorMessage:
+                    error instanceof Error ? error.message : String(error),
+                  userId: input.userId,
+                  requestId: ctx.metadata.requestId,
+                  userAgent: ctx.metadata.userAgent ?? null,
+                });
+              }
+              throw error;
+            },
+          });
+        } catch (err) {
+          llmSpan.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err instanceof Error ? err.message : String(err),
+          });
+          if (err instanceof Error) llmSpan.recordException(err);
+          llmSpan.end();
+          throw err;
+        }
 
         const uiMessageStream = result.toUIMessageStream({
           originalMessages,
