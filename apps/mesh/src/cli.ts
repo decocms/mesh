@@ -59,6 +59,10 @@ const { values, positionals } = parseArgs({
       type: "boolean",
       default: false,
     },
+    vibe: {
+      type: "boolean",
+      default: false,
+    },
   },
   allowPositionals: true,
 });
@@ -81,6 +85,7 @@ Server Options:
   --no-local-mode       Disable auto-login (use cloud/SSO auth)
   --skip-migrations     Skip database migrations on startup
   --no-tui              Disable Ink UI, plain stdout (CI mode)
+  --vibe                Play synthwave soundtrack while running
   -h, --help            Show this help message
   -v, --version         Show version
 
@@ -220,13 +225,21 @@ if (command === "dev") {
     const { createElement } = await import("react");
     const { App } = await import("./cli/app");
     const { startDevServer } = await import("./cli/commands/dev");
-    const { setDevMode } = await import("./cli/cli-store");
+    const { setDevMode, setVibe, setDataDir } = await import("./cli/cli-store");
 
     const displayHome = decoHome.replace(homedir(), "~");
     setDevMode();
+    setDataDir(decoHome);
     render(createElement(App, { home: displayHome }), {
       patchConsole: false,
     });
+
+    if (values.vibe === true) {
+      const { startVibe, stopVibe } = await import("./cli/vibe/vibe-player");
+      setVibe(true);
+      startVibe(decoHome);
+      process.on("exit", stopVibe);
+    }
 
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -281,6 +294,19 @@ if (noTui) {
   render(createElement(App, { home: displayHome }), {
     patchConsole: false,
   });
+
+  {
+    const { setDataDir } = await import("./cli/cli-store");
+    setDataDir(decoHome);
+  }
+
+  if (values.vibe === true) {
+    const { startVibe, stopVibe } = await import("./cli/vibe/vibe-player");
+    const { setVibe } = await import("./cli/cli-store");
+    setVibe(true);
+    startVibe(decoHome);
+    process.on("exit", stopVibe);
+  }
 
   await startServer(serveOptions);
 }
