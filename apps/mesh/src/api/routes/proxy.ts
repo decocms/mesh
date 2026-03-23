@@ -169,6 +169,7 @@ async function createMCPProxyDoNotUseDirectly(
         resources: {},
         prompts: {},
       },
+      toolCallTimeoutMs: MCP_TOOL_CALL_TIMEOUT_MS,
     },
   );
 
