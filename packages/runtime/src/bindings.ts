@@ -58,6 +58,7 @@ const AgentModelInfoSchema = z.object({
       tools: z.boolean().optional(),
       reasoning: z.boolean().optional(),
     })
+    .passthrough()
     .optional(),
   provider: z.string().optional().nullable(),
   limits: z
@@ -65,6 +66,7 @@ const AgentModelInfoSchema = z.object({
       contextWindow: z.number().optional(),
       maxOutputTokens: z.number().optional(),
     })
+    .passthrough()
     .optional(),
 });
 
@@ -96,7 +98,7 @@ export const AgentOf = () =>
     temperature: z.number().default(0.5),
   });
 
-export const isAgent = (v: unknown): v is AgentBindingConfig => {
+const isAgent = (v: unknown): v is AgentBindingConfig => {
   return (
     typeof v === "object" &&
     v !== null &&
