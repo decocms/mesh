@@ -54,7 +54,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.190.2",
+      "version": "2.194.3",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -293,9 +293,6 @@
       "peerDependencies": {
         "ai": ">=6.0.0",
       },
-      "optionalPeers": [
-        "ai",
-      ],
     },
     "packages/typegen": {
       "name": "@decocms/typegen",
