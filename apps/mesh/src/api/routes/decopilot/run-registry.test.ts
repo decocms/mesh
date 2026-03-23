@@ -20,7 +20,9 @@ function makeNoopDeps(): RunReactorDeps {
       listByTriggerIds: mock(() => Promise.resolve({ threads: [], total: 0 })),
       forceFailIfInProgress: mock(() => Promise.resolve(false)),
       claimOrphanedRun: mock(() => Promise.resolve(false)),
+      claimRunStart: mock(() => Promise.resolve(true)),
       listOrphanedRuns: mock(() => Promise.resolve([])),
+      listOrphanedRunsByPod: mock(() => Promise.resolve([])),
       orphanRunsByPod: mock(() => Promise.resolve([])),
     },
     streamBuffer: { purge: mock(() => {}) } as unknown as StreamBuffer,
@@ -617,6 +619,115 @@ describe("RunRegistry", () => {
 
       expect(registry.isRunning("old")).toBe(false);
       expect(registry.isRunning("fresh")).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // handlePodDeath
+  // -------------------------------------------------------------------------
+  describe("handlePodDeath", () => {
+    const makeThread = (id: string, orgId = "org1") => ({
+      id,
+      organization_id: orgId,
+      trigger_id: null,
+      run_config: {},
+      title: "t",
+      description: null,
+      status: "in_progress" as const,
+      created_at: "",
+      updated_at: "",
+      created_by: "u1",
+      updated_by: null,
+      hidden: false,
+      context_start_message_id: null,
+      run_owner_pod: "dead-pod",
+      run_started_at: null,
+    });
+
+    it("claims and resumes all orphans from dead pod", async () => {
+      const deps = makeNoopDeps();
+      (
+        deps.storage.listOrphanedRunsByPod as ReturnType<typeof mock>
+      ).mockImplementation(() =>
+        Promise.resolve([makeThread("t1"), makeThread("t2"), makeThread("t3")]),
+      );
+      (
+        deps.storage.claimOrphanedRun as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve(true));
+
+      const registry = createRegistry(deps);
+      const resumeFn = mock(() => Promise.resolve());
+      await registry.handlePodDeath("dead-pod", resumeFn);
+
+      expect(deps.storage.listOrphanedRunsByPod).toHaveBeenCalledWith(
+        "dead-pod",
+      );
+      expect(resumeFn).toHaveBeenCalledTimes(3);
+    });
+
+    it("skips orphans when CAS claim fails", async () => {
+      const deps = makeNoopDeps();
+      (
+        deps.storage.listOrphanedRunsByPod as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve([makeThread("t1")]));
+      (
+        deps.storage.claimOrphanedRun as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve(false));
+
+      const registry = createRegistry(deps);
+      const resumeFn = mock(() => Promise.resolve());
+      await registry.handlePodDeath("dead-pod", resumeFn);
+
+      expect(resumeFn).not.toHaveBeenCalled();
+    });
+
+    it("force-fails on resumeFn error", async () => {
+      const deps = makeNoopDeps();
+      (
+        deps.storage.listOrphanedRunsByPod as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve([makeThread("t1")]));
+      (
+        deps.storage.claimOrphanedRun as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve(true));
+
+      const registry = createRegistry(deps);
+      const resumeFn = mock(() => Promise.reject(new Error("boom")));
+      await registry.handlePodDeath("dead-pod", resumeFn);
+
+      expect(deps.storage.forceFailIfInProgress).toHaveBeenCalledWith(
+        "t1",
+        "org1",
+      );
+    });
+
+    it("broadcasts cancel for orphans", async () => {
+      const deps = makeNoopDeps();
+      (
+        deps.storage.listOrphanedRunsByPod as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve([makeThread("t1")]));
+      (
+        deps.storage.claimOrphanedRun as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve(true));
+
+      const registry = createRegistry(deps);
+      const resumeFn = mock(() => Promise.resolve());
+      const cancelBroadcast = { broadcast: mock(() => {}) };
+      await registry.handlePodDeath("dead-pod", resumeFn, cancelBroadcast);
+
+      expect(cancelBroadcast.broadcast).toHaveBeenCalledWith("t1");
+    });
+
+    it("no-ops when dead pod has no orphans", async () => {
+      const deps = makeNoopDeps();
+      (
+        deps.storage.listOrphanedRunsByPod as ReturnType<typeof mock>
+      ).mockImplementation(() => Promise.resolve([]));
+
+      const registry = createRegistry(deps);
+      const resumeFn = mock(() => Promise.resolve());
+      await registry.handlePodDeath("dead-pod", resumeFn);
+
+      expect(resumeFn).not.toHaveBeenCalled();
     });
   });
 });

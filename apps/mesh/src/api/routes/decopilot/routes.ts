@@ -33,6 +33,7 @@ import { PersistedRunConfigSchema, toModelsConfig } from "./run-config";
 import { StreamRequestSchema } from "./schemas";
 import type { ChatMessage } from "./types";
 import { streamCore } from "./stream-core";
+import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
 import { POD_ID } from "@/core/pod-identity";
 
@@ -175,6 +176,10 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       });
     } catch (err) {
       console.error("[decopilot:stream] Error", err);
+
+      if (err instanceof RunClaimError) {
+        return c.json({ error: err.message }, 409);
+      }
 
       if (err instanceof HTTPException) {
         return c.json({ error: err.message }, err.status);

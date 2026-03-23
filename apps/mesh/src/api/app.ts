@@ -70,6 +70,7 @@ import { NatsStreamBuffer } from "./routes/decopilot/nats-stream-buffer";
 import { RunRegistry } from "./routes/decopilot/run-registry";
 import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
 import { SqlThreadStorage } from "../storage/threads";
+import type { Thread } from "../storage/types";
 import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
 import {
   DEFAULT_LOGS_DIR,
@@ -89,6 +90,7 @@ import {
   toModelsConfig,
 } from "./routes/decopilot/run-config";
 import { POD_ID } from "../core/pod-identity";
+import { NatsPodHeartbeat } from "../nats/pod-heartbeat";
 import { createAutomationsStorage } from "../storage/automations";
 import { createAutomationContextFactory } from "./routes/decopilot/automation-context";
 
@@ -317,7 +319,20 @@ export async function createApp(options: CreateAppOptions = {}) {
     );
   });
 
+  // Per-pod heartbeat via NATS KV (only when NATS is available)
+  let podHeartbeat: NatsPodHeartbeat | null = null;
+  if (natsProvider) {
+    podHeartbeat = new NatsPodHeartbeat({
+      getConnection: () => natsProvider!.getConnection(),
+      getJetStream: () => natsProvider!.getJetStream(),
+    });
+    await podHeartbeat.init();
+    podHeartbeat.start(POD_ID);
+  }
+
   currentDecopilotCleanup = async () => {
+    // Delete KV key first → watcher fires on other pods → immediate handoff
+    await podHeartbeat?.stop();
     await runRegistry.stopAll();
     runRegistry.dispose();
     cancelBroadcast.stop().catch(() => {});
@@ -815,81 +830,96 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Crash Recovery — resume orphaned automation runs after rolling deploy
   // ============================================================================
 
-  setTimeout(() => {
-    runRegistry
-      .recoverOrphanedRuns(async (thread) => {
-        const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
-        if (!parsed.success) {
-          console.warn(
-            `[recovery] Invalid run_config for ${thread.id}, force-failing`,
-          );
-          await threadStorage.forceFailIfInProgress(
-            thread.id,
-            thread.organization_id,
-          );
-          return;
-        }
-        const config = parsed.data;
+  /** Shared resume function for both startup recovery and pod-death watcher. */
+  const resumeOrphanedThread = async (thread: Thread) => {
+    const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
+    if (!parsed.success) {
+      console.warn(
+        `[recovery] Invalid run_config for ${thread.id}, force-failing`,
+      );
+      await threadStorage.forceFailIfInProgress(
+        thread.id,
+        thread.organization_id,
+      );
+      return;
+    }
+    const config = parsed.data;
 
-        // Build context for the original user
-        const resumeCtx = await automationContextFactory(
-          thread.organization_id,
-          thread.created_by,
-        );
-        if (!resumeCtx) {
-          console.warn(
-            `[recovery] Cannot build context for ${thread.id}, force-failing`,
-          );
-          await threadStorage.forceFailIfInProgress(
-            thread.id,
-            thread.organization_id,
-          );
-          return;
-        }
+    // Build context for the original user
+    const resumeCtx = await automationContextFactory(
+      thread.organization_id,
+      thread.created_by,
+    );
+    if (!resumeCtx) {
+      console.warn(
+        `[recovery] Cannot build context for ${thread.id}, force-failing`,
+      );
+      await threadStorage.forceFailIfInProgress(
+        thread.id,
+        thread.organization_id,
+      );
+      return;
+    }
 
-        // Audit trail: record that this run was auto-resumed
-        const now = new Date().toISOString();
-        await threadStorage.saveMessages(
-          [
+    // Audit trail: record that this run was auto-resumed
+    const now = new Date().toISOString();
+    await threadStorage.saveMessages(
+      [
+        {
+          id: crypto.randomUUID(),
+          thread_id: thread.id,
+          role: "system",
+          parts: [
             {
-              id: crypto.randomUUID(),
-              thread_id: thread.id,
-              role: "system",
-              parts: [
-                {
-                  type: "text",
-                  text: "Run resumed automatically after infrastructure restart.",
-                },
-              ],
-              metadata: undefined,
-              created_at: now,
-              updated_at: now,
+              type: "text",
+              text: "Run resumed automatically after infrastructure restart.",
             },
           ],
-          thread.organization_id,
-        );
+          metadata: undefined,
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+      thread.organization_id,
+    );
 
-        const result = await streamCore(
-          {
-            messages: [],
-            models: toModelsConfig(config.models),
-            agent: config.agent,
-            temperature: config.temperature,
-            toolApprovalLevel: config.toolApprovalLevel,
-            organizationId: thread.organization_id,
-            userId: thread.created_by,
-            threadId: thread.id,
-            windowSize: config.windowSize,
-            isResume: true,
-          },
-          resumeCtx,
-          { runRegistry, cancelBroadcast },
-        );
-        await consumeStreamCore(result);
-      })
-      .catch((err) => {
-        console.error("[recovery] Orphan recovery failed:", err);
-      });
+    const result = await streamCore(
+      {
+        messages: [],
+        models: toModelsConfig(config.models),
+        agent: config.agent,
+        temperature: config.temperature,
+        toolApprovalLevel: config.toolApprovalLevel,
+        organizationId: thread.organization_id,
+        userId: thread.created_by,
+        threadId: thread.id,
+        windowSize: config.windowSize,
+        isResume: true,
+      },
+      resumeCtx,
+      { runRegistry, cancelBroadcast },
+    );
+    await consumeStreamCore(result);
+  };
+
+  // Wire pod death watcher → orphan recovery
+  if (podHeartbeat) {
+    podHeartbeat.onPodDeath((deadPodId) => {
+      runRegistry
+        .handlePodDeath(deadPodId, resumeOrphanedThread, cancelBroadcast)
+        .catch((err) => {
+          console.error(
+            `[Decopilot] Pod death recovery failed for ${deadPodId}:`,
+            err,
+          );
+        });
+    });
+  }
+
+  setTimeout(() => {
+    runRegistry.recoverOrphanedRuns(resumeOrphanedThread).catch((err) => {
+      console.error("[recovery] Orphan recovery failed:", err);
+    });
   }, 10_000); // 10s grace for rolling deploys
 
   // NDJSON monitoring retention cleanup (always — local files are always written)

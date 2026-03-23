@@ -182,6 +182,57 @@ export class RunRegistry {
     }
   }
 
+  /**
+   * Handle a dead pod notification from the heartbeat watcher. Finds all
+   * in-progress threads owned by the dead pod, broadcasts cancel (in case
+   * it's partitioned, not dead), then CAS-claims and resumes each orphan.
+   */
+  async handlePodDeath(
+    deadPodId: string,
+    resumeFn: (thread: Thread) => Promise<void>,
+    cancelBroadcast?: { broadcast(threadId: string): void },
+  ): Promise<void> {
+    const orphans = await this.deps.storage.listOrphanedRunsByPod(deadPodId);
+    if (orphans.length === 0) return;
+
+    console.log(
+      `[RunRegistry] Pod ${deadPodId} died, recovering ${orphans.length} orphans`,
+    );
+
+    // Cancel running threads on the dead pod (in case it's alive but partitioned)
+    for (const thread of orphans) {
+      cancelBroadcast?.broadcast(thread.id);
+    }
+
+    const CONCURRENCY = 5;
+    for (let i = 0; i < orphans.length; i += CONCURRENCY) {
+      const batch = orphans.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map(async (thread) => {
+          if (this.isRunning(thread.id)) return;
+          const claimed = await this.deps.storage.claimOrphanedRun(
+            thread.id,
+            thread.organization_id,
+            this.podId,
+          );
+          if (!claimed) return;
+
+          console.log(
+            `[RunRegistry] Resuming orphan ${thread.id} from dead pod ${deadPodId}`,
+          );
+          try {
+            await resumeFn(thread);
+          } catch (err) {
+            console.error(`[RunRegistry] Failed to resume ${thread.id}:`, err);
+            await this.deps.storage
+              .forceFailIfInProgress(thread.id, thread.organization_id)
+              .catch(() => {});
+          }
+        }),
+      );
+    }
+  }
+
   /** Stop the reaper timer. Call once during server shutdown. */
   dispose(): void {
     if (this.reaperTimer) {

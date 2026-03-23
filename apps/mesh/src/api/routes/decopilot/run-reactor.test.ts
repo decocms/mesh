@@ -1,5 +1,5 @@
 import { describe, it, expect, mock } from "bun:test";
-import { reactAll } from "./run-reactor";
+import { reactAll, RunClaimError } from "./run-reactor";
 import type { RunReactorDeps } from "./run-reactor";
 import type { RunTransition } from "./run-state";
 import type { StreamBuffer } from "./stream-buffer";
@@ -21,7 +21,9 @@ function makeDeps(): RunReactorDeps {
       listByTriggerIds: mock(() => Promise.resolve({ threads: [], total: 0 })),
       forceFailIfInProgress: mock(() => Promise.resolve(true)),
       claimOrphanedRun: mock(() => Promise.resolve(false)),
+      claimRunStart: mock(() => Promise.resolve(true)),
       listOrphanedRuns: mock(() => Promise.resolve([])),
+      listOrphanedRunsByPod: mock(() => Promise.resolve([])),
       orphanRunsByPod: mock(() => Promise.resolve([])),
     },
     streamBuffer: { purge: mock(() => {}) } as unknown as StreamBuffer,
@@ -49,7 +51,7 @@ function makeRunningState(threadId = "t1", orgId = "org1") {
 
 describe("reactAll", () => {
   describe("RUN_STARTED", () => {
-    it("calls storage.update with in_progress and emits 1 SSE event", async () => {
+    it("calls storage.claimRunStart with CAS and emits 1 SSE event", async () => {
       const deps = makeDeps();
       const pairs: RunTransition[] = [
         {
@@ -66,15 +68,44 @@ describe("reactAll", () => {
 
       await reactAll(pairs, deps);
 
-      expect(deps.storage.update).toHaveBeenCalledTimes(1);
-      expect(deps.storage.update).toHaveBeenCalledWith("t1", "org1", {
-        status: "in_progress",
-        run_owner_pod: null,
-        run_config: null,
-        run_started_at: null,
-      });
+      expect(deps.storage.claimRunStart).toHaveBeenCalledTimes(1);
+      expect(deps.storage.claimRunStart).toHaveBeenCalledWith(
+        "t1",
+        "org1",
+        {
+          status: "in_progress",
+          run_owner_pod: null,
+          run_config: null,
+          run_started_at: null,
+        },
+        null,
+      );
+      expect(deps.storage.update).not.toHaveBeenCalled();
       expect(deps.sseHub.emit).toHaveBeenCalledTimes(1);
       expect(deps.streamBuffer.purge).not.toHaveBeenCalled();
+    });
+
+    it("throws RunClaimError when claimRunStart returns false", async () => {
+      const deps = makeDeps();
+      (
+        deps.storage.claimRunStart as ReturnType<typeof mock>
+      ).mockImplementationOnce(() => Promise.resolve(false));
+
+      const pairs: RunTransition[] = [
+        {
+          event: {
+            type: "RUN_STARTED",
+            threadId: "t1",
+            orgId: "org1",
+            userId: "u1",
+            abortController: new AbortController(),
+          },
+          state: makeRunningState(),
+        },
+      ];
+
+      await expect(reactAll(pairs, deps)).rejects.toThrow(RunClaimError);
+      expect(deps.sseHub.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -345,10 +376,10 @@ describe("reactAll", () => {
   describe("reactAll error propagation", () => {
     it("stops on first thrown error and does not process subsequent events", async () => {
       const deps = makeDeps();
-      // Make the first storage.update throw
-      (deps.storage.update as ReturnType<typeof mock>).mockImplementationOnce(
-        () => Promise.reject(new Error("DB error")),
-      );
+      // Make the first claimRunStart throw
+      (
+        deps.storage.claimRunStart as ReturnType<typeof mock>
+      ).mockImplementationOnce(() => Promise.reject(new Error("DB error")));
 
       const pairs: RunTransition[] = [
         {
@@ -376,7 +407,8 @@ describe("reactAll", () => {
 
       // Only the first event was processed — RUN_COMPLETED would call
       // storage.update a second time and emit 2 SSE events if it ran.
-      expect(deps.storage.update).toHaveBeenCalledTimes(1);
+      expect(deps.storage.claimRunStart).toHaveBeenCalledTimes(1);
+      expect(deps.storage.update).not.toHaveBeenCalled();
       expect(deps.sseHub.emit).not.toHaveBeenCalled();
     });
   });
