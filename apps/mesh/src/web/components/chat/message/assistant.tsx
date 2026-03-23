@@ -199,6 +199,9 @@ function MessagePart({
 
   switch (part.type) {
     case "dynamic-tool":
+      if (/connection.authenticate$/i.test(part.toolName)) {
+        return <ConnectionAuthPart part={part as unknown as ToolUIPart} />;
+      }
       return (
         <GenericToolCallPart
           part={part}
@@ -274,7 +277,7 @@ function MessagePart({
       }
       if (fallback.type.startsWith("tool-")) {
         // Tool path: CONNECTION_AUTHENTICATE tool calls render as auth cards
-        if (fallback.type === "tool-CONNECTION_AUTHENTICATE") {
+        if (/connection.authenticate$/i.test(fallback.type)) {
           return <ConnectionAuthPart part={fallback} />;
         }
         const toolCallId = (fallback as ToolUIPart).toolCallId;
