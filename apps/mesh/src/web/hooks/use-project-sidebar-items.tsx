@@ -3,6 +3,9 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
+import type { ProjectUI } from "@/storage/types";
+import { useSlideSidebarItems } from "./use-slide-sidebar-items.tsx";
+import { useWebsiteSidebarItems } from "./use-website-sidebar-items.tsx";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart10,
@@ -253,6 +256,26 @@ export function useProjectSidebarItems(options?: {
           },
         }
       : null;
+
+  // Workspace-type-driven sidebar strategies
+  const workspaceType = (projectData?.ui as ProjectUI | null | undefined)
+    ?.workspaceType;
+
+  if (workspaceType === "slides") {
+    return useSlideSidebarItems({ homeItem, org, project, isActiveRoute });
+  }
+
+  if (workspaceType === "website") {
+    return useWebsiteSidebarItems({
+      homeItem,
+      org,
+      project,
+      isActiveRoute,
+      enabledPlugins,
+      pluginGroupSections,
+      pinnedViewsSection,
+    });
+  }
 
   if (isOrgAdminProject) {
     // Org-admin sidebar layout:

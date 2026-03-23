@@ -6,6 +6,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
@@ -14,14 +15,46 @@ import {
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
 import { ChevronDown, ChevronRight, Plus } from "@untitledui/icons";
-import { useProjectContext } from "@decocms/mesh-sdk";
-import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { useProjects } from "@/web/hooks/use-projects";
-import { useCreateProject } from "@/web/hooks/use-create-project";
-import { AgentAvatar } from "@/web/components/agent-icon";
+import { ORG_ADMIN_PROJECT_SLUG, useProjectContext } from "@decocms/mesh-sdk";
+import { useProjects, type ProjectWithBindings } from "@/web/hooks/use-project";
+import { CreateWorkspaceDialog } from "@/web/components/create-workspace-dialog";
 import { cn } from "@deco/ui/lib/utils.ts";
+import type { ProjectUI } from "@/storage/types";
 
-function ProjectListItem({ project }: { project: VirtualMCPEntity }) {
+function ProjectIcon({
+  project,
+}: {
+  project: ProjectWithBindings & { organizationId: string };
+}) {
+  const themeColor = project.ui?.themeColor ?? "#60a5fa";
+
+  if (project.ui?.icon) {
+    return (
+      <img
+        src={project.ui.icon}
+        alt=""
+        className="size-4 rounded object-cover border border-border/50"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="size-4 rounded flex items-center justify-center border border-border/50"
+      style={{ backgroundColor: themeColor }}
+    >
+      <span className="text-[10px] font-medium text-white">
+        {project.name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
+function ProjectListItem({
+  project,
+}: {
+  project: ProjectWithBindings & { organizationId: string };
+}) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
@@ -30,15 +63,15 @@ function ProjectListItem({ project }: { project: VirtualMCPEntity }) {
       <SidebarMenuButton
         onClick={() => {
           navigate({
-            to: "/$org/projects/$virtualMcpId",
-            params: { org: org.slug, virtualMcpId: project.id },
+            to: "/$org/$project",
+            params: { org: org.slug, project: project.slug },
           });
         }}
-        tooltip={project.title}
+        tooltip={project.name}
       >
-        <AgentAvatar icon={project.icon} name={project.title} size="xs" />
+        <ProjectIcon project={project} />
         <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
-          {project.title}
+          {project.name}
         </span>
         <ChevronRight
           size={12}
@@ -49,10 +82,93 @@ function ProjectListItem({ project }: { project: VirtualMCPEntity }) {
   );
 }
 
+/** Group projects by workspaceType with type-labeled sections */
+function groupByType(
+  projects: Array<ProjectWithBindings & { organizationId: string }>,
+): Array<{
+  type: string;
+  label: string;
+  projects: Array<ProjectWithBindings & { organizationId: string }>;
+}> {
+  const groups: Record<
+    string,
+    Array<ProjectWithBindings & { organizationId: string }>
+  > = {};
+
+  for (const p of projects) {
+    const wt = (p.ui as ProjectUI | null)?.workspaceType ?? "other";
+    if (!groups[wt]) groups[wt] = [];
+    groups[wt].push(p);
+  }
+
+  // Define display order: typed groups first, then "other"
+  const order = ["slides", "website", "other"];
+  const labels: Record<string, string> = {
+    slides: "Decks",
+    website: "Sites",
+    other: "Projects",
+  };
+
+  const result: Array<{
+    type: string;
+    label: string;
+    projects: Array<ProjectWithBindings & { organizationId: string }>;
+  }> = [];
+
+  for (const key of order) {
+    if (groups[key] && groups[key].length > 0) {
+      result.push({
+        type: key,
+        label: labels[key] ?? key,
+        projects: groups[key],
+      });
+    }
+  }
+
+  // Add any types not in the predefined order
+  for (const [key, items] of Object.entries(groups)) {
+    if (!order.includes(key) && items.length > 0) {
+      result.push({ type: key, label: key, projects: items });
+    }
+  }
+
+  return result;
+}
+
 function ProjectsSectionContent() {
-  const projects = useProjects();
+  const { org } = useProjectContext();
+  const { data: projects, isLoading } = useProjects(org.id);
   const [isOpen, setIsOpen] = useState(true);
-  const { createProject } = useCreateProject();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Filter out org-admin project
+  const userProjects =
+    projects?.filter((p) => p.slug !== ORG_ADMIN_PROJECT_SLUG) ?? [];
+
+  const groups = groupByType(userProjects);
+
+  if (isLoading) {
+    return (
+      <SidebarGroup className="py-0 px-0">
+        <SidebarGroupContent>
+          <SidebarMenu className="gap-0.5">
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2 py-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 flex-1" />
+              </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2 py-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 flex-1" />
+              </div>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
 
   return (
     <>
@@ -70,7 +186,7 @@ function ProjectsSectionContent() {
                         className="flex flex-1 items-center gap-1 cursor-pointer min-w-0"
                       >
                         <span className="text-xs font-medium text-muted-foreground">
-                          Projects
+                          Workspaces
                         </span>
                         <ChevronDown
                           size={12}
@@ -83,8 +199,8 @@ function ProjectsSectionContent() {
                     </CollapsibleTrigger>
                     <button
                       type="button"
-                      onClick={createProject}
-                      title="Create new project"
+                      onClick={() => setCreateDialogOpen(true)}
+                      title="Create new workspace"
                       className="opacity-0 group-hover/projects-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center h-4 rounded shrink-0"
                     >
                       <Plus size={16} />
@@ -92,17 +208,33 @@ function ProjectsSectionContent() {
                   </div>
                 </SidebarMenuItem>
 
-                {/* Project List */}
+                {/* Grouped Project Lists */}
                 <CollapsibleContent>
-                  {projects.length === 0 ? (
+                  {userProjects.length === 0 ? (
                     <SidebarMenuItem>
                       <div className="px-2 py-2 text-xs text-muted-foreground">
-                        No projects yet
+                        No workspaces yet
                       </div>
                     </SidebarMenuItem>
                   ) : (
-                    projects.map((project) => (
-                      <ProjectListItem key={project.id} project={project} />
+                    groups.map((group, groupIndex) => (
+                      <div key={group.type}>
+                        {/* Type divider (between groups, not before the first) */}
+                        {groupIndex > 0 && (
+                          <SidebarSeparator className="my-1.5" />
+                        )}
+                        {/* Type label (only show when multiple groups exist) */}
+                        {groups.length > 1 && (
+                          <div className="px-2 py-1">
+                            <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">
+                              {group.label}
+                            </span>
+                          </div>
+                        )}
+                        {group.projects.map((project) => (
+                          <ProjectListItem key={project.id} project={project} />
+                        ))}
+                      </div>
                     ))
                   )}
                 </CollapsibleContent>
@@ -111,6 +243,11 @@ function ProjectsSectionContent() {
           </SidebarGroup>
         </Collapsible>
       </div>
+
+      <CreateWorkspaceDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </>
   );
 }
