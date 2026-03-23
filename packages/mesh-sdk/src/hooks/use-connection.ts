@@ -12,8 +12,6 @@ import {
   useCollectionActions,
   useCollectionItem,
   useCollectionList,
-  useCollectionListAsync,
-  useCollectionListInfinite,
   type UseCollectionListOptions,
 } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
@@ -42,42 +40,6 @@ export function useConnections(options: UseConnectionsOptions = {}) {
     orgId: org.id,
   });
   return useCollectionList<ConnectionEntity>(
-    org.id,
-    "CONNECTIONS",
-    client,
-    options,
-  );
-}
-
-/**
- * Non-suspense variant of useConnections for background/lazy loading.
- * Returns { data, isLoading } instead of blocking render.
- */
-export function useConnectionsAsync(options: UseConnectionsOptions = {}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  return useCollectionListAsync<ConnectionEntity>(
-    org.id,
-    "CONNECTIONS",
-    client,
-    options,
-  );
-}
-
-/**
- * Infinite-scroll variant of useConnections.
- * Loads connections in pages of 20, with loadMore/hasMore for scroll-driven pagination.
- */
-export function useConnectionsInfinite(options: UseConnectionsOptions = {}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  return useCollectionListInfinite<ConnectionEntity>(
     org.id,
     "CONNECTIONS",
     client,
