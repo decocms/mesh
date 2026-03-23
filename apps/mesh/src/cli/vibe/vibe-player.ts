@@ -1,5 +1,5 @@
 import { join } from "path";
-import { mkdirSync } from "fs";
+import { mkdirSync, readdirSync } from "fs";
 import playlist from "./playlist.json";
 
 interface Track {
@@ -43,15 +43,34 @@ function pickRandom(): Track {
   return tracks[Math.floor(Math.random() * tracks.length)]!;
 }
 
-async function playTrack(dataDir: string, gen: number) {
+function findCachedTrack(soundsDir: string): string | null {
+  try {
+    const files = readdirSync(soundsDir).filter((f) => f.endsWith(".mp3"));
+    if (files.length === 0) return null;
+    return join(soundsDir, files[Math.floor(Math.random() * files.length)]!);
+  } catch {
+    return null;
+  }
+}
+
+async function playTrack(dataDir: string, gen: number, preferCached: boolean) {
   if (!playing || gen !== generation) return;
 
-  const track = pickRandom();
   const soundsDir = join(dataDir, "sounds");
   mkdirSync(soundsDir, { recursive: true });
 
   try {
-    const filePath = await downloadIfNeeded(track, soundsDir);
+    let filePath: string | null = null;
+
+    if (preferCached) {
+      filePath = findCachedTrack(soundsDir);
+    }
+
+    if (!filePath) {
+      const track = pickRandom();
+      filePath = await downloadIfNeeded(track, soundsDir);
+    }
+
     if (!playing || gen !== generation) return;
 
     currentProcess = Bun.spawn(["afplay", filePath], {
@@ -63,7 +82,7 @@ async function playTrack(dataDir: string, gen: number) {
     consecutiveFailures = 0;
 
     if (playing && gen === generation) {
-      playTrack(dataDir, gen);
+      playTrack(dataDir, gen, false);
     }
   } catch {
     consecutiveFailures++;
@@ -72,7 +91,7 @@ async function playTrack(dataDir: string, gen: number) {
       return;
     }
     if (playing && gen === generation) {
-      setTimeout(() => playTrack(dataDir, gen), 2000);
+      setTimeout(() => playTrack(dataDir, gen, false), 2000);
     }
   }
 }
@@ -84,7 +103,7 @@ export function startVibe(dataDir: string): void {
   playing = true;
   consecutiveFailures = 0;
   generation++;
-  playTrack(dataDir, generation);
+  playTrack(dataDir, generation, true);
 
   if (!cleanupRegistered) {
     cleanupRegistered = true;
