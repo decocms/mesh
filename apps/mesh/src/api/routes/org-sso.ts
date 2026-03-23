@@ -10,6 +10,7 @@
 import { Hono } from "hono";
 import { setCookie, getCookie } from "hono/cookie";
 import * as jose from "jose";
+import { env } from "../../env";
 import type { MeshContext } from "../../core/mesh-context";
 import { ADMIN_ROLES } from "../../auth/roles";
 
@@ -458,6 +459,56 @@ const discoveryCache = new Map<
   { doc: OIDCDiscovery; expiresAt: number }
 >();
 
+/**
+ * Validate that a URL is safe for server-side fetching (SSRF prevention).
+ * Enforces HTTPS in production and blocks private/link-local IP ranges.
+ */
+function validateOIDCUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid URL: ${url}`);
+  }
+
+  // Enforce HTTPS in production (allow HTTP for local dev)
+  const allowHttp = env.NODE_ENV !== "production";
+  if (
+    parsed.protocol !== "https:" &&
+    !(allowHttp && parsed.protocol === "http:")
+  ) {
+    throw new Error(`OIDC URL must use HTTPS: ${url}`);
+  }
+
+  // Block private and link-local IP ranges
+  const host = parsed.hostname;
+  const privatePatterns = [
+    /^127\./, // loopback (allow in dev below)
+    /^10\./, // 10.0.0.0/8
+    /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12
+    /^192\.168\./, // 192.168.0.0/16
+    /^169\.254\./, // link-local (cloud metadata)
+    /^0\./, // 0.0.0.0/8
+    /^\[::1\]$/, // IPv6 loopback
+    /^\[fd/, // IPv6 unique local
+    /^\[fe80:/, // IPv6 link-local
+  ];
+
+  // Allow loopback in dev for local OIDC providers (e.g. Keycloak)
+  const isLoopback = /^127\.|^\[::1\]$|^localhost$/i.test(host);
+  if (allowHttp && isLoopback) {
+    return;
+  }
+
+  for (const pattern of privatePatterns) {
+    if (pattern.test(host)) {
+      throw new Error(
+        `OIDC URL must not point to a private network address: ${host}`,
+      );
+    }
+  }
+}
+
 async function discoverOIDC(
   issuer: string,
   discoveryEndpoint?: string | null,
@@ -472,6 +523,8 @@ async function discoverOIDC(
     discoveryEndpoint ||
     `${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
 
+  validateOIDCUrl(url);
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(
@@ -484,6 +537,11 @@ async function discoverOIDC(
   if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri) {
     throw new Error("OIDC discovery document missing required endpoints");
   }
+
+  // Validate all endpoints from the discovery document against SSRF
+  validateOIDCUrl(doc.authorization_endpoint);
+  validateOIDCUrl(doc.token_endpoint);
+  validateOIDCUrl(doc.jwks_uri);
 
   // Cache for 1 hour
   discoveryCache.set(cacheKey, {
