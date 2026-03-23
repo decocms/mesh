@@ -46,6 +46,7 @@ import * as migration044dropconnectionstoolscolumn from "./044-drop-connections-
 import * as migration045threadcontextstartmessage from "./045-thread-context-start-message.ts";
 import * as migration046removeobjectstorageplugin from "./046-remove-object-storage-plugin.ts";
 import * as migration047addnextrunat from "./047-add-next-run-at.ts";
+import * as migration048backfillisregistrymetadata from "./048-backfill-is-registry-metadata.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -106,6 +107,7 @@ const migrations: Record<string, Migration> = {
   "045-thread-context-start-message": migration045threadcontextstartmessage,
   "046-remove-object-storage-plugin": migration046removeobjectstorageplugin,
   "047-add-next-run-at": migration047addnextrunat,
+  "048-backfill-is-registry-metadata": migration048backfillisregistrymetadata,
 };
 
 export default migrations;

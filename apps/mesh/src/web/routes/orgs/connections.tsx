@@ -875,13 +875,11 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Fetch all connections with tools for the "All" tab.
-  // Tools are needed for registry discovery (useRegistryConnections) until all
-  // existing connections are re-saved with the metadata.is_registry flag.
+  // Fetch all connections (without tools) for the "All" tab.
+  // Registry discovery uses metadata.is_registry flag backfilled by migration 048.
   const needsStore = activeTab === "all" || !!listState.searchTerm;
   const { data: allConnectionsData, isLoading: isLoadingTools } =
     useConnectionsAsync({
-      extraArguments: { include_tools: true },
       enabled: needsStore,
     });
   const allConnections = allConnectionsData ?? connections;
