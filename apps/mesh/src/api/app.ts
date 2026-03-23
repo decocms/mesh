@@ -15,7 +15,6 @@ import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { endTime, startTime, timing } from "hono/timing";
 import { auth } from "../auth";
 import {
@@ -370,9 +369,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
   });
 
-  if (env.NODE_ENV === "production") {
-    app.use("*", logger());
-  } else {
+  if (process.env.DECO_NO_TUI !== "true") {
     app.use("*", devLogger());
   }
 
