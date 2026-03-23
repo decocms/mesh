@@ -875,22 +875,20 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Fetch connections with tools only when the "All" tab (store) needs it.
-  // This query discovers which connections are registries and provides catalog badges.
-  // On the "Connected" tab it's skipped entirely — only the paginated query above runs.
+  // Fetch all connections (without tools) for the "All" tab.
+  // Registry discovery uses metadata.is_registry flag set at create/update time.
   const needsStore = activeTab === "all" || !!listState.searchTerm;
-  const { data: connectionsWithTools, isLoading: isLoadingTools } =
+  const { data: allConnectionsData, isLoading: isLoadingTools } =
     useConnectionsAsync({
-      extraArguments: { include_tools: true },
       enabled: needsStore,
     });
-  const allConnections = connectionsWithTools ?? connections;
+  const allConnections = allConnectionsData ?? connections;
 
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
   // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
   // Deco Store / MCP Registry should be the default catalog source.
   const registryConnections = useRegistryConnections(
-    connectionsWithTools ?? [],
+    allConnectionsData ?? [],
   ).sort((a, b) => {
     const isSelfA = a.app_name === "@deco/management-mcp";
     const isSelfB = b.app_name === "@deco/management-mcp";

@@ -17,6 +17,22 @@ import type {
 import { isStdioParameters } from "./schema";
 
 /**
+ * Check if a set of tools indicates the connection is a registry/store.
+ * A registry exposes COLLECTION_REGISTRY_APP_LIST or REGISTRY_ITEM_LIST tools.
+ */
+export function hasRegistryTools(
+  tools: ToolDefinition[] | null | undefined,
+): boolean {
+  if (!tools || tools.length === 0) return false;
+  return tools.some(
+    (t) =>
+      t.name === "COLLECTION_REGISTRY_APP_LIST" ||
+      t.name === "REGISTRY_ITEM_LIST" ||
+      t.name.startsWith("COLLECTION_REGISTRY_APP_"),
+  );
+}
+
+/**
  * Minimal connection data needed for tool fetching
  */
 export interface ConnectionForToolFetch {

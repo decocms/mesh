@@ -20,7 +20,7 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { getMcpListCache } from "../../mcp-clients/mcp-list-cache";
-import { fetchToolsFromMCP } from "./fetch-tools";
+import { fetchToolsFromMCP, hasRegistryTools } from "./fetch-tools";
 import { prop } from "./json-path";
 import {
   buildVirtualUrl,
@@ -274,7 +274,13 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       organization.id,
     );
 
+    // Detect if this connection is a registry/store based on its tools
+    const is_registry = hasRegistryTools(tools);
+
     // Update the connection with the refreshed tools and configuration
+    const existingMetadata =
+      (existing.metadata as Record<string, unknown>) ?? {};
+    const incomingMetadata = (data.metadata as Record<string, unknown>) ?? {};
     const updatePayload: Partial<ConnectionEntity> = {
       ...data,
       connection_url: finalConnectionUrl,
@@ -282,6 +288,11 @@ export const COLLECTION_CONNECTIONS_UPDATE = defineTool({
       configuration_state: finalState,
       configuration_scopes: finalScopes,
       updated_by: userId,
+      metadata: {
+        ...existingMetadata,
+        ...incomingMetadata,
+        ...(is_registry ? { is_registry: true } : { is_registry: false }),
+      },
     };
     const connection = await ctx.storage.connections.update(id, updatePayload);
 
