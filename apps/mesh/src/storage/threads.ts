@@ -453,6 +453,27 @@ export class SqlThreadStorage implements ThreadStoragePort {
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }
 
+  /**
+   * Claim a run that is still owned by a different (presumably crashed) pod.
+   * CAS: only succeeds if run_owner_pod still equals stalePodId.
+   */
+  async claimStaleRun(
+    threadId: string,
+    organizationId: string,
+    newPodId: string,
+    stalePodId: string,
+  ): Promise<boolean> {
+    const result = await this.db
+      .updateTable("threads")
+      .set({ run_owner_pod: newPodId, updated_at: new Date().toISOString() })
+      .where("id", "=", threadId)
+      .where("organization_id", "=", organizationId)
+      .where("status", "=", "in_progress")
+      .where("run_owner_pod", "=", stalePodId)
+      .executeTakeFirst();
+    return (result?.numUpdatedRows ?? 0n) > 0n;
+  }
+
   async listOrphanedRuns(): Promise<Thread[]> {
     const rows = await this.db
       .selectFrom("threads")

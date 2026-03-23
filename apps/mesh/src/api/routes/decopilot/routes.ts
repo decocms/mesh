@@ -251,13 +251,27 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
     try {
       const { threadId, thread, organization } = await validateThreadAccess(c);
 
+      console.log("[decopilot:attach] Entry", {
+        threadId,
+        threadStatus: thread.status,
+        runOwnerPod: thread.run_owner_pod,
+        createdBy: thread.created_by,
+        hasRunConfig: !!thread.run_config,
+        isRunning: runRegistry.isRunning(threadId),
+      });
+
       // ── Fast path: run is active on this pod → replay buffer ──
       if (runRegistry.isRunning(threadId)) {
         const replayChunkStream =
           await streamBuffer.createReplayStream(threadId);
         if (!replayChunkStream) {
+          console.log("[decopilot:attach] Running but no replay stream", {
+            threadId,
+          });
           return c.body(null, 204);
         }
+
+        console.log("[decopilot:attach] Replaying active run", { threadId });
 
         const replayStream = createUIMessageStream({
           execute: async ({ writer }) => {
@@ -285,16 +299,29 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       const userId = ctx.auth?.user?.id;
 
       // Not in_progress → nothing to resume
-      if (thread.status !== "in_progress") return c.body(null, 204);
-
-      // Still owned by a pod → not orphaned (pod may be on another node)
-      if (thread.run_owner_pod !== null) return c.body(null, 204);
+      if (thread.status !== "in_progress") {
+        console.log("[decopilot:attach] 204: not in_progress", {
+          threadId,
+          status: thread.status,
+        });
+        return c.body(null, 204);
+      }
 
       // Only the thread owner can trigger orphan resume
-      if (thread.created_by !== userId) return c.body(null, 204);
+      if (thread.created_by !== userId) {
+        console.log("[decopilot:attach] 204: not thread owner", {
+          threadId,
+          createdBy: thread.created_by,
+          userId,
+        });
+        return c.body(null, 204);
+      }
 
       // No persisted config → can't resume; force-fail so user can retry
       if (!thread.run_config) {
+        console.log("[decopilot:attach] 204: no run_config, force-failing", {
+          threadId,
+        });
         await threadStorage.forceFailIfInProgress(threadId, organization.id);
         return c.body(null, 204);
       }
@@ -302,6 +329,10 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       // Validate stored config (schema drift protection)
       const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
       if (!parsed.success) {
+        console.log(
+          "[decopilot:attach] 204: invalid run_config, force-failing",
+          { threadId, errors: parsed.error.issues },
+        );
         await threadStorage.forceFailIfInProgress(threadId, organization.id);
         return c.body(null, 204);
       }
@@ -321,16 +352,43 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           config.models.thinking.id,
         )
       ) {
+        console.log("[decopilot:attach] 204: model permission denied", {
+          threadId,
+          credentialId: config.models.credentialId,
+          modelId: config.models.thinking.id,
+          role: ctx.auth.user?.role,
+        });
         return c.body(null, 204);
       }
 
-      // Atomic CAS claim — another pod may beat us
-      const claimed = await threadStorage.claimOrphanedRun(
+      // Atomic CAS claim — handles both orphaned (null) and stale-pod cases
+      const stalePodId = thread.run_owner_pod;
+      const claimed = stalePodId
+        ? await threadStorage.claimStaleRun(
+            threadId,
+            organization.id,
+            POD_ID,
+            stalePodId,
+          )
+        : await threadStorage.claimOrphanedRun(
+            threadId,
+            organization.id,
+            POD_ID,
+          );
+      if (!claimed) {
+        console.log("[decopilot:attach] 204: CAS claim failed", {
+          threadId,
+          podId: POD_ID,
+          stalePodId,
+        });
+        return c.body(null, 204);
+      }
+
+      console.log("[decopilot:attach] Orphan claimed, resuming", {
         threadId,
-        organization.id,
-        POD_ID,
-      );
-      if (!claimed) return c.body(null, 204);
+        podId: POD_ID,
+        previousPod: stalePodId,
+      });
 
       // Resume the run — identity from auth context, NOT stored config
       const result = await streamCore(
