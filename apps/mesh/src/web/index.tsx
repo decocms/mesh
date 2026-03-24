@@ -186,13 +186,6 @@ const orgHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-// Tasks
-const tasksRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/tasks",
-  component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
-});
-
 // Projects list
 const projectsListRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -380,13 +373,6 @@ const projectHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-// Project tasks
-const projectTasksRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/tasks",
-  component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
-});
-
 // Project settings — layout for /$org/projects/$virtualMcpId/settings/*
 const projectSettingsRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
@@ -556,7 +542,6 @@ const projectSettingsWithChildren = projectSettingsRoute.addChildren([
 
 const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectHomeRoute,
-  projectTasksRoute,
   projectSettingsWithChildren,
   projectAppViewRoute,
   workflowsRoute,
@@ -565,7 +550,6 @@ const virtualMcpWithChildren = virtualMcpLayout.addChildren([
 
 const orgRoutes = [
   orgHomeRoute,
-  tasksRoute,
   projectsListRoute,
   membersRoute,
   connectionsRoute,

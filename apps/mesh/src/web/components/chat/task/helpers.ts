@@ -12,8 +12,16 @@ export async function callUpdateTaskTool(
   data: ThreadUpdateData,
 ): Promise<Task | null> {
   if (!client) {
+    console.error("[chat] callUpdateTaskTool: MCP client is null", {
+      taskId,
+      data,
+    });
     throw new Error("MCP client is not available");
   }
+  console.log("[chat] callUpdateTaskTool: calling COLLECTION_THREADS_UPDATE", {
+    taskId,
+    data,
+  });
   const result = (await client.callTool({
     name: "COLLECTION_THREADS_UPDATE",
     arguments: {
@@ -23,6 +31,11 @@ export async function callUpdateTaskTool(
   })) as { structuredContent?: unknown };
   const payload = (result.structuredContent ??
     result) as CollectionUpdateOutput<Task>;
+  console.log("[chat] callUpdateTaskTool: result", {
+    taskId,
+    hasItem: !!payload.item,
+    isError: (result as { isError?: boolean }).isError,
+  });
   return payload.item;
 }
 

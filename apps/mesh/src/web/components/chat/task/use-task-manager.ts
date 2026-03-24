@@ -32,11 +32,7 @@ import {
   updateMessagesCache,
   updateTaskInCache,
 } from "./cache-operations.ts";
-import {
-  buildOptimisticTask,
-  callUpdateTaskTool,
-  findNextAvailableTask,
-} from "./helpers.ts";
+import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task, TasksInfiniteQueryData } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -368,41 +364,51 @@ export function useTaskManager() {
    * Calls backend to hide task, switches away if it's the current task, and updates cache
    */
   const hideTask = async (taskId: string) => {
+    console.log("[chat] taskManager.hideTask called", {
+      taskId,
+      activeTaskId,
+      clientAvailable: !!client,
+      taskExists: tasks.some((t) => t.id === taskId),
+      taskCount: tasks.length,
+    });
     try {
       const updatedTask = await callUpdateTaskTool(client, taskId, {
         hidden: true,
       });
-      if (updatedTask) {
-        const willHideCurrentTask = taskId === activeTaskId;
-        if (willHideCurrentTask) {
-          // Find a different task to switch to
-          const nextTask = findNextAvailableTask(tasks, taskId);
-          if (nextTask) {
-            // Switch to existing task with cache prefilling
-            await switchToTask(nextTask.id);
-          } else {
-            // Create new task if no other tasks exist
-            createTask();
-          }
-        }
-        // Update task hidden status in cache
-        updateTaskInCache(
-          queryClient,
-          locator,
-          taskId,
-          {
-            hidden: true,
-            updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-          },
-          ownerFilter,
-          ownerFilter === "me" ? userId : undefined,
+      console.log("[chat] taskManager.hideTask: backend response", {
+        taskId,
+        success: !!updatedTask,
+      });
+      if (!updatedTask) {
+        // Frontend-only thread (never sent a message) — no backend record.
+        // Still remove it from cache so the UI hides it.
+        console.log(
+          "[chat] taskManager.hideTask: frontend-only task, hiding from cache",
+          { taskId },
         );
       }
     } catch (error) {
       const err = error as Error;
+      console.error("[chat] taskManager.hideTask: FAILED", {
+        taskId,
+        error: err.message,
+      });
       toast.error(`Failed to update task: ${err.message}`);
-      console.error("[chat] Failed to update task:", error);
+      return;
     }
+
+    // Update cache and switch away regardless of whether the backend had a record
+    updateTaskInCache(
+      queryClient,
+      locator,
+      taskId,
+      {
+        hidden: true,
+        updated_at: new Date().toISOString(),
+      },
+      ownerFilter,
+      ownerFilter === "me" ? userId : undefined,
+    );
   };
 
   /**

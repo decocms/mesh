@@ -308,7 +308,26 @@ class ChatStore {
   }
 
   async hideTask(taskId: string): Promise<void> {
+    const wasActive = taskId === this.state.activeThreadId;
+    console.log("[chat] hideTask", {
+      taskId,
+      wasActive,
+      activeThreadId: this.state.activeThreadId,
+      threadCount: this.state.threads.length,
+      visibleThreads: this.state.threads.filter((t) => !t.hidden).length,
+    });
     await this.hideTaskFn?.(taskId);
+    console.log("[chat] hideTask: backend call completed", { taskId });
+    if (wasActive) {
+      const next = this.state.threads.find((t) => t.id !== taskId && !t.hidden);
+      if (next) {
+        console.log("[chat] hideTask: switching to next thread", next.id);
+        this.setActiveThread(next.id);
+      } else {
+        console.log("[chat] hideTask: no visible threads, creating new one");
+        this.createThread();
+      }
+    }
   }
 
   async renameTask(taskId: string, title: string): Promise<void> {
