@@ -19,7 +19,12 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { ChevronDown, DotsHorizontal, Plus } from "@untitledui/icons";
+import {
+  ChevronDown,
+  DotsHorizontal,
+  Plus,
+  Settings01,
+} from "@untitledui/icons";
 import {
   useProjectContext,
   useVirtualMCPActions,
@@ -43,7 +48,7 @@ function SpaceListItem({
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip={space.title}
-        className="h-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
+        className="h-9 pr-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
         onClick={() =>
           navigate({
             to: "/$org/spaces/$virtualMcpId",
@@ -55,6 +60,20 @@ function SpaceListItem({
         <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
           {space.title}
         </span>
+        <button
+          type="button"
+          title="Settings"
+          className="opacity-0 group-hover/menu-item:opacity-100 shrink-0 text-muted-foreground hover:text-foreground transition-opacity group-data-[collapsible=icon]:hidden"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate({
+              to: "/$org/spaces/$virtualMcpId/settings",
+              params: { org, virtualMcpId: space.id },
+            });
+          }}
+        >
+          <Settings01 size={14} />
+        </button>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
