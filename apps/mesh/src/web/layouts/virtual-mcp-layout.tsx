@@ -17,6 +17,7 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 
 import { useChatStable } from "@/web/components/chat/context";
+import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 
 /**
  * Inner component that fetches virtual MCP data and provides project context.
@@ -35,6 +36,7 @@ function VirtualMCPLayoutContent() {
   const match = spacesMatch ?? projectsMatch;
   const { org } = useProjectContext();
   const { setVirtualMcpId } = useChatStable();
+  const [, setTasksOpen] = useDecoTasksOpen();
   const navigate = useNavigate();
 
   const orgSlug = match?.params.org ?? "";
@@ -43,11 +45,12 @@ function VirtualMCPLayoutContent() {
   // Fetch using the same SDK hook as agent-detail (suspense-based)
   const entity = useVirtualMCP(virtualMcpId);
 
-  // Select this virtual MCP in the chat store
+  // Select this virtual MCP in the chat store and open tasks panel
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (!entity) return;
     setVirtualMcpId(entity.id);
+    setTasksOpen(true);
   }, [entity?.id]);
 
   // Not found
