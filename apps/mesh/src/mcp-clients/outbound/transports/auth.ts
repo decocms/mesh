@@ -99,6 +99,7 @@ export class AuthTransport extends WrapperTransport {
         return tools;
       },
       cache,
+      (p) => this.options.ctx.pendingRevalidations.push(p),
     );
 
     if (!tools) {
