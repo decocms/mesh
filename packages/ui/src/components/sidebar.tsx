@@ -491,7 +491,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
-      className={cn("group/menu-item relative", className)}
+      className={cn("group/menu-item relative w-full", className)}
       {...props}
     />
   );
@@ -508,7 +508,7 @@ const sidebarMenuButtonVariants = cva(
       },
       size: {
         default:
-          "h-8 text-sm group-data-[collapsible=icon]:size-12! group-data-[collapsible=icon]:p-3!",
+          "h-8 text-sm group-data-[collapsible=icon]:h-12! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-3! group-data-[collapsible=icon]:justify-center",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
