@@ -845,11 +845,19 @@ export async function createMeshContextFactory(
     // Must NOT be a singleton — per-request auth headers (x-mesh-token JWT) get
     // baked into the transport at creation time and would go stale across requests.
     const clientPool = createClientPool();
-    const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
       ? await authenticateRequest(req, config.auth, config.db, timings)
       : { user: undefined };
+
+    // Resolve caller connection ID: explicit header takes priority, then fall
+    // back to the connectionId embedded in the mesh JWT. This ensures that
+    // management tools (e.g. EVENT_PUBLISH on _self) see the caller's
+    // connection ID even when the runtime doesn't set x-caller-id.
+    const connectionId =
+      req?.headers.get("x-caller-id") ??
+      authResult.user?.connectionId ??
+      undefined;
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
     const boundAuth = createBoundAuthClient({
