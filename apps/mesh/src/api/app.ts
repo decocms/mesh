@@ -330,6 +330,13 @@ export async function createApp(options: CreateAppOptions = {}) {
     .catch((err) => {
       console.error("[Decopilot] CancelBroadcast start failed:", err);
     });
+
+  // Re-start cancel broadcast subscription when NATS connects
+  natsProvider?.onReady(() => {
+    cancelBroadcast.start().catch((err) => {
+      console.error("[CancelBroadcast] Deferred start failed:", err);
+    });
+  });
   streamBuffer.init().catch((err) => {
     console.warn(
       "[Decopilot] StreamBuffer init failed, attach/late-join disabled:",

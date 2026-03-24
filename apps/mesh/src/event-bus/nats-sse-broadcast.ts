@@ -36,10 +36,11 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
 
   constructor(private readonly options: NatsSSEBroadcastOptions) {}
 
-  async start(localEmit: LocalEmitFn): Promise<void> {
-    this.localEmit = localEmit;
+  async start(localEmit?: LocalEmitFn): Promise<void> {
+    if (localEmit) this.localEmit = localEmit;
 
     if (this.sub) return;
+    if (!this.localEmit) return;
 
     const nc = this.options.getConnection();
     if (!nc) return; // NATS not ready — local SSE still works

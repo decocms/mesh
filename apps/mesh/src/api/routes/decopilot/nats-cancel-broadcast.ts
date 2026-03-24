@@ -26,10 +26,11 @@ export class NatsCancelBroadcast implements CancelBroadcast {
 
   constructor(private readonly options: NatsCancelBroadcastOptions) {}
 
-  async start(onCancel: (threadId: string) => void): Promise<void> {
-    this.onCancel = onCancel;
+  async start(onCancel?: (threadId: string) => void): Promise<void> {
+    if (onCancel) this.onCancel = onCancel;
 
     if (this.sub) return;
+    if (!this.onCancel) return;
 
     const nc = this.options.getConnection();
     if (!nc) return; // NATS not ready — local cancel only

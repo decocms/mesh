@@ -26,9 +26,10 @@ export class NatsNotifyStrategy implements NotifyStrategy {
 
   constructor(private readonly options: NatsNotifyStrategyOptions) {}
 
-  async start(onNotify: () => void): Promise<void> {
+  async start(onNotify?: () => void): Promise<void> {
     if (this.sub) return;
-    this.onNotify = onNotify;
+    if (onNotify) this.onNotify = onNotify;
+    if (!this.onNotify) return;
 
     const nc = this.options.getConnection();
     if (!nc) return; // NATS not ready — polling strategy is safety net
