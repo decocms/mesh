@@ -145,11 +145,23 @@ function useIsExecutionCompleted() {
 function useIsExecutionResumable() {
   const trackingExecutionId = useTrackingExecutionId();
   const { item } = usePollingWorkflowExecution(trackingExecutionId);
-  return (
+  if (
     item?.status === "cancelled" ||
     item?.status === "error" ||
     item?.status === "failed"
-  );
+  ) {
+    return true;
+  }
+  // Allow resuming successful executions that have failed steps
+  // (e.g. forEach iterations that errored with onError: "continue")
+  if (
+    item?.status === "success" &&
+    item.completed_steps?.error &&
+    item.completed_steps.error.length > 0
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function RunWorkflowButton() {
