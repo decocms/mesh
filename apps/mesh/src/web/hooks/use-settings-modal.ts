@@ -1,4 +1,8 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  useNavigate,
+  useLocation,
+  useSearch,
+} from "@tanstack/react-router";
 
 export type SettingsSection =
   | "account.profile"
@@ -30,6 +34,7 @@ function isValidSettingsSection(
 
 export function useSettingsModal() {
   const navigate = useNavigate();
+  const location = useLocation();
   const search = useSearch({ strict: false }) as { settings?: string };
 
   const activeSection = isValidSettingsSection(search.settings)
@@ -39,12 +44,14 @@ export function useSettingsModal() {
 
   const open = (section: SettingsSection) => {
     navigate({
+      to: location.pathname,
       search: { settings: section },
     });
   };
 
   const close = () => {
     navigate({
+      to: location.pathname,
       search: {},
     });
   };
