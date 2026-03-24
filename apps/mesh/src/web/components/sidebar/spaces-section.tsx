@@ -57,7 +57,12 @@ function SpaceListItem({
           })
         }
       >
-        <AgentAvatar icon={space.icon} name={space.title} size="xs" />
+        <AgentAvatar
+          icon={space.icon}
+          name={space.title}
+          size="xs"
+          className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:h-full group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:[&_svg]:w-1/2 group-data-[collapsible=icon]:[&_svg]:h-1/2"
+        />
         <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
           {space.title}
         </span>
