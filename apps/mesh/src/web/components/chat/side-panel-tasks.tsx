@@ -61,7 +61,7 @@ function TasksPanelContent() {
                     virtualMcpId,
                   },
                 })
-              }}
+              }
               className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer"
               title="Space settings"
             >

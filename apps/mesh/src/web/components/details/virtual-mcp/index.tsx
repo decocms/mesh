@@ -1098,7 +1098,7 @@ Define step-by-step how the agent should handle requests.
           {/* Tab content */}
           <div className="flex-1 overflow-auto">
             {activeTab === "connections" && (
-              <div className="flex flex-col gap-2 px-6 py-4">
+              <div className="flex flex-col gap-2">
                 {connections.length === 0 ? (
                   <button
                     type="button"
