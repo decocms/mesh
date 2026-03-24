@@ -1074,7 +1074,21 @@ export async function createApp(options: CreateAppOptions = {}) {
     meshCtx.automationRunner = automationRunner;
     c.set("meshContext", meshCtx);
 
-    return next();
+    await next();
+
+    // Fire-and-forget: await pending SWR revalidations with a timeout.
+    // Keeps ctx (and its client pool) alive via closure while revalidations complete.
+    // No pool disposal — pool was never disposed and SSE/streaming connections depend on it.
+    const revalidations = meshCtx.pendingRevalidations;
+    if (revalidations.length > 0) {
+      const REVALIDATION_TIMEOUT_MS = 30_000;
+      void Promise.race([
+        Promise.allSettled(revalidations),
+        new Promise((resolve) => setTimeout(resolve, REVALIDATION_TIMEOUT_MS)),
+      ]).catch((err) =>
+        console.error("[mesh] revalidation cleanup error:", err),
+      );
+    }
   });
 
   // ============================================================================
