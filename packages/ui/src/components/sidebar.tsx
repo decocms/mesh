@@ -26,7 +26,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+const SIDEBAR_WIDTH_ICON = "2.5rem";
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";

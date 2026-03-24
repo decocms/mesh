@@ -72,6 +72,8 @@ export function PinSpacePopover() {
       (s) => !search || s.title.toLowerCase().includes(search.toLowerCase()),
     );
 
+  const navigate = useNavigate();
+
   const handlePin = async (space: VirtualMCPEntity) => {
     await actions.update.mutateAsync({
       id: space.id,
@@ -79,6 +81,10 @@ export function PinSpacePopover() {
     });
     setOpen(false);
     setSearch("");
+    navigate({
+      to: "/$org/spaces/$virtualMcpId",
+      params: { org: org.slug, virtualMcpId: space.id },
+    });
   };
 
   return (
