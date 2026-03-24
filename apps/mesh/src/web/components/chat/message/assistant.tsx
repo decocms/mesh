@@ -7,6 +7,7 @@ import type { ChatMessage } from "../types.ts";
 import { MessageStatsBar } from "../usage-stats.tsx";
 import { MessageTextPart } from "./parts/text-part.tsx";
 import {
+  AgentPassportCard,
   GenericToolCallPart,
   ProposePlanPart,
   SubtaskPart,
@@ -198,6 +199,12 @@ function MessagePart({
 
   switch (part.type) {
     case "dynamic-tool":
+      if (
+        "toolName" in part &&
+        part.toolName === "COLLECTION_VIRTUAL_MCP_CREATE"
+      ) {
+        return <AgentPassportCard part={part} />;
+      }
       return (
         <GenericToolCallPart
           part={part}
@@ -248,6 +255,9 @@ function MessagePart({
     default: {
       const fallback = part as ToolUIPart;
       if (fallback.type.startsWith("tool-")) {
+        if (fallback.type === "tool-COLLECTION_VIRTUAL_MCP_CREATE") {
+          return <AgentPassportCard part={fallback} />;
+        }
         const toolCallId = (fallback as ToolUIPart).toolCallId;
         const meta = dataParts.toolMetadata.get(toolCallId);
         return (
