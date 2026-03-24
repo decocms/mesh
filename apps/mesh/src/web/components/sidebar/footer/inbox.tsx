@@ -12,7 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@deco/ui/components/sidebar.tsx";
-import { Check, Coins01, Inbox01, XClose } from "@untitledui/icons";
+import { Check, Coins01, Inbox01, Settings01, XClose } from "@untitledui/icons";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Component, Suspense, useContext, useState } from "react";
@@ -219,6 +219,24 @@ function CreditChipConditional() {
   return <CreditChip />;
 }
 
+function CollapsedSettingsButton() {
+  const { open } = useSettingsModal();
+
+  return (
+    <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+        onClick={() => open("org.general")}
+        aria-label="Settings"
+      >
+        <Settings01 size={16} />
+      </Button>
+    </div>
+  );
+}
+
 export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
@@ -229,6 +247,7 @@ export function SidebarInboxFooter() {
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
+      <CollapsedSettingsButton />
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center w-full gap-1">

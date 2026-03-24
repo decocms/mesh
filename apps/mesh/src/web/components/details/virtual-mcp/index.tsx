@@ -1058,6 +1058,22 @@ Define step-by-step how the agent should handle requests.
                 />
               </div>
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="shrink-0 mt-1">
+                  <Switch
+                    checked={virtualMcp.pinned}
+                    onCheckedChange={(checked) => {
+                      actions.update.mutate({
+                        id: virtualMcp.id,
+                        data: { pinned: checked },
+                      });
+                    }}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Pin to sidebar</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Tabs */}

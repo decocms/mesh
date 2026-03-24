@@ -3,18 +3,16 @@ import { Settings, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { AgentAvatar, getIconColor } from "@/web/components/agent-icon";
+import { AgentAvatar, getAgentWrapperColor } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 interface ProjectCardProps {
   project: VirtualMCPEntity;
-  onSettingsClick?: (e: React.MouseEvent) => void;
   onDeleteClick?: (e: React.MouseEvent) => void;
 }
 
 export function ProjectCard({
   project,
-  onSettingsClick,
   onDeleteClick,
 }: ProjectCardProps) {
   const { org } = useProjectContext();
@@ -22,19 +20,22 @@ export function ProjectCard({
   const ui = project.metadata?.ui;
   const themeColor = ui?.themeColor as string | null | undefined;
   const isHexColor = themeColor?.startsWith("#");
-  const iconColor = themeColor && !isHexColor ? getIconColor(themeColor) : null;
+  const wrapperColor = !isHexColor
+    ? getAgentWrapperColor(project.icon, project.title, themeColor)
+    : null;
 
-  const bannerBg = iconColor?.bg ?? (isHexColor ? undefined : "bg-muted");
+  const bannerBg =
+    wrapperColor?.bgLight ?? (isHexColor ? undefined : "bg-muted");
   const bannerStyle =
     isHexColor && themeColor ? { backgroundColor: themeColor } : undefined;
 
   return (
     <Link
-      to="/$org/spaces/$virtualMcpId/settings"
+      to="/$org/spaces/$virtualMcpId"
       params={{ org: org.slug, virtualMcpId: project.id }}
-      className="block group"
+      className="block group h-full"
     >
-      <div className="border border-border rounded-xl overflow-hidden bg-card">
+      <div className="border border-border rounded-xl overflow-hidden bg-card h-full flex flex-col">
         {/* Banner */}
         <div
           className={cn("h-20 relative", bannerBg)}
@@ -66,20 +67,17 @@ export function ProjectCard({
                 <Trash2 className="size-3.5 text-white" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onSettingsClick?.(e);
-              }}
+            <Link
+              to="/$org/spaces/$virtualMcpId/settings"
+              params={{ org: org.slug, virtualMcpId: project.id }}
+              onClick={(e) => e.stopPropagation()}
               className={cn(
                 "size-6 rounded-md flex items-center justify-center",
                 "bg-black/20 hover:bg-black/40 transition-colors",
               )}
             >
               <Settings className="size-3.5 text-white" />
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -95,12 +93,17 @@ export function ProjectCard({
               className="shrink-0"
             />
 
-            {/* Name & Time */}
+            {/* Name & Description */}
             <div className="flex flex-col">
               <h3 className="font-medium text-base text-foreground truncate">
                 {project.title}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              {project.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
+                  {project.description}
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground mt-1">
                 Edited{" "}
                 {formatDistanceToNow(new Date(project.updated_at), {
                   addSuffix: true,

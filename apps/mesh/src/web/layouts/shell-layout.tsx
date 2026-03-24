@@ -161,7 +161,13 @@ function MobileFABs({
   );
 }
 
-function ShellLayoutInner({ isHomeRoute }: { isHomeRoute: boolean }) {
+function ShellLayoutInner({
+  isHomeRoute,
+  isSpaceRoute,
+}: {
+  isHomeRoute: boolean;
+  isSpaceRoute: boolean;
+}) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
   const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
   const isMobile = useIsMobile();
@@ -201,6 +207,8 @@ function ShellLayoutInner({ isHomeRoute }: { isHomeRoute: boolean }) {
 
   // Either panel open means the content card gets right rounding
   const hasRightPanel = !isMobile && chatOpen && !isHomeRoute;
+  // On space routes, the chat panel takes full width and main content collapses
+  const chatFullWidth = isSpaceRoute && !isMobile;
 
   return (
     <SidebarLayout
@@ -253,9 +261,12 @@ function ShellLayoutInner({ isHomeRoute }: { isHomeRoute: boolean }) {
 
           {/* Main content */}
           <ResizablePanel
-            className="min-w-0 flex flex-col"
+            className={cn(
+              "min-w-0 flex flex-col",
+              chatFullWidth && "max-w-0 overflow-hidden",
+            )}
             order={2}
-            style={{ overflow: "visible" }}
+            style={{ overflow: chatFullWidth ? undefined : "visible" }}
           >
             <div
               className={cn(
@@ -280,24 +291,37 @@ function ShellLayoutInner({ isHomeRoute }: { isHomeRoute: boolean }) {
           {!isHomeRoute && !isMobile && (
             <>
               <ResizableHandle className="bg-sidebar" />
-              <PersistentResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  chatAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  chatOpen
-                    ? chatAnimating
-                      ? "max-w-[var(--chat-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
-                )}
-              >
-                <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
-                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <ChatPanel />
+              {chatFullWidth ? (
+                <ResizablePanel
+                  className="overflow-hidden bg-sidebar"
+                  order={3}
+                >
+                  <div className="h-full pl-1.5 pr-1.5 pb-1.5">
+                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                      <ChatPanel />
+                    </div>
                   </div>
-                </div>
-              </PersistentResizablePanel>
+                </ResizablePanel>
+              ) : (
+                <PersistentResizablePanel
+                  className={cn(
+                    "overflow-hidden",
+                    chatAnimating &&
+                      "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
+                    chatOpen
+                      ? chatAnimating
+                        ? "max-w-[var(--chat-panel-w)] bg-sidebar"
+                        : "bg-sidebar"
+                      : "max-w-0",
+                  )}
+                >
+                  <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
+                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                      <ChatPanel />
+                    </div>
+                  </div>
+                </PersistentResizablePanel>
+              )}
             </>
           )}
         </ResizablePanelGroup>
@@ -354,6 +378,11 @@ function ShellLayoutContent() {
   const isHomeRoute =
     routerState.location.pathname === `/${org}` ||
     routerState.location.pathname === `/${org}/`;
+
+  // Check if we're on a space route (/$org/spaces/$id) but not settings
+  const isSpaceRoute =
+    routerState.location.pathname.startsWith(`/${org}/spaces/`) &&
+    !routerState.location.pathname.includes("/settings");
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -428,7 +457,10 @@ function ShellLayoutContent() {
       <PersistentSidebarProvider>
         <div className="flex flex-col h-dvh overflow-hidden">
           <Chat.Provider>
-            <ShellLayoutInner isHomeRoute={isHomeRoute} />
+            <ShellLayoutInner
+              isHomeRoute={isHomeRoute}
+              isSpaceRoute={isSpaceRoute}
+            />
           </Chat.Provider>
         </div>
       </PersistentSidebarProvider>
