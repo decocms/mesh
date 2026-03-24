@@ -1,6 +1,8 @@
 import { join } from "path";
 import { mkdirSync, readdirSync } from "fs";
 import playlist from "./playlist.json";
+import { startCapyAnimation, stopCapyAnimation } from "../capy-animation";
+import { startMatrixRain, stopMatrixRain } from "../matrix-rain";
 
 interface Track {
   title: string;
@@ -104,6 +106,8 @@ export function startVibe(dataDir: string): void {
   consecutiveFailures = 0;
   generation++;
   playTrack(dataDir, generation, true);
+  startCapyAnimation();
+  startMatrixRain();
 
   if (!cleanupRegistered) {
     cleanupRegistered = true;
@@ -118,6 +122,8 @@ function stopVibe(): void {
     currentProcess.kill();
     currentProcess = null;
   }
+  stopCapyAnimation();
+  stopMatrixRain();
 }
 
 export function toggleVibe(dataDir: string): void {
