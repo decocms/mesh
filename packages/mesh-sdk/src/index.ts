@@ -192,6 +192,8 @@ export {
   SELF_MCP_ALIAS_ID,
   // Frontend dev-assets MCP ID
   DEV_ASSETS_MCP_ALIAS_ID,
+  // Well-known slugs
+  ORG_ADMIN_PROJECT_SLUG,
   // Org-scoped MCP ID generators
   WellKnownOrgMCPId,
   // Connection factory functions

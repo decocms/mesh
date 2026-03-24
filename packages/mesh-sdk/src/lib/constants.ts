@@ -29,6 +29,12 @@ export const WellKnownOrgMCPId = {
 };
 
 /**
+ * Well-known project slug for the org-admin project.
+ * This project is the main studio workspace and is reserved.
+ */
+export const ORG_ADMIN_PROJECT_SLUG = "org-admin";
+
+/**
  * Frontend connection ID for the self/management MCP endpoint.
  * Use this constant when calling management tools (ALL_TOOLS) from the frontend.
  * The endpoint is exposed at /mcp/self.

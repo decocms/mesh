@@ -20,40 +20,24 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { LogOut01 } from "@untitledui/icons";
-import {
-  getDefaultAgentSpecs,
-  type DefaultAgentSpec,
-} from "@/constants/default-agents";
 import { AgentAvatar } from "@/web/components/agent-icon";
-import { useProjects, type ProjectWithBindings } from "@/web/hooks/use-project";
+import { useProjects } from "@/web/hooks/use-projects";
 import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   ORG_ADMIN_PROJECT_SLUG,
-  SELF_MCP_ALIAS_ID,
   useProjectContext,
-  useVirtualMCPs,
-  useMCPClient,
-  useConnectionActions,
-  useVirtualMCPActions,
+  type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
 import { Plus, Settings01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
-import { createWorkspaceWithAgent } from "@/web/lib/create-workspace-with-agent";
-import { toast } from "sonner";
 
 // Legacy type exports (kept for reference, used by dead sidebar hooks)
 export type { Invitation } from "./types";
@@ -65,26 +49,26 @@ export type { Invitation } from "./types";
 function ProjectRailIcon({
   project,
   isActive,
-  agentIcon,
 }: {
-  project: ProjectWithBindings & { organizationId: string };
+  project: VirtualMCPEntity;
   isActive: boolean;
-  agentIcon?: string | null;
 }) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
+  const slug = (project.metadata as { projectSlug?: string })?.projectSlug;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            if (!slug) return;
             navigate({
               to: "/$org/$project",
-              params: { org: org.slug, project: project.slug },
-            })
-          }
+              params: { org: org.slug, project: slug },
+            });
+          }}
           className={cn(
             "size-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-150",
             "hover:scale-105 hover:shadow-md",
@@ -94,15 +78,15 @@ function ProjectRailIcon({
           )}
         >
           <AgentAvatar
-            icon={agentIcon ?? project.ui?.icon ?? null}
-            name={project.name}
+            icon={project.icon ?? null}
+            name={project.title}
             size="sm"
             className="!w-10 !h-10 !rounded-xl"
           />
         </button>
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={8}>
-        {project.name}
+        {project.title}
       </TooltipContent>
     </Tooltip>
   );
@@ -141,137 +125,38 @@ function StudioRailIcon({ isActive }: { isActive: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Agent Catalog Popover — shown when clicking "+"
+// New Workspace Button
 // ---------------------------------------------------------------------------
 
-function AgentCatalogPopover() {
-  const [open, setOpen] = useState(false);
-  const [creatingId, setCreatingId] = useState<string | null>(null);
-  const specs = getDefaultAgentSpecs().slice(0, 12);
-  const { org } = useProjectContext();
+function NewWorkspaceButton() {
   const navigate = useNavigate();
-  const virtualMcps = useVirtualMCPs();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const connectionActions = useConnectionActions();
-  const virtualMCPActions = useVirtualMCPActions();
-  const { installByAppName } = useInstallFromRegistry();
-
-  const handleSelect = async (spec: DefaultAgentSpec) => {
-    if (creatingId) return;
-    setCreatingId(spec.title);
-    try {
-      // Determine workspace type from spec
-      const workspaceType = spec.title.toLowerCase().includes("slide")
-        ? "slides"
-        : spec.title.toLowerCase().includes("website") ||
-            spec.title.toLowerCase().includes("deco")
-          ? "website"
-          : null;
-
-      const result = await createWorkspaceWithAgent({
-        spec,
-        workspaceType,
-        org,
-        client,
-        connectionActions,
-        virtualMCPActions,
-        installByAppName,
-        existingVirtualMcps: virtualMcps as Array<{
-          id: string;
-          title: string;
-          metadata?: Record<string, unknown> | null;
-          connections?: unknown[];
-        }>,
-      });
-
-      setOpen(false);
-      navigate({
-        to: "/$org/$project",
-        params: { org: org.slug, project: result.projectSlug },
-        search:
-          result.oauthConnections.length > 0
-            ? { setupConnections: JSON.stringify(result.oauthConnections) }
-            : {},
-      });
-    } catch (err) {
-      console.error("[AgentCatalog] Failed to create workspace:", err);
-      toast.error(
-        `Failed to create workspace: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
-    } finally {
-      setCreatingId(null);
-    }
-  };
+  const { org } = useProjectContext();
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "size-10 rounded-xl flex items-center justify-center shrink-0",
-                "border border-dashed border-border/60",
-                "text-muted-foreground hover:text-foreground",
-                "hover:bg-sidebar-accent hover:border-border transition-all duration-150",
-              )}
-            >
-              <Plus size={18} />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8}>
-          New workspace
-        </TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={12}
-        className="w-[320px] p-0"
-      >
-        <div className="p-3 border-b border-border">
-          <h3 className="text-sm font-medium">New workspace</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Pick a template to get started
-          </p>
-        </div>
-        <div className="p-2 max-h-[400px] overflow-y-auto">
-          {specs.map((spec) => (
-            <button
-              key={spec.title}
-              type="button"
-              onClick={() => handleSelect(spec)}
-              disabled={creatingId !== null}
-              className={cn(
-                "flex items-center gap-3 w-full px-2 py-2 rounded-lg hover:bg-accent transition-colors text-left",
-                creatingId === spec.title && "opacity-50",
-                creatingId !== null &&
-                  creatingId !== spec.title &&
-                  "opacity-70",
-              )}
-            >
-              <AgentAvatar icon={spec.icon} name={spec.title} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {spec.title}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {spec.description}
-                </p>
-              </div>
-              {creatingId === spec.title && (
-                <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin text-muted-foreground shrink-0" />
-              )}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() =>
+            navigate({
+              to: "/$org/$project",
+              params: { org: org.slug, project: ORG_ADMIN_PROJECT_SLUG },
+            })
+          }
+          className={cn(
+            "size-10 rounded-xl flex items-center justify-center shrink-0",
+            "border border-dashed border-border/60",
+            "text-muted-foreground hover:text-foreground",
+            "hover:bg-sidebar-accent hover:border-border transition-all duration-150",
+          )}
+        >
+          <Plus size={18} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>
+        New workspace
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -347,27 +232,12 @@ function RailUserMenu() {
 // ---------------------------------------------------------------------------
 
 function IconRailContent() {
-  const { org, project } = useProjectContext();
-  const { data: projects, isLoading } = useProjects(org.id);
-  const virtualMcps = useVirtualMCPs();
+  const { project } = useProjectContext();
+  const { data: projects, isLoading } = useProjects();
   const { open: openSettings } = useSettingsModal();
-
-  // Build a map from projectSlug → agent icon
-  const agentIconBySlug: Record<string, string | null> = {};
-  for (const vmc of virtualMcps) {
-    const slug = (vmc.metadata as { projectSlug?: string } | undefined)
-      ?.projectSlug;
-    if (slug && vmc.icon) {
-      agentIconBySlug[slug] = vmc.icon;
-    }
-  }
 
   const currentProjectSlug = project.slug;
   const isStudio = currentProjectSlug === ORG_ADMIN_PROJECT_SLUG;
-
-  // Filter out org-admin project
-  const userProjects =
-    projects?.filter((p) => p.slug !== ORG_ADMIN_PROJECT_SLUG) ?? [];
 
   return (
     <div className="flex flex-col items-center h-full pt-4 pb-3 px-2 gap-2">
@@ -377,8 +247,8 @@ function IconRailContent() {
       {/* Divider */}
       <div className="w-6 h-px bg-border/50 my-0.5" />
 
-      {/* + button with agent catalog */}
-      <AgentCatalogPopover />
+      {/* + button */}
+      <NewWorkspaceButton />
 
       {/* Project icons */}
       {isLoading ? (
@@ -387,14 +257,16 @@ function IconRailContent() {
           <Skeleton className="size-10 rounded-xl" />
         </>
       ) : (
-        userProjects.map((p) => (
-          <ProjectRailIcon
-            key={p.id}
-            project={p}
-            isActive={p.slug === currentProjectSlug}
-            agentIcon={agentIconBySlug[p.slug]}
-          />
-        ))
+        (projects ?? []).map((p) => {
+          const slug = (p.metadata as { projectSlug?: string })?.projectSlug;
+          return (
+            <ProjectRailIcon
+              key={p.id}
+              project={p}
+              isActive={slug === currentProjectSlug}
+            />
+          );
+        })
       )}
 
       {/* Spacer */}
