@@ -33,20 +33,29 @@ export class NatsPodHeartbeat implements PodHeartbeat {
   private podId: string | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private watchAbortController: AbortController | null = null;
+  private initPromise: Promise<void> | null = null;
+  private pendingDeathCallback: ((deadPodId: string) => void) | null = null;
 
   constructor(private readonly deps: NatsPodHeartbeatDeps) {}
 
   async init(): Promise<void> {
+    if (this.initPromise) return this.initPromise;
     const js = this.deps.getJetStream();
     if (!js) return; // NATS not ready — heartbeat disabled until re-init
-    this.kv = await js.views.kv(BUCKET_NAME, {
-      ttl: BUCKET_TTL_MS,
-      storage: StorageType.Memory,
-    });
+    this.initPromise = js.views
+      .kv(BUCKET_NAME, {
+        ttl: BUCKET_TTL_MS,
+        storage: StorageType.Memory,
+      })
+      .then((kv) => {
+        this.kv = kv;
+      });
+    return this.initPromise;
   }
 
   start(podId: string): void {
     if (!this.kv) return; // Not initialized — skip heartbeat
+    if (this.refreshTimer) return; // Already running — prevent double start
     this.podId = podId;
 
     // Immediate first heartbeat
@@ -60,10 +69,25 @@ export class NatsPodHeartbeat implements PodHeartbeat {
           console.error("[PodHeartbeat] Refresh failed:", err);
         });
     }, REFRESH_INTERVAL_MS);
+
+    // Activate deferred death watcher if registered before init
+    if (this.pendingDeathCallback) {
+      this.startDeathWatcher(this.pendingDeathCallback);
+      this.pendingDeathCallback = null;
+    }
   }
 
   onPodDeath(callback: (deadPodId: string) => void): void {
-    if (!this.kv) return; // Not initialized — skip watcher
+    if (!this.kv) {
+      // Store callback — will activate when start() runs after init()
+      this.pendingDeathCallback = callback;
+      return;
+    }
+    this.startDeathWatcher(callback);
+  }
+
+  private startDeathWatcher(callback: (deadPodId: string) => void): void {
+    if (!this.kv) return;
 
     this.watchAbortController = new AbortController();
     const kv = this.kv;
@@ -134,5 +158,7 @@ export class NatsPodHeartbeat implements PodHeartbeat {
 
     this.kv = null;
     this.podId = null;
+    this.initPromise = null;
+    this.pendingDeathCallback = null;
   }
 }

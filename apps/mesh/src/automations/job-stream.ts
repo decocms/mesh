@@ -100,11 +100,9 @@ export class AutomationJobStream {
 
   async publish(payload: AutomationJobPayload): Promise<void> {
     if (!this.js) {
-      console.warn(
-        "[AutomationJobStream] NATS not ready, dropping job:",
-        payload.triggerId,
+      throw new Error(
+        `[AutomationJobStream] NATS not ready, cannot publish job: ${payload.triggerId}`,
       );
-      return;
     }
     const subj = `${SUBJECT_PREFIX}.${payload.triggerId}`;
     await this.js.publish(subj, this.encoder.encode(JSON.stringify(payload)));
@@ -114,6 +112,7 @@ export class AutomationJobStream {
     handler: (payload: AutomationJobPayload) => Promise<void>,
   ): Promise<void> {
     if (!this.js) return; // Not initialized — skip consumer
+    if (this.running) return; // Already running — prevent duplicate loops
     this.running = true;
 
     const consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);

@@ -353,8 +353,12 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
 
     // Attempt immediate init (may no-op if NATS not ready)
-    podHeartbeat.init().catch(() => {});
-    podHeartbeat.start(POD_ID);
+    podHeartbeat
+      .init()
+      .then(() => {
+        podHeartbeat!.start(POD_ID);
+      })
+      .catch(() => {});
 
     // Re-init when NATS connects
     natsProvider.onReady(() => {
