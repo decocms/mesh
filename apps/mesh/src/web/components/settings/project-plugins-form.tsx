@@ -82,7 +82,7 @@ function pluginRequiresMcpBinding(plugin: AnyClientPlugin): boolean {
   ) {
     return true;
   }
-  return plugin.binding !== undefined;
+  return plugin.bindingName !== undefined;
 }
 
 type PendingBindings = Record<string, string | null>;
@@ -176,7 +176,7 @@ function PluginRow({
         </div>
       </div>
 
-      {isEnabled && needsBinding && !isOrgAdmin && (
+      {isEnabled && needsBinding && !isOrgAdmin && plugin.bindingName && (
         <div
           className="pb-4 pl-7 space-y-2"
           onClick={(e) => e.stopPropagation()}
@@ -190,7 +190,7 @@ function PluginRow({
               onValueChange={(value) =>
                 onBindingChange(plugin.id, value, serverConnectionId)
               }
-              binding={plugin.binding}
+              binding={plugin.bindingName}
               placeholder="Select connection..."
               className="w-56"
               disabled={isSaving || isConfigLoading}

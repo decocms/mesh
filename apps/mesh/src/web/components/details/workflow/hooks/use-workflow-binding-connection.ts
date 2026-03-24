@@ -1,15 +1,10 @@
 import { useConnections } from "@decocms/mesh-sdk";
-import { useBindingConnections } from "@/web/hooks/use-binding";
 
 export function useWorkflowBindingConnection() {
-  const connections = useConnections();
-  const connection = useBindingConnections({
-    connections,
-    binding: "WORKFLOW",
-  });
-  if (!connection || connection.length === 0 || !connection[0]) {
+  const connections = useConnections({ binding: "WORKFLOW" });
+  if (!connections || connections.length === 0 || !connections[0]) {
     throw new Error("No workflow connection found");
   }
 
-  return connection[0];
+  return connections[0];
 }

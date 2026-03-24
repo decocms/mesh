@@ -7,7 +7,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import {
   Breadcrumb,
@@ -50,12 +50,9 @@ function ToolDetailsContent() {
 
   const itemId = decodeURIComponent(params.itemId);
 
-  const allConnections = useConnections();
-  const siblings = allConnections.filter(
-    (c) =>
-      c.connection_type !== "VIRTUAL" &&
-      getConnectionSlug(c) === params.appSlug,
-  );
+  const siblings = useConnections({
+    filters: [{ column: "app_name", value: params.appSlug }],
+  });
 
   const handleBack = () => {
     router.history.back();
@@ -103,13 +100,10 @@ function CollectionDetailsContent() {
   };
 
   const { org } = useProjectContext();
-  const allConnections = useConnections();
-  const connection =
-    allConnections.find(
-      (c) =>
-        c.connection_type !== "VIRTUAL" &&
-        getConnectionSlug(c) === params.appSlug,
-    ) ?? null;
+  const slugConnections = useConnections({
+    filters: [{ column: "app_name", value: params.appSlug }],
+  });
+  const connection = slugConnections[0] ?? null;
   const connectionId = connection?.id ?? "";
   const scopeKey = connectionId || "no-connection";
   const client = useMCPClient({

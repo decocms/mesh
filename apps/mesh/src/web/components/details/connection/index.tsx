@@ -6,7 +6,8 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
-import { useBindingConnections } from "@/web/hooks/use-binding";
+import { connectionImplementsBinding } from "@/web/hooks/use-binding";
+import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMembers } from "@/web/hooks/use-members";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
@@ -72,7 +73,7 @@ import { Loading01, Trash01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -328,11 +329,10 @@ function ConnectionInspectorViewWithConnection({
   // Use live tools from the MCP proxy (passed as prop) instead of connection.tools,
   // because the LIST endpoint no longer fetches tools by default (include_tools=false).
   const connectionWithLiveTools = { ...connection, tools } as ConnectionEntity;
-  const mcpBindingConnections = useBindingConnections({
-    connections: [connectionWithLiveTools],
-    binding: "MCP",
-  });
-  const hasMcpBinding = mcpBindingConnections.length > 0;
+  const hasMcpBinding = connectionImplementsBinding(
+    connectionWithLiveTools,
+    MCP_BINDING,
+  );
 
   // Form state lifted to parent
   const form = useForm<ConnectionFormData>({
@@ -752,13 +752,12 @@ function ConnectionInspectorViewContent() {
   });
   const { org: projectOrg } = useProjectContext();
 
-  const allConnections = useConnections();
   const actions = useConnectionActions();
 
-  // Resolve appSlug → matching connections
-  const siblings = allConnections.filter(
-    (c) => c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === appSlug,
-  );
+  // Resolve appSlug → matching connections (server-side filter by app_name, excludes VIRTUAL by default)
+  const siblings = useConnections({
+    filters: [{ column: "app_name", value: appSlug }],
+  });
   const connection = siblings[0] ?? null;
   const connectionId = connection?.id ?? "";
 

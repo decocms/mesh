@@ -6,7 +6,6 @@
  */
 
 import { useConnections } from "@decocms/mesh-sdk";
-import { useBindingConnections } from "@/web/hooks/use-binding";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -19,8 +18,6 @@ import {
 } from "@deco/ui/components/select.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useState } from "react";
-import type { Binder } from "@decocms/bindings";
-import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 
 export interface BindingSelectorProps {
   /** Currently selected connection ID */
@@ -29,12 +26,8 @@ export interface BindingSelectorProps {
   onValueChange: (value: string | null) => void;
   /** Placeholder text when no selection */
   placeholder?: string;
-  /**
-   * Binding filter - can be:
-   * - A well-known binding name string (e.g., "LLMS", "MCP")
-   * - A Binder (zod-based binding from plugin)
-   */
-  binding?: string | Binder;
+  /** Well-known binding name string (e.g., "LLMS", "MCP") for server-side filtering */
+  binding: string;
   /**
    * Binding type for registry installation (e.g., "@scope/app-name")
    * If provided, enables inline installation from registry
@@ -64,32 +57,7 @@ export function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  const allConnections = useConnections();
-
-  // Filter connections based on binding type
-  // Use the hook for string bindings
-  const hookFilteredConnections = useBindingConnections({
-    connections: allConnections,
-    binding: typeof binding === "string" ? binding : undefined,
-  });
-
-  const filteredConnections = (() => {
-    if (!binding || !allConnections) return allConnections ?? [];
-
-    // If it's a string binding (well-known name), use the hook result
-    if (typeof binding === "string") {
-      return hookFilteredConnections;
-    }
-
-    // If it's a Binder (array with zod schemas), filter using connectionImplementsBinding
-    if (Array.isArray(binding) && binding.length > 0) {
-      return allConnections.filter((conn) =>
-        connectionImplementsBinding(conn, binding),
-      );
-    }
-
-    return allConnections;
-  })();
+  const allConnections = useConnections({ binding });
 
   // Parse binding type for registry-based filtering
   const parsedBindingType = (() => {
@@ -100,12 +68,9 @@ export function BindingSelector({
 
   // Further filter by app name if bindingType is provided
   const connections = (() => {
-    let result = filteredConnections;
+    let result = allConnections;
 
-    // If we have a Binder, we've already filtered by tools - don't further filter by app name
-    const hasBinderFilter = Array.isArray(binding) && binding.length > 0;
-
-    if (parsedBindingType && !hasBinderFilter) {
+    if (parsedBindingType) {
       result = result.filter((conn) => {
         const connAppName = conn.app_name;
         const connScopeName = (conn.metadata as Record<string, unknown> | null)
