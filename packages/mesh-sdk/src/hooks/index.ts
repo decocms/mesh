@@ -18,6 +18,7 @@ export {
   useConnections,
   useConnection,
   useConnectionActions,
+  type ConnectionFilter,
   type UseConnectionsOptions,
 } from "./use-connection";
 

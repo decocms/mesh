@@ -802,18 +802,7 @@ function OrgMcpsContent() {
   });
 
   const actions = useConnectionActions();
-  const allConnections = useConnections();
-
-  // Client-side search filtering
-  const connections = listState.searchTerm
-    ? allConnections.filter((c) => {
-        const term = listState.searchTerm.toLowerCase();
-        return (
-          c.title?.toLowerCase().includes(term) ||
-          c.description?.toLowerCase().includes(term)
-        );
-      })
-    : allConnections;
+  const connections = useConnections(listState);
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 

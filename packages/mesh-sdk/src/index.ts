@@ -32,6 +32,7 @@ export {
   useConnections,
   useConnection,
   useConnectionActions,
+  type ConnectionFilter,
   type UseConnectionsOptions,
   // MCP client hook and factory
   createMCPClient,
