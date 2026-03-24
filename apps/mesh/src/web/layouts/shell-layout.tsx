@@ -216,6 +216,7 @@ function ShellLayoutInner({
       style={
         {
           "--sidebar-width": "13.5rem",
+          "--sidebar-width-icon": "6rem",
           "--sidebar-width-mobile": "11rem",
           "--chat-panel-w": `${chatPanelWidth}cqi`,
           "--tasks-panel-w": `${tasksPanelWidth}cqi`,

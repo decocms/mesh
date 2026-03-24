@@ -29,7 +29,7 @@ export function SidebarCollapsibleGroup({
     <SidebarGroupUI className="pt-0 pr-0 pb-2 pl-0 mt-2">
       {isCollapsed ? (
         <div className="flex h-6 items-center">
-          <div className="h-0.5 w-8 rounded-full bg-sidebar-foreground/15" />
+          <div className="h-0.5 w-16 rounded-full bg-sidebar-foreground/15" />
         </div>
       ) : (
         <SidebarMenu>

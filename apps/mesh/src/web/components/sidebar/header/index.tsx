@@ -14,11 +14,11 @@ export function MeshSidebarHeader() {
   const isCollapsed = state === "collapsed";
 
   return (
-    <SidebarHeaderUI className="px-3 group-data-[collapsible=icon]:px-2 animate-in fade-in-0 duration-200">
+    <SidebarHeaderUI className="px-3 group-data-[collapsible=icon]:px-3 animate-in fade-in-0 duration-200">
       <SidebarMenu>
         <SidebarMenuItem>
           {isCollapsed ? (
-            <div className="flex flex-col w-full gap-0.5">
+            <div className="flex flex-col w-full gap-0.5 items-center">
               <MeshAccountSwitcher isCollapsed={true} />
               <SidebarMenuButton
                 onClick={toggleSidebar}

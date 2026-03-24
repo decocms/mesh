@@ -49,7 +49,7 @@ function SpaceListItem({
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip={space.title}
-        className="h-9 pr-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
+        className="h-9 pr-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:h-12"
         onClick={() =>
           navigate({
             to: "/$org/spaces/$virtualMcpId",

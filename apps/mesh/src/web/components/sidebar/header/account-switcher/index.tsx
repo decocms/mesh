@@ -119,7 +119,7 @@ export function MeshAccountSwitcher({
             <div
               className={cn(
                 "shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden transition-[width,height] duration-300 ease-[var(--ease-out-quart)]",
-                isCollapsed ? "size-6" : "size-8",
+                isCollapsed ? "size-12" : "size-8",
               )}
               style={
                 currentOrg?.logo
@@ -137,7 +137,7 @@ export function MeshAccountSwitcher({
                 <span
                   className={cn(
                     "font-semibold leading-none",
-                    isCollapsed ? "text-[9px]" : "text-xs",
+                    isCollapsed ? "text-lg" : "text-xs",
                   )}
                 >
                   {(currentOrg?.name ?? "?").slice(0, 2).toUpperCase()}

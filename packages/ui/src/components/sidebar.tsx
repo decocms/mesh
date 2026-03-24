@@ -242,7 +242,10 @@ function Sidebar({
     >
       <div
         data-slot="sidebar-container"
-        className={cn("flex flex-col h-full w-(--sidebar-width)", className)}
+        className={cn(
+          "flex flex-col h-full w-(--sidebar-width) group-data-[collapsible=icon]:w-(--sidebar-width-icon) transition-[width] duration-300 ease-[var(--ease-out-quart)]",
+          className,
+        )}
         {...props}
       >
         <div
@@ -474,7 +477,10 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-1 group-data-[collapsible=icon]:items-center",
+        className,
+      )}
       {...props}
     />
   );
@@ -502,7 +508,7 @@ const sidebarMenuButtonVariants = cva(
       },
       size: {
         default:
-          "h-8 text-sm group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2!",
+          "h-8 text-sm group-data-[collapsible=icon]:size-12! group-data-[collapsible=icon]:p-3!",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },

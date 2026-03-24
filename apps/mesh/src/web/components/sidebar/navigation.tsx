@@ -45,7 +45,9 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
         tooltip={item.label}
         className={cn(item.isExternal && "group/external")}
       >
-        <span className="[&>svg]:size-4">{item.icon}</span>
+        <span className="[&>svg]:size-4 group-data-[collapsible=icon]:[&>svg]:size-8">
+          {item.icon}
+        </span>
         <span className={cn("truncate group-data-[collapsible=icon]:hidden")}>
           {item.label}
         </span>
@@ -115,7 +117,7 @@ function NavigationSidebarInner({
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3.5 pb-2 group-data-[collapsible=icon]:px-2",
+          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3.5 pb-2 group-data-[collapsible=icon]:px-3",
           contentClassName,
         )}
       >
