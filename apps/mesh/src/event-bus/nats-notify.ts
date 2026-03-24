@@ -16,7 +16,7 @@ import type { NotifyStrategy } from "./notify-strategy";
 const SUBJECT = "mesh.events.notify";
 
 export interface NatsNotifyStrategyOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsNotifyStrategy implements NotifyStrategy {

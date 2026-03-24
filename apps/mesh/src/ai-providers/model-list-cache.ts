@@ -20,7 +20,7 @@ const KV_BUCKET = "MESH_MODEL_LISTS";
 const KV_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface JetStreamKVModelListCacheOptions {
-  getJetStream: () => JetStreamClient;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class JetStreamKVModelListCache implements ModelListCache {

@@ -24,8 +24,8 @@ export interface PodHeartbeat {
 }
 
 export interface NatsPodHeartbeatDeps {
-  getConnection: () => NatsConnection;
-  getJetStream: () => JetStreamClient;
+  getConnection: () => NatsConnection | null;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class NatsPodHeartbeat implements PodHeartbeat {

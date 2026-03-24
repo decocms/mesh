@@ -25,7 +25,7 @@ interface NatsSSEMessage {
 }
 
 export interface NatsSSEBroadcastOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsSSEBroadcast implements SSEBroadcastStrategy {

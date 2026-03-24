@@ -15,7 +15,7 @@ import type { CancelBroadcast } from "./cancel-broadcast";
 const CANCEL_SUBJECT = "mesh.decopilot.cancel";
 
 export interface NatsCancelBroadcastOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsCancelBroadcast implements CancelBroadcast {

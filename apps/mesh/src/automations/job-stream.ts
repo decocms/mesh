@@ -35,8 +35,8 @@ export interface AutomationJobPayload {
 }
 
 export interface AutomationJobStreamOptions {
-  getConnection: () => NatsConnection;
-  getJetStream: () => JetStreamClient;
+  getConnection: () => NatsConnection | null;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class AutomationJobStream {

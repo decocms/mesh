@@ -21,7 +21,7 @@ export interface McpListCache {
 const KV_BUCKET = "DECOCMS_MCP_LISTS";
 
 export interface JetStreamKVMcpListCacheOptions {
-  getJetStream: () => JetStreamClient;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class JetStreamKVMcpListCache implements McpListCache {
