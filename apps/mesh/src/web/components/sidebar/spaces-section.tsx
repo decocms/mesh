@@ -169,7 +169,7 @@ function SpacesSectionContent() {
   return (
     <SidebarGroup className="py-0 px-0 mt-2">
       <SidebarGroupContent>
-        <SidebarMenu className="gap-0.5">
+        <SidebarMenu className="gap-2">
           <PinSpacePopover />
           {spaces.map((space) => (
             <SpaceListItem key={space.id} space={space} org={org.slug} />
@@ -186,7 +186,7 @@ export function SidebarSpacesSection() {
       fallback={
         <SidebarGroup className="py-0 px-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
+            <SidebarMenu className="gap-2">
               <SidebarMenuItem>
                 <div className="flex items-center gap-2 px-2 py-2">
                   <Skeleton className="h-4 w-4 rounded" />
