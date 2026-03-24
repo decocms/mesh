@@ -259,18 +259,18 @@ export async function createApp(options: CreateAppOptions = {}) {
   } else {
     // Production/dev mode: connect to NATS (required)
     natsProvider = createNatsConnectionProvider();
-    await natsProvider.init(env.NATS_URL);
+    natsProvider.init(env.NATS_URL);
 
     const tlc = new JetStreamKVMcpListCache({
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await tlc.init();
+    tlc.init().catch(() => {});
     mcpListCache = tlc;
 
     const mlc = new JetStreamKVModelListCache({
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await mlc.init();
+    mlc.init().catch(() => {});
     modelListCache = mlc;
 
     cancelBroadcast = new NatsCancelBroadcast({
@@ -283,6 +283,22 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
 
     eventBus = createEventBus(database, natsProvider);
+
+    // When NATS connects, (re-)initialize all deferred consumers
+    natsProvider.onReady(() => {
+      tlc.init().catch((err: unknown) => {
+        console.error("[McpListCache] Deferred init failed:", err);
+      });
+      mlc.init().catch((err: unknown) => {
+        console.error("[ModelListCache] Deferred init failed:", err);
+      });
+      streamBuffer.init().catch((err: unknown) => {
+        console.warn(
+          "[StreamBuffer] Deferred init failed, late-join disabled:",
+          err,
+        );
+      });
+    });
   }
 
   // Track for cleanup during HMR
@@ -327,8 +343,22 @@ export async function createApp(options: CreateAppOptions = {}) {
       getConnection: () => natsProvider!.getConnection(),
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await podHeartbeat.init();
+
+    // Attempt immediate init (may no-op if NATS not ready)
+    podHeartbeat.init().catch(() => {});
     podHeartbeat.start(POD_ID);
+
+    // Re-init when NATS connects
+    natsProvider.onReady(() => {
+      podHeartbeat!
+        .init()
+        .then(() => {
+          podHeartbeat!.start(POD_ID);
+        })
+        .catch((err: unknown) => {
+          console.error("[PodHeartbeat] Deferred init failed:", err);
+        });
+    });
   }
 
   currentDecopilotCleanup = async () => {
@@ -764,30 +794,40 @@ export async function createApp(options: CreateAppOptions = {}) {
 
     const cronPollIntervalMs = 10_000;
 
-    await automationJobStream.init();
+    const startJobStream = async () => {
+      await automationJobStream.init();
+      await automationJobStream.startConsumer(async (payload) => {
+        const automation = await automationsStorage.findById(
+          payload.automationId,
+          payload.organizationId,
+        );
+        if (!automation) return;
+        await fireAutomation({
+          automation,
+          triggerId: payload.triggerId,
+          storage: automationsStorage,
+          streamCoreFn: streamCore,
+          meshContextFactory: automationContextFactory,
+          config: {
+            maxConcurrentPerAutomation: 3,
+            runTimeoutMs: 5 * 60 * 1000,
+          },
+          globalSemaphore: automationSemaphore,
+          deps: { runRegistry, cancelBroadcast },
+        });
+      });
+      await cronWorker.start();
+    };
 
-    await automationJobStream.startConsumer(async (payload) => {
-      const automation = await automationsStorage.findById(
-        payload.automationId,
-        payload.organizationId,
-      );
-      if (!automation) return;
-      await fireAutomation({
-        automation,
-        triggerId: payload.triggerId,
-        storage: automationsStorage,
-        streamCoreFn: streamCore,
-        meshContextFactory: automationContextFactory,
-        config: {
-          maxConcurrentPerAutomation: 3,
-          runTimeoutMs: 5 * 60 * 1000,
-        },
-        globalSemaphore: automationSemaphore,
-        deps: { runRegistry, cancelBroadcast },
+    // Attempt immediate start
+    startJobStream().catch(() => {});
+
+    // Re-start when NATS connects
+    natsProvider.onReady(() => {
+      startJobStream().catch((err: unknown) => {
+        console.error("[AutomationJobStream] Deferred start failed:", err);
       });
     });
-
-    await cronWorker.start();
     cronTimer = setInterval(() => {
       cronWorker.processNow().catch((err) => {
         console.error("[AutomationCron] Error processing:", err);
