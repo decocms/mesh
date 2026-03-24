@@ -137,18 +137,26 @@ export function ToolSetSelector({
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
-  const allConnections = useConnections({
-    searchTerm: deferredSearchQuery.trim() || undefined,
-  });
+  const fetchedConnections = useConnections();
 
-  // Filter out VIRTUAL connections that would cause self-reference
-  const connections = excludeVirtualMcpId
-    ? allConnections.filter((conn) => {
-        if (conn.connection_type !== "VIRTUAL") return true;
-        const virtualMcpId = parseVirtualUrl(conn.connection_url);
-        return virtualMcpId !== excludeVirtualMcpId;
-      })
-    : allConnections;
+  // Client-side search + exclude self-reference
+  const connections = fetchedConnections.filter((conn) => {
+    if (
+      excludeVirtualMcpId &&
+      conn.connection_type === "VIRTUAL" &&
+      parseVirtualUrl(conn.connection_url) === excludeVirtualMcpId
+    ) {
+      return false;
+    }
+    const term = deferredSearchQuery.trim().toLowerCase();
+    if (term) {
+      return (
+        conn.title?.toLowerCase().includes(term) ||
+        conn.description?.toLowerCase().includes(term)
+      );
+    }
+    return true;
+  });
 
   const initialOrderSet = initialOrder.current;
 

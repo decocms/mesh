@@ -125,7 +125,29 @@ export class ConnectionStorage implements ConnectionStoragePort {
   ): Promise<ConnectionEntity[]> {
     let query = this.db
       .selectFrom("connections")
-      .selectAll()
+      .select([
+        "id",
+        "organization_id",
+        "created_by",
+        "updated_by",
+        "title",
+        "description",
+        "icon",
+        "app_name",
+        "app_id",
+        "connection_type",
+        "connection_url",
+        "connection_token",
+        "connection_headers",
+        "oauth_config",
+        "configuration_state",
+        "configuration_scopes",
+        "metadata",
+        "bindings",
+        "status",
+        "created_at",
+        "updated_at",
+      ])
       .where("organization_id", "=", organizationId);
 
     // By default, exclude VIRTUAL connections unless explicitly requested

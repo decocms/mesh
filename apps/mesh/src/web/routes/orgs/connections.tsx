@@ -805,10 +805,18 @@ function OrgMcpsContent() {
   });
 
   const actions = useConnectionActions();
-  const connections = useConnections(listState);
-  // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
-  // so the "Connected" badge and modal aren't affected by the search term
   const allConnections = useConnections();
+
+  // Client-side search filtering
+  const connections = listState.searchTerm
+    ? allConnections.filter((c) => {
+        const term = listState.searchTerm.toLowerCase();
+        return (
+          c.title?.toLowerCase().includes(term) ||
+          c.description?.toLowerCase().includes(term)
+        );
+      })
+    : allConnections;
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 

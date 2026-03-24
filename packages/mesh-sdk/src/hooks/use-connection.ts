@@ -1,32 +1,21 @@
 /**
- * Connection Collection Hooks
+ * Connection Hooks
  *
  * Provides React hooks for working with connections using React Query.
- * These hooks offer a reactive interface for accessing and manipulating connections.
  */
 
 import type { ConnectionEntity } from "../types/connection";
 import { useProjectContext } from "../context/project-context";
-import {
-  type CollectionFilter,
-  useCollectionActions,
-  useCollectionItem,
-  useCollectionList,
-  type UseCollectionListOptions,
-} from "./use-collections";
+import { useCollectionActions, useCollectionItem } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
 import { SELF_MCP_ALIAS_ID } from "../lib/constants";
-
-/**
- * Filter definition for connections (matches @deco/ui Filter shape)
- */
-export type ConnectionFilter = CollectionFilter;
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { KEYS } from "../lib/query-keys";
 
 /**
  * Options for useConnections hook
  */
-export interface UseConnectionsOptions
-  extends UseCollectionListOptions<ConnectionEntity> {
+export interface UseConnectionsOptions {
   /**
    * Server-side binding filter. Only returns connections whose tools satisfy the binding.
    * Can be a well-known binding name (e.g., "LLM", "ASSISTANTS", "OBJECT_STORAGE")
@@ -39,54 +28,75 @@ export interface UseConnectionsOptions
   includeVirtual?: boolean;
 }
 
+interface ConnectionListOutput {
+  items: ConnectionEntity[];
+  totalCount: number;
+  hasMore: boolean;
+}
+
+function extractPayload(result: unknown): ConnectionListOutput {
+  if (!result || typeof result !== "object") {
+    throw new Error("Invalid result");
+  }
+
+  if ("isError" in result && result.isError) {
+    throw new Error(
+      "content" in result &&
+        Array.isArray(result.content) &&
+        result.content[0]?.type === "text"
+        ? result.content[0].text
+        : "Unknown error",
+    );
+  }
+
+  if ("structuredContent" in result) {
+    return result.structuredContent as ConnectionListOutput;
+  }
+
+  throw new Error("No structured content found");
+}
+
 /**
- * Hook to get connections with server-side filtering.
+ * Hook to get all connections.
  *
- * @param options - Filter and configuration options (binding, search, etc.)
- * @returns Suspense query result with connections as ConnectionEntity[]
+ * Returns the full list; callers handle client-side filtering/sorting.
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
-  const { binding, includeVirtual, ...collectionOptions } = options;
+  const { binding, includeVirtual } = options;
 
-  // Build additional tool args for the COLLECTION_CONNECTIONS_LIST tool
-  const additionalToolArgs: Record<string, unknown> = {
-    ...collectionOptions.additionalToolArgs,
-  };
-
+  const toolArgs: Record<string, unknown> = {};
   if (binding !== undefined) {
-    additionalToolArgs.binding = binding;
+    toolArgs.binding = binding;
   }
-
   if (includeVirtual !== undefined) {
-    additionalToolArgs.include_virtual = includeVirtual;
+    toolArgs.include_virtual = includeVirtual;
   }
 
-  const finalOptions: UseCollectionListOptions<ConnectionEntity> = {
-    ...collectionOptions,
-    additionalToolArgs:
-      Object.keys(additionalToolArgs).length > 0
-        ? additionalToolArgs
-        : undefined,
-  };
-
+  const argsKey = JSON.stringify(toolArgs);
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
-  return useCollectionList<ConnectionEntity>(
-    org.id,
-    "CONNECTIONS",
-    client,
-    finalOptions,
-  );
+
+  const { data } = useSuspenseQuery({
+    queryKey: KEYS.collectionList(client, org.id, "", "CONNECTIONS", argsKey),
+    queryFn: async () => {
+      const result = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_LIST",
+        arguments: toolArgs,
+      });
+      return extractPayload(result);
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  return data?.items ?? [];
 }
 
 /**
  * Hook to get a single connection by ID
- *
- * @param connectionId - The ID of the connection to fetch (undefined returns null without making an API call)
- * @returns Suspense query result with the connection as ConnectionEntity | null
  */
 export function useConnection(connectionId: string | undefined) {
   const { org } = useProjectContext();
@@ -104,8 +114,6 @@ export function useConnection(connectionId: string | undefined) {
 
 /**
  * Hook to get connection mutation actions (create, update, delete)
- *
- * @returns Object with create, update, and delete mutation hooks
  */
 export function useConnectionActions() {
   const { org } = useProjectContext();
