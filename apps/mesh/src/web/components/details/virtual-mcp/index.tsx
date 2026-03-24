@@ -751,13 +751,16 @@ function VirtualMcpDetailViewWithData({
   const { setVirtualMcpId } = useChatStable();
 
   // Agents: open chat on mount and select this agent
-  // Projects: skip (virtual-mcp-layout handles it)
+  // Projects: select this project in chat store and close the side-panel chat
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (!isAgent) return;
-    setChatOpen(true);
-    setVirtualMcpId(virtualMcp.id);
-    // eslint-disable-next-line react-hooks/exhaustive-depsbun
+    if (isAgent) {
+      setChatOpen(true);
+      setVirtualMcpId(virtualMcp.id);
+    } else {
+      setVirtualMcpId(virtualMcp.id);
+      setChatOpen(false);
+    }
   }, [virtualMcp.id, isAgent]);
 
   const handleTestAgent = () => {
