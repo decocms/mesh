@@ -3,6 +3,7 @@ import { Spinner } from "@inkjs/ui";
 import { useSyncExternalStore } from "react";
 import pkg from "../../package.json" with { type: "json" };
 import { getCapyFrame, subscribeCapyFrame } from "./capy-animation";
+import { getMatrixGrid, subscribeMatrixGrid } from "./matrix-rain";
 
 export interface ServiceStatus {
   name: string;
@@ -40,6 +41,36 @@ const GRADIENT_COLORS = [
   "#006e28",
 ];
 
+// Green gradient pairs for capybara rows (light body, dark body)
+const CAPY_GRADIENT: [string, string][] = [
+  ["#00ff64", "#00cc50"],
+  ["#00f060", "#00c04c"],
+  ["#00e05c", "#00b448"],
+  ["#00d058", "#00a844"],
+  ["#00c054", "#009c40"],
+  ["#00b050", "#00903c"],
+  ["#00a04c", "#008438"],
+  ["#009048", "#007834"],
+  ["#008044", "#006c30"],
+  ["#007040", "#00602c"],
+  ["#00603c", "#005428"],
+];
+
+// Max visual width of capybara across all animation frames
+const CAPY_WIDTH = 30;
+
+const CAPY_BODY_COLORS = new Set(["#875f00", "#5f3800"]);
+
+function greenifyCapyColor(
+  color: string | null,
+  rowIndex: number,
+): string | null {
+  if (!color || !CAPY_BODY_COLORS.has(color)) return color;
+  const pair =
+    CAPY_GRADIENT[rowIndex] ?? CAPY_GRADIENT[CAPY_GRADIENT.length - 1]!;
+  return color === "#875f00" ? pair[0] : pair[1];
+}
+
 function StatusIndicator({ status }: { status: "pending" | "ready" | "done" }) {
   if (status === "pending") {
     return <Spinner label="" />;
@@ -55,24 +86,44 @@ export function Header({
   vibe,
 }: HeaderProps) {
   const capyFrame = useSyncExternalStore(subscribeCapyFrame, getCapyFrame);
+  const matrixGrid = useSyncExternalStore(subscribeMatrixGrid, getMatrixGrid);
 
   return (
     <Box flexDirection="column" paddingBottom={1}>
       {vibe ? (
         <Box flexDirection="column">
-          {capyFrame.map((line, i) => (
-            <Box key={i} flexDirection="row">
-              {line.map((seg, j) =>
-                seg.color ? (
-                  <Text key={j} color={seg.color}>
-                    {seg.text}
-                  </Text>
-                ) : (
-                  <Text key={j}>{seg.text}</Text>
-                ),
-              )}
-            </Box>
-          ))}
+          {capyFrame.map((line, i) => {
+            const matrixRow = matrixGrid[i];
+            const rowWidth = line.reduce(
+              (acc, seg) => acc + seg.text.length,
+              0,
+            );
+            const pad = Math.max(0, CAPY_WIDTH - rowWidth);
+            return (
+              <Box key={i} flexDirection="row">
+                {line.map((seg, j) => {
+                  const color = greenifyCapyColor(seg.color, i);
+                  return color ? (
+                    <Text key={j} color={color}>
+                      {seg.text}
+                    </Text>
+                  ) : (
+                    <Text key={j}>{seg.text}</Text>
+                  );
+                })}
+                <Text>{" ".repeat(pad + 2)}</Text>
+                {matrixRow?.map((cell, k) =>
+                  cell.color ? (
+                    <Text key={k} color={cell.color}>
+                      {cell.char}
+                    </Text>
+                  ) : (
+                    <Text key={k}>{cell.char}</Text>
+                  ),
+                )}
+              </Box>
+            );
+          })}
           <Text dimColor> v{pkg.version}</Text>
         </Box>
       ) : (

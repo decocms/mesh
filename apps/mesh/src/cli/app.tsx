@@ -13,6 +13,7 @@ import {
 import { toggleVibe } from "./vibe/vibe-player";
 
 const HEADER_HEIGHT = 15;
+const HEADER_HEIGHT_VIBE = 17;
 
 export function App({ home }: { home: string }) {
   const state = useSyncExternalStore(subscribeCliState, getCliState);
@@ -47,7 +48,10 @@ export function App({ home }: { home: string }) {
           <Text dimColor>Loading configuration...</Text>
         )
       ) : (
-        <RequestLog logs={state.logs} headerHeight={HEADER_HEIGHT} />
+        <RequestLog
+          logs={state.logs}
+          headerHeight={state.vibe ? HEADER_HEIGHT_VIBE : HEADER_HEIGHT}
+        />
       )}
     </Box>
   );
