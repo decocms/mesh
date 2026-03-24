@@ -439,9 +439,9 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
           </label>
         )}
         {description && (
-          <p className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground truncate">
             {description}
-          </p>
+          </div>
         )}
       </div>
       <div className="w-[200px] shrink-0">{children}</div>
