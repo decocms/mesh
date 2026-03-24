@@ -27,6 +27,8 @@ const MAX_DELIVER = 3;
 const ACK_WAIT_NS = 6 * 60 * 1_000_000_000; // 6 min (> 5 min automation timeout)
 const PULL_BATCH_SIZE = 5;
 const PULL_EXPIRES_MS = 10_000;
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 60_000;
 
 export interface AutomationJobPayload {
   triggerId: string;
@@ -109,62 +111,49 @@ export class AutomationJobStream {
     if (!this.js) throw new Error("AutomationJobStream not initialized");
     this.running = true;
 
-    let consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);
-
     (async () => {
+      let backoff = RECONNECT_BASE_MS;
+
       while (this.running) {
         try {
-          const messages = await consumer.fetch({
-            max_messages: PULL_BATCH_SIZE,
-            expires: PULL_EXPIRES_MS,
-          });
+          await this.init();
+          if (!this.running) break;
+          const consumer = await this.js!.consumers.get(
+            STREAM_NAME,
+            CONSUMER_NAME,
+          );
 
-          for await (const msg of messages) {
-            try {
-              const payload: AutomationJobPayload = JSON.parse(
-                this.decoder.decode(msg.data),
-              );
-              await handler(payload);
-              msg.ack();
-            } catch (err) {
-              console.error(
-                "[AutomationJobStream] Handler error, nacking:",
-                err,
-              );
-              msg.nak();
+          while (this.running) {
+            const messages = await consumer.fetch({
+              max_messages: PULL_BATCH_SIZE,
+              expires: PULL_EXPIRES_MS,
+            });
+            backoff = RECONNECT_BASE_MS;
+
+            for await (const msg of messages) {
+              try {
+                const payload: AutomationJobPayload = JSON.parse(
+                  this.decoder.decode(msg.data),
+                );
+                await handler(payload);
+                msg.ack();
+              } catch (err) {
+                console.error(
+                  "[AutomationJobStream] Handler error, nacking:",
+                  err,
+                );
+                msg.nak();
+              }
             }
           }
         } catch (err) {
           if (this.running) {
-            const isNoResponders =
-              err instanceof Error && "code" in err && err.code === "503";
-            if (isNoResponders) {
-              console.warn(
-                "[AutomationJobStream] Consumer lost (NATS restart?), re-initializing...",
-              );
-              try {
-                await this.init();
-                consumer = await this.js!.consumers.get(
-                  STREAM_NAME,
-                  CONSUMER_NAME,
-                );
-                console.info(
-                  "[AutomationJobStream] Consumer re-initialized successfully",
-                );
-                continue;
-              } catch (reinitErr) {
-                console.error(
-                  "[AutomationJobStream] Re-init failed:",
-                  reinitErr,
-                );
-              }
-            } else {
-              console.error(
-                "[AutomationJobStream] Consumer fetch error:",
-                err,
-              );
-            }
-            await new Promise((r) => setTimeout(r, 1000));
+            console.error(
+              `[AutomationJobStream] Consumer error, retrying in ${backoff}ms:`,
+              err,
+            );
+            await new Promise((r) => setTimeout(r, backoff));
+            backoff = Math.min(backoff * 2, RECONNECT_MAX_MS);
           }
         }
       }
