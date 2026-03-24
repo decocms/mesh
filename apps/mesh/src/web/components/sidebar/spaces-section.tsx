@@ -1,5 +1,5 @@
 import { Suspense, useState } from "react";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,13 +19,7 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import {
-  ChevronDown,
-  DotsHorizontal,
-  LayoutLeft,
-  Plus,
-  Settings01,
-} from "@untitledui/icons";
+import { ChevronDown, DotsHorizontal, Plus } from "@untitledui/icons";
 import {
   useProjectContext,
   useVirtualMCPActions,
@@ -44,97 +38,25 @@ function SpaceListItem({
   org: string;
 }) {
   const navigate = useNavigate();
-  const pathname = useRouterState({
-    select: (s) => s.location.pathname,
-  });
-  const [isOpen, setIsOpen] = useState(false);
-
-  const pinnedViews =
-    ((space.metadata?.ui as Record<string, unknown> | null | undefined)
-      ?.pinnedViews as Array<{
-      connectionId: string;
-      toolName: string;
-      label: string;
-      icon: string | null;
-    }> | null) ?? [];
-
-  const spaceBasePath = `/${org}/spaces/${space.id}`;
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <SidebarMenuItem>
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton
-            tooltip={space.title}
-            className="group/space-row h-9"
-          >
-            <span className="relative shrink-0 size-4 flex items-center justify-center mr-1">
-              <span className="group-hover/space-row:hidden">
-                <AgentAvatar icon={space.icon} name={space.title} size="xs" />
-              </span>
-              <ChevronDown
-                size={14}
-                className={cn(
-                  "hidden group-hover/space-row:block text-muted-foreground transition-transform duration-200",
-                  !isOpen && "-rotate-90",
-                )}
-              />
-            </span>
-            <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
-              {space.title}
-            </span>
-            <button
-              type="button"
-              className="text-muted-foreground opacity-0 group-hover/space-row:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden shrink-0 p-1 hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate({
-                  to: "/$org/spaces/$virtualMcpId/settings",
-                  params: { org, virtualMcpId: space.id },
-                });
-              }}
-            >
-              <Settings01 size={16} />
-            </button>
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-0.5 flex flex-col gap-0.5">
-          {pinnedViews.map((view) => {
-            const viewPath = `${spaceBasePath}/apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`;
-            const isActive = pathname.startsWith(viewPath);
-            return (
-              <SidebarMenuButton
-                key={`${view.connectionId}-${view.toolName}`}
-                isActive={isActive}
-                className="pl-7"
-                onClick={() =>
-                  navigate({
-                    to: "/$org/spaces/$virtualMcpId/apps/$connectionId/$toolName",
-                    params: {
-                      org,
-                      virtualMcpId: space.id,
-                      connectionId: view.connectionId,
-                      toolName: view.toolName,
-                    },
-                  })
-                }
-              >
-                {view.icon ? (
-                  <img
-                    src={view.icon}
-                    alt=""
-                    className="size-4 rounded shrink-0"
-                  />
-                ) : (
-                  <LayoutLeft size={16} className="shrink-0" />
-                )}
-                <span className="truncate">{view.label || view.toolName}</span>
-              </SidebarMenuButton>
-            );
-          })}
-        </CollapsibleContent>
-      </SidebarMenuItem>
-    </Collapsible>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={space.title}
+        className="h-9"
+        onClick={() =>
+          navigate({
+            to: "/$org/spaces/$virtualMcpId",
+            params: { org, virtualMcpId: space.id },
+          })
+        }
+      >
+        <AgentAvatar icon={space.icon} name={space.title} size="xs" />
+        <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
+          {space.title}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 

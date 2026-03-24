@@ -352,11 +352,11 @@ const spacesLayout = createRoute({
   }),
 });
 
-// Space home - chat view
+// Space home - empty center, sidebar chat is the interaction point
 const spaceHomeRoute = createRoute({
   getParentRoute: () => spacesLayout,
   path: "/",
-  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+  component: lazyRouteComponent(() => import("./routes/space-home.tsx")),
 });
 
 // ============================================

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext, useVirtualMCPActions } from "@decocms/mesh-sdk";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { Page } from "@/web/components/page";
@@ -39,8 +38,6 @@ export default function SpacesListPage() {
     id: string;
     title: string;
   } | null>(null);
-  const navigate = useNavigate();
-
   // Filter out org-admin and apply search
   const filteredSpaces = spaces.filter(
     (s) =>
@@ -48,16 +45,6 @@ export default function SpacesListPage() {
       (s.title.toLowerCase().includes(search.toLowerCase()) ||
         s.description?.toLowerCase().includes(search.toLowerCase())),
   );
-
-  const handleSettingsClick = (spaceId: string) => {
-    navigate({
-      to: "/$org/spaces/$virtualMcpId/settings",
-      params: {
-        org: org.slug,
-        virtualMcpId: spaceId,
-      },
-    });
-  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -143,7 +130,6 @@ export default function SpacesListPage() {
                 <ProjectCard
                   key={space.id}
                   project={space}
-                  onSettingsClick={() => handleSettingsClick(space.id)}
                   onDeleteClick={() =>
                     setDeleteTarget({
                       id: space.id,

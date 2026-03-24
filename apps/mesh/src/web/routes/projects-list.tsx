@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useProjectContext, useVirtualMCPActions } from "@decocms/mesh-sdk";
 import { useProjects } from "@/web/hooks/use-projects";
 import { Page } from "@/web/components/page";
@@ -57,8 +56,6 @@ export default function ProjectsListPage() {
     id: string;
     title: string;
   } | null>(null);
-  const navigate = useNavigate();
-
   // Filter out org-admin and apply search
   const userProjects = projects.filter(
     (p) =>
@@ -66,16 +63,6 @@ export default function ProjectsListPage() {
       (p.title.toLowerCase().includes(search.toLowerCase()) ||
         p.description?.toLowerCase().includes(search.toLowerCase())),
   );
-
-  const handleSettingsClick = (projectId: string) => {
-    navigate({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: org.slug,
-        virtualMcpId: projectId,
-      },
-    });
-  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -163,7 +150,6 @@ export default function ProjectsListPage() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  onSettingsClick={() => handleSettingsClick(project.id)}
                   onDeleteClick={() =>
                     setDeleteTarget({
                       id: project.id,

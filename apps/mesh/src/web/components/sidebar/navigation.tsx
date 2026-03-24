@@ -25,6 +25,8 @@ interface NavigationSidebarProps {
   collapsible?: "offcanvas" | "icon" | "none";
   /** Additional classes for the content area */
   contentClassName?: string;
+  /** When true, hides nav sections when sidebar is collapsed (icon mode) */
+  hideNavWhenCollapsed?: boolean;
 }
 
 function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
@@ -94,7 +96,7 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
  * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
  * Accepts sections (items, groups, dividers) and optional footer/additional content.
  */
-export function NavigationSidebar({
+function NavigationSidebarInner({
   sections,
   header,
   footer,
@@ -102,7 +104,12 @@ export function NavigationSidebar({
   variant = "sidebar",
   collapsible = "icon",
   contentClassName,
+  hideNavWhenCollapsed,
 }: NavigationSidebarProps) {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const showNav = !(hideNavWhenCollapsed && isCollapsed);
+
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       {header}
@@ -112,14 +119,23 @@ export function NavigationSidebar({
           contentClassName,
         )}
       >
-        {sections.map((section, index) => (
-          <SidebarSectionRenderer key={index} section={section} />
-        ))}
+        {showNav &&
+          sections.map((section, index) => (
+            <SidebarSectionRenderer key={index} section={section} />
+          ))}
         {additionalContent}
       </SidebarContent>
       {footer}
     </Sidebar>
   );
+}
+
+/**
+ * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
+ * Accepts sections (items, groups, dividers) and optional footer/additional content.
+ */
+export function NavigationSidebar(props: NavigationSidebarProps) {
+  return <NavigationSidebarInner {...props} />;
 }
 
 NavigationSidebar.Skeleton = function NavigationSidebarSkeleton() {

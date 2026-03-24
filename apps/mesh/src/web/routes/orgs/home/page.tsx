@@ -10,7 +10,7 @@ import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatContextPanel } from "@/web/components/chat/context-panel";
 import { EditableTaskTitle } from "@/web/components/chat/editable-task-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { AgentsList } from "@/web/components/home/agents-list.tsx";
+import { SpacesList } from "@/web/components/home/spaces-list.tsx";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
@@ -203,11 +203,9 @@ function HomeChatContent({
           <div className="shrink-0 flex flex-col items-center w-full gap-3 pb-2">
             <div className="flex flex-col items-center w-full max-w-2xl mx-auto gap-4 px-4">
               <Chat.IceBreakers className="w-full" />
-              {isOrgAdmin && (
-                <div className="flex flex-col items-center w-full">
-                  <AgentsList />
-                </div>
-              )}
+              <div className="flex flex-col items-center w-full">
+                <SpacesList />
+              </div>
               {isDecoUser && isOrgAdmin && (
                 <div className="w-full max-w-[500px] mx-auto">
                   <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
@@ -245,11 +243,9 @@ function HomeChatContent({
                 <Chat.Input onOpenContextPanel={() => setShowContext(true)} />
               </div>
             </div>
-            {isOrgAdmin && (
-              <div className="w-full max-w-[800px] mt-10 mx-auto">
-                <AgentsList />
-              </div>
-            )}
+            <div className="w-full max-w-[1600px] mt-10 mx-auto">
+              <SpacesList />
+            </div>
           </div>
           {isDecoUser && isOrgAdmin && (
             <div className="w-full max-w-[500px] mx-auto pb-6">
