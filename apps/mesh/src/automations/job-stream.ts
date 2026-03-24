@@ -109,7 +109,7 @@ export class AutomationJobStream {
     if (!this.js) throw new Error("AutomationJobStream not initialized");
     this.running = true;
 
-    const consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);
+    let consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);
 
     (async () => {
       while (this.running) {
@@ -136,7 +136,34 @@ export class AutomationJobStream {
           }
         } catch (err) {
           if (this.running) {
-            console.error("[AutomationJobStream] Consumer fetch error:", err);
+            const isNoResponders =
+              err instanceof Error && "code" in err && err.code === "503";
+            if (isNoResponders) {
+              console.warn(
+                "[AutomationJobStream] Consumer lost (NATS restart?), re-initializing...",
+              );
+              try {
+                await this.init();
+                consumer = await this.js!.consumers.get(
+                  STREAM_NAME,
+                  CONSUMER_NAME,
+                );
+                console.info(
+                  "[AutomationJobStream] Consumer re-initialized successfully",
+                );
+                continue;
+              } catch (reinitErr) {
+                console.error(
+                  "[AutomationJobStream] Re-init failed:",
+                  reinitErr,
+                );
+              }
+            } else {
+              console.error(
+                "[AutomationJobStream] Consumer fetch error:",
+                err,
+              );
+            }
             await new Promise((r) => setTimeout(r, 1000));
           }
         }
