@@ -132,7 +132,6 @@ function BindingFieldWithDynamicSchema({
 
   const resolvedBinding = (() => {
     if (builtinBinding) return builtinBinding;
-    if (needsDynamicResolution) return registrySchema;
     if (Array.isArray(bindingSchema)) {
       return bindingSchema as Array<{
         name: string;
@@ -140,6 +139,7 @@ function BindingFieldWithDynamicSchema({
         outputSchema?: Record<string, unknown>;
       }>;
     }
+    if (needsDynamicResolution) return registrySchema;
     if (typeof bindingSchema === "string") return bindingSchema;
     return undefined;
   })();
