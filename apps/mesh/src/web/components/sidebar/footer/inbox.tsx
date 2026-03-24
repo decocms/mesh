@@ -227,11 +227,11 @@ function CollapsedSettingsButton() {
       <Button
         variant="ghost"
         size="icon"
-        className="size-8 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+        className="size-16 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
         onClick={() => open("org.general")}
         aria-label="Settings"
       >
-        <Settings01 size={16} />
+        <Settings01 size={32} />
       </Button>
     </div>
   );
@@ -241,7 +241,7 @@ export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
   return (
-    <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-2">
+    <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-3">
       <SilentErrorBoundary>
         <Suspense fallback={null}>
           <CreditChipConditional />
