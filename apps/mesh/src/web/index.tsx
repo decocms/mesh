@@ -248,7 +248,7 @@ const monitoringRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
-      tab: z.enum(["overview", "audit", "dashboards"]).default("overview"),
+      tab: z.enum(["overview", "audit"]).default("overview"),
       from: z.string().default("now-30m"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
@@ -261,24 +261,6 @@ const monitoringRoute = createRoute({
       propertyFilters: z.string().default(""),
       hideSystem: z.boolean().default(false),
     }),
-  ),
-});
-
-// Dashboard view
-const dashboardViewRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring/dashboards/$dashboardId",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/monitoring-dashboard-view.tsx"),
-  ),
-});
-
-// Dashboard edit
-const dashboardEditRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring/dashboards/$dashboardId/edit",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
   ),
 });
 
@@ -556,8 +538,6 @@ const orgRoutes = [
   connectionDetailRoute,
   collectionDetailRoute,
   monitoringRoute,
-  dashboardViewRoute,
-  dashboardEditRoute,
   storeRouteWithChildren,
   automationsRoute,
   automationDetailRoute,
