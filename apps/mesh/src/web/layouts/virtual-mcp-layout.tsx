@@ -51,6 +51,7 @@ function VirtualMCPLayoutContent() {
     if (!entity) return;
     setVirtualMcpId(entity.id);
     setTasksOpen(true);
+    return () => setVirtualMcpId(null);
   }, [entity?.id]);
 
   // Not found

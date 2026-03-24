@@ -475,7 +475,7 @@ interface TaskListContentProps {
 
 export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const { activeTaskId, switchToTask } = useChat();
-  const { tasks, virtualMcps } = useChatStable();
+  const { tasks, virtualMcps, selectedVirtualMcp } = useChatStable();
   const { org } = useProjectContext();
 
   // Compute needed agent IDs from tasks
@@ -512,15 +512,21 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
 
   const visible = tasks.filter((t) => !t.hidden);
 
+  // When inside a space, show only tasks that involve this space's agent
+  const spaceId = selectedVirtualMcp?.id;
+  const spaceFiltered = spaceId
+    ? visible.filter((t) => t.agent_ids?.includes(spaceId))
+    : visible;
+
   const availableAgents = [
-    ...new Set(visible.flatMap((t) => t.agent_ids ?? [])),
+    ...new Set(spaceFiltered.flatMap((t) => t.agent_ids ?? [])),
   ];
 
   const searched = searchQuery.trim()
-    ? visible.filter((t) =>
+    ? spaceFiltered.filter((t) =>
         t.title.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-    : visible;
+    : spaceFiltered;
 
   const filtered = searched.filter((task) => {
     if (
