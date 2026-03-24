@@ -693,7 +693,11 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
-  Promise.resolve(eventBus.start())
+  // Random jitter (0-2s) prevents all pods from hitting the DB simultaneously
+  // after a deployment causes simultaneous restarts.
+  const startupJitterMs = Math.random() * 2000;
+  new Promise((r) => setTimeout(r, startupJitterMs))
+    .then(() => eventBus.start())
     .then(() => {
       // db is typed as `any` to avoid Kysely version mismatch issues between packages
       return runPluginStartupHooks({
