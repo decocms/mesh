@@ -126,6 +126,11 @@ function stopVibe(): void {
   stopMatrixRain();
 }
 
+export function skipTrack(): void {
+  if (!playing || !currentProcess) return;
+  currentProcess.kill();
+}
+
 export function toggleVibe(dataDir: string): void {
   if (playing) {
     stopVibe();

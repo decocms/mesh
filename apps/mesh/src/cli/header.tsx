@@ -188,6 +188,14 @@ export function Header({
           </Text>{" "}
           toggle vibe {vibe ? "♪ Nihilore · CC BY 4.0" : ""}
         </Text>
+        {vibe && (
+          <Text dimColor>
+            <Text bold dimColor>
+              N
+            </Text>{" "}
+            skip song
+          </Text>
+        )}
       </Box>
     </Box>
   );
