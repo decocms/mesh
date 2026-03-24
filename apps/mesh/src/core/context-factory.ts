@@ -25,7 +25,6 @@ import { createMonitoringEngine } from "../monitoring/query-engine";
 import { ClickHouseClientEngine } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
 import { DEFAULT_LOGS_DIR, DEFAULT_METRICS_DIR } from "../monitoring/schema";
-import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
@@ -817,7 +816,6 @@ export async function createMeshContextFactory(
       metricSourceFactory,
       dialect,
     ),
-    monitoringDashboards: new SqlMonitoringDashboardStorage(config.db),
     virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),
     tags: new TagStorage(config.db),

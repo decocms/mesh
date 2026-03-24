@@ -11,7 +11,6 @@
 
 import {
   Binder,
-  connectionImplementsBinding,
   PluginConnectionEntity,
   PluginContext,
   PluginContextPartial,
@@ -38,10 +37,9 @@ import { Page } from "@/web/components/page";
 
 interface PluginLayoutProps {
   /**
-   * The binding to filter connections by.
-   * Only connections implementing this binding will be available.
+   * Server-side binding name to filter connections (e.g., "WORKFLOW").
    */
-  binding: Binder;
+  bindingName: string;
 
   /**
    * Render the header with connection selector.
@@ -53,19 +51,6 @@ interface PluginLayoutProps {
    * Render the empty state when no valid connections are available.
    */
   renderEmptyState: () => ReactNode;
-}
-
-/**
- * Filters connections that implement the given binding.
- */
-function filterConnectionsByBinding(
-  connections: ConnectionEntity[] | undefined,
-  binding: Binder,
-): ConnectionEntity[] {
-  if (!connections) return [];
-  return connections.filter((conn) =>
-    connectionImplementsBinding(conn, binding),
-  );
 }
 
 /**
@@ -105,7 +90,7 @@ type PluginConfigOutput = {
 };
 
 export function PluginLayout({
-  binding,
+  bindingName,
   renderHeader,
   renderEmptyState,
 }: PluginLayoutProps) {
@@ -117,7 +102,8 @@ export function PluginLayout({
   } = useParams({
     strict: false,
   }) as { org: string; virtualMcpId: string; pluginId: string };
-  const allConnections = useConnections();
+  // Server-side binding filter — no need to load all connections
+  const validConnections = useConnections({ binding: bindingName });
   const { data: authSession } = authClient.useSession();
 
   // Fetch project's plugin config to get configured connection
@@ -140,9 +126,6 @@ export function PluginLayout({
     },
     enabled: !!project.id && !!pluginId,
   });
-
-  // Filter connections by the plugin's binding
-  const validConnections = filterConnectionsByBinding(allConnections, binding);
 
   // Connection is determined solely by project config
   const configuredConnectionId = pluginConfig?.config?.connectionId;

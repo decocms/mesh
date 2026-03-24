@@ -229,7 +229,6 @@ import type {
   MonitoringStorage,
   VirtualMcpPluginConfigStoragePort,
 } from "../storage/ports";
-import type { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
@@ -262,7 +261,6 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: MonitoringStorage;
-  monitoringDashboards: SqlMonitoringDashboardStorage;
   virtualMcps: VirtualMCPStorage;
   users: UserStorage;
   threads: OrgScopedThreadStorage;

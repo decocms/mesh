@@ -26,7 +26,6 @@ import {
   useMonitoringStats,
   useMonitoringLlmStats,
 } from "@/web/components/monitoring/hooks.ts";
-import { DashboardsTab } from "@/web/components/monitoring/dashboards-tab";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll.ts";
 import { useMembers } from "@/web/hooks/use-members";
 import { KEYS } from "@/web/lib/query-keys";
@@ -1648,7 +1647,7 @@ function AuditTabContent({
 // ============================================================================
 
 interface MonitoringDashboardContentProps {
-  tab: "overview" | "audit" | "dashboards";
+  tab: "overview" | "audit";
   dateRange: DateRange;
   displayDateRange: DateRange;
   connectionIds: string[];
@@ -1665,7 +1664,7 @@ interface MonitoringDashboardContentProps {
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
   onTimeRangeChange: (range: TimeRangeValue) => void;
   onStreamingToggle: () => void;
-  onTabChange: (tab: "overview" | "audit" | "dashboards") => void;
+  onTabChange: (tab: "overview" | "audit") => void;
 }
 
 function MonitoringDashboardContent({
@@ -1746,7 +1745,6 @@ function MonitoringDashboardContent({
   const tabs = [
     { id: "overview" as const, label: "Overview" },
     { id: "audit" as const, label: "Audit" },
-    { id: "dashboards" as const, label: "Dashboards" },
   ];
 
   return (
@@ -1822,15 +1820,11 @@ function MonitoringDashboardContent({
         <CollectionTabs
           tabs={tabs}
           activeTab={tab}
-          onTabChange={(tabId) =>
-            onTabChange(tabId as "overview" | "audit" | "dashboards")
-          }
+          onTabChange={(tabId) => onTabChange(tabId as "overview" | "audit")}
         />
       </div>
 
-      {tab === "dashboards" ? (
-        <DashboardsTab />
-      ) : tab === "audit" ? (
+      {tab === "audit" ? (
         <AuditTabContent
           client={client}
           locator={locator}
@@ -2027,12 +2021,11 @@ export default function MonitoringDashboard() {
                   tabs={[
                     { id: "overview", label: "Overview" },
                     { id: "audit", label: "Audit" },
-                    { id: "dashboards", label: "Dashboards" },
                   ]}
                   activeTab={tab}
                   onTabChange={(tabId) =>
                     updateFilters({
-                      tab: tabId as "overview" | "audit" | "dashboards",
+                      tab: tabId as "overview" | "audit",
                     })
                   }
                 />
@@ -2041,12 +2034,6 @@ export default function MonitoringDashboard() {
               {tab === "audit" ? (
                 <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">
                   <MonitoringLogsTable.Skeleton />
-                </div>
-              ) : tab === "dashboards" ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-muted-foreground">
-                    Loading dashboards...
-                  </div>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">

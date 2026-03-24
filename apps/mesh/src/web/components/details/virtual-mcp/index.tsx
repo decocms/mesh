@@ -935,7 +935,7 @@ Define step-by-step how the agent should handle requests.
   const tabs = [
     {
       id: "instructions",
-      label: isAgent ? "Instructions" : "AGENTS.md",
+      label: isAgent ? "Instructions" : "Agents Instructions",
     },
     {
       id: "connections",
