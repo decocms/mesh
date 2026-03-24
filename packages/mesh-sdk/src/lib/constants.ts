@@ -74,8 +74,6 @@ export function getWellKnownRegistryConnection(
     metadata: {
       isDefault: true,
       type: "registry",
-      is_registry: true,
-      registry_list_tool: "COLLECTION_REGISTRY_APP_LIST",
     },
   };
 }
@@ -104,8 +102,6 @@ export function getWellKnownCommunityRegistryConnection(): ConnectionCreateData 
     metadata: {
       isDefault: true,
       type: "registry",
-      is_registry: true,
-      registry_list_tool: "COLLECTION_REGISTRY_APP_LIST",
     },
   };
 }
