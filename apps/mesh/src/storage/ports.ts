@@ -307,7 +307,7 @@ export interface VirtualMCPStoragePort {
   ): Promise<VirtualMCPEntity | null>;
   list(
     organizationId: string,
-    subtype?: "agent" | "project",
+    options?: { pinnedOnly?: boolean },
   ): Promise<VirtualMCPEntity[]>;
   listByConnectionId(
     organizationId: string,

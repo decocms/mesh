@@ -330,7 +330,37 @@ const agentDetailRoute = createRoute({
 });
 
 // ============================================
-// VIRTUAL MCP LAYOUT (/$org/projects/$virtualMcpId)
+// SPACES
+// ============================================
+
+// Spaces list (view all)
+const spacesListRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/spaces",
+  component: lazyRouteComponent(() => import("./routes/spaces-list.tsx")),
+});
+
+// Spaces layout (/$org/spaces/$virtualMcpId)
+const spacesLayout = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/spaces/$virtualMcpId",
+  component: lazyRouteComponent(
+    () => import("./layouts/virtual-mcp-layout.tsx"),
+  ),
+  validateSearch: z.object({
+    settings: z.string().optional(),
+  }),
+});
+
+// Space home - chat view
+const spaceHomeRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/",
+  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+});
+
+// ============================================
+// BACKWARD COMPAT: VIRTUAL MCP LAYOUT (/$org/projects/$virtualMcpId)
 // ============================================
 
 const virtualMcpLayout = createRoute({
@@ -344,15 +374,43 @@ const virtualMcpLayout = createRoute({
   }),
 });
 
-// ============================================
-// VIRTUAL MCP ROUTES (children of virtualMcpLayout)
-// ============================================
-
 // Project home - chat view (same as org home)
 const projectHomeRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
   path: "/",
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+});
+
+// Space settings
+const spaceSettingsRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/settings",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/layout.tsx"),
+  ),
+});
+
+// Space app view
+const spaceAppViewRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/apps/$connectionId/$toolName",
+  component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
+});
+
+// Space workflows
+const spaceWorkflowsRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
+// Space plugin layout
+const spacePluginLayoutRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/$pluginId",
+  component: lazyRouteComponent(
+    () => import("./layouts/dynamic-plugin-layout.tsx"),
+  ),
 });
 
 // Project settings — layout for /$org/projects/$virtualMcpId/settings/*
@@ -522,6 +580,14 @@ const projectSettingsWithChildren = projectSettingsRoute.addChildren([
   projectSettingsDangerRedirect,
 ]);
 
+const spacesWithChildren = spacesLayout.addChildren([
+  spaceHomeRoute,
+  spaceSettingsRoute,
+  spaceAppViewRoute,
+  spaceWorkflowsRoute,
+  spacePluginLayoutRoute,
+]);
+
 const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectHomeRoute,
   projectSettingsWithChildren,
@@ -532,6 +598,8 @@ const virtualMcpWithChildren = virtualMcpLayout.addChildren([
 
 const orgRoutes = [
   orgHomeRoute,
+  spacesListRoute,
+  spacesWithChildren,
   projectsListRoute,
   membersRoute,
   connectionsRoute,

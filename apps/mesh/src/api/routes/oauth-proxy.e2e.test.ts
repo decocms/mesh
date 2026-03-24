@@ -147,6 +147,7 @@ describe("MCP OAuth Proxy E2E", () => {
           connection_type: "HTTP",
           connection_url: server.url,
           status: "active",
+          pinned: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -168,6 +169,7 @@ describe("MCP OAuth Proxy E2E", () => {
           connection_type: "HTTP",
           connection_url: server.url,
           status: "active",
+          pinned: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })

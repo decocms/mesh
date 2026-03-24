@@ -6,7 +6,7 @@
  * for backward compatibility with components that rely on useProjectContext().
  */
 
-import { Outlet, useParams, useNavigate } from "@tanstack/react-router";
+import { Outlet, useNavigate, useMatch } from "@tanstack/react-router";
 import { Suspense, useEffect } from "react";
 import { SplashScreen } from "@/web/components/splash-screen";
 import {
@@ -24,14 +24,23 @@ import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
  * Must be rendered inside shell-layout's ProjectContextProvider to access org data.
  */
 function VirtualMCPLayoutContent() {
-  const params = useParams({ from: "/shell/$org/projects/$virtualMcpId" });
+  // Support both /spaces/$virtualMcpId and /projects/$virtualMcpId routes
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const projectsMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const match = spacesMatch ?? projectsMatch;
   const { org } = useProjectContext();
   const { setVirtualMcpId } = useChatStable();
   const [, setChatOpen] = useDecoChatOpen();
   const navigate = useNavigate();
 
-  const orgSlug = params.org;
-  const virtualMcpId = params.virtualMcpId;
+  const orgSlug = match?.params.org ?? "";
+  const virtualMcpId = match?.params.virtualMcpId ?? "";
 
   // Fetch using the same SDK hook as agent-detail (suspense-based)
   const entity = useVirtualMCP(virtualMcpId);
