@@ -102,15 +102,7 @@ class ChatStore {
   private renameTaskFn:
     | ((taskId: string, title: string) => Promise<void>)
     | null = null;
-  private setTaskStatusFn:
-    | ((taskId: string, status: string) => Promise<void>)
-    | null = null;
   private createTaskFn: (() => string) | null = null;
-  private addAgentToTaskFn: ((taskId: string, agentId: string) => void) | null =
-    null;
-  private updateTaskInCacheFn:
-    | ((taskId: string, updates: Partial<Task>) => void)
-    | null = null;
 
   constructor() {
     this.state = this.defaultState();
@@ -243,18 +235,12 @@ class ChatStore {
     updateMessagesCache: (threadId: string, messages: ChatMessage[]) => void;
     hideTask: (taskId: string) => Promise<void>;
     renameTask: (taskId: string, title: string) => Promise<void>;
-    setTaskStatus: (taskId: string, status: string) => Promise<void>;
     createTask: () => string;
-    addAgentToTask: (taskId: string, agentId: string) => void;
-    updateTaskInCache: (taskId: string, updates: Partial<Task>) => void;
   }): void {
     this.updateMessagesCacheFn = helpers.updateMessagesCache;
     this.hideTaskFn = helpers.hideTask;
     this.renameTaskFn = helpers.renameTask;
-    this.setTaskStatusFn = helpers.setTaskStatus;
     this.createTaskFn = helpers.createTask;
-    this.addAgentToTaskFn = helpers.addAgentToTask;
-    this.updateTaskInCacheFn = helpers.updateTaskInCache;
   }
 
   // ---- Thread operations ----
@@ -308,34 +294,11 @@ class ChatStore {
   }
 
   async hideTask(taskId: string): Promise<void> {
-    const wasActive = taskId === this.state.activeThreadId;
-    console.log("[chat] hideTask", {
-      taskId,
-      wasActive,
-      activeThreadId: this.state.activeThreadId,
-      threadCount: this.state.threads.length,
-      visibleThreads: this.state.threads.filter((t) => !t.hidden).length,
-    });
     await this.hideTaskFn?.(taskId);
-    console.log("[chat] hideTask: backend call completed", { taskId });
-    if (wasActive) {
-      const next = this.state.threads.find((t) => t.id !== taskId && !t.hidden);
-      if (next) {
-        console.log("[chat] hideTask: switching to next thread", next.id);
-        this.setActiveThread(next.id);
-      } else {
-        console.log("[chat] hideTask: no visible threads, creating new one");
-        this.createThread();
-      }
-    }
   }
 
   async renameTask(taskId: string, title: string): Promise<void> {
     await this.renameTaskFn?.(taskId, title);
-  }
-
-  async setTaskStatus(taskId: string, status: string): Promise<void> {
-    await this.setTaskStatusFn?.(taskId, status);
   }
 
   setActiveThread(threadId: string): void {
@@ -360,11 +323,6 @@ class ChatStore {
   }
 
   renameThreadLocally(threadId: string, title: string): void {
-    // Update React Query cache so ThreadListSync doesn't overwrite this change
-    this.updateTaskInCacheFn?.(threadId, {
-      title,
-      updated_at: new Date().toISOString(),
-    });
     const threads = this.state.threads.map((t) =>
       t.id === threadId
         ? { ...t, title, updated_at: new Date().toISOString() }
@@ -569,10 +527,6 @@ class ChatStore {
     const decopilotId = getWellKnownDecopilotVirtualMCP(this.state.org.id).id;
     const selectedAgent = this.state.selectedAgent;
     const effectiveKeyId = this.state.credentialId;
-
-    // Optimistically ensure the selected agent appears in agent_ids
-    const effectiveAgentId = selectedAgent?.id ?? decopilotId;
-    this.addAgentToTaskFn?.(this.state.activeThreadId, effectiveAgentId);
 
     // Determine effective tool approval level for metadata persistence
     const effectiveApprovalLevel =

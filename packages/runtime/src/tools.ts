@@ -13,7 +13,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ZodRawShape, ZodSchema, ZodTypeAny } from "zod";
-import { BindingRegistry, injectBindingSchemas } from "./bindings.ts";
+import { BindingRegistry } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
@@ -579,7 +579,7 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
   configuration: { state: schema, scopes, onChange } = {},
 }: ResolvedMCPServerOptions<TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
-    ? injectBindingSchemas(z.toJSONSchema(schema) as Record<string, unknown>)
+    ? z.toJSONSchema(schema)
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [

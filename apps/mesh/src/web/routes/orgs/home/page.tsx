@@ -2,12 +2,12 @@
  * Organization Home Page
  *
  * Dashboard with greeting, agent selector, ice breakers, and chat input.
- * Supports context panel toggle in header.
- * Tasks panel is now global (in shell layout), not embedded here.
+ * Supports graph view toggle in header.
  */
 
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatContextPanel } from "@/web/components/chat/context-panel";
+import { TasksPanel } from "@/web/components/chat/tasks-panel";
 import { EditableTaskTitle } from "@/web/components/chat/editable-task-title";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
@@ -22,6 +22,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@deco/ui/components/resizable.tsx";
+import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -31,6 +32,7 @@ import {
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   ArrowRight,
+  CheckDone01,
   LayoutRight,
   MessageChatSquare,
   Plus,
@@ -116,10 +118,17 @@ function HomeChatContent({
   const { org } = useProjectContext();
   const isOrgAdmin = useIsOrgAdmin();
   const { data: session } = authClient.useSession();
-  const { isChatEmpty, activeTaskId, tasks, selectedVirtualMcp, createTask } =
-    useChat();
+  const {
+    isChatEmpty,
+    activeTaskId,
+    tasks,
+    selectedVirtualMcp,
+    createTask,
+    switchToTask,
+  } = useChat();
   const activeTask = tasks.find((task) => task.id === activeTaskId);
   const isMobileInner = useIsMobile();
+  const [showTasks, setShowTasks] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
 
@@ -142,15 +151,25 @@ function HomeChatContent({
         </Page.Header.Left>
         <Page.Header.Right className="gap-1">
           {isMobileInner && (
-            <button
-              type="button"
-              onClick={() => createTask()}
-              disabled={isChatEmpty}
-              className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="New chat"
-            >
-              <Plus size={16} className="text-muted-foreground" />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => createTask()}
+                disabled={isChatEmpty}
+                className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="New chat"
+              >
+                <Plus size={16} className="text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTasks(true)}
+                className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
+                title="Tasks"
+              >
+                <CheckDone01 size={16} className="text-muted-foreground" />
+              </button>
+            </>
           )}
           {!isChatEmpty && !isMobileInner && (
             <button
@@ -167,6 +186,22 @@ function HomeChatContent({
           )}
         </Page.Header.Right>
       </Page.Header>
+
+      {/* Mobile: Tasks Drawer */}
+      {isMobileInner && (
+        <Drawer open={showTasks} onOpenChange={setShowTasks} direction="bottom">
+          <DrawerContent className="h-[90vh] max-h-[90vh]">
+            <div className="flex-1 overflow-hidden">
+              <TasksPanel
+                onTaskSelect={async (taskId) => {
+                  await switchToTask(taskId);
+                  setShowTasks(false);
+                }}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
 
       {!isChatEmpty ? (
         <>
@@ -268,7 +303,7 @@ function HomeContent() {
   const isMobile = useIsMobile();
   const [showContext, setShowContext] = useState(false);
 
-  // Show empty state when no LLM binding is found
+  // Show empty state when no LLM binding is found — no tasks panel
   if (allModelsConnections.length === 0) {
     return (
       <div className="flex flex-col h-full bg-background items-center justify-center">
@@ -289,14 +324,18 @@ function HomeContent() {
     );
   }
 
-  // Desktop: chat content with optional context panel
+  // Desktop: 3-pane resizable layout
   return (
     <ResizablePanelGroup direction="horizontal" className="size-full">
+      <ResizablePanel defaultSize={20} minSize={10} id="tasks" order={1}>
+        <TasksPanel />
+      </ResizablePanel>
+      <ResizableHandle className="bg-border/30" />
       <ResizablePanel
-        defaultSize={showContext ? 70 : 100}
+        defaultSize={showContext ? 50 : 80}
         minSize={30}
         id="main"
-        order={1}
+        order={2}
       >
         <HomeChatContent
           showContext={showContext}
@@ -306,7 +345,7 @@ function HomeContent() {
       {showContext && (
         <>
           <ResizableHandle className="bg-border/30" />
-          <ResizablePanel defaultSize={30} minSize={15} id="context" order={2}>
+          <ResizablePanel defaultSize={30} minSize={15} id="context" order={3}>
             <ChatContextPanel onClose={() => setShowContext(false)} />
           </ResizablePanel>
         </>

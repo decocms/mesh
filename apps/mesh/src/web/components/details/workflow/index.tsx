@@ -17,15 +17,7 @@ import {
 } from "@deco/ui/components/resizable.js";
 import { Badge } from "@deco/ui/components/badge.js";
 import { Button } from "@deco/ui/components/button.js";
-import {
-  AlertOctagon,
-  AlertTriangle,
-  Check,
-  Clock,
-  Eye,
-  FileIcon,
-  X,
-} from "lucide-react";
+import { AlertOctagon, Check, Clock, Eye, FileIcon, X } from "lucide-react";
 import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
@@ -224,10 +216,7 @@ function WorkflowExecutionBar() {
   const formattedDuration = duration != null ? formatDuration(duration) : null;
   const status = executionItem?.status;
   const isError = status === "error" || status === "failed";
-  const hasFailedSteps =
-    (executionItem?.completed_steps?.error?.length ?? 0) > 0;
-  const isPartialSuccess = status === "success" && hasFailedSteps;
-  const isSuccess = status === "success" && !hasFailedSteps;
+  const isSuccess = status === "success";
   return (
     <div className="flex flex-col border-b border-border">
       <div className="h-10 bg-accent flex items-center justify-between">
@@ -247,12 +236,6 @@ function WorkflowExecutionBar() {
             <Badge variant="success" className="gap-1 ml-3">
               <Check size={11} />
               Success
-            </Badge>
-          )}
-          {isPartialSuccess && (
-            <Badge variant="warning" className="gap-1 ml-3">
-              <AlertTriangle size={11} />
-              Partial success
             </Badge>
           )}
           {isError && (

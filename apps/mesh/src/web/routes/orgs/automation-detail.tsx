@@ -90,7 +90,7 @@ import {
   isDecopilot,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys.ts";
-import { getStatusConfig } from "@/web/lib/task-status.ts";
+import { STATUS_CONFIG } from "@/web/lib/task-status.ts";
 import { useDecopilotEvents } from "@/web/hooks/use-decopilot-events.ts";
 import type { Metadata } from "@/web/components/chat/types.ts";
 import {
@@ -1168,7 +1168,8 @@ function RunHistorySection({
   return (
     <div className="flex flex-col divide-y divide-border">
       {runs.map((run) => {
-        const config = getStatusConfig(run.status);
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const config = (STATUS_CONFIG[run.status] ?? STATUS_CONFIG.completed)!;
         const StatusIcon = config.icon;
         return (
           <button

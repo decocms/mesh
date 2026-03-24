@@ -79,15 +79,9 @@ function ThreadListSync() {
     hideTask: (taskId) => taskManagerRef.current.hideTask(taskId),
     renameTask: (taskId, title) =>
       taskManagerRef.current.renameTask(taskId, title),
-    setTaskStatus: (taskId, status) =>
-      taskManagerRef.current.setTaskStatus(taskId, status),
     createTask: () => {
       return taskManagerRef.current.createTask();
     },
-    addAgentToTask: (taskId, agentId) =>
-      taskManagerRef.current.addAgentToTask(taskId, agentId),
-    updateTaskInCache: (taskId, updates) =>
-      taskManagerRef.current.updateTask(taskId, updates),
   });
 
   return null;

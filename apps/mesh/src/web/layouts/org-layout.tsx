@@ -10,20 +10,8 @@
 import { Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { SplashScreen } from "@/web/components/splash-screen";
-import {
-  ProjectContextProvider,
-  SELF_MCP_ALIAS_ID,
-  useMCPClient,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { ProjectContextProvider, useProjectContext } from "@decocms/mesh-sdk";
 import { SettingsModal } from "@/web/components/settings-modal/index";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { KEYS } from "@/web/lib/query-keys";
-
-type OrgSettingsPayload = {
-  organizationId: string;
-  enabled_plugins?: string[] | null;
-};
 
 /**
  * Inner component that provides a synthetic org-admin project context.
@@ -31,25 +19,6 @@ type OrgSettingsPayload = {
  */
 function OrgLayoutContent() {
   const { org } = useProjectContext();
-
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-
-  const { data: orgSettings } = useSuspenseQuery({
-    queryKey: KEYS.organizationSettings(org.id),
-    queryFn: async () => {
-      const result = await client.callTool({
-        name: "ORGANIZATION_SETTINGS_GET",
-        arguments: {},
-      });
-      const payload =
-        (result as { structuredContent?: unknown }).structuredContent ?? result;
-      return (payload ?? {}) as OrgSettingsPayload;
-    },
-    staleTime: 60_000,
-  });
 
   // Build a synthetic project context for org-level views.
   // This keeps all existing components that call useProjectContext() working.
@@ -59,7 +28,7 @@ function OrgLayoutContent() {
     slug: "_org",
     name: org.name,
     isOrgAdmin: true,
-    enabledPlugins: orgSettings?.enabled_plugins ?? null,
+    enabledPlugins: null,
     ui: null,
   };
 

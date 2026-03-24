@@ -11,7 +11,6 @@ import {
   WORKFLOW_EXECUTION_BINDING,
 } from "@decocms/bindings/workflow";
 import { AI_GATEWAY_BILLING_BINDING } from "@decocms/bindings/ai-gateway";
-import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
 
 /**
  * Map of well-known binding names to their Binder definitions.
@@ -26,7 +25,6 @@ const BUILTIN_BINDINGS: Record<string, Binder> = {
   AI_GATEWAY_BILLING: AI_GATEWAY_BILLING_BINDING,
   EVENT_BUS: EVENT_BUS_BINDING,
   TRIGGER: TRIGGER_BINDING,
-  OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
 };
 
 /**
@@ -42,7 +40,6 @@ const BINDING_TYPE_TO_BUILTIN: Record<string, string> = {
   "@deco/event-bus": "EVENT_BUS",
   "@deco/llm": "LLMS",
   "@deco/trigger": "TRIGGER",
-  "@deco/object-storage": "OBJECT_STORAGE",
 };
 
 /**

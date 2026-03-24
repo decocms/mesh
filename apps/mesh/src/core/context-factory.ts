@@ -25,6 +25,7 @@ import { createMonitoringEngine } from "../monitoring/query-engine";
 import { ClickHouseClientEngine } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
 import { DEFAULT_LOGS_DIR, DEFAULT_METRICS_DIR } from "../monitoring/schema";
+import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
@@ -816,6 +817,7 @@ export async function createMeshContextFactory(
       metricSourceFactory,
       dialect,
     ),
+    monitoringDashboards: new SqlMonitoringDashboardStorage(config.db),
     virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),
     tags: new TagStorage(config.db),
@@ -843,19 +845,11 @@ export async function createMeshContextFactory(
     // Must NOT be a singleton — per-request auth headers (x-mesh-token JWT) get
     // baked into the transport at creation time and would go stale across requests.
     const clientPool = createClientPool();
+    const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
       ? await authenticateRequest(req, config.auth, config.db, timings)
       : { user: undefined };
-
-    // Resolve caller connection ID: explicit header takes priority, then fall
-    // back to the connectionId embedded in the mesh JWT. This ensures that
-    // management tools (e.g. EVENT_PUBLISH on _self) see the caller's
-    // connection ID even when the runtime doesn't set x-caller-id.
-    const connectionId =
-      req?.headers.get("x-caller-id") ??
-      authResult.user?.connectionId ??
-      undefined;
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
     const boundAuth = createBoundAuthClient({

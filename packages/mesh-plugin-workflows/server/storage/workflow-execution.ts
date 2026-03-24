@@ -357,35 +357,9 @@ export class WorkflowExecutionStorage {
     return this.db.transaction().execute(async (trx) => {
       const now = Date.now();
 
-      // Check current status and org ownership.
-      const execution = await trx
-        .selectFrom("workflow_execution")
-        .where("id", "=", executionId)
-        .where("organization_id", "=", organizationId)
-        .select(["status"])
-        .executeTakeFirst();
-
-      if (!execution) return false;
-
-      const { status } = execution;
-
-      // For "success" executions, only allow resume when there are failed steps
-      // to retry (e.g. forEach iterations that failed with onError: "continue").
-      if (status === "success") {
-        const failedCount = await trx
-          .selectFrom("workflow_execution_step_result")
-          .where("execution_id", "=", executionId)
-          .where("error", "is not", null)
-          .select(trx.fn.countAll<number>().as("count"))
-          .executeTakeFirstOrThrow();
-
-        if (Number(failedCount.count) === 0) return false;
-      } else if (status !== "cancelled" && status !== "error") {
-        return false;
-      }
-
-      // Reset execution to enqueued.
-      await trx
+      // Validate org ownership and resumable status first — bail before
+      // touching step results if the execution doesn't qualify.
+      const result = await trx
         .updateTable("workflow_execution")
         .set({
           status: "enqueued",
@@ -394,23 +368,14 @@ export class WorkflowExecutionStorage {
           error: null,
         })
         .where("id", "=", executionId)
-        .execute();
+        .where("organization_id", "=", organizationId)
+        .where((eb) =>
+          eb.or([eb("status", "=", "cancelled"), eb("status", "=", "error")]),
+        )
+        .returningAll()
+        .executeTakeFirst();
 
-      // Collect parent step names from failed forEach iterations before deleting.
-      // We need to also delete their parent results so the orchestrator re-dispatches
-      // only the missing iterations (the forEach dispatch already handles partial recovery).
-      const failedIterations = await trx
-        .selectFrom("workflow_execution_step_result")
-        .where("execution_id", "=", executionId)
-        .where("error", "is not", null)
-        .where("step_id", "like", "%[%")
-        .select("step_id")
-        .execute();
-
-      const forEachParentNames = new Set<string>();
-      for (const row of failedIterations) {
-        forEachParentNames.add(row.step_id.replace(/\[\d+\]$/, ""));
-      }
+      if (!result) return false;
 
       // Clear incomplete and failed step results in one pass; successful results
       // are preserved and their outputs will be reused by the orchestrator.
@@ -424,16 +389,6 @@ export class WorkflowExecutionStorage {
           ]),
         )
         .execute();
-
-      // Delete forEach parent results whose children had errors, so the parent
-      // gets re-dispatched and re-collects iteration outputs.
-      if (forEachParentNames.size > 0) {
-        await trx
-          .deleteFrom("workflow_execution_step_result")
-          .where("execution_id", "=", executionId)
-          .where("step_id", "in", [...forEachParentNames])
-          .execute();
-      }
 
       return true;
     });

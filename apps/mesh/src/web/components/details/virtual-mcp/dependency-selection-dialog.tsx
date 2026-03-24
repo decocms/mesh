@@ -382,7 +382,7 @@ function ConnectionDetailsContent({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-hidden">
         {activeTab === "tools" && (
           <ErrorBoundary
             fallback={createMethodNotFoundFallback(

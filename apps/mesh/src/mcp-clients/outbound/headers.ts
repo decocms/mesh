@@ -13,32 +13,6 @@ import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 
 /**
- * Strip `__binding` from configuration state values before embedding in JWTs.
- * `__binding` contains tool schemas used only by the UI for connection filtering —
- * it can be very large and causes 431 (header too large) errors when included.
- */
-function stripBindingMetadata(
-  state: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | undefined {
-  if (!state) return undefined;
-  const cleaned: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(state)) {
-    if (
-      val &&
-      typeof val === "object" &&
-      !Array.isArray(val) &&
-      "__binding" in val
-    ) {
-      const { __binding, ...rest } = val as Record<string, unknown>;
-      cleaned[key] = rest;
-    } else {
-      cleaned[key] = val;
-    }
-  }
-  return cleaned;
-}
-
-/**
  * Build request headers for HTTP-based connections
  * Handles configuration token issuance and OAuth token refresh
  *
@@ -81,9 +55,7 @@ export async function buildRequestHeaders(
         sub: userId,
         user: { id: userId },
         metadata: {
-          state: stripBindingMetadata(
-            connection.configuration_state as Record<string, unknown> | null,
-          ),
+          state: connection.configuration_state ?? undefined,
           meshUrl: ctx.baseUrl,
           connectionId,
           organizationId: ctx.organization?.id,

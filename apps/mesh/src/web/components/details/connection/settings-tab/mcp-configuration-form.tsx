@@ -132,6 +132,7 @@ function BindingFieldWithDynamicSchema({
 
   const resolvedBinding = (() => {
     if (builtinBinding) return builtinBinding;
+    if (needsDynamicResolution) return registrySchema;
     if (Array.isArray(bindingSchema)) {
       return bindingSchema as Array<{
         name: string;
@@ -139,7 +140,6 @@ function BindingFieldWithDynamicSchema({
         outputSchema?: Record<string, unknown>;
       }>;
     }
-    if (needsDynamicResolution) return registrySchema;
     if (typeof bindingSchema === "string") return bindingSchema;
     return undefined;
   })();
@@ -439,9 +439,9 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
           </label>
         )}
         {description && (
-          <div className="text-xs text-muted-foreground truncate">
+          <p className="text-xs text-muted-foreground truncate">
             {description}
-          </div>
+          </p>
         )}
       </div>
       <div className="w-[200px] shrink-0">{children}</div>

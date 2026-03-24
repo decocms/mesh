@@ -30,7 +30,6 @@ interface ChatStableValue {
   createTask: () => void;
   switchToTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
-  setTaskStatus: (taskId: string, status: string) => Promise<void>;
   tasks: Task[];
   hideTask: (taskId: string) => void;
 
@@ -124,8 +123,6 @@ export function useChatStable(): ChatStableValue {
     switchToTask: async (taskId: string) => chatStore.setActiveThread(taskId),
     renameTask: (taskId: string, title: string) =>
       chatStore.renameTask(taskId, title),
-    setTaskStatus: (taskId: string, status: string) =>
-      chatStore.setTaskStatus(taskId, status),
     hideTask: (taskId: string) => {
       void chatStore.hideTask(taskId);
     },

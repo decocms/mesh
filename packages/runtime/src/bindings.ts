@@ -30,85 +30,18 @@ export interface Binding<TType extends string = string> {
 export type BindingRegistry = Record<string, readonly ToolBinder[]>;
 
 /**
- * Maps binding type names (e.g. "@deco/cms-admin") to their ToolBinder definitions.
- * Populated by BindingOf() when a binding argument is provided.
- * Consumed by injectBindingSchemas() to embed __binding in the JSON Schema
- * without polluting the Zod schema (which becomes saved state → JWT).
- */
-const _bindingMetadata = new Map<string, readonly ToolBinder[]>();
-
-/**
- * Post-processes a JSON Schema to inject `__binding` metadata for binding fields.
- * Call this on the output of `z.toJSONSchema(stateSchema)` before returning it
- * from MCP_CONFIGURATION.
- */
-export function injectBindingSchemas(
-  jsonSchema: Record<string, unknown>,
-): Record<string, unknown> {
-  const properties = jsonSchema.properties as
-    | Record<string, Record<string, unknown>>
-    | undefined;
-  if (!properties) return jsonSchema;
-
-  for (const prop of Object.values(properties)) {
-    const innerProps = prop.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
-    if (!innerProps?.__type?.const) continue;
-
-    const typeName = innerProps.__type.const as string;
-    const binding = _bindingMetadata.get(typeName);
-    if (!binding) continue;
-
-    const jsonBinding = binding.map((t) => ({
-      name: String(t.name),
-      ...(t.inputSchema && { inputSchema: z.toJSONSchema(t.inputSchema) }),
-      ...(t.outputSchema && { outputSchema: z.toJSONSchema(t.outputSchema) }),
-    }));
-
-    innerProps.__binding = { const: jsonBinding };
-  }
-
-  return jsonSchema;
-}
-
-/**
- * Function that returns Zod Schema for a binding field.
- *
- * When `binding` is provided, the tool definitions are embedded as `__binding`
- * in the JSON Schema so the Mesh UI can filter connections by tool capabilities.
- *
- * @example
- * ```ts
- * // Without inline binding (UI resolves via registry or builtin mapping)
- * BindingOf<Bindings, "@deco/llm">("@deco/llm")
- *
- * // With inline binding (UI filters connections by tool name match)
- * BindingOf<Bindings, "@deco/cms-admin">("@deco/cms-admin", DECO_CMS_ADMIN_BINDING)
- * ```
+ * Function that returns Zod Schema
  */
 export const BindingOf = <
   TRegistry extends BindingRegistry,
   TName extends (keyof TRegistry | "*") & z.util.Literal,
 >(
   name: TName,
-  binding?: TName extends keyof TRegistry
-    ? TRegistry[TName]
-    : readonly ToolBinder[],
 ) => {
-  const schema = z.object({
+  return z.object({
     __type: z.literal(name).default(name as any),
     value: z.string(),
   });
-
-  if (binding) {
-    // Store binding metadata for JSON Schema injection (via injectBindingSchemas).
-    // We don't add __binding to the Zod schema itself because it would leak into
-    // the saved configuration_state → JWT token, causing 431 header-too-large errors.
-    _bindingMetadata.set(name as string, binding as readonly ToolBinder[]);
-  }
-
-  return schema;
 };
 
 // ============================================================================

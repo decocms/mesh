@@ -60,18 +60,12 @@ export const COLLECTION_THREADS_UPDATE = defineTool({
       throw new Error("Thread not found in organization");
     }
 
-    const updateData: Parameters<typeof ctx.storage.threads.update>[1] = {
+    const thread = await ctx.storage.threads.update(id, {
       title: data.title,
       description: data.description,
       hidden: data.hidden,
       updated_by: userId,
-    };
-
-    if (data.status) {
-      updateData.status = data.status;
-    }
-
-    const thread = await ctx.storage.threads.update(id, updateData);
+    });
 
     return {
       item: normalizeThreadForResponse(thread),

@@ -186,6 +186,13 @@ const orgHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
+// Tasks
+const tasksRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/tasks",
+  component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
+});
+
 // Projects list
 const projectsListRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -248,7 +255,7 @@ const monitoringRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
-      tab: z.enum(["overview", "audit"]).default("overview"),
+      tab: z.enum(["overview", "audit", "dashboards"]).default("overview"),
       from: z.string().default("now-30m"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),
@@ -261,6 +268,24 @@ const monitoringRoute = createRoute({
       propertyFilters: z.string().default(""),
       hideSystem: z.boolean().default(false),
     }),
+  ),
+});
+
+// Dashboard view
+const dashboardViewRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/monitoring/dashboards/$dashboardId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-view.tsx"),
+  ),
+});
+
+// Dashboard edit
+const dashboardEditRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/monitoring/dashboards/$dashboardId/edit",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
   ),
 });
 
@@ -353,6 +378,13 @@ const projectHomeRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
   path: "/",
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+});
+
+// Project tasks
+const projectTasksRoute = createRoute({
+  getParentRoute: () => virtualMcpLayout,
+  path: "/tasks",
+  component: lazyRouteComponent(() => import("./routes/tasks.tsx")),
 });
 
 // Project settings — layout for /$org/projects/$virtualMcpId/settings/*
@@ -524,6 +556,7 @@ const projectSettingsWithChildren = projectSettingsRoute.addChildren([
 
 const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectHomeRoute,
+  projectTasksRoute,
   projectSettingsWithChildren,
   projectAppViewRoute,
   workflowsRoute,
@@ -532,12 +565,15 @@ const virtualMcpWithChildren = virtualMcpLayout.addChildren([
 
 const orgRoutes = [
   orgHomeRoute,
+  tasksRoute,
   projectsListRoute,
   membersRoute,
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
   monitoringRoute,
+  dashboardViewRoute,
+  dashboardEditRoute,
   storeRouteWithChildren,
   automationsRoute,
   automationDetailRoute,

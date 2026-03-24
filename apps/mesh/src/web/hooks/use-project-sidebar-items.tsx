@@ -3,9 +3,7 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import {
   BarChart10,
   CheckDone01,
@@ -26,11 +24,9 @@ export function useProjectSidebarItems(options?: {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const settingsModal = useSettingsModal();
   const org = orgContext.slug;
   const isOrgAdminProject = useIsOrgAdmin();
   const currentProject = useProjectContext().project;
-  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
 
   // The virtual MCP ID for this project (used in /$org/projects/$virtualMcpId routes)
   // Prefer explicit prop (from URL params) over project context
@@ -100,8 +96,12 @@ export function useProjectSidebarItems(options?: {
     key: "tasks",
     label: "Tasks",
     icon: <CheckDone01 />,
-    isActive: tasksOpen,
-    onClick: () => setTasksOpen((prev) => !prev),
+    isActive: isActiveRoute("tasks"),
+    onClick: () =>
+      navigate({
+        to: "/$org/tasks",
+        params: { org },
+      }),
   };
 
   const connectionsItem: NavigationSidebarItem = {
@@ -321,8 +321,12 @@ export function useProjectSidebarItems(options?: {
     key: "tasks",
     label: "Tasks",
     icon: <CheckDone01 />,
-    isActive: tasksOpen,
-    onClick: () => setTasksOpen((prev) => !prev),
+    isActive: isActiveRoute("tasks"),
+    onClick: () =>
+      navigate({
+        to: "/$org/projects/$virtualMcpId/tasks",
+        params: { org, virtualMcpId },
+      }),
   };
 
   const projectWorkflowsItem: NavigationSidebarItem | null =
@@ -344,8 +348,12 @@ export function useProjectSidebarItems(options?: {
     key: "configure",
     label: "Settings",
     icon: <Settings01 />,
-    isActive: settingsModal.isOpen,
-    onClick: () => settingsModal.open("org.general"),
+    isActive: isActiveRoute("settings"),
+    onClick: () =>
+      navigate({
+        to: "/$org/projects/$virtualMcpId/settings/general",
+        params: { org, virtualMcpId },
+      }),
   };
 
   // Regular project sidebar layout (matching Figma):

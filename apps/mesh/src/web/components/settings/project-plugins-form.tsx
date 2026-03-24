@@ -96,7 +96,6 @@ type PluginRowProps = {
   label: string;
   icon?: ReactNode;
   projectId: string | undefined;
-  isOrgAdmin: boolean;
   client: ReturnType<typeof useMCPClient>;
   onBindingChange: (
     pluginId: string,
@@ -115,7 +114,6 @@ function PluginRow({
   label,
   icon,
   projectId,
-  isOrgAdmin,
   client,
   onBindingChange,
   onToggle,
@@ -137,8 +135,7 @@ function PluginRow({
       });
       return unwrapToolResult<PluginConfigOutput>(result);
     },
-    // Skip binding config fetch in org-admin mode (no backing Virtual MCP)
-    enabled: !!projectId && needsBinding && !isOrgAdmin,
+    enabled: !!projectId && needsBinding,
   });
 
   const serverConnectionId = configData?.config?.connectionId ?? null;
@@ -176,7 +173,7 @@ function PluginRow({
         </div>
       </div>
 
-      {isEnabled && needsBinding && !isOrgAdmin && (
+      {isEnabled && needsBinding && (
         <div
           className="pb-4 pl-7 space-y-2"
           onClick={(e) => e.stopPropagation()}
@@ -278,8 +275,6 @@ export function ProjectPluginsForm() {
     setPendingBindings((prev) => ({ ...prev, [pluginId]: value }));
   };
 
-  const isOrgAdmin = project.isOrgAdmin;
-
   const mutation = useMutation({
     mutationFn: async (input: {
       enabledPlugins: string[];
@@ -293,31 +288,18 @@ export function ProjectPluginsForm() {
       const results: Array<unknown> = [];
 
       if (input.updatePlugins) {
-        if (isOrgAdmin) {
-          // Org-level: project.id is the org ID, not a Virtual MCP ID.
-          // Use ORGANIZATION_SETTINGS_UPDATE to persist enabled_plugins.
-          const result = await client.callTool({
-            name: "ORGANIZATION_SETTINGS_UPDATE",
-            arguments: {
-              organizationId: org.id,
-              enabled_plugins: input.enabledPlugins,
-            },
-          });
-          results.push(unwrapToolResult<unknown>(result));
-        } else {
-          const result = await client.callTool({
-            name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-            arguments: {
-              id: project.id,
-              data: {
-                metadata: {
-                  enabled_plugins: input.enabledPlugins,
-                },
+        const result = await client.callTool({
+          name: "COLLECTION_VIRTUAL_MCP_UPDATE",
+          arguments: {
+            id: project.id,
+            data: {
+              metadata: {
+                enabled_plugins: input.enabledPlugins,
               },
             },
-          });
-          results.push(unwrapToolResult<ProjectUpdateOutput>(result));
-        }
+          },
+        });
+        results.push(unwrapToolResult<ProjectUpdateOutput>(result));
       }
 
       if (input.bindingUpdates.length > 0) {
@@ -350,24 +332,6 @@ export function ProjectPluginsForm() {
         queryClient.invalidateQueries({
           queryKey: KEYS.projects(org.id),
         });
-        // Invalidate the VIRTUAL_MCP collection queries so the sidebar
-        // (which reads enabledPlugins from useVirtualMCP → useCollectionItem)
-        // picks up the new enabled_plugins.
-        // Collection keys have shape [client, orgId, scopeKey, "collection", name, ...]
-        // so we match on positional fields instead of a prefix.
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            const k = query.queryKey;
-            return (
-              k[1] === org.id && k[3] === "collection" && k[4] === "VIRTUAL_MCP"
-            );
-          },
-        });
-        if (isOrgAdmin) {
-          queryClient.invalidateQueries({
-            queryKey: KEYS.organizationSettings(org.id),
-          });
-        }
       }
 
       variables.bindingUpdates.forEach(({ pluginId }) => {
@@ -452,7 +416,6 @@ export function ProjectPluginsForm() {
               label={meta?.label ?? plugin.id}
               icon={meta?.icon ?? <Container size={14} />}
               projectId={project.id}
-              isOrgAdmin={isOrgAdmin ?? false}
               client={client}
               onBindingChange={handleBindingChange}
               onToggle={handleTogglePlugin}

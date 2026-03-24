@@ -65,18 +65,11 @@ export const COLLECTION_VIRTUAL_MCP_UPDATE = defineTool({
       throw new Error(`Virtual MCP not found: ${input.id}`);
     }
 
-    // Shallow-merge incoming metadata with existing so that callers can send
-    // partial metadata updates (e.g. only enabled_plugins) without wiping
-    // other fields like instructions or ui.
-    const data = { ...input.data };
-    if (data.metadata && existing.metadata) {
-      data.metadata = { ...existing.metadata, ...data.metadata };
-    }
-
+    // Update the virtual MCP (input.data is already in the correct format)
     const virtualMcp = await ctx.storage.virtualMcps.update(
       input.id,
       userId,
-      data,
+      input.data,
     );
 
     // Return virtual MCP entity directly (already in correct format)
