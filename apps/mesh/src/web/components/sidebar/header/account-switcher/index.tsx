@@ -8,6 +8,7 @@ import {
 import { Check, Plus } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { useState } from "react";
 
@@ -84,12 +85,9 @@ export function MeshAccountSwitcher() {
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-3 rounded-md p-1.5 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring min-h-[2.75rem] w-auto"
-          >
+          <SidebarMenuButton tooltip={currentOrg?.name ?? "Organization"}>
             <div
-              className="shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden size-12"
+              className="shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden size-full"
               style={
                 currentOrg?.logo
                   ? undefined
@@ -108,7 +106,7 @@ export function MeshAccountSwitcher() {
                 </span>
               )}
             </div>
-          </button>
+          </SidebarMenuButton>
         </PopoverTrigger>
 
         <PopoverContent

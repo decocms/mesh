@@ -9,6 +9,7 @@ import {
 import {
   SidebarFooter,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
 } from "@deco/ui/components/sidebar.tsx";
 import { Check, Coins01, Inbox01, Settings01, XClose } from "@untitledui/icons";
@@ -188,26 +189,22 @@ function CreditChip() {
       : `Credits: $${balanceDollars.toFixed(2)}`;
 
   return (
-    <div className="flex items-center justify-center">
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          "size-16 hover:bg-sidebar-accent",
-          balanceDollars != null && creditColor(balanceDollars),
-        )}
-        onClick={() =>
-          navigate({
-            to: "/$org/settings/ai-providers",
-            params: { org: org.slug },
-          })
-        }
-        aria-label={tooltipLabel}
-        title={tooltipLabel}
-      >
-        <Coins01 size={32} />
-      </Button>
-    </div>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip={tooltipLabel}
+          className={cn(balanceDollars != null && creditColor(balanceDollars))}
+          onClick={() =>
+            navigate({
+              to: "/$org/settings/ai-providers",
+              params: { org: org.slug },
+            })
+          }
+        >
+          <Coins01 size={24} />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
@@ -225,22 +222,21 @@ function SettingsButton() {
   const { org } = useProjectContext();
 
   return (
-    <div className="flex items-center justify-center">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-16 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-        onClick={() =>
-          navigate({
-            to: "/$org/settings",
-            params: { org: org.slug },
-          })
-        }
-        aria-label="Settings"
-      >
-        <Settings01 size={32} />
-      </Button>
-    </div>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip="Settings"
+          onClick={() =>
+            navigate({
+              to: "/$org/settings",
+              params: { org: org.slug },
+            })
+          }
+        >
+          <Settings01 size={24} />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
@@ -248,60 +244,55 @@ export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
   return (
-    <SidebarFooter className="px-3 pb-3">
+    <SidebarFooter className="px-2 pb-3">
       <SilentErrorBoundary>
         <Suspense fallback={null}>
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
       <SettingsButton />
-      <div className="flex items-center justify-center">
-        <Popover>
-          <div className="relative">
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <Popover>
             <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-16 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                aria-label="Open inbox"
-              >
-                <Inbox01 size={32} />
-              </Button>
+              <SidebarMenuButton tooltip="Open inbox">
+                <Inbox01 size={24} />
+              </SidebarMenuButton>
             </PopoverTrigger>
             {pendingInvitations.length > 0 && (
-              <span className="absolute top-2 right-2 size-2.5 rounded-full bg-red-500 ring-2 ring-sidebar pointer-events-none" />
+              <span className="absolute top-1 right-1 size-2.5 rounded-full bg-red-500 ring-2 ring-sidebar pointer-events-none" />
             )}
-          </div>
-          <PopoverContent
-            side="right"
-            align="end"
-            sideOffset={24}
-            collisionPadding={16}
-            className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
-          >
-            <div className="px-4 py-3 border-b border-border shrink-0">
-              <h3 className="text-sm font-medium">Inbox</h3>
-            </div>
-            {pendingInvitations.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                <Inbox01 size={24} className="text-muted-foreground/50" />
-                <p className="text-sm font-medium text-foreground">
-                  No messages or invites pending
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Messages, workspace and project invitations will appear here
-                </p>
+            <PopoverContent
+              side="right"
+              align="end"
+              sideOffset={24}
+              collisionPadding={16}
+              className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
+            >
+              <div className="px-4 py-3 border-b border-border shrink-0">
+                <h3 className="text-sm font-medium">Inbox</h3>
               </div>
-            ) : (
-              <div className="overflow-y-auto flex-1">
-                {pendingInvitations.map((inv) => (
-                  <InvitationItem key={inv.id} invitation={inv} />
-                ))}
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
+              {pendingInvitations.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                  <Inbox01 size={24} className="text-muted-foreground/50" />
+                  <p className="text-sm font-medium text-foreground">
+                    No messages or invites pending
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Messages, workspace and project invitations will appear here
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-y-auto flex-1">
+                  {pendingInvitations.map((inv) => (
+                    <InvitationItem key={inv.id} invitation={inv} />
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </SidebarMenuItem>
+      </SidebarMenu>
       <SidebarMenu>
         <SidebarMenuItem>
           <MeshUserMenu />

@@ -212,7 +212,7 @@ function ShellLayoutInner({
       className="flex-1 bg-sidebar"
       style={
         {
-          "--sidebar-width-icon": "6rem",
+          "--sidebar-width-icon": "3.5rem",
           "--chat-panel-w": `${chatPanelWidth}cqi`,
           "--tasks-panel-w": `${tasksPanelWidth}cqi`,
         } as Record<string, string>
