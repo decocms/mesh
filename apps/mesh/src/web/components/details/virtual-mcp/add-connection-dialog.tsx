@@ -3,7 +3,6 @@ import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import type { RegistryItem } from "@/web/components/store/types";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -83,7 +82,6 @@ type GroupedItem = SingleConnection | ConnectionGroup;
 function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
   const buckets = new Map<string, ConnectionEntity[]>();
   for (const c of connections) {
-    if (c.connection_type === "VIRTUAL") continue;
     const key = getConnectionSlug(c);
     const list = buckets.get(key);
     if (list) {
@@ -97,7 +95,6 @@ function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
   const seen = new Set<string>();
 
   for (const c of connections) {
-    if (c.connection_type === "VIRTUAL") continue;
     const key = getConnectionSlug(c);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -174,22 +171,14 @@ function AddConnectionDialogContent({
     () => "all",
   );
 
-  // Connections
-  const allConnections = useConnections();
-  const nonVirtual = allConnections.filter(
-    (c) => c.connection_type !== "VIRTUAL",
-  );
-  const filteredConnections = search
-    ? nonVirtual.filter(
-        (c) =>
-          c.title.toLowerCase().includes(searchLower) ||
-          c.description?.toLowerCase().includes(searchLower),
-      )
-    : nonVirtual;
-  const grouped = groupConnections(filteredConnections);
+  // Connections - server-side search (VIRTUAL excluded by default)
+  const allConnections = useConnections({
+    searchTerm: search || undefined,
+  });
+  const grouped = groupConnections(allConnections);
 
-  // Registry / catalog
-  const registryConnections = useRegistryConnections(allConnections).sort(
+  // Registry / catalog - use server-side binding filter
+  const registryConnections = useConnections({ binding: "REGISTRY" }).sort(
     (a, b) => {
       const isSelfA = a.app_name === "@deco/management-mcp";
       const isSelfB = b.app_name === "@deco/management-mcp";
@@ -221,9 +210,7 @@ function AddConnectionDialogContent({
   );
 
   const connectedAppNames = new Set(
-    allConnections
-      .filter((c) => c.connection_type !== "VIRTUAL" && c.app_name)
-      .map((c) => c.app_name as string),
+    allConnections.filter((c) => c.app_name).map((c) => c.app_name as string),
   );
 
   const catalogItems =
@@ -302,9 +289,7 @@ function AddConnectionDialogContent({
 
     // If already connected, find instances to let user add them directly
     const appInstances = isConnected
-      ? allConnections.filter(
-          (c) => c.connection_type !== "VIRTUAL" && c.app_name === appName,
-        )
+      ? allConnections.filter((c) => c.app_name === appName)
       : [];
     const firstInstance = appInstances[0];
     const firstAdded = firstInstance
@@ -569,7 +554,6 @@ export function AddConnectionDialog({
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
-  const allConnections = useConnections();
 
   const handleInlineConnect = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
@@ -597,16 +581,6 @@ export function AddConnectionDialog({
         );
         setConnectingItemId(null);
         return;
-      }
-
-      // Check for duplicates
-      const appName = item.id ?? item.title;
-      const existing = allConnections.filter(
-        (c) => c.app_name === appName || c.title === connectionData.title,
-      );
-      if (existing.length > 0) {
-        const baseName = connectionData.title || "MCP Server";
-        connectionData.title = `${baseName} (${existing.length + 1})`;
       }
 
       const { id } = await connectionActions.create.mutateAsync(connectionData);
