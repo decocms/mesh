@@ -471,11 +471,15 @@ function FilterDropdown({
 
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
+  virtualMcpId?: string | null;
 }
 
-export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
+export function TaskListContent({
+  onTaskSelect,
+  virtualMcpId,
+}: TaskListContentProps) {
   const { activeTaskId, switchToTask } = useChat();
-  const { tasks, virtualMcps, selectedVirtualMcp } = useChatStable();
+  const { tasks, virtualMcps } = useChatStable();
   const { org } = useProjectContext();
 
   const connections = useConnections();
@@ -501,7 +505,7 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const visible = tasks.filter((t) => !t.hidden);
 
   // When inside a space, show only tasks that involve this space's agent
-  const spaceId = selectedVirtualMcp?.id;
+  const spaceId = virtualMcpId ?? null;
   const spaceFiltered = spaceId
     ? visible.filter((t) => t.agent_ids?.includes(spaceId))
     : visible;
