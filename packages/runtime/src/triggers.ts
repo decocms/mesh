@@ -81,10 +81,21 @@ export function createTriggers<const TDefs extends TriggerDef[]>(
 
     for (const [key, value] of Object.entries(shape)) {
       const zodField = value as z.ZodTypeAny;
-      paramsSchema[key] = {
+      const entry: {
+        type: "string";
+        description?: string;
+        enum?: string[];
+      } = {
         type: "string" as const,
         description: zodField.description,
       };
+
+      // Extract enum values from z.enum() schemas
+      if ("options" in zodField && Array.isArray(zodField.options)) {
+        entry.enum = zodField.options as string[];
+      }
+
+      paramsSchema[key] = entry;
     }
 
     return {
@@ -117,15 +128,11 @@ export function createTriggers<const TDefs extends TriggerDef[]>(
         throw new Error("Connection ID not available");
       }
 
-      if (context.enabled) {
-        if (context.callbackUrl && context.callbackToken) {
-          callbackCredentials.set(connectionId, {
-            callbackUrl: context.callbackUrl,
-            callbackToken: context.callbackToken,
-          });
-        }
-      } else {
-        callbackCredentials.delete(connectionId);
+      if (context.callbackUrl && context.callbackToken) {
+        callbackCredentials.set(connectionId, {
+          callbackUrl: context.callbackUrl,
+          callbackToken: context.callbackToken,
+        });
       }
 
       return { success: true };

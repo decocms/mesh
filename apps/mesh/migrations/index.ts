@@ -51,6 +51,7 @@ import * as migration049removeorgadminprojects from "./049-remove-org-admin-proj
 import * as migration049threadagentids from "./049-thread-agent-ids.ts";
 import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
+import * as migration052triggercallbacktokens from "./052-trigger-callback-tokens.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -116,6 +117,7 @@ const migrations: Record<string, Migration> = {
   "049-thread-agent-ids": migration049threadagentids,
   "050-durable-agent-runs": migration050durableagentruns,
   "051-org-sso": migration051orgsso,
+  "052-trigger-callback-tokens": migration052triggercallbacktokens,
 };
 
 export default migrations;

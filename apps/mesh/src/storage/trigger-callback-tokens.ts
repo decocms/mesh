@@ -65,13 +65,6 @@ export class KyselyTriggerCallbackTokenStorage
     const tokenHash = await hashToken(plaintext);
     const id = crypto.randomUUID();
 
-    // Delete existing token for this connection+org, then insert new one
-    await this.db
-      .deleteFrom("trigger_callback_tokens")
-      .where("connection_id", "=", connectionId)
-      .where("organization_id", "=", organizationId)
-      .execute();
-
     await this.db
       .insertInto("trigger_callback_tokens")
       .values({
@@ -81,6 +74,12 @@ export class KyselyTriggerCallbackTokenStorage
         token_hash: tokenHash,
         created_at: new Date().toISOString(),
       })
+      .onConflict((oc) =>
+        oc.columns(["connection_id", "organization_id"]).doUpdateSet({
+          id,
+          token_hash: tokenHash,
+        }),
+      )
       .execute();
 
     return plaintext;

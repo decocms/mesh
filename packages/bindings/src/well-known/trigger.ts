@@ -68,8 +68,8 @@ export const TriggerConfigureInputSchema = z.object({
   type: z.string(),
   params: z.record(z.string(), z.string()),
   enabled: z.boolean(),
-  callbackUrl: z.string().optional(),
-  callbackToken: z.string().optional(),
+  callbackUrl: z.url().optional(),
+  callbackToken: z.string().min(1).optional(),
 });
 
 export type TriggerConfigureInput = z.infer<typeof TriggerConfigureInputSchema>;

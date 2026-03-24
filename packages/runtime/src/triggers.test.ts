@@ -1,6 +1,15 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import { z } from "zod";
 import { createTriggers } from "./triggers.ts";
+
+// biome-ignore lint: test mocks don't need full type compliance
+const mockCtx = (connectionId?: string) =>
+  ({
+    env: connectionId
+      ? { MESH_REQUEST_CONTEXT: { connectionId } }
+      : { MESH_REQUEST_CONTEXT: {} },
+    ctx: { waitUntil: () => {} },
+  }) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const triggers = createTriggers([
   {
@@ -31,7 +40,7 @@ describe("createTriggers", () => {
     const listTool = triggers.tools()[0];
     const result = (await listTool.execute({
       context: {},
-      runtimeContext: { env: {}, ctx: { waitUntil: () => {} } },
+      runtimeContext: mockCtx(),
     })) as {
       triggers: Array<{ type: string; paramsSchema: Record<string, unknown> }>;
     };
@@ -45,6 +54,30 @@ describe("createTriggers", () => {
       },
     });
     expect(result.triggers[1].type).toBe("github.pull_request.opened");
+  });
+
+  it("TRIGGER_LIST includes enum values from z.enum params", async () => {
+    const enumTriggers = createTriggers([
+      {
+        type: "test.event",
+        description: "Test",
+        params: z.object({
+          action: z.enum(["opened", "closed", "merged"]).describe("PR action"),
+        }),
+      },
+    ]);
+    const listTool = enumTriggers.tools()[0];
+    const result = (await listTool.execute({
+      context: {},
+      runtimeContext: mockCtx(),
+    })) as {
+      triggers: Array<{ paramsSchema: Record<string, { enum?: string[] }> }>;
+    };
+    expect(result.triggers[0].paramsSchema.action.enum).toEqual([
+      "opened",
+      "closed",
+      "merged",
+    ]);
   });
 
   it("TRIGGER_CONFIGURE stores callback credentials and notify delivers", async () => {
@@ -62,12 +95,7 @@ describe("createTriggers", () => {
         callbackUrl: "https://mesh.example.com/api/trigger-callback",
         callbackToken: "test-token-123",
       },
-      runtimeContext: {
-        env: {
-          MESH_REQUEST_CONTEXT: { connectionId: "conn-1" },
-        },
-        ctx: { waitUntil: () => {} },
-      },
+      runtimeContext: mockCtx("conn-1"),
     });
 
     // Notify should POST to the callback URL
@@ -76,7 +104,7 @@ describe("createTriggers", () => {
     });
 
     // Wait for the fire-and-forget fetch
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 50));
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "https://mesh.example.com/api/trigger-callback",
@@ -98,14 +126,14 @@ describe("createTriggers", () => {
     fetchSpy.mockRestore();
   });
 
-  it("TRIGGER_CONFIGURE with enabled=false removes credentials", async () => {
+  it("TRIGGER_CONFIGURE with enabled=false keeps credentials (Mesh manages lifecycle)", async () => {
     const configureTool = triggers.tools()[1];
 
     const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("ok"),
+      new Response("ok", { status: 202 }),
     );
 
-    // First enable
+    // Enable with credentials
     await configureTool.execute({
       context: {
         type: "github.push",
@@ -114,30 +142,24 @@ describe("createTriggers", () => {
         callbackUrl: "https://mesh.example.com/api/trigger-callback",
         callbackToken: "token-abc",
       },
-      runtimeContext: {
-        env: { MESH_REQUEST_CONTEXT: { connectionId: "conn-2" } },
-        ctx: { waitUntil: () => {} },
-      },
+      runtimeContext: mockCtx("conn-2"),
     });
 
-    // Then disable
+    // Disable a trigger type — credentials should persist for other trigger types
     await configureTool.execute({
       context: {
         type: "github.push",
         params: {},
         enabled: false,
       },
-      runtimeContext: {
-        env: { MESH_REQUEST_CONTEXT: { connectionId: "conn-2" } },
-        ctx: { waitUntil: () => {} },
-      },
+      runtimeContext: mockCtx("conn-2"),
     });
 
-    // Notify should not call fetch (no credentials)
+    // Notify should still deliver because credentials are connection-level
     triggers.notify("conn-2", "github.push", { foo: "bar" });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalled();
 
     fetchSpy.mockRestore();
   });
@@ -156,10 +178,7 @@ describe("createTriggers", () => {
     expect(
       configureTool.execute({
         context: { type: "github.push", params: {}, enabled: true },
-        runtimeContext: {
-          env: { MESH_REQUEST_CONTEXT: {} },
-          ctx: { waitUntil: () => {} },
-        },
+        runtimeContext: mockCtx(),
       }),
     ).rejects.toThrow("Connection ID not available");
   });
