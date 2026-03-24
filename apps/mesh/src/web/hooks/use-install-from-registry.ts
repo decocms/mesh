@@ -5,7 +5,6 @@
 
 import { toast } from "sonner";
 import type { RegistryItem } from "@/web/components/store/types";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { authClient } from "@/web/lib/auth-client";
 import {
   useConnectionActions,
@@ -56,9 +55,8 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { data: session } = authClient.useSession();
   const actions = useConnectionActions();
 
-  // Get all connections and filter to registry connections
-  const allConnections = useConnections();
-  const registryConnections = useRegistryConnections(allConnections);
+  // Get registry connections using server-side binding filter
+  const registryConnections = useConnections({ binding: "REGISTRY" });
 
   // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (

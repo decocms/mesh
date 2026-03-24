@@ -8,7 +8,6 @@
 
 import { useSuspenseQueries } from "@tanstack/react-query";
 import type { BindingDefinition } from "@/web/hooks/use-binding";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { KEYS } from "@/web/lib/query-keys";
 import { MCP_REGISTRY_DECOCMS_KEY } from "@/web/utils/constants";
 import { findListToolName, callRegistryTool } from "@/web/utils/registry-utils";
@@ -102,9 +101,8 @@ export function useBindingSchemaFromRegistry(
   serverName: string | undefined,
 ): UseBindingSchemaFromRegistryResult {
   const { org } = useProjectContext();
-  // Get all connections and filter to registry connections
-  const allConnections = useConnections();
-  const registryConnections = useRegistryConnections(allConnections);
+  // Get registry connections using server-side binding filter
+  const registryConnections = useConnections({ binding: "REGISTRY" });
 
   // Parse the MCP Server name for the query
   const parsedServerName = serverName ? parseServerName(serverName) : "";
