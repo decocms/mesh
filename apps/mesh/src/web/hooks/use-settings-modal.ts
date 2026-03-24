@@ -32,7 +32,12 @@ export function useSettingsModal() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { settings?: string };
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
+  const projectMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId",
+    shouldThrow: false,
+  });
   const org = orgMatch?.params.org;
+  const virtualMcpId = projectMatch?.params.virtualMcpId;
 
   const activeSection = isValidSettingsSection(search.settings)
     ? search.settings
@@ -41,20 +46,36 @@ export function useSettingsModal() {
 
   const open = (section: SettingsSection) => {
     if (!org) return;
-    navigate({
-      to: "/$org",
-      params: { org },
-      search: { settings: section },
-    });
+    if (virtualMcpId) {
+      navigate({
+        to: "/$org/projects/$virtualMcpId",
+        params: { org, virtualMcpId },
+        search: { settings: section },
+      });
+    } else {
+      navigate({
+        to: "/$org",
+        params: { org },
+        search: { settings: section },
+      });
+    }
   };
 
   const close = () => {
     if (!org) return;
-    navigate({
-      to: "/$org",
-      params: { org },
-      search: {},
-    });
+    if (virtualMcpId) {
+      navigate({
+        to: "/$org/projects/$virtualMcpId",
+        params: { org, virtualMcpId },
+        search: {},
+      });
+    } else {
+      navigate({
+        to: "/$org",
+        params: { org },
+        search: {},
+      });
+    }
   };
 
   return {

@@ -350,6 +350,19 @@ export function ProjectPluginsForm() {
         queryClient.invalidateQueries({
           queryKey: KEYS.projects(org.id),
         });
+        // Invalidate the VIRTUAL_MCP collection queries so the sidebar
+        // (which reads enabledPlugins from useVirtualMCP → useCollectionItem)
+        // picks up the new enabled_plugins.
+        // Collection keys have shape [client, orgId, scopeKey, "collection", name, ...]
+        // so we match on positional fields instead of a prefix.
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const k = query.queryKey;
+            return (
+              k[1] === org.id && k[3] === "collection" && k[4] === "VIRTUAL_MCP"
+            );
+          },
+        });
         if (isOrgAdmin) {
           queryClient.invalidateQueries({
             queryKey: KEYS.organizationSettings(org.id),
