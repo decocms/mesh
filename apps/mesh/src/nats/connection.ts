@@ -132,6 +132,7 @@ export function createNatsConnectionProvider(
 
     async drain(): Promise<void> {
       stopped = true;
+      initialized = false;
       js = null;
       if (nc) {
         const conn = nc;
