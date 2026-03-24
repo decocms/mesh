@@ -51,7 +51,12 @@ export const AUTOMATION_TRIGGER_REMOVE = defineTool({
 
     // If event trigger, disable on MCP connection (best-effort)
     if (trigger.type === "event") {
-      const result = await configureTriggerOnMcp(ctx, trigger, false);
+      const result = await configureTriggerOnMcp(
+        ctx,
+        trigger,
+        false,
+        ctx.storage.triggerCallbackTokens,
+      );
       if (!result.success) {
         console.warn(
           `Failed to disable trigger ${trigger.id}: ${result.error}`,

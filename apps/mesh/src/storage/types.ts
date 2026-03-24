@@ -1011,6 +1011,17 @@ export interface AutomationTrigger {
 }
 
 /**
+ * Trigger callback token table - stores hashed tokens for external MCP callbacks
+ */
+export interface TriggerCallbackTokenTable {
+  id: string;
+  organization_id: string;
+  connection_id: string;
+  token_hash: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+/**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
  *
@@ -1064,6 +1075,9 @@ export interface Database {
   // Automations tables
   automations: AutomationTable;
   automation_triggers: AutomationTriggerTable;
+
+  // Trigger callback tokens (for external MCP → Mesh callbacks)
+  trigger_callback_tokens: TriggerCallbackTokenTable;
 
   // Organization SSO tables
   org_sso_config: OrgSsoConfigTable;

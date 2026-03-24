@@ -21,10 +21,21 @@ import {
   useAutomationDelete,
   useAutomationTriggerAdd,
   useAutomationTriggerRemove,
+  useTriggerList,
   type AutomationTrigger,
+  type TriggerDefinition,
 } from "@/web/hooks/use-automations";
 import { useChat } from "@/web/components/chat/index";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { BindingSelector } from "@/web/components/binding-selector.tsx";
+import { useConnections } from "@decocms/mesh-sdk";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger as SelectTriggerUI,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,6 +88,7 @@ import {
   Trash01,
   Users03,
   XClose,
+  Zap,
 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
@@ -243,11 +255,13 @@ function AddStarterPopover({
   open,
   onOpenChange,
   onCustomSelect,
+  onEventSelect,
 }: {
   automationId: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onCustomSelect?: () => void;
+  onEventSelect?: () => void;
 }) {
   const addTrigger = useAutomationTriggerAdd();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -313,6 +327,17 @@ function AddStarterPopover({
           <Clock size={14} className="text-muted-foreground shrink-0" />
           Custom (cron)
         </DropdownMenuItem>
+
+        <DropdownMenuItem
+          className="gap-2.5"
+          onSelect={() => {
+            handleOpenChange(false);
+            onEventSelect?.();
+          }}
+        >
+          <Zap size={14} className="text-muted-foreground shrink-0" />
+          Event
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -332,6 +357,7 @@ function TriggerCard({
   const removeTrigger = useAutomationTriggerRemove();
   const addTrigger = useAutomationTriggerAdd();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const allConnections = useConnections();
 
   const interval = trigger.cron_expression
     ? parseCronToInterval(trigger.cron_expression)
@@ -339,6 +365,10 @@ function TriggerCard({
   const [count, setCount] = useState(interval?.count ?? 1);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(trigger.cron_expression ?? "");
+
+  const triggerConnection = trigger.connection_id
+    ? allConnections?.find((c) => c.id === trigger.connection_id)
+    : null;
 
   const isSaving = removeTrigger.isPending || addTrigger.isPending;
   const isCron = trigger.type === "cron";
@@ -405,7 +435,11 @@ function TriggerCard({
   return (
     <>
       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
-        <Clock size={14} className="text-muted-foreground shrink-0" />
+        {trigger.type === "event" ? (
+          <Zap size={14} className="text-muted-foreground shrink-0" />
+        ) : (
+          <Clock size={14} className="text-muted-foreground shrink-0" />
+        )}
 
         {interval && isCron ? (
           <>
@@ -449,11 +483,22 @@ function TriggerCard({
             )}
           </>
         ) : (
-          <span className="text-sm flex-1 font-mono text-xs text-muted-foreground">
-            {isCron
-              ? humanReadableCron(trigger.cron_expression ?? "")
-              : `${trigger.event_type} event`}
-          </span>
+          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+            <span className="text-sm font-mono text-xs text-muted-foreground truncate">
+              {isCron
+                ? humanReadableCron(trigger.cron_expression ?? "")
+                : `${trigger.event_type}${triggerConnection ? ` · ${triggerConnection.title}` : ""}`}
+            </span>
+            {!isCron &&
+              trigger.params &&
+              Object.keys(trigger.params).length > 0 && (
+                <span className="text-xs text-muted-foreground/60 truncate">
+                  {Object.entries(trigger.params)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(", ")}
+                </span>
+              )}
+          </div>
         )}
 
         <div className="ml-auto flex items-center gap-1">
@@ -645,6 +690,184 @@ function AgentPicker({
 }
 
 // ============================================================================
+// Event Trigger Form
+// ============================================================================
+
+function EventTriggerForm({
+  automationId,
+  onClose,
+}: {
+  automationId: string;
+  onClose: () => void;
+}) {
+  const [connectionId, setConnectionId] = useState<string | null>(null);
+  const [eventType, setEventType] = useState<string | null>(null);
+  const [params, setParams] = useState<Record<string, string>>({});
+  const addTrigger = useAutomationTriggerAdd();
+
+  const { data: triggers, isLoading: isLoadingTriggers } = useTriggerList(
+    connectionId ?? undefined,
+  );
+
+  const selectedTrigger = triggers?.find(
+    (t: TriggerDefinition) => t.type === eventType,
+  );
+
+  const handleSubmit = async () => {
+    if (!connectionId || !eventType) return;
+    try {
+      await addTrigger.mutateAsync({
+        automation_id: automationId,
+        type: "event",
+        connection_id: connectionId,
+        event_type: eventType,
+        params: Object.keys(params).length > 0 ? params : undefined,
+      });
+      toast.success("Event trigger added");
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to add event trigger";
+      toast.error(message);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3 rounded-lg border border-border bg-background">
+      <div className="flex items-center gap-2">
+        <Zap size={14} className="text-muted-foreground shrink-0" />
+        <span className="text-sm font-medium">Event trigger</span>
+      </div>
+
+      <BindingSelector
+        value={connectionId}
+        onValueChange={(v) => {
+          setConnectionId(v);
+          setEventType(null);
+          setParams({});
+        }}
+        binding="TRIGGER"
+        placeholder="Select connection..."
+        className="w-full"
+      />
+
+      {connectionId && (
+        <>
+          {isLoadingTriggers ? (
+            <div className="flex items-center gap-2 py-2">
+              <Loading01
+                size={13}
+                className="animate-spin text-muted-foreground"
+              />
+              <span className="text-sm text-muted-foreground">
+                Loading events...
+              </span>
+            </div>
+          ) : triggers && triggers.length > 0 ? (
+            <Select
+              value={eventType ?? "none"}
+              onValueChange={(v) => {
+                setEventType(v === "none" ? null : v);
+                setParams({});
+              }}
+            >
+              <SelectTriggerUI size="sm" className="w-full">
+                <SelectValue placeholder="Select event type...">
+                  {eventType ?? "Select event type..."}
+                </SelectValue>
+              </SelectTriggerUI>
+              <SelectContent>
+                <SelectItem value="none">Select event type...</SelectItem>
+                {triggers.map((t: TriggerDefinition) => (
+                  <SelectItem key={t.type} value={t.type}>
+                    <div className="flex flex-col">
+                      <span>{t.type}</span>
+                      {t.description && (
+                        <span className="text-xs text-muted-foreground">
+                          {t.description}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              No event types available
+            </span>
+          )}
+        </>
+      )}
+
+      {selectedTrigger &&
+        selectedTrigger.paramsSchema &&
+        Object.keys(selectedTrigger.paramsSchema).length > 0 && (
+          <div className="flex flex-col gap-2">
+            {Object.entries(selectedTrigger.paramsSchema).map(
+              ([key, schema]) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">
+                    {schema.description ?? key}
+                  </label>
+                  {schema.enum ? (
+                    <Select
+                      value={params[key] ?? ""}
+                      onValueChange={(v) =>
+                        setParams((prev) => ({ ...prev, [key]: v }))
+                      }
+                    >
+                      <SelectTriggerUI size="sm" className="w-full">
+                        <SelectValue placeholder={`Select ${key}...`} />
+                      </SelectTriggerUI>
+                      <SelectContent>
+                        {schema.enum.map((opt) => (
+                          <SelectItem key={opt} value={opt}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={params[key] ?? ""}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))
+                      }
+                      placeholder={key}
+                      className="h-8 text-sm"
+                    />
+                  )}
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+      <div className="flex gap-2 justify-end">
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleSubmit}
+          disabled={!connectionId || !eventType || addTrigger.isPending}
+        >
+          {addTrigger.isPending ? (
+            <Loading01 size={13} className="animate-spin" />
+          ) : (
+            "Add Trigger"
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Settings Tab
 // ============================================================================
 
@@ -677,6 +900,7 @@ function SettingsTab({
   const [savedDoc, setSavedDoc] = useState(initialTiptapDoc);
   const [starterOpen, setStarterOpen] = useState(false);
   const [showCustomCron, setShowCustomCron] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
   const [cronInput, setCronInput] = useState("");
   const addTrigger = useAutomationTriggerAdd();
   const editorInitializedRef = useRef(false);
@@ -874,12 +1098,19 @@ function SettingsTab({
               onOpenChange={setStarterOpen}
               onCustomSelect={() => {
                 setShowCustomCron(true);
+                setShowEventForm(false);
                 setCronInput("");
+              }}
+              onEventSelect={() => {
+                setShowEventForm(true);
+                setShowCustomCron(false);
               }}
             />
           </div>
 
-          {automation.triggers.length === 0 && !showCustomCron ? (
+          {automation.triggers.length === 0 &&
+          !showCustomCron &&
+          !showEventForm ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
               <p className="text-sm text-muted-foreground">
                 When should this automation run?{" "}
@@ -964,6 +1195,13 @@ function SettingsTab({
                 <XClose size={13} />
               </button>
             </div>
+          )}
+
+          {showEventForm && (
+            <EventTriggerForm
+              automationId={automationId}
+              onClose={() => setShowEventForm(false)}
+            />
           )}
         </div>
 

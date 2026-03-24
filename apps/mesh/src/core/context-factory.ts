@@ -29,6 +29,7 @@ import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards"
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
+import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import { TagStorage } from "../storage/tags";
@@ -825,6 +826,7 @@ export async function createMeshContextFactory(
     aiProviderKeys: new AIProviderKeyStorage(config.db, vault),
     oauthPkceStates: new OAuthPkceStateStorage(config.db),
     automations: createAutomationsStorage(config.db),
+    triggerCallbackTokens: new KyselyTriggerCallbackTokenStorage(config.db),
     orgSsoConfig: new OrgSsoConfigStorage(config.db, vault),
     orgSsoSessions: new OrgSsoSessionStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin

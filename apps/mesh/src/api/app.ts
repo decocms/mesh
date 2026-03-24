@@ -42,6 +42,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
@@ -93,6 +94,7 @@ import {
 import { POD_ID } from "../core/pod-identity";
 import { NatsPodHeartbeat } from "../nats/pod-heartbeat";
 import { createAutomationsStorage } from "../storage/automations";
+import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { createAutomationContextFactory } from "./routes/decopilot/automation-context";
 
 // Track current event bus instance for cleanup during HMR
@@ -718,6 +720,9 @@ export async function createApp(options: CreateAppOptions = {}) {
   }
 
   const automationsStorage = createAutomationsStorage(database.db);
+  const triggerCallbackTokenStorage = new KyselyTriggerCallbackTokenStorage(
+    database.db,
+  );
   const automationSemaphore = new Semaphore(10); // max 10 concurrent runs globally
 
   const automationContextFactory = createAutomationContextFactory({
@@ -1117,6 +1122,15 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
+
+  // Trigger callback endpoint (external MCPs → Mesh automations)
+  app.route(
+    "/api",
+    createTriggerCallbackRoutes({
+      tokenStorage: triggerCallbackTokenStorage,
+      eventTriggerEngine,
+    }),
+  );
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
