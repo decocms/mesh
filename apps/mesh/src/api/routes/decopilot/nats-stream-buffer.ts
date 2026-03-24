@@ -71,6 +71,7 @@ export class NatsStreamBuffer implements StreamBuffer {
 
   async init(): Promise<void> {
     const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — stream buffer disabled
     const jsm = await nc.jetstreamManager();
 
     const config = {

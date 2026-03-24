@@ -31,6 +31,7 @@ export class JetStreamKVModelListCache implements ModelListCache {
 
   async init(): Promise<void> {
     const js = this.options.getJetStream();
+    if (!js) return; // NATS not ready — cache disabled until re-init
     this.kv = await js.views.kv(KV_BUCKET, {
       ttl: KV_TTL_MS,
       storage: StorageType.Memory,

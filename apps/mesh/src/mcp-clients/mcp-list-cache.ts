@@ -32,6 +32,7 @@ export class JetStreamKVMcpListCache implements McpListCache {
 
   async init(): Promise<void> {
     const js = this.options.getJetStream();
+    if (!js) return; // NATS not ready — cache disabled until re-init
     this.kv = await js.views.kv(KV_BUCKET, {
       storage: StorageType.Memory,
     });

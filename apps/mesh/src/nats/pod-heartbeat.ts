@@ -38,6 +38,7 @@ export class NatsPodHeartbeat implements PodHeartbeat {
 
   async init(): Promise<void> {
     const js = this.deps.getJetStream();
+    if (!js) return; // NATS not ready — heartbeat disabled until re-init
     this.kv = await js.views.kv(BUCKET_NAME, {
       ttl: BUCKET_TTL_MS,
       storage: StorageType.Memory,
@@ -45,7 +46,7 @@ export class NatsPodHeartbeat implements PodHeartbeat {
   }
 
   start(podId: string): void {
-    if (!this.kv) throw new Error("[PodHeartbeat] Not initialized");
+    if (!this.kv) return; // Not initialized — skip heartbeat
     this.podId = podId;
 
     // Immediate first heartbeat
@@ -62,7 +63,7 @@ export class NatsPodHeartbeat implements PodHeartbeat {
   }
 
   onPodDeath(callback: (deadPodId: string) => void): void {
-    if (!this.kv) throw new Error("[PodHeartbeat] Not initialized");
+    if (!this.kv) return; // Not initialized — skip watcher
 
     this.watchAbortController = new AbortController();
     const kv = this.kv;
