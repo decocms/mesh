@@ -93,6 +93,14 @@ function isMethodNotFound(err: unknown): boolean {
   return err instanceof McpError && err.code === ErrorCode.MethodNotFound;
 }
 
+function isConnectionClosed(err: unknown): boolean {
+  return (
+    err instanceof McpError &&
+    err.code === -32000 &&
+    /connection closed/i.test(err.message)
+  );
+}
+
 /**
  * Fetch with cache: checks cache first, then revalidates in background.
  * On cache hit, returns cached data immediately and revalidates in background.
@@ -102,6 +110,7 @@ export async function fetchWithCache(
   connectionId: string,
   fetchLive: () => Promise<unknown[]>,
   cache: McpListCache | null,
+  onRevalidation?: (promise: Promise<void>) => void,
 ): Promise<unknown[] | null> {
   if (!cache) {
     try {
@@ -142,11 +151,13 @@ export async function fetchWithCache(
   const revalKey = `${type}:${connectionId}`;
   if (!revalidating.has(revalKey)) {
     revalidating.add(revalKey);
-    fetchLive()
+    const revalPromise = fetchLive()
       .then((data) => cache.set(type, connectionId, data))
       .catch((err) => {
-        if (isMethodNotFound(err)) {
-          cache.set(type, connectionId, []).catch(() => {});
+        if (isMethodNotFound(err) || isConnectionClosed(err)) {
+          if (isMethodNotFound(err)) {
+            cache.set(type, connectionId, []).catch(() => {});
+          }
           return;
         }
         console.warn(
@@ -155,6 +166,8 @@ export async function fetchWithCache(
         );
       })
       .finally(() => revalidating.delete(revalKey));
+
+    onRevalidation?.(revalPromise);
   }
 
   return cached;
