@@ -19,8 +19,8 @@ export default function DynamicPluginLayout() {
   // Find the plugin by ID
   const plugin = sourcePlugins.find((p) => p.id === pluginId);
 
-  // If plugin has render props and a binding, use PluginLayout with those
-  if (plugin?.renderHeader && plugin?.renderEmptyState && plugin?.binding) {
+  // If plugin has render props and a binding name, use PluginLayout with those
+  if (plugin?.renderHeader && plugin?.renderEmptyState && plugin?.bindingName) {
     return (
       <Suspense
         fallback={
@@ -34,7 +34,7 @@ export default function DynamicPluginLayout() {
         }
       >
         <PluginLayout
-          binding={plugin.binding}
+          bindingName={plugin.bindingName}
           renderHeader={plugin.renderHeader}
           renderEmptyState={plugin.renderEmptyState}
         />
