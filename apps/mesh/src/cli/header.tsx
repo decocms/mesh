@@ -58,24 +58,24 @@ export function Header({
 
   return (
     <Box flexDirection="column" paddingBottom={1}>
-      <Box flexDirection="row" gap={1}>
-        {vibe && (
-          <Box flexDirection="column">
-            {capyFrame.map((line, i) => (
-              <Box key={i} flexDirection="row">
-                {line.map((seg, j) =>
-                  seg.color ? (
-                    <Text key={j} color={seg.color}>
-                      {seg.text}
-                    </Text>
-                  ) : (
-                    <Text key={j}>{seg.text}</Text>
-                  ),
-                )}
-              </Box>
-            ))}
-          </Box>
-        )}
+      {vibe ? (
+        <Box flexDirection="column">
+          {capyFrame.map((line, i) => (
+            <Box key={i} flexDirection="row">
+              {line.map((seg, j) =>
+                seg.color ? (
+                  <Text key={j} color={seg.color}>
+                    {seg.text}
+                  </Text>
+                ) : (
+                  <Text key={j}>{seg.text}</Text>
+                ),
+              )}
+            </Box>
+          ))}
+          <Text dimColor> v{pkg.version}</Text>
+        </Box>
+      ) : (
         <Box flexDirection="column" marginTop={1}>
           {ASCII_LINES.map((line, i) => (
             <Text key={i} color={GRADIENT_COLORS[i]}>
@@ -84,10 +84,10 @@ export function Header({
           ))}
           <Text dimColor> v{pkg.version}</Text>
         </Box>
+      )}
+      <Box marginBottom={1}>
+        <Text dimColor>{"─".repeat(80)}</Text>
       </Box>
-      <Text dimColor marginBottom={1}>
-        {"─".repeat(80)}
-      </Text>
 
       <Box>
         <Text dimColor>Home: {home}</Text>
