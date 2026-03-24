@@ -5,8 +5,7 @@ import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
 import { MeshSidebarHeader } from "./header";
 import { SidebarInboxFooter } from "./footer/inbox";
-import { SidebarProjectsSection } from "./projects-section";
-import { SidebarAgentsSection } from "./agents-section";
+import { SidebarSpacesSection } from "./spaces-section";
 
 // Export types for external use
 export type {
@@ -35,18 +34,11 @@ function SidebarContent() {
       footer={<SidebarInboxFooter />}
       additionalContent={
         isOrgAdmin ? (
-          <>
-            <ErrorBoundary>
-              <Suspense fallback={null}>
-                <SidebarProjectsSection />
-              </Suspense>
-            </ErrorBoundary>
-            <ErrorBoundary>
-              <Suspense fallback={null}>
-                <SidebarAgentsSection />
-              </Suspense>
-            </ErrorBoundary>
-          </>
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <SidebarSpacesSection />
+            </Suspense>
+          </ErrorBoundary>
         ) : null
       }
     />

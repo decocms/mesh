@@ -1,13 +1,21 @@
 import { VirtualMcpDetailView } from "@/web/components/details/virtual-mcp";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Loading01 } from "@untitledui/icons";
-import { useParams } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import { Suspense } from "react";
 
 function ProjectSettingsContent() {
-  const { virtualMcpId } = useParams({
-    from: "/shell/$org/projects/$virtualMcpId/settings",
+  // Support both /spaces/$virtualMcpId/settings and /projects/$virtualMcpId/settings
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId/settings",
+    shouldThrow: false,
   });
+  const projectsMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId/settings",
+    shouldThrow: false,
+  });
+  const virtualMcpId =
+    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
   return (
     <VirtualMcpDetailView
       key={virtualMcpId}

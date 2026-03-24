@@ -175,11 +175,7 @@ export interface MCPConnectionTable {
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
   status: "active" | "inactive" | "error";
-  subtype: ColumnType<
-    "agent" | "project" | null,
-    "agent" | "project" | null,
-    "agent" | "project" | null
-  >;
+  pinned: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }

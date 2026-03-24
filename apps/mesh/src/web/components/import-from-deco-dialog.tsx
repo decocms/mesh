@@ -129,14 +129,14 @@ export function ImportFromDecoDialog({
 
       const slug = generateSlug(siteName);
 
-      // 2. Create a project (virtual MCP with subtype "project") with the connection already linked
+      // 2. Create a space (virtual MCP) with the connection already linked
       const result = (await client.callTool({
         name: "COLLECTION_VIRTUAL_MCP_CREATE",
         arguments: {
           data: {
             title: siteName,
             description: "Imported from deco.cx",
-            subtype: "project",
+            pinned: true,
             metadata: {
               instructions: null,
               enabled_plugins: [],

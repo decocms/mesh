@@ -32,7 +32,7 @@ type RawConnectionRow = {
   description: string | null;
   icon: string | null;
   status: "active" | "inactive" | "error";
-  subtype: "agent" | "project" | null;
+  pinned: boolean;
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
@@ -76,7 +76,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         app_name: null,
         app_id: null,
         connection_type: "VIRTUAL",
-        subtype: data.subtype ?? "agent",
+        pinned: data.pinned ?? false,
         connection_url: `virtual://${id}`,
         connection_token: null,
         connection_headers: null,
@@ -145,7 +145,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       // Return Decopilot agent with connections populated
       return {
         ...getWellKnownDecopilotVirtualMCP(resolvedOrgId),
-        subtype: null,
+        pinned: false,
         connections: connections.map((c) => ({
           connection_id: c.id,
           selected_tools: null, // null = all tools
@@ -190,7 +190,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
   async list(
     organizationId: string,
-    subtype?: "agent" | "project",
+    options?: { pinnedOnly?: boolean },
   ): Promise<VirtualMCPEntity[]> {
     let query = this.db
       .selectFrom("connections")
@@ -198,8 +198,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       .where("organization_id", "=", organizationId)
       .where("connection_type", "=", "VIRTUAL");
 
-    if (subtype) {
-      query = query.where("subtype", "=", subtype);
+    if (options?.pinnedOnly) {
+      query = query.where("pinned", "=", true);
     }
 
     const rows = await query.execute();
@@ -315,8 +315,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
-    if (data.subtype !== undefined) {
-      updateData.subtype = data.subtype;
+    if (data.pinned !== undefined) {
+      updateData.pinned = data.pinned;
     }
     if (data.metadata !== undefined) {
       updateData.metadata = data.metadata
@@ -426,7 +426,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       description: row.description,
       icon: row.icon,
       status,
-      subtype: row.subtype,
+      pinned: row.pinned,
       created_at: createdAt,
       updated_at: updatedAt,
       created_by: row.created_by,
