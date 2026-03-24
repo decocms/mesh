@@ -80,6 +80,7 @@ export function createNatsConnectionProvider(
           reconnect: true,
           maxReconnectAttempts: -1,
         });
+        js = null; // invalidate cached JetStream client for fresh connection
         fireReady();
         return;
       } catch {
@@ -98,7 +99,7 @@ export function createNatsConnectionProvider(
     init(url: string | string[]): void {
       if (initialized) return;
       initialized = true;
-      connectWithRetry(url);
+      connectWithRetry(url).catch(() => {});
     },
 
     isConnected(): boolean {
@@ -119,7 +120,11 @@ export function createNatsConnectionProvider(
 
     onReady(callback: () => void): void {
       if (checkConnected()) {
-        callback();
+        try {
+          callback();
+        } catch {
+          // swallow callback errors (consistent with fireReady)
+        }
         return;
       }
       readyCallbacks.push(callback);
