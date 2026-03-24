@@ -40,7 +40,11 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
     this.localEmit = localEmit;
 
     if (this.sub) return;
-    this.sub = this.options.getConnection().subscribe(SUBJECT);
+
+    const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — local SSE still works
+
+    this.sub = nc.subscribe(SUBJECT);
 
     const decoder = new TextDecoder();
 
@@ -77,9 +81,9 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
     };
 
     try {
-      this.options
-        .getConnection()
-        .publish(SUBJECT, this.encoder.encode(JSON.stringify(payload)));
+      const nc = this.options.getConnection();
+      if (!nc) return; // NATS not ready — local broadcast only
+      nc.publish(SUBJECT, this.encoder.encode(JSON.stringify(payload)));
     } catch (err) {
       console.warn("[NatsSSEBroadcast] Publish failed (non-critical):", err);
     }

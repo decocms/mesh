@@ -30,7 +30,11 @@ export class NatsCancelBroadcast implements CancelBroadcast {
     this.onCancel = onCancel;
 
     if (this.sub) return;
-    this.sub = this.options.getConnection().subscribe(CANCEL_SUBJECT);
+
+    const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — local cancel only
+
+    this.sub = nc.subscribe(CANCEL_SUBJECT);
 
     const decoder = new TextDecoder();
 
@@ -61,14 +65,14 @@ export class NatsCancelBroadcast implements CancelBroadcast {
     this.onCancel?.(threadId);
 
     try {
-      this.options
-        .getConnection()
-        .publish(
-          CANCEL_SUBJECT,
-          this.encoder.encode(
-            JSON.stringify({ threadId, originId: this.originId }),
-          ),
-        );
+      const nc = this.options.getConnection();
+      if (!nc) return; // NATS not ready — local cancel only
+      nc.publish(
+        CANCEL_SUBJECT,
+        this.encoder.encode(
+          JSON.stringify({ threadId, originId: this.originId }),
+        ),
+      );
     } catch (err) {
       console.warn("[NatsCancelBroadcast] Publish failed (non-critical):", err);
     }
