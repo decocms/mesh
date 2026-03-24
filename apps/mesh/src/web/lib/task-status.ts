@@ -89,18 +89,6 @@ export function getStatusConfig(status: string | undefined): StatusConfig {
   return STATUS_CONFIG[(status ?? "completed") as StatusKey] ?? UNKNOWN;
 }
 
-/** "Needs your attention" */
-export function isActionable(status: string | undefined): boolean {
-  return (
-    status === "requires_action" || status === "failed" || status === "expired"
-  );
-}
-
-/** Not yet done */
-export function isOpen(status: string | undefined): boolean {
-  return status === "in_progress" || isActionable(status);
-}
-
 // ============================================================================
 // Display groups — 3 sections for the task list
 // ============================================================================

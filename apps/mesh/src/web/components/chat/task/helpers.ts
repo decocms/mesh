@@ -52,15 +52,3 @@ export function buildOptimisticTask(id: string): Task {
     // agent_ids intentionally omitted — populated on first sendMessage via addAgentToTask
   };
 }
-
-/**
- * Find the next available task when hiding the current one
- */
-export function findNextAvailableTask(
-  tasks: Task[],
-  currentTaskId: string,
-): Task | null {
-  return (
-    tasks.find((task) => task.id !== currentTaskId && !task.hidden) ?? null
-  );
-}
