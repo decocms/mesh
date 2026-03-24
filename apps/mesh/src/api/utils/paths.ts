@@ -8,6 +8,7 @@
 /** System paths that don't require authentication or special handling */
 export const SYSTEM_PATHS = {
   HEALTH: "/health",
+  READYZ: "/readyz",
   METRICS: "/metrics",
 } as const;
 
@@ -29,6 +30,7 @@ const STATIC_FILE_PATTERN =
 function isSystemPath(path: string): boolean {
   return (
     path === SYSTEM_PATHS.HEALTH ||
+    path === SYSTEM_PATHS.READYZ ||
     path === SYSTEM_PATHS.METRICS ||
     path.startsWith(PATH_PREFIXES.WELL_KNOWN)
   );

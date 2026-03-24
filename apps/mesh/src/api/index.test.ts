@@ -85,6 +85,21 @@ describe("Hono App", () => {
     });
   });
 
+  describe("readiness check", () => {
+    it("should return 200 with per-service status (postgres up, nats down in test)", async () => {
+      const res = await app.request("/readyz");
+      expect(res.status).toBe(200);
+
+      const json = (await res.json()) as {
+        status: string;
+        services: Record<string, { status: string }>;
+      };
+      expect(json.status).toBe("ready");
+      expect(json.services.postgres?.status).toBe("up");
+      expect(json.services.nats?.status).toBe("down");
+    });
+  });
+
   describe("404 handling", () => {
     it("should return 404 for unknown routes", async () => {
       const res = await app.request("/unknown");

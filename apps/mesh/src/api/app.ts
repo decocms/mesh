@@ -8,6 +8,7 @@
  * - CORS support
  */
 
+import { sql } from "kysely";
 import { env } from "../env";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
@@ -447,6 +448,36 @@ export async function createApp(options: CreateAppOptions = {}) {
       timestamp: new Date().toISOString(),
       version: "1.0.0",
     });
+  });
+
+  // Readiness probe — checks PostgreSQL (hard) and NATS (soft)
+  app.get(SYSTEM_PATHS.READYZ, async (c) => {
+    const services: Record<string, { status: "up" | "down" }> = {};
+
+    // Check PostgreSQL (hard dependency — determines readiness)
+    try {
+      await sql`SELECT 1`.execute(database.db);
+      services.postgres = { status: "up" };
+    } catch {
+      services.postgres = { status: "down" };
+    }
+
+    // Check NATS (soft dependency — reported but does not block readiness)
+    if (natsProvider) {
+      services.nats = natsProvider.isConnected()
+        ? { status: "up" }
+        : { status: "down" };
+    } else {
+      services.nats = { status: "down" };
+    }
+
+    const ready = services.postgres.status === "up";
+    const httpStatus = ready ? 200 : 503;
+
+    return c.json(
+      { status: ready ? "ready" : "not_ready", services },
+      httpStatus,
+    );
   });
 
   // Prometheus metrics endpoint
