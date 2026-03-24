@@ -49,7 +49,7 @@ function SpaceListItem({
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip={space.title}
-        className="h-9 pr-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:h-12"
+        className="h-9 pr-2"
         onClick={() =>
           navigate({
             to: "/$org/spaces/$virtualMcpId",
@@ -192,9 +192,9 @@ function SpacesSectionContent() {
       <div className="group/spaces-section mt-2">
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <SidebarGroup className="py-0 px-0">
-            <SidebarGroupContent>
+            <div className="group-data-[collapsible=icon]:hidden">
               <SidebarMenu className="gap-0.5">
-                <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+                <SidebarMenuItem>
                   <div className="flex h-8 w-full items-center gap-1 rounded-md pl-2 pr-1">
                     <CollapsibleTrigger asChild>
                       <button
@@ -240,11 +240,15 @@ function SpacesSectionContent() {
                     </Suspense>
                   </div>
                 </SidebarMenuItem>
+              </SidebarMenu>
+            </div>
 
-                <CollapsibleContent>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5">
                   {spaces.length === 0 ? (
                     <SidebarMenuItem>
-                      <div className="px-2 py-2 text-xs text-muted-foreground">
+                      <div className="px-2 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
                         No pinned spaces yet
                       </div>
                     </SidebarMenuItem>
@@ -257,9 +261,9 @@ function SpacesSectionContent() {
                       />
                     ))
                   )}
-                </CollapsibleContent>
-              </SidebarMenu>
-            </SidebarGroupContent>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>
       </div>
