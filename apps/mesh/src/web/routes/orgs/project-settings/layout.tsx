@@ -8,7 +8,13 @@ function ProjectSettingsContent() {
   const { virtualMcpId } = useParams({
     from: "/shell/$org/projects/$virtualMcpId/settings",
   });
-  return <VirtualMcpDetailView virtualMcpId={virtualMcpId} variant="project" />;
+  return (
+    <VirtualMcpDetailView
+      key={virtualMcpId}
+      virtualMcpId={virtualMcpId}
+      variant="project"
+    />
+  );
 }
 
 export default function ProjectSettingsLayout() {

@@ -1,5 +1,5 @@
 import { Suspense, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -13,7 +13,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
-import { ChevronDown, ChevronRight, Plus } from "@untitledui/icons";
+import {
+  ChevronDown,
+  DotsHorizontal,
+  LayoutLeft,
+  Plus,
+  Settings01,
+} from "@untitledui/icons";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useProjects } from "@/web/hooks/use-projects";
@@ -21,36 +27,118 @@ import { useCreateProject } from "@/web/hooks/use-create-project";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 
-function ProjectListItem({ project }: { project: VirtualMCPEntity }) {
+function ProjectListItem({
+  project,
+  org,
+}: {
+  project: VirtualMCPEntity;
+  org: string;
+}) {
   const navigate = useNavigate();
-  const { org } = useProjectContext();
+  const pathname = useRouterState({
+    select: (s) => s.location.pathname,
+  });
+  const [isOpen, setIsOpen] = useState(false);
+
+  const pinnedViews =
+    ((project.metadata?.ui as Record<string, unknown> | null | undefined)
+      ?.pinnedViews as Array<{
+      connectionId: string;
+      toolName: string;
+      label: string;
+      icon: string | null;
+    }> | null) ?? [];
+
+  const projectBasePath = `/${org}/projects/${project.id}`;
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        onClick={() => {
-          navigate({
-            to: "/$org/projects/$virtualMcpId",
-            params: { org: org.slug, virtualMcpId: project.id },
-          });
-        }}
-        tooltip={project.title}
-      >
-        <AgentAvatar icon={project.icon} name={project.title} size="xs" />
-        <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
-          {project.title}
-        </span>
-        <ChevronRight
-          size={12}
-          className="text-muted-foreground opacity-0 group-hover/item:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden"
-        />
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            tooltip={project.title}
+            className="group/project-row h-9"
+          >
+            {/* Icon: show avatar by default, chevron on hover */}
+            <span className="relative shrink-0 size-4 flex items-center justify-center mr-1">
+              <span className="group-hover/project-row:hidden">
+                <AgentAvatar
+                  icon={project.icon}
+                  name={project.title}
+                  size="xs"
+                />
+              </span>
+              <ChevronDown
+                size={14}
+                className={cn(
+                  "hidden group-hover/project-row:block text-muted-foreground transition-transform duration-200",
+                  !isOpen && "-rotate-90",
+                )}
+              />
+            </span>
+            <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
+              {project.title}
+            </span>
+            {/* Gear icon: visible on hover */}
+            <button
+              type="button"
+              className="text-muted-foreground opacity-0 group-hover/project-row:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden shrink-0 p-1 hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate({
+                  to: "/$org/projects/$virtualMcpId/settings",
+                  params: { org, virtualMcpId: project.id },
+                });
+              }}
+            >
+              <Settings01 size={16} />
+            </button>
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-0.5 flex flex-col gap-0.5">
+          {pinnedViews.map((view) => {
+            const viewPath = `${projectBasePath}/apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`;
+            const isActive = pathname.startsWith(viewPath);
+            return (
+              <SidebarMenuButton
+                key={`${view.connectionId}-${view.toolName}`}
+                isActive={isActive}
+                className="pl-7"
+                onClick={() =>
+                  navigate({
+                    to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+                    params: {
+                      org,
+                      virtualMcpId: project.id,
+                      connectionId: view.connectionId,
+                      toolName: view.toolName,
+                    },
+                  })
+                }
+              >
+                {view.icon ? (
+                  <img
+                    src={view.icon}
+                    alt=""
+                    className="size-4 rounded shrink-0"
+                  />
+                ) : (
+                  <LayoutLeft size={16} className="shrink-0" />
+                )}
+                <span className="truncate">{view.label || view.toolName}</span>
+              </SidebarMenuButton>
+            );
+          })}
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   );
 }
 
 function ProjectsSectionContent() {
   const projects = useProjects();
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);
   const { createProject } = useCreateProject();
 
@@ -63,7 +151,7 @@ function ProjectsSectionContent() {
               <SidebarMenu className="gap-0.5">
                 {/* Section Header */}
                 <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
-                  <div className="flex h-6 w-full items-center gap-1 rounded-md pl-1.5 pr-0.5 hover:bg-sidebar-accent transition-colors">
+                  <div className="flex h-8 w-full items-center gap-1 rounded-md pl-2 pr-1">
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
@@ -83,11 +171,24 @@ function ProjectsSectionContent() {
                     </CollapsibleTrigger>
                     <button
                       type="button"
+                      onClick={() =>
+                        navigate({
+                          to: "/$org/projects",
+                          params: { org: org.slug },
+                        })
+                      }
+                      title="View all projects"
+                      className="opacity-0 group-hover/projects-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center size-6 rounded shrink-0"
+                    >
+                      <DotsHorizontal size={16} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={createProject}
                       title="Create new project"
-                      className="opacity-0 group-hover/projects-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center h-4 rounded shrink-0"
+                      className="opacity-0 group-hover/projects-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center size-6 rounded shrink-0"
                     >
-                      <Plus size={16} />
+                      <Plus size={18} />
                     </button>
                   </div>
                 </SidebarMenuItem>
@@ -102,7 +203,11 @@ function ProjectsSectionContent() {
                     </SidebarMenuItem>
                   ) : (
                     projects.map((project) => (
-                      <ProjectListItem key={project.id} project={project} />
+                      <ProjectListItem
+                        key={project.id}
+                        project={project}
+                        org={org.slug}
+                      />
                     ))
                   )}
                 </CollapsibleContent>

@@ -1,9 +1,5 @@
-import { AgentAvatar } from "@/web/components/agent-icon";
 import { useNavigate, useMatch } from "@tanstack/react-router";
-import { Suspense } from "react";
 import { authClient } from "@/web/lib/auth-client";
-import { useProjects } from "@/web/hooks/use-projects";
-import { useCreateProject } from "@/web/hooks/use-create-project";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +19,6 @@ import {
 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { UserProjectItems, ProjectListSkeleton } from "./project-panel";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { useState } from "react";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
@@ -80,12 +75,7 @@ export function MeshAccountSwitcher({
   isCollapsed = false,
 }: MeshAccountSwitcherProps) {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
-  const projectMatch = useMatch({
-    from: "/shell/$org/projects/$virtualMcpId",
-    shouldThrow: false,
-  });
   const orgParam = orgMatch?.params.org;
-  const currentVirtualMcpId = projectMatch?.params.virtualMcpId;
   const { data: organizations } = authClient.useListOrganizations();
   const navigate = useNavigate();
 
@@ -95,38 +85,12 @@ export function MeshAccountSwitcher({
   const [showOrgList, setShowOrgList] = useState(false);
   const isMobile = useIsMobile();
 
-  const projects = useProjects();
-  const currentProject = currentVirtualMcpId
-    ? projects.find((p) => p.id === currentVirtualMcpId)
-    : null;
-  const isStudio = !currentVirtualMcpId;
-
-  const handleSelectStudio = () => {
-    if (!orgParam) return;
-    navigate({
-      to: "/$org",
-      params: { org: orgParam },
-    });
-  };
-
-  const handleSelectProject = (projectSlug: string) => {
-    // Project selection now needs the virtual MCP ID, not the slug
-    // This is handled by the project-panel component which passes the ID
-    if (!orgParam) return;
-    navigate({
-      to: "/$org/projects/$virtualMcpId",
-      params: { org: orgParam, virtualMcpId: projectSlug },
-    });
-  };
-
   const handleSelectOrg = (orgSlug: string) => {
     navigate({
       to: "/$org",
       params: { org: orgSlug },
     });
   };
-
-  const { createProject } = useCreateProject();
 
   const handleSettings = () => {
     if (!orgParam) return;
@@ -152,51 +116,39 @@ export function MeshAccountSwitcher({
               isCollapsed ? "w-auto pr-1.5" : "w-full",
             )}
           >
-            {isStudio ? (
-              <div
-                className={cn(
-                  "shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden transition-[width,height] duration-300 ease-[var(--ease-out-quart)]",
-                  isCollapsed ? "size-6" : "size-8",
-                )}
-                style={
-                  currentOrg?.logo
-                    ? undefined
-                    : getOrgColorStyle(currentOrg?.name ?? "")
-                }
-              >
-                {currentOrg?.logo ? (
-                  <img
-                    src={currentOrg.logo}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span
-                    className={cn(
-                      "font-semibold leading-none",
-                      isCollapsed ? "text-[9px]" : "text-xs",
-                    )}
-                  >
-                    {(currentOrg?.name ?? "?").slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <AgentAvatar
-                icon={currentProject?.icon}
-                name={currentProject?.title ?? "Project"}
-                size={isCollapsed ? "xs" : "sm"}
-                className="shrink-0"
-              />
-            )}
+            <div
+              className={cn(
+                "shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden transition-[width,height] duration-300 ease-[var(--ease-out-quart)]",
+                isCollapsed ? "size-6" : "size-8",
+              )}
+              style={
+                currentOrg?.logo
+                  ? undefined
+                  : getOrgColorStyle(currentOrg?.name ?? "")
+              }
+            >
+              {currentOrg?.logo ? (
+                <img
+                  src={currentOrg.logo}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span
+                  className={cn(
+                    "font-semibold leading-none",
+                    isCollapsed ? "text-[9px]" : "text-xs",
+                  )}
+                >
+                  {(currentOrg?.name ?? "?").slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
             {!isCollapsed && (
               <>
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <span className="block text-[11px] text-sidebar-foreground/50 leading-tight truncate">
-                    {currentOrg?.name ?? "Select org"}
-                  </span>
                   <span className="block text-sm font-semibold text-sidebar-foreground truncate leading-tight">
-                    {currentProject?.title ?? "Studio"}
+                    {currentOrg?.name ?? "Select org"}
                   </span>
                 </div>
                 <ChevronSelectorVertical
@@ -252,44 +204,6 @@ export function MeshAccountSwitcher({
             </>
           ) : (
             <>
-              {/* Studio */}
-              <DropdownMenuItem
-                className={cn("gap-2.5", isStudio && "bg-accent")}
-                onClick={handleSelectStudio}
-              >
-                {currentOrg && <OrgIcon org={currentOrg} />}
-                <span className="flex-1 truncate">
-                  Studio · {currentOrg?.name}
-                </span>
-                {isStudio && (
-                  <Check
-                    size={14}
-                    className="ml-auto text-muted-foreground shrink-0"
-                  />
-                )}
-              </DropdownMenuItem>
-
-              <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider">
-                Projects
-              </p>
-
-              {currentOrg && (
-                <Suspense fallback={<ProjectListSkeleton />}>
-                  <UserProjectItems
-                    currentProjectId={currentVirtualMcpId}
-                    orgSlug={orgParam ?? ""}
-                    onSelect={handleSelectProject}
-                  />
-                </Suspense>
-              )}
-
-              <DropdownMenuItem className="gap-2.5" onClick={createProject}>
-                <Plus size={14} className="shrink-0 text-muted-foreground" />
-                <span>Create project</span>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
               {/* Switch organization — flyout on desktop, inline on mobile */}
               {isMobile ? (
                 <DropdownMenuItem

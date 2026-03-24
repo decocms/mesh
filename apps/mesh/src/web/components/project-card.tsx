@@ -30,7 +30,7 @@ export function ProjectCard({
 
   return (
     <Link
-      to="/$org/projects/$virtualMcpId"
+      to="/$org/projects/$virtualMcpId/settings"
       params={{ org: org.slug, virtualMcpId: project.id }}
       className="block group"
     >
