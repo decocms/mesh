@@ -25,17 +25,14 @@ import { useLocalStorage } from "../../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../../lib/localstorage-keys";
 import { KEYS } from "../../../lib/query-keys";
 import { useDecopilotEvents } from "../../../hooks/use-decopilot-events";
+import { useTaskReadState } from "../../../hooks/use-task-read-state";
 import {
   addTaskToCache,
   prefetchTaskMessages,
   updateMessagesCache,
   updateTaskInCache,
 } from "./cache-operations.ts";
-import {
-  buildOptimisticTask,
-  callUpdateTaskTool,
-  findNextAvailableTask,
-} from "./helpers.ts";
+import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
 import { useState, useTransition } from "react";
 import type { ChatMessage, Task, TasksInfiniteQueryData } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
@@ -149,6 +146,7 @@ export function useTaskManager() {
   const { locator, org } = useProjectContext();
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
+  const { markTaskRead } = useTaskReadState();
 
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
@@ -249,6 +247,7 @@ export function useTaskManager() {
   const switchToTask = async (taskId: string) => {
     await prefetchTaskMessages(queryClient, client, org.id, taskId);
     setActiveTaskId(taskId);
+    markTaskRead(taskId);
   };
 
   /**
@@ -264,6 +263,71 @@ export function useTaskManager() {
       ownerFilter,
       ownerFilter === "me" ? userId : undefined,
     );
+  };
+
+  /**
+   * Add an agent ID to a task's agent_ids (deduplicated, append-only).
+   * Called optimistically when sending a message so the avatar updates immediately.
+   */
+  const addAgentToTask = (taskId: string, agentId: string) => {
+    // Read current task to get existing agent_ids
+    for (const filter of ["me", "everyone"] as const) {
+      const filterUserId = filter === "me" ? userId : undefined;
+      const cached = queryClient.getQueryData<TasksInfiniteQueryData>(
+        KEYS.tasks(locator, filter, filterUserId),
+      );
+      if (!cached) continue;
+      const task = cached.pages
+        .flatMap((p) => p.items)
+        .find((t) => t.id === taskId);
+      if (!task) continue;
+      const current = task.agent_ids ?? [];
+      if (current.includes(agentId)) continue; // Already present in this cache
+      updateTaskInCache(
+        queryClient,
+        locator,
+        taskId,
+        { agent_ids: [...current, agentId] },
+        filter,
+        filterUserId,
+      );
+    }
+  };
+
+  /**
+   * Set the status of a task
+   * Calls backend to update task status, then updates both caches
+   */
+  const setTaskStatus = async (taskId: string, status: string) => {
+    try {
+      const updatedTask = await callUpdateTaskTool(client, taskId, {
+        status: status as
+          | "requires_action"
+          | "failed"
+          | "in_progress"
+          | "completed",
+      });
+      if (updatedTask) {
+        const updates = {
+          status: updatedTask.status,
+          updated_at: updatedTask.updated_at ?? new Date().toISOString(),
+        };
+        for (const filter of ["me", "everyone"] as const) {
+          updateTaskInCache(
+            queryClient,
+            locator,
+            taskId,
+            updates,
+            filter,
+            filter === "me" ? userId : undefined,
+          );
+        }
+      }
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Failed to update task status: ${err.message}`);
+      console.error("[chat] Failed to set task status:", error);
+    }
   };
 
   /**
@@ -300,41 +364,51 @@ export function useTaskManager() {
    * Calls backend to hide task, switches away if it's the current task, and updates cache
    */
   const hideTask = async (taskId: string) => {
+    console.log("[chat] taskManager.hideTask called", {
+      taskId,
+      activeTaskId,
+      clientAvailable: !!client,
+      taskExists: tasks.some((t) => t.id === taskId),
+      taskCount: tasks.length,
+    });
     try {
       const updatedTask = await callUpdateTaskTool(client, taskId, {
         hidden: true,
       });
-      if (updatedTask) {
-        const willHideCurrentTask = taskId === activeTaskId;
-        if (willHideCurrentTask) {
-          // Find a different task to switch to
-          const nextTask = findNextAvailableTask(tasks, taskId);
-          if (nextTask) {
-            // Switch to existing task with cache prefilling
-            await switchToTask(nextTask.id);
-          } else {
-            // Create new task if no other tasks exist
-            createTask();
-          }
-        }
-        // Update task hidden status in cache
-        updateTaskInCache(
-          queryClient,
-          locator,
-          taskId,
-          {
-            hidden: true,
-            updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-          },
-          ownerFilter,
-          ownerFilter === "me" ? userId : undefined,
+      console.log("[chat] taskManager.hideTask: backend response", {
+        taskId,
+        success: !!updatedTask,
+      });
+      if (!updatedTask) {
+        // Frontend-only thread (never sent a message) — no backend record.
+        // Still remove it from cache so the UI hides it.
+        console.log(
+          "[chat] taskManager.hideTask: frontend-only task, hiding from cache",
+          { taskId },
         );
       }
     } catch (error) {
       const err = error as Error;
+      console.error("[chat] taskManager.hideTask: FAILED", {
+        taskId,
+        error: err.message,
+      });
       toast.error(`Failed to update task: ${err.message}`);
-      console.error("[chat] Failed to update task:", error);
+      return;
     }
+
+    // Update cache and switch away regardless of whether the backend had a record
+    updateTaskInCache(
+      queryClient,
+      locator,
+      taskId,
+      {
+        hidden: true,
+        updated_at: new Date().toISOString(),
+      },
+      ownerFilter,
+      ownerFilter === "me" ? userId : undefined,
+    );
   };
 
   /**
@@ -401,8 +475,10 @@ export function useTaskManager() {
     createTask,
     switchToTask,
     updateTask,
+    addAgentToTask,
     renameTask,
     hideTask,
+    setTaskStatus,
     updateMessagesCache: updateMessagesInCache,
   };
 }
