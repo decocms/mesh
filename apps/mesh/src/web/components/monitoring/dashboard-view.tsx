@@ -391,7 +391,7 @@ function DashboardViewContent({
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
             <Link
-              to="/$org/monitoring"
+              to="/$org/settings/monitor"
               params={{ org: org.slug }}
               search={{ tab: "dashboards" }}
             >

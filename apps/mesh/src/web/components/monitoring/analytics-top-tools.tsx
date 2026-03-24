@@ -412,7 +412,7 @@ function TopToolsContent({
 
   const handleTitleClick = () => {
     navigate({
-      to: "/$org/monitoring",
+      to: "/$org/settings/monitor",
       params: { org: org.slug },
     });
   };

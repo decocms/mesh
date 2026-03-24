@@ -129,7 +129,7 @@ function DashboardListContent() {
 
       // Navigate to edit page
       navigate({
-        to: "/$org/monitoring/dashboards/$dashboardId/edit",
+        to: "/$org/settings/monitor/dashboards/$dashboardId/edit",
         params: { org: org.slug, dashboardId },
       });
     } catch (error) {
@@ -142,14 +142,14 @@ function DashboardListContent() {
 
   const handleView = (dashboardId: string) => {
     navigate({
-      to: "/$org/monitoring/dashboards/$dashboardId",
+      to: "/$org/settings/monitor/dashboards/$dashboardId",
       params: { org: org.slug, dashboardId },
     });
   };
 
   const handleEdit = (dashboardId: string) => {
     navigate({
-      to: "/$org/monitoring/dashboards/$dashboardId/edit",
+      to: "/$org/settings/monitor/dashboards/$dashboardId/edit",
       params: { org: org.slug, dashboardId },
     });
   };

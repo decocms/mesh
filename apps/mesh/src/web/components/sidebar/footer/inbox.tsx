@@ -1,6 +1,5 @@
 import { authClient } from "@/web/lib/auth-client";
 import { MeshUserMenu } from "@/web/components/user-menu";
-import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Popover,
@@ -26,6 +25,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useAiProviderKeyList } from "@/web/hooks/collections/use-llm";
+import { useNavigate } from "@tanstack/react-router";
 
 interface Invitation {
   id: string;
@@ -159,7 +159,7 @@ function creditColor(balanceDollars: number): string {
 }
 
 function CreditChip() {
-  const { open } = useSettingsModal();
+  const navigate = useNavigate();
   const { org } = useProjectContext();
 
   const client = useMCPClient({
@@ -182,31 +182,32 @@ function CreditChip() {
   const balanceDollars =
     data?.balanceCents != null ? data.balanceCents / 100 : null;
 
+  const tooltipLabel =
+    isPending || isError || balanceDollars == null
+      ? "Credits"
+      : `Credits: $${balanceDollars.toFixed(2)}`;
+
   return (
-    <button
-      type="button"
-      onClick={() => open("org.ai-providers")}
-      className="group-data-[collapsible=icon]:hidden flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-sidebar-accent transition-colors"
-    >
-      <div className="flex items-center gap-1.5">
-        <Coins01 size={13} className="text-muted-foreground/60 shrink-0" />
-        <span className="text-xs text-muted-foreground">Credits</span>
-      </div>
-      {isPending || isError || balanceDollars == null ? (
-        <span className="text-xs font-medium tabular-nums text-muted-foreground/40">
-          —
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "text-xs font-medium tabular-nums",
-            creditColor(balanceDollars),
-          )}
-        >
-          ${balanceDollars.toFixed(2)}
-        </span>
-      )}
-    </button>
+    <div className="flex items-center justify-center">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "size-16 hover:bg-sidebar-accent",
+          balanceDollars != null && creditColor(balanceDollars),
+        )}
+        onClick={() =>
+          navigate({
+            to: "/$org/settings/ai-providers",
+            params: { org: org.slug },
+          })
+        }
+        aria-label={tooltipLabel}
+        title={tooltipLabel}
+      >
+        <Coins01 size={32} />
+      </Button>
+    </div>
   );
 }
 
@@ -219,16 +220,22 @@ function CreditChipConditional() {
   return <CreditChip />;
 }
 
-function CollapsedSettingsButton() {
-  const { open } = useSettingsModal();
+function SettingsButton() {
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
 
   return (
-    <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center">
+    <div className="flex items-center justify-center">
       <Button
         variant="ghost"
         size="icon"
         className="size-16 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-        onClick={() => open("org.general")}
+        onClick={() =>
+          navigate({
+            to: "/$org/settings",
+            params: { org: org.slug },
+          })
+        }
         aria-label="Settings"
       >
         <Settings01 size={32} />
@@ -241,68 +248,63 @@ export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
   return (
-    <SidebarFooter className="px-3.5 pb-3 group-data-[collapsible=icon]:px-3">
+    <SidebarFooter className="px-3 pb-3">
       <SilentErrorBoundary>
         <Suspense fallback={null}>
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
-      <CollapsedSettingsButton />
+      <SettingsButton />
+      <div className="flex items-center justify-center">
+        <Popover>
+          <div className="relative">
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-16 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                aria-label="Open inbox"
+              >
+                <Inbox01 size={32} />
+              </Button>
+            </PopoverTrigger>
+            {pendingInvitations.length > 0 && (
+              <span className="absolute top-2 right-2 size-2.5 rounded-full bg-red-500 ring-2 ring-sidebar pointer-events-none" />
+            )}
+          </div>
+          <PopoverContent
+            side="right"
+            align="end"
+            sideOffset={24}
+            collisionPadding={16}
+            className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
+          >
+            <div className="px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-sm font-medium">Inbox</h3>
+            </div>
+            {pendingInvitations.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <Inbox01 size={24} className="text-muted-foreground/50" />
+                <p className="text-sm font-medium text-foreground">
+                  No messages or invites pending
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Messages, workspace and project invitations will appear here
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-y-auto flex-1">
+                {pendingInvitations.map((inv) => (
+                  <InvitationItem key={inv.id} invitation={inv} />
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="flex items-center w-full gap-1">
-            <div className="flex-1 min-w-0">
-              <MeshUserMenu />
-            </div>
-            <div className="group-data-[collapsible=icon]:hidden">
-              <Popover>
-                <div className="relative">
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                      aria-label="Open inbox"
-                    >
-                      <Inbox01 size={16} />
-                    </Button>
-                  </PopoverTrigger>
-                  {pendingInvitations.length > 0 && (
-                    <span className="absolute top-1 right-1 size-2 rounded-full bg-red-500 ring-2 ring-sidebar pointer-events-none" />
-                  )}
-                </div>
-                <PopoverContent
-                  side="right"
-                  align="end"
-                  sideOffset={24}
-                  collisionPadding={16}
-                  className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
-                >
-                  <div className="px-4 py-3 border-b border-border shrink-0">
-                    <h3 className="text-sm font-medium">Inbox</h3>
-                  </div>
-                  {pendingInvitations.length === 0 ? (
-                    <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                      <Inbox01 size={24} className="text-muted-foreground/50" />
-                      <p className="text-sm font-medium text-foreground">
-                        No messages or invites pending
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Messages, workspace and project invitations will appear
-                        here
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-y-auto flex-1">
-                      {pendingInvitations.map((inv) => (
-                        <InvitationItem key={inv.id} invitation={inv} />
-                      ))}
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+          <MeshUserMenu />
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>

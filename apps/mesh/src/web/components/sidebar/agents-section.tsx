@@ -50,13 +50,11 @@ function AgentListItem({
         <span className="relative shrink-0 size-4 flex items-center justify-center mr-1">
           <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
         </span>
-        <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
-          {agent.title}
-        </span>
+        <span className="truncate flex-1 hidden">{agent.title}</span>
         {/* Gear icon: visible on hover */}
         <button
           type="button"
-          className="text-muted-foreground opacity-0 group-hover/agent-row:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden shrink-0 p-1 hover:text-foreground"
+          className="text-muted-foreground opacity-0 group-hover/agent-row:opacity-100 transition-opacity hidden shrink-0 p-1 hover:text-foreground"
           onClick={(e) => {
             e.stopPropagation();
             navigate({
@@ -89,7 +87,7 @@ function AgentsSectionContent() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {/* Section Header */}
-                <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+                <SidebarMenuItem className="hidden">
                   <div className="flex h-8 w-full items-center gap-1 rounded-md pl-2 pr-1">
                     <CollapsibleTrigger asChild>
                       <button

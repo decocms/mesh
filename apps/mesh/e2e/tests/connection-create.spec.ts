@@ -13,7 +13,7 @@ test.describe("Connection creation flow", () => {
     const orgSlug = new URL(page.url()).pathname.split("/")[1];
 
     // 3. Navigate directly to the connections page
-    await page.goto(`/${orgSlug}/mcps`);
+    await page.goto(`/${orgSlug}/settings/connections`);
 
     // 4. Open the create connection dialog
     await page.getByRole("button", { name: "Custom Connection" }).click();
@@ -34,7 +34,9 @@ test.describe("Connection creation flow", () => {
       .click();
 
     // 7. Should navigate to the connection detail page (slug derived from URL)
-    await page.waitForURL(/\/mcps\/examplecom-mcp/, { timeout: 10_000 });
-    await expect(page).toHaveURL(/\/mcps\/examplecom-mcp/);
+    await page.waitForURL(/\/settings\/connections\/examplecom-mcp/, {
+      timeout: 10_000,
+    });
+    await expect(page).toHaveURL(/\/settings\/connections\/examplecom-mcp/);
   });
 });

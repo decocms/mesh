@@ -42,7 +42,7 @@ export function StoreRegistryEmptyState({
 
   const handleInstallMcpServer = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: orgSlug },
       search: { action: "create" },
     });

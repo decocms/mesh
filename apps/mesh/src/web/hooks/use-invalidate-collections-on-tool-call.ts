@@ -21,7 +21,7 @@ export function useInvalidateCollectionsOnToolCall() {
   const queryClient = useQueryClient();
   const { org } = useProjectContext();
   const collectionMatch = useMatch({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
     shouldThrow: false,
   });
 

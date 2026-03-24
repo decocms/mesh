@@ -1,27 +1,15 @@
 import { useNavigate, useMatch } from "@tanstack/react-router";
 import { authClient } from "@/web/lib/auth-client";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
-import {
-  ChevronSelectorVertical,
-  Check,
-  Plus,
-  Settings01,
-  Building02,
-} from "@untitledui/icons";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@deco/ui/components/popover.tsx";
+import { Check, Plus } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { useState } from "react";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -67,13 +55,7 @@ function OrgIcon({
   );
 }
 
-interface MeshAccountSwitcherProps {
-  isCollapsed?: boolean;
-}
-
-export function MeshAccountSwitcher({
-  isCollapsed = false,
-}: MeshAccountSwitcherProps) {
+export function MeshAccountSwitcher() {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const orgParam = orgMatch?.params.org;
   const { data: organizations } = authClient.useListOrganizations();
@@ -82,45 +64,32 @@ export function MeshAccountSwitcher({
   const currentOrg = organizations?.find((o) => o.slug === orgParam);
 
   const [creatingOrganization, setCreatingOrganization] = useState(false);
-  const [showOrgList, setShowOrgList] = useState(false);
-  const isMobile = useIsMobile();
+  const [open, setOpen] = useState(false);
 
   const handleSelectOrg = (orgSlug: string) => {
+    setOpen(false);
     navigate({
       to: "/$org",
       params: { org: orgSlug },
     });
   };
 
-  const handleSettings = () => {
-    if (!orgParam) return;
-    navigate({
-      to: "/$org",
-      params: { org: orgParam },
-      search: { settings: "org.general" },
-    });
-  };
+  const sortedOrgs = [...(organizations ?? [])].sort((a, b) => {
+    if (a.slug === orgParam) return -1;
+    if (b.slug === orgParam) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <>
-      <DropdownMenu
-        onOpenChange={(open) => {
-          if (!open) setShowOrgList(false);
-        }}
-      >
-        <DropdownMenuTrigger asChild>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
           <button
             type="button"
-            className={cn(
-              "flex items-center gap-3 rounded-md p-1.5 pr-2 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring min-h-[2.75rem]",
-              isCollapsed ? "w-auto pr-1.5" : "w-full",
-            )}
+            className="flex items-center gap-3 rounded-md p-1.5 text-left hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring min-h-[2.75rem] w-auto"
           >
             <div
-              className={cn(
-                "shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden transition-[width,height] duration-300 ease-[var(--ease-out-quart)]",
-                isCollapsed ? "size-12" : "size-8",
-              )}
+              className="shrink-0 rounded-md flex items-center justify-center border border-border/50 overflow-hidden size-12"
               style={
                 currentOrg?.logo
                   ? undefined
@@ -134,152 +103,56 @@ export function MeshAccountSwitcher({
                   className="size-full object-cover"
                 />
               ) : (
-                <span
-                  className={cn(
-                    "font-semibold leading-none",
-                    isCollapsed ? "text-lg" : "text-xs",
-                  )}
-                >
+                <span className="font-semibold leading-none text-lg">
                   {(currentOrg?.name ?? "?").slice(0, 2).toUpperCase()}
                 </span>
               )}
             </div>
-            {!isCollapsed && (
-              <>
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <span className="block text-sm font-semibold text-sidebar-foreground truncate leading-tight">
-                    {currentOrg?.name ?? "Select org"}
-                  </span>
-                </div>
-                <ChevronSelectorVertical
-                  size={16}
-                  className="shrink-0 text-sidebar-foreground/40"
-                />
-              </>
-            )}
           </button>
-        </DropdownMenuTrigger>
+        </PopoverTrigger>
 
-        <DropdownMenuContent
+        <PopoverContent
           align="start"
           side="bottom"
-          className="w-64 flex flex-col gap-0.5"
+          className="w-56 flex flex-col gap-0.5 p-1"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          {isMobile && showOrgList ? (
-            <>
-              {[...(organizations ?? [])]
-                .sort((a, b) => {
-                  if (a.slug === orgParam) return -1;
-                  if (b.slug === orgParam) return 1;
-                  return a.name.localeCompare(b.name);
-                })
-                .map((org) => (
-                  <DropdownMenuItem
-                    key={org.id}
-                    className={cn(
-                      "gap-2.5",
-                      org.slug === orgParam && "bg-accent",
-                    )}
-                    onClick={() => handleSelectOrg(org.slug)}
-                  >
-                    <OrgIcon org={org} size="xs" />
-                    <span className="flex-1 truncate">{org.name}</span>
-                    {org.slug === orgParam && (
-                      <Check
-                        size={14}
-                        className="ml-auto text-muted-foreground shrink-0"
-                      />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-2.5"
-                onClick={() => setCreatingOrganization(true)}
-              >
-                <Plus size={14} className="shrink-0 text-muted-foreground" />
-                <span>Create organization</span>
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <>
-              {/* Switch organization — flyout on desktop, inline on mobile */}
-              {isMobile ? (
-                <DropdownMenuItem
-                  className="gap-2.5"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setShowOrgList(true);
-                  }}
-                >
-                  <Building02
-                    size={14}
-                    className="shrink-0 text-muted-foreground"
-                  />
-                  <span>Switch organization</span>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2.5">
-                    <Building02
-                      size={14}
-                      className="shrink-0 text-muted-foreground"
-                    />
-                    <span>Switch organization</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-48 flex flex-col gap-0.5">
-                    {[...(organizations ?? [])]
-                      .sort((a, b) => {
-                        if (a.slug === orgParam) return -1;
-                        if (b.slug === orgParam) return 1;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((org) => (
-                        <DropdownMenuItem
-                          key={org.id}
-                          className={cn(
-                            "gap-2.5",
-                            org.slug === orgParam && "bg-accent",
-                          )}
-                          onClick={() => handleSelectOrg(org.slug)}
-                        >
-                          <OrgIcon org={org} size="xs" />
-                          <span className="flex-1 truncate">{org.name}</span>
-                          {org.slug === orgParam && (
-                            <Check
-                              size={14}
-                              className="ml-auto text-muted-foreground shrink-0"
-                            />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="gap-2.5"
-                      onClick={() => setCreatingOrganization(true)}
-                    >
-                      <Plus
-                        size={14}
-                        className="shrink-0 text-muted-foreground"
-                      />
-                      <span>Create organization</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+          {sortedOrgs.map((org) => (
+            <button
+              key={org.id}
+              type="button"
+              onClick={() => handleSelectOrg(org.slug)}
+              className={cn(
+                "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-left w-full transition-colors",
+                org.slug === orgParam
+                  ? "bg-accent text-accent-foreground"
+                  : "text-foreground hover:bg-accent/50",
               )}
-
-              <DropdownMenuItem className="gap-2.5" onClick={handleSettings}>
-                <Settings01
+            >
+              <OrgIcon org={org} size="xs" />
+              <span className="flex-1 truncate">{org.name}</span>
+              {org.slug === orgParam && (
+                <Check
                   size={14}
-                  className="shrink-0 text-muted-foreground"
+                  className="ml-auto text-muted-foreground shrink-0"
                 />
-                <span>Settings</span>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              )}
+            </button>
+          ))}
+          <div className="h-px bg-border my-0.5" />
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setCreatingOrganization(true);
+            }}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-left w-full text-foreground hover:bg-accent/50 transition-colors"
+          >
+            <Plus size={14} className="shrink-0 text-muted-foreground" />
+            <span>Create organization</span>
+          </button>
+        </PopoverContent>
+      </Popover>
 
       <CreateOrganizationDialog
         open={creatingOrganization}

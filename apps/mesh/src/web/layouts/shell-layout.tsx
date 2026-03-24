@@ -5,6 +5,7 @@ import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar } from "@/web/components/sidebar";
+import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
@@ -97,25 +98,8 @@ function PersistentTasksResizablePanel({
   );
 }
 
-/**
- * This component persists the open state of the sidebar across reloads.
- * Also, it's important to keep it like this to avoid unnecessary re-renders.
- */
 function PersistentSidebarProvider({ children }: PropsWithChildren) {
-  const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useLocalStorage(
-    LOCALSTORAGE_KEYS.sidebarOpen(),
-    true,
-  );
-
-  return (
-    <SidebarProvider
-      open={isMobile ? true : sidebarOpen}
-      onOpenChange={setSidebarOpen}
-    >
-      {children}
-    </SidebarProvider>
-  );
+  return <SidebarProvider>{children}</SidebarProvider>;
 }
 
 function MobileFABs({
@@ -164,9 +148,11 @@ function MobileFABs({
 function ShellLayoutInner({
   isHomeRoute,
   isSpaceRoute,
+  isSettingsRoute,
 }: {
   isHomeRoute: boolean;
   isSpaceRoute: boolean;
+  isSettingsRoute: boolean;
 }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
   const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
@@ -205,8 +191,19 @@ function ShellLayoutInner({
     return () => clearTimeout(id);
   }, [chatOpen]);
 
+  // Close chat and tasks panels when navigating to settings
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (isSettingsRoute) {
+      setChatOpen(false);
+      setTasksOpen(false);
+    }
+  }, [isSettingsRoute]);
+
+  // Hide chat and tasks panels on home and settings routes
+  const hidePanels = isHomeRoute || isSettingsRoute;
   // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && !isHomeRoute;
+  const hasRightPanel = !isMobile && chatOpen && !hidePanels;
   // On space routes, the chat panel takes full width and main content collapses
   const chatFullWidth = isSpaceRoute && !isMobile;
 
@@ -215,15 +212,13 @@ function ShellLayoutInner({
       className="flex-1 bg-sidebar"
       style={
         {
-          "--sidebar-width": "13.5rem",
           "--sidebar-width-icon": "6rem",
-          "--sidebar-width-mobile": "11rem",
           "--chat-panel-w": `${chatPanelWidth}cqi`,
           "--tasks-panel-w": `${tasksPanelWidth}cqi`,
         } as Record<string, string>
       }
     >
-      <MeshSidebar />
+      {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
       {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
           through the rounded corners of the inner card */}
       <SidebarInset
@@ -289,7 +284,7 @@ function ShellLayoutInner({
           </ResizablePanel>
 
           {/* Desktop: Chat card as resizable side panel */}
-          {!isHomeRoute && !isMobile && (
+          {!hidePanels && !isMobile && (
             <>
               <ResizableHandle className="bg-sidebar" />
               {chatFullWidth ? (
@@ -329,7 +324,7 @@ function ShellLayoutInner({
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
-      {!isHomeRoute && isMobile && (
+      {!hidePanels && isMobile && (
         <>
           <MobileFABs
             chatOpen={chatOpen}
@@ -384,6 +379,11 @@ function ShellLayoutContent() {
   const isSpaceRoute =
     routerState.location.pathname.startsWith(`/${org}/spaces/`) &&
     !routerState.location.pathname.includes("/settings");
+
+  // Check if we're on settings routes (/$org/settings/*)
+  const isSettingsRoute = routerState.location.pathname.startsWith(
+    `/${org}/settings`,
+  );
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -461,6 +461,7 @@ function ShellLayoutContent() {
             <ShellLayoutInner
               isHomeRoute={isHomeRoute}
               isSpaceRoute={isSpaceRoute}
+              isSettingsRoute={isSettingsRoute}
             />
           </Chat.Provider>
         </div>

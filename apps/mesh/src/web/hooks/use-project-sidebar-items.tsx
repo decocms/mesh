@@ -3,17 +3,8 @@ import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  BarChart10,
-  CheckDone01,
-  Container,
-  Home02,
-  LayoutLeft,
-  RefreshCcw01,
-  Settings01,
-} from "@untitledui/icons";
+import { LayoutLeft } from "@untitledui/icons";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
@@ -22,7 +13,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const routerState = useRouterState();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
-  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
 
   // The virtual MCP ID for this project
   const virtualMcpId = currentProject.id;
@@ -55,73 +45,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
 
   const basePath = `/${org}`;
 
-  const isOnHome = pathname === basePath || pathname === `${basePath}/`;
-
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
-
-  // Common items for all projects
-  const homeItem: NavigationSidebarItem = {
-    key: "home",
-    label: "Home",
-    icon: <Home02 />,
-    isActive: isOnHome,
-    onClick: () => {
-      if (isOnHome) {
-        window.dispatchEvent(new CustomEvent("reset-home-view"));
-      } else {
-        navigate({
-          to: "/$org",
-          params: { org },
-        });
-      }
-    },
-  };
-
-  // Org-admin specific items - flat list matching Figma design
-  const tasksItem: NavigationSidebarItem = {
-    key: "tasks",
-    label: "Tasks",
-    icon: <CheckDone01 />,
-    isActive: tasksOpen,
-    onClick: () => setTasksOpen((prev) => !prev),
-  };
-
-  const connectionsItem: NavigationSidebarItem = {
-    key: "mcps",
-    label: "Connections",
-    icon: <Container />,
-    isActive: isActiveRoute("mcps"),
-    onClick: () =>
-      navigate({
-        to: "/$org/mcps",
-        params: { org },
-      }),
-  };
-
-  const automationsItem: NavigationSidebarItem = {
-    key: "automations",
-    label: "Automations",
-    icon: <RefreshCcw01 />,
-    isActive: isActiveRoute("automations"),
-    onClick: () =>
-      navigate({
-        to: "/$org/automations",
-        params: { org },
-      }),
-  };
-
-  const monitorItem: NavigationSidebarItem = {
-    key: "monitoring",
-    label: "Monitor",
-    icon: <BarChart10 />,
-    isActive: isActiveRoute("monitoring"),
-    onClick: () =>
-      navigate({
-        to: "/$org/monitoring",
-        params: { org },
-      }),
-  };
 
   // Plugin items mapped to navigation items (flat items)
   // Plugins are scoped to the virtual MCP
@@ -213,48 +138,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
         }
       : null;
 
-  // Org-admin sidebar layout:
-  // - Home, Tasks (top-level)
-  // - Build group: Automations, Connections
-  // - Manage group: Monitor, Settings
-  // - Plugin items / groups
-  const settingsItem: NavigationSidebarItem = {
-    key: "settings",
-    label: "Settings",
-    icon: <Settings01 />,
-    isActive: isActiveRoute("settings"),
-    onClick: () =>
-      navigate({
-        to: "/$org",
-        params: { org },
-        search: { settings: "org.general" },
-      }),
-  };
-
-  const sections: SidebarSection[] = [
-    {
-      type: "items",
-      items: [homeItem, tasksItem],
-    },
-    {
-      type: "group",
-      group: {
-        id: "build",
-        label: "Build",
-        items: [automationsItem, connectionsItem],
-        defaultExpanded: true,
-      },
-    },
-    {
-      type: "group",
-      group: {
-        id: "manage",
-        label: "Manage",
-        items: [monitorItem, settingsItem],
-        defaultExpanded: true,
-      },
-    },
-  ];
+  const sections: SidebarSection[] = [];
 
   // Add flat plugin items if any
   if (pluginItems.length > 0) {

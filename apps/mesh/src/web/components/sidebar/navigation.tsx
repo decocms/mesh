@@ -11,7 +11,6 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { LinkExternal01 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
@@ -22,11 +21,8 @@ interface NavigationSidebarProps {
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
-  collapsible?: "offcanvas" | "icon" | "none";
   /** Additional classes for the content area */
   contentClassName?: string;
-  /** When true, hides nav sections when sidebar is collapsed (icon mode) */
-  hideNavWhenCollapsed?: boolean;
 }
 
 function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
@@ -43,20 +39,8 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
         onClick={handleClick}
         isActive={item.isActive}
         tooltip={item.label}
-        className={cn(item.isExternal && "group/external")}
       >
-        <span className="[&>svg]:size-4 group-data-[collapsible=icon]:[&>svg]:size-8">
-          {item.icon}
-        </span>
-        <span className={cn("truncate group-data-[collapsible=icon]:hidden")}>
-          {item.label}
-        </span>
-        {item.isExternal && (
-          <LinkExternal01
-            size={12}
-            className="ml-auto mr-1 shrink-0 opacity-0 group-hover/external:opacity-60 transition-opacity group-data-[collapsible=icon]:hidden"
-          />
-        )}
+        <span className="[&>svg]:size-8">{item.icon}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -104,27 +88,20 @@ function NavigationSidebarInner({
   footer,
   additionalContent,
   variant = "sidebar",
-  collapsible = "icon",
   contentClassName,
-  hideNavWhenCollapsed,
 }: NavigationSidebarProps) {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  const showNav = !(hideNavWhenCollapsed && isCollapsed);
-
   return (
-    <Sidebar variant={variant} collapsible={collapsible}>
+    <Sidebar variant={variant}>
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3.5 pb-2 group-data-[collapsible=icon]:px-3",
+          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3 pb-2",
           contentClassName,
         )}
       >
-        {showNav &&
-          sections.map((section, index) => (
-            <SidebarSectionRenderer key={index} section={section} />
-          ))}
+        {sections.map((section, index) => (
+          <SidebarSectionRenderer key={index} section={section} />
+        ))}
         {additionalContent}
       </SidebarContent>
       {footer}

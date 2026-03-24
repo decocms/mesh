@@ -11,14 +11,14 @@ import { useNavigate } from "@tanstack/react-router";
 
 export default function DashboardViewRoute() {
   const { dashboardId } = useParams({
-    from: "/shell/$org/monitoring/dashboards/$dashboardId",
+    from: "/shell/$org/settings/monitor/dashboards/$dashboardId",
   });
   const { org } = useProjectContext();
   const navigate = useNavigate();
 
   const handleEdit = () => {
     navigate({
-      to: "/$org/monitoring/dashboards/$dashboardId/edit",
+      to: "/$org/settings/monitor/dashboards/$dashboardId/edit",
       params: { org: org.slug, dashboardId },
     });
   };

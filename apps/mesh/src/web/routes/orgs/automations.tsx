@@ -94,7 +94,7 @@ export default function AutomationsPage() {
         active: true,
       });
       navigate({
-        to: "/$org/automations/$automationId",
+        to: "/$org/settings/automations/$automationId",
         params: {
           org: org.slug,
           automationId: result.id,
@@ -119,7 +119,7 @@ export default function AutomationsPage() {
 
   const navigateToAutomation = (automationId: string) => {
     navigate({
-      to: "/$org/automations/$automationId",
+      to: "/$org/settings/automations/$automationId",
       params: {
         org: org.slug,
         automationId,

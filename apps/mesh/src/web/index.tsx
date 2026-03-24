@@ -170,9 +170,6 @@ const orgLayout = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org",
   component: lazyRouteComponent(() => import("./layouts/org-layout.tsx")),
-  validateSearch: z.object({
-    settings: z.string().optional(),
-  }),
 });
 
 // ============================================
@@ -193,17 +190,50 @@ const projectsListRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/projects-list.tsx")),
 });
 
-// Members
-const membersRoute = createRoute({
+// ============================================
+// SETTINGS LAYOUT (/$org/settings)
+// ============================================
+
+const settingsLayout = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/members",
-  component: lazyRouteComponent(() => import("./routes/orgs/members.tsx")),
+  path: "/settings",
+  component: lazyRouteComponent(() => import("./layouts/settings-layout.tsx")),
 });
 
-// Connections (mcps)
+// Settings index → redirect to /general
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/settings/general",
+      params: { org: params.org },
+    });
+  },
+  component: () => null,
+});
+
+// Account
+const settingsAccountProfileRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/account/profile",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/account-profile.tsx"),
+  ),
+});
+
+const settingsAccountPreferencesRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/account/preferences",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/account-preferences.tsx"),
+  ),
+});
+
+// Operations: Connections
 const connectionsRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps",
+  getParentRoute: () => settingsLayout,
+  path: "/connections",
   component: lazyRouteComponent(() => import("./routes/orgs/connections.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -213,10 +243,9 @@ const connectionsRoute = createRoute({
   ),
 });
 
-// Connection detail
 const connectionDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps/$appSlug",
+  getParentRoute: () => settingsLayout,
+  path: "/connections/$appSlug",
   component: lazyRouteComponent(
     () => import("./routes/orgs/connection-detail.tsx"),
   ),
@@ -227,24 +256,43 @@ const connectionDetailRoute = createRoute({
   ),
 });
 
-// Collection detail
 const collectionDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps/$appSlug/$collectionName/$itemId",
+  getParentRoute: () => settingsLayout,
+  path: "/connections/$appSlug/$collectionName/$itemId",
   component: lazyRouteComponent(
     () => import("./routes/orgs/collection-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
-      replayId: z.string().optional(), // Random ID to lookup input in sessionStorage
+      replayId: z.string().optional(),
     }),
   ),
 });
 
-// Monitoring
+// Operations: Automations
+const automationsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/automations",
+  component: lazyRouteComponent(() => import("./routes/orgs/automations.tsx")),
+});
+
+const automationDetailRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/automations/$automationId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/automation-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
+});
+
+// Operations: Monitor
 const monitoringRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring",
+  getParentRoute: () => settingsLayout,
+  path: "/monitor",
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -264,22 +312,59 @@ const monitoringRoute = createRoute({
   ),
 });
 
-// Dashboard view
 const dashboardViewRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring/dashboards/$dashboardId",
+  getParentRoute: () => settingsLayout,
+  path: "/monitor/dashboards/$dashboardId",
   component: lazyRouteComponent(
     () => import("./routes/orgs/monitoring-dashboard-view.tsx"),
   ),
 });
 
-// Dashboard edit
 const dashboardEditRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring/dashboards/$dashboardId/edit",
+  getParentRoute: () => settingsLayout,
+  path: "/monitor/dashboards/$dashboardId/edit",
   component: lazyRouteComponent(
     () => import("./routes/orgs/monitoring-dashboard-edit.tsx"),
   ),
+});
+
+// Organization settings pages
+const settingsGeneralRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/general",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/general.tsx"),
+  ),
+});
+
+const settingsFeaturesRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/features",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/features.tsx"),
+  ),
+});
+
+const settingsAiProvidersRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/ai-providers",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/ai-providers.tsx"),
+  ),
+});
+
+const settingsMembersRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/members",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/members.tsx"),
+  ),
+});
+
+const settingsSsoRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/sso",
+  component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
 });
 
 // Store
@@ -300,26 +385,6 @@ const storeDetailRoute = createRoute({
       registryId: z.string().optional(),
       serverName: z.string().optional(),
       itemId: z.string().optional(),
-    }),
-  ),
-});
-
-// Automations
-const automationsRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/automations",
-  component: lazyRouteComponent(() => import("./routes/orgs/automations.tsx")),
-});
-
-const automationDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/automations/$automationId",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/automation-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
     }),
   ),
 });
@@ -365,9 +430,6 @@ const spacesLayout = createRoute({
   component: lazyRouteComponent(
     () => import("./layouts/virtual-mcp-layout.tsx"),
   ),
-  validateSearch: z.object({
-    settings: z.string().optional(),
-  }),
 });
 
 // Space home - empty center, sidebar chat is the interaction point
@@ -387,9 +449,6 @@ const virtualMcpLayout = createRoute({
   component: lazyRouteComponent(
     () => import("./layouts/virtual-mcp-layout.tsx"),
   ),
-  validateSearch: z.object({
-    settings: z.string().optional(),
-  }),
 });
 
 // Project home - chat view (same as org home)
@@ -590,6 +649,25 @@ const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 
 const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
 
+const settingsWithChildren = settingsLayout.addChildren([
+  settingsIndexRoute,
+  settingsAccountProfileRoute,
+  settingsAccountPreferencesRoute,
+  connectionsRoute,
+  connectionDetailRoute,
+  collectionDetailRoute,
+  automationsRoute,
+  automationDetailRoute,
+  monitoringRoute,
+  dashboardViewRoute,
+  dashboardEditRoute,
+  settingsGeneralRoute,
+  settingsFeaturesRoute,
+  settingsAiProvidersRoute,
+  settingsMembersRoute,
+  settingsSsoRoute,
+]);
+
 const projectSettingsWithChildren = projectSettingsRoute.addChildren([
   projectSettingsGeneralRedirect,
   projectSettingsDependenciesRedirect,
@@ -619,16 +697,8 @@ const orgRoutes = [
   spacesListRoute,
   spacesWithChildren,
   projectsListRoute,
-  membersRoute,
-  connectionsRoute,
-  connectionDetailRoute,
-  collectionDetailRoute,
-  monitoringRoute,
-  dashboardViewRoute,
-  dashboardEditRoute,
+  settingsWithChildren,
   storeRouteWithChildren,
-  automationsRoute,
-  automationDetailRoute,
   agentsRoute,
   agentDetailRoute,
   virtualMcpWithChildren,

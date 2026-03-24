@@ -16,7 +16,6 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { SettingsModal } from "@/web/components/settings-modal/index";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 
@@ -68,7 +67,6 @@ function OrgLayoutContent() {
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      <SettingsModal />
     </ProjectContextProvider>
   );
 }

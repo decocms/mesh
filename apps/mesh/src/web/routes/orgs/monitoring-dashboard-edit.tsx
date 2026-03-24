@@ -785,7 +785,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
             <Link
-              to="/$org/monitoring"
+              to="/$org/settings/monitor"
               params={{ org: org.slug }}
               search={{ tab: "dashboards" }}
             >
@@ -1035,7 +1035,7 @@ function DashboardEditContent({ dashboardId }: { dashboardId: string }) {
 
 export default function DashboardEditPage() {
   const { dashboardId } = useParams({
-    from: "/shell/$org/monitoring/dashboards/$dashboardId/edit",
+    from: "/shell/$org/settings/monitor/dashboards/$dashboardId/edit",
   });
 
   return (
