@@ -1,8 +1,4 @@
-import {
-  useNavigate,
-  useLocation,
-  useSearch,
-} from "@tanstack/react-router";
+import { useNavigate, useLocation, useSearch } from "@tanstack/react-router";
 
 export type SettingsSection =
   | "account.profile"
