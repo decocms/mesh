@@ -1,5 +1,5 @@
 import { Suspense, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -31,6 +31,7 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
+import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -84,6 +85,10 @@ function PinSpacePopover() {
   const [search, setSearch] = useState("");
   const allSpaces = useVirtualMCPs();
   const actions = useVirtualMCPActions();
+  const { org } = useProjectContext();
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
+    navigateOnCreate: true,
+  });
 
   const unpinnedSpaces = allSpaces
     .filter((s) => !s.pinned)
@@ -111,7 +116,7 @@ function PinSpacePopover() {
           <Plus size={18} />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" side="right" align="start">
+      <PopoverContent className="w-80 p-2" side="right" align="start">
         <Input
           placeholder="Search spaces..."
           value={search}
@@ -119,7 +124,7 @@ function PinSpacePopover() {
           className="mb-2 h-8 text-sm"
           autoFocus
         />
-        <div className="max-h-48 overflow-y-auto flex flex-col gap-0.5">
+        <div className="max-h-64 overflow-y-auto flex flex-col gap-0.5">
           {unpinnedSpaces.length === 0 ? (
             <div className="px-2 py-2 text-xs text-muted-foreground">
               {search ? "No matches" : "No unpinned spaces"}
@@ -129,14 +134,48 @@ function PinSpacePopover() {
               <button
                 key={space.id}
                 type="button"
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm w-full text-left"
+                className="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-accent text-sm w-full text-left"
                 onClick={() => handlePin(space)}
               >
-                <AgentAvatar icon={space.icon} name={space.title} size="xs" />
-                <span className="truncate">{space.title}</span>
+                <AgentAvatar
+                  icon={space.icon}
+                  name={space.title}
+                  size="sm"
+                  className="shrink-0 mt-0.5"
+                />
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate font-medium">{space.title}</span>
+                  {space.description && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {space.description}
+                    </span>
+                  )}
+                </div>
               </button>
             ))
           )}
+        </div>
+        <div className="flex items-center gap-2 border-t border-border mt-2 pt-2">
+          <button
+            type="button"
+            disabled={isCreating}
+            onClick={() => {
+              createVirtualMCP();
+              setOpen(false);
+            }}
+            className="flex-1 text-xs text-muted-foreground hover:text-foreground transition-colors text-center disabled:opacity-50"
+          >
+            + Create new
+          </button>
+          <span className="text-border">|</span>
+          <Link
+            to="/$org/spaces"
+            params={{ org: org.slug }}
+            onClick={() => setOpen(false)}
+            className="flex-1 text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+          >
+            See all
+          </Link>
         </div>
       </PopoverContent>
     </Popover>
