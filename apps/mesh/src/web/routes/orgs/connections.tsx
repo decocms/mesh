@@ -8,7 +8,6 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Page } from "@/web/components/page";
 import type { RegistryItem } from "@/web/components/store/types";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -159,7 +158,6 @@ function getGroupKey(c: ConnectionEntity): string {
 function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
   const buckets = new Map<string, ConnectionEntity[]>();
   for (const c of connections) {
-    if (c.connection_type === "VIRTUAL") continue;
     const key = getGroupKey(c);
     const list = buckets.get(key);
     if (list) {
@@ -173,7 +171,6 @@ function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
   const seen = new Set<string>();
 
   for (const c of connections) {
-    if (c.connection_type === "VIRTUAL") continue;
     const key = getGroupKey(c);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -806,9 +803,6 @@ function OrgMcpsContent() {
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
-  // Unfiltered connections for catalog metadata (connectedAppNames, appInstances)
-  // so the "Connected" badge and modal aren't affected by the search term
-  const allConnections = useConnections();
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
 
@@ -836,17 +830,14 @@ function OrgMcpsContent() {
   // Agents list (for Add to Agent dialog)
   const agents = useAgents();
 
-  // Non-virtual connections with filters applied
-  const nonVirtualConnections = connections.filter((c) => {
-    if (c.connection_type === "VIRTUAL") return false;
+  // Apply UI filters (VIRTUAL already excluded server-side)
+  const filteredConnections = connections.filter((c) => {
     if (typeFilter !== "ALL" && c.connection_type !== typeFilter) return false;
     if (statusFilter !== "ALL" && c.status !== statusFilter) return false;
     return true;
   });
 
-  const tabFilteredConnections = nonVirtualConnections;
-
-  const grouped = groupConnections(tabFilteredConnections);
+  const grouped = groupConnections(filteredConnections);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -864,7 +855,7 @@ function OrgMcpsContent() {
   // Optional registry lookup: support multiple registries, let user pick on "All" tab
   // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
   // Deco Store / MCP Registry should be the default catalog source.
-  const registryConnections = useRegistryConnections(allConnections).sort(
+  const registryConnections = useConnections({ binding: "REGISTRY" }).sort(
     (a, b) => {
       const isSelfA = a.app_name === "@deco/management-mcp";
       const isSelfB = b.app_name === "@deco/management-mcp";
@@ -896,11 +887,8 @@ function OrgMcpsContent() {
   );
 
   // "All" tab: catalog items from registry (includes already-connected ones)
-  // Use allConnections (unfiltered) so the "Connected" badge isn't lost when searching
   const connectedAppNames = new Set(
-    allConnections
-      .filter((c) => c.connection_type !== "VIRTUAL" && c.app_name)
-      .map((c) => c.app_name as string),
+    connections.filter((c) => c.app_name).map((c) => c.app_name as string),
   );
 
   const searchLower = listState.search.toLowerCase();
@@ -1004,16 +992,6 @@ function OrgMcpsContent() {
         );
         setConnectingItemId(null);
         return;
-      }
-
-      // Check for duplicates — auto-suffix the name
-      const appName = item.id ?? item.title;
-      const existing = allConnections.filter(
-        (c) => c.app_name === appName || c.title === connectionData.title,
-      );
-      if (existing.length > 0) {
-        const baseName = connectionData.title || "MCP Server";
-        connectionData.title = `${baseName} (${existing.length + 1})`;
       }
 
       const { id } = await actions.create.mutateAsync(connectionData);
@@ -2260,11 +2238,11 @@ function OrgMcpsContent() {
               searchLower
                 ? verifiedCatalogItems.length === 0 &&
                   otherCatalogItems.length === 0 &&
-                  tabFilteredConnections.length === 0
+                  filteredConnections.length === 0
                 : activeTab === "all"
                   ? verifiedCatalogItems.length === 0 &&
                     otherCatalogItems.length === 0
-                  : tabFilteredConnections.length === 0
+                  : filteredConnections.length === 0
             ) ? (
               <EmptyState
                 image={
@@ -2444,10 +2422,6 @@ function OrgMcpsContent() {
                     item.server?.icons?.[0]?.src ||
                     getGitHubAvatarUrl(item.server?.repository) ||
                     null;
-                  const appInstances = allConnections.filter(
-                    (c) =>
-                      c.connection_type !== "VIRTUAL" && c.app_name === appName,
-                  );
                   return (
                     <ConnectionCard
                       key={`catalog-${item.id}`}
@@ -2455,16 +2429,13 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const first = appInstances[0];
-                          if (first) {
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(first),
-                              },
-                            });
-                          }
+                          navigate({
+                            to: "/$org/mcps/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: appName,
+                            },
+                          });
                         } else {
                           navigateToCatalogItem(item);
                         }
@@ -2527,10 +2498,6 @@ function OrgMcpsContent() {
                     item.server?.icons?.[0]?.src ||
                     getGitHubAvatarUrl(item.server?.repository) ||
                     null;
-                  const appInstances = allConnections.filter(
-                    (c) =>
-                      c.connection_type !== "VIRTUAL" && c.app_name === appName,
-                  );
                   return (
                     <ConnectionCard
                       key={`catalog-${item.id}`}
@@ -2538,16 +2505,13 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const first = appInstances[0];
-                          if (first) {
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(first),
-                              },
-                            });
-                          }
+                          navigate({
+                            to: "/$org/mcps/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: appName,
+                            },
+                          });
                         } else {
                           navigateToCatalogItem(item);
                         }
@@ -2601,9 +2565,9 @@ function OrgMcpsContent() {
         {selectionMode && (
           <BulkActionBar
             count={selectedIds.size}
-            total={tabFilteredConnections.length}
+            total={filteredConnections.length}
             onSelectAll={() => {
-              setSelectedIds(new Set(tabFilteredConnections.map((c) => c.id)));
+              setSelectedIds(new Set(filteredConnections.map((c) => c.id)));
             }}
             onDeselectAll={() => setSelectedIds(new Set())}
             onDelete={() => setBulkDeleteOpen(true)}
