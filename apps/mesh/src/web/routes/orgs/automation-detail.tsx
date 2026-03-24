@@ -1197,7 +1197,7 @@ function RunHistorySection({
 
 export default function AutomationDetailPage() {
   const { automationId } = useParams({
-    from: "/shell/$org/automations/$automationId",
+    from: "/shell/$org/settings/automations/$automationId",
   });
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -1211,7 +1211,7 @@ export default function AutomationDetailPage() {
       await deleteMutation.mutateAsync(automationId);
       toast.success("Automation deleted");
       navigate({
-        to: "/$org/automations",
+        to: "/$org/settings/automations",
         params: { org: org.slug },
       });
     } catch {
@@ -1242,7 +1242,7 @@ export default function AutomationDetailPage() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/automations" params={{ org: org.slug }}>
+            <Link to="/$org/settings/automations" params={{ org: org.slug }}>
               Automations
             </Link>
           </BreadcrumbLink>

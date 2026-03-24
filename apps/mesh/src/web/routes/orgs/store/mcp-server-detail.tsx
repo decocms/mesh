@@ -655,7 +655,7 @@ function StoreMCPServerDetailContent() {
       }
 
       navigate({
-        to: "/$org/mcps",
+        to: "/$org/settings/connections",
         params: {
           org: org.slug,
         },
@@ -679,7 +679,7 @@ function StoreMCPServerDetailContent() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
     });
   };
@@ -703,7 +703,7 @@ function StoreMCPServerDetailContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link to="/$org/settings/connections" params={{ org: org.slug }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -810,7 +810,7 @@ export default function StoreMCPServerDetail() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
     });
   };

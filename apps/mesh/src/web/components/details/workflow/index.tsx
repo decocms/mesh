@@ -55,7 +55,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const { appSlug } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
   const slugConnections = useConnections({
     filters: [{ column: "app_name", value: appSlug }],
@@ -282,7 +282,7 @@ function WorkflowExecutionBar() {
 
 export function WorkflowDetails() {
   const { itemId } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
   const {
     item: workflow,
@@ -393,7 +393,7 @@ function WorkflowStudio({
 
 function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   const { appSlug } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
   const slugConnections = useConnections({
     filters: [{ column: "app_name", value: appSlug }],
@@ -424,7 +424,7 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
 
 export function WorkflowExecutionDetailsView() {
   const { itemId } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
   const { item: execution } = useCollectionWorkflowExecution({
     itemId: itemId,

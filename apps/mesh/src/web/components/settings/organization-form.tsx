@@ -88,9 +88,8 @@ export function OrganizationForm() {
       // If slug changed, navigate to new slug
       if (data?.data?.slug && data.data.slug !== org.slug) {
         navigate({
-          to: "/$org",
+          to: "/$org/settings/general",
           params: { org: data.data.slug },
-          search: { settings: "org.general" },
         });
       }
     },

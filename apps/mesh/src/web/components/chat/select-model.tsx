@@ -56,7 +56,8 @@ import {
 import { ErrorBoundary } from "../error-boundary";
 import { useChat } from "./context";
 import { getProviderLogo } from "@/web/utils/ai-providers-logos";
-import { useSettingsModal } from "@/web/hooks/use-settings-modal";
+import { useNavigate } from "@tanstack/react-router";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
 
 function parseModelTitle(model: { title: string; modelId: string }): {
@@ -1030,7 +1031,8 @@ function ModelSelectorInner({
   const providerMap = Object.fromEntries(
     (aiProviders?.providers ?? []).map((p) => [p.id, p]),
   );
-  const { open: openSettings } = useSettingsModal();
+  const settingsNavigate = useNavigate();
+  const { org: settingsOrg } = useProjectContext();
 
   const handleKeyChange = (keyId: string) => {
     onCredentialChange(keyId);
@@ -1177,7 +1179,12 @@ function ModelSelectorInner({
             <div className="w-px bg-border shrink-0" />
             <button
               type="button"
-              onClick={() => openSettings("org.ai-providers")}
+              onClick={() =>
+                settingsNavigate({
+                  to: "/$org/settings/ai-providers",
+                  params: { org: settingsOrg.slug },
+                })
+              }
               className="flex items-center gap-2 flex-1 px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
             >
               <Key01 className="size-3.5 shrink-0" />

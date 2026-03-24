@@ -1072,7 +1072,7 @@ function OrgMcpsContent() {
 
   const openCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: { action: "create" },
     });
@@ -1080,7 +1080,7 @@ function OrgMcpsContent() {
 
   const closeCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: {},
     });
@@ -1490,7 +1490,7 @@ function OrgMcpsContent() {
     closeCreateDialog();
     form.reset();
     navigate({
-      to: "/$org/mcps/$appSlug",
+      to: "/$org/settings/connections/$appSlug",
       params: {
         org: org.slug,
         appSlug: getConnectionSlug({
@@ -2271,7 +2271,7 @@ function OrgMcpsContent() {
                         group={item}
                         onOpen={() => {
                           navigate({
-                            to: "/$org/mcps/$appSlug",
+                            to: "/$org/settings/connections/$appSlug",
                             params: {
                               org: org.slug,
                               appSlug: item.key,
@@ -2296,7 +2296,7 @@ function OrgMcpsContent() {
                         selectionMode
                           ? toggleSelect(connection.id)
                           : navigate({
-                              to: "/$org/mcps/$appSlug",
+                              to: "/$org/settings/connections/$appSlug",
                               params: {
                                 org: org.slug,
                                 appSlug: getConnectionSlug(connection),
@@ -2349,7 +2349,7 @@ function OrgMcpsContent() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigate({
-                                      to: "/$org/mcps/$appSlug",
+                                      to: "/$org/settings/connections/$appSlug",
                                       params: {
                                         org: org.slug,
                                         appSlug: getConnectionSlug(connection),
@@ -2429,13 +2429,16 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
+                          const first = appInstances[0];
+                          if (first) {
+                            navigate({
+                              to: "/$org/settings/connections/$appSlug",
+                              params: {
+                                org: org.slug,
+                                appSlug: getConnectionSlug(first),
+                              },
+                            });
+                          }
                         } else {
                           navigateToCatalogItem(item);
                         }
@@ -2505,13 +2508,16 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
+                          const first = appInstances[0];
+                          if (first) {
+                            navigate({
+                              to: "/$org/settings/connections/$appSlug",
+                              params: {
+                                org: org.slug,
+                                appSlug: getConnectionSlug(first),
+                              },
+                            });
+                          }
                         } else {
                           navigateToCatalogItem(item);
                         }

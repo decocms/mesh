@@ -350,7 +350,7 @@ function ToolDetailsAuthenticated({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link to="/$org/settings/connections" params={{ org: org.slug }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -361,7 +361,7 @@ function ToolDetailsAuthenticated({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/mcps/$appSlug"
+                  to="/$org/settings/connections/$appSlug"
                   params={{
                     org: org.slug,
                     appSlug: getConnectionSlug(connection),

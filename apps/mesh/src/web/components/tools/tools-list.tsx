@@ -148,7 +148,7 @@ export function ToolsList({
       onToolClick(tool);
     } else if (connectionId && org) {
       navigate({
-        to: "/$org/mcps/$connectionId/$collectionName/$itemId",
+        to: "/$org/settings/connections/$connectionId/$collectionName/$itemId",
         params: {
           org: org,
           connectionId: connectionId,

@@ -214,7 +214,7 @@ function ConnectionItemWithAuth({
     >
       {/* Body — clickable, navigates to connection detail */}
       <Link
-        to="/$org/mcps/$appSlug"
+        to="/$org/settings/connections/$appSlug"
         params={{
           org: orgSlug,
           appSlug: slug,

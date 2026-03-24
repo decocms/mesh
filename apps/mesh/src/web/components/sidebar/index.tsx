@@ -26,7 +26,6 @@ function SidebarContent() {
   return (
     <NavigationSidebar
       sections={sidebarSections}
-      hideNavWhenCollapsed
       header={
         <Suspense fallback={<MeshSidebarHeader.Skeleton />}>
           <MeshSidebarHeader />

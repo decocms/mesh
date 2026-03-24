@@ -1904,7 +1904,7 @@ export default function MonitoringDashboard() {
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const search = useSearch({
-    from: "/shell/$org/monitoring",
+    from: "/shell/$org/settings/monitor",
   });
 
   const {
@@ -1927,7 +1927,7 @@ export default function MonitoringDashboard() {
   // Update URL with new filter values (pagination is handled internally, not in URL)
   const updateFilters = (updates: Partial<MonitoringSearchParams>) => {
     navigate({
-      to: "/$org/monitoring",
+      to: "/$org/settings/monitor",
       params: { org: org.slug },
       search: {
         ...search,

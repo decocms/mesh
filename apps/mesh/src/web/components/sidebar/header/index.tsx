@@ -1,46 +1,19 @@
 import {
   SidebarHeader as SidebarHeaderUI,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { LayoutLeft } from "@untitledui/icons";
 import { MeshAccountSwitcher } from "./account-switcher";
 
 export function MeshSidebarHeader() {
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === "collapsed";
-
   return (
-    <SidebarHeaderUI className="px-3 group-data-[collapsible=icon]:px-3 animate-in fade-in-0 duration-200">
+    <SidebarHeaderUI className="px-3 animate-in fade-in-0 duration-200">
       <SidebarMenu>
         <SidebarMenuItem>
-          {isCollapsed ? (
-            <div className="flex flex-col w-full gap-0.5 items-center">
-              <MeshAccountSwitcher isCollapsed={true} />
-              <SidebarMenuButton
-                onClick={toggleSidebar}
-                tooltip="Expand sidebar"
-              >
-                <LayoutLeft />
-              </SidebarMenuButton>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between w-full gap-1">
-              <div className="min-w-0 flex-1">
-                <MeshAccountSwitcher isCollapsed={false} />
-              </div>
-              <SidebarMenuButton
-                onClick={toggleSidebar}
-                tooltip="Collapse sidebar"
-                className="size-7 shrink-0"
-              >
-                <LayoutLeft />
-              </SidebarMenuButton>
-            </div>
-          )}
+          <div className="flex flex-col w-full items-center">
+            <MeshAccountSwitcher />
+          </div>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarHeaderUI>

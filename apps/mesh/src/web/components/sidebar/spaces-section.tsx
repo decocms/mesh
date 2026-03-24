@@ -9,22 +9,12 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@deco/ui/components/collapsible.tsx";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import {
-  ChevronDown,
-  DotsHorizontal,
-  Plus,
-  Settings01,
-} from "@untitledui/icons";
+import { Plus } from "@untitledui/icons";
 import {
   useProjectContext,
   useVirtualMCPActions,
@@ -34,7 +24,6 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
-import { cn } from "@deco/ui/lib/utils.ts";
 
 function SpaceListItem({
   space,
@@ -49,7 +38,6 @@ function SpaceListItem({
     <SidebarMenuItem>
       <SidebarMenuButton
         tooltip={space.title}
-        className="h-9 pr-2"
         onClick={() =>
           navigate({
             to: "/$org/spaces/$virtualMcpId",
@@ -61,31 +49,14 @@ function SpaceListItem({
           icon={space.icon}
           name={space.title}
           size="xs"
-          className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:h-full group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:[&_svg]:w-1/2 group-data-[collapsible=icon]:[&_svg]:h-1/2"
+          className="w-full h-full rounded-lg [&_svg]:w-1/2 [&_svg]:h-1/2"
         />
-        <span className="truncate flex-1 group-data-[collapsible=icon]:hidden">
-          {space.title}
-        </span>
-        <button
-          type="button"
-          title="Settings"
-          className="opacity-0 group-hover/menu-item:opacity-100 shrink-0 text-muted-foreground hover:text-foreground transition-opacity group-data-[collapsible=icon]:hidden"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate({
-              to: "/$org/spaces/$virtualMcpId/settings",
-              params: { org, virtualMcpId: space.id },
-            });
-          }}
-        >
-          <Settings01 size={14} />
-        </button>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-function PinSpacePopover() {
+export function PinSpacePopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const allSpaces = useVirtualMCPs();
@@ -112,15 +83,13 @@ function PinSpacePopover() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title="Pin a space"
-          className="opacity-0 group-hover/spaces-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center size-6 rounded shrink-0"
-        >
-          <Plus size={18} />
-        </button>
-      </PopoverTrigger>
+      <SidebarMenuItem>
+        <PopoverTrigger asChild>
+          <SidebarMenuButton tooltip="Pin a space">
+            <Plus className="!opacity-100" />
+          </SidebarMenuButton>
+        </PopoverTrigger>
+      </SidebarMenuItem>
       <PopoverContent className="w-80 p-2" side="right" align="start">
         <Input
           placeholder="Search spaces..."
@@ -190,89 +159,18 @@ function PinSpacePopover() {
 function SpacesSectionContent() {
   const spaces = useSpaces({ pinnedOnly: true });
   const { org } = useProjectContext();
-  const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(true);
-  return (
-    <>
-      <div className="group/spaces-section mt-2">
-        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <SidebarGroup className="py-0 px-0">
-            <div className="group-data-[collapsible=icon]:hidden">
-              <SidebarMenu className="gap-0.5">
-                <SidebarMenuItem>
-                  <div className="flex h-8 w-full items-center gap-1 rounded-md pl-2 pr-1">
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex flex-1 items-center gap-1 cursor-pointer min-w-0"
-                      >
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Spaces
-                        </span>
-                        <ChevronDown
-                          size={12}
-                          className={cn(
-                            "text-muted-foreground shrink-0 transition-transform duration-200",
-                            !isOpen && "-rotate-90",
-                          )}
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate({
-                          to: "/$org/spaces",
-                          params: { org: org.slug },
-                        })
-                      }
-                      title="View all spaces"
-                      className="opacity-0 group-hover/spaces-section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground flex items-center justify-center size-6 rounded shrink-0"
-                    >
-                      <DotsHorizontal size={16} />
-                    </button>
-                    <Suspense
-                      fallback={
-                        <div className="size-6 flex items-center justify-center">
-                          <Plus
-                            size={18}
-                            className="text-muted-foreground opacity-50"
-                          />
-                        </div>
-                      }
-                    >
-                      <PinSpacePopover />
-                    </Suspense>
-                  </div>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </div>
 
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu className="gap-0.5">
-                  {spaces.length === 0 ? (
-                    <SidebarMenuItem>
-                      <div className="px-2 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                        No pinned spaces yet
-                      </div>
-                    </SidebarMenuItem>
-                  ) : (
-                    spaces.map((space) => (
-                      <SpaceListItem
-                        key={space.id}
-                        space={space}
-                        org={org.slug}
-                      />
-                    ))
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
-      </div>
-    </>
+  return (
+    <SidebarGroup className="py-0 px-0 mt-2">
+      <SidebarGroupContent>
+        <SidebarMenu className="gap-0.5">
+          <PinSpacePopover />
+          {spaces.map((space) => (
+            <SpaceListItem key={space.id} space={space} org={org.slug} />
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 

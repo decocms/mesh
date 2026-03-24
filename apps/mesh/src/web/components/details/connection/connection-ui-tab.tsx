@@ -47,7 +47,7 @@ export function ConnectionUiTab({
 
   const handleToolClick = (tool: Tool) => {
     navigate({
-      to: "/$org/mcps/$appSlug/$collectionName/$itemId",
+      to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
       params: {
         org,
         appSlug,
