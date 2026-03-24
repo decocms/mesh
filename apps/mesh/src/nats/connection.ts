@@ -99,6 +99,7 @@ export function createNatsConnectionProvider(
     init(url: string | string[]): void {
       if (initialized) return;
       initialized = true;
+      stopped = false;
       connectWithRetry(url).catch(() => {});
     },
 
