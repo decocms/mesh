@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import {
   LogOut01,
   LinkExternal01,
@@ -41,15 +42,18 @@ function MeshUserMenuBase({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex w-full h-16 items-center gap-2 rounded-md px-1 hover:bg-sidebar-accent transition-colors text-left min-w-0 justify-center">
+        <SidebarMenuButton
+          tooltip={user.name || user.email}
+          className="rounded-full"
+        >
           <Avatar
             url={userImage}
             fallback={user.name || user.email || "U"}
             shape="circle"
             size="2xs"
-            className="shrink-0 size-10"
+            className="shrink-0 size-full"
           />
-        </button>
+        </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="top"
