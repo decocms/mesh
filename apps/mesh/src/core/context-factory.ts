@@ -955,6 +955,7 @@ export async function createMeshContextFactory(
         return await createMCPProxy(conn, ctx);
       },
       getOrCreateClient: clientPool,
+      pendingRevalidations: [],
     };
 
     return ctx;
