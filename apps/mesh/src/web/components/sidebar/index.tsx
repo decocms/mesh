@@ -82,8 +82,10 @@ function ProjectScopedSidebar({ virtualMcpId }: { virtualMcpId: string }) {
     slug,
     name: entity.title,
     description: entity.description,
-    enabledPlugins:
-      (entity.metadata?.enabled_plugins as string[] | null | undefined) ?? null,
+    enabledPlugins: entity.metadata?.enabled_plugins as
+      | string[]
+      | null
+      | undefined,
     ui: entity.metadata?.ui
       ? {
           banner:

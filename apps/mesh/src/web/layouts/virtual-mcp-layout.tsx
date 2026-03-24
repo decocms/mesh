@@ -15,7 +15,7 @@ import {
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
-import { SettingsModal } from "@/web/components/settings-modal/index";
+
 import { useChatStable } from "@/web/components/chat/context";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 
@@ -80,8 +80,10 @@ function VirtualMCPLayoutContent() {
     slug,
     name: entity.title,
     description: entity.description,
-    enabledPlugins:
-      (entity.metadata?.enabled_plugins as string[] | null | undefined) ?? null,
+    enabledPlugins: entity.metadata?.enabled_plugins as
+      | string[]
+      | null
+      | undefined,
     ui: entity.metadata?.ui
       ? {
           banner:
@@ -118,7 +120,6 @@ function VirtualMCPLayoutContent() {
       <Suspense fallback={<SplashScreen />}>
         <Outlet />
       </Suspense>
-      <SettingsModal />
     </ProjectContextProvider>
   );
 }

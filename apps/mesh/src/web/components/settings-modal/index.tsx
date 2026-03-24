@@ -16,6 +16,7 @@ import {
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
+import { useMatch } from "@tanstack/react-router";
 import { SettingsSidebar } from "./sidebar";
 import { AccountProfilePage } from "./pages/account-profile";
 import { AccountPreferencesPage } from "./pages/account-preferences";
@@ -87,7 +88,15 @@ function ProjectContextWrapper({
 }
 
 function SettingsContent({ section }: { section: SettingsSection }) {
-  const { project } = useProjectContext();
+  // The SettingsModal is rendered inside OrgLayout, so useProjectContext()
+  // always returns the org-level synthetic project (isOrgAdmin: true).
+  // To detect whether we're on a project route, check URL params instead.
+  const projectMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const virtualMcpId = projectMatch?.params.virtualMcpId;
+
   switch (section) {
     case "account.profile":
       return <AccountProfilePage />;
@@ -96,19 +105,18 @@ function SettingsContent({ section }: { section: SettingsSection }) {
     case "org.general":
       return <OrgGeneralPage />;
     case "org.plugins":
-      // When on a project route, project.id is a real virtual MCP ID — wrap
+      // When on a project route, virtualMcpId is a real virtual MCP ID — wrap
       // in ProjectContextWrapper to fetch the full entity.
-      // On org-level routes (isOrgAdmin), project.id is just the org ID and
-      // there is no backing virtual MCP, so render directly with the existing
-      // project context.
-      if (project.isOrgAdmin) {
-        return <ProjectPluginsPage />;
+      // On org-level routes, there is no virtualMcpId and no backing virtual
+      // MCP, so render directly with the existing project context.
+      if (virtualMcpId) {
+        return (
+          <ProjectContextWrapper projectId={virtualMcpId}>
+            <ProjectPluginsPage />
+          </ProjectContextWrapper>
+        );
       }
-      return (
-        <ProjectContextWrapper projectId={project.id}>
-          <ProjectPluginsPage />
-        </ProjectContextWrapper>
-      );
+      return <ProjectPluginsPage />;
     case "org.ai-providers":
       return <OrgAiProvidersPage />;
     case "org.members":
