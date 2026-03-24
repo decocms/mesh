@@ -54,14 +54,6 @@ import {
   XClose,
   ZapCircle,
 } from "@untitledui/icons";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Suspense, useEffect, useReducer, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -938,27 +930,7 @@ Define step-by-step how the agent should handle requests.
   const isSaving = actions.update.isPending;
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
 
-  // Variant-specific breadcrumb
-  const breadcrumb = (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
-            <Link
-              to={isAgent ? "/$org/agents" : "/$org/projects"}
-              params={{ org: org.slug }}
-            >
-              {isAgent ? "Agents" : "Projects"}
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{virtualMcp.title}</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
+  const breadcrumb = null;
 
   // Variant-specific tabs
   const tabs = [
