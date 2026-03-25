@@ -33,11 +33,17 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   type ConnectionEntity,
+  SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnections,
+  useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useQueryClient } from "@tanstack/react-query";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
+import {
+  useQueryClient,
+  useSuspenseInfiniteQuery,
+} from "@tanstack/react-query";
 import {
   Check,
   CheckVerified02,
@@ -171,10 +177,87 @@ function AddConnectionDialogContent({
     () => "all",
   );
 
-  // Connections - server-side search (VIRTUAL excluded by default)
-  const allConnections = useConnections({
-    searchTerm: search || undefined,
+  // Connections - server-side search with infinite scroll (VIRTUAL excluded by default)
+  const PAGE_SIZE = 100;
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
   });
+
+  const where = search?.trim()
+    ? {
+        operator: "or" as const,
+        conditions: [
+          {
+            field: ["title"],
+            operator: "contains" as const,
+            value: search.trim(),
+          },
+          {
+            field: ["description"],
+            operator: "contains" as const,
+            value: search.trim(),
+          },
+        ],
+      }
+    : undefined;
+
+  const toolArguments = {
+    ...(where && { where }),
+    orderBy: [{ field: ["updated_at"], direction: "asc" as const }],
+    limit: PAGE_SIZE,
+    offset: 0,
+  };
+  const argsKey = JSON.stringify(toolArguments);
+
+  const {
+    data: connectionsData,
+    fetchNextPage: fetchNextConnectionsPage,
+    hasNextPage: hasNextConnectionsPage,
+    isFetchingNextPage: isFetchingNextConnectionsPage,
+  } = useSuspenseInfiniteQuery({
+    queryKey: [
+      ...KEYS.collectionListInfinite(
+        client,
+        org.id,
+        "",
+        "CONNECTIONS",
+        argsKey,
+      ),
+    ],
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_LIST",
+        arguments: {
+          ...(where && { where }),
+          orderBy: [{ field: ["updated_at"], direction: "asc" }],
+          limit: PAGE_SIZE,
+          offset: pageParam,
+        },
+      });
+      const payload =
+        result.structuredContent as CollectionListOutput<ConnectionEntity>;
+      return payload;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: CollectionListOutput<ConnectionEntity>,
+      allPages: CollectionListOutput<ConnectionEntity>[],
+    ) => {
+      if (!lastPage?.hasMore) return undefined;
+      return allPages.reduce(
+        (sum: number, page: CollectionListOutput<ConnectionEntity>) =>
+          sum + (page?.items?.length ?? 0),
+        0,
+      );
+    },
+    staleTime: 30_000,
+  });
+
+  const allConnections =
+    connectionsData?.pages.flatMap(
+      (p: CollectionListOutput<ConnectionEntity>) => p?.items ?? [],
+    ) ?? [];
   const grouped = groupConnections(allConnections);
 
   // Registry / catalog - use server-side binding filter
@@ -207,6 +290,12 @@ function AddConnectionDialogContent({
     registryDiscovery.loadMore,
     registryDiscovery.hasMore,
     registryDiscovery.isLoadingMore,
+  );
+
+  const connectedSentinelRef = useInfiniteScroll(
+    fetchNextConnectionsPage,
+    hasNextConnectionsPage ?? false,
+    isFetchingNextConnectionsPage,
   );
 
   const connectedAppNames = new Set(
@@ -478,6 +567,21 @@ function AddConnectionDialogContent({
               />
             );
           })}
+
+          {/* Infinite scroll sentinel for connected tab */}
+          {activeTab === "connected" && (
+            <>
+              <div ref={connectedSentinelRef} className="col-span-full h-4" />
+              {isFetchingNextConnectionsPage && (
+                <div className="col-span-full flex justify-center py-6">
+                  <Loading01
+                    size={24}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Verified catalog items */}
           {(activeTab === "all" || searchLower) &&
