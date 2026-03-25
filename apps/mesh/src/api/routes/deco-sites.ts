@@ -56,11 +56,6 @@ function getSupabaseConfig(): {
   return { supabaseUrl, serviceKey };
 }
 
-/** Override the lookup email for local development (e.g. DECO_OVERRIDE_EMAIL=valls@deco.cx). */
-function resolveEmail(authenticatedEmail: string): string {
-  return process.env.DECO_OVERRIDE_EMAIL ?? authenticatedEmail;
-}
-
 async function resolveProfileId(
   supabaseUrl: string,
   serviceKey: string,
@@ -138,22 +133,7 @@ app.get("/", async (c) => {
 
   const config = getSupabaseConfig();
   if (!config) {
-    // Local dev fallback: return hardcoded stub sites so the UI can be tested
-    // without Supabase credentials.
-    return c.json({
-      sites: [
-        {
-          name: "valls",
-          domains: [{ domain: "valls.deco.site", production: true }],
-          thumb_url: null,
-        },
-        {
-          name: "deco-cx",
-          domains: [{ domain: "deco.cx", production: true }],
-          thumb_url: null,
-        },
-      ],
-    });
+    return c.json({ sites: [] });
   }
   const { supabaseUrl, serviceKey } = config;
 
@@ -161,7 +141,7 @@ app.get("/", async (c) => {
     const profileId = await resolveProfileId(
       supabaseUrl,
       serviceKey,
-      resolveEmail(email),
+      email,
     );
     if (!profileId) {
       return c.json({ sites: [] });
@@ -246,7 +226,7 @@ app.post("/connection", async (c) => {
         const profileId = await resolveProfileId(
           supabaseUrl,
           serviceKey,
-          resolveEmail(email),
+          email,
         );
         if (!profileId) return null;
         return fetchDecoApiKey(supabaseUrl, serviceKey, profileId);
