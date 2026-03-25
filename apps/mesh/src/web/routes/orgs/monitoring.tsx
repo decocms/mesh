@@ -1863,6 +1863,169 @@ function ThreadMessagesContent({
   );
 }
 
+interface ThreadFiltersPopoverProps {
+  statusFilter: string;
+  userFilter: string;
+  modelFilter: string;
+  agentFilter: string;
+  userOptions: Array<{ id: string; label: string }>;
+  modelOptions: string[];
+  agentOptions: Array<{ id: string; label: string }>;
+  activeCount: number;
+  onStatusChange: (v: string) => void;
+  onUserChange: (v: string) => void;
+  onModelChange: (v: string) => void;
+  onAgentChange: (v: string) => void;
+  onClear: () => void;
+}
+
+function ThreadFiltersPopover({
+  statusFilter,
+  userFilter,
+  modelFilter,
+  agentFilter,
+  userOptions,
+  modelOptions,
+  agentOptions,
+  activeCount,
+  onStatusChange,
+  onUserChange,
+  onModelChange,
+  onAgentChange,
+  onClear,
+}: ThreadFiltersPopoverProps) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 w-7 px-0 sm:w-auto sm:px-3 relative"
+        >
+          <FilterLines size={16} />
+          <span className="hidden sm:inline">Filters</span>
+          {activeCount > 0 && (
+            <>
+              <Badge
+                variant="default"
+                className="sm:hidden absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] leading-none"
+              >
+                {activeCount}
+              </Badge>
+              <Badge
+                variant="default"
+                className="hidden sm:flex ml-1 h-5 w-5 rounded-full p-0 items-center justify-center text-xs"
+              >
+                {activeCount}
+              </Badge>
+            </>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[280px]">
+        <div className="space-y-4">
+          <h4 className="font-medium text-sm">Filter Threads</h4>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Status
+              </label>
+              <Select value={statusFilter} onValueChange={onStatusChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="requires_action">
+                    Requires action
+                  </SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {agentOptions.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Agent
+                </label>
+                <MultiSelect
+                  options={agentOptions.map((a) => ({
+                    value: a.id,
+                    label: a.label,
+                  }))}
+                  defaultValue={agentFilter !== "all" ? [agentFilter] : []}
+                  onValueChange={(vals) =>
+                    onAgentChange(vals.length ? vals[0]! : "all")
+                  }
+                  placeholder="All agents"
+                  variant="secondary"
+                  className="w-full"
+                  maxCount={1}
+                />
+              </div>
+            )}
+
+            {userOptions.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  User
+                </label>
+                <MultiSelect
+                  options={userOptions.map((u) => ({
+                    value: u.id,
+                    label: u.label,
+                  }))}
+                  defaultValue={userFilter !== "all" ? [userFilter] : []}
+                  onValueChange={(vals) =>
+                    onUserChange(vals.length ? vals[0]! : "all")
+                  }
+                  placeholder="All users"
+                  variant="secondary"
+                  className="w-full"
+                  maxCount={1}
+                />
+              </div>
+            )}
+
+            {modelOptions.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  Model
+                </label>
+                <MultiSelect
+                  options={modelOptions.map((m) => ({ value: m, label: m }))}
+                  defaultValue={modelFilter !== "all" ? [modelFilter] : []}
+                  onValueChange={(vals) =>
+                    onModelChange(vals.length ? vals[0]! : "all")
+                  }
+                  placeholder="All models"
+                  variant="secondary"
+                  className="w-full"
+                  maxCount={1}
+                />
+              </div>
+            )}
+          </div>
+
+          {activeCount > 0 && (
+            <Button
+              variant="ghost"
+              className="w-full text-sm"
+              onClick={onClear}
+            >
+              Clear all filters
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface ThreadsTabContentProps {
   client: ReturnType<typeof useMCPClient>;
   locator: string;
@@ -1890,6 +2053,7 @@ function ThreadsTabContent({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [modelFilter, setModelFilter] = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
 
   const startDate = dateRange.startDate.toISOString();
   const endDate = dateRange.endDate.toISOString();
@@ -1900,6 +2064,7 @@ function ThreadsTabContent({
     search,
     status: statusFilter,
     userId: userFilter,
+    agentId: agentFilter,
   });
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -1917,6 +2082,7 @@ function ThreadsTabContent({
             ...(search ? { search } : {}),
             ...(statusFilter !== "all" ? { status: statusFilter } : {}),
             ...(userFilter !== "all" ? { userId: userFilter } : {}),
+            ...(agentFilter !== "all" ? { agentId: agentFilter } : {}),
           },
         })) as { structuredContent?: unknown };
         return (result.structuredContent ?? result) as {
@@ -2028,87 +2194,64 @@ function ThreadsTabContent({
     label: m.user.name ?? m.user.email ?? m.userId,
   }));
 
-  const hasFilters =
-    search ||
+  // Agent options from virtual MCPs + connections
+  const agentOptions = [
+    ...allVirtualMcps.map((v) => ({ id: v.id, label: v.title ?? v.id })),
+    ...(allConnections ?? []).map((c) => ({
+      id: c.id,
+      label: c.title ?? c.id,
+    })),
+  ];
+
+  const hasActiveFilters =
+    !!search ||
     statusFilter !== "all" ||
     userFilter !== "all" ||
-    modelFilter !== "all";
+    modelFilter !== "all" ||
+    agentFilter !== "all";
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-      {/* Filter bar */}
+      {/* Search + filter bar */}
       <div className="shrink-0 flex items-center border-b border-border">
         <CollectionSearch
           value={search}
           onChange={setSearch}
           placeholder="Search by title…"
           className="flex-1 border-0 border-b-0"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearch("");
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
         />
-        <div className="flex items-center gap-1.5 px-3 shrink-0 border-l border-border h-12">
-          {/* Status */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="in_progress">In progress</SelectItem>
-              <SelectItem value="requires_action">Requires action</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* User */}
-          {userOptions.length > 0 && (
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
-                <SelectValue placeholder="User" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All users</SelectItem>
-                {userOptions.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Model */}
-          {modelOptions.length > 0 && (
-            <Select value={modelFilter} onValueChange={setModelFilter}>
-              <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
-                <SelectValue placeholder="Model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All models</SelectItem>
-                {modelOptions.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {/* Clear filters */}
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs text-muted-foreground"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-                setUserFilter("all");
-                setModelFilter("all");
-              }}
-            >
-              Clear
-            </Button>
-          )}
+        <div className="px-3 shrink-0 border-l border-border h-12 flex items-center">
+          <ThreadFiltersPopover
+            statusFilter={statusFilter}
+            userFilter={userFilter}
+            modelFilter={modelFilter}
+            agentFilter={agentFilter}
+            userOptions={userOptions}
+            modelOptions={modelOptions}
+            agentOptions={agentOptions}
+            activeCount={
+              (statusFilter !== "all" ? 1 : 0) +
+              (userFilter !== "all" ? 1 : 0) +
+              (modelFilter !== "all" ? 1 : 0) +
+              (agentFilter !== "all" ? 1 : 0)
+            }
+            onStatusChange={setStatusFilter}
+            onUserChange={setUserFilter}
+            onModelChange={setModelFilter}
+            onAgentChange={setAgentFilter}
+            onClear={() => {
+              setStatusFilter("all");
+              setUserFilter("all");
+              setModelFilter("all");
+              setAgentFilter("all");
+            }}
+          />
         </div>
       </div>
 
@@ -2116,9 +2259,11 @@ function ThreadsTabContent({
         {visibleThreads.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-20">
             <EmptyState
-              title={hasFilters ? "No matching threads" : "No threads yet"}
+              title={
+                hasActiveFilters ? "No matching threads" : "No threads yet"
+              }
               description={
-                hasFilters
+                hasActiveFilters
                   ? "Try adjusting your filters or search query."
                   : "Threads are created when users chat with agents."
               }
@@ -2128,14 +2273,30 @@ function ThreadsTabContent({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pl-4">Title</TableHead>
-              <TableHead className="w-36">Agent</TableHead>
-              <TableHead className="w-36">Model</TableHead>
-              <TableHead className="w-28">User</TableHead>
-              <TableHead className="w-24">Status</TableHead>
-              <TableHead className="w-24">Usage</TableHead>
-              <TableHead className="w-20">Date</TableHead>
-              <TableHead className="w-24 pr-5">Time</TableHead>
+              <TableHead className="pl-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Title
+              </TableHead>
+              <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Agent
+              </TableHead>
+              <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Model
+              </TableHead>
+              <TableHead className="w-28 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                User
+              </TableHead>
+              <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Status
+              </TableHead>
+              <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Usage
+              </TableHead>
+              <TableHead className="w-20 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Date
+              </TableHead>
+              <TableHead className="w-24 px-3 pr-5 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                Time
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
