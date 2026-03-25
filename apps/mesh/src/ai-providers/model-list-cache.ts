@@ -34,6 +34,7 @@ export class JetStreamKVModelListCache implements ModelListCache {
     this.kv = await js.views.kv(KV_BUCKET, {
       ttl: KV_TTL_MS,
       storage: StorageType.Memory,
+      replicas: 3,
     });
   }
 

@@ -5,7 +5,8 @@
  * The scheduler publishes jobs when triggers are due; workers pull and execute.
  *
  * - WorkQueue retention: messages deleted on ack (no replay needed)
- * - Memory storage: jobs are transient; the DB is the authority
+ * - File storage: jobs survive pod restarts during rolling deploys
+ * - 3 replicas: jobs are not lost if the NATS leader changes
  * - Pull-based consumer: natural backpressure, one job per worker
  * - Ack wait > automation timeout: prevents premature redelivery
  */
@@ -20,9 +21,13 @@ import {
   type NatsConnection,
 } from "nats";
 
-const STREAM_NAME = "AUTOMATION_JOBS";
+// Stream was renamed from AUTOMATION_JOBS (Memory) to AUTOMATION_JOBS_FILE (File)
+// to avoid a storage-type conflict on update. The old stream will remain on the
+// NATS cluster without consumers and can be deleted manually when convenient:
+//   nats stream delete AUTOMATION_JOBS
+const STREAM_NAME = "AUTOMATION_JOBS_FILE";
 const SUBJECT_PREFIX = "automation.fire";
-const CONSUMER_NAME = "automation-worker";
+const CONSUMER_NAME = "automation-worker-file";
 const MAX_DELIVER = 3;
 const ACK_WAIT_NS = 6 * 60 * 1_000_000_000; // 6 min (> 5 min automation timeout)
 const PULL_BATCH_SIZE = 5;
@@ -54,11 +59,11 @@ export class AutomationJobStream {
     const config = {
       name: STREAM_NAME,
       subjects: [`${SUBJECT_PREFIX}.>`],
-      storage: StorageType.Memory,
+      storage: StorageType.File,
       retention: RetentionPolicy.Workqueue,
       discard: DiscardPolicy.Old,
       max_msgs: 10_000,
-      num_replicas: 1,
+      num_replicas: 3,
     };
 
     try {

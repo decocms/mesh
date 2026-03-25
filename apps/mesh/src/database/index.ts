@@ -66,6 +66,8 @@ const defaultPoolOptions = {
   idleTimeoutMillis: 300000,
   connectionTimeoutMillis: 30000,
   allowExitOnIdle: true,
+  // Kill runaway queries before they exhaust the pool and block the readiness probe
+  statement_timeout: 30_000,
 };
 
 function createPostgresDatabase(connectionString: string): MeshDatabase {

@@ -41,6 +41,7 @@ export class NatsPodHeartbeat implements PodHeartbeat {
     this.kv = await js.views.kv(BUCKET_NAME, {
       ttl: BUCKET_TTL_MS,
       storage: StorageType.Memory,
+      replicas: 3,
     });
   }
 

@@ -36,7 +36,20 @@ export function createNatsConnectionProvider(): NatsConnectionProvider {
   return {
     async init(url: string | string[]): Promise<void> {
       if (nc) return;
-      nc = await connect({ servers: url });
+      nc = await connect({
+        servers: url,
+        // Fail fast on startup if NATS is unreachable
+        timeout: 10_000,
+        // After initial connect, reconnect automatically with backoff + jitter
+        // so pods don't all hammer NATS simultaneously after a restart
+        reconnect: true,
+        maxReconnectAttempts: -1,
+        reconnectTimeWait: 2_000,
+        reconnectJitter: 1_000,
+        // Detect dead connections (TCP up but NATS not responding)
+        pingInterval: 30_000,
+        maxPingOut: 3,
+      });
     },
 
     getConnection(): NatsConnection {
