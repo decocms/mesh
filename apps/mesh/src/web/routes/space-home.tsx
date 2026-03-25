@@ -16,11 +16,7 @@ function SpaceHomeContent() {
   const virtualMcpId =
     (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
   return (
-    <VirtualMcpDetailView
-      key={virtualMcpId}
-      virtualMcpId={virtualMcpId}
-      variant="project"
-    />
+    <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
   );
 }
 

@@ -6,7 +6,7 @@ import { Suspense } from "react";
 
 function AgentDetailContent() {
   const { agentId } = useParams({ from: "/shell/$org/agents/$agentId" });
-  return <VirtualMcpDetailView virtualMcpId={agentId} variant="agent" />;
+  return <VirtualMcpDetailView virtualMcpId={agentId} />;
 }
 
 export default function AgentDetailPage() {

@@ -72,8 +72,6 @@ import { ALL_ITEMS_SELECTED, getSelectionSummary } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 
-export type VirtualMcpVariant = "agent" | "project";
-
 type DialogState = {
   shareDialogOpen: boolean;
   addDialogOpen: boolean;
@@ -801,18 +799,14 @@ function AgentsTabContent({
 
 function VirtualMcpDetailViewWithData({
   virtualMcp,
-  variant,
 }: {
   virtualMcp: VirtualMCPEntity;
-  variant: VirtualMcpVariant;
 }) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const actions = useVirtualMCPActions();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
-
-  const isAgent = variant === "agent";
 
   // Form setup
   const form = useForm<VirtualMcpFormData>({
@@ -831,10 +825,15 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state — clamp to valid tabs for variant
-  const validTabIds = isAgent
-    ? ["instructions", "connections", "capabilities"]
-    : ["instructions", "connections", "sidebar", "automations"];
+  // Tab state
+  const validTabIds = [
+    "instructions",
+    "connections",
+    "capabilities",
+    "agents",
+    "sidebar",
+    "automations",
+  ];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     return validTabIds.includes(stored) ? stored : "instructions";
@@ -1081,10 +1080,10 @@ Define step-by-step how the agent should handle requests.
       label: "Connections",
       count: connections.length || undefined,
     },
-    ...(isAgent ? [{ id: "capabilities", label: "Capabilities" }] : []),
-    ...(!isAgent ? [{ id: "agents", label: "Agents" }] : []),
-    ...(!isAgent ? [{ id: "sidebar", label: "Sidebar" }] : []),
-    ...(!isAgent ? [{ id: "automations", label: "Automations" }] : []),
+    { id: "capabilities", label: "Capabilities" },
+    { id: "agents", label: "Agents" },
+    { id: "sidebar", label: "Sidebar" },
+    { id: "automations", label: "Automations" },
   ];
 
   return (
@@ -1096,41 +1095,35 @@ Define step-by-step how the agent should handle requests.
           isDirty={hasFormChanges}
           isSaving={isSaving}
         />
-        {isAgent && (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 border border-input"
-                  onClick={handleTestAgent}
-                  aria-label="Test Agent"
-                >
-                  <Play size={14} />
-                  Test Agent
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Test this agent in chat
-            </TooltipContent>
-          </Tooltip>
-        )}
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span className="inline-block">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2 border border-input"
+                onClick={handleTestAgent}
+                aria-label="Test Agent"
+              >
+                <Play size={14} />
+                Test Agent
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Test this agent in chat</TooltipContent>
+        </Tooltip>
 
-        {isAgent && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1.5 px-2 border border-input"
-            onClick={() =>
-              dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: true })
-            }
-          >
-            <ZapCircle size={14} />
-            Connect
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2 border border-input"
+          onClick={() =>
+            dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: true })
+          }
+        >
+          <ZapCircle size={14} />
+          Connect
+        </Button>
       </ViewActions>
 
       <div className="flex h-full w-full bg-background overflow-auto">
@@ -1150,9 +1143,7 @@ Define step-by-step how the agent should handle requests.
                         shouldDirty: true,
                       })
                     }
-                    name={
-                      form.watch("title") || (isAgent ? "Agent" : "Project")
-                    }
+                    name={form.watch("title") || "Space"}
                     size="lg"
                     className="shrink-0 shadow-sm"
                   />
@@ -1162,7 +1153,7 @@ Define step-by-step how the agent should handle requests.
                 <Input
                   {...form.register("title")}
                   className="h-auto py-0.5 text-lg! font-medium leading-7 px-1 -mx-1 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
-                  placeholder={isAgent ? "Agent Name" : "Project Name"}
+                  placeholder="Space Name"
                 />
                 <Input
                   {...form.register("description")}
@@ -1293,11 +1284,11 @@ Define step-by-step how the agent should handle requests.
               </div>
             )}
 
-            {activeTab === "capabilities" && isAgent && (
+            {activeTab === "capabilities" && (
               <AgentCapabilities connections={connections} />
             )}
 
-            {activeTab === "agents" && !isAgent && (
+            {activeTab === "agents" && (
               <AgentsTabContent
                 currentVirtualMcpId={virtualMcp.id}
                 connections={connections}
@@ -1306,11 +1297,11 @@ Define step-by-step how the agent should handle requests.
               />
             )}
 
-            {activeTab === "sidebar" && !isAgent && (
+            {activeTab === "sidebar" && (
               <SidebarTabContent virtualMcpId={virtualMcp.id} />
             )}
 
-            {activeTab === "automations" && !isAgent && (
+            {activeTab === "automations" && (
               <ErrorBoundary fallback={() => null}>
                 <Suspense
                   fallback={
@@ -1368,15 +1359,13 @@ Define step-by-step how the agent should handle requests.
         onAuthenticate={handleAuthenticate}
       />
 
-      {isAgent && (
-        <VirtualMCPShareModal
-          open={dialogState.shareDialogOpen}
-          onOpenChange={(open) =>
-            dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: open })
-          }
-          virtualMcp={virtualMcp}
-        />
-      )}
+      <VirtualMCPShareModal
+        open={dialogState.shareDialogOpen}
+        onOpenChange={(open) =>
+          dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: open })
+        }
+        virtualMcp={virtualMcp}
+      />
     </ViewLayout>
   );
 }
@@ -1387,10 +1376,8 @@ Define step-by-step how the agent should handle requests.
 
 export function VirtualMcpDetailView({
   virtualMcpId,
-  variant,
 }: {
   virtualMcpId: string;
-  variant: VirtualMcpVariant;
 }) {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -1398,24 +1385,22 @@ export function VirtualMcpDetailView({
   const virtualMcp = useVirtualMCP(virtualMcpId);
 
   if (!virtualMcp) {
-    const label = variant === "agent" ? "Agent" : "Project";
-    const backTo = variant === "agent" ? "/$org/agents" : "/$org/projects";
     return (
       <div className="flex h-full w-full bg-background">
         <EmptyState
-          title={`${label} not found`}
-          description={`This ${label.toLowerCase()} may have been deleted or you may not have access.`}
+          title="Space not found"
+          description="This space may have been deleted or you may not have access."
           actions={
             <Button
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: backTo,
+                  to: "/$org",
                   params: { org: org.slug },
                 })
               }
             >
-              Back to {label.toLowerCase()}s
+              Back to spaces
             </Button>
           }
         />
@@ -1423,7 +1408,5 @@ export function VirtualMcpDetailView({
     );
   }
 
-  return (
-    <VirtualMcpDetailViewWithData virtualMcp={virtualMcp} variant={variant} />
-  );
+  return <VirtualMcpDetailViewWithData virtualMcp={virtualMcp} />;
 }

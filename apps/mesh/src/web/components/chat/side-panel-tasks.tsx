@@ -28,27 +28,6 @@ import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 // ────────────────────────────────────────
-// Project header — shown when inside a project
-// ────────────────────────────────────────
-
-function ProjectHeader({ project }: { project: VirtualMCPEntity }) {
-  return (
-    <div className="flex items-center gap-2.5 pl-4 pr-2 py-5 flex-none">
-      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-        <span className="text-sm font-semibold text-foreground truncate leading-tight">
-          {project.title}
-        </span>
-        {project.description && (
-          <span className="text-xs text-muted-foreground truncate leading-tight">
-            {project.description}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
 // ────────────────────────────────────────
 
@@ -188,9 +167,7 @@ function TasksPanelContent() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      {project ? (
-        <ProjectHeader project={project} />
-      ) : (
+      {!project && (
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">
             <span className="text-sm font-medium text-foreground">Tasks</span>

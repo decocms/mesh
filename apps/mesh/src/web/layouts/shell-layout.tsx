@@ -36,6 +36,7 @@ import {
 import {
   ProjectContextProvider,
   ProjectContextProviderProps,
+  useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
@@ -171,6 +172,57 @@ function MobileFABsAndDrawers({
   );
 }
 
+function ToolbarBreadcrumb() {
+  const routerState = useRouterState();
+  const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
+  const org = orgMatch?.params.org;
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const projectsMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const virtualMcpId =
+    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? null;
+
+  const allSpaces = useVirtualMCPs();
+  const project = virtualMcpId
+    ? (allSpaces.find((s) => s.id === virtualMcpId) ?? null)
+    : null;
+
+  const isSpacesList =
+    org && routerState.location.pathname === `/${org}/spaces`;
+
+  if (project) {
+    return (
+      <div className="flex items-center gap-2 min-w-0 ml-1.5">
+        <span className="text-sm font-medium text-sidebar-foreground truncate">
+          {project.title}
+        </span>
+        {project.description && (
+          <span className="text-xs text-sidebar-foreground/50 truncate hidden lg:block">
+            {project.description}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (isSpacesList) {
+    return (
+      <div className="flex items-center min-w-0 ml-1.5">
+        <span className="text-sm font-medium text-sidebar-foreground">
+          Spaces
+        </span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function ShellLayoutInner({
   isSpaceRoute,
   isSettingsRoute,
@@ -245,11 +297,11 @@ function ShellLayoutInner({
         {/* Top toolbar — sits in the sidebar-colored area above all panels */}
         {!isMobile && (
           <div className="shrink-0 flex items-center justify-between px-2 h-10">
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 min-w-0">
               <button
                 type="button"
                 onClick={() => window.history.back()}
-                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                 title="Go back"
               >
                 <ChevronLeft size={16} />
@@ -257,11 +309,12 @@ function ShellLayoutInner({
               <button
                 type="button"
                 onClick={() => window.history.forward()}
-                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                 title="Go forward"
               >
                 <ChevronRight size={16} />
               </button>
+              <ToolbarBreadcrumb />
             </div>
             {isSpaceRoute && (
               <button
