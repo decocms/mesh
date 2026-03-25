@@ -5,7 +5,11 @@
  */
 
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { ViewActions, ViewLayout } from "@/web/components/details/layout";
+import {
+  Header,
+  ViewActions,
+  ViewLayout,
+} from "@/web/components/details/layout";
 import { SaveActions } from "@/web/components/save-actions";
 import {
   useAiProviderModels,
@@ -57,6 +61,7 @@ import {
 import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   ArrowUp,
   Clock,
   Loading01,
@@ -242,12 +247,12 @@ export function SettingsTab({
   automationId,
   automation,
   fixedAgentId,
-  embedded,
+  onBack,
 }: {
   automationId: string;
   automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
   fixedAgentId?: string;
-  embedded?: boolean;
+  onBack?: () => void;
 }) {
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
@@ -346,7 +351,7 @@ export function SettingsTab({
       const coercedModelId =
         values.credential_id && values.model_id ? values.model_id : "";
 
-      await updateMutation.mutateAsync({
+      const updatePayload = {
         id: automationId,
         name: values.name,
         active: values.active,
@@ -361,7 +366,16 @@ export function SettingsTab({
         },
         messages: tiptapDocToMessages(tiptapDoc),
         temperature: 0,
+      };
+      console.log("[SettingsTab] save", {
+        automationId,
+        fixedAgentId,
+        formAgentId: values.agent_id,
+        resolvedAgentId: fixedAgentId ?? values.agent_id,
+        payload: updatePayload,
       });
+      const updateResult = await updateMutation.mutateAsync(updatePayload);
+      console.log("[SettingsTab] save result", updateResult);
       form.reset({
         ...values,
         credential_id: coercedCredentialId,
@@ -413,9 +427,18 @@ export function SettingsTab({
 
   return (
     <>
-      {embedded ? (
-        isDirty && (
-          <div className="flex items-center justify-end gap-2 px-6 pt-4">
+      {onBack ? (
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-xs"
+            onClick={onBack}
+          >
+            <ArrowLeft size={14} />
+            Back to list
+          </Button>
+          <div className="flex items-center gap-2">
             <SaveActions
               onSave={async () => {
                 await handleSave();
@@ -425,7 +448,7 @@ export function SettingsTab({
               isSaving={updateMutation.isPending}
             />
           </div>
-        )
+        </div>
       ) : (
         <ViewActions>
           <SaveActions
@@ -576,7 +599,7 @@ export function SettingsTab({
           )}
         </div>
 
-        {/* Section: Agent — hidden when agent is fixed (embedded in project settings) */}
+        {/* Section: Agent — hidden when fixedAgentId is set */}
         {!fixedAgentId && (
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-semibold text-muted-foreground/60">
@@ -654,23 +677,10 @@ export function SettingsTab({
             </div>
           </TiptapProvider>
         </div>
-
-        {/* Section: Run History */}
-        <div className="flex flex-col gap-2.5">
-          <span className="text-xs font-semibold text-muted-foreground/60">
-            Run History
-          </span>
-          <RunHistorySection
-            automationId={automationId}
-            triggerIds={automation.triggers.map((t) => t.id)}
-          />
-        </div>
       </div>
     </>
   );
 }
-
-import { RunHistorySection } from "@/web/components/automations/run-history-section.tsx";
 
 // ============================================================================
 // Main Component
@@ -737,8 +747,9 @@ export default function AutomationDetailPage() {
   );
 
   return (
-    <ViewLayout breadcrumb={breadcrumb}>
-      <ViewActions>
+    <ViewLayout>
+      <Header.Left>{breadcrumb}</Header.Left>
+      <Header.Right>
         <Button
           variant="ghost"
           size="sm"
@@ -748,7 +759,7 @@ export default function AutomationDetailPage() {
           <Trash01 size={14} />
           Delete
         </Button>
-      </ViewActions>
+      </Header.Right>
 
       <SettingsTab
         key={automationId}

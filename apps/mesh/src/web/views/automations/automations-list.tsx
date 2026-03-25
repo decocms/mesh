@@ -84,7 +84,7 @@ export default function AutomationsPage() {
     try {
       const result = await createMutation.mutateAsync({
         name: "New Automation",
-        agent: { id: "", mode: "passthrough" },
+        agent: { id: "" },
         messages: [],
         models: {
           credentialId: "",

@@ -273,14 +273,16 @@ const collectionDetailRoute = createRoute({
 const automationsRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/automations",
-  component: lazyRouteComponent(() => import("./routes/orgs/automations.tsx")),
+  component: lazyRouteComponent(
+    () => import("./views/automations/automations-list.tsx"),
+  ),
 });
 
 const automationDetailRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/automations/$automationId",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/automation-detail.tsx"),
+    () => import("./views/automations/automation-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
@@ -452,6 +454,15 @@ const spaceWorkflowsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
+// Space automations
+const spaceAutomationsRoute = createRoute({
+  getParentRoute: () => spacesLayout,
+  path: "/automations",
+  component: lazyRouteComponent(
+    () => import("./views/automations/space-automations.tsx"),
+  ),
+});
+
 // Space plugin layout
 const spacePluginLayoutRoute = createRoute({
   getParentRoute: () => spacesLayout,
@@ -473,6 +484,15 @@ const workflowsRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
   path: "/workflows",
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
+// Automations (virtual MCP scoped)
+const projectAutomationsRoute = createRoute({
+  getParentRoute: () => virtualMcpLayout,
+  path: "/automations",
+  component: lazyRouteComponent(
+    () => import("./views/automations/space-automations.tsx"),
+  ),
 });
 
 // Project settings — layout for /$org/projects/$virtualMcpId/settings/*
@@ -639,6 +659,7 @@ const spacesWithChildren = spacesLayout.addChildren([
   spaceHomeRoute,
   spaceAppViewRoute,
   spaceWorkflowsRoute,
+  spaceAutomationsRoute,
   spacePluginLayoutRoute,
 ]);
 
@@ -655,6 +676,7 @@ const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectSettingsWithChildren,
   projectAppViewRoute,
   workflowsRoute,
+  projectAutomationsRoute,
   pluginLayoutWithChildren,
 ]);
 

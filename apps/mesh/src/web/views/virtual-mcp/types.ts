@@ -10,14 +10,9 @@ import type { UseFormReturn } from "react-hook-form";
  * Form validation schema for Virtual MCP
  */
 export const VirtualMcpFormSchema = VirtualMCPEntitySchema.pick({
-  title: true,
-  description: true,
-  icon: true,
   status: true,
   metadata: true,
   connections: true,
-}).extend({
-  title: z.string().min(1, "Name is required").max(255),
 });
 
 /**

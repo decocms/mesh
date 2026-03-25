@@ -15,17 +15,23 @@ import {
   LayoutLeft,
   Loading01,
   MessageTextCircle02,
+  RefreshCcw01,
   Settings01,
   X,
 } from "@untitledui/icons";
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useProjectContext, useVirtualMCPs } from "@decocms/mesh-sdk";
+import {
+  useProjectContext,
+  useVirtualMCPActions,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { IconPicker } from "@/web/components/icon-picker.tsx";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -127,10 +133,90 @@ function ProjectViewsSection({
 }
 
 // ────────────────────────────────────────
+// Space identity header — inline-editable name, description, icon, pin
+// ────────────────────────────────────────
+
+function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
+  const actions = useVirtualMCPActions();
+
+  const handleTitleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value.trim();
+    if (value && value !== project.title) {
+      actions.update.mutate({ id: project.id, data: { title: value } });
+    }
+  };
+
+  const handleDescriptionBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    if (value !== (project.description ?? "")) {
+      actions.update.mutate({
+        id: project.id,
+        data: { description: value },
+      });
+    }
+  };
+
+  const handleIconChange = (icon: string | null) => {
+    actions.update.mutate({ id: project.id, data: { icon } });
+  };
+
+  const handleColorChange = (color: string) => {
+    actions.update.mutate({
+      id: project.id,
+      data: {
+        metadata: {
+          ...project.metadata,
+          ui: {
+            ...(project.metadata?.ui as Record<string, unknown> | undefined),
+            themeColor: color,
+          },
+        },
+      },
+    });
+  };
+
+  return (
+    <div
+      key={`${project.id}-${project.updated_at}`}
+      className="flex items-start gap-3 px-4 pt-4 pb-2"
+    >
+      <IconPicker
+        value={project.icon}
+        onChange={handleIconChange}
+        onColorChange={handleColorChange}
+        name={project.title || "Space"}
+        size="lg"
+        className="shrink-0"
+      />
+      <div className="flex flex-col flex-1 min-w-0 gap-1">
+        <input
+          type="text"
+          defaultValue={project.title}
+          onBlur={handleTitleBlur}
+          placeholder="Space Name"
+          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 py-0.5 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+        />
+        <textarea
+          defaultValue={project.description ?? ""}
+          onBlur={handleDescriptionBlur}
+          placeholder="Add a description..."
+          rows={2}
+          className="text-xs text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 py-0.5 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full resize-none"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
 // Panel content
 // ────────────────────────────────────────
 
-function TasksPanelContent() {
+function TasksPanelContent({
+  virtualMcpId: virtualMcpIdProp,
+}: {
+  virtualMcpId?: string;
+}) {
   const [isChatOpen, setChatOpen] = useDecoChatOpen();
   const [, setTasksOpen] = useDecoTasksOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
@@ -147,8 +233,11 @@ function TasksPanelContent() {
     shouldThrow: false,
   });
   const virtualMcpId =
-    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? null;
+    virtualMcpIdProp ??
+    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ??
+    null;
 
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const allSpaces = useVirtualMCPs();
   const project = virtualMcpId
     ? (allSpaces.find((s) => s.id === virtualMcpId) ?? null)
@@ -166,6 +255,9 @@ function TasksPanelContent() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Space identity */}
+      {project && <SpaceIdentityHeader project={project} />}
+
       {/* Header */}
       {!project && (
         <Page.Header className="flex-none" hideSidebarTrigger>
@@ -220,6 +312,24 @@ function TasksPanelContent() {
             type="button"
             onClick={() =>
               navigate({
+                to: "/$org/projects/$virtualMcpId/automations",
+                params: { org: org.slug, virtualMcpId: project.id },
+              })
+            }
+            className={cn(
+              navItemClass,
+              pathname.includes("/automations") && "bg-accent text-foreground",
+            )}
+          >
+            <RefreshCcw01 size={14} className="shrink-0" />
+            Automations
+          </button>
+        )}
+        {project && (
+          <button
+            type="button"
+            onClick={() =>
+              navigate({
                 to: "/$org/projects/$virtualMcpId/",
                 params: { org: org.slug, virtualMcpId: project.id },
                 search: { view: "settings" },
@@ -246,7 +356,7 @@ function TasksPanelContent() {
   );
 }
 
-export function TasksSidePanel() {
+export function TasksSidePanel({ virtualMcpId }: { virtualMcpId?: string }) {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense
@@ -259,7 +369,7 @@ export function TasksSidePanel() {
           </div>
         }
       >
-        <TasksPanelContent />
+        <TasksPanelContent virtualMcpId={virtualMcpId} />
       </Suspense>
     </ErrorBoundary>
   );

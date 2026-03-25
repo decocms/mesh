@@ -23,7 +23,7 @@ export interface AutomationListItem {
   created_by: string;
   created_at: string;
   trigger_count: number;
-  agent: { id: string; mode: string } | null;
+  agent: { id: string } | null;
   nearest_next_run_at: string | null;
 }
 
@@ -46,7 +46,7 @@ export interface AutomationDetail {
   created_by: string;
   created_at: string;
   updated_at: string;
-  agent: { id: string; mode: string };
+  agent: { id: string };
   messages: unknown[];
   models: {
     credentialId: string;
@@ -79,8 +79,18 @@ export function useAutomationsList(virtualMcpId?: string | null) {
         name: "AUTOMATION_LIST",
         arguments: args,
       })) as { structuredContent?: unknown };
+      console.log(
+        "[useAutomationsList] callTool raw result",
+        JSON.stringify(result, null, 2),
+      );
       const payload = (result.structuredContent ??
         result) as AutomationListOutput;
+      console.log("[useAutomationsList] parsed payload", {
+        virtualMcpId,
+        hasStructuredContent: "structuredContent" in result,
+        payloadKeys: Object.keys(payload),
+        automations: payload.automations,
+      });
       return payload.automations;
     },
     staleTime: 10_000,
@@ -155,11 +165,14 @@ export function useAutomationUpdate() {
 
   return useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
+      console.log("[useAutomationUpdate] calling AUTOMATION_UPDATE", input);
       const result = (await client.callTool({
         name: "AUTOMATION_UPDATE",
         arguments: input,
       })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as { id: string };
+      const parsed = (result.structuredContent ?? result) as { id: string };
+      console.log("[useAutomationUpdate] result", { raw: result, parsed });
+      return parsed;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });

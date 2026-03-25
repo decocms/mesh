@@ -9,6 +9,8 @@ import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useDecoMainOpen } from "@/web/hooks/use-deco-main-open";
+import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -28,15 +30,17 @@ import {
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
+  Browser,
   ChevronLeft,
   ChevronRight,
   LayoutLeft,
   MessageTextCircle02,
 } from "@untitledui/icons";
 import {
+  getWellKnownDecopilotVirtualMCP,
   ProjectContextProvider,
   ProjectContextProviderProps,
-  useVirtualMCPs,
+  useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
@@ -53,11 +57,13 @@ function PersistentResizablePanel({
   children,
   panelRef,
   defaultCollapsed,
+  defaultFullWidth,
   onCollapse,
   onExpand,
 }: PropsWithChildren<{
   panelRef: React.RefObject<ImperativePanelHandle | null>;
   defaultCollapsed: boolean;
+  defaultFullWidth?: boolean;
   onCollapse: () => void;
   onExpand: () => void;
 }>) {
@@ -72,10 +78,16 @@ function PersistentResizablePanel({
       if (size > 0) setChatPanelWidth(size);
     });
 
+  const defaultSize = defaultCollapsed
+    ? 0
+    : defaultFullWidth
+      ? 100
+      : chatPanelWidth;
+
   return (
     <ResizablePanel
       ref={panelRef}
-      defaultSize={defaultCollapsed ? 0 : chatPanelWidth}
+      defaultSize={defaultSize}
       minSize={20}
       collapsible={true}
       collapsedSize={0}
@@ -97,9 +109,13 @@ function PersistentTasksResizablePanel({
   children,
   panelRef,
   defaultCollapsed,
+  onCollapse,
+  onExpand,
 }: PropsWithChildren<{
   panelRef: React.RefObject<ImperativePanelHandle | null>;
   defaultCollapsed: boolean;
+  onCollapse?: () => void;
+  onExpand?: () => void;
 }>) {
   return (
     <ResizablePanel
@@ -109,6 +125,8 @@ function PersistentTasksResizablePanel({
       maxSize={22}
       collapsible={true}
       collapsedSize={0}
+      onCollapse={onCollapse}
+      onExpand={onExpand}
       className="min-w-0 overflow-hidden bg-sidebar"
       order={1}
     >
@@ -124,9 +142,13 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
 function MobileFABsAndDrawers({
   chatOpen,
   setChatOpen,
+  tasksVirtualMcpId,
+  chatVariant,
 }: {
   chatOpen: boolean;
   setChatOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
+  tasksVirtualMcpId?: string;
+  chatVariant?: "home" | "default";
 }) {
   const [tasksOpen, setTasksOpen] = useState(false);
 
@@ -160,12 +182,12 @@ function MobileFABsAndDrawers({
       </button>
       <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
         <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-          <ChatPanel />
+          <ChatPanel variant={chatVariant} />
         </DrawerContent>
       </Drawer>
       <Drawer open={tasksOpen} onOpenChange={setTasksOpen} direction="bottom">
         <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-          <TasksSidePanel />
+          <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
         </DrawerContent>
       </Drawer>
     </>
@@ -176,39 +198,9 @@ function ToolbarBreadcrumb() {
   const routerState = useRouterState();
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const org = orgMatch?.params.org;
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const projectsMatch = useMatch({
-    from: "/shell/$org/projects/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const virtualMcpId =
-    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? null;
-
-  const allSpaces = useVirtualMCPs();
-  const project = virtualMcpId
-    ? (allSpaces.find((s) => s.id === virtualMcpId) ?? null)
-    : null;
 
   const isSpacesList =
     org && routerState.location.pathname === `/${org}/spaces`;
-
-  if (project) {
-    return (
-      <div className="flex items-center gap-2 min-w-0 ml-1.5">
-        <span className="text-sm font-medium text-sidebar-foreground truncate">
-          {project.title}
-        </span>
-        {project.description && (
-          <span className="text-xs text-sidebar-foreground/50 truncate hidden lg:block">
-            {project.description}
-          </span>
-        )}
-      </div>
-    );
-  }
 
   if (isSpacesList) {
     return (
@@ -225,58 +217,91 @@ function ToolbarBreadcrumb() {
 
 function ShellLayoutInner({
   isSpaceRoute,
+  isOrgHome,
   isSettingsRoute,
 }: {
   isSpaceRoute: boolean;
+  isOrgHome: boolean;
   isSettingsRoute: boolean;
 }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
+  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
+  const [mainOpen, setMainOpen] = useDecoMainOpen();
   const isMobile = useIsMobile();
+  const { org } = useProjectContext();
+
+  const showThreePanels = isSpaceRoute || isOrgHome;
+
+  // Compute decopilot virtualMcpId for tasks filtering on org home
+  const tasksVirtualMcpId = isOrgHome
+    ? getWellKnownDecopilotVirtualMCP(org.id).id
+    : undefined;
 
   const chatPanelRef = useRef<ImperativePanelHandle>(null);
   const tasksPanelRef = useRef<ImperativePanelHandle>(null);
+  const mainPanelRef = useRef<ImperativePanelHandle>(null);
 
-  // Collapse/expand chat panel when chatOpen changes
+  // --- State → panel ref sync effects ---
+
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (chatOpen) {
-      chatPanelRef.current?.expand();
-    } else {
-      chatPanelRef.current?.collapse();
-    }
+    if (chatOpen) chatPanelRef.current?.expand();
+    else chatPanelRef.current?.collapse();
   }, [chatOpen]);
 
-  // Collapse/expand tasks panel when isSpaceRoute changes
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isSpaceRoute) {
-      tasksPanelRef.current?.expand();
-    } else {
-      tasksPanelRef.current?.collapse();
-    }
+    if (tasksOpen) tasksPanelRef.current?.expand();
+    else tasksPanelRef.current?.collapse();
+  }, [tasksOpen]);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (mainOpen) mainPanelRef.current?.expand();
+    else mainPanelRef.current?.collapse();
+  }, [mainOpen]);
+
+  // --- Route-change effects (set state only, refs sync via above) ---
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    setTasksOpen(isSpaceRoute);
   }, [isSpaceRoute]);
 
-  // Open chat panel when entering a space route
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isSpaceRoute) {
-      setChatOpen(true);
-    }
-  }, [isSpaceRoute]);
+    setMainOpen(!isOrgHome);
+  }, [isOrgHome]);
 
-  // Close chat panel when navigating to settings
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isSettingsRoute) {
-      setChatOpen(false);
-    }
+    if (isSpaceRoute || isOrgHome) setChatOpen(true);
+  }, [isSpaceRoute, isOrgHome]);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (isSettingsRoute) setChatOpen(false);
   }, [isSettingsRoute]);
 
-  const onChatCollapse = () => setChatOpen(false);
-  const onChatExpand = () => setChatOpen(true);
+  // --- Toggle handlers with all-panels-collapsed guard ---
+
+  const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
+
+  const toggleTasks = () => {
+    if (tasksOpen && expandedCount <= 1) return;
+    setTasksOpen((prev) => !prev);
+  };
+  const toggleMain = () => {
+    if (mainOpen && expandedCount <= 1) return;
+    setMainOpen((prev) => !prev);
+  };
+  const toggleChat = () => {
+    if (chatOpen && expandedCount <= 1) return;
+    setChatOpen((prev) => !prev);
+  };
 
   // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && isSpaceRoute;
+  const hasRightPanel = !isMobile && chatOpen && showThreePanels;
 
   return (
     <SidebarLayout
@@ -316,20 +341,51 @@ function ShellLayoutInner({
               </button>
               <ToolbarBreadcrumb />
             </div>
-            {isSpaceRoute && (
-              <button
-                type="button"
-                onClick={() => setChatOpen((prev) => !prev)}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors",
-                  chatOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle chat"
-              >
-                <MessageTextCircle02 size={16} />
-              </button>
+            {showThreePanels && (
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={toggleTasks}
+                  aria-pressed={tasksOpen}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    tasksOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle tasks"
+                >
+                  <LayoutLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleMain}
+                  aria-pressed={mainOpen}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    mainOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle content"
+                >
+                  <Browser size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleChat}
+                  aria-pressed={chatOpen}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    chatOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle chat"
+                >
+                  <MessageTextCircle02 size={16} />
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -340,15 +396,17 @@ function ShellLayoutInner({
           style={{ overflow: "visible" }}
         >
           {/* Desktop: Tasks panel on the left */}
-          {!isMobile && isSpaceRoute && (
+          {!isMobile && showThreePanels && (
             <>
               <PersistentTasksResizablePanel
                 panelRef={tasksPanelRef}
                 defaultCollapsed={!isSpaceRoute}
+                onCollapse={() => setTasksOpen(false)}
+                onExpand={() => setTasksOpen(true)}
               >
                 <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <TasksSidePanel />
+                    <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
                   </div>
                 </div>
               </PersistentTasksResizablePanel>
@@ -358,9 +416,16 @@ function ShellLayoutInner({
 
           {/* Main content */}
           <ResizablePanel
+            ref={mainPanelRef}
             className="min-w-0 flex flex-col"
             order={2}
             style={{ overflow: "visible" }}
+            defaultSize={isOrgHome ? 0 : undefined}
+            collapsible={showThreePanels}
+            collapsedSize={0}
+            minSize={showThreePanels ? 20 : undefined}
+            onCollapse={() => setMainOpen(false)}
+            onExpand={() => setMainOpen(true)}
           >
             <div
               className={cn(
@@ -384,18 +449,19 @@ function ShellLayoutInner({
           </ResizablePanel>
 
           {/* Desktop: Chat card as resizable side panel */}
-          {isSpaceRoute && !isMobile && (
+          {showThreePanels && !isMobile && (
             <>
               <ResizableHandle className="bg-sidebar" />
               <PersistentResizablePanel
                 panelRef={chatPanelRef}
                 defaultCollapsed={!chatOpen}
-                onCollapse={onChatCollapse}
-                onExpand={onChatExpand}
+                defaultFullWidth={isOrgHome}
+                onCollapse={() => setChatOpen(false)}
+                onExpand={() => setChatOpen(true)}
               >
                 <div className="h-full pl-1.5 pr-1.5 pb-1.5">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <ChatPanel />
+                    <ChatPanel variant={isOrgHome ? "home" : undefined} />
                   </div>
                 </div>
               </PersistentResizablePanel>
@@ -405,8 +471,13 @@ function ShellLayoutInner({
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
-      {isSpaceRoute && isMobile && (
-        <MobileFABsAndDrawers chatOpen={chatOpen} setChatOpen={setChatOpen} />
+      {showThreePanels && isMobile && (
+        <MobileFABsAndDrawers
+          chatOpen={chatOpen}
+          setChatOpen={setChatOpen}
+          tasksVirtualMcpId={tasksVirtualMcpId}
+          chatVariant={isOrgHome ? "home" : undefined}
+        />
       )}
     </SidebarLayout>
   );
@@ -435,6 +506,11 @@ function ShellLayoutContent() {
     (routerState.location.pathname.startsWith(`/${org}/spaces/`) ||
       routerState.location.pathname.startsWith(`/${org}/projects/`)) &&
     !routerState.location.pathname.includes("/settings");
+
+  // Check if we're on the org home route (/$org or /$org/)
+  const isOrgHome =
+    routerState.location.pathname === `/${org}` ||
+    routerState.location.pathname === `/${org}/`;
 
   // Check if we're on settings routes (/$org/settings/*)
   const isSettingsRoute = routerState.location.pathname.startsWith(
@@ -516,6 +592,7 @@ function ShellLayoutContent() {
           <Chat.Provider>
             <ShellLayoutInner
               isSpaceRoute={isSpaceRoute}
+              isOrgHome={isOrgHome}
               isSettingsRoute={isSettingsRoute}
             />
           </Chat.Provider>

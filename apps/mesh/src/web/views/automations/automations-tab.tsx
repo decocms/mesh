@@ -11,7 +11,7 @@ import {
   useAutomationDelete,
   useAutomationDetail,
 } from "@/web/hooks/use-automations";
-import { SettingsTab } from "@/web/routes/orgs/automation-detail.tsx";
+import { SettingsTab } from "./automation-detail.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import {
-  ArrowLeft,
   DotsVertical,
   Eye,
   Loading01,
@@ -48,27 +47,12 @@ import { toast } from "sonner";
 
 function AutomationInlineDetail({
   automationId,
-  virtualMcpId,
   onBack,
 }: {
   automationId: string;
-  virtualMcpId: string;
   onBack: () => void;
 }) {
   const { data: automation, isLoading } = useAutomationDetail(automationId);
-  const deleteMutation = useAutomationDelete();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = async () => {
-    try {
-      await deleteMutation.mutateAsync(automationId);
-      toast.success("Automation deleted");
-      onBack();
-    } catch {
-      toast.error("Failed to delete automation");
-    }
-    setConfirmDelete(false);
-  };
 
   if (isLoading) {
     return (
@@ -89,59 +73,14 @@ function AutomationInlineDetail({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header: back + delete */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-2 text-xs"
-          onClick={onBack}
-        >
-          <ArrowLeft size={14} />
-          Back to list
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-destructive hover:text-destructive"
-          onClick={() => setConfirmDelete(true)}
-        >
-          <Trash01 size={14} />
-          Delete
-        </Button>
-      </div>
-
-      {/* Reuse SettingsTab with fixed agent and embedded mode */}
       <div className="flex-1 overflow-auto">
         <SettingsTab
           key={automationId}
           automationId={automationId}
           automation={automation}
-          fixedAgentId={virtualMcpId}
-          embedded
+          onBack={onBack}
         />
       </div>
-
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Automation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{automation.name}&quot;?
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -170,16 +109,30 @@ export function AutomationsTabContent({
     (a) => a.agent?.id === virtualMcpId,
   );
 
+  console.log("[AutomationsTab] filter", {
+    virtualMcpId,
+    allCount: allAutomations?.length ?? 0,
+    filteredCount: automations.length,
+    allAgentIds: (allAutomations ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      agentId: a.agent?.id,
+    })),
+  });
+
   const handleCreate = async () => {
     try {
-      const result = await createMutation.mutateAsync({
+      const createInput = {
         name: "New Automation",
-        agent: { id: virtualMcpId, mode: "passthrough" },
+        agent: { id: virtualMcpId },
         messages: [],
         models: { credentialId: "", thinking: { id: "" } },
         temperature: 0.5,
         active: true,
-      });
+      };
+      console.log("[AutomationsTab] create", createInput);
+      const result = await createMutation.mutateAsync(createInput);
+      console.log("[AutomationsTab] create result", result);
       setSelectedAutomationId(result.id);
     } catch {
       toast.error("Failed to create automation");
@@ -217,7 +170,6 @@ export function AutomationsTabContent({
         >
           <AutomationInlineDetail
             automationId={selectedAutomationId}
-            virtualMcpId={virtualMcpId}
             onBack={() => setSelectedAutomationId(null)}
           />
         </Suspense>

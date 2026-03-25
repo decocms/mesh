@@ -20,6 +20,7 @@ export const LOCALSTORAGE_KEYS = {
   assistantChatActiveTask: (locator: ProjectLocator) =>
     `mesh:assistant-chat:active-task:${locator}`,
   decoTasksOpen: () => `mesh:decotasks:open`,
+  decoMainOpen: () => `mesh:decomain:open`,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   decoTasksPanelWidth: () => `mesh:decotasks:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,

@@ -4,9 +4,7 @@ import { useChatStable } from "@/web/components/chat/context";
 import { chatStore } from "@/web/components/chat/store/chat-store";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import { AutomationsTabContent } from "./automations-tab.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
@@ -45,14 +43,12 @@ import {
   useVirtualMCPActions,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
-import { useAutomationCreate } from "@/web/hooks/use-automations";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
-  Loading01,
   Play,
   Plus,
   Settings01,
@@ -63,7 +59,7 @@ import {
 import { Suspense, useEffect, useReducer, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { ViewActions, ViewLayout } from "../layout";
+import { Header, ViewLayout } from "@/web/components/details/layout";
 import { SaveActions } from "@/web/components/save-actions";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { AgentCapabilities } from "./agent-capabilities";
@@ -803,7 +799,6 @@ function VirtualMcpDetailViewWithData({
   virtualMcp: VirtualMCPEntity;
 }) {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
   const actions = useVirtualMCPActions();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
@@ -832,7 +827,6 @@ function VirtualMcpDetailViewWithData({
     "capabilities",
     "agents",
     "sidebar",
-    "automations",
   ];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
@@ -1043,27 +1037,6 @@ Define step-by-step how the agent should handle requests.
     form.setValue("metadata.instructions", next, { shouldDirty: true });
   };
 
-  const automationCreateMutation = useAutomationCreate();
-
-  const handleCreateAutomation = async () => {
-    try {
-      const result = await automationCreateMutation.mutateAsync({
-        name: "New Automation",
-        virtual_mcp_id: virtualMcp.id,
-        agent: { id: "", mode: "passthrough" },
-        messages: [],
-        temperature: 0.5,
-        active: true,
-      });
-      navigate({
-        to: "/$org/settings/automations/$automationId",
-        params: { org: org.slug, automationId: result.id },
-      });
-    } catch {
-      toast.error("Failed to create automation");
-    }
-  };
-
   const isSaving = actions.update.isPending;
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
 
@@ -1083,12 +1056,11 @@ Define step-by-step how the agent should handle requests.
     { id: "capabilities", label: "Capabilities" },
     { id: "agents", label: "Agents" },
     { id: "sidebar", label: "Sidebar" },
-    { id: "automations", label: "Automations" },
   ];
 
   return (
     <ViewLayout breadcrumb={breadcrumb}>
-      <ViewActions>
+      <Header.Right>
         <SaveActions
           onSave={handleSave}
           onUndo={handleCancel}
@@ -1124,62 +1096,10 @@ Define step-by-step how the agent should handle requests.
           <ZapCircle size={14} />
           Connect
         </Button>
-      </ViewActions>
+      </Header.Right>
 
       <div className="flex h-full w-full bg-background overflow-auto">
         <div className="flex flex-col w-full">
-          {/* Header section */}
-          <div className="flex items-start justify-between gap-4 p-6 shrink-0">
-            <div className="flex items-start gap-4 flex-1 min-w-0">
-              <Controller
-                control={form.control}
-                name="icon"
-                render={({ field }) => (
-                  <IconPicker
-                    value={field.value}
-                    onChange={field.onChange}
-                    onColorChange={(color) =>
-                      form.setValue("metadata.ui.themeColor", color, {
-                        shouldDirty: true,
-                      })
-                    }
-                    name={form.watch("title") || "Space"}
-                    size="lg"
-                    className="shrink-0 shadow-sm"
-                  />
-                )}
-              />
-              <div className="flex flex-col flex-1 min-w-0">
-                <Input
-                  {...form.register("title")}
-                  className="h-auto py-0.5 text-lg! font-medium leading-7 px-1 -mx-1 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
-                  placeholder="Space Name"
-                />
-                <Input
-                  {...form.register("description")}
-                  className="h-auto py-0.5 text-base text-muted-foreground leading-6 px-1 -mx-1 border-transparent hover:bg-input/25 focus:border-input bg-transparent transition-all"
-                  placeholder="Add a description..."
-                />
-              </div>
-            </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="shrink-0 mt-1">
-                  <Switch
-                    checked={virtualMcp.pinned}
-                    onCheckedChange={(checked) => {
-                      actions.update.mutate({
-                        id: virtualMcp.id,
-                        data: { pinned: checked },
-                      });
-                    }}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Pin to sidebar</TooltipContent>
-            </Tooltip>
-          </div>
-
           {/* Tabs */}
           <div className="flex items-center justify-between px-6 py-3 border-t border-border shrink-0">
             <CollectionTabs
@@ -1199,18 +1119,6 @@ Define step-by-step how the agent should handle requests.
               >
                 <Plus size={13} />
                 Add
-              </Button>
-            )}
-            {activeTab === "automations" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={handleCreateAutomation}
-                disabled={automationCreateMutation.isPending}
-              >
-                <Plus size={13} />
-                New
               </Button>
             )}
             {activeTab === "instructions" && (
@@ -1299,23 +1207,6 @@ Define step-by-step how the agent should handle requests.
 
             {activeTab === "sidebar" && (
               <SidebarTabContent virtualMcpId={virtualMcp.id} />
-            )}
-
-            {activeTab === "automations" && (
-              <ErrorBoundary fallback={() => null}>
-                <Suspense
-                  fallback={
-                    <div className="flex items-center justify-center h-64">
-                      <Loading01
-                        size={24}
-                        className="animate-spin text-muted-foreground"
-                      />
-                    </div>
-                  }
-                >
-                  <AutomationsTabContent virtualMcpId={virtualMcp.id} />
-                </Suspense>
-              </ErrorBoundary>
             )}
 
             {activeTab === "instructions" && (

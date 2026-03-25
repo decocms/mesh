@@ -1,4 +1,4 @@
-import { VirtualMcpDetailView } from "@/web/components/details/virtual-mcp";
+import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Loading01 } from "@untitledui/icons";
 import { useMatch } from "@tanstack/react-router";

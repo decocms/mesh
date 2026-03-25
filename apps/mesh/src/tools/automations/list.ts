@@ -31,7 +31,7 @@ export const AUTOMATION_LIST = defineTool({
         created_by: z.string(),
         created_at: z.string(),
         trigger_count: z.number(),
-        agent: z.object({ id: z.string(), mode: z.string() }).nullable(),
+        agent: z.object({ id: z.string() }).nullable(),
         nearest_next_run_at: z.string().nullable(),
         virtual_mcp_id: z.string().nullable(),
       }),
@@ -48,7 +48,7 @@ export const AUTOMATION_LIST = defineTool({
     );
 
     const results = automations.map((automation) => {
-      let agent: { id: string; mode: string } | null = null;
+      let agent: { id: string } | null = null;
       try {
         if (automation.agent) {
           agent = JSON.parse(automation.agent);
