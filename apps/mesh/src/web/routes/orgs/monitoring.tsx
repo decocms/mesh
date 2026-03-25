@@ -1322,7 +1322,7 @@ function MonitoringLogsTableContent({
     return {
       ...log,
       userName: user?.name ?? log.userId ?? "Unknown",
-      userImage: user?.image,
+      userImage: user?.image ?? undefined,
       virtualMcpName: virtualMcp?.title ?? null,
     };
   });

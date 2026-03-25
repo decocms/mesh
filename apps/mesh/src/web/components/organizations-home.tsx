@@ -192,7 +192,7 @@ function OrganizationsGrid({ query }: { query?: string }) {
       : (() => {
           const searchLower = query.toLowerCase();
           return organizations.filter(
-            (org) =>
+            (org: { name: string; slug: string }) =>
               org.name.toLowerCase().includes(searchLower) ||
               org.slug.toLowerCase().includes(searchLower),
           );
@@ -220,39 +220,47 @@ function OrganizationsGrid({ query }: { query?: string }) {
 
   return (
     <EntityGrid columns={{ sm: 2, md: 3, lg: 4 }}>
-      {filteredOrganizations.map((org) => (
-        <EntityCard
-          key={org.id}
-          onNavigate={() =>
-            navigate({ to: "/$org", params: { org: org.slug } })
-          }
-        >
-          <EntityCard.Header>
-            <EntityCard.AvatarSection>
-              <EntityCard.Avatar
-                url={org.logo || ""}
-                fallback={org.name}
-                size="lg"
-                objectFit="contain"
-              />
-            </EntityCard.AvatarSection>
-            <EntityCard.Content>
-              <EntityCard.Subtitle>@{org.slug}</EntityCard.Subtitle>
-              <EntityCard.Title>{org.name}</EntityCard.Title>
-            </EntityCard.Content>
-          </EntityCard.Header>
-          <EntityCard.Footer>
-            <div className="flex h-3.5 items-center text-xs text-muted-foreground">
-              Created:{" "}
-              {new Date(org.createdAt).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })}
-            </div>
-          </EntityCard.Footer>
-        </EntityCard>
-      ))}
+      {filteredOrganizations.map(
+        (org: {
+          id: string;
+          name: string;
+          slug: string;
+          logo?: string | null;
+          createdAt: Date | string;
+        }) => (
+          <EntityCard
+            key={org.id}
+            onNavigate={() =>
+              navigate({ to: "/$org", params: { org: org.slug } })
+            }
+          >
+            <EntityCard.Header>
+              <EntityCard.AvatarSection>
+                <EntityCard.Avatar
+                  url={org.logo || ""}
+                  fallback={org.name}
+                  size="lg"
+                  objectFit="contain"
+                />
+              </EntityCard.AvatarSection>
+              <EntityCard.Content>
+                <EntityCard.Subtitle>@{org.slug}</EntityCard.Subtitle>
+                <EntityCard.Title>{org.name}</EntityCard.Title>
+              </EntityCard.Content>
+            </EntityCard.Header>
+            <EntityCard.Footer>
+              <div className="flex h-3.5 items-center text-xs text-muted-foreground">
+                Created:{" "}
+                {new Date(org.createdAt).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
+            </EntityCard.Footer>
+          </EntityCard>
+        ),
+      )}
     </EntityGrid>
   );
 }

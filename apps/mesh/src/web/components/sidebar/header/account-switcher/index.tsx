@@ -89,7 +89,9 @@ export function MeshAccountSwitcher({
   const { data: organizations } = authClient.useListOrganizations();
   const navigate = useNavigate();
 
-  const currentOrg = organizations?.find((o) => o.slug === orgParam);
+  const currentOrg = organizations?.find(
+    (o: { slug: string }) => o.slug === orgParam,
+  );
 
   const [creatingOrganization, setCreatingOrganization] = useState(false);
   const [showOrgList, setShowOrgList] = useState(false);
