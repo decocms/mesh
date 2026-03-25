@@ -336,16 +336,13 @@ function ShellLayoutInner({
               >
                 <ChevronRight size={16} />
               </button>
-              <ToolbarBreadcrumb />
-            </div>
-            {showThreePanels && (
-              <div className="flex items-center gap-0.5">
+              {showThreePanels && (
                 <button
                   type="button"
                   onClick={toggleTasks}
                   aria-pressed={tasksOpen}
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
                     tasksOpen
                       ? "bg-sidebar-accent text-sidebar-foreground"
                       : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -354,6 +351,11 @@ function ShellLayoutInner({
                 >
                   <LayoutLeft size={16} />
                 </button>
+              )}
+              <ToolbarBreadcrumb />
+            </div>
+            {showThreePanels && (
+              <div className="flex items-center gap-0.5">
                 <button
                   type="button"
                   onClick={toggleMain}
