@@ -22,66 +22,57 @@ export async function getNavigationLinks(
   // Define the correct order for navigation, version-aware
   const latestOrder = [
     // 1. Quickstart & Overview
-    "mcp-mesh/quickstart",
-    "mcp-mesh/overview",
+    "studio/quickstart",
+    "studio/overview",
 
     // 2. Getting Started
     "getting-started/ai-builders",
     "getting-started/developers",
 
     // 4. Core Concepts
-    "mcp-mesh/concepts",
+    "studio/concepts",
 
     // 5. Working with MCP
-    "mcp-mesh/connections",
-    "mcp-mesh/virtual-mcps",
-    "mcp-mesh/projects",
-    "mcp-mesh/agents",
-    "mcp-mesh/agent-bindings",
-    "mcp-mesh/automations",
+    "studio/connections",
+    "studio/virtual-mcps",
+    "studio/projects",
+    "studio/agents",
+    "studio/agent-bindings",
+    "studio/automations",
 
     // 6. Decopilot
-    "mcp-mesh/decopilot/overview",
-    "mcp-mesh/decopilot/quickstart",
-    "mcp-mesh/decopilot/context",
-    "mcp-mesh/decopilot/tasks-and-spawning",
-    "mcp-mesh/decopilot/tools",
-    "mcp-mesh/decopilot/scopes",
-    "mcp-mesh/decopilot/architecture",
+    "studio/decopilot/overview",
+    "studio/decopilot/quickstart",
+    "studio/decopilot/context",
+    "studio/decopilot/tasks-and-spawning",
+    "studio/decopilot/tools",
+    "studio/decopilot/scopes",
+    "studio/decopilot/architecture",
 
     // 7. Monitoring & Observability
-    "mcp-mesh/monitoring",
+    "studio/monitoring",
 
     // 8. User Management
-    "mcp-mesh/api-keys",
-    "mcp-mesh/user-management",
+    "studio/api-keys",
+    "studio/user-management",
 
     // 9. API Reference
-    "mcp-mesh/api-reference/connection-proxy",
-    "mcp-mesh/api-reference/built-in-tools",
-    "mcp-mesh/api-reference/built-in-tools/tool-search",
-    "mcp-mesh/api-reference/built-in-tools/tool-enable",
-    "mcp-mesh/api-reference/built-in-tools/agent-search",
-    "mcp-mesh/api-reference/built-in-tools/subtask-run",
-    "mcp-mesh/api-reference/built-in-tools/user-ask",
-    "mcp-mesh/api-reference/built-in-tools/resource-read",
-    "mcp-mesh/api-reference/built-in-tools/prompt-read",
+    "studio/api-reference/connection-proxy",
+    "studio/api-reference/built-in-tools",
+    "studio/api-reference/built-in-tools/tool-search",
+    "studio/api-reference/built-in-tools/tool-enable",
+    "studio/api-reference/built-in-tools/agent-search",
+    "studio/api-reference/built-in-tools/subtask-run",
+    "studio/api-reference/built-in-tools/user-ask",
+    "studio/api-reference/built-in-tools/resource-read",
+    "studio/api-reference/built-in-tools/prompt-read",
 
     // 10. Self-Hosting
-    "mcp-mesh/self-hosting/quickstart",
-    "mcp-mesh/self-hosting/authentication",
-    "mcp-mesh/self-hosting/monitoring",
-    "mcp-mesh/self-hosting/deploy/docker-compose",
-    "mcp-mesh/self-hosting/deploy/kubernetes",
-
-    // 11. Legacy Admin Guides (no-code and full-code guides)
-    "no-code-guides/creating-tools",
-    "no-code-guides/creating-agents",
-    "full-code-guides/project-structure",
-    "full-code-guides/building-tools",
-    "full-code-guides/building-views",
-    "full-code-guides/resources",
-    "full-code-guides/deployment",
+    "studio/self-hosting/quickstart",
+    "studio/self-hosting/authentication",
+    "studio/self-hosting/monitoring",
+    "studio/self-hosting/deploy/docker-compose",
+    "studio/self-hosting/deploy/kubernetes",
   ];
 
   const previousOrder = [
@@ -89,19 +80,19 @@ export async function getNavigationLinks(
     "introduction",
 
     // MCP Mesh section
-    "mcp-mesh/overview",
-    "mcp-mesh/quickstart",
-    "mcp-mesh/concepts",
-    "mcp-mesh/connect-clients",
-    "mcp-mesh/authentication",
-    "mcp-mesh/authorization-and-roles",
-    "mcp-mesh/mcp-servers",
-    "mcp-mesh/mcp-gateways",
-    "mcp-mesh/api-keys",
-    "mcp-mesh/monitoring",
-    "mcp-mesh/api-reference",
-    "mcp-mesh/deploy/local-docker-compose",
-    "mcp-mesh/deploy/kubernetes-helm-chart",
+    "studio/overview",
+    "studio/quickstart",
+    "studio/concepts",
+    "studio/connect-clients",
+    "studio/authentication",
+    "studio/authorization-and-roles",
+    "studio/mcp-servers",
+    "studio/mcp-gateways",
+    "studio/api-keys",
+    "studio/monitoring",
+    "studio/api-reference",
+    "studio/deploy/local-docker-compose",
+    "studio/deploy/kubernetes-helm-chart",
 
     // MCP Studio
     "mcp-studio/overview",

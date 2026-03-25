@@ -9,6 +9,7 @@ import { LanguageSelector } from "../components/ui/LanguageSelector";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { getCollection } from "astro:content";
 import { siteConfig } from "../config/site";
+import { LATEST_VERSION } from "../config/versions";
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
 const { title, doc } = Astro.props;
@@ -19,7 +20,7 @@ const pathSegments = currentPath.split("/").filter((segment) => segment !== "");
 // Use Astro.params.locale when available (versioned routes: /[version]/[locale]/...)
 // fallback to pathSegments[0] for legacy routes (/[locale]/...)
 const locale = (Astro.params.locale as string) || pathSegments[0] || "en";
-const version = (Astro.params.version as string) || "2026-03-10";
+const version = (Astro.params.version as string) || LATEST_VERSION.id;
 const localeIndex = pathSegments.indexOf(locale);
 const pagePath =
   localeIndex >= 0

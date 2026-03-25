@@ -69,12 +69,12 @@ function buildTree(docs: any[]): TreeNode[] {
         const parentPath = a.path[a.path.length - 2];
 
         // Custom order for decocms top-level pages
-        if (parentPath === "mcp-mesh") {
+        if (parentPath === "studio") {
           // NOTE: doc IDs do not include ".mdx" (e.g. "overview", not "overview.mdx")
           // Order follows: Quickstart → Overview → Core Concepts → Working with MCP → Monitoring → User Management → Reference
 
           // Version-aware ordering
-          const mcpMeshOrder =
+          const studioFolderOrder =
             version === LATEST_VERSION.id
               ? [
                   // Latest version structure
@@ -105,8 +105,8 @@ function buildTree(docs: any[]): TreeNode[] {
                   "api-reference",
                 ];
 
-          const aIndex = mcpMeshOrder.indexOf(a.name);
-          const bIndex = mcpMeshOrder.indexOf(b.name);
+          const aIndex = studioFolderOrder.indexOf(a.name);
+          const bIndex = studioFolderOrder.indexOf(b.name);
           if (aIndex !== -1 && bIndex !== -1) {
             return aIndex - bIndex;
           }
@@ -210,7 +210,7 @@ function buildTree(docs: any[]): TreeNode[] {
 
         // Custom order for deploy docs (now under self-hosting)
         const rootPath = a.path[0];
-        if (rootPath === "mcp-mesh" && parentPath === "deploy") {
+        if (rootPath === "studio" && parentPath === "deploy") {
           // Version-aware deploy file names
           const deployOrder =
             version === LATEST_VERSION.id
@@ -230,7 +230,7 @@ function buildTree(docs: any[]): TreeNode[] {
       if (a.type === "folder" && b.type === "folder") {
         const folderOrder: Record<string, number> = {
           // Order follows improved information architecture
-          "mcp-mesh": 0, // decocms docs (main product)
+          studio: 0, // decocms docs (main product)
           "getting-started": 1, // Getting Started (after intro)
           decopilot: 2, // Decopilot (elevated section within mcp-mesh)
           "self-hosting": 3, // Self-hosting section
@@ -267,17 +267,27 @@ function prefixNode(node: TreeNode, prefix: string[]): TreeNode {
   };
 }
 
-function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
+function groupLegacyAdminSections(
+  nodes: TreeNode[],
+  isLatest: boolean,
+): TreeNode[] {
   const legacyRootName = "admin-decocms-com";
+  const legacyFolderNames = [
+    "no-code-guides",
+    "full-code-guides",
+    "getting-started",
+  ];
 
   const files = nodes.filter((n) => n.type === "file");
   const folders = nodes.filter((n) => n.type === "folder");
 
-  const mcpMesh = folders.find((f) => f.name === "mcp-mesh");
+  const studioFolder = folders.find((f) => f.name === "studio");
   const mcpStudio = folders.find((f) => f.name === "mcp-studio");
-  const legacyChildren = folders.filter(
-    (f) => f.name !== "mcp-mesh" && f.name !== "mcp-studio",
-  );
+
+  // For the latest version, exclude legacy admin folders entirely
+  const legacyChildren = isLatest
+    ? []
+    : folders.filter((f) => legacyFolderNames.includes(f.name));
 
   const legacyFolder: TreeNode | null =
     legacyChildren.length > 0
@@ -292,16 +302,20 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
         }
       : null;
 
+  // For v0 (deco.chat), show legacy content directly without the wrapper folder
+  if (!isLatest) {
+    return legacyChildren;
+  }
+
   // Flatten mcp-mesh folder - bring its children to the top level
-  // mcp-mesh children will be shown at the top level
   const next: TreeNode[] = [];
 
   // Add any top-level files first (e.g. introduction.mdx)
   next.push(...files);
 
-  // Add all mcp-mesh children directly at top level (order controlled by mcpMeshOrder array)
-  if (mcpMesh && mcpMesh.children.length > 0) {
-    next.push(...mcpMesh.children);
+  // Add all mcp-mesh children directly at top level (order controlled by studioFolderOrder array)
+  if (studioFolder && studioFolder.children.length > 0) {
+    next.push(...studioFolder.children);
   }
 
   // Add mcp-studio as its own top-level section
@@ -309,13 +323,11 @@ function groupLegacyAdminSections(nodes: TreeNode[]): TreeNode[] {
     next.push(mcpStudio);
   }
 
-  // Add legacy admin section at the end
-  if (legacyFolder) next.push(legacyFolder);
-
   return next;
 }
 
-const tree = groupLegacyAdminSections(buildTree(docs));
+const isLatest = version === LATEST_VERSION.id;
+const tree = groupLegacyAdminSections(buildTree(docs), isLatest);
 
 interface FlatNode {
   name: string;

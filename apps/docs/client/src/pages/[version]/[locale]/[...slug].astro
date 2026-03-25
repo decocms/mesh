@@ -20,7 +20,7 @@ export async function getStaticPaths() {
       params: { version: "latest", locale },
       props: { doc: null, version: "latest" },
     })),
-    // "latest" alias for all latest docs (so /latest/en/... redirects to /2026-03-10/en/...)
+    // "latest" alias for all latest docs (so /latest/en/... redirects to /deco-studio/en/...)
     ...allDocs
       .filter((doc) => doc.id.startsWith(`${LATEST_VERSION.id}/`))
       .map((doc) => {
@@ -75,7 +75,7 @@ const slug = Astro.params.slug;
 if (version === "latest") {
   const target = slug
     ? `/${LATEST_VERSION.id}/${lang}/${slug}`
-    : `/${LATEST_VERSION.id}/${lang}/mcp-mesh/quickstart`;
+    : `/${LATEST_VERSION.id}/${lang}/studio/quickstart`;
   return Astro.redirect(target);
 }
 
@@ -86,7 +86,7 @@ if (slug === "getting-started/context-engineers") {
 
 // Redirect to quickstart if no document is found
 if (!doc) {
-  return Astro.redirect(`/${version}/${lang}/mcp-mesh/quickstart`);
+  return Astro.redirect(`/${version}/${lang}/studio/quickstart`);
 }
 ---
 
