@@ -3,7 +3,6 @@ import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
 import { useIsOrgAdmin } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
-import { MeshSidebarHeader } from "./header";
 import { SidebarInboxFooter } from "./footer/inbox";
 import { SidebarSpacesSection } from "./spaces-section";
 
@@ -26,11 +25,6 @@ function SidebarContent() {
   return (
     <NavigationSidebar
       sections={sidebarSections}
-      header={
-        <Suspense fallback={<MeshSidebarHeader.Skeleton />}>
-          <MeshSidebarHeader />
-        </Suspense>
-      }
       footer={<SidebarInboxFooter />}
       additionalContent={
         isOrgAdmin ? (

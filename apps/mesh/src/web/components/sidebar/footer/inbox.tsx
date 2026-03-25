@@ -1,5 +1,5 @@
 import { authClient } from "@/web/lib/auth-client";
-import { MeshUserMenu } from "@/web/components/user-menu";
+import { AccountPopover } from "@/web/components/account-popover";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Popover,
@@ -244,7 +244,7 @@ export function SidebarInboxFooter() {
   const pendingInvitations = usePendingInvitations();
 
   return (
-    <SidebarFooter className="px-2 pb-3">
+    <SidebarFooter className="px-2 pb-3 gap-1">
       <SilentErrorBoundary>
         <Suspense fallback={null}>
           <CreditChipConditional />
@@ -295,7 +295,7 @@ export function SidebarInboxFooter() {
       </SidebarMenu>
       <SidebarMenu>
         <SidebarMenuItem>
-          <MeshUserMenu />
+          <AccountPopover />
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>

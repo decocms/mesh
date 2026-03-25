@@ -95,7 +95,7 @@ function NavigationSidebarInner({
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-2 pb-2",
+          "flex flex-col flex-1 overflow-x-hidden mt-[6px] px-2 pb-2 gap-0",
           contentClassName,
         )}
       >

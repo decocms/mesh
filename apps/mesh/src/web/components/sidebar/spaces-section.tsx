@@ -223,7 +223,10 @@ function PinSpacePopover() {
       <Popover open={open} onOpenChange={setOpen}>
         <SidebarMenuItem>
           <PopoverTrigger asChild>
-            <SidebarMenuButton tooltip="Browse agents">
+            <SidebarMenuButton
+              tooltip="Browse agents"
+              className="bg-sidebar-accent hover:bg-sidebar-accent/80"
+            >
               <Plus className="!opacity-100" />
             </SidebarMenuButton>
           </PopoverTrigger>
@@ -353,6 +356,7 @@ function SpacesSectionContent() {
 
   return (
     <SidebarGroup className="py-0 px-0 mt-2">
+      <div className="h-px bg-border mx-2 mb-2" />
       <SidebarGroupContent>
         <SidebarMenu className="gap-2">
           <PinSpacePopover />
