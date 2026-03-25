@@ -74,6 +74,19 @@ import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { TagMultiSelect } from "@/web/components/tag-multi-select";
 
+interface BetterAuthMember {
+  id: string;
+  userId: string;
+  role: string;
+  createdAt?: Date | string;
+  user?: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+}
+
 // Role colors matching manage-roles-dialog
 const ROLE_COLORS = [
   "bg-neutral-400",
@@ -447,7 +460,7 @@ function OrgMembersContent() {
     "asc",
   );
 
-  const members = data?.data?.members;
+  const members = data?.data?.members as BetterAuthMember[] | undefined;
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -634,7 +647,7 @@ function OrgMembersContent() {
             <div className="flex items-center gap-3">
               <Avatar
                 url={row.data.user?.image ?? undefined}
-                fallback={getInitials(row.data.user?.name)}
+                fallback={getInitials(row.data.user?.name ?? undefined)}
                 shape="circle"
                 size="sm"
               />
@@ -990,7 +1003,7 @@ function OrgMembersContent() {
                       <div className="flex flex-col gap-4 p-6">
                         <Avatar
                           url={member.user?.image ?? undefined}
-                          fallback={getInitials(member.user?.name)}
+                          fallback={getInitials(member.user?.name ?? undefined)}
                           shape="circle"
                           size="lg"
                           className="shrink-0"

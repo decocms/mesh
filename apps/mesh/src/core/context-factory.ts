@@ -47,6 +47,31 @@ import type {
 
 import type { EventBus } from "../event-bus/interface";
 
+// Better Auth API returns `{}` for some methods; these interfaces provide
+// type-safe access to the properties we use after casting.
+interface VerifyApiKeyResult {
+  valid?: boolean;
+  key?: {
+    id: string;
+    userId: string;
+    permissions?: unknown;
+    metadata?: Record<string, unknown>;
+    name?: string;
+  };
+}
+
+interface BetterAuthSessionResult {
+  session: { activeOrganizationId?: string };
+  user: { id: string; email?: string };
+}
+
+interface FullOrganizationResult {
+  id: string;
+  slug: string;
+  name: string;
+  members?: Array<{ userId: string; role?: string }>;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -599,9 +624,9 @@ async function authenticateRequest(
 
     // Try API Key authentication
     try {
-      const result = await timings.measure("auth_verify_api_key", () =>
+      const result = (await timings.measure("auth_verify_api_key", () =>
         auth.api.verifyApiKey({ body: { key: token } }),
-      );
+      )) as VerifyApiKeyResult | null;
 
       if (result?.valid && result.key) {
         // For API keys, organization might be embedded in metadata
@@ -658,9 +683,9 @@ async function authenticateRequest(
     const sessionHeaders = new Headers(req.headers);
     sessionHeaders.delete("Authorization");
 
-    const session = await timings.measure("auth_get_session", () =>
+    const session = (await timings.measure("auth_get_session", () =>
       auth.api.getSession({ headers: sessionHeaders }),
-    );
+    )) as BetterAuthSessionResult | null;
 
     if (session) {
       let organization: OrganizationContext | undefined;
@@ -669,13 +694,13 @@ async function authenticateRequest(
       if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
 
-        const orgData = await timings.measure(
+        const orgData = (await timings.measure(
           "auth_get_full_organization",
           () =>
             auth.api
               .getFullOrganization({ headers: sessionHeaders })
               .catch(() => null),
-        );
+        )) as FullOrganizationResult | null;
 
         if (orgData) {
           organization = {

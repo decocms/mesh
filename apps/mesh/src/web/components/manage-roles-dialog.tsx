@@ -68,6 +68,18 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { CollectionSearch } from "./collections/collection-search.tsx";
 
+interface BetterAuthMember {
+  id: string;
+  userId: string;
+  role: string;
+  user?: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
+}
+
 interface ManageRolesDialogProps {
   trigger: React.ReactNode;
   onSuccess?: () => void;
@@ -738,10 +750,11 @@ function AddMemberDialog({
   const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
 
   const { data } = useMembers();
-  const members = data?.data?.members ?? [];
+  const members: BetterAuthMember[] = (data?.data?.members ??
+    []) as BetterAuthMember[];
 
   // Filter members by search
-  const filteredMembers = members.filter((member) => {
+  const filteredMembers = members.filter((member: BetterAuthMember) => {
     const searchLower = deferredSearchQuery.toLowerCase();
     return (
       member.user?.name?.toLowerCase().includes(searchLower) ||
@@ -750,7 +763,7 @@ function AddMemberDialog({
   });
 
   // Check if member is eligible (not owner)
-  const isMemberEligible = (member: (typeof members)[number]) => {
+  const isMemberEligible = (member: BetterAuthMember) => {
     return member.role !== "owner";
   };
 
@@ -801,7 +814,7 @@ function AddMemberDialog({
               </div>
             ) : (
               <div className="px-6 py-2 space-y-1">
-                {filteredMembers.map((member) => {
+                {filteredMembers.map((member: BetterAuthMember) => {
                   const eligible = isMemberEligible(member);
                   const alreadyInRole = isAlreadyInRole(member.id);
                   const isSelected = pendingMemberIds.includes(member.id);
@@ -891,13 +904,16 @@ function MembersTabContent({
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
 
   const { data } = useMembers();
-  const members = data?.data?.members ?? [];
+  const members: BetterAuthMember[] = (data?.data?.members ??
+    []) as BetterAuthMember[];
 
   // Get members that are in this role
-  const roleMembers = members.filter((m) => memberIds.includes(m.id));
+  const roleMembers = members.filter((m: BetterAuthMember) =>
+    memberIds.includes(m.id),
+  );
 
   // Filter by search
-  const filteredMembers = roleMembers.filter((member) => {
+  const filteredMembers = roleMembers.filter((member: BetterAuthMember) => {
     const searchLower = deferredSearchQuery.toLowerCase();
     return (
       member.user?.name?.toLowerCase().includes(searchLower) ||
@@ -977,7 +993,7 @@ function MembersTabContent({
           </div>
         ) : (
           <div className="p-4 space-y-2">
-            {filteredMembers.map((member) => (
+            {filteredMembers.map((member: BetterAuthMember) => (
               <div
                 key={member.id}
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
@@ -1198,10 +1214,11 @@ export function ManageRolesDialog({
     }
 
     // Get members with this role
-    const members = membersData?.data?.members ?? [];
+    const members: BetterAuthMember[] = (membersData?.data?.members ??
+      []) as BetterAuthMember[];
     const roleMemberIds = members
-      .filter((m) => m.role === role.role)
-      .map((m) => m.id);
+      .filter((m: BetterAuthMember) => m.role === role.role)
+      .map((m: BetterAuthMember) => m.id);
 
     return {
       role: {
@@ -1386,19 +1403,20 @@ export function ManageRolesDialog({
 
       if (isBuiltinRole) {
         // Built-in role - only update member assignments
-        const members = membersData?.data?.members ?? [];
+        const members: BetterAuthMember[] = (membersData?.data?.members ??
+          []) as BetterAuthMember[];
         const currentMemberIds = members
-          .filter((m) => m.role === formData.role.slug)
-          .map((m) => m.id);
+          .filter((m: BetterAuthMember) => m.role === formData.role.slug)
+          .map((m: BetterAuthMember) => m.id);
 
         // Find members to add
         const membersToAdd = formData.memberIds.filter(
-          (id) => !currentMemberIds.includes(id),
+          (id: string) => !currentMemberIds.includes(id),
         );
 
         // Find members to remove
         const membersToRemove = currentMemberIds.filter(
-          (id) => !formData.memberIds.includes(id),
+          (id: string) => !formData.memberIds.includes(id),
         );
 
         // Add new members to this role
@@ -1436,19 +1454,20 @@ export function ManageRolesDialog({
         }
 
         // Update member assignments
-        const members = membersData?.data?.members ?? [];
+        const members: BetterAuthMember[] = (membersData?.data?.members ??
+          []) as BetterAuthMember[];
         const currentMemberIds = members
-          .filter((m) => m.role === formData.role.slug)
-          .map((m) => m.id);
+          .filter((m: BetterAuthMember) => m.role === formData.role.slug)
+          .map((m: BetterAuthMember) => m.id);
 
         // Find members to add
         const membersToAdd = formData.memberIds.filter(
-          (id) => !currentMemberIds.includes(id),
+          (id: string) => !currentMemberIds.includes(id),
         );
 
         // Find members to remove
         const membersToRemove = currentMemberIds.filter(
-          (id) => !formData.memberIds.includes(id),
+          (id: string) => !formData.memberIds.includes(id),
         );
 
         // Add new members to this role

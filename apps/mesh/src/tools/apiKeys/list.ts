@@ -54,27 +54,35 @@ export const API_KEY_LIST = defineTool({
     // Filter to only show keys belonging to current organization
     // and map to our entity schema (ensuring no key values are exposed)
     const items: ApiKeyEntity[] = (result ?? [])
-      .filter((key) => {
+      .filter((key: { metadata?: unknown }) => {
         const metadata = key.metadata as ApiKeyMetadata | undefined;
         const keyOrgId = metadata?.organization?.id;
-        // Only include keys that belong to the current organization
         return keyOrgId === currentOrgId;
       })
-      .map((key) => ({
-        id: key.id,
-        name: key.name ?? "Unnamed Key", // Fallback if name is null
-        userId: key.userId,
-        permissions: key.permissions ?? {},
-        expiresAt: key.expiresAt
-          ? key.expiresAt instanceof Date
-            ? key.expiresAt.toISOString()
-            : key.expiresAt
-          : null,
-        createdAt:
-          key.createdAt instanceof Date
-            ? key.createdAt.toISOString()
-            : key.createdAt,
-      }));
+      .map(
+        (key: {
+          id: string;
+          name?: string | null;
+          userId: string;
+          permissions?: Record<string, string[]> | null;
+          expiresAt?: Date | string | null;
+          createdAt: Date | string;
+        }) => ({
+          id: key.id,
+          name: key.name ?? "Unnamed Key", // Fallback if name is null
+          userId: key.userId,
+          permissions: key.permissions ?? {},
+          expiresAt: key.expiresAt
+            ? key.expiresAt instanceof Date
+              ? key.expiresAt.toISOString()
+              : key.expiresAt
+            : null,
+          createdAt:
+            key.createdAt instanceof Date
+              ? key.createdAt.toISOString()
+              : key.createdAt,
+        }),
+      );
 
     return {
       items,

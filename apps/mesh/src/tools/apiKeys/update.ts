@@ -49,7 +49,9 @@ export const API_KEY_UPDATE = defineTool({
 
     // First, list all keys to find the target key and verify organization ownership
     const allKeys = await ctx.boundAuth.apiKey.list();
-    const targetKey = allKeys?.find((k) => k.id === input.keyId);
+    const targetKey = allKeys?.find(
+      (k: { id: string }) => k.id === input.keyId,
+    );
 
     if (!targetKey) {
       throw new Error(`API key not found: ${input.keyId}`);

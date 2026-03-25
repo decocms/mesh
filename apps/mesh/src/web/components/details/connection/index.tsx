@@ -318,7 +318,7 @@ function ConnectionInspectorViewWithConnection({
   const members = membersData?.data?.members ?? [];
   const activeInstance = configureInstance ?? connection;
   const instanceCreator = members.find(
-    (m) => m.userId === activeInstance.created_by,
+    (m: { userId: string }) => m.userId === activeInstance.created_by,
   );
   // VIRTUAL connections are always "authenticated" - they don't have OAuth
   // They're internal connections that aggregate tools from other connections
