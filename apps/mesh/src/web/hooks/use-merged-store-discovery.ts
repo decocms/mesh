@@ -1,17 +1,20 @@
 /**
- * Hook that merges store discovery items from multiple registries into a single list.
+ * Hook that merges store discovery items from all enabled registries into a single list.
  * Each item is stamped with _sourceName, _sourceIcon, and _registryId.
  *
- * Uses a fixed number of hook slots with `enabled` guards so that unused slots
- * don't fire API calls. Supports up to MAX_REGISTRIES concurrent registries.
+ * Uses a single useInfiniteQuery that fetches from all registries in parallel,
+ * so there's no hardcoded limit on registry count.
  */
 
-import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
+import { useProjectContext } from "@decocms/mesh-sdk";
+import { createMCPClient } from "@decocms/mesh-sdk";
 import { findListToolName } from "@/web/utils/registry-utils";
+import { flattenPaginatedItems } from "@/web/utils/registry-utils";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import type { RegistryItem } from "@/web/components/store/types";
 
-const MAX_REGISTRIES = 6;
+const PAGE_SIZE = 24;
 
 interface MergedDiscoveryResult {
   items: RegistryItem[];
@@ -21,71 +24,168 @@ interface MergedDiscoveryResult {
   loadMore: () => void;
 }
 
-function useSlot(registry: ConnectionEntity | undefined) {
-  return useStoreDiscovery({
-    registryId: registry?.id ?? "",
-    listToolName: findListToolName(registry?.tools) ?? "",
-    enabled: registry != null,
-  });
+/** Per-registry page result with cursor tracking */
+interface RegistryPageResult {
+  registryId: string;
+  registryTitle: string;
+  registryIcon: string | null;
+  items: RegistryItem[];
+  nextCursor?: string;
 }
 
-/**
- * Merges items from multiple registry connections into a single list.
- * Items are stamped with source metadata for badges.
- */
+/** Page param tracks cursors per registry */
+type PageParam = Record<string, string | undefined>;
+
 export function useMergedStoreDiscovery(
   registries: ConnectionEntity[],
 ): MergedDiscoveryResult {
-  if (registries.length > MAX_REGISTRIES) {
-    console.warn(
-      `useMergedStoreDiscovery: only ${MAX_REGISTRIES} registries are supported, got ${registries.length}. Extra registries will be ignored.`,
-    );
-  }
+  const { org } = useProjectContext();
 
-  // Fixed hook slots — React requires the same number of hook calls every render.
-  // Each slot is enabled only when a registry exists at that index.
-  const d0 = useSlot(registries[0]);
-  const d1 = useSlot(registries[1]);
-  const d2 = useSlot(registries[2]);
-  const d3 = useSlot(registries[3]);
-  const d4 = useSlot(registries[4]);
-  const d5 = useSlot(registries[5]);
+  // Stable key based on sorted registry IDs
+  const registryKey = registries
+    .map((r) => r.id)
+    .sort()
+    .join(",");
 
-  const allSlots = [d0, d1, d2, d3, d4, d5];
-  const activeCount = Math.min(registries.length, MAX_REGISTRIES);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useInfiniteQuery({
+      queryKey: ["merged-store-discovery", org.id, registryKey],
+      queryFn: async ({ pageParam }): Promise<RegistryPageResult[]> => {
+        const cursors: PageParam = pageParam ?? {};
 
+        // Fetch from all registries in parallel
+        const results = await Promise.allSettled(
+          registries.map(async (registry): Promise<RegistryPageResult> => {
+            const listToolName = findListToolName(registry.tools);
+            if (!listToolName) {
+              return {
+                registryId: registry.id,
+                registryTitle: registry.title,
+                registryIcon: registry.icon || null,
+                items: [],
+              };
+            }
+
+            // Skip registries whose cursor is exhausted (null sentinel)
+            const cursor = cursors[registry.id];
+            if (cursor === "EXHAUSTED") {
+              return {
+                registryId: registry.id,
+                registryTitle: registry.title,
+                registryIcon: registry.icon || null,
+                items: [],
+              };
+            }
+
+            const client = await createMCPClient({
+              connectionId: registry.id,
+              orgId: org.id,
+            });
+
+            try {
+              const params: Record<string, unknown> = { limit: PAGE_SIZE };
+              if (cursor) {
+                params.cursor = cursor;
+              }
+
+              const result = (await client.callTool({
+                name: listToolName,
+                arguments: params,
+              })) as { structuredContent?: unknown };
+
+              const payload = (result.structuredContent ?? result) as Record<
+                string,
+                unknown
+              >;
+
+              // Extract cursor
+              const nextCursor =
+                (payload as { nextCursor?: string; cursor?: string })
+                  .nextCursor ||
+                (payload as { nextCursor?: string; cursor?: string }).cursor ||
+                undefined;
+
+              // Extract items
+              const items = flattenPaginatedItems<RegistryItem>(
+                payload ? [payload] : [],
+              );
+
+              return {
+                registryId: registry.id,
+                registryTitle: registry.title,
+                registryIcon: registry.icon || null,
+                items,
+                nextCursor,
+              };
+            } finally {
+              await client.close().catch(() => {});
+            }
+          }),
+        );
+
+        return results.map((r) =>
+          r.status === "fulfilled"
+            ? r.value
+            : {
+                registryId: "",
+                registryTitle: "",
+                registryIcon: null,
+                items: [],
+              },
+        );
+      },
+      initialPageParam: {} as PageParam,
+      getNextPageParam: (lastPage) => {
+        // Build next cursors — mark exhausted registries
+        const nextCursors: PageParam = {};
+        let anyHasMore = false;
+
+        for (const result of lastPage) {
+          if (!result.registryId) continue;
+          if (result.nextCursor) {
+            nextCursors[result.registryId] = result.nextCursor;
+            anyHasMore = true;
+          } else {
+            nextCursors[result.registryId] = "EXHAUSTED";
+          }
+        }
+
+        return anyHasMore ? nextCursors : undefined;
+      },
+      staleTime: 60 * 60 * 1000,
+      placeholderData: keepPreviousData,
+      retry: 2,
+      enabled: registries.length > 0,
+    });
+
+  // Flatten all pages, stamp source metadata
   const items: RegistryItem[] = [];
-  for (let i = 0; i < activeCount; i++) {
-    const registry = registries[i]!;
-    const discovery = allSlots[i]!;
-    for (const item of discovery.items) {
-      items.push({
-        ...item,
-        _sourceName: item._sourceName ?? registry.title,
-        _sourceIcon: item._sourceIcon ?? (registry.icon || null),
-        _registryId: item._registryId ?? registry.id,
-      });
+  if (data?.pages) {
+    for (const page of data.pages) {
+      for (const registryResult of page) {
+        for (const item of registryResult.items) {
+          items.push({
+            ...item,
+            _sourceName: item._sourceName ?? registryResult.registryTitle,
+            _sourceIcon: item._sourceIcon ?? registryResult.registryIcon,
+            _registryId: item._registryId ?? registryResult.registryId,
+          });
+        }
+      }
     }
   }
 
-  const activeSlots = allSlots.slice(0, activeCount);
-  const isInitialLoading = activeSlots.some((d) => d.isInitialLoading);
-  const isLoadingMore = activeSlots.some((d) => d.isLoadingMore);
-  const hasMore = activeSlots.some((d) => d.hasMore);
-
   const loadMore = () => {
-    for (const d of activeSlots) {
-      if (d.hasMore && !d.isLoadingMore) {
-        d.loadMore();
-      }
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
   };
 
   return {
     items,
-    hasMore,
-    isLoadingMore,
-    isInitialLoading,
+    hasMore: hasNextPage ?? false,
+    isLoadingMore: isFetchingNextPage,
+    isInitialLoading: isLoading,
     loadMore,
   };
 }
