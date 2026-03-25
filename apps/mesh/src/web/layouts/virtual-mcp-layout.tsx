@@ -17,7 +17,6 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 
 import { useChatStable } from "@/web/components/chat/context";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 
 /**
  * Inner component that fetches virtual MCP data and provides project context.
@@ -36,7 +35,6 @@ function VirtualMCPLayoutContent() {
   const match = spacesMatch ?? projectsMatch;
   const { org } = useProjectContext();
   const { setVirtualMcpId } = useChatStable();
-  const [, setTasksOpen] = useDecoTasksOpen();
   const navigate = useNavigate();
 
   const orgSlug = match?.params.org ?? "";
@@ -50,7 +48,6 @@ function VirtualMCPLayoutContent() {
   useEffect(() => {
     if (!entity) return;
     setVirtualMcpId(entity.id);
-    setTasksOpen(true);
     return () => setVirtualMcpId(null);
   }, [entity?.id]);
 

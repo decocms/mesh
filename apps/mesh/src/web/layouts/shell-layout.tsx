@@ -9,7 +9,6 @@ import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -102,22 +101,20 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
   return <SidebarProvider>{children}</SidebarProvider>;
 }
 
-function MobileFABs({
+function MobileFABsAndDrawers({
   chatOpen,
-  onChatToggle,
-  tasksOpen,
-  onTasksToggle,
+  setChatOpen,
 }: {
   chatOpen: boolean;
-  onChatToggle: () => void;
-  tasksOpen: boolean;
-  onTasksToggle: () => void;
+  setChatOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
 }) {
+  const [tasksOpen, setTasksOpen] = useState(false);
+
   return (
     <>
       <button
         type="button"
-        onClick={onTasksToggle}
+        onClick={() => setTasksOpen((prev) => !prev)}
         className={cn(
           "fixed bottom-4 left-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
           tasksOpen
@@ -130,7 +127,7 @@ function MobileFABs({
       </button>
       <button
         type="button"
-        onClick={onChatToggle}
+        onClick={() => setChatOpen((prev) => !prev)}
         className={cn(
           "fixed bottom-4 right-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
           chatOpen
@@ -141,46 +138,38 @@ function MobileFABs({
       >
         <MessageTextCircle02 size={20} />
       </button>
+      <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
+        <DrawerContent className="h-[95dvh] max-h-[95dvh]">
+          <ChatPanel />
+        </DrawerContent>
+      </Drawer>
+      <Drawer open={tasksOpen} onOpenChange={setTasksOpen} direction="bottom">
+        <DrawerContent className="h-[95dvh] max-h-[95dvh]">
+          <TasksSidePanel />
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }
 
 function ShellLayoutInner({
-  isHomeRoute,
   isSpaceRoute,
   isSettingsRoute,
 }: {
-  isHomeRoute: boolean;
   isSpaceRoute: boolean;
   isSettingsRoute: boolean;
 }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
-  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
   const isMobile = useIsMobile();
   const [chatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
     30,
   );
-  const [tasksPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
-  );
 
-  // Track open/close transitions — apply max-w + CSS transition only during
+  // Track chat open/close transitions — apply max-w + CSS transition only during
   // the 200ms animation window, then remove so resize handles work freely.
-  const [tasksAnimating, setTasksAnimating] = useState(false);
   const [chatAnimating, setChatAnimating] = useState(false);
-  const prevTasksOpen = useRef(tasksOpen);
   const prevChatOpen = useRef(chatOpen);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (prevTasksOpen.current === tasksOpen) return;
-    prevTasksOpen.current = tasksOpen;
-    setTasksAnimating(true);
-    const id = setTimeout(() => setTasksAnimating(false), 220);
-    return () => clearTimeout(id);
-  }, [tasksOpen]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
@@ -191,21 +180,16 @@ function ShellLayoutInner({
     return () => clearTimeout(id);
   }, [chatOpen]);
 
-  // Close chat and tasks panels when navigating to settings
+  // Close chat panel when navigating to settings
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (isSettingsRoute) {
       setChatOpen(false);
-      setTasksOpen(false);
     }
   }, [isSettingsRoute]);
 
-  // Hide chat and tasks panels on home and settings routes
-  const hidePanels = isHomeRoute || isSettingsRoute;
   // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && !hidePanels;
-  // On space routes, the chat panel takes full width and main content collapses
-  const chatFullWidth = isSpaceRoute && !isMobile;
+  const hasRightPanel = !isMobile && chatOpen && isSpaceRoute;
 
   return (
     <SidebarLayout
@@ -214,7 +198,6 @@ function ShellLayoutInner({
         {
           "--sidebar-width-icon": "3.5rem",
           "--chat-panel-w": `${chatPanelWidth}cqi`,
-          "--tasks-panel-w": `${tasksPanelWidth}cqi`,
         } as Record<string, string>
       }
     >
@@ -236,16 +219,10 @@ function ShellLayoutInner({
               <PersistentTasksResizablePanel
                 className={cn(
                   "overflow-hidden",
-                  tasksAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  tasksOpen
-                    ? tasksAnimating
-                      ? "max-w-[var(--tasks-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
+                  isSpaceRoute ? "bg-sidebar" : "max-w-0",
                 )}
               >
-                <div className="h-full min-w-[var(--tasks-panel-w)] pr-1.5 pb-1.5 overflow-hidden">
+                <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                     <TasksSidePanel />
                   </div>
@@ -257,12 +234,9 @@ function ShellLayoutInner({
 
           {/* Main content */}
           <ResizablePanel
-            className={cn(
-              "min-w-0 flex flex-col",
-              chatFullWidth && "max-w-0 overflow-hidden",
-            )}
+            className="min-w-0 flex flex-col"
             order={2}
-            style={{ overflow: chatFullWidth ? undefined : "visible" }}
+            style={{ overflow: "visible" }}
           >
             <div
               className={cn(
@@ -284,69 +258,35 @@ function ShellLayoutInner({
           </ResizablePanel>
 
           {/* Desktop: Chat card as resizable side panel */}
-          {!hidePanels && !isMobile && (
+          {isSpaceRoute && !isMobile && (
             <>
               <ResizableHandle className="bg-sidebar" />
-              {chatFullWidth ? (
-                <ResizablePanel
-                  className="overflow-hidden bg-sidebar"
-                  order={3}
-                >
-                  <div className="h-full pl-1.5 pr-1.5 pb-1.5">
-                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                      <ChatPanel />
-                    </div>
+              <PersistentResizablePanel
+                className={cn(
+                  "overflow-hidden",
+                  chatAnimating &&
+                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
+                  chatOpen
+                    ? chatAnimating
+                      ? "max-w-[var(--chat-panel-w)] bg-sidebar"
+                      : "bg-sidebar"
+                    : "max-w-0",
+                )}
+              >
+                <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
+                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                    <ChatPanel />
                   </div>
-                </ResizablePanel>
-              ) : (
-                <PersistentResizablePanel
-                  className={cn(
-                    "overflow-hidden",
-                    chatAnimating &&
-                      "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                    chatOpen
-                      ? chatAnimating
-                        ? "max-w-[var(--chat-panel-w)] bg-sidebar"
-                        : "bg-sidebar"
-                      : "max-w-0",
-                  )}
-                >
-                  <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
-                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                      <ChatPanel />
-                    </div>
-                  </div>
-                </PersistentResizablePanel>
-              )}
+                </div>
+              </PersistentResizablePanel>
             </>
           )}
         </ResizablePanelGroup>
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
-      {!hidePanels && isMobile && (
-        <>
-          <MobileFABs
-            chatOpen={chatOpen}
-            onChatToggle={() => setChatOpen((prev) => !prev)}
-            tasksOpen={tasksOpen}
-            onTasksToggle={() => setTasksOpen((prev) => !prev)}
-          />
-          <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
-            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-              <ChatPanel />
-            </DrawerContent>
-          </Drawer>
-          <Drawer
-            open={tasksOpen}
-            onOpenChange={setTasksOpen}
-            direction="bottom"
-          >
-            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-              <TasksSidePanel />
-            </DrawerContent>
-          </Drawer>
-        </>
+      {isSpaceRoute && isMobile && (
+        <MobileFABsAndDrawers chatOpen={chatOpen} setChatOpen={setChatOpen} />
       )}
     </SidebarLayout>
   );
@@ -370,14 +310,10 @@ function ShellLayoutContent() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Check if we're on the org home route (/$org)
-  const isHomeRoute =
-    routerState.location.pathname === `/${org}` ||
-    routerState.location.pathname === `/${org}/`;
-
-  // Check if we're on a space route (/$org/spaces/$id) but not settings
+  // Check if we're on a space route (/$org/spaces/$id or /$org/projects/$id) but not settings
   const isSpaceRoute =
-    routerState.location.pathname.startsWith(`/${org}/spaces/`) &&
+    (routerState.location.pathname.startsWith(`/${org}/spaces/`) ||
+      routerState.location.pathname.startsWith(`/${org}/projects/`)) &&
     !routerState.location.pathname.includes("/settings");
 
   // Check if we're on settings routes (/$org/settings/*)
@@ -459,7 +395,6 @@ function ShellLayoutContent() {
         <div className="flex flex-col h-dvh overflow-hidden">
           <Chat.Provider>
             <ShellLayoutInner
-              isHomeRoute={isHomeRoute}
               isSpaceRoute={isSpaceRoute}
               isSettingsRoute={isSettingsRoute}
             />

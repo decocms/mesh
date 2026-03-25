@@ -8,8 +8,7 @@
 
 import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
-import { Loading01, Plus, Settings01, X } from "@untitledui/icons";
+import { Loading01, Plus, Settings01 } from "@untitledui/icons";
 import { useMatch, useNavigate } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { Suspense, useTransition } from "react";
@@ -18,7 +17,6 @@ import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 
 function TasksPanelContent() {
-  const [, setTasksOpen] = useDecoTasksOpen();
   const [, setChatOpen] = useDecoChatOpen();
   const { createTask, switchToTask } = useChat();
   const navigate = useNavigate();
@@ -79,17 +77,6 @@ function TasksPanelContent() {
             title="New task"
           >
             <Plus
-              size={16}
-              className="text-muted-foreground group-hover:text-foreground transition-colors"
-            />
-          </button>
-          <button
-            type="button"
-            onClick={() => setTasksOpen(false)}
-            className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
-            title="Close tasks"
-          >
-            <X
               size={16}
               className="text-muted-foreground group-hover:text-foreground transition-colors"
             />

@@ -6,8 +6,8 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { Plus, Users03, X } from "@untitledui/icons";
-import { Suspense, useState, useTransition } from "react";
+import { Users03, X } from "@untitledui/icons";
+import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
 import { Chat, useChat } from "./index";
@@ -20,21 +20,13 @@ function ChatPanelContent() {
   const { org } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
   const aiProviders = useAiProviders();
-  const { selectedVirtualMcp, isChatEmpty, activeTaskId, createTask, tasks } =
-    useChat();
+  const { selectedVirtualMcp, isChatEmpty, activeTaskId, tasks } = useChat();
   const activeTask = tasks.find((task) => task.id === activeTaskId);
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
-  const [isPending, startTransition] = useTransition();
 
   // Use Decopilot as default agent
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
-
-  const handleNewTask = () => {
-    startTransition(() => {
-      createTask();
-    });
-  };
 
   if (aiProviders?.providers?.length === 0) {
     const title = "No model provider connected";
@@ -78,7 +70,7 @@ function ChatPanelContent() {
       <div
         className={cn(
           "absolute inset-0 flex flex-col transition-opacity duration-100 ease-out",
-          activePanel !== "chat" || isPending
+          activePanel !== "chat"
             ? "opacity-0 pointer-events-none"
             : "opacity-100",
         )}
@@ -94,18 +86,6 @@ function ChatPanelContent() {
             )}
           </Page.Header.Left>
           <Page.Header.Right className="gap-1">
-            <button
-              type="button"
-              onClick={handleNewTask}
-              disabled={isPending}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              title="New chat"
-            >
-              <Plus
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
             <button
               type="button"
               onClick={() => setOpen(false)}
