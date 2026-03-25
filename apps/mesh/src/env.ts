@@ -34,7 +34,10 @@ const envSchema = z
     OTEL_SERVICE_NAME: z.string().default("mesh"),
 
     // Event Bus & Networking
-    NATS_URL: z.string().default("nats://localhost:4222"),
+    NATS_URL: z
+      .string()
+      .default("nats://localhost:4222")
+      .transform((s) => s.split(",").map((u) => u.trim())),
 
     // Config files
     CONFIG_PATH: z.string().default("./config.json"),
@@ -173,7 +176,7 @@ function logConfiguration(e: Env) {
   r("OTEL_SERVICE_NAME", e.OTEL_SERVICE_NAME);
 
   sect("Event Bus & Networking");
-  r("NATS_URL", e.NATS_URL);
+  r("NATS_URL", e.NATS_URL.join(", "));
 
   sect("Config Files");
   r("CONFIG_PATH", e.CONFIG_PATH);

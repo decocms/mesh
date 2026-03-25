@@ -15,13 +15,10 @@ import {
 } from "@decocms/runtime/asset-server";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import { startDebugServer } from "./debug";
 import { env, logConfiguration } from "./env";
-import { cyan, dim, red, underline } from "./fmt";
+import { red } from "./fmt";
 
 const port = env.PORT;
-const debugPort = env.DEBUG_PORT;
-const enableDebugServer = env.ENABLE_DEBUG_SERVER;
 
 // Refuse local mode in production — it disables authentication
 if (
@@ -127,17 +124,6 @@ if (env.DECOCMS_LOCAL_MODE) {
     });
 }
 
-// Internal debug server (only enabled via ENABLE_DEBUG_SERVER=true)
-let debugServer: ReturnType<typeof Bun.serve> | undefined;
-if (enableDebugServer) {
-  debugServer = startDebugServer({ port: debugPort });
-
-  console.log(
-    `  ${dim("Debug server:")}     ${cyan(underline(`http://localhost:${debugPort}`))}`,
-  );
-  console.log("");
-}
-
 // ============================================================================
 // Graceful Shutdown
 // ============================================================================
@@ -150,19 +136,25 @@ async function gracefulShutdown(signal: string) {
   console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
 
   const forceExitTimer = setTimeout(() => {
-    console.error("[shutdown] Timed out after 10s, forcing exit.");
+    console.error("[shutdown] Timed out after 55s, forcing exit.");
     process.exit(1);
-  }, 10_000);
+  }, 55_000);
   forceExitTimer.unref?.();
 
   let exitCode = 0;
   try {
-    // Stop accepting new connections, force-close active ones
-    // (SSE streams are long-lived and would block graceful drain indefinitely)
-    await server.stop(true);
-    await debugServer?.stop(true);
+    // 1. Mark as shutting down — readiness returns 503 immediately
+    app.markShuttingDown();
 
-    // Stop workers, flush telemetry, close DB
+    // 2. Give K8s time to notice the 503 and stop routing traffic before
+    //    we close connections (~2s is enough for most configurations)
+    await new Promise((r) => setTimeout(r, 2_000));
+
+    // 3. Stop accepting new connections, force-close active ones
+    //    (SSE streams are long-lived and would block graceful drain indefinitely)
+    await server.stop(true);
+
+    // 3. Stop workers, flush telemetry, close DB
     await app.shutdown();
   } catch (err) {
     console.error("[shutdown] Error during shutdown:", err);

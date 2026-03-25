@@ -201,6 +201,7 @@ export interface CreateAppOptions {
  */
 export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
+  let isShuttingDown = false;
 
   // Clear previous monitoring retention timer (cleanup during HMR)
   if (currentRetentionTimer) {
@@ -410,13 +411,62 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Health Check & Metrics
   // ============================================================================
 
-  // Health check endpoint (no auth required)
+  // Health check endpoint (no auth required) — kept for backwards compatibility
   app.get(SYSTEM_PATHS.HEALTH, (c) => {
     return c.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       version: "1.0.0",
     });
+  });
+
+  // Liveness probe — the process is alive and the event loop is not stuck
+  app.get(SYSTEM_PATHS.HEALTH_LIVE, (c) => {
+    return c.json({ status: "ok" });
+  });
+
+  // Readiness probe — returns 503 during shutdown so K8s drains traffic before liveness fails,
+  // and checks that DB and NATS are reachable
+  app.get(SYSTEM_PATHS.HEALTH_READY, async (c) => {
+    if (isShuttingDown) {
+      return c.json({ status: "shutting_down" }, 503);
+    }
+
+    const [dbResult, natsResult] = await Promise.allSettled([
+      Promise.race([
+        database.db
+          .selectFrom("connections")
+          .select("id")
+          .limit(1)
+          .executeTakeFirst(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 2_000),
+        ),
+      ]),
+      Promise.resolve().then(() => {
+        if (!natsProvider) return "ok"; // local mode: no NATS
+        const nc = natsProvider.getConnection();
+        if (nc.isClosed() || nc.isDraining()) {
+          throw new Error("NATS connection unavailable");
+        }
+        return "ok";
+      }),
+    ]);
+
+    const dbOk = dbResult.status === "fulfilled";
+    const natsOk = natsResult.status === "fulfilled";
+    const ready = dbOk && natsOk;
+
+    return c.json(
+      {
+        status: ready ? "ready" : "not_ready",
+        checks: {
+          db: dbOk ? "ok" : "error",
+          nats: natsOk ? "ok" : "error",
+        },
+      },
+      ready ? 200 : 503,
+    );
   });
 
   // Prometheus metrics endpoint
@@ -1278,6 +1328,10 @@ export async function createApp(options: CreateAppOptions = {}) {
     );
   });
 
+  const markShuttingDown = () => {
+    isShuttingDown = true;
+  };
+
   const shutdown = async () => {
     console.log("[shutdown] Stopping workers...");
 
@@ -1327,5 +1381,5 @@ export async function createApp(options: CreateAppOptions = {}) {
     console.log("[shutdown] Cleanup complete.");
   };
 
-  return Object.assign(app, { shutdown });
+  return Object.assign(app, { markShuttingDown, shutdown });
 }
