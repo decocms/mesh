@@ -478,13 +478,25 @@ export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
   const { tasks, virtualMcps } = useChatStable();
   const { org } = useProjectContext();
 
-  const connections = useConnections();
+  // Compute needed agent IDs from tasks
+  const agentIds = [
+    ...new Set(
+      tasks.filter((t) => !t.hidden).flatMap((t) => t.agent_ids ?? []),
+    ),
+  ];
+
+  const connections = useConnections({
+    additionalToolArgs:
+      agentIds.length > 0
+        ? { where: { field: ["id"], operator: "in", value: agentIds } }
+        : undefined,
+  });
   // Build a unified agent lookup: connections + virtual MCPs
   const connectionMap = new Map<
     string,
     { icon: string | null | undefined; title: string }
   >();
-  for (const c of connections ?? []) {
+  for (const c of connections) {
     connectionMap.set(c.id, { icon: c.icon, title: c.title });
   }
   for (const v of virtualMcps) {
