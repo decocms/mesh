@@ -4,11 +4,13 @@ import { resolveSecrets, type SecretsFile } from "./resolve-secrets";
 describe("resolveSecrets", () => {
   const emptyEnv = {};
 
-  describe("ENCRYPTION_KEY uses truthy checks (critical production behavior)", () => {
-    // ⚠️ These tests document the intentional truthy-check behavior.
-    // Empty-string env/saved values are treated as "not set" so that
-    // the generated random key in secrets.json is used instead.
-    // Changing this broke production decryption — see PRs #2785 / #2790.
+  describe("ENCRYPTION_KEY: truthy env check + != null saved check", () => {
+    // ⚠️ These tests document the critical resolution behavior.
+    // Env check is TRUTHY: empty-string env vars fall through to saved.
+    // Saved check is != null: empty-string in secrets.json is PRESERVED.
+    // The old CLI saved ENCRYPTION_KEY="" — all existing data is encrypted
+    // with SHA-256(""). Discarding "" would break decryption.
+    // See PRs #2785, #2790, #2862, #2868 for history.
 
     it("should ignore empty-string ENCRYPTION_KEY env and use saved value", () => {
       const saved: SecretsFile = { ENCRYPTION_KEY: "saved-key" };
@@ -18,24 +20,31 @@ describe("resolveSecrets", () => {
       expect(secrets.ENCRYPTION_KEY).toBe("saved-key");
     });
 
-    it("should generate random ENCRYPTION_KEY when saved is empty string and env is empty string", () => {
-      const saved: SecretsFile = { ENCRYPTION_KEY: "" };
+    it("should preserve empty-string saved ENCRYPTION_KEY (critical for old deployments)", () => {
+      const saved: SecretsFile = {
+        ENCRYPTION_KEY: "",
+        BETTER_AUTH_SECRET: "auth",
+        LOCAL_ADMIN_PASSWORD: "pass",
+      };
       const env = { ENCRYPTION_KEY: "" };
       const { secrets, modified } = resolveSecrets(saved, env);
 
-      // Both are falsy → generates a new random key
-      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
-      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
-      expect(modified).toBe(true);
+      // Saved "" must be preserved — data is encrypted with SHA-256("")
+      expect(secrets.ENCRYPTION_KEY).toBe("");
+      expect(modified).toBe(false);
     });
 
-    it("should generate random ENCRYPTION_KEY when saved is empty string and env is unset", () => {
-      const saved: SecretsFile = { ENCRYPTION_KEY: "" };
+    it("should preserve empty-string saved ENCRYPTION_KEY when env is unset", () => {
+      const saved: SecretsFile = {
+        ENCRYPTION_KEY: "",
+        BETTER_AUTH_SECRET: "auth",
+        LOCAL_ADMIN_PASSWORD: "pass",
+      };
       const { secrets, modified } = resolveSecrets(saved, emptyEnv);
 
-      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
-      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
-      expect(modified).toBe(true);
+      // Saved "" must be preserved — data is encrypted with SHA-256("")
+      expect(secrets.ENCRYPTION_KEY).toBe("");
+      expect(modified).toBe(false);
     });
 
     it("should use truthy env ENCRYPTION_KEY over saved value", () => {
@@ -51,6 +60,14 @@ describe("resolveSecrets", () => {
       const { secrets } = resolveSecrets(saved, emptyEnv);
 
       expect(secrets.ENCRYPTION_KEY).toBe("saved-key");
+    });
+
+    it("should use truthy env ENCRYPTION_KEY over empty-string saved value", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "" };
+      const env = { ENCRYPTION_KEY: "explicit-key" };
+      const { secrets } = resolveSecrets(saved, env);
+
+      expect(secrets.ENCRYPTION_KEY).toBe("explicit-key");
     });
   });
 
@@ -68,6 +85,18 @@ describe("resolveSecrets", () => {
       const { secrets } = resolveSecrets(saved, emptyEnv);
 
       expect(secrets.BETTER_AUTH_SECRET).toBe("saved-value");
+    });
+
+    it("should preserve empty-string saved value", () => {
+      const saved: SecretsFile = {
+        BETTER_AUTH_SECRET: "",
+        ENCRYPTION_KEY: "enc",
+        LOCAL_ADMIN_PASSWORD: "pass",
+      };
+      const { secrets, modified } = resolveSecrets(saved, emptyEnv);
+
+      expect(secrets.BETTER_AUTH_SECRET).toBe("");
+      expect(modified).toBe(false);
     });
 
     it("should generate when missing from both", () => {

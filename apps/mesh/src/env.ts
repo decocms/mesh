@@ -80,15 +80,29 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
-const result = envSchema.safeParse(process.env);
-
-if (!result.success) {
-  console.error("Invalid environment configuration:");
-  console.error(result.error.format());
-  process.exit(1);
+function parseEnv(): Env {
+  const result = envSchema.safeParse(process.env);
+  if (!result.success) {
+    console.error("Invalid environment configuration:");
+    console.error(result.error.format());
+    process.exit(1);
+  }
+  return result.data;
 }
 
-export const env: Env = result.data;
+export const env: Env = parseEnv();
+
+/**
+ * Re-parse process.env and update the `env` singleton in-place.
+ *
+ * In bundled builds the env module is evaluated at bundle-load time — before
+ * serve.ts resolves secrets from secrets.json. Call this after updating
+ * process.env so every module that imported `env` sees the fresh values.
+ */
+export function refreshEnv(): Env {
+  Object.assign(env, parseEnv());
+  return env;
+}
 
 // Log active configuration (redact secrets)
 function redactUrl(url: string | undefined): string {
