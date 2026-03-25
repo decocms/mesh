@@ -168,7 +168,9 @@ export function useProjectSidebarItems(options?: {
       key: item.pluginId,
       label: item.label,
       icon: item.icon,
-      isActive: isActiveRoute(item.pluginId),
+      isActive: isActiveRoute(
+        isOrgAdminProject ? `plugins/${item.pluginId}` : item.pluginId,
+      ),
       onClick: () =>
         isOrgAdminProject
           ? navigate({
@@ -279,7 +281,7 @@ export function useProjectSidebarItems(options?: {
           key: `${group.pluginId}-${group.id}-${index}`,
           label: item.label,
           icon: item.icon,
-          isActive: isActiveRoute(group.pluginId),
+          isActive: isActiveRoute(`plugins/${group.pluginId}`),
           onClick: () =>
             navigate({
               to: "/$org/plugins/$pluginId",

@@ -2498,7 +2498,7 @@ function OrgMcpsContent() {
                   {/* Catalog items (uninstalled) — only on "All" tab */}
                   {catalogItems.map((item) => (
                     <CatalogItemCard
-                      key={`catalog-${item.id}`}
+                      key={`catalog-${item._registryId}:${item.id}`}
                       item={item}
                       allConnections={connections}
                       connectedAppNames={connectedAppNames}
