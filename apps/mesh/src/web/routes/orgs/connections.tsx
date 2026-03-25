@@ -793,15 +793,6 @@ function isCommunityItem(item: RegistryItem): boolean {
   return item._registryId?.includes("community-registry") === true;
 }
 
-function SourceBadge({ item }: { item: RegistryItem }) {
-  if (!isCommunityItem(item)) return null;
-  return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border text-foreground">
-      Community MCP Registry
-    </span>
-  );
-}
-
 function CatalogItemCard({
   item,
   allConnections,
@@ -892,30 +883,38 @@ function CatalogItemCard({
         onClick={handleClick}
         headerActionsAlwaysVisible
         headerActions={
-          isConnected ? (
-            <span className="text-xs text-muted-foreground font-normal">
-              Connected
-            </span>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-3 rounded-lg text-sm font-medium"
-              disabled={connectingItemId !== null}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleConnect();
-              }}
-            >
-              {connectingItemId === item.id ? (
-                <Loading01 size={14} className="animate-spin" />
-              ) : (
-                "Connect"
-              )}
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {isCommunity && item._sourceIcon && (
+              <img
+                src={item._sourceIcon}
+                alt="Community"
+                className="size-4 rounded-sm object-contain"
+              />
+            )}
+            {isConnected ? (
+              <span className="text-xs text-muted-foreground font-normal">
+                Connected
+              </span>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 rounded-lg text-sm font-medium"
+                disabled={connectingItemId !== null}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleConnect();
+                }}
+              >
+                {connectingItemId === item.id ? (
+                  <Loading01 size={14} className="animate-spin" />
+                ) : (
+                  "Connect"
+                )}
+              </Button>
+            )}
+          </div>
         }
-        body={isCommunityItem(item) ? <SourceBadge item={item} /> : undefined}
       />
       <AlertDialog
         open={communityWarningOpen}
@@ -1048,12 +1047,22 @@ function OrgMcpsContent() {
     connections.filter((c) => c.app_name).map((c) => c.app_name as string),
   );
 
+  // Reset registry filter if the selected registry is no longer enabled
+  const effectiveRegistryFilter =
+    registryFilter === "ALL" ||
+    enabledRegistries.some((r) => r.id === registryFilter)
+      ? registryFilter
+      : "ALL";
+
   const searchLower = listState.search.toLowerCase();
   const catalogItems =
     activeTab === "all" || searchLower
       ? registryItems.filter((item) => {
           // Registry filter
-          if (registryFilter !== "ALL" && item._registryId !== registryFilter) {
+          if (
+            effectiveRegistryFilter !== "ALL" &&
+            item._registryId !== effectiveRegistryFilter
+          ) {
             return false;
           }
           if (!searchLower) return true;

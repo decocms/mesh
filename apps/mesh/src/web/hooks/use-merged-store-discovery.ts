@@ -92,12 +92,14 @@ function useRegistryGroupQuery(
             // otherwise let one failure reject the entire group
             let lastError: unknown;
             for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-              const client = await createMCPClient({
-                connectionId: registry.id,
-                orgId,
-              });
-
+              let client: Awaited<ReturnType<typeof createMCPClient>> | null =
+                null;
               try {
+                client = await createMCPClient({
+                  connectionId: registry.id,
+                  orgId,
+                });
+
                 const params: Record<string, unknown> = { limit: PAGE_SIZE };
                 if (cursor) {
                   params.cursor = cursor;
@@ -134,7 +136,7 @@ function useRegistryGroupQuery(
               } catch (err) {
                 lastError = err;
               } finally {
-                await client.close().catch(() => {});
+                await client?.close().catch(() => {});
               }
             }
 
