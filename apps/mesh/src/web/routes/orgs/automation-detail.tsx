@@ -238,12 +238,16 @@ function AgentPicker({
 // Settings Tab
 // ============================================================================
 
-function SettingsTab({
+export function SettingsTab({
   automationId,
   automation,
+  fixedAgentId,
+  embedded,
 }: {
   automationId: string;
   automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
+  fixedAgentId?: string;
+  embedded?: boolean;
 }) {
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
@@ -317,7 +321,7 @@ function SettingsTab({
     defaultValues: {
       name: automation.name,
       active: automation.active,
-      agent_id: automation.agent?.id ?? "",
+      agent_id: fixedAgentId ?? automation.agent?.id ?? "",
       credential_id: defaultCredentialId,
       model_id: defaultModelId,
     },
@@ -347,7 +351,7 @@ function SettingsTab({
         name: values.name,
         active: values.active,
         agent: {
-          id: values.agent_id,
+          id: fixedAgentId ?? values.agent_id,
         },
         models: {
           credentialId: coercedCredentialId,
@@ -394,7 +398,7 @@ function SettingsTab({
 
     const values = form.getValues();
 
-    setVirtualMcpId(values.agent_id || null);
+    setVirtualMcpId((fixedAgentId ?? values.agent_id) || null);
     if (selectedModel && watchConnectionId) {
       setSelectedModel({ ...selectedModel, keyId: watchConnectionId });
     }
@@ -409,16 +413,31 @@ function SettingsTab({
 
   return (
     <>
-      <ViewActions>
-        <SaveActions
-          onSave={async () => {
-            await handleSave();
-          }}
-          onUndo={handleUndo}
-          isDirty={isDirty}
-          isSaving={updateMutation.isPending}
-        />
-      </ViewActions>
+      {embedded ? (
+        isDirty && (
+          <div className="flex items-center justify-end gap-2 px-6 pt-4">
+            <SaveActions
+              onSave={async () => {
+                await handleSave();
+              }}
+              onUndo={handleUndo}
+              isDirty={isDirty}
+              isSaving={updateMutation.isPending}
+            />
+          </div>
+        )
+      ) : (
+        <ViewActions>
+          <SaveActions
+            onSave={async () => {
+              await handleSave();
+            }}
+            onUndo={handleUndo}
+            isDirty={isDirty}
+            isSaving={updateMutation.isPending}
+          />
+        </ViewActions>
+      )}
 
       <div className="max-w-2xl mx-auto w-full px-6 py-6 flex flex-col gap-8">
         {/* Header: Name + Status + Creator */}
@@ -557,18 +576,20 @@ function SettingsTab({
           )}
         </div>
 
-        {/* Section: Agent */}
-        <div className="flex flex-col gap-2.5">
-          <span className="text-xs font-semibold text-muted-foreground/60">
-            Agent
-          </span>
-          <AgentPicker
-            selectedId={watchAgentId || null}
-            onChange={(id) =>
-              form.setValue("agent_id", id ?? "", { shouldDirty: true })
-            }
-          />
-        </div>
+        {/* Section: Agent — hidden when agent is fixed (embedded in project settings) */}
+        {!fixedAgentId && (
+          <div className="flex flex-col gap-2.5">
+            <span className="text-xs font-semibold text-muted-foreground/60">
+              Agent
+            </span>
+            <AgentPicker
+              selectedId={watchAgentId || null}
+              onChange={(id) =>
+                form.setValue("agent_id", id ?? "", { shouldDirty: true })
+              }
+            />
+          </div>
+        )}
 
         {/* Section: Instructions */}
         <div className="flex flex-col gap-2.5">
@@ -593,7 +614,9 @@ function SettingsTab({
             placeholder="What should this automation do?"
           >
             <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
-              <TiptapInput virtualMcpId={watchAgentId || null} />
+              <TiptapInput
+                virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
+              />
 
               <div className="flex items-center justify-end gap-1.5 p-2.5">
                 <ModelSelector
