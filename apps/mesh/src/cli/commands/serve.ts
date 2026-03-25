@@ -112,21 +112,30 @@ export async function startServer(options: ServeOptions): Promise<void> {
     // File doesn't exist or is invalid
   }
 
+  const rawEnvEncKey = process.env.ENCRYPTION_KEY;
+  const rawEnvAuthSecret = process.env.BETTER_AUTH_SECRET;
+  const savedEncKey = savedSecrets.ENCRYPTION_KEY;
+
   const {
     secrets,
     modified: secretsModified,
     sources,
   } = resolveSecrets(savedSecrets, {
-    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    BETTER_AUTH_SECRET: rawEnvAuthSecret,
+    ENCRYPTION_KEY: rawEnvEncKey,
   });
 
   console.log(
-    `[secrets] ENCRYPTION_KEY source=${sources.ENCRYPTION_KEY} length=${secrets.ENCRYPTION_KEY.length} empty=${secrets.ENCRYPTION_KEY === ""}`,
+    `[secrets] ENCRYPTION_KEY source=${sources.ENCRYPTION_KEY} length=${secrets.ENCRYPTION_KEY.length} empty=${secrets.ENCRYPTION_KEY === ""} envWasSet=${rawEnvEncKey !== undefined} savedWasSet=${savedEncKey !== undefined}`,
   );
   console.log(
-    `[secrets] BETTER_AUTH_SECRET source=${sources.BETTER_AUTH_SECRET} length=${secrets.BETTER_AUTH_SECRET.length} empty=${secrets.BETTER_AUTH_SECRET === ""}`,
+    `[secrets] BETTER_AUTH_SECRET source=${sources.BETTER_AUTH_SECRET} length=${secrets.BETTER_AUTH_SECRET.length} empty=${secrets.BETTER_AUTH_SECRET === ""} envWasSet=${rawEnvAuthSecret !== undefined}`,
   );
+  if (sources.ENCRYPTION_KEY === "generated") {
+    console.warn(
+      "[secrets] WARNING: ENCRYPTION_KEY was auto-generated. Set ENCRYPTION_KEY in your Kubernetes Secret or env vars to use a stable key across restarts.",
+    );
+  }
 
   process.env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
   process.env.ENCRYPTION_KEY = secrets.ENCRYPTION_KEY;

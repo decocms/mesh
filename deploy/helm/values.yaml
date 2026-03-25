@@ -63,6 +63,11 @@ secret:
   # secretName: ""  # If defined, uses this existing secret (does not create new secret)
   # Generate secret with the following command: openssl rand -base64 32
   BETTER_AUTH_SECRET: "define_your_secret_with_command_above"
+  # ENCRYPTION_KEY for CredentialVault (AES-256-GCM).
+  # Empty string "" is valid — derives key via SHA-256("").
+  # If omitted, the server auto-generates a random key on each boot (breaks across restarts).
+  # Generate with: openssl rand -base64 32
+  ENCRYPTION_KEY: ""
 
 volumes: []
 # - name: foo
