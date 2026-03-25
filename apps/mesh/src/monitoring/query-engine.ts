@@ -36,12 +36,17 @@ export class DuckDBEngine implements QueryEngine {
   }
 
   /**
-   * Eagerly check whether @duckdb/node-api can be loaded.
-   * Returns true if the module is available, false otherwise.
+   * Eagerly check whether @duckdb/node-api can be loaded AND instantiated.
+   * Returns true if an instance can be created, false otherwise.
+   * This catches cases where the module loads but DuckDB fails to
+   * initialize (e.g. CI environments with constrained thread limits).
    */
   static async isAvailable(): Promise<boolean> {
     try {
-      await import("@duckdb/node-api");
+      const { DuckDBInstance } = await import("@duckdb/node-api");
+      const instance = await DuckDBInstance.create();
+      const conn = instance.connect();
+      conn.disconnectSync();
       return true;
     } catch {
       return false;

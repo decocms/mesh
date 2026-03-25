@@ -9,11 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { makeTestMonitoringRow, writeTestNDJSON } from "./test-utils";
 
-let duckdbAvailable = false;
-try {
-  await import("@duckdb/node-api");
-  duckdbAvailable = true;
-} catch {}
+const duckdbAvailable = await DuckDBEngine.isAvailable();
 
 describe.skipIf(!duckdbAvailable)("DuckDBEngine", () => {
   let tmpDir: string;
