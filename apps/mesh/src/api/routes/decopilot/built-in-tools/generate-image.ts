@@ -2,8 +2,8 @@
  * generate_image Built-in Tool
  *
  * Server-side tool that generates images using the AI SDK's generateImage()
- * function. The image is written as a file part to the stream, and a short
- * text result is returned to the model.
+ * function. When object storage is available, images are persisted there and
+ * served via /api/files; otherwise they are inlined as base64 data URLs.
  */
 
 import type { MeshContext } from "@/core/mesh-context";
@@ -21,6 +21,13 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/webp",
   "image/gif",
 ]);
+
+const MEDIA_TYPE_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
 const GenerateImageInputSchema = z.object({
   prompt: z
@@ -120,13 +127,26 @@ export function createGenerateImageTool(
         const base64 = result.image.base64;
         const rawMediaType = result.image.mediaType ?? "image/png";
         if (!ALLOWED_IMAGE_TYPES.has(rawMediaType)) {
-          throw new Error(`Unsupported generated image type: ${rawMediaType}`);
+          return `Image generation failed: unsupported image type "${rawMediaType}". Please try a different model.`;
+        }
+
+        // Try to persist to object storage; fall back to inline base64
+        let imageUrl: string;
+        if (ctx.objectStorage) {
+          const ext = MEDIA_TYPE_EXT[rawMediaType] ?? "png";
+          const key = `generated-images/${threadId}/${toolCallId}.${ext}`;
+          await ctx.objectStorage.put(key, Buffer.from(base64, "base64"), {
+            contentType: rawMediaType,
+          });
+          imageUrl = `/api/files/${key}`;
+        } else {
+          imageUrl = `data:${rawMediaType};base64,${base64}`;
         }
 
         // Write the image as a file part directly to the stream
         writer.write({
           type: "file",
-          url: `data:${rawMediaType};base64,${base64}`,
+          url: imageUrl,
           mediaType: rawMediaType,
         });
 
@@ -173,9 +193,10 @@ export function createGenerateImageTool(
         });
 
         const errorMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `Image generation failed: ${errorMsg}. Try describing what you'd like to see as an image.`,
-        );
+        // Return error as tool result instead of throwing — throwing from a tool's
+        // execute crashes the entire stream, while returning lets the model see the
+        // error and respond with a friendly message to the user.
+        return `Image generation failed: ${errorMsg}. Please try again or use a different image model.`;
       }
     },
   });
