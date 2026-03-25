@@ -20,7 +20,6 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import {
   useConnection,
-  useConnections,
   useConnectionActions,
   useMCPClient,
   useMCPToolCall,
@@ -40,11 +39,12 @@ import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/web/utils/slugify";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
-  findListToolName,
-  findRegistryToolBySuffix,
+  inferRegistryListToolName,
+  inferRegistryToolBySuffix,
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
+import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
 import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import {
   Link,
@@ -267,7 +267,7 @@ function StoreMCPServerDetailContent() {
   const queryClient = useQueryClient();
   const actions = useConnectionActions();
   const { data: session } = authClient.useSession();
-  const registryConnections = useConnections({ binding: "REGISTRY" });
+  const registryConnections = useRegistryConnections();
 
   // Use passed registryId or default to first one
   const effectiveRegistryId =
@@ -275,16 +275,18 @@ function StoreMCPServerDetailContent() {
 
   const registryConnection = useConnection(effectiveRegistryId);
 
-  // Find the LIST tool from the registry connection
-  const listToolName = findListToolName(registryConnection?.tools);
+  // Infer tool names from connection ID convention (no tool enumeration needed)
+  const listToolName = inferRegistryListToolName(effectiveRegistryId, org.id);
 
-  const versionsToolName = findRegistryToolBySuffix(
-    registryConnection?.tools ?? null,
+  const versionsToolName = inferRegistryToolBySuffix(
+    effectiveRegistryId,
+    org.id,
     "_VERSIONS",
   );
 
-  const getToolName = findRegistryToolBySuffix(
-    registryConnection?.tools ?? null,
+  const getToolName = inferRegistryToolBySuffix(
+    effectiveRegistryId,
+    org.id,
     "_GET",
   );
 

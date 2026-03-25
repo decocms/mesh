@@ -30,7 +30,7 @@ data:
     while true; do
       for dir in $DIRS; do
         if [ -d "${DATA_DIR}/${dir}" ]; then
-          aws s3 sync "${DATA_DIR}/${dir}" "${S3_BASE}/${dir}/" --quiet
+          aws s3 sync "${DATA_DIR}/${dir}" "${S3_BASE}/${dir}/" --size-only --quiet
         fi
       done
       sleep "$INTERVAL"

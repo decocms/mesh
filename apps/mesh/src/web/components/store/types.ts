@@ -215,6 +215,12 @@ export interface RegistryItem {
   };
   /** When the item was last updated */
   updated_at?: string | Date;
+  /** Source registry name (added client-side for merged view) */
+  _sourceName?: string;
+  /** Source registry icon (added client-side for merged view) */
+  _sourceIcon?: string | null;
+  /** Source registry connection ID (added client-side for merged view) */
+  _registryId?: string;
 }
 
 /** Filter item with value and count */

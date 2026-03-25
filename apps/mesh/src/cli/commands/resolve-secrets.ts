@@ -8,18 +8,16 @@
  * ╔══════════════════════════════════════════════════════════════════════╗
  * ║  WARNING — ENCRYPTION_KEY RESOLUTION IS LOAD-BEARING               ║
  * ║                                                                    ║
- * ║  The env var check uses TRUTHY so that ENCRYPTION_KEY="" from the  ║
- * ║  environment falls through to the saved value.                     ║
+ * ║  Both the env var check AND the saved value check use != null      ║
+ * ║  so that ENCRYPTION_KEY="" is PRESERVED regardless of source.      ║
+ * ║  The old CLI (pre-#2776) saved ENCRYPTION_KEY as "" —              ║
+ * ║  CredentialVault hashes this via SHA-256("") and all existing      ║
+ * ║  data is encrypted with that key. Cloud deployments that set       ║
+ * ║  ENCRYPTION_KEY="" as an env var (no secrets.json) also need       ║
+ * ║  the empty string forwarded, not discarded.                        ║
  * ║                                                                    ║
- * ║  The saved value check uses != null so that ENCRYPTION_KEY=""      ║
- * ║  persisted in secrets.json is PRESERVED. The old CLI (pre-#2776)   ║
- * ║  saved ENCRYPTION_KEY as "" — CredentialVault hashes this via      ║
- * ║  SHA-256("") and all existing data is encrypted with that key.     ║
- * ║  Using a truthy check on the saved value would silently discard    ║
- * ║  the "" and generate a random key, breaking AES-GCM decryption.   ║
- * ║                                                                    ║
- * ║  Summary:  env check = TRUTHY  |  saved check = != null           ║
- * ║  See PRs #2785, #2790, #2862 for the history of this logic.       ║
+ * ║  Summary:  env check = != null  |  saved check = != null          ║
+ * ║  See PRs #2785, #2790, #2862, #2871 for the history.              ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 import crypto from "crypto";
@@ -33,20 +31,24 @@ export interface SecretsFile {
 export interface ResolvedSecrets {
   secrets: Required<SecretsFile>;
   modified: boolean;
+  sources: {
+    ENCRYPTION_KEY: "env" | "saved" | "generated";
+    BETTER_AUTH_SECRET: "env" | "saved" | "generated";
+  };
 }
 
 /**
  * Resolve secrets from saved file and environment.
  *
  * Priority for each secret:
- *   1. Truthy env var (non-empty string) — env override wins
+ *   1. Env var (including "" — checked with != null, not truthy)
  *   2. Saved value from secrets.json (including "" via != null check)
  *   3. Generate a new random value and mark modified=true
  *
  * The generated ENCRYPTION_KEY is saved to secrets.json so that subsequent
  * boots (and all replicas sharing the same volume) reuse the same key.
- * If you need a stable key across pods without a shared volume, set a
- * non-empty ENCRYPTION_KEY env var explicitly.
+ * If you need a stable key across pods without a shared volume, set
+ * ENCRYPTION_KEY as an env var (even "" is valid — derives key via SHA-256).
  */
 export function resolveSecrets(
   saved: SecretsFile,
@@ -54,28 +56,35 @@ export function resolveSecrets(
 ): ResolvedSecrets {
   let modified = false;
 
-  // BETTER_AUTH_SECRET — truthy env check, != null saved check
+  // BETTER_AUTH_SECRET — != null env check, != null saved check
   let betterAuthSecret: string;
-  if (env.BETTER_AUTH_SECRET) {
+  let betterAuthSecretSource: string;
+  if (env.BETTER_AUTH_SECRET != null) {
     betterAuthSecret = env.BETTER_AUTH_SECRET;
+    betterAuthSecretSource = "env";
   } else if (saved.BETTER_AUTH_SECRET != null) {
     betterAuthSecret = saved.BETTER_AUTH_SECRET;
+    betterAuthSecretSource = "saved";
   } else {
     betterAuthSecret = crypto.randomBytes(32).toString("base64");
+    betterAuthSecretSource = "generated";
     modified = true;
   }
 
   // ── ENCRYPTION_KEY ──────────────────────────────────────────────────
-  // Env check is TRUTHY so "" from env falls through to the saved value.
-  // Saved check is != null so "" persisted in secrets.json is preserved.
-  // See the big warning at the top of this file.
+  // Both env and saved checks use != null so "" is preserved from either
+  // source. See the big warning at the top of this file.
   let encryptionKey: string;
-  if (env.ENCRYPTION_KEY) {
+  let encryptionKeySource: string;
+  if (env.ENCRYPTION_KEY != null) {
     encryptionKey = env.ENCRYPTION_KEY;
+    encryptionKeySource = "env";
   } else if (saved.ENCRYPTION_KEY != null) {
     encryptionKey = saved.ENCRYPTION_KEY;
+    encryptionKeySource = "saved";
   } else {
     encryptionKey = crypto.randomBytes(32).toString("base64");
+    encryptionKeySource = "generated";
     modified = true;
   }
 
@@ -95,5 +104,12 @@ export function resolveSecrets(
       LOCAL_ADMIN_PASSWORD: localAdminPassword,
     },
     modified,
+    sources: {
+      ENCRYPTION_KEY: encryptionKeySource as "env" | "saved" | "generated",
+      BETTER_AUTH_SECRET: betterAuthSecretSource as
+        | "env"
+        | "saved"
+        | "generated",
+    },
   };
 }

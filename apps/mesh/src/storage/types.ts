@@ -126,10 +126,16 @@ export interface SidebarItem {
   icon: string;
 }
 
+export interface RegistryConfig {
+  registries: Record<string, { enabled: boolean }>;
+  blockedMcps: string[];
+}
+
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
   enabled_plugins: JsonArray<string[]> | null;
+  registry_config: JsonObject<RegistryConfig> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -138,6 +144,7 @@ export interface OrganizationSettings {
   organizationId: string;
   sidebar_items: SidebarItem[] | null;
   enabled_plugins: string[] | null;
+  registry_config: RegistryConfig | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

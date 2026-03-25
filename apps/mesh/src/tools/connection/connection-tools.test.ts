@@ -136,6 +136,7 @@ describe("Connection Tools", () => {
       aiProviders: null as never,
       createMCPProxy: vi.fn().mockResolvedValue({}),
       getOrCreateClient: vi.fn().mockResolvedValue({}),
+      pendingRevalidations: [],
     };
   });
 

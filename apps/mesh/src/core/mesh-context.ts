@@ -344,6 +344,9 @@ export interface MeshContext {
     key: string,
   ) => Promise<Client>;
 
+  // Revalidation promises from SWR cache — awaited in middleware before ctx goes out of scope
+  pendingRevalidations: Promise<void>[];
+
   // AI Provider keys storage
 
   // Object storage (S3-compatible) — null when S3 isn't configured or no org scope

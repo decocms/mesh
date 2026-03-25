@@ -112,9 +112,11 @@ export async function startServer(options: ServeOptions): Promise<void> {
     // File doesn't exist or is invalid
   }
 
+  const rawEnvEncKey = process.env.ENCRYPTION_KEY;
+  const rawEnvAuthSecret = process.env.BETTER_AUTH_SECRET;
   const { secrets, modified: secretsModified } = resolveSecrets(savedSecrets, {
-    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    BETTER_AUTH_SECRET: rawEnvAuthSecret,
+    ENCRYPTION_KEY: rawEnvEncKey,
   });
 
   process.env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;

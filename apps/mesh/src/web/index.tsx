@@ -352,7 +352,8 @@ const settingsSsoRoute = createRoute({
   path: "/sso",
   component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
 });
-// Store
+
+// Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/store/$appName",
@@ -365,6 +366,15 @@ const storeDetailRoute = createRoute({
       serverName: z.string().optional(),
       itemId: z.string().optional(),
     }),
+  ),
+});
+
+// Org-level plugin route (mirrors /$org/projects/$virtualMcpId/$pluginId for org-admin)
+const orgPluginRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/plugins/$pluginId",
+  component: lazyRouteComponent(
+    () => import("./layouts/org-plugin-layout.tsx"),
   ),
 });
 
@@ -687,6 +697,7 @@ const orgRoutes = [
   projectsListRoute,
   settingsWithChildren,
   storeDetailRoute,
+  orgPluginRoute,
   agentsRoute,
   agentDetailRoute,
   virtualMcpWithChildren,

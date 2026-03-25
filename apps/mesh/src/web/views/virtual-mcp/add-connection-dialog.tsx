@@ -16,7 +16,8 @@ import { authClient } from "@/web/lib/auth-client";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { findListToolName } from "@/web/utils/registry-utils";
+import { inferRegistryListToolName } from "@/web/utils/registry-utils";
+import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -35,7 +36,6 @@ import {
   type ConnectionEntity,
   SELF_MCP_ALIAS_ID,
   useConnectionActions,
-  useConnections,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
@@ -265,15 +265,13 @@ function AddConnectionDialogContent({
   const grouped = groupConnections(allConnections);
 
   // Registry / catalog - use server-side binding filter
-  const registryConnections = useConnections({ binding: "REGISTRY" }).sort(
-    (a, b) => {
-      const isSelfA = a.app_name === "@deco/management-mcp";
-      const isSelfB = b.app_name === "@deco/management-mcp";
-      if (isSelfA && !isSelfB) return 1;
-      if (!isSelfA && isSelfB) return -1;
-      return 0;
-    },
-  );
+  const registryConnections = useRegistryConnections().sort((a, b) => {
+    const isSelfA = a.app_name === "@deco/management-mcp";
+    const isSelfB = b.app_name === "@deco/management-mcp";
+    if (isSelfA && !isSelfB) return 1;
+    if (!isSelfA && isSelfB) return -1;
+    return 0;
+  });
   const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
     LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
     (existing) => existing ?? "",
@@ -283,7 +281,9 @@ function AddConnectionDialogContent({
       ? registryConnections.find((r) => r.id === selectedRegistryId)
       : undefined) ?? registryConnections[0];
   const registryId = registryConnection?.id ?? "";
-  const registryListToolName = findListToolName(registryConnection?.tools);
+  const registryListToolName = registryId
+    ? inferRegistryListToolName(registryId, org.id)
+    : "";
   const registryDiscovery = useStoreDiscovery({
     registryId,
     listToolName: registryListToolName,

@@ -8,6 +8,12 @@
 
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { JSONCodec, StorageType, type JetStreamClient, type KV } from "nats";
+import { meter } from "../observability";
+
+const cacheCounter = meter.createCounter("mcp_list_cache.fetches", {
+  description: "MCP list cache fetch outcomes (hit, miss, error)",
+  unit: "{fetches}",
+});
 
 export type McpListType = "tools" | "resources" | "prompts";
 
@@ -93,6 +99,14 @@ function isMethodNotFound(err: unknown): boolean {
   return err instanceof McpError && err.code === ErrorCode.MethodNotFound;
 }
 
+function isConnectionClosed(err: unknown): boolean {
+  return (
+    err instanceof McpError &&
+    err.code === -32000 &&
+    /connection closed/i.test(err.message)
+  );
+}
+
 /**
  * Fetch with cache: checks cache first, then revalidates in background.
  * On cache hit, returns cached data immediately and revalidates in background.
@@ -102,16 +116,18 @@ export async function fetchWithCache(
   connectionId: string,
   fetchLive: () => Promise<unknown[]>,
   cache: McpListCache | null,
+  onRevalidation?: (promise: Promise<void>) => void,
 ): Promise<unknown[] | null> {
   if (!cache) {
     try {
       return await fetchLive();
     } catch (err) {
       if (isMethodNotFound(err)) return [];
-      console.warn(
-        `[fetchWithCache] ${type}:${connectionId} no-cache live FAILED:`,
-        err,
-      );
+      cacheCounter.add(1, {
+        type,
+        outcome: "error",
+        stage: "no_cache",
+      });
       return null;
     }
   }
@@ -124,37 +140,45 @@ export async function fetchWithCache(
     try {
       const data = await fetchLive();
       cache.set(type, connectionId, data).catch(() => {});
+      cacheCounter.add(1, { type, outcome: "miss", stage: "miss" });
       return data;
     } catch (err) {
       if (isMethodNotFound(err)) {
         cache.set(type, connectionId, []).catch(() => {});
         return [];
       }
-      console.warn(
-        `[fetchWithCache] ${type}:${connectionId} cache-miss live FAILED:`,
-        err,
-      );
+      cacheCounter.add(1, {
+        type,
+        outcome: "error",
+        stage: "miss",
+      });
       return null;
     }
   }
 
+  cacheCounter.add(1, { type, outcome: "hit", stage: "hit" });
   // Cache hit: return immediately, revalidate in background
   const revalKey = `${type}:${connectionId}`;
   if (!revalidating.has(revalKey)) {
     revalidating.add(revalKey);
-    fetchLive()
+    const revalPromise = fetchLive()
       .then((data) => cache.set(type, connectionId, data))
       .catch((err) => {
-        if (isMethodNotFound(err)) {
-          cache.set(type, connectionId, []).catch(() => {});
+        if (isMethodNotFound(err) || isConnectionClosed(err)) {
+          if (isMethodNotFound(err)) {
+            cache.set(type, connectionId, []).catch(() => {});
+          }
           return;
         }
-        console.warn(
-          `[fetchWithCache] ${type}:${connectionId} background revalidation FAILED:`,
-          err,
-        );
+        cacheCounter.add(1, {
+          type,
+          outcome: "error",
+          stage: "revalidation",
+        });
       })
       .finally(() => revalidating.delete(revalKey));
+
+    onRevalidation?.(revalPromise);
   }
 
   return cached;
