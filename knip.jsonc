@@ -7,10 +7,7 @@
       "project": [],
       "ignoreDependencies": []
     },
-    "packages/ui": {
-      // Tailwind v4 @source directives in CSS are not JS imports; knip reports them as unresolved
-      "ignore": ["src/styles/global.css"]
-    },
+    "packages/ui": {},
     "packages/runtime": {
       "entry": ["scripts/generate-json-schema.ts"]
     },
@@ -23,16 +20,13 @@
         "src/api/routes/dev-only.ts"
       ],
       "ignore": [
-        "src/api/index.ts",
-        "src/ai-providers/adapters/deco-ai-gateway.ts"
+        "src/api/index.ts"
       ]
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
     },
-    "packages/typegen": {
-      "ignore": ["src/*.test.ts"]
-    }
+    "packages/typegen": {}
   },
   "ignoreDependencies": ["@types/*"],
   // TODO(@camudo): Remove this config once I fix all unused type exports
