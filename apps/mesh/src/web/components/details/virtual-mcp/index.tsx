@@ -711,10 +711,14 @@ function VirtualMcpDetailViewWithData({
     settingsConnectionId: null,
   });
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState(
-    localStorage.getItem("agent-detail-tab") || "instructions",
-  );
+  // Tab state — clamp to valid tabs for variant
+  const validTabIds = isAgent
+    ? ["instructions", "connections", "capabilities"]
+    : ["instructions", "connections", "sidebar", "automations"];
+  const [activeTab, setActiveTab] = useState(() => {
+    const stored = localStorage.getItem("agent-detail-tab") || "instructions";
+    return validTabIds.includes(stored) ? stored : "instructions";
+  });
 
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
@@ -938,6 +942,7 @@ Define step-by-step how the agent should handle requests.
     },
     ...(isAgent ? [{ id: "capabilities", label: "Capabilities" }] : []),
     ...(!isAgent ? [{ id: "sidebar", label: "Sidebar" }] : []),
+    ...(!isAgent ? [{ id: "automations", label: "Automations" }] : []),
   ];
 
   return (
