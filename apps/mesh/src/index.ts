@@ -81,7 +81,7 @@ if (!process.env.DECO_CLI) {
   logConfiguration(env);
 }
 
-Bun.serve({
+const server = Bun.serve({
   // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
   idleTimeout: 0,
   port,
@@ -123,3 +123,47 @@ if (env.DECOCMS_LOCAL_MODE) {
       }
     });
 }
+
+// ============================================================================
+// Graceful Shutdown
+// ============================================================================
+
+let shuttingDown = false;
+
+async function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.error("[shutdown] Timed out after 55s, forcing exit.");
+    process.exit(1);
+  }, 55_000);
+  forceExitTimer.unref?.();
+
+  let exitCode = 0;
+  try {
+    // 1. Mark as shutting down — readiness returns 503 immediately
+    app.markShuttingDown();
+
+    // 2. Give K8s time to notice the 503 and stop routing traffic before
+    //    we close connections (~2s is enough for most configurations)
+    await new Promise((r) => setTimeout(r, 2_000));
+
+    // 3. Stop accepting new connections, force-close active ones
+    //    (SSE streams are long-lived and would block graceful drain indefinitely)
+    await server.stop(true);
+
+    // 4. Stop workers, flush telemetry, close DB
+    await app.shutdown();
+  } catch (err) {
+    console.error("[shutdown] Error during shutdown:", err);
+    exitCode = 1;
+  }
+
+  clearTimeout(forceExitTimer);
+  process.exit(exitCode);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

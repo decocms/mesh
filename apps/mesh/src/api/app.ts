@@ -23,9 +23,10 @@ import {
   createMeshContextFactory,
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
-import { getDb, type MeshDatabase } from "../database";
+import { closeDatabase, getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
+  flushMonitoringData,
   meter,
   prometheusExporter,
   tracer,
@@ -201,6 +202,7 @@ export interface CreateAppOptions {
  */
 export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
+  let isShuttingDown = false;
 
   // Clear previous monitoring retention timer (cleanup during HMR)
   if (currentRetentionTimer) {
@@ -383,7 +385,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     mcpListCache.teardown();
     modelListCache.teardown();
     setMcpListCache(null);
-    natsProvider?.drain().catch(() => {});
   };
 
   const app = new Hono<Env>();
@@ -452,7 +453,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Health Check & Metrics
   // ============================================================================
 
-  // Health check endpoint (no auth required)
+  // Health check endpoint (no auth required) — kept for backwards compatibility
   app.get(SYSTEM_PATHS.HEALTH, (c) => {
     return c.json({
       status: "ok",
@@ -461,8 +462,18 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
   });
 
-  // Readiness probe — checks PostgreSQL (hard) and NATS (soft)
-  app.get(SYSTEM_PATHS.READYZ, async (c) => {
+  // Liveness probe — the process is alive and the event loop is not stuck
+  app.get(SYSTEM_PATHS.HEALTH_LIVE, (c) => {
+    return c.json({ status: "ok" });
+  });
+
+  // Readiness probe — returns 503 during shutdown so K8s drains traffic before liveness fails,
+  // and checks that DB and NATS are reachable
+  app.get(SYSTEM_PATHS.HEALTH_READY, async (c) => {
+    if (isShuttingDown) {
+      return c.json({ status: "shutting_down" }, 503);
+    }
+
     const services: Record<string, { status: "up" | "down" }> = {};
 
     // Check PostgreSQL (hard dependency — determines readiness)
@@ -474,6 +485,38 @@ export async function createApp(options: CreateAppOptions = {}) {
     }
 
     // Check NATS (soft dependency — reported but does not block readiness)
+    if (natsProvider) {
+      services.nats = natsProvider.isConnected()
+        ? { status: "up" }
+        : { status: "down" };
+    } else {
+      services.nats = { status: "down" };
+    }
+
+    const ready = services.postgres.status === "up";
+    const httpStatus = ready ? 200 : 503;
+
+    return c.json(
+      { status: ready ? "ready" : "not_ready", services },
+      httpStatus,
+    );
+  });
+
+  // Legacy readiness probe — redirects to /health/ready
+  app.get(SYSTEM_PATHS.READYZ, async (c) => {
+    if (isShuttingDown) {
+      return c.json({ status: "shutting_down" }, 503);
+    }
+
+    const services: Record<string, { status: "up" | "down" }> = {};
+
+    try {
+      await sql`SELECT 1`.execute(database.db);
+      services.postgres = { status: "up" };
+    } catch {
+      services.postgres = { status: "down" };
+    }
+
     if (natsProvider) {
       services.nats = natsProvider.isConnected()
         ? { status: "up" }
@@ -1360,5 +1403,58 @@ export async function createApp(options: CreateAppOptions = {}) {
     );
   });
 
-  return app;
+  const markShuttingDown = () => {
+    isShuttingDown = true;
+  };
+
+  const shutdown = async () => {
+    console.log("[shutdown] Stopping workers...");
+
+    // Phase 1: Stop all workers/consumers in parallel (independent of each other)
+    await Promise.allSettled([
+      currentEventBus?.isRunning() ? currentEventBus.stop() : Promise.resolve(),
+      sseHub.stop(),
+      currentCronWorkerCleanup
+        ? Promise.resolve(currentCronWorkerCleanup()).finally(() => {
+            currentCronWorkerCleanup = null;
+          })
+        : Promise.resolve(),
+      currentDecopilotCleanup
+        ? Promise.resolve(currentDecopilotCleanup()).finally(() => {
+            currentDecopilotCleanup = null;
+          })
+        : Promise.resolve(),
+    ]);
+
+    // Phase 2: Clear timers
+    if (currentRetentionTimer) {
+      clearInterval(currentRetentionTimer);
+      currentRetentionTimer = null;
+    }
+
+    // Phase 3: Drain NATS (after all consumers stopped)
+    if (natsProvider) {
+      await natsProvider
+        .drain()
+        .catch((err: unknown) =>
+          console.error("[shutdown] NATS drain error:", err),
+        );
+    }
+
+    // Phase 4: Flush telemetry
+    console.log("[shutdown] Flushing telemetry...");
+    await flushMonitoringData().catch((err: unknown) =>
+      console.error("[shutdown] Telemetry flush error:", err),
+    );
+
+    // Phase 5: Close database (last — other steps may need DB)
+    console.log("[shutdown] Closing database...");
+    await closeDatabase(database).catch((err: unknown) =>
+      console.error("[shutdown] Database close error:", err),
+    );
+
+    console.log("[shutdown] Cleanup complete.");
+  };
+
+  return Object.assign(app, { markShuttingDown, shutdown });
 }
