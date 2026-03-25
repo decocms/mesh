@@ -9,20 +9,20 @@ export interface VersionConfig {
 
 export const versions: VersionConfig[] = [
   {
-    id: "2026-03-10",
-    label: "2026-03-10 (Current)",
-    shortLabel: "2026-03-10",
+    id: "deco-studio",
+    label: "deco Studio - current",
+    shortLabel: "deco Studio - current",
     description: "Current production docs",
     isLatest: true,
-    root: "mcp-mesh/quickstart",
+    root: "studio/quickstart",
   },
   {
-    id: "2025-10-10",
-    label: "2025-10-10",
-    shortLabel: "2025-10-10",
-    description: "Previous version docs",
+    id: "deco-chat",
+    label: "deco.chat - legacy admin",
+    shortLabel: "deco.chat - legacy admin",
+    description: "Legacy deco.chat docs",
     isLatest: false,
-    root: "introduction",
+    root: "getting-started/ai-builders",
   },
 ];
 
