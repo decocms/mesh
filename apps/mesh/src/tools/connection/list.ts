@@ -37,6 +37,7 @@ import {
   fetchWithCache,
 } from "../../mcp-clients/mcp-list-cache";
 import { clientFromConnection } from "../../mcp-clients";
+import { getConnectionSlug } from "../../shared/utils/connection-slug";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
@@ -237,6 +238,12 @@ const ConnectionListInputSchema = CollectionListInputSchema.extend({
     .describe(
       "Whether to include VIRTUAL connections in the results. Defaults to false.",
     ),
+  slug: z
+    .string()
+    .optional()
+    .describe(
+      "Filter by connection slug. Matches against app_name, or a slug derived from connection_url or title.",
+    ),
 });
 
 /**
@@ -371,6 +378,14 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
           results.filter((c): c is ConnectionEntity => c !== null),
         )
       : connections;
+
+    // Apply slug filter if specified (matches computed slug from app_name, connection_url, or title)
+    if (input.slug) {
+      const slug = input.slug;
+      filteredConnections = filteredConnections.filter(
+        (conn) => getConnectionSlug(conn) === slug,
+      );
+    }
 
     // Apply where filter if specified
     if (input.where) {
