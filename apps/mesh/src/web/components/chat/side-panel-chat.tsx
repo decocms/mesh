@@ -8,6 +8,7 @@ import { Users03 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
+
 import { Chat, useChat } from "./index";
 import { ChatContextPanel } from "./context-panel";
 

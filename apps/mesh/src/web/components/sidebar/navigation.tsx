@@ -34,7 +34,7 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
   };
 
   return (
-    <SidebarMenuItem key={item.key}>
+    <SidebarMenuItem key={item.key} className={cn(item.isActive && "z-10")}>
       <SidebarMenuButton
         onClick={handleClick}
         isActive={item.isActive}
@@ -67,7 +67,7 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
       return (
         <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
+            <SidebarMenu className="gap-1.5">
               {section.items.map((item) => (
                 <SidebarNavigationItem key={item.key} item={item} />
               ))}

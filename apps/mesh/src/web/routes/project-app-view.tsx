@@ -123,7 +123,6 @@ export default function ProjectAppView() {
 
   return (
     <Page>
-      <Page.Header />
       <Page.Content>
         <ErrorBoundary key={`${connectionId}:${toolName}`} fallback={undefined}>
           <Suspense

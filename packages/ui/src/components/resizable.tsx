@@ -3,6 +3,7 @@
 import type * as React from "react";
 import { DotsGrid } from "@untitledui/icons";
 import * as ResizablePrimitive from "react-resizable-panels";
+export type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -53,5 +54,4 @@ function ResizableHandle({
   );
 }
 
-export type { ImperativePanelHandle } from "react-resizable-panels";
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup };

@@ -52,6 +52,7 @@ import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
 import * as migration052threadagentids from "./052-thread-agent-ids.ts";
 import * as migration052spaces from "./052-spaces.ts";
+import * as migration054automationprojectscope from "./054-automation-project-scope.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -118,6 +119,7 @@ const migrations: Record<string, Migration> = {
   "051-org-sso": migration051orgsso,
   "052-thread-agent-ids": migration052threadagentids,
   "052-spaces": migration052spaces,
+  "054-automation-project-scope": migration054automationprojectscope,
 };
 
 export default migrations;

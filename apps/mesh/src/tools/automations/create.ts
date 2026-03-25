@@ -26,6 +26,7 @@ export const AUTOMATION_CREATE = defineTool({
   },
   inputSchema: z.object({
     name: z.string().min(1).max(255),
+    virtual_mcp_id: z.string().optional().nullable(),
     agent: z.object({
       id: z.string(),
     }),
@@ -129,6 +130,7 @@ export const AUTOMATION_CREATE = defineTool({
       models: JSON.stringify(models),
       temperature: input.temperature,
       active: input.active,
+      virtual_mcp_id: input.virtual_mcp_id ?? null,
     });
 
     return {

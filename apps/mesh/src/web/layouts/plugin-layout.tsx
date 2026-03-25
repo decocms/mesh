@@ -91,7 +91,6 @@ type PluginConfigOutput = {
 
 export function PluginLayout({
   bindingName,
-  renderHeader,
   renderEmptyState,
 }: PluginLayoutProps) {
   const { org, project } = useProjectContext();
@@ -253,17 +252,6 @@ export function PluginLayout({
   return (
     <PluginContextProvider value={pluginContext}>
       <Page>
-        <Page.Header>
-          <Page.Header.Left>
-            {renderHeader({
-              // Only show the configured connection (read-only display)
-              connections: [toPluginConnectionEntity(configuredConnection)],
-              selectedConnectionId: configuredConnection.id,
-              // No-op since connection is controlled by project settings
-              onConnectionChange: () => {},
-            })}
-          </Page.Header.Left>
-        </Page.Header>
         <Page.Content>
           <Suspense
             fallback={

@@ -27,7 +27,12 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { CheckDone01, MessageTextCircle02 } from "@untitledui/icons";
+import {
+  ChevronLeft,
+  ChevronRight,
+  LayoutLeft,
+  MessageTextCircle02,
+} from "@untitledui/icons";
 import {
   ProjectContextProvider,
   ProjectContextProviderProps,
@@ -58,11 +63,13 @@ function PersistentResizablePanel({
   const [_isPending, startTransition] = useTransition();
   const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
+    25,
   );
 
   const handleResize = (size: number) =>
-    startTransition(() => setChatPanelWidth(size));
+    startTransition(() => {
+      if (size > 0) setChatPanelWidth(size);
+    });
 
   return (
     <ResizablePanel
@@ -135,7 +142,7 @@ function MobileFABsAndDrawers({
         )}
         aria-label="Toggle tasks"
       >
-        <CheckDone01 size={20} />
+        <LayoutLeft size={20} />
       </button>
       <button
         type="button"
@@ -232,16 +239,55 @@ function ShellLayoutInner({
       {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
           through the rounded corners of the inner card */}
       <SidebarInset
-        className="pt-1.5"
+        className="flex flex-col"
         style={{ background: "transparent", containerType: "inline-size" }}
       >
+        {/* Top toolbar — sits in the sidebar-colored area above all panels */}
+        {!isMobile && (
+          <div className="shrink-0 flex items-center justify-between px-2 h-10">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            {isSpaceRoute && (
+              <button
+                type="button"
+                onClick={() => setChatOpen((prev) => !prev)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  chatOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle chat"
+              >
+                <MessageTextCircle02 size={16} />
+              </button>
+            )}
+          </div>
+        )}
+
         <ResizablePanelGroup
           direction="horizontal"
-          className="h-full"
+          className="flex-1 min-h-0"
           style={{ overflow: "visible" }}
         >
           {/* Desktop: Tasks panel on the left */}
-          {!isMobile && (
+          {!isMobile && isSpaceRoute && (
             <>
               <PersistentTasksResizablePanel
                 panelRef={tasksPanelRef}

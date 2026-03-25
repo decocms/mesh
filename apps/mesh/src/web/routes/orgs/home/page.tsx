@@ -251,11 +251,11 @@ function HomeChatContent({
               </div>
             )}
           </div>
-          {isDecoUser && isOrgAdmin && (
-            <div className="w-full max-w-[500px] mx-auto pb-6">
+          <div className="w-full max-w-[500px] mx-auto flex flex-col gap-2 pb-6">
+            {isDecoUser && isOrgAdmin && (
               <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
