@@ -34,11 +34,15 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
   };
 
   return (
-    <SidebarMenuItem key={item.key}>
+    <SidebarMenuItem key={item.key} className={cn(item.isActive && "z-10")}>
       <SidebarMenuButton
         onClick={handleClick}
         isActive={item.isActive}
         tooltip={item.label}
+        className={cn(
+          item.isActive &&
+            "[box-shadow:0_0_0_2px_var(--sidebar),0_0_0_4px_var(--sidebar-foreground)]",
+        )}
       >
         <span className="[&>svg]:size-8">{item.icon}</span>
       </SidebarMenuButton>
@@ -67,7 +71,7 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
       return (
         <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
+            <SidebarMenu className="gap-1.5">
               {section.items.map((item) => (
                 <SidebarNavigationItem key={item.key} item={item} />
               ))}
@@ -95,7 +99,7 @@ function NavigationSidebarInner({
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-2 pb-2",
+          "flex flex-col flex-1 overflow-x-hidden mt-1 px-2.5 pb-2.5",
           contentClassName,
         )}
       >

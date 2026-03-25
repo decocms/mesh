@@ -10,6 +10,7 @@ import { Plus, Users03, X } from "@untitledui/icons";
 import { Suspense, useState, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
+import { useRouterState } from "@tanstack/react-router";
 import { Chat, useChat } from "./index";
 import { ChatContextPanel } from "./context-panel";
 
@@ -19,6 +20,10 @@ import { useAiProviders } from "@/web/hooks/collections/use-llm";
 function ChatPanelContent() {
   const { org } = useProjectContext();
   const [, setOpen] = useDecoChatOpen();
+  const routerState = useRouterState();
+  const isSpaceRoute =
+    routerState.location.pathname.startsWith(`/${org.slug}/spaces/`) &&
+    !routerState.location.pathname.includes("/settings");
   const aiProviders = useAiProviders();
   const { selectedVirtualMcp, isChatEmpty, activeTaskId, createTask, tasks } =
     useChat();
@@ -93,31 +98,33 @@ function ChatPanelContent() {
               />
             )}
           </Page.Header.Left>
-          <Page.Header.Right className="gap-1">
-            <button
-              type="button"
-              onClick={handleNewTask}
-              disabled={isPending}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              title="New chat"
-            >
-              <Plus
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
-              title="Close chat"
-            >
-              <X
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-          </Page.Header.Right>
+          {!isSpaceRoute && (
+            <Page.Header.Right className="gap-1">
+              <button
+                type="button"
+                onClick={handleNewTask}
+                disabled={isPending}
+                className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="New chat"
+              >
+                <Plus
+                  size={16}
+                  className="text-muted-foreground group-hover:text-foreground transition-colors"
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
+                title="Close chat"
+              >
+                <X
+                  size={16}
+                  className="text-muted-foreground group-hover:text-foreground transition-colors"
+                />
+              </button>
+            </Page.Header.Right>
+          )}
         </Page.Header>
 
         <Chat.Main>

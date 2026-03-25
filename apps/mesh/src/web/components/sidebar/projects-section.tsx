@@ -14,6 +14,13 @@ import {
   CollapsibleTrigger,
 } from "@deco/ui/components/collapsible.tsx";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
+import {
   ChevronDown,
   DotsHorizontal,
   LayoutLeft,
@@ -24,6 +31,7 @@ import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useProjects } from "@/web/hooks/use-projects";
 import { useCreateProject } from "@/web/hooks/use-create-project";
+import { useDeleteProject } from "@/web/hooks/use-delete-project";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -39,6 +47,8 @@ function ProjectListItem({
     select: (s) => s.location.pathname,
   });
   const [isOpen, setIsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { deleteProject } = useDeleteProject();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -54,45 +64,74 @@ function ProjectListItem({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <SidebarMenuItem>
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton
-            tooltip={project.title}
-            className="group/project-row h-9"
-          >
-            {/* Icon: show avatar by default, chevron on hover */}
-            <span className="relative shrink-0 size-4 flex items-center justify-center mr-1">
-              <span className="group-hover/project-row:hidden">
-                <AgentAvatar
-                  icon={project.icon}
-                  name={project.title}
-                  size="xs"
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton
+              tooltip={project.title}
+              className="group/project-row h-9 relative"
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                setMenuOpen(true);
+              }}
+            >
+              {/* Invisible anchor for the dropdown — covers the full button */}
+              <DropdownMenuTrigger asChild>
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  aria-hidden
+                />
+              </DropdownMenuTrigger>
+              {/* Icon: show avatar by default, chevron on hover */}
+              <span className="relative shrink-0 size-4 flex items-center justify-center mr-1">
+                <span className="group-hover/project-row:hidden">
+                  <AgentAvatar
+                    icon={project.icon}
+                    name={project.title}
+                    size="xs"
+                  />
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={cn(
+                    "hidden group-hover/project-row:block text-muted-foreground transition-transform duration-200",
+                    !isOpen && "-rotate-90",
+                  )}
                 />
               </span>
-              <ChevronDown
-                size={14}
-                className={cn(
-                  "hidden group-hover/project-row:block text-muted-foreground transition-transform duration-200",
-                  !isOpen && "-rotate-90",
-                )}
-              />
-            </span>
-            <span className="truncate flex-1 hidden">{project.title}</span>
-            {/* Gear icon: visible on hover */}
-            <button
-              type="button"
-              className="text-muted-foreground opacity-0 group-hover/project-row:opacity-100 transition-opacity hidden shrink-0 p-1 hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
+              <span className="truncate flex-1 hidden">{project.title}</span>
+              {/* Gear icon: visible on hover */}
+              <button
+                type="button"
+                className="text-muted-foreground opacity-0 group-hover/project-row:opacity-100 transition-opacity hidden shrink-0 p-1 hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate({
+                    to: "/$org/projects/$virtualMcpId/settings",
+                    params: { org, virtualMcpId: project.id },
+                  });
+                }}
+              >
+                <Settings01 size={16} />
+              </button>
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem
+              onClick={() =>
                 navigate({
                   to: "/$org/projects/$virtualMcpId/settings",
                   params: { org, virtualMcpId: project.id },
-                });
-              }}
+                })
+              }
             >
-              <Settings01 size={16} />
-            </button>
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => deleteProject(project.id)}>
+              Close
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <CollapsibleContent className="mt-0.5 flex flex-col gap-0.5">
           {pinnedViews.map((view) => {
             const viewPath = `${projectBasePath}/apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`;

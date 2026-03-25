@@ -12,12 +12,19 @@ import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import {
+  DotsHorizontal,
   LayoutLeft,
   Loading01,
   MessageTextCircle02,
-  Settings01,
   X,
 } from "@untitledui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjectContext, useVirtualMCPs } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
@@ -54,27 +61,30 @@ function ProjectHeader({
           </span>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() =>
-          navigate({
-            to: "/$org/projects/$virtualMcpId/settings",
-            params: { org, virtualMcpId: project.id },
-          })
-        }
-        className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-        title="Project settings"
-      >
-        <Settings01 size={14} className="text-muted-foreground" />
-      </button>
-      <button
-        type="button"
-        onClick={onClose}
-        className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-        title="Close panel"
-      >
-        <X size={14} className="text-muted-foreground" />
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
+          >
+            <DotsHorizontal size={14} className="text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() =>
+              navigate({
+                to: "/$org/projects/$virtualMcpId/settings",
+                params: { org, virtualMcpId: project.id },
+              })
+            }
+          >
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onClose}>Close</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

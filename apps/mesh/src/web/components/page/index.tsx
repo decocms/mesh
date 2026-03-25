@@ -57,9 +57,7 @@ function PageHeader({
         )}
         {left}
       </div>
-      <div className="flex items-center">
-        {right}
-      </div>
+      <div className="flex items-center">{right}</div>
     </div>
   );
 }

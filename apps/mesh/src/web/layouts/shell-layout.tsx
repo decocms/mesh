@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Chat } from "@/web/components/chat/index";
+import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
@@ -30,7 +30,8 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   ChevronLeft,
   ChevronRight,
-  CheckDone01,
+  Edit05,
+  LayoutLeft,
   MessageTextCircle02,
 } from "@untitledui/icons";
 import {
@@ -131,7 +132,7 @@ function MobileFABs({
         )}
         aria-label="Toggle tasks"
       >
-        <CheckDone01 size={20} />
+        <LayoutLeft size={20} />
       </button>
       <button
         type="button"
@@ -161,6 +162,7 @@ function ShellLayoutInner({
 }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
   const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
+  const { createTask } = useChat();
   const isMobile = useIsMobile();
   const [chatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
@@ -236,8 +238,21 @@ function ShellLayoutInner({
                 )}
                 title="Toggle tasks"
               >
-                <CheckDone01 size={14} />
+                <LayoutLeft size={14} />
               </button>
+              {!tasksOpen && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    createTask();
+                    setChatOpen(true);
+                  }}
+                  className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 border border-sidebar-foreground/20 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors animate-in fade-in-0 zoom-in-95 duration-150"
+                  title="New task"
+                >
+                  <Edit05 size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => window.history.back()}
@@ -297,7 +312,9 @@ function ShellLayoutInner({
                   </div>
                 </div>
               </PersistentTasksResizablePanel>
-              <ResizableHandle className="bg-sidebar" />
+              <ResizableHandle
+                className={cn("bg-sidebar", chatFullWidth && "hidden")}
+              />
             </>
           )}
 
@@ -316,7 +333,8 @@ function ShellLayoutInner({
                   "border-t border-l border-sidebar-border",
                   "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
                   "rounded-tl-[0.75rem]",
-                  (hasRightPanel || isMobile) && "rounded-tr-[0.75rem] border-r",
+                  (hasRightPanel || isMobile) &&
+                    "rounded-tr-[0.75rem] border-r",
                 )}
               >
                 <div className="flex-1 overflow-hidden">
@@ -335,7 +353,7 @@ function ShellLayoutInner({
                   className="overflow-hidden bg-sidebar"
                   order={3}
                 >
-                  <div className="h-full pl-1.5 pr-1.5 pb-1.5">
+                  <div className="h-full pr-1.5 pb-1.5">
                     <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                       <ChatPanel />
                     </div>

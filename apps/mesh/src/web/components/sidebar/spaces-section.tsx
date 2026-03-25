@@ -25,6 +25,7 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -94,6 +95,7 @@ function AgentGridItem({
 export function PinSpacePopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const allSpaces = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
@@ -130,124 +132,134 @@ export function PinSpacePopover() {
   const handleDefaultAgentClick = (agentId: string) => {
     setOpen(false);
     setSearch("");
-    navigate({
-      to: "/$org/spaces/$virtualMcpId",
-      params: { org: org.slug, virtualMcpId: agentId },
-    });
+    if (agentId === SITE_EDITOR_AGENT.id) {
+      setSiteEditorModalOpen(true);
+    } else {
+      navigate({
+        to: "/$org/spaces/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: agentId },
+      });
+    }
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <SidebarMenuItem>
-        <PopoverTrigger asChild>
-          <SidebarMenuButton tooltip="Browse agents">
-            <Plus className="!opacity-100" />
-          </SidebarMenuButton>
-        </PopoverTrigger>
-      </SidebarMenuItem>
-      <PopoverContent
-        className="w-[320px] p-0 overflow-hidden"
-        side="right"
-        align="start"
-      >
-        <div className="flex flex-col max-h-[min(560px,70dvh)]">
-          {/* Search */}
-          <CollectionSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search agents..."
-          />
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <SidebarMenuItem>
+          <PopoverTrigger asChild>
+            <SidebarMenuButton tooltip="Browse agents">
+              <Plus className="!opacity-100" />
+            </SidebarMenuButton>
+          </PopoverTrigger>
+        </SidebarMenuItem>
+        <PopoverContent
+          className="w-[320px] p-0 overflow-hidden"
+          side="right"
+          align="start"
+        >
+          <div className="flex flex-col max-h-[min(560px,70dvh)]">
+            {/* Search */}
+            <CollectionSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search agents..."
+            />
 
-          {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
-            {/* Your Agents section */}
-            <div className="px-1 pt-3 pb-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                Your Agents
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-1">
-              {/* Create new button */}
-              <button
-                type="button"
-                disabled={isCreating}
-                onClick={() => {
-                  createVirtualMCP();
-                  setOpen(false);
-                }}
-                className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 rounded-lg border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
-                  <Plus size={14} className="text-muted-foreground" />
-                </div>
-                <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground">
-                  Create new
+            {/* Scrollable content */}
+            <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
+              {/* Your Agents section */}
+              <div className="px-1 pt-3 pb-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Your Agents
                 </span>
-              </button>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {/* Create new button */}
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  onClick={() => {
+                    createVirtualMCP();
+                    setOpen(false);
+                  }}
+                  className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-8 h-8 rounded-lg border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
+                    <Plus size={14} className="text-muted-foreground" />
+                  </div>
+                  <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground">
+                    Create new
+                  </span>
+                </button>
 
-              {userAgents.map((space) => (
-                <AgentGridItem
-                  key={space.id}
-                  space={space}
-                  onClick={() => handleSelect(space)}
-                />
-              ))}
+                {userAgents.map((space) => (
+                  <AgentGridItem
+                    key={space.id}
+                    space={space}
+                    onClick={() => handleSelect(space)}
+                  />
+                ))}
+              </div>
+
+              {/* Default Agents section */}
+              {filteredDefaults.length > 0 && (
+                <>
+                  <div className="px-1 pt-4 pb-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Agents
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {filteredDefaults.map((agent) => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        onClick={() => handleDefaultAgentClick(agent.id)}
+                        className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+                      >
+                        <AgentAvatar
+                          icon={agent.icon}
+                          name={agent.title}
+                          size="sm"
+                          className="transition-transform group-hover:scale-110"
+                        />
+                        <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+                          {agent.title}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {userAgents.length === 0 &&
+                filteredDefaults.length === 0 &&
+                !isCreating && (
+                  <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+                    {search ? "No agents found" : "No agents yet"}
+                  </div>
+                )}
             </div>
 
-            {/* Default Agents section */}
-            {filteredDefaults.length > 0 && (
-              <>
-                <div className="px-1 pt-4 pb-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Agents
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1">
-                  {filteredDefaults.map((agent) => (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      onClick={() => handleDefaultAgentClick(agent.id)}
-                      className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
-                    >
-                      <AgentAvatar
-                        icon={agent.icon}
-                        name={agent.title}
-                        size="sm"
-                        className="transition-transform group-hover:scale-110"
-                      />
-                      <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
-                        {agent.title}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {userAgents.length === 0 &&
-              filteredDefaults.length === 0 &&
-              !isCreating && (
-                <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-                  {search ? "No agents found" : "No agents yet"}
-                </div>
-              )}
+            {/* Footer */}
+            <div className="border-t border-border px-3 py-2.5">
+              <Link
+                to="/$org/spaces"
+                params={{ org: org.slug }}
+                onClick={() => setOpen(false)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
+              >
+                See all agents
+              </Link>
+            </div>
           </div>
-
-          {/* Footer */}
-          <div className="border-t border-border px-3 py-2.5">
-            <Link
-              to="/$org/spaces"
-              params={{ org: org.slug }}
-              onClick={() => setOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
-            >
-              See all agents
-            </Link>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+      <SiteEditorOnboardingModal
+        open={siteEditorModalOpen}
+        onOpenChange={setSiteEditorModalOpen}
+      />
+    </>
   );
 }
 

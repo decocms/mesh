@@ -8,7 +8,7 @@ import { MeshAccountSwitcher } from "./account-switcher";
 
 export function MeshSidebarHeader() {
   return (
-    <SidebarHeaderUI className="px-2 animate-in fade-in-0 duration-200">
+    <SidebarHeaderUI className="px-2.5 animate-in fade-in-0 duration-200">
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex flex-col w-full items-center">
@@ -22,7 +22,7 @@ export function MeshSidebarHeader() {
 
 MeshSidebarHeader.Skeleton = function MeshSidebarHeaderSkeleton() {
   return (
-    <SidebarHeaderUI className="px-2">
+    <SidebarHeaderUI className="px-2.5">
       <SidebarMenu>
         <SidebarMenuItem>
           <div className="flex items-center justify-between w-full">
