@@ -45,7 +45,7 @@ export class DuckDBEngine implements QueryEngine {
     try {
       const { DuckDBInstance } = await import("@duckdb/node-api");
       const instance = await DuckDBInstance.create();
-      const conn = instance.connect();
+      const conn = await instance.connect();
       conn.disconnectSync();
       return true;
     } catch {
