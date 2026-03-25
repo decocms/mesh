@@ -21,6 +21,10 @@ import {
   type NatsConnection,
 } from "nats";
 
+// Stream was renamed from AUTOMATION_JOBS (Memory) to AUTOMATION_JOBS_FILE (File)
+// to avoid a storage-type conflict on update. The old stream will remain on the
+// NATS cluster without consumers and can be deleted manually when convenient:
+//   nats stream delete AUTOMATION_JOBS
 const STREAM_NAME = "AUTOMATION_JOBS_FILE";
 const SUBJECT_PREFIX = "automation.fire";
 const CONSUMER_NAME = "automation-worker-file";
