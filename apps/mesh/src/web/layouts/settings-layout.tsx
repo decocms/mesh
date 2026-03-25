@@ -199,11 +199,9 @@ export function SettingsSidebar() {
 export default function SettingsLayout() {
   return (
     <div className="flex-1 min-w-0 overflow-y-auto h-full">
-      <div className="p-5 sm:p-8">
-        <Suspense fallback={<ContentSkeleton />}>
-          <Outlet />
-        </Suspense>
-      </div>
+      <Suspense fallback={<ContentSkeleton />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 }

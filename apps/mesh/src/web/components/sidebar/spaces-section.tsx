@@ -13,9 +13,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import { Input } from "@deco/ui/components/input.tsx";
+import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
 import { Plus } from "@untitledui/icons";
 import {
+  isDecopilot,
   useProjectContext,
   useVirtualMCPActions,
   useVirtualMCPs,
@@ -24,6 +25,14 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
+
+const SITE_EDITOR_AGENT = {
+  id: "site-editor",
+  title: "Site Editor",
+  icon: "icon://Globe01?color=violet",
+} as const;
+
+const DEFAULT_AGENTS = [SITE_EDITOR_AGENT];
 
 function SpaceListItem({
   space,
@@ -56,6 +65,32 @@ function SpaceListItem({
   );
 }
 
+function AgentGridItem({
+  space,
+  onClick,
+}: {
+  space: VirtualMCPEntity;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+    >
+      <AgentAvatar
+        icon={space.icon}
+        name={space.title}
+        size="sm"
+        className="transition-transform group-hover:scale-110"
+      />
+      <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+        {space.title}
+      </span>
+    </button>
+  );
+}
+
 export function PinSpacePopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -66,19 +101,24 @@ export function PinSpacePopover() {
     navigateOnCreate: true,
   });
 
-  const unpinnedSpaces = allSpaces
-    .filter((s) => !s.pinned)
-    .filter(
-      (s) => !search || s.title.toLowerCase().includes(search.toLowerCase()),
-    );
-
   const navigate = useNavigate();
 
-  const handlePin = async (space: VirtualMCPEntity) => {
-    await actions.update.mutateAsync({
-      id: space.id,
-      data: { pinned: true },
-    });
+  const lowerSearch = search.toLowerCase();
+  const userAgents = allSpaces
+    .filter((s) => !isDecopilot(s.id))
+    .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
+
+  const filteredDefaults = DEFAULT_AGENTS.filter(
+    (a) => !search || a.title.toLowerCase().includes(lowerSearch),
+  );
+
+  const handleSelect = async (space: VirtualMCPEntity) => {
+    if (!space.pinned) {
+      await actions.update.mutateAsync({
+        id: space.id,
+        data: { pinned: true },
+      });
+    }
     setOpen(false);
     setSearch("");
     navigate({
@@ -87,75 +127,124 @@ export function PinSpacePopover() {
     });
   };
 
+  const handleDefaultAgentClick = (agentId: string) => {
+    setOpen(false);
+    setSearch("");
+    navigate({
+      to: "/$org/spaces/$virtualMcpId",
+      params: { org: org.slug, virtualMcpId: agentId },
+    });
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <SidebarMenuItem>
         <PopoverTrigger asChild>
-          <SidebarMenuButton tooltip="Pin a space">
+          <SidebarMenuButton tooltip="Browse agents">
             <Plus className="!opacity-100" />
           </SidebarMenuButton>
         </PopoverTrigger>
       </SidebarMenuItem>
-      <PopoverContent className="w-80 p-2" side="right" align="start">
-        <Input
-          placeholder="Search spaces..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mb-2 h-8 text-sm"
-          autoFocus
-        />
-        <div className="max-h-64 overflow-y-auto flex flex-col gap-0.5">
-          {unpinnedSpaces.length === 0 ? (
-            <div className="px-2 py-2 text-xs text-muted-foreground">
-              {search ? "No matches" : "No unpinned spaces"}
+      <PopoverContent
+        className="w-[320px] p-0 overflow-hidden"
+        side="right"
+        align="start"
+      >
+        <div className="flex flex-col max-h-[min(560px,70dvh)]">
+          {/* Search */}
+          <CollectionSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search agents..."
+          />
+
+          {/* Scrollable content */}
+          <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
+            {/* Your Agents section */}
+            <div className="px-1 pt-3 pb-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Your Agents
+              </span>
             </div>
-          ) : (
-            unpinnedSpaces.map((space) => (
+            <div className="grid grid-cols-3 gap-1">
+              {/* Create new button */}
               <button
-                key={space.id}
                 type="button"
-                className="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-accent text-sm w-full text-left"
-                onClick={() => handlePin(space)}
+                disabled={isCreating}
+                onClick={() => {
+                  createVirtualMCP();
+                  setOpen(false);
+                }}
+                className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <AgentAvatar
-                  icon={space.icon}
-                  name={space.title}
-                  size="sm"
-                  className="shrink-0 mt-0.5"
-                />
-                <div className="flex flex-col min-w-0">
-                  <span className="truncate font-medium">{space.title}</span>
-                  {space.description && (
-                    <span className="truncate text-xs text-muted-foreground">
-                      {space.description}
-                    </span>
-                  )}
+                <div className="w-8 h-8 rounded-lg border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
+                  <Plus size={14} className="text-muted-foreground" />
                 </div>
+                <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground">
+                  Create new
+                </span>
               </button>
-            ))
-          )}
-        </div>
-        <div className="flex items-center gap-2 border-t border-border mt-2 pt-2">
-          <button
-            type="button"
-            disabled={isCreating}
-            onClick={() => {
-              createVirtualMCP();
-              setOpen(false);
-            }}
-            className="flex-1 text-xs text-muted-foreground hover:text-foreground transition-colors text-center disabled:opacity-50"
-          >
-            + Create new
-          </button>
-          <span className="text-border">|</span>
-          <Link
-            to="/$org/spaces"
-            params={{ org: org.slug }}
-            onClick={() => setOpen(false)}
-            className="flex-1 text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
-          >
-            See all
-          </Link>
+
+              {userAgents.map((space) => (
+                <AgentGridItem
+                  key={space.id}
+                  space={space}
+                  onClick={() => handleSelect(space)}
+                />
+              ))}
+            </div>
+
+            {/* Default Agents section */}
+            {filteredDefaults.length > 0 && (
+              <>
+                <div className="px-1 pt-4 pb-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Agents
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {filteredDefaults.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => handleDefaultAgentClick(agent.id)}
+                      className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+                    >
+                      <AgentAvatar
+                        icon={agent.icon}
+                        name={agent.title}
+                        size="sm"
+                        className="transition-transform group-hover:scale-110"
+                      />
+                      <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+                        {agent.title}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {userAgents.length === 0 &&
+              filteredDefaults.length === 0 &&
+              !isCreating && (
+                <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+                  {search ? "No agents found" : "No agents yet"}
+                </div>
+              )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-border px-3 py-2.5">
+            <Link
+              to="/$org/spaces"
+              params={{ org: org.slug }}
+              onClick={() => setOpen(false)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
+            >
+              See all agents
+            </Link>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

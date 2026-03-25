@@ -27,7 +27,12 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { CheckDone01, MessageTextCircle02 } from "@untitledui/icons";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CheckDone01,
+  MessageTextCircle02,
+} from "@untitledui/icons";
 import {
   ProjectContextProvider,
   ProjectContextProviderProps,
@@ -50,7 +55,7 @@ function PersistentResizablePanel({
   const [_isPending, startTransition] = useTransition();
   const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
+    25,
   );
 
   const handleResize = (size: number) =>
@@ -79,7 +84,7 @@ function PersistentTasksResizablePanel({
   const [_isPending, startTransition] = useTransition();
   const [tasksPanelWidth, setTasksPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
+    18,
   );
 
   const handleResize = (size: number) =>
@@ -88,7 +93,7 @@ function PersistentTasksResizablePanel({
   return (
     <ResizablePanel
       defaultSize={tasksPanelWidth}
-      minSize={22}
+      minSize={15}
       className={cn("min-w-0", className)}
       onResize={handleResize}
       order={1}
@@ -159,11 +164,11 @@ function ShellLayoutInner({
   const isMobile = useIsMobile();
   const [chatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
+    25,
   );
   const [tasksPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
+    18,
   );
 
   // Track open/close transitions — apply max-w + CSS transition only during
@@ -191,17 +196,8 @@ function ShellLayoutInner({
     return () => clearTimeout(id);
   }, [chatOpen]);
 
-  // Close chat and tasks panels when navigating to settings
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (isSettingsRoute) {
-      setChatOpen(false);
-      setTasksOpen(false);
-    }
-  }, [isSettingsRoute]);
-
-  // Hide chat and tasks panels on home and settings routes
-  const hidePanels = isHomeRoute || isSettingsRoute;
+  // Hide chat and tasks panels on home route
+  const hidePanels = isHomeRoute;
   // Either panel open means the content card gets right rounding
   const hasRightPanel = !isMobile && chatOpen && !hidePanels;
   // On space routes, the chat panel takes full width and main content collapses
@@ -212,7 +208,7 @@ function ShellLayoutInner({
       className="flex-1 bg-sidebar"
       style={
         {
-          "--sidebar-width-icon": "3.5rem",
+          "--sidebar-width-icon": "3.375rem",
           "--chat-panel-w": `${chatPanelWidth}cqi`,
           "--tasks-panel-w": `${tasksPanelWidth}cqi`,
         } as Record<string, string>
@@ -222,12 +218,62 @@ function ShellLayoutInner({
       {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
           through the rounded corners of the inner card */}
       <SidebarInset
-        className="pt-1.5"
+        className="flex flex-col"
         style={{ background: "transparent", containerType: "inline-size" }}
       >
+        {/* Top toolbar — sits in the sidebar-colored area above all panels */}
+        {!isMobile && !hidePanels && (
+          <div className="shrink-0 flex items-center justify-between px-2 h-10">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setTasksOpen((prev) => !prev)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  tasksOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle tasks"
+              >
+                <CheckDone01 size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setChatOpen((prev) => !prev)}
+              className={cn(
+                "flex size-7 items-center justify-center rounded-md transition-colors",
+                chatOpen
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              )}
+              title="Toggle chat"
+            >
+              <MessageTextCircle02 size={14} />
+            </button>
+          </div>
+        )}
+
         <ResizablePanelGroup
           direction="horizontal"
-          className="h-full"
+          className="flex-1 min-h-0"
           style={{ overflow: "visible" }}
         >
           {/* Desktop: Tasks panel on the left */}
@@ -245,7 +291,7 @@ function ShellLayoutInner({
                     : "max-w-0",
                 )}
               >
-                <div className="h-full min-w-[var(--tasks-panel-w)] pr-1.5 pb-1.5 overflow-hidden">
+                <div className="h-full w-full pr-1.5 pb-1.5 overflow-hidden">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                     <TasksSidePanel />
                   </div>
@@ -258,27 +304,24 @@ function ShellLayoutInner({
           {/* Main content */}
           <ResizablePanel
             className={cn(
-              "min-w-0 flex flex-col",
+              "min-w-0 bg-sidebar",
               chatFullWidth && "max-w-0 overflow-hidden",
             )}
             order={2}
-            style={{ overflow: chatFullWidth ? undefined : "visible" }}
           >
-            <div
-              className={cn(
-                "flex flex-col flex-1 min-h-0 bg-card overflow-hidden",
-                "border-t border-sidebar-border",
-                "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                // Left edge: rounded when tasks panel is open (gap visible), border-l always
-                "border-l",
-                "rounded-tl-[0.75rem]",
-                // Right edge: rounded + border when chat panel is open (gap visible)
-                hasRightPanel && "rounded-tr-[0.75rem] border-r",
-                isMobile && "rounded-tr-[0.75rem] border-r",
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <Outlet />
+            <div className="h-full pb-1.5">
+              <div
+                className={cn(
+                  "flex flex-col h-full bg-card overflow-hidden",
+                  "border-t border-l border-sidebar-border",
+                  "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                  "rounded-tl-[0.75rem]",
+                  (hasRightPanel || isMobile) && "rounded-tr-[0.75rem] border-r",
+                )}
+              >
+                <div className="flex-1 overflow-hidden">
+                  <Outlet />
+                </div>
               </div>
             </div>
           </ResizablePanel>
@@ -311,7 +354,7 @@ function ShellLayoutInner({
                       : "max-w-0",
                   )}
                 >
-                  <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
+                  <div className="h-full w-full pl-1.5 pr-1.5 pb-1.5">
                     <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                       <ChatPanel />
                     </div>

@@ -65,7 +65,7 @@ export default function SpacesListPage() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Spaces</BreadcrumbPage>
+                <BreadcrumbPage>Projects</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -77,7 +77,7 @@ export default function SpacesListPage() {
             size="sm"
           >
             <Plus size={14} />
-            Create Space
+            Create Project
           </Button>
         </Page.Header.Right>
       </Page.Header>
@@ -85,7 +85,7 @@ export default function SpacesListPage() {
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search for a space..."
+        placeholder="Search for a project..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setSearch("");
@@ -101,11 +101,11 @@ export default function SpacesListPage() {
               image={
                 <FolderClosed size={48} className="text-muted-foreground" />
               }
-              title={search ? "No spaces found" : "No spaces yet"}
+              title={search ? "No projects found" : "No projects yet"}
               description={
                 search
-                  ? `No spaces match "${search}"`
-                  : "Create a space to get started."
+                  ? `No projects match "${search}"`
+                  : "Create a project to get started."
               }
               actions={
                 !search && (
@@ -115,7 +115,7 @@ export default function SpacesListPage() {
                     disabled={isCreating}
                   >
                     <Plus size={14} />
-                    Create Space
+                    Create Project
                   </Button>
                 )
               }
@@ -149,7 +149,7 @@ export default function SpacesListPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Space?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">

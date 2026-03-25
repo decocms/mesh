@@ -226,6 +226,7 @@ function SettingsButton() {
       <SidebarMenuItem>
         <SidebarMenuButton
           tooltip="Settings"
+          className="border-0"
           onClick={() =>
             navigate({
               to: "/$org/settings",
@@ -255,7 +256,7 @@ export function SidebarInboxFooter() {
         <SidebarMenuItem>
           <Popover>
             <PopoverTrigger asChild>
-              <SidebarMenuButton tooltip="Open inbox">
+              <SidebarMenuButton tooltip="Open inbox" className="border-0">
                 <Inbox01 size={24} />
               </SidebarMenuButton>
             </PopoverTrigger>
