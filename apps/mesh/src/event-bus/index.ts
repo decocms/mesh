@@ -75,11 +75,13 @@ export function createEventBus(
   const pollIntervalMs =
     config?.pollIntervalMs ?? DEFAULT_EVENT_BUS_CONFIG.pollIntervalMs;
 
+  const natsNotify = new NatsNotifyStrategy({
+    getConnection: () => natsProvider.getConnection(),
+  });
+
   const notifyStrategy = compose(
     new PollingStrategy(pollIntervalMs),
-    new NatsNotifyStrategy({
-      getConnection: () => natsProvider.getConnection(),
-    }),
+    natsNotify,
   );
 
   const sseBroadcast = new NatsSSEBroadcast({
@@ -88,6 +90,16 @@ export function createEventBus(
 
   sseHub.start(sseBroadcast).catch((err) => {
     console.error("[SSEHub] Failed to start broadcast strategy:", err);
+  });
+
+  // Re-start NATS-dependent subscriptions when NATS connects
+  natsProvider.onReady(() => {
+    natsNotify.start().catch((err) => {
+      console.error("[NatsNotify] Deferred start failed:", err);
+    });
+    sseBroadcast.start().catch((err) => {
+      console.error("[NatsSSEBroadcast] Deferred start failed:", err);
+    });
   });
 
   return new EventBusImpl({

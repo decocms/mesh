@@ -15,7 +15,7 @@ import type { CancelBroadcast } from "./cancel-broadcast";
 const CANCEL_SUBJECT = "mesh.decopilot.cancel";
 
 export interface NatsCancelBroadcastOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsCancelBroadcast implements CancelBroadcast {
@@ -26,11 +26,16 @@ export class NatsCancelBroadcast implements CancelBroadcast {
 
   constructor(private readonly options: NatsCancelBroadcastOptions) {}
 
-  async start(onCancel: (threadId: string) => void): Promise<void> {
-    this.onCancel = onCancel;
+  async start(onCancel?: (threadId: string) => void): Promise<void> {
+    if (onCancel) this.onCancel = onCancel;
 
     if (this.sub) return;
-    this.sub = this.options.getConnection().subscribe(CANCEL_SUBJECT);
+    if (!this.onCancel) return;
+
+    const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — local cancel only
+
+    this.sub = nc.subscribe(CANCEL_SUBJECT);
 
     const decoder = new TextDecoder();
 
@@ -61,14 +66,14 @@ export class NatsCancelBroadcast implements CancelBroadcast {
     this.onCancel?.(threadId);
 
     try {
-      this.options
-        .getConnection()
-        .publish(
-          CANCEL_SUBJECT,
-          this.encoder.encode(
-            JSON.stringify({ threadId, originId: this.originId }),
-          ),
-        );
+      const nc = this.options.getConnection();
+      if (!nc) return; // NATS not ready — local cancel only
+      nc.publish(
+        CANCEL_SUBJECT,
+        this.encoder.encode(
+          JSON.stringify({ threadId, originId: this.originId }),
+        ),
+      );
     } catch (err) {
       console.warn("[NatsCancelBroadcast] Publish failed (non-critical):", err);
     }
