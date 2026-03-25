@@ -197,7 +197,7 @@ s3Sync:
   bucket: ""               # Required when enabled
   region: "us-east-1"
   prefix: ""               # S3 key prefix (e.g. "studio/production")
-  interval: 30             # Polling interval in seconds
+  interval: 60             # Polling interval in seconds
   roleArn: ""              # IRSA role ARN — adds eks.amazonaws.com/role-arn to ServiceAccount
   syncDirs:                # Directories under /app/data to sync
     - logs
