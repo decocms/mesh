@@ -10,6 +10,13 @@ import {
   AlertCircle,
   CreditCard01,
 } from "@untitledui/icons";
+import { Page } from "@/web/components/page";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -36,7 +43,7 @@ import {
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ErrorBoundary } from "../../error-boundary";
+import { ErrorBoundary } from "@/web/components/error-boundary";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -709,13 +716,10 @@ function OrgAiProvidersContent() {
   const isEven = providers.length % 2 === 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-medium">AI Providers</h2>
-        <p className="text-sm text-muted-foreground">
-          Set up AI model providers. Keys are stored encrypted in the vault.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        Set up AI model providers. Keys are stored encrypted in the vault.
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 [&>*:first-child]:lg:col-span-2">
         {providers.map((provider, index) => (
@@ -738,16 +742,31 @@ function OrgAiProvidersContent() {
 
 export function OrgAiProvidersPage() {
   return (
-    <ErrorBoundary
-      fallback={({ error }) => (
-        <ErrorFallback
-          error={error ?? new Error("Failed to load AI providers")}
-        />
-      )}
-    >
-      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-        <OrgAiProvidersContent />
-      </Suspense>
-    </ErrorBoundary>
+    <Page>
+      <Page.Header hideSidebarTrigger>
+        <Page.Header.Left>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>AI Providers</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </Page.Header.Left>
+      </Page.Header>
+      <Page.Content className="p-5 sm:p-8">
+        <ErrorBoundary
+          fallback={({ error }) => (
+            <ErrorFallback
+              error={error ?? new Error("Failed to load AI providers")}
+            />
+          )}
+        >
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <OrgAiProvidersContent />
+          </Suspense>
+        </ErrorBoundary>
+      </Page.Content>
+    </Page>
   );
 }

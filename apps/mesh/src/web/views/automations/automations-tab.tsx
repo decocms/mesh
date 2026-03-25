@@ -10,6 +10,7 @@ import {
   useAutomationCreate,
   useAutomationDelete,
   useAutomationDetail,
+  buildDefaultAutomationInput,
 } from "@/web/hooks/use-automations";
 import { SettingsTab } from "./automation-detail.tsx";
 import {
@@ -38,6 +39,7 @@ import {
   RefreshCcw01,
   Trash01,
 } from "@untitledui/icons";
+import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
@@ -91,15 +93,15 @@ function AutomationInlineDetail({
 
 export function AutomationsTabContent({
   virtualMcpId,
+  selectedAutomationId,
 }: {
   virtualMcpId: string;
+  selectedAutomationId?: string;
 }) {
   const { data: allAutomations, isLoading } = useAutomationsList();
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
-  const [selectedAutomationId, setSelectedAutomationId] = useState<
-    string | null
-  >(null);
+  const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -109,31 +111,19 @@ export function AutomationsTabContent({
     (a) => a.agent?.id === virtualMcpId,
   );
 
-  console.log("[AutomationsTab] filter", {
-    virtualMcpId,
-    allCount: allAutomations?.length ?? 0,
-    filteredCount: automations.length,
-    allAgentIds: (allAutomations ?? []).map((a) => ({
-      id: a.id,
-      name: a.name,
-      agentId: a.agent?.id,
-    })),
-  });
+  const selectAutomation = (automationId: string | undefined) => {
+    navigate({
+      search: { automationId } as never,
+      replace: true,
+    });
+  };
 
   const handleCreate = async () => {
     try {
-      const createInput = {
-        name: "New Automation",
-        agent: { id: virtualMcpId },
-        messages: [],
-        models: { credentialId: "", thinking: { id: "" } },
-        temperature: 0.5,
-        active: true,
-      };
-      console.log("[AutomationsTab] create", createInput);
-      const result = await createMutation.mutateAsync(createInput);
-      console.log("[AutomationsTab] create result", result);
-      setSelectedAutomationId(result.id);
+      const result = await createMutation.mutateAsync(
+        buildDefaultAutomationInput(virtualMcpId),
+      );
+      selectAutomation(result.id);
     } catch {
       toast.error("Failed to create automation");
     }
@@ -144,7 +134,7 @@ export function AutomationsTabContent({
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
       if (selectedAutomationId === deleteTarget.id) {
-        setSelectedAutomationId(null);
+        selectAutomation(undefined);
       }
       toast.success("Automation deleted");
     } catch {
@@ -170,7 +160,7 @@ export function AutomationsTabContent({
         >
           <AutomationInlineDetail
             automationId={selectedAutomationId}
-            onBack={() => setSelectedAutomationId(null)}
+            onBack={() => selectAutomation(undefined)}
           />
         </Suspense>
       </ErrorBoundary>
@@ -237,7 +227,7 @@ export function AutomationsTabContent({
           key={automation.id}
           type="button"
           className="flex items-center gap-3 px-6 py-3 text-left hover:bg-accent/50 transition-colors cursor-pointer border-b border-border"
-          onClick={() => setSelectedAutomationId(automation.id)}
+          onClick={() => selectAutomation(automation.id)}
         >
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium truncate block">
@@ -269,7 +259,7 @@ export function AutomationsTabContent({
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedAutomationId(automation.id);
+                  selectAutomation(automation.id);
                 }}
               >
                 <Eye size={16} />

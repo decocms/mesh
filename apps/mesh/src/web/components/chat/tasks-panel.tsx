@@ -33,6 +33,7 @@ import {
   FilterLines,
   Loading01,
   Archive,
+  Plus,
   RefreshCcw01,
   SearchMd,
   X,
@@ -65,9 +66,13 @@ import type { TaskOwnerFilter } from "./task";
 import { useChatStore } from "./store/selectors";
 import {
   useAutomationsList,
+  useAutomationCreate,
+  useAutomationUpdate,
+  buildDefaultAutomationInput,
   type AutomationListItem,
 } from "@/web/hooks/use-automations";
-import { useNavigate } from "@tanstack/react-router";
+import { Switch } from "@deco/ui/components/switch.tsx";
+import { useNavigate, useMatch } from "@tanstack/react-router";
 
 // ────────────────────────────────────────
 
@@ -392,6 +397,7 @@ function AutomationRow({
   connectionMap,
   defaultAgent,
   onClick,
+  onToggleActive,
 }: {
   automation: AutomationListItem;
   connectionMap: Map<
@@ -400,6 +406,7 @@ function AutomationRow({
   >;
   defaultAgent: { icon: string | null | undefined; title: string };
   onClick: () => void;
+  onToggleActive: (id: string, active: boolean) => void;
 }) {
   const agentId = automation.agent?.id;
   const agent = agentId
@@ -412,10 +419,10 @@ function AutomationRow({
       className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
       onClick={onClick}
     >
-      <div className="shrink-0">
+      <div className={cn("shrink-0", !automation.active && "opacity-50")}>
         <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
       </div>
-      <div className="flex-1 min-w-0">
+      <div className={cn("flex-1 min-w-0", !automation.active && "opacity-50")}>
         <div className="flex items-center gap-1.5">
           <TruncatedText
             text={automation.name || "Untitled"}
@@ -432,6 +439,17 @@ function AutomationRow({
             {nextRun ? "Scheduled" : "Event-based"}
           </span>
         </div>
+      </div>
+      <div
+        className="shrink-0"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <Switch
+          checked={automation.active}
+          onCheckedChange={(checked) => onToggleActive(automation.id, checked)}
+          className="cursor-pointer scale-75"
+        />
       </div>
     </div>
   );
@@ -456,24 +474,76 @@ function IncomingSection({
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const { data: allAutomations } = useAutomationsList();
+  const createMutation = useAutomationCreate();
+  const updateMutation = useAutomationUpdate();
   const [isOpen, setIsOpen] = useState(true);
 
-  const automations = (allAutomations ?? []).filter(
-    (a) => a.active && a.agent?.id === virtualMcpId,
-  );
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId",
+    shouldThrow: false,
+  });
 
-  if (automations.length === 0) return null;
+  const automations = (allAutomations ?? [])
+    .filter((a) => a.agent?.id === virtualMcpId)
+    .sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+
+  const navigateToAutomation = (automationId?: string) => {
+    const routeBase = spacesMatch
+      ? "/shell/$org/spaces/$virtualMcpId/automations"
+      : "/shell/$org/projects/$virtualMcpId/automations";
+    navigate({
+      to: routeBase,
+      params: { org: org.slug, virtualMcpId },
+      search: automationId ? { automationId } : {},
+    });
+  };
+
+  const handleCreate = async () => {
+    try {
+      const result = await createMutation.mutateAsync(
+        buildDefaultAutomationInput(virtualMcpId),
+      );
+      navigateToAutomation(result.id);
+    } catch {
+      // silently fail — the mutation hook handles cache invalidation
+    }
+  };
 
   return (
     <div>
-      <GroupHeader
-        label="Incoming"
-        icon={RefreshCcw01}
-        iconClassName="text-purple-500"
-        count={automations.length}
-        isOpen={isOpen}
-        onToggle={() => setIsOpen((prev) => !prev)}
-      />
+      <div className="flex items-center">
+        <div className="flex-1 min-w-0">
+          <GroupHeader
+            label="Incoming"
+            icon={RefreshCcw01}
+            iconClassName="text-purple-500"
+            count={automations.length}
+            isOpen={isOpen}
+            onToggle={() => setIsOpen((prev) => !prev)}
+          />
+        </div>
+        <button
+          type="button"
+          className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0 mr-2 cursor-pointer"
+          onClick={handleCreate}
+          disabled={createMutation.isPending}
+          title="Create automation"
+        >
+          {createMutation.isPending ? (
+            <Loading01
+              size={14}
+              className="animate-spin text-muted-foreground"
+            />
+          ) : (
+            <Plus size={14} className="text-muted-foreground" />
+          )}
+        </button>
+      </div>
       {isOpen &&
         automations.map((automation) => (
           <AutomationRow
@@ -481,11 +551,9 @@ function IncomingSection({
             automation={automation}
             connectionMap={connectionMap}
             defaultAgent={defaultAgent}
-            onClick={() =>
-              navigate({
-                to: "/shell/$org/settings/automations/$automationId",
-                params: { org: org.slug, automationId: automation.id },
-              })
+            onClick={() => navigateToAutomation(automation.id)}
+            onToggleActive={(id, active) =>
+              updateMutation.mutate({ id, active })
             }
           />
         ))}

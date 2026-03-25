@@ -468,6 +468,7 @@ const spaceWorkflowsRoute = createRoute({
 const spaceAutomationsRoute = createRoute({
   getParentRoute: () => spacesLayout,
   path: "/automations",
+  validateSearch: z.object({ automationId: z.string().optional() }),
   component: lazyRouteComponent(
     () => import("./views/automations/space-automations.tsx"),
   ),
@@ -500,6 +501,7 @@ const workflowsRoute = createRoute({
 const projectAutomationsRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
   path: "/automations",
+  validateSearch: z.object({ automationId: z.string().optional() }),
   component: lazyRouteComponent(
     () => import("./views/automations/space-automations.tsx"),
   ),

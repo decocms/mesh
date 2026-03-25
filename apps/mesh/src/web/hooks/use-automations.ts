@@ -79,18 +79,8 @@ export function useAutomationsList(virtualMcpId?: string | null) {
         name: "AUTOMATION_LIST",
         arguments: args,
       })) as { structuredContent?: unknown };
-      console.log(
-        "[useAutomationsList] callTool raw result",
-        JSON.stringify(result, null, 2),
-      );
       const payload = (result.structuredContent ??
         result) as AutomationListOutput;
-      console.log("[useAutomationsList] parsed payload", {
-        virtualMcpId,
-        hasStructuredContent: "structuredContent" in result,
-        payloadKeys: Object.keys(payload),
-        automations: payload.automations,
-      });
       return payload.automations;
     },
     staleTime: 10_000,
@@ -124,6 +114,21 @@ export function useAutomationDetail(id: string) {
     enabled: !!id,
     staleTime: 10_000,
   });
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+export function buildDefaultAutomationInput(virtualMcpId: string) {
+  return {
+    name: "New Automation",
+    agent: { id: virtualMcpId },
+    messages: [],
+    models: { credentialId: "", thinking: { id: "" } },
+    temperature: 0.5,
+    active: true,
+  };
 }
 
 // ============================================================================

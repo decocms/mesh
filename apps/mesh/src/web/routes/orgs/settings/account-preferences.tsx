@@ -1,9 +1,5 @@
-import { AccountPreferencesPage } from "@/web/components/settings-modal/pages/account-preferences";
+import { AccountPreferencesPage } from "@/web/views/settings/account-preferences";
 
 export default function AccountPreferencesRoute() {
-  return (
-    <div className="p-5 sm:p-8">
-      <AccountPreferencesPage />
-    </div>
-  );
+  return <AccountPreferencesPage />;
 }

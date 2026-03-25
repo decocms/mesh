@@ -8,7 +8,7 @@ import {
   BreadcrumbPage,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Loading01 } from "@untitledui/icons";
-import { useMatch } from "@tanstack/react-router";
+import { useMatch, useSearch } from "@tanstack/react-router";
 import { Suspense } from "react";
 
 function SpaceAutomationsContent() {
@@ -20,8 +20,11 @@ function SpaceAutomationsContent() {
     from: "/shell/$org/projects/$virtualMcpId/automations",
     shouldThrow: false,
   });
-  const virtualMcpId =
-    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
+  const match = spacesMatch ?? projectsMatch;
+  const virtualMcpId = match?.params.virtualMcpId ?? "";
+  const search = useSearch({ strict: false }) as {
+    automationId?: string;
+  };
   return (
     <Page>
       <Page.Header>
@@ -36,7 +39,10 @@ function SpaceAutomationsContent() {
         </Page.Header.Left>
       </Page.Header>
       <Page.Content>
-        <AutomationsTabContent virtualMcpId={virtualMcpId} />
+        <AutomationsTabContent
+          virtualMcpId={virtualMcpId}
+          selectedAutomationId={search.automationId}
+        />
       </Page.Content>
     </Page>
   );

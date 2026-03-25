@@ -1,9 +1,5 @@
-import { AccountProfilePage } from "@/web/components/settings-modal/pages/account-profile";
+import { AccountProfilePage } from "@/web/views/settings/account-profile";
 
 export default function AccountProfileRoute() {
-  return (
-    <div className="p-5 sm:p-8">
-      <AccountProfilePage />
-    </div>
-  );
+  return <AccountProfilePage />;
 }

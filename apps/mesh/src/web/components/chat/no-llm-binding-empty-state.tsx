@@ -4,7 +4,7 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
   ProviderCard,
   type AiProvider,
-} from "../settings-modal/pages/org-ai-providers";
+} from "@/web/views/settings/org-ai-providers";
 import {
   useAiProviders,
   useAiProviderKeyList,

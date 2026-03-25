@@ -198,7 +198,7 @@ export function SettingsSidebar() {
 
 export default function SettingsLayout() {
   return (
-    <div className="flex-1 min-w-0 overflow-y-auto h-full">
+    <div className="flex-1 min-w-0 overflow-hidden h-full">
       <Suspense
         fallback={
           <div className="p-5 sm:p-8">

@@ -33,6 +33,10 @@ type OrgSettingsPayload = {
 function OrgLayoutContent() {
   const { org } = useProjectContext();
   const { setVirtualMcpId } = useChatStable();
+  console.log("[OrgLayoutContent] rendering", {
+    orgId: org.id,
+    orgName: org.name,
+  });
 
   // Set decopilot as the active virtual MCP for org-level routes
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
