@@ -13,6 +13,7 @@ import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/web/utils/connection-slug";
+
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
@@ -137,16 +138,16 @@ function ConnectionItem({
 }) {
   const connection = useConnection(connection_id);
   const { org } = useProjectContext();
-  const allConnections = useConnections();
+
+  // Find sibling instances (same app_name) using server-side filter
+  const appName = connection?.app_name;
+  const siblings = useConnections(
+    appName ? { filters: [{ column: "app_name", value: appName }] } : {},
+  );
 
   if (!connection) return null;
 
   const slug = getConnectionSlug(connection);
-
-  // Find sibling instances (same slug, non-virtual)
-  const siblings = allConnections.filter(
-    (c) => c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === slug,
-  );
   const hasMultipleInstances = siblings.length > 1;
 
   return (

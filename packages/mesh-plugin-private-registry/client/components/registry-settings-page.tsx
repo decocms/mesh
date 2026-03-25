@@ -136,10 +136,7 @@ export default function RegistrySettingsPage({
     categories: [],
     limit: 50,
   });
-  const allConnections = useConnections();
-  const llmConnections = (allConnections ?? []).filter((connection) =>
-    (connection.tools ?? []).some((tool) => tool.name === "LLM_DO_GENERATE"),
-  );
+  const llmConnections = useConnections({ binding: "LLM" });
   const effectiveLLMConnectionId =
     llmConnectionDraft || initialLLMConnectionId || llmConnections[0]?.id || "";
   const llmClient = useMCPClientOptional({

@@ -15,7 +15,7 @@ export interface NotifyStrategy {
    * Start listening for notifications.
    * When a notification is received, call onNotify to wake up the worker.
    */
-  start(onNotify: () => void): Promise<void>;
+  start(onNotify?: () => void): Promise<void>;
 
   /**
    * Stop listening for notifications.

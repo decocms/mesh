@@ -319,7 +319,6 @@ function TopToolsContent({
 }: TopToolsContentProps) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
-  const connections = useConnections() ?? [];
 
   const dateRange = externalDateRange;
   if (!dateRange) {
@@ -364,6 +363,28 @@ function TopToolsContent({
       refetchInterval: isStreaming ? streamingRefetchInterval : false,
     },
   );
+
+  // Extract unique connection IDs from metric data to filter the connections query
+  const metricConnectionIds = [
+    ...new Set(
+      (metricData?.topTools ?? [])
+        .map((t) => t.connectionId)
+        .filter(Boolean) as string[],
+    ),
+  ];
+
+  const connections = useConnections({
+    additionalToolArgs:
+      metricConnectionIds.length > 0
+        ? {
+            where: {
+              field: ["id"],
+              operator: "in",
+              value: metricConnectionIds,
+            },
+          }
+        : undefined,
+  });
 
   const topTools = metricData?.topTools ?? [];
 

@@ -5,7 +5,6 @@ import type {
 } from "@/web/components/sidebar/types";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import {
   BarChart10,
   CheckDone01,
@@ -26,7 +25,6 @@ export function useProjectSidebarItems(options?: {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const settingsModal = useSettingsModal();
   const org = orgContext.slug;
   const isOrgAdminProject = useIsOrgAdmin();
   const currentProject = useProjectContext().project;
@@ -344,8 +342,12 @@ export function useProjectSidebarItems(options?: {
     key: "configure",
     label: "Settings",
     icon: <Settings01 />,
-    isActive: settingsModal.isOpen,
-    onClick: () => settingsModal.open("org.general"),
+    isActive: isActiveRoute("settings"),
+    onClick: () =>
+      navigate({
+        to: "/$org/projects/$virtualMcpId/settings",
+        params: { org, virtualMcpId },
+      }),
   };
 
   // Regular project sidebar layout (matching Figma):

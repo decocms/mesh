@@ -21,7 +21,7 @@ export interface SSEBroadcastStrategy {
    * Start the broadcast strategy.
    * @param localEmit - Callback to deliver events to SSE listeners on this process
    */
-  start(localEmit: LocalEmitFn): Promise<void>;
+  start(localEmit?: LocalEmitFn): Promise<void>;
 
   /**
    * Broadcast an event to all processes (including this one).

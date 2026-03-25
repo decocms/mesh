@@ -97,7 +97,7 @@ securityContext:
 
 livenessProbe:
   httpGet:
-    path: /health
+    path: /health/live
     port: http
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -105,12 +105,14 @@ livenessProbe:
   failureThreshold: 3
 readinessProbe:
   httpGet:
-    path: /health
+    path: /health/ready
     port: http
   initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 4
+
+terminationGracePeriodSeconds: 60
 
 # Optional lifecycle hooks (preStop, postStart)
 # lifecycle: {}

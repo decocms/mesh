@@ -35,8 +35,8 @@ export interface AutomationJobPayload {
 }
 
 export interface AutomationJobStreamOptions {
-  getConnection: () => NatsConnection;
-  getJetStream: () => JetStreamClient;
+  getConnection: () => NatsConnection | null;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class AutomationJobStream {
@@ -49,6 +49,7 @@ export class AutomationJobStream {
 
   async init(): Promise<void> {
     const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — job stream disabled until re-init
     const jsm = await nc.jetstreamManager();
 
     const config = {
@@ -98,7 +99,13 @@ export class AutomationJobStream {
   }
 
   async publish(payload: AutomationJobPayload): Promise<void> {
-    if (!this.js) throw new Error("AutomationJobStream not initialized");
+    if (!this.js) {
+      console.warn(
+        "[AutomationJobStream] NATS not ready, dropping job:",
+        payload.triggerId,
+      );
+      return;
+    }
     const subj = `${SUBJECT_PREFIX}.${payload.triggerId}`;
     await this.js.publish(subj, this.encoder.encode(JSON.stringify(payload)));
   }
@@ -106,7 +113,8 @@ export class AutomationJobStream {
   async startConsumer(
     handler: (payload: AutomationJobPayload) => Promise<void>,
   ): Promise<void> {
-    if (!this.js) throw new Error("AutomationJobStream not initialized");
+    if (!this.js) return; // Not initialized — skip consumer
+    if (this.running) return; // Already running — prevent duplicate loops
     this.running = true;
 
     const consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);

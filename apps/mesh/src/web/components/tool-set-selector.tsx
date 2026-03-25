@@ -139,9 +139,10 @@ export function ToolSetSelector({
 
   const allConnections = useConnections({
     searchTerm: deferredSearchQuery.trim() || undefined,
+    includeVirtual: !!excludeVirtualMcpId,
   });
 
-  // Filter out VIRTUAL connections that would cause self-reference
+  // Filter out the specific VIRTUAL connection that would cause self-reference
   const connections = excludeVirtualMcpId
     ? allConnections.filter((conn) => {
         if (conn.connection_type !== "VIRTUAL") return true;
