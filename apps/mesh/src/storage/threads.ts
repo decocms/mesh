@@ -72,6 +72,8 @@ export class OrgScopedThreadStorage {
       offset?: number;
       startDate?: string;
       endDate?: string;
+      search?: string;
+      status?: string;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
@@ -247,6 +249,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
       offset?: number;
       startDate?: string;
       endDate?: string;
+      search?: string;
+      status?: string;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
@@ -259,10 +263,16 @@ export class SqlThreadStorage implements ThreadStoragePort {
       query = query.where("created_by", "=", createdBy);
     }
     if (options?.startDate) {
-      query = query.where("updated_at", ">=", options.startDate);
+      query = query.where("updated_at", ">=", new Date(options.startDate));
     }
     if (options?.endDate) {
-      query = query.where("updated_at", "<=", options.endDate);
+      query = query.where("updated_at", "<=", new Date(options.endDate));
+    }
+    if (options?.search) {
+      query = query.where("title", "ilike", `%${options.search}%`);
+    }
+    if (options?.status) {
+      query = query.where("status", "=", options.status as ThreadStatus);
     }
     let countQuery = this.db
       .selectFrom("threads")
@@ -273,10 +283,28 @@ export class SqlThreadStorage implements ThreadStoragePort {
       countQuery = countQuery.where("created_by", "=", createdBy);
     }
     if (options?.startDate) {
-      countQuery = countQuery.where("updated_at", ">=", options.startDate);
+      countQuery = countQuery.where(
+        "updated_at",
+        ">=",
+        new Date(options.startDate),
+      );
     }
     if (options?.endDate) {
-      countQuery = countQuery.where("updated_at", "<=", options.endDate);
+      countQuery = countQuery.where(
+        "updated_at",
+        "<=",
+        new Date(options.endDate),
+      );
+    }
+    if (options?.search) {
+      countQuery = countQuery.where("title", "ilike", `%${options.search}%`);
+    }
+    if (options?.status) {
+      countQuery = countQuery.where(
+        "status",
+        "=",
+        options.status as ThreadStatus,
+      );
     }
 
     if (options?.limit) {

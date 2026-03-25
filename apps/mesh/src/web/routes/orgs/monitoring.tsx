@@ -1885,13 +1885,26 @@ function ThreadsTabContent({
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [resolvedModel, setResolvedModel] = useState<string | null>(null);
 
+  // Filter state
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [modelFilter, setModelFilter] = useState<string>("all");
+
   const startDate = dateRange.startDate.toISOString();
   const endDate = dateRange.endDate.toISOString();
-  const dateKey = `${startDate}|${endDate}`;
+
+  const filterKey = JSON.stringify({
+    startDate,
+    endDate,
+    search,
+    status: statusFilter,
+    userId: userFilter,
+  });
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
-      queryKey: KEYS.threadsInfinite(locator, dateKey),
+      queryKey: KEYS.threadsInfinite(locator, filterKey),
       queryFn: async ({ pageParam = 0 }) => {
         if (!client) throw new Error("MCP client is not available");
         const result = (await client.callTool({
@@ -1901,6 +1914,9 @@ function ThreadsTabContent({
             offset: pageParam,
             startDate,
             endDate,
+            ...(search ? { search } : {}),
+            ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+            ...(userFilter !== "all" ? { userId: userFilter } : {}),
           },
         })) as { structuredContent?: unknown };
         return (result.structuredContent ?? result) as {
@@ -1919,7 +1935,7 @@ function ThreadsTabContent({
     });
 
   const { data: modelLogsData } = useSuspenseQuery({
-    queryKey: KEYS.threadModelLogs(locator, dateKey),
+    queryKey: KEYS.threadModelLogs(locator, filterKey),
     queryFn: async () => {
       if (!client) throw new Error("MCP client is not available");
       const result = (await client.callTool({
@@ -1979,6 +1995,15 @@ function ThreadsTabContent({
   }
 
   const allThreads = data.pages.flatMap((p) => p.items ?? []);
+
+  // Client-side model filter (model comes from logs, not threads query)
+  const visibleThreads =
+    modelFilter === "all"
+      ? allThreads
+      : allThreads.filter(
+          (t) => (threadModelMap.get(t.id) ?? "") === modelFilter,
+        );
+
   const selectedThread = selectedThreadId
     ? (allThreads.find((t) => t.id === selectedThreadId) ?? null)
     : null;
@@ -1993,20 +2018,113 @@ function ThreadsTabContent({
     isFetchingNextPage,
   );
 
-  if (allThreads.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <EmptyState
-          title="No threads yet"
-          description="Threads are created when users chat with agents."
-        />
-      </div>
-    );
-  }
+  // Unique model options from logs
+  const modelOptions = Array.from(new Set(threadModelMap.values())).sort();
+
+  // User options from members
+  const membersList = getOrgMembers(membersData);
+  const userOptions = membersList.map((m) => ({
+    id: m.userId,
+    label: m.user.name ?? m.user.email ?? m.userId,
+  }));
+
+  const hasFilters =
+    search ||
+    statusFilter !== "all" ||
+    userFilter !== "all" ||
+    modelFilter !== "all";
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      {/* Filter bar */}
+      <div className="shrink-0 flex items-center border-b border-border">
+        <CollectionSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by title…"
+          className="flex-1 border-0 border-b-0"
+        />
+        <div className="flex items-center gap-1.5 px-3 shrink-0 border-l border-border h-12">
+          {/* Status */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="in_progress">In progress</SelectItem>
+              <SelectItem value="requires_action">Requires action</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* User */}
+          {userOptions.length > 0 && (
+            <Select value={userFilter} onValueChange={setUserFilter}>
+              <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
+                <SelectValue placeholder="User" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All users</SelectItem>
+                {userOptions.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Model */}
+          {modelOptions.length > 0 && (
+            <Select value={modelFilter} onValueChange={setModelFilter}>
+              <SelectTrigger className="h-7 text-xs w-auto gap-1 px-2 border-border">
+                <SelectValue placeholder="Model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All models</SelectItem>
+                {modelOptions.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Clear filters */}
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+                setUserFilter("all");
+                setModelFilter("all");
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-auto">
+        {visibleThreads.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-20">
+            <EmptyState
+              title={hasFilters ? "No matching threads" : "No threads yet"}
+              description={
+                hasFilters
+                  ? "Try adjusting your filters or search query."
+                  : "Threads are created when users chat with agents."
+              }
+            />
+          </div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow>
@@ -2021,7 +2139,7 @@ function ThreadsTabContent({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allThreads.map((thread, idx) => (
+            {visibleThreads.map((thread, idx) => (
               <ThreadRow
                 key={thread.id}
                 thread={thread}
@@ -2035,7 +2153,7 @@ function ThreadsTabContent({
                   setSelectedThreadId(thread.id);
                 }}
                 lastRowRef={
-                  idx === allThreads.length - 1
+                  idx === visibleThreads.length - 1
                     ? (lastRowRef as (node: HTMLTableRowElement | null) => void)
                     : undefined
                 }
