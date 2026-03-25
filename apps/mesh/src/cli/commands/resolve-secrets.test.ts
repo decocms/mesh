@@ -4,38 +4,58 @@ import { resolveSecrets, type SecretsFile } from "./resolve-secrets";
 describe("resolveSecrets", () => {
   const emptyEnv = {};
 
-  describe("empty string preservation (regression test)", () => {
-    it("should preserve ENCRYPTION_KEY empty string from secrets.json", () => {
+  describe("ENCRYPTION_KEY uses truthy checks (critical production behavior)", () => {
+    // ⚠️ These tests document the intentional truthy-check behavior.
+    // Empty-string env/saved values are treated as "not set" so that
+    // the generated random key in secrets.json is used instead.
+    // Changing this broke production decryption — see PRs #2785 / #2790.
+
+    it("should ignore empty-string ENCRYPTION_KEY env and use saved value", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-key" };
+      const env = { ENCRYPTION_KEY: "" };
+      const { secrets } = resolveSecrets(saved, env);
+
+      expect(secrets.ENCRYPTION_KEY).toBe("saved-key");
+    });
+
+    it("should generate random ENCRYPTION_KEY when saved is empty string and env is empty string", () => {
       const saved: SecretsFile = { ENCRYPTION_KEY: "" };
-      const { secrets } = resolveSecrets(saved, emptyEnv);
+      const env = { ENCRYPTION_KEY: "" };
+      const { secrets, modified } = resolveSecrets(saved, env);
 
-      expect(secrets.ENCRYPTION_KEY).toBe("");
+      // Both are falsy → generates a new random key
+      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
+      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
+      expect(modified).toBe(true);
     });
 
-    it("should preserve BETTER_AUTH_SECRET empty string from secrets.json", () => {
-      const saved: SecretsFile = { BETTER_AUTH_SECRET: "" };
-      const { secrets } = resolveSecrets(saved, emptyEnv);
-
-      expect(secrets.BETTER_AUTH_SECRET).toBe("");
-    });
-
-    it("should preserve both empty strings (pre-refactor secrets.json)", () => {
-      const saved: SecretsFile = {
-        BETTER_AUTH_SECRET: "",
-        ENCRYPTION_KEY: "",
-        LOCAL_ADMIN_PASSWORD: "existing-password",
-      };
+    it("should generate random ENCRYPTION_KEY when saved is empty string and env is unset", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "" };
       const { secrets, modified } = resolveSecrets(saved, emptyEnv);
 
-      expect(secrets.BETTER_AUTH_SECRET).toBe("");
-      expect(secrets.ENCRYPTION_KEY).toBe("");
-      expect(secrets.LOCAL_ADMIN_PASSWORD).toBe("existing-password");
-      expect(modified).toBe(false);
+      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
+      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
+      expect(modified).toBe(true);
+    });
+
+    it("should use truthy env ENCRYPTION_KEY over saved value", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-key" };
+      const env = { ENCRYPTION_KEY: "env-key" };
+      const { secrets } = resolveSecrets(saved, env);
+
+      expect(secrets.ENCRYPTION_KEY).toBe("env-key");
+    });
+
+    it("should use saved ENCRYPTION_KEY when env is not set", () => {
+      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-key" };
+      const { secrets } = resolveSecrets(saved, emptyEnv);
+
+      expect(secrets.ENCRYPTION_KEY).toBe("saved-key");
     });
   });
 
-  describe("env var precedence", () => {
-    it("should use env BETTER_AUTH_SECRET over saved value", () => {
+  describe("BETTER_AUTH_SECRET", () => {
+    it("should use env over saved value", () => {
       const saved: SecretsFile = { BETTER_AUTH_SECRET: "saved-value" };
       const env = { BETTER_AUTH_SECRET: "env-value" };
       const { secrets } = resolveSecrets(saved, env);
@@ -43,36 +63,29 @@ describe("resolveSecrets", () => {
       expect(secrets.BETTER_AUTH_SECRET).toBe("env-value");
     });
 
-    it("should use env ENCRYPTION_KEY over saved value", () => {
-      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-value" };
-      const env = { ENCRYPTION_KEY: "env-value" };
-      const { secrets } = resolveSecrets(saved, env);
+    it("should use saved value when env is not set", () => {
+      const saved: SecretsFile = { BETTER_AUTH_SECRET: "saved-value" };
+      const { secrets } = resolveSecrets(saved, emptyEnv);
 
-      expect(secrets.ENCRYPTION_KEY).toBe("env-value");
+      expect(secrets.BETTER_AUTH_SECRET).toBe("saved-value");
     });
 
-    it("should preserve env ENCRYPTION_KEY empty string over saved value", () => {
-      const saved: SecretsFile = { ENCRYPTION_KEY: "saved-value" };
-      const env = { ENCRYPTION_KEY: "" };
-      const { secrets } = resolveSecrets(saved, env);
-
-      expect(secrets.ENCRYPTION_KEY).toBe("");
-    });
-  });
-
-  describe("generation of missing secrets", () => {
-    it("should generate BETTER_AUTH_SECRET when missing from both env and file", () => {
+    it("should generate when missing from both", () => {
       const { secrets, modified } = resolveSecrets({}, emptyEnv);
 
       expect(secrets.BETTER_AUTH_SECRET).toBeTruthy();
       expect(Buffer.from(secrets.BETTER_AUTH_SECRET, "base64").length).toBe(32);
       expect(modified).toBe(true);
     });
+  });
 
-    it("should default ENCRYPTION_KEY to empty string when missing from both env and file", () => {
-      const { secrets } = resolveSecrets({}, emptyEnv);
+  describe("generation of missing secrets", () => {
+    it("should generate ENCRYPTION_KEY when missing from both env and file", () => {
+      const { secrets, modified } = resolveSecrets({}, emptyEnv);
 
-      expect(secrets.ENCRYPTION_KEY).toBe("");
+      expect(secrets.ENCRYPTION_KEY).toBeTruthy();
+      expect(Buffer.from(secrets.ENCRYPTION_KEY, "base64").length).toBe(32);
+      expect(modified).toBe(true);
     });
 
     it("should generate LOCAL_ADMIN_PASSWORD when missing", () => {
