@@ -147,7 +147,7 @@ export function SettingsSidebar() {
   };
 
   return (
-    <div className="hidden md:flex w-56 shrink-0 flex-col gap-4 border-r border-border bg-sidebar/50 overflow-y-auto py-3">
+    <div className="hidden md:flex w-56 shrink-0 flex-col gap-4 bg-sidebar/50 overflow-y-auto py-3">
       {/* Back to org */}
       <div className="px-2">
         <Link
@@ -199,11 +199,15 @@ export function SettingsSidebar() {
 export default function SettingsLayout() {
   return (
     <div className="flex-1 min-w-0 overflow-y-auto h-full">
-      <div className="p-5 sm:p-8">
-        <Suspense fallback={<ContentSkeleton />}>
-          <Outlet />
-        </Suspense>
-      </div>
+      <Suspense
+        fallback={
+          <div className="p-5 sm:p-8">
+            <ContentSkeleton />
+          </div>
+        }
+      >
+        <Outlet />
+      </Suspense>
     </div>
   );
 }
