@@ -15,6 +15,7 @@ import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import {
+  type ImperativePanelHandle,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -44,8 +45,16 @@ import { SsoRequiredScreen } from "../components/sso-required-screen";
  */
 function PersistentResizablePanel({
   children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+  panelRef,
+  defaultCollapsed,
+  onCollapse,
+  onExpand,
+}: PropsWithChildren<{
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  defaultCollapsed: boolean;
+  onCollapse: () => void;
+  onExpand: () => void;
+}>) {
   const [_isPending, startTransition] = useTransition();
   const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
@@ -57,9 +66,14 @@ function PersistentResizablePanel({
 
   return (
     <ResizablePanel
-      defaultSize={chatPanelWidth}
+      ref={panelRef}
+      defaultSize={defaultCollapsed ? 0 : chatPanelWidth}
       minSize={20}
-      className={cn("min-w-0", className)}
+      collapsible={true}
+      collapsedSize={0}
+      onCollapse={onCollapse}
+      onExpand={onExpand}
+      className="min-w-0 overflow-hidden bg-sidebar"
       onResize={handleResize}
       order={3}
     >
@@ -73,14 +87,21 @@ function PersistentResizablePanel({
  */
 function PersistentTasksResizablePanel({
   children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+  panelRef,
+  defaultCollapsed,
+}: PropsWithChildren<{
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  defaultCollapsed: boolean;
+}>) {
   return (
     <ResizablePanel
-      defaultSize={22}
+      ref={panelRef}
+      defaultSize={defaultCollapsed ? 0 : 22}
       minSize={22}
       maxSize={22}
-      className={cn("min-w-0", className)}
+      collapsible={true}
+      collapsedSize={0}
+      className="min-w-0 overflow-hidden bg-sidebar"
       order={1}
     >
       {children}
@@ -152,24 +173,29 @@ function ShellLayoutInner({
 }) {
   const [chatOpen, setChatOpen] = useDecoChatOpen();
   const isMobile = useIsMobile();
-  const [chatPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
-  );
 
-  // Track chat open/close transitions — apply max-w + CSS transition only during
-  // the 200ms animation window, then remove so resize handles work freely.
-  const [chatAnimating, setChatAnimating] = useState(false);
-  const prevChatOpen = useRef(chatOpen);
+  const chatPanelRef = useRef<ImperativePanelHandle>(null);
+  const tasksPanelRef = useRef<ImperativePanelHandle>(null);
 
+  // Collapse/expand chat panel when chatOpen changes
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (prevChatOpen.current === chatOpen) return;
-    prevChatOpen.current = chatOpen;
-    setChatAnimating(true);
-    const id = setTimeout(() => setChatAnimating(false), 220);
-    return () => clearTimeout(id);
+    if (chatOpen) {
+      chatPanelRef.current?.expand();
+    } else {
+      chatPanelRef.current?.collapse();
+    }
   }, [chatOpen]);
+
+  // Collapse/expand tasks panel when isSpaceRoute changes
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (isSpaceRoute) {
+      tasksPanelRef.current?.expand();
+    } else {
+      tasksPanelRef.current?.collapse();
+    }
+  }, [isSpaceRoute]);
 
   // Open chat panel when entering a space route
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -187,6 +213,9 @@ function ShellLayoutInner({
     }
   }, [isSettingsRoute]);
 
+  const onChatCollapse = () => setChatOpen(false);
+  const onChatExpand = () => setChatOpen(true);
+
   // Either panel open means the content card gets right rounding
   const hasRightPanel = !isMobile && chatOpen && isSpaceRoute;
 
@@ -196,7 +225,6 @@ function ShellLayoutInner({
       style={
         {
           "--sidebar-width-icon": "3.5rem",
-          "--chat-panel-w": `${chatPanelWidth}cqi`,
         } as Record<string, string>
       }
     >
@@ -216,10 +244,8 @@ function ShellLayoutInner({
           {!isMobile && (
             <>
               <PersistentTasksResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  isSpaceRoute ? "bg-sidebar" : "max-w-0",
-                )}
+                panelRef={tasksPanelRef}
+                defaultCollapsed={!isSpaceRoute}
               >
                 <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
@@ -263,18 +289,12 @@ function ShellLayoutInner({
             <>
               <ResizableHandle className="bg-sidebar" />
               <PersistentResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  chatAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  chatOpen
-                    ? chatAnimating
-                      ? "max-w-[var(--chat-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
-                )}
+                panelRef={chatPanelRef}
+                defaultCollapsed={!chatOpen}
+                onCollapse={onChatCollapse}
+                onExpand={onChatExpand}
               >
-                <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
+                <div className="h-full pl-1.5 pr-1.5 pb-1.5">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                     <ChatPanel />
                   </div>
