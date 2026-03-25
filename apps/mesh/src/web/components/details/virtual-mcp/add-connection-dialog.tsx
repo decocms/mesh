@@ -568,8 +568,8 @@ function AddConnectionDialogContent({
             );
           })}
 
-          {/* Infinite scroll sentinel for connected tab */}
-          {activeTab === "connected" && (
+          {/* Infinite scroll sentinel for connected results (Connected tab or search in All tab) */}
+          {(activeTab === "connected" || searchLower) && (
             <>
               <div ref={connectedSentinelRef} className="col-span-full h-4" />
               {isFetchingNextConnectionsPage && (
