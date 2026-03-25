@@ -178,30 +178,30 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   return (
     <div
       key={`${project.id}-${project.updated_at}`}
-      className="flex items-start gap-3 px-4 pt-4 pb-2"
+      className="flex items-center gap-3 px-4 pt-4 pb-2"
     >
       <IconPicker
         value={project.icon}
         onChange={handleIconChange}
         onColorChange={handleColorChange}
         name={project.title || "Space"}
-        size="lg"
-        className="shrink-0"
+        size="sm"
+        className="shrink-0 self-center"
       />
-      <div className="flex flex-col flex-1 min-w-0 gap-1">
+      <div className="flex flex-col flex-1 min-w-0">
         <input
           type="text"
           defaultValue={project.title}
           onBlur={handleTitleBlur}
           placeholder="Space Name"
-          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 py-0.5 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
+          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
         />
-        <textarea
+        <input
+          type="text"
           defaultValue={project.description ?? ""}
           onBlur={handleDescriptionBlur}
           placeholder="Add a description..."
-          rows={2}
-          className="text-xs text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 py-0.5 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full resize-none"
+          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
         />
       </div>
     </div>
