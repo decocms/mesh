@@ -25,6 +25,7 @@ export interface CreateAutomationInput {
   messages: string; // JSON
   models: string; // JSON
   temperature?: number;
+  virtual_mcp_id?: string | null;
 }
 
 export interface UpdateAutomationInput {
@@ -60,6 +61,7 @@ export interface AutomationsStorage {
   list(organizationId: string): Promise<Automation[]>;
   listWithTriggerCounts(
     organizationId: string,
+    virtualMcpId?: string | null,
   ): Promise<AutomationWithTriggerCount[]>;
   update(
     id: string,
@@ -117,6 +119,7 @@ function automationFromDbRow(row: {
   messages: string;
   models: string;
   temperature: number;
+  virtual_mcp_id?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }): Automation {
@@ -130,6 +133,7 @@ function automationFromDbRow(row: {
     messages: row.messages,
     models: row.models,
     temperature: row.temperature,
+    virtual_mcp_id: row.virtual_mcp_id ?? null,
     created_at: toIsoString(row.created_at),
     updated_at: toIsoString(row.updated_at),
   };
@@ -182,6 +186,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       messages: input.messages,
       models: input.models,
       temperature: input.temperature ?? 0.5,
+      virtual_mcp_id: input.virtual_mcp_id ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -222,8 +227,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
 
   async listWithTriggerCounts(
     organizationId: string,
+    virtualMcpId?: string | null,
   ): Promise<AutomationWithTriggerCount[]> {
-    const rows = await this.db
+    let query = this.db
       .selectFrom("automations as a")
       .leftJoin("automation_triggers as t", "t.automation_id", "a.id")
       .select([
@@ -236,11 +242,20 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.messages",
         "a.models",
         "a.temperature",
+        "a.virtual_mcp_id",
         "a.created_at",
         "a.updated_at",
       ])
       .select((eb) => eb.fn.count("t.id").as("trigger_count"))
-      .where("a.organization_id", "=", organizationId)
+      .where("a.organization_id", "=", organizationId);
+
+    if (virtualMcpId !== undefined) {
+      query = virtualMcpId
+        ? query.where("a.virtual_mcp_id", "=", virtualMcpId)
+        : query.where("a.virtual_mcp_id", "is", null);
+    }
+
+    const rows = await query
       .groupBy([
         "a.id",
         "a.organization_id",
@@ -251,6 +266,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.messages",
         "a.models",
         "a.temperature",
+        "a.virtual_mcp_id",
         "a.created_at",
         "a.updated_at",
       ])

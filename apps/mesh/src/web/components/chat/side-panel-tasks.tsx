@@ -12,19 +12,12 @@ import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import {
-  DotsHorizontal,
   LayoutLeft,
   Loading01,
   MessageTextCircle02,
+  Settings01,
   X,
 } from "@untitledui/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@deco/ui/components/dropdown-menu.tsx";
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjectContext, useVirtualMCPs } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
@@ -41,11 +34,9 @@ import { cn } from "@deco/ui/lib/utils.ts";
 function ProjectHeader({
   project,
   org,
-  onClose,
 }: {
   project: VirtualMCPEntity;
   org: string;
-  onClose: () => void;
 }) {
   const navigate = useNavigate();
 
@@ -61,30 +52,18 @@ function ProjectHeader({
           </span>
         )}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-          >
-            <DotsHorizontal size={14} className="text-muted-foreground" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={() =>
-              navigate({
-                to: "/$org/projects/$virtualMcpId/settings",
-                params: { org, virtualMcpId: project.id },
-              })
-            }
-          >
-            Settings
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onClose}>Close</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type="button"
+        className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
+        onClick={() =>
+          navigate({
+            to: "/$org/projects/$virtualMcpId/settings",
+            params: { org, virtualMcpId: project.id },
+          })
+        }
+      >
+        <Settings01 size={14} className="text-muted-foreground" />
+      </button>
     </div>
   );
 }
@@ -229,11 +208,7 @@ function TasksPanelContent() {
     <div className="flex flex-col h-full">
       {/* Header */}
       {project ? (
-        <ProjectHeader
-          project={project}
-          org={org.slug}
-          onClose={() => setTasksOpen(false)}
-        />
+        <ProjectHeader project={project} org={org.slug} />
       ) : (
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">

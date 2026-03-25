@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ImperativePanelHandle } from "@deco/ui/components/resizable.tsx";
 import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
@@ -44,6 +45,7 @@ import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
+import { useBrandContextReadyToast } from "../components/brand-context/context-ready-toast";
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -52,7 +54,11 @@ import { SsoRequiredScreen } from "../components/sso-required-screen";
 function PersistentResizablePanel({
   children,
   className,
-}: PropsWithChildren<{ className?: string }>) {
+  panelRef,
+}: PropsWithChildren<{
+  className?: string;
+  panelRef?: React.Ref<ImperativePanelHandle>;
+}>) {
   const [_isPending, startTransition] = useTransition();
   const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
@@ -60,10 +66,15 @@ function PersistentResizablePanel({
   );
 
   const handleResize = (size: number) =>
-    startTransition(() => setChatPanelWidth(size));
+    startTransition(() => {
+      if (size > 0) setChatPanelWidth(size);
+    });
 
   return (
     <ResizablePanel
+      ref={panelRef}
+      collapsible
+      collapsedSize={0}
       defaultSize={chatPanelWidth}
       minSize={20}
       className={cn("min-w-0", className)}
@@ -81,7 +92,11 @@ function PersistentResizablePanel({
 function PersistentTasksResizablePanel({
   children,
   className,
-}: PropsWithChildren<{ className?: string }>) {
+  panelRef,
+}: PropsWithChildren<{
+  className?: string;
+  panelRef?: React.Ref<ImperativePanelHandle>;
+}>) {
   const [_isPending, startTransition] = useTransition();
   const [tasksPanelWidth, setTasksPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
@@ -89,10 +104,15 @@ function PersistentTasksResizablePanel({
   );
 
   const handleResize = (size: number) =>
-    startTransition(() => setTasksPanelWidth(size));
+    startTransition(() => {
+      if (size > 0) setTasksPanelWidth(size);
+    });
 
   return (
     <ResizablePanel
+      ref={panelRef}
+      collapsible
+      collapsedSize={0}
       defaultSize={tasksPanelWidth}
       minSize={15}
       className={cn("min-w-0", className)}
@@ -164,57 +184,36 @@ function ShellLayoutInner({
   const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
   const { createTask } = useChat();
   const isMobile = useIsMobile();
-  const [chatPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    25,
-  );
-  const [tasksPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    18,
-  );
+  const tasksPanelRef = useRef<ImperativePanelHandle>(null);
+  const chatPanelRef = useRef<ImperativePanelHandle>(null);
 
-  // Track open/close transitions — apply max-w + CSS transition only during
-  // the 200ms animation window, then remove so resize handles work freely.
-  const [tasksAnimating, setTasksAnimating] = useState(false);
-  const [chatAnimating, setChatAnimating] = useState(false);
-  const prevTasksOpen = useRef(tasksOpen);
-  const prevChatOpen = useRef(chatOpen);
+  // Force panels closed on settings routes
+  const effectiveChatOpen = isSettingsRoute ? false : chatOpen;
+  const effectiveTasksOpen = isSettingsRoute ? false : tasksOpen;
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (prevTasksOpen.current === tasksOpen) return;
-    prevTasksOpen.current = tasksOpen;
-    setTasksAnimating(true);
-    const id = setTimeout(() => setTasksAnimating(false), 220);
-    return () => clearTimeout(id);
-  }, [tasksOpen]);
+    if (effectiveTasksOpen) tasksPanelRef.current?.expand();
+    else tasksPanelRef.current?.collapse();
+  }, [effectiveTasksOpen]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (prevChatOpen.current === chatOpen) return;
-    prevChatOpen.current = chatOpen;
-    setChatAnimating(true);
-    const id = setTimeout(() => setChatAnimating(false), 220);
-    return () => clearTimeout(id);
-  }, [chatOpen]);
+    if (effectiveChatOpen) chatPanelRef.current?.expand();
+    else chatPanelRef.current?.collapse();
+  }, [effectiveChatOpen]);
 
-  // Hide chat and tasks panels on home route
-  const hidePanels = isHomeRoute;
+  // Hide chat and tasks panels on home and settings routes
+  const hidePanels = isHomeRoute || isSettingsRoute;
   // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && !hidePanels;
+  const hasRightPanel = !isMobile && effectiveChatOpen && !hidePanels;
   // On space routes, the chat panel takes full width and main content collapses
   const chatFullWidth = isSpaceRoute && !isMobile;
 
   return (
     <SidebarLayout
       className="flex-1 bg-sidebar"
-      style={
-        {
-          "--sidebar-width-icon": "3.375rem",
-          "--chat-panel-w": `${chatPanelWidth}cqi`,
-          "--tasks-panel-w": `${tasksPanelWidth}cqi`,
-        } as Record<string, string>
-      }
+      style={{ "--sidebar-width-icon": "3.375rem" } as Record<string, string>}
     >
       {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
       {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
@@ -224,7 +223,7 @@ function ShellLayoutInner({
         style={{ background: "transparent", containerType: "inline-size" }}
       >
         {/* Top toolbar — sits in the sidebar-colored area above all panels */}
-        {!isMobile && !hidePanels && (
+        {!isMobile && (
           <div className="shrink-0 flex items-center justify-between px-2 h-10">
             <div className="flex items-center gap-0.5">
               <button
@@ -232,25 +231,25 @@ function ShellLayoutInner({
                 onClick={() => setTasksOpen((prev) => !prev)}
                 className={cn(
                   "flex size-7 items-center justify-center rounded-md transition-colors",
-                  tasksOpen
+                  effectiveTasksOpen
                     ? "bg-sidebar-accent text-sidebar-foreground"
                     : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 title="Toggle tasks"
               >
-                <LayoutLeft size={14} />
+                <LayoutLeft size={16} />
               </button>
-              {!tasksOpen && (
+              {!effectiveTasksOpen && (
                 <button
                   type="button"
                   onClick={() => {
                     createTask();
-                    setChatOpen(true);
+                    if (!isHomeRoute) setChatOpen(true);
                   }}
                   className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 border border-sidebar-foreground/20 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors animate-in fade-in-0 zoom-in-95 duration-150"
                   title="New task"
                 >
-                  <Edit05 size={14} />
+                  <Edit05 size={16} />
                 </button>
               )}
               <button
@@ -259,7 +258,7 @@ function ShellLayoutInner({
                 className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                 title="Go back"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={16} />
               </button>
               <button
                 type="button"
@@ -267,22 +266,24 @@ function ShellLayoutInner({
                 className="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                 title="Go forward"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={16} />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setChatOpen((prev) => !prev)}
-              className={cn(
-                "flex size-7 items-center justify-center rounded-md transition-colors",
-                chatOpen
-                  ? "bg-sidebar-accent text-sidebar-foreground"
-                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-              )}
-              title="Toggle chat"
-            >
-              <MessageTextCircle02 size={14} />
-            </button>
+            {!hidePanels && (
+              <button
+                type="button"
+                onClick={() => setChatOpen((prev) => !prev)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  effectiveChatOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle chat"
+              >
+                <MessageTextCircle02 size={16} />
+              </button>
+            )}
           </div>
         )}
 
@@ -292,19 +293,11 @@ function ShellLayoutInner({
           style={{ overflow: "visible" }}
         >
           {/* Desktop: Tasks panel on the left */}
-          {!isMobile && (
+          {!isMobile && !hidePanels && (
             <>
               <PersistentTasksResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  tasksAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  tasksOpen
-                    ? tasksAnimating
-                      ? "max-w-[var(--tasks-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
-                )}
+                panelRef={tasksPanelRef}
+                className="overflow-hidden bg-sidebar"
               >
                 <div className="h-full w-full pr-1.5 pb-1.5 overflow-hidden">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
@@ -312,46 +305,48 @@ function ShellLayoutInner({
                   </div>
                 </div>
               </PersistentTasksResizablePanel>
-              <ResizableHandle
-                className={cn("bg-sidebar", chatFullWidth && "hidden")}
-              />
+              <ResizableHandle className="bg-sidebar" />
             </>
           )}
 
-          {/* Main content */}
-          <ResizablePanel
-            className={cn(
-              "min-w-0 bg-sidebar",
-              chatFullWidth && "max-w-0 overflow-hidden",
-            )}
-            order={2}
-          >
-            <div className="h-full pb-1.5">
-              <div
-                className={cn(
-                  "flex flex-col h-full bg-card overflow-hidden",
-                  "border-t border-l border-sidebar-border",
-                  "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                  "rounded-tl-[0.75rem]",
-                  (hasRightPanel || isMobile) &&
-                    "rounded-tr-[0.75rem] border-r",
-                )}
-              >
-                <div className="flex-1 overflow-hidden">
-                  <Outlet />
+          {/* Main content — hidden on space routes (chat takes full width),
+              but the Outlet is always rendered so VirtualMCPLayout can mount
+              and run its effects (setTasksOpen, setVirtualMcpId, project context). */}
+          {chatFullWidth ? (
+            <div style={{ display: "none" }}>
+              <Outlet />
+            </div>
+          ) : (
+            <ResizablePanel className="min-w-0 bg-sidebar" order={2}>
+              <div className="h-full pb-1.5">
+                <div
+                  className={cn(
+                    "flex flex-col h-full bg-card overflow-hidden",
+                    "border-t border-l border-sidebar-border",
+                    "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                    "rounded-tl-[0.75rem]",
+                    (hasRightPanel || isMobile) &&
+                      "rounded-tr-[0.75rem] border-r",
+                  )}
+                >
+                  <div className="flex-1 overflow-hidden">
+                    <Outlet />
+                  </div>
                 </div>
               </div>
-            </div>
-          </ResizablePanel>
+            </ResizablePanel>
+          )}
 
           {/* Desktop: Chat card as resizable side panel */}
-          {!hidePanels && !isMobile && (
+          {!isMobile && (
             <>
-              <ResizableHandle className="bg-sidebar" />
+              {!chatFullWidth && !hidePanels && (
+                <ResizableHandle className="bg-sidebar" />
+              )}
               {chatFullWidth ? (
                 <ResizablePanel
-                  className="overflow-hidden bg-sidebar"
-                  order={3}
+                  className="min-w-0 overflow-hidden bg-sidebar"
+                  order={2}
                 >
                   <div className="h-full pr-1.5 pb-1.5">
                     <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
@@ -360,24 +355,18 @@ function ShellLayoutInner({
                   </div>
                 </ResizablePanel>
               ) : (
-                <PersistentResizablePanel
-                  className={cn(
-                    "overflow-hidden",
-                    chatAnimating &&
-                      "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                    chatOpen
-                      ? chatAnimating
-                        ? "max-w-[var(--chat-panel-w)] bg-sidebar"
-                        : "bg-sidebar"
-                      : "max-w-0",
-                  )}
-                >
-                  <div className="h-full w-full pl-1.5 pr-1.5 pb-1.5">
-                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                      <ChatPanel />
+                !hidePanels && (
+                  <PersistentResizablePanel
+                    panelRef={chatPanelRef}
+                    className="overflow-hidden bg-sidebar"
+                  >
+                    <div className="h-full w-full pl-1.5 pr-1.5 pb-1.5">
+                      <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                        <ChatPanel />
+                      </div>
                     </div>
-                  </div>
-                </PersistentResizablePanel>
+                  </PersistentResizablePanel>
+                )
               )}
             </>
           )}
@@ -385,21 +374,27 @@ function ShellLayoutInner({
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
-      {!hidePanels && isMobile && (
+      {isMobile && (
         <>
           <MobileFABs
-            chatOpen={chatOpen}
+            chatOpen={effectiveChatOpen}
             onChatToggle={() => setChatOpen((prev) => !prev)}
-            tasksOpen={tasksOpen}
+            tasksOpen={effectiveTasksOpen}
             onTasksToggle={() => setTasksOpen((prev) => !prev)}
           />
-          <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
-            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-              <ChatPanel />
-            </DrawerContent>
-          </Drawer>
+          {!isHomeRoute && (
+            <Drawer
+              open={effectiveChatOpen}
+              onOpenChange={setChatOpen}
+              direction="bottom"
+            >
+              <DrawerContent className="h-[95dvh] max-h-[95dvh]">
+                <ChatPanel />
+              </DrawerContent>
+            </Drawer>
+          )}
           <Drawer
-            open={tasksOpen}
+            open={effectiveTasksOpen}
             onOpenChange={setTasksOpen}
             direction="bottom"
           >
@@ -418,6 +413,9 @@ function ShellLayoutContent() {
   const org = orgMatch?.params.org;
   const routerState = useRouterState();
   const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
+
+  // Show a rich card notification if the user just came from onboarding
+  useBrandContextReadyToast();
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {

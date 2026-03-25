@@ -23,6 +23,7 @@ export interface AutomationListItem {
   created_by: string;
   created_at: string;
   trigger_count: number;
+  virtual_mcp_id: string | null;
 }
 
 export interface AutomationTrigger {
@@ -61,7 +62,7 @@ export interface AutomationDetail {
 
 type AutomationListOutput = { automations: AutomationListItem[] };
 
-export function useAutomationsList() {
+export function useAutomationsList(virtualMcpId?: string | null) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -69,11 +70,13 @@ export function useAutomationsList() {
   });
 
   return useQuery({
-    queryKey: KEYS.automations(org.id),
+    queryKey: KEYS.automations(org.id, virtualMcpId),
     queryFn: async () => {
+      const args: Record<string, unknown> =
+        virtualMcpId !== undefined ? { virtual_mcp_id: virtualMcpId } : {};
       const result = (await client.callTool({
         name: "AUTOMATION_LIST",
-        arguments: {},
+        arguments: args,
       })) as { structuredContent?: unknown };
       const payload = (result.structuredContent ??
         result) as AutomationListOutput;

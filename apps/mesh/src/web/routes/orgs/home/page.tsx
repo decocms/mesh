@@ -14,6 +14,7 @@ import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
+import { BrandContextBanner } from "@/web/components/brand-context/context-banner";
 import { Page } from "@/web/components/page";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -213,6 +214,9 @@ function HomeChatContent({
                   <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
                 </div>
               )}
+              <div className="w-full max-w-[500px] mx-auto">
+                <BrandContextBanner />
+              </div>
             </div>
             <Chat.Footer>
               <Chat.Input />
@@ -251,11 +255,12 @@ function HomeChatContent({
               </div>
             )}
           </div>
-          {isDecoUser && isOrgAdmin && (
-            <div className="w-full max-w-[500px] mx-auto pb-6">
+          <div className="w-full max-w-[500px] mx-auto flex flex-col gap-2 pb-6">
+            {isDecoUser && isOrgAdmin && (
               <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
-            </div>
-          )}
+            )}
+            <BrandContextBanner />
+          </div>
         </div>
       )}
       <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />

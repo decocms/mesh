@@ -32,6 +32,7 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getDecopilotId,
+  isDecopilot,
   SELF_MCP_ALIAS_ID,
   useConnection,
   useConnectionActions,
@@ -40,12 +41,20 @@ import {
   useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
+  useVirtualMCPs,
 } from "@decocms/mesh-sdk";
+import {
+  useAutomationCreate,
+  useAutomationDelete,
+  useAutomationsList,
+} from "@/web/hooks/use-automations";
+import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
+  Loading01,
   Play,
   Plus,
   Settings01,
@@ -676,6 +685,267 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Agents tab (projects only)
+// ---------------------------------------------------------------------------
+
+function AgentsTabContent({
+  currentVirtualMcpId,
+  connections,
+  onAdd,
+  onRemove,
+}: {
+  currentVirtualMcpId: string;
+  connections: Array<{ connection_id: string }>;
+  onAdd: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const virtualMcps = useVirtualMCPs();
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
+
+  const linkedIds = new Set(connections.map((c) => c.connection_id));
+
+  const agents = virtualMcps.filter(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null && a.id !== currentVirtualMcpId && !isDecopilot(a.id),
+  );
+
+  const handleCreate = async () => {
+    try {
+      const result = await createVirtualMCP();
+      navigate({
+        to: "/$org/spaces/$virtualMcpId/settings",
+        params: { org: org.slug, virtualMcpId: result.id },
+      });
+    } catch {
+      toast.error("Failed to create agent");
+    }
+  };
+
+  if (agents.length === 0) {
+    return (
+      <div className="px-6 py-8 flex flex-col items-center gap-3">
+        <p className="text-sm text-muted-foreground">No agents yet.</p>
+        <Button size="sm" onClick={handleCreate} disabled={isCreating}>
+          <Plus size={14} />
+          Create Agent
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      {agents.map((agent) => {
+        const isLinked = linkedIds.has(agent.id);
+        return (
+          <div
+            key={agent.id}
+            className="flex items-center justify-between gap-3 px-6 py-3 border-b border-border last:border-0"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <IntegrationIcon
+                icon={agent.icon}
+                name={agent.title}
+                size="sm"
+                className="shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{agent.title}</p>
+                {agent.description && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {agent.description}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button
+              variant={isLinked ? "ghost" : "outline"}
+              size="sm"
+              className="h-7 shrink-0"
+              onClick={() => (isLinked ? onRemove(agent.id) : onAdd(agent.id))}
+            >
+              {isLinked ? (
+                <>
+                  <XClose size={13} />
+                  Remove
+                </>
+              ) : (
+                <>
+                  <Plus size={13} />
+                  Add
+                </>
+              )}
+            </Button>
+          </div>
+        );
+      })}
+      <div className="px-6 py-3">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs"
+          onClick={handleCreate}
+          disabled={isCreating}
+        >
+          <Plus size={13} />
+          Create New Agent
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Automations tab
+// ---------------------------------------------------------------------------
+
+function AutomationsTabContent({ virtualMcpId }: { virtualMcpId: string }) {
+  const { data: automations, isLoading } = useAutomationsList(virtualMcpId);
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const createMutation = useAutomationCreate();
+  const deleteMutation = useAutomationDelete();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const handleCreate = async () => {
+    try {
+      const result = await createMutation.mutateAsync({
+        name: "New Automation",
+        virtual_mcp_id: virtualMcpId,
+        agent: { id: "", mode: "passthrough" },
+        messages: [],
+        temperature: 0.5,
+        active: true,
+      });
+      navigate({
+        to: "/$org/settings/automations/$automationId",
+        params: { org: org.slug, automationId: result.id },
+      });
+    } catch {
+      toast.error("Failed to create automation");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success("Automation deleted");
+    } catch {
+      toast.error("Failed to delete automation");
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loading01 size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!automations || automations.length === 0) {
+    return (
+      <div className="px-6 py-8 flex flex-col items-center gap-3">
+        <p className="text-sm text-muted-foreground">No automations yet.</p>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={handleCreate}
+          disabled={createMutation.isPending}
+        >
+          <Plus size={14} />
+          New Automation
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-col">
+        {automations.map((automation) => (
+          <button
+            key={automation.id}
+            type="button"
+            className="flex items-center justify-between px-6 py-3 border-b border-border hover:bg-muted/50 transition-colors text-left"
+            onClick={() =>
+              navigate({
+                to: "/$org/settings/automations/$automationId",
+                params: { org: org.slug, automationId: automation.id },
+              })
+            }
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <ZapCircle size={16} className="text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {automation.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {automation.trigger_count} trigger
+                  {automation.trigger_count !== 1 ? "s" : ""} ·{" "}
+                  {automation.active ? "Active" : "Inactive"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget({ id: automation.id, name: automation.name });
+                }}
+              >
+                <XClose size={14} />
+              </Button>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <div className="px-6 py-3 border-t border-border flex items-center justify-between gap-3 bg-destructive/5">
+          <p className="text-sm text-muted-foreground">
+            Delete &ldquo;{deleteTarget.name}&rdquo;?
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main detail view
 // ---------------------------------------------------------------------------
 
@@ -687,6 +957,7 @@ function VirtualMcpDetailViewWithData({
   variant: VirtualMcpVariant;
 }) {
   const { org } = useProjectContext();
+  const navigate = useNavigate();
   const actions = useVirtualMCPActions();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
@@ -926,6 +1197,27 @@ Define step-by-step how the agent should handle requests.
     form.setValue("metadata.instructions", next, { shouldDirty: true });
   };
 
+  const automationCreateMutation = useAutomationCreate();
+
+  const handleCreateAutomation = async () => {
+    try {
+      const result = await automationCreateMutation.mutateAsync({
+        name: "New Automation",
+        virtual_mcp_id: virtualMcp.id,
+        agent: { id: "", mode: "passthrough" },
+        messages: [],
+        temperature: 0.5,
+        active: true,
+      });
+      navigate({
+        to: "/$org/settings/automations/$automationId",
+        params: { org: org.slug, automationId: result.id },
+      });
+    } catch {
+      toast.error("Failed to create automation");
+    }
+  };
+
   const isSaving = actions.update.isPending;
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
 
@@ -943,7 +1235,9 @@ Define step-by-step how the agent should handle requests.
       count: connections.length || undefined,
     },
     ...(isAgent ? [{ id: "capabilities", label: "Capabilities" }] : []),
+    ...(!isAgent ? [{ id: "agents", label: "Agents" }] : []),
     ...(!isAgent ? [{ id: "sidebar", label: "Sidebar" }] : []),
+    { id: "automations", label: "Automations" },
   ];
 
   return (
@@ -1069,6 +1363,18 @@ Define step-by-step how the agent should handle requests.
                 Add
               </Button>
             )}
+            {activeTab === "automations" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={handleCreateAutomation}
+                disabled={automationCreateMutation.isPending}
+              >
+                <Plus size={13} />
+                New
+              </Button>
+            )}
             {activeTab === "instructions" && (
               <div className="flex items-center gap-1.5">
                 {!form.watch("metadata.instructions")?.trim() && (
@@ -1144,8 +1450,21 @@ Define step-by-step how the agent should handle requests.
               <AgentCapabilities connections={connections} />
             )}
 
+            {activeTab === "agents" && !isAgent && (
+              <AgentsTabContent
+                currentVirtualMcpId={virtualMcp.id}
+                connections={connections}
+                onAdd={handleAddConnection}
+                onRemove={handleRemoveConnection}
+              />
+            )}
+
             {activeTab === "sidebar" && !isAgent && (
               <SidebarTabContent virtualMcpId={virtualMcp.id} />
+            )}
+
+            {activeTab === "automations" && (
+              <AutomationsTabContent virtualMcpId={virtualMcp.id} />
             )}
 
             {activeTab === "instructions" && (

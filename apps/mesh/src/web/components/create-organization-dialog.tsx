@@ -81,7 +81,7 @@ export function CreateOrganizationDialog({
       return { orgSlug };
     },
     onSuccess: ({ orgSlug }) => {
-      window.location.href = `/${orgSlug}`;
+      window.location.href = `/${orgSlug}/onboarding`;
     },
   });
 

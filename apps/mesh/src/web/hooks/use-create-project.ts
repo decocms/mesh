@@ -34,6 +34,7 @@ export function useCreateProject() {
             title: "My Project",
             description: null,
             subtype: "project",
+            pinned: true,
             metadata: {
               instructions: null,
               enabled_plugins: [],

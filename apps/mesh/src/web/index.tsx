@@ -183,6 +183,13 @@ const orgHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
+// Onboarding — standalone full-screen route (no shell/sidebar)
+const orgOnboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/$org/onboarding",
+  component: lazyRouteComponent(() => import("./routes/orgs/onboarding.tsx")),
+});
+
 // Projects list
 const projectsListRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -349,6 +356,14 @@ const settingsSsoRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/sso",
   component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
+});
+
+const settingsBrandContextRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/brand-context",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/brand-context.tsx"),
+  ),
 });
 
 // Store
@@ -648,6 +663,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsAiProvidersRoute,
   settingsMembersRoute,
   settingsSsoRoute,
+  settingsBrandContextRoute,
 ]);
 
 const projectSettingsWithChildren = projectSettingsRoute.addChildren([
@@ -695,6 +711,7 @@ const shellRouteTree = shellLayout.addChildren([
 
 const routeTree = rootRoute.addChildren([
   shellRouteTree,
+  orgOnboardingRoute,
   loginRoute,
   resetPasswordRoute,
   betterAuthRoutes,

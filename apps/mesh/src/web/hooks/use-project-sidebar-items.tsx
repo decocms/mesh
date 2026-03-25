@@ -4,13 +4,15 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutLeft } from "@untitledui/icons";
+import { Home01, LayoutLeft } from "@untitledui/icons";
+import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
+  const [, setTasksOpen] = useDecoTasksOpen();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 
@@ -138,7 +140,18 @@ export function useProjectSidebarItems(): SidebarSection[] {
         }
       : null;
 
-  const sections: SidebarSection[] = [];
+  const homeItem: NavigationSidebarItem = {
+    key: "home",
+    label: "Home",
+    icon: <Home01 className="!size-4" />,
+    isActive: pathname === "/",
+    onClick: () => {
+      setTasksOpen(false);
+      navigate({ to: "/" });
+    },
+  };
+
+  const sections: SidebarSection[] = [{ type: "items", items: [homeItem] }];
 
   // Add flat plugin items if any
   if (pluginItems.length > 0) {

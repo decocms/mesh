@@ -28,6 +28,7 @@ import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 /**
@@ -161,6 +162,15 @@ const SITE_EDITOR_AGENT = {
 } as const;
 
 /**
+ * Hardcoded Slide Builder agent for quick presentation creation.
+ */
+const SLIDE_BUILDER_AGENT = {
+  id: "slide-builder",
+  title: "Slide Builder",
+  icon: "icon://PresentationChart01?color=yellow",
+} as const;
+
+/**
  * Agents list content component
  */
 function CreateAgentButton() {
@@ -198,6 +208,7 @@ function AgentsListContent() {
   const { selectedVirtualMcp, setVirtualMcpId } = useChatStable();
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const { createSlideBuilder } = useCreateSlideBuilder();
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -241,6 +252,11 @@ function AgentsListContent() {
             key={SITE_EDITOR_AGENT.id}
             agent={SITE_EDITOR_AGENT}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
+          />
+          <AgentPreview
+            key={SLIDE_BUILDER_AGENT.id}
+            agent={SLIDE_BUILDER_AGENT}
+            onSpecialClick={createSlideBuilder}
           />
           {agents.map((agent) => (
             <AgentPreview key={agent.id ?? "default"} agent={agent} />

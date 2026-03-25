@@ -14,6 +14,7 @@ import {
   Building02,
   Container,
   CpuChip01,
+  Globe02,
   Lock01,
   RefreshCcw01,
   Settings01,
@@ -104,6 +105,12 @@ function useSettingsSidebarGroups(): SidebarGroup[] {
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
         },
+        {
+          key: "brand-context",
+          label: "Brand Context",
+          icon: <Globe02 size={14} />,
+          to: "/$org/settings/brand-context",
+        },
       ],
     },
     {
@@ -147,7 +154,7 @@ export function SettingsSidebar() {
   };
 
   return (
-    <div className="hidden md:flex w-56 shrink-0 flex-col gap-4 border-r border-border bg-sidebar/50 overflow-y-auto py-3">
+    <div className="hidden md:flex w-56 shrink-0 flex-col gap-4 bg-sidebar/50 overflow-y-auto py-3">
       {/* Back to org */}
       <div className="px-2">
         <Link

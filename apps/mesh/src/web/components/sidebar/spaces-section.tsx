@@ -1,5 +1,6 @@
-import { Suspense, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Suspense, useState, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -14,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus } from "@untitledui/icons";
+import { Plus, X } from "@untitledui/icons";
 import {
   isDecopilot,
   useProjectContext,
@@ -25,7 +26,9 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -33,7 +36,13 @@ const SITE_EDITOR_AGENT = {
   icon: "icon://Globe01?color=violet",
 } as const;
 
-const DEFAULT_AGENTS = [SITE_EDITOR_AGENT];
+const SLIDE_BUILDER_AGENT = {
+  id: "slide-builder",
+  title: "Slide Builder",
+  icon: "icon://PresentationChart01?color=yellow",
+} as const;
+
+const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SLIDE_BUILDER_AGENT];
 
 function SpaceListItem({
   space,
@@ -43,25 +52,95 @@ function SpaceListItem({
   org: string;
 }) {
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isActive = pathname.startsWith(`/${org}/spaces/${space.id}`);
+  const actions = useVirtualMCPActions();
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const xRef = useRef<HTMLButtonElement>(null);
+
+  const handleIconMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setButtonRect(
+      (e.currentTarget as HTMLButtonElement).getBoundingClientRect(),
+    );
+  };
+
+  const handleIconMouseLeave = (e: React.MouseEvent) => {
+    // Don't hide if the mouse is moving to the X button
+    if (
+      xRef.current &&
+      e.relatedTarget instanceof Node &&
+      xRef.current.contains(e.relatedTarget)
+    ) {
+      return;
+    }
+    setButtonRect(null);
+  };
+
+  // X button starts at the icon's LEFT edge — the icon (z-55) covers the left
+  // half entirely. Only the right portion is visible, like a tab opening behind.
+  const xVisibleWidth = buttonRect ? Math.round(buttonRect.height * 0.9) : 0;
+  const xTotalWidth = buttonRect ? buttonRect.width + xVisibleWidth : 0;
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={buttonRect ? "z-[55]" : undefined}>
       <SidebarMenuButton
-        tooltip={space.title}
+        tooltip={buttonRect ? undefined : space.title}
+        isActive={isActive}
         onClick={() =>
           navigate({
             to: "/$org/spaces/$virtualMcpId",
             params: { org, virtualMcpId: space.id },
           })
         }
+        onMouseEnter={handleIconMouseEnter}
+        onMouseLeave={handleIconMouseLeave}
       >
         <AgentAvatar
           icon={space.icon}
           name={space.title}
           size="xs"
-          className="w-full h-full rounded-lg [&_svg]:w-1/2 [&_svg]:h-1/2"
+          className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
         />
       </SidebarMenuButton>
+
+      {/* Tab opens behind the icon via portal to escape overflow:hidden.
+          paddingLeft = icon width pushes the X into the visible right portion. */}
+      {buttonRect &&
+        createPortal(
+          <button
+            ref={xRef}
+            type="button"
+            onMouseLeave={() => setButtonRect(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setButtonRect(null);
+              actions.update.mutate({ id: space.id, data: { pinned: false } });
+              navigate({ to: "/$org", params: { org } });
+            }}
+            className={cn(
+              "flex items-center justify-center",
+              "bg-sidebar-accent text-muted-foreground",
+              "rounded-xl cursor-pointer",
+              "animate-in fade-in-0 slide-in-from-right-2",
+              "duration-150 [animation-timing-function:cubic-bezier(0.165,0.84,0.44,1)]",
+              "hover:text-foreground transition-colors",
+            )}
+            style={{
+              position: "fixed",
+              top: buttonRect.top,
+              left: buttonRect.left,
+              height: buttonRect.height,
+              width: xTotalWidth,
+              paddingLeft: buttonRect.width,
+              zIndex: 50,
+              boxShadow:
+                "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+            }}
+          >
+            <X size={14} />
+          </button>,
+          document.body,
+        )}
     </SidebarMenuItem>
   );
 }
@@ -77,15 +156,15 @@ function AgentGridItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+      className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
     >
       <AgentAvatar
         icon={space.icon}
         name={space.title}
-        size="sm"
-        className="transition-transform group-hover:scale-110"
+        size="md"
+        className="transition-transform group-hover:scale-105"
       />
-      <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+      <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
         {space.title}
       </span>
     </button>
@@ -99,9 +178,9 @@ export function PinSpacePopover() {
   const allSpaces = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
-  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
-    navigateOnCreate: true,
-  });
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
+  const { createSlideBuilder, isCreating: isCreatingSlideBuilder } =
+    useCreateSlideBuilder();
 
   const navigate = useNavigate();
 
@@ -134,6 +213,8 @@ export function PinSpacePopover() {
     setSearch("");
     if (agentId === SITE_EDITOR_AGENT.id) {
       setSiteEditorModalOpen(true);
+    } else if (agentId === SLIDE_BUILDER_AGENT.id) {
+      createSlideBuilder();
     } else {
       navigate({
         to: "/$org/spaces/$virtualMcpId",
@@ -153,11 +234,11 @@ export function PinSpacePopover() {
           </PopoverTrigger>
         </SidebarMenuItem>
         <PopoverContent
-          className="w-[320px] p-0 overflow-hidden"
+          className="w-[380px] p-0 overflow-hidden"
           side="right"
           align="start"
         >
-          <div className="flex flex-col max-h-[min(560px,70dvh)]">
+          <div className="flex flex-col max-h-[min(640px,80dvh)]">
             {/* Search */}
             <CollectionSearch
               value={search}
@@ -178,16 +259,20 @@ export function PinSpacePopover() {
                 <button
                   type="button"
                   disabled={isCreating}
-                  onClick={() => {
-                    createVirtualMCP();
+                  onClick={async () => {
+                    const { id } = await createVirtualMCP();
                     setOpen(false);
+                    navigate({
+                      to: "/$org/spaces/$virtualMcpId/settings",
+                      params: { org: org.slug, virtualMcpId: id },
+                    });
                   }}
-                  className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="w-8 h-8 rounded-lg border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
-                    <Plus size={14} className="text-muted-foreground" />
+                  <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                    <Plus size={18} className="text-muted-foreground" />
                   </div>
-                  <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground">
+                  <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
                     Create new
                   </span>
                 </button>
@@ -214,16 +299,20 @@ export function PinSpacePopover() {
                       <button
                         key={agent.id}
                         type="button"
+                        disabled={
+                          agent.id === SLIDE_BUILDER_AGENT.id &&
+                          isCreatingSlideBuilder
+                        }
                         onClick={() => handleDefaultAgentClick(agent.id)}
-                        className="flex flex-col items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
+                        className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <AgentAvatar
                           icon={agent.icon}
                           name={agent.title}
-                          size="sm"
-                          className="transition-transform group-hover:scale-110"
+                          size="md"
+                          className="transition-transform group-hover:scale-105"
                         />
-                        <span className="text-[11px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+                        <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
                           {agent.title}
                         </span>
                       </button>

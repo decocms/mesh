@@ -27,11 +27,10 @@ import {
   Plus,
   Settings01,
 } from "@untitledui/icons";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { useProjectContext, useVirtualMCPActions } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useProjects } from "@/web/hooks/use-projects";
 import { useCreateProject } from "@/web/hooks/use-create-project";
-import { useDeleteProject } from "@/web/hooks/use-delete-project";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 
@@ -48,7 +47,7 @@ function ProjectListItem({
   });
   const [isOpen, setIsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { deleteProject } = useDeleteProject();
+  const actions = useVirtualMCPActions();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -127,7 +126,15 @@ function ProjectListItem({
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => deleteProject(project.id)}>
+            <DropdownMenuItem
+              onClick={() => {
+                actions.update.mutate({
+                  id: project.id,
+                  data: { pinned: false },
+                });
+                navigate({ to: "/$org", params: { org } });
+              }}
+            >
               Close
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -173,7 +180,7 @@ function ProjectListItem({
 }
 
 function ProjectsSectionContent() {
-  const projects = useProjects();
+  const projects = useProjects({ pinnedOnly: true });
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(true);

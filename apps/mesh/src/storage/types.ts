@@ -842,6 +842,7 @@ export interface AutomationTable {
   messages: string; // JSON string: UIMessage[]
   models: string; // JSON string: { connectionId, thinking, coding?, fast? }
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -859,6 +860,7 @@ export interface Automation {
   messages: string;
   models: string;
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: string;
   updated_at: string;
 }
