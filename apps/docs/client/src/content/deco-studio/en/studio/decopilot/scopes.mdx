@@ -39,7 +39,7 @@ Scope is determined by **two simple factors**:
 - No agent selected → **Project scope**
 - Agent selected → **Agent scope**
 
-Each scope is completely isolated—there's no inheritance between scopes. When you select an agent, you only have access to that agent's specific tools and resources.
+Scopes are largely isolated—when you select an agent, you primarily access that agent's specific tools and resources. Subtasks inherit a base prompt from the parent context, with agent-specific instructions layered on top.
 
 ## Scope and Subtasks
 
@@ -75,7 +75,7 @@ When you switch, decopilot automatically adjusts available tools and context.
 
 - **Scope adjusts automatically** based on which view you're in and whether an agent is selected
 - **Three scope types** provide different capabilities: organization, project, and agent
-- **Each scope is isolated** with its own tools and resources
+- **Each scope has its own tools and resources**, with subtasks inheriting base context
 - **Agents are focused** on specialized tasks to maintain clarity
 
 Understanding scope helps you work effectively with decopilot—you'll know what's available and how to organize your work.

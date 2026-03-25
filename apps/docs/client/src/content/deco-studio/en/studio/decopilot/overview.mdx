@@ -92,14 +92,16 @@ This layered approach means you're never locked into a narrow view—org-level t
 ## Built-in Tools
 
 Decopilot comes with built-in tools that enable meta-level operations:
-- **`agent_spawn`**: Create child tasks with specialized agents
+- **`subtask`**: Create child tasks with specialized agents
 - **`agent_search`**: Discover available agents in your organization
-- **`tools_search`**: Find tools in the current scope's virtual MCP
-- **`tool_enable`**: Activate tools in the current scope before use
-- **`resource_read` / `resource_edit`**: Manage project documentation and resources
-- **`prompt_read` / `prompt_edit`**: Create reusable prompt templates
+- **`user_ask`**: Ask user for input or clarification
+- **`sandbox`**: Execute JavaScript code with access to MCP tools
+- **`read_resource`**: Read project documentation and resources
+- **`read_prompt`**: Read reusable prompt templates
+- **`read_tool_output`**: Filter large tool outputs using regex patterns
+- **`propose_plan`**: Propose execution plans for user approval
 
-These built-in tools are always available and provide the foundation for working with virtual MCPs. Beyond these, you discover and enable tools from your connected MCP servers (Shopify, inventory systems, customer service platforms, etc.) as needed.
+These built-in tools are always available and provide the foundation for working with virtual MCPs. Scope tools from your connected MCP servers (Shopify, inventory systems, customer service platforms, etc.) are available based on the connections in the current scope's Virtual MCP.
 
 See [Tools](/en/studio/decopilot/tools) for complete specifications, usage patterns, and examples of coordinating tools across multiple services.
 

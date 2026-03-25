@@ -92,14 +92,16 @@ Esta abordagem em camadas significa que voce nunca fica preso a uma visao restri
 ## Ferramentas Integradas
 
 O decopilot vem com ferramentas integradas que habilitam operacoes em nivel meta:
-- **`agent_spawn`**: Criar tarefas filhas com agentes especializados
+- **`subtask`**: Criar tarefas filhas com agentes especializados
 - **`agent_search`**: Descobrir agentes disponiveis na sua organizacao
-- **`tools_search`**: Encontrar ferramentas no MCP virtual do escopo atual
-- **`tool_enable`**: Ativar ferramentas no escopo atual antes do uso
-- **`resource_read` / `resource_edit`**: Gerenciar documentacao e recursos do projeto
-- **`prompt_read` / `prompt_edit`**: Criar templates de prompt reutilizaveis
+- **`user_ask`**: Pedir entrada ou esclarecimento ao usuario
+- **`sandbox`**: Executar codigo JavaScript com acesso a ferramentas MCP
+- **`read_resource`**: Ler documentacao e recursos do projeto
+- **`read_prompt`**: Ler templates de prompt reutilizaveis
+- **`read_tool_output`**: Filtrar saidas grandes de ferramentas usando padroes regex
+- **`propose_plan`**: Propor planos de execucao para aprovacao do usuario
 
-Estas ferramentas integradas estao sempre disponiveis e fornecem a base para trabalhar com MCPs virtuais. Alem delas, voce descobre e habilita ferramentas dos seus servidores MCP conectados (Shopify, sistemas de inventario, plataformas de atendimento ao cliente, etc.) conforme necessario.
+Estas ferramentas integradas estao sempre disponiveis e fornecem a base para trabalhar com MCPs virtuais. As ferramentas de escopo dos seus servidores MCP conectados (Shopify, sistemas de inventario, plataformas de atendimento ao cliente, etc.) sao disponibilizadas com base nas conexoes do MCP Virtual do escopo atual.
 
 Veja [Ferramentas](/pt-br/studio/decopilot/tools) para especificacoes completas, padroes de uso e exemplos de coordenacao de ferramentas entre multiplos servicos.
 
