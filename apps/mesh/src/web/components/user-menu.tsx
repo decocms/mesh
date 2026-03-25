@@ -51,7 +51,7 @@ function MeshUserMenuBase({
             fallback={user.name || user.email || "U"}
             shape="circle"
             size="2xs"
-            className="shrink-0 size-full"
+            className="shrink-0 size-6"
           />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
