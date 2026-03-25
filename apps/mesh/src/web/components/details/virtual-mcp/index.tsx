@@ -4,6 +4,7 @@ import { useChatStable } from "@/web/components/chat/context";
 import { chatStore } from "@/web/components/chat/store/chat-store";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
+import { AutomationsTabContent } from "./automations-tab.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -47,6 +48,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
+  Loading01,
   Play,
   Plus,
   Settings01,
@@ -1145,6 +1147,23 @@ Define step-by-step how the agent should handle requests.
 
             {activeTab === "sidebar" && !isAgent && (
               <SidebarTabContent virtualMcpId={virtualMcp.id} />
+            )}
+
+            {activeTab === "automations" && !isAgent && (
+              <ErrorBoundary fallback={() => null}>
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center h-64">
+                      <Loading01
+                        size={24}
+                        className="animate-spin text-muted-foreground"
+                      />
+                    </div>
+                  }
+                >
+                  <AutomationsTabContent virtualMcpId={virtualMcp.id} />
+                </Suspense>
+              </ErrorBoundary>
             )}
 
             {activeTab === "instructions" && (
