@@ -75,21 +75,12 @@ function PersistentTasksResizablePanel({
   children,
   className,
 }: PropsWithChildren<{ className?: string }>) {
-  const [_isPending, startTransition] = useTransition();
-  const [tasksPanelWidth, setTasksPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
-  );
-
-  const handleResize = (size: number) =>
-    startTransition(() => setTasksPanelWidth(size));
-
   return (
     <ResizablePanel
-      defaultSize={tasksPanelWidth}
+      defaultSize={22}
       minSize={22}
+      maxSize={22}
       className={cn("min-w-0", className)}
-      onResize={handleResize}
       order={1}
     >
       {children}
@@ -246,15 +237,18 @@ function ShellLayoutInner({
             order={2}
             style={{ overflow: "visible" }}
           >
-            <div className="h-full pb-1.5 overflow-hidden">
+            <div
+              className={cn(
+                "h-full pb-1.5 overflow-hidden",
+                !hasRightPanel && "pr-1.5",
+              )}
+            >
               <div
                 className={cn(
                   "flex flex-col h-full min-h-0 bg-card overflow-hidden",
                   "border border-sidebar-border shadow-sm",
                   "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                  "rounded-tl-[0.75rem] rounded-bl-[0.75rem]",
-                  (hasRightPanel || isMobile) &&
-                    "rounded-tr-[0.75rem] rounded-br-[0.75rem]",
+                  "rounded-[0.75rem]",
                 )}
               >
                 <div className="flex-1 overflow-hidden">

@@ -743,18 +743,11 @@ function VirtualMcpDetailViewWithData({
   const [, setChatOpen] = useDecoChatOpen();
   const { setVirtualMcpId } = useChatStable();
 
-  // Agents: open chat on mount and select this agent
-  // Projects: select this project in chat store and close the side-panel chat
+  // Select this virtual MCP in chat store on mount/change
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isAgent) {
-      setChatOpen(true);
-      setVirtualMcpId(virtualMcp.id);
-    } else {
-      setVirtualMcpId(virtualMcp.id);
-      setChatOpen(false);
-    }
-  }, [virtualMcp.id, isAgent]);
+    setVirtualMcpId(virtualMcp.id);
+  }, [virtualMcp.id]);
 
   const handleTestAgent = () => {
     setVirtualMcpId(virtualMcp.id);
