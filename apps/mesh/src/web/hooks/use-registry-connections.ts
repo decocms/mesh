@@ -20,9 +20,10 @@ export function useRegistryConnections() {
   const { org } = useProjectContext();
   const { registryConfig } = useRegistrySettings();
 
-  // Deco Store is always a known registry
+  // Well-known registries are always included
   const decoStoreId = WellKnownOrgMCPId.REGISTRY(org.id);
-  const registryIds = new Set<string>([decoStoreId]);
+  const communityRegistryId = WellKnownOrgMCPId.COMMUNITY_REGISTRY(org.id);
+  const registryIds = new Set<string>([decoStoreId, communityRegistryId]);
 
   // Add any registries from registry_config (community, private, etc.)
   if (registryConfig?.registries) {
