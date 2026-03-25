@@ -54,7 +54,7 @@ export class AutomationJobStream {
     const config = {
       name: STREAM_NAME,
       subjects: [`${SUBJECT_PREFIX}.>`],
-      storage: StorageType.Memory,
+      storage: StorageType.File,
       retention: RetentionPolicy.Workqueue,
       discard: DiscardPolicy.Old,
       max_msgs: 10_000,
@@ -62,8 +62,18 @@ export class AutomationJobStream {
     };
 
     try {
-      await jsm.streams.info(STREAM_NAME);
-      await jsm.streams.update(STREAM_NAME, config);
+      const info = await jsm.streams.info(STREAM_NAME);
+      if (info.config.storage !== config.storage) {
+        // Storage type cannot be changed via update — recreate the stream.
+        // Safe because the previous stream was Memory (no durable data to lose).
+        console.log(
+          `[AutomationJobStream] Recreating stream ${STREAM_NAME}: storage type changed from ${info.config.storage} to ${config.storage}`,
+        );
+        await jsm.streams.delete(STREAM_NAME);
+        await jsm.streams.add(config);
+      } else {
+        await jsm.streams.update(STREAM_NAME, config);
+      }
     } catch (err: unknown) {
       const isNotFound =
         err instanceof Error && err.message.includes("stream not found");
