@@ -126,7 +126,10 @@ export function createServerFromClient(
     );
 
     server.server.setRequestHandler(GetPromptRequestSchema, (request) =>
-      client.getPrompt(request.params),
+      client.getPrompt({
+        ...request.params,
+        arguments: request.params.arguments ?? {},
+      }),
     );
   }
 
