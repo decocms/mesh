@@ -79,7 +79,7 @@ function SpaceListItem({
   const xTotalWidth = buttonRect ? buttonRect.width + xVisibleWidth : 0;
 
   return (
-    <SidebarMenuItem className={buttonRect ? "z-[55]" : undefined}>
+    <SidebarMenuItem className={cn(buttonRect && "z-[55]")}>
       <SidebarMenuButton
         tooltip={buttonRect ? undefined : space.title}
         isActive={isActive}
@@ -166,7 +166,7 @@ function AgentGridItem({
   );
 }
 
-export function PinSpacePopover() {
+function PinSpacePopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
