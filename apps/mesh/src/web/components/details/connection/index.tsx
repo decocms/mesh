@@ -1,4 +1,5 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import {
@@ -754,10 +755,18 @@ function ConnectionInspectorViewContent() {
 
   const actions = useConnectionActions();
 
-  // Resolve appSlug → matching connections (server-side filter by app_name, excludes VIRTUAL by default)
-  const siblings = useConnections({
+  // Resolve appSlug → matching connections.
+  // First try app_name (registry connections), then fall back to slug matching
+  // for custom connections where app_name is null and the slug is derived from
+  // connection_url or title.
+  const appNameSiblings = useConnections({
     filters: [{ column: "app_name", value: appSlug }],
   });
+  const allConnections = useConnections({});
+  const siblings =
+    appNameSiblings.length > 0
+      ? appNameSiblings
+      : allConnections.filter((c) => getConnectionSlug(c) === appSlug);
   const connection = siblings[0] ?? null;
   const connectionId = connection?.id ?? "";
 
