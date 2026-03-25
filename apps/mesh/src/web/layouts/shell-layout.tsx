@@ -320,22 +320,6 @@ function ShellLayoutInner({
         {!isMobile && (
           <div className="shrink-0 flex items-center justify-between px-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go back"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.forward()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go forward"
-              >
-                <ChevronRight size={16} />
-              </button>
               {showThreePanels && (
                 <button
                   type="button"
@@ -352,6 +336,22 @@ function ShellLayoutInner({
                   <LayoutLeft size={16} />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={16} />
+              </button>
               <ToolbarBreadcrumb />
             </div>
             {showThreePanels && (
