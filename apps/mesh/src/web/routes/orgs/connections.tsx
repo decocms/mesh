@@ -2429,16 +2429,13 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const first = appInstances[0];
-                          if (first) {
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(first),
-                              },
-                            });
-                          }
+                          navigate({
+                            to: "/$org/settings/connections/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: appName,
+                            },
+                          });
                         } else {
                           navigateToCatalogItem(item);
                         }
@@ -2508,16 +2505,13 @@ function OrgMcpsContent() {
                       fallbackIcon={<Container />}
                       onClick={() => {
                         if (isConnected) {
-                          const first = appInstances[0];
-                          if (first) {
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(first),
-                              },
-                            });
-                          }
+                          navigate({
+                            to: "/$org/settings/connections/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: appName,
+                            },
+                          });
                         } else {
                           navigateToCatalogItem(item);
                         }
