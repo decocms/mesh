@@ -55,6 +55,17 @@ export const ThreadEntitySchema = z.object({
     .string()
     .nullable()
     .describe("User ID who last updated the thread"),
+  agent_ids: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Connection IDs used in this thread, ordered by first appearance",
+    ),
+  run_config: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .optional()
+    .describe("Persisted run configuration (contains agent and model info)"),
 });
 
 export type ThreadEntity = z.infer<typeof ThreadEntitySchema>;
