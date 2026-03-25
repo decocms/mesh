@@ -791,17 +791,10 @@ function isCommunityItem(item: RegistryItem): boolean {
 }
 
 function SourceBadge({ item }: { item: RegistryItem }) {
-  if (isCommunityItem(item)) {
-    return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border text-foreground">
-        Community MCP Registry
-      </span>
-    );
-  }
-  const label = item._sourceName || "Deco Store";
+  if (!isCommunityItem(item)) return null;
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-primary/30 text-primary">
-      {label}
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border text-foreground">
+      Community MCP Registry
     </span>
   );
 }
@@ -919,11 +912,7 @@ function CatalogItemCard({
             </Button>
           )
         }
-        body={
-          item._sourceName || item._registryId ? (
-            <SourceBadge item={item} />
-          ) : undefined
-        }
+        body={isCommunityItem(item) ? <SourceBadge item={item} /> : undefined}
       />
       <AlertDialog
         open={communityWarningOpen}
