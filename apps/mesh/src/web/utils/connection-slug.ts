@@ -7,7 +7,7 @@ export function getConnectionSlug(connection: {
   id?: string;
 }): string {
   if (connection.app_name) {
-    return slugify(connection.app_name);
+    return connection.app_name;
   }
   if (connection.connection_url) {
     try {
