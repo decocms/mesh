@@ -31,15 +31,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 // Project header — shown when inside a project
 // ────────────────────────────────────────
 
-function ProjectHeader({
-  project,
-  org,
-}: {
-  project: VirtualMCPEntity;
-  org: string;
-}) {
-  const navigate = useNavigate();
-
+function ProjectHeader({ project }: { project: VirtualMCPEntity }) {
   return (
     <div className="flex items-center gap-2.5 pl-4 pr-2 py-5 flex-none">
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
@@ -52,18 +44,6 @@ function ProjectHeader({
           </span>
         )}
       </div>
-      <button
-        type="button"
-        className="flex size-6 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-        onClick={() =>
-          navigate({
-            to: "/$org/projects/$virtualMcpId/settings",
-            params: { org, virtualMcpId: project.id },
-          })
-        }
-      >
-        <Settings01 size={14} className="text-muted-foreground" />
-      </button>
     </div>
   );
 }
@@ -176,6 +156,7 @@ function TasksPanelContent() {
   const [, setTasksOpen] = useDecoTasksOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
   const { org } = useProjectContext();
+  const navigate = useNavigate();
   const [isPending, startTransition] = useTransition();
 
   const spacesMatch = useMatch({
@@ -208,7 +189,7 @@ function TasksPanelContent() {
     <div className="flex flex-col h-full">
       {/* Header */}
       {project ? (
-        <ProjectHeader project={project} org={org.slug} />
+        <ProjectHeader project={project} />
       ) : (
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">
@@ -250,13 +231,29 @@ function TasksPanelContent() {
         </Page.Header>
       )}
 
-      {/* Nav items: New session + Views flow as one group */}
+      {/* Nav items: New session + Settings + Views flow as one group */}
       <div className="py-2 flex flex-col gap-0.5">
         <NewTaskButton
           onClick={handleNewTask}
           isPending={isPending}
           label="New task"
         />
+        {project && (
+          <button
+            type="button"
+            onClick={() =>
+              navigate({
+                to: "/$org/projects/$virtualMcpId/",
+                params: { org: org.slug, virtualMcpId: project.id },
+                search: { view: "settings" },
+              })
+            }
+            className={navItemClass}
+          >
+            <Settings01 size={14} className="shrink-0" />
+            Settings
+          </button>
+        )}
         {project && <ProjectViewsSection project={project} org={org.slug} />}
       </div>
 

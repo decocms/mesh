@@ -32,11 +32,14 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   ArrowRight,
   LayoutRight,
+  Loading01,
   MessageChatSquare,
   Plus,
 } from "@untitledui/icons";
 import { useQuery } from "@tanstack/react-query";
+import { useMatch, useSearch } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
+import { VirtualMcpDetailView } from "@/web/components/details/virtual-mcp";
 
 // ---------- Import deco.cx Banner ----------
 
@@ -361,7 +364,48 @@ function HomeChatErrorFallback({
   );
 }
 
+function ProjectSettingsContent() {
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const projectsMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const virtualMcpId =
+    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
+  return (
+    <VirtualMcpDetailView
+      key={virtualMcpId}
+      virtualMcpId={virtualMcpId}
+      variant="project"
+    />
+  );
+}
+
 export default function OrgHomePage() {
+  const { view } = useSearch({ strict: false }) as { view?: string };
+
+  if (view === "settings") {
+    return (
+      <ErrorBoundary>
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center bg-background">
+              <Loading01
+                size={32}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          }
+        >
+          <ProjectSettingsContent />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary
       fallback={({ error, resetError }) => (

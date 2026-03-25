@@ -434,10 +434,13 @@ const virtualMcpLayout = createRoute({
   ),
 });
 
-// Project home - chat view (same as org home)
+// Project home - chat view (same as org home), with optional ?view=settings
 const projectHomeRoute = createRoute({
   getParentRoute: () => virtualMcpLayout,
   path: "/",
+  validateSearch: z.object({
+    view: z.enum(["settings"]).optional(),
+  }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
@@ -462,91 +465,6 @@ const spacePluginLayoutRoute = createRoute({
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
   ),
-});
-
-// Project settings — layout for /$org/projects/$virtualMcpId/settings/*
-const projectSettingsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/settings",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/layout.tsx"),
-  ),
-});
-
-// Backward-compat redirects: old sub-routes → /settings
-const projectSettingsGeneralRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/general",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDependenciesRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/dependencies",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsSidebarRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/sidebar",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsPluginsRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/plugins",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDangerRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/danger",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
 });
 
 // Pinned App View (virtual MCP scoped)
@@ -640,14 +558,6 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsSsoRoute,
 ]);
 
-const projectSettingsWithChildren = projectSettingsRoute.addChildren([
-  projectSettingsGeneralRedirect,
-  projectSettingsDependenciesRedirect,
-  projectSettingsSidebarRedirect,
-  projectSettingsPluginsRedirect,
-  projectSettingsDangerRedirect,
-]);
-
 const spacesWithChildren = spacesLayout.addChildren([
   spaceHomeRoute,
   spaceAppViewRoute,
@@ -657,7 +567,6 @@ const spacesWithChildren = spacesLayout.addChildren([
 
 const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectHomeRoute,
-  projectSettingsWithChildren,
   projectAppViewRoute,
   workflowsRoute,
   pluginLayoutWithChildren,

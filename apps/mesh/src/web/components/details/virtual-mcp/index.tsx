@@ -1074,7 +1074,7 @@ Define step-by-step how the agent should handle requests.
   const tabs = [
     {
       id: "instructions",
-      label: isAgent ? "Instructions" : "Agents Instructions",
+      label: "Instructions",
     },
     {
       id: "connections",

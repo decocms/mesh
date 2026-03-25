@@ -213,11 +213,12 @@ export function PluginLayout({
           </div>
           <Button asChild>
             <Link
-              to="/$org/projects/$virtualMcpId/settings"
+              to="/$org/projects/$virtualMcpId/"
               params={{
                 org: orgParam ?? org.slug,
                 virtualMcpId: virtualMcpId ?? project.id ?? "",
               }}
+              search={{ view: "settings" }}
             >
               Go to Project Settings
             </Link>
