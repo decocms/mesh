@@ -11,12 +11,16 @@ import type { RegistryItem } from "@/web/components/store/types";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
+import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
-import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
+import {
+  useMergedStoreDiscovery,
+  type RegistrySource,
+} from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { findListToolName } from "@/web/utils/registry-utils";
 import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { slugify } from "@/web/utils/slugify";
 import {
@@ -95,8 +99,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   CheckSquare,
-  CheckVerified02,
-  ChevronDown,
   Container,
   DotsVertical,
   Eye,
@@ -783,6 +785,163 @@ function BulkDeleteDialog({
 
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// Catalog item card (used in "All" tab for registry items)
+// ---------------------------------------------------------------------------
+
+function isCommunityItem(item: RegistryItem): boolean {
+  return item._registryId?.includes("community-registry") === true;
+}
+
+function CatalogItemCard({
+  item,
+  allConnections,
+  connectedAppNames,
+  connectingItemId,
+  onNavigateConnected,
+  onNavigateCatalog,
+  onConnect,
+}: {
+  item: RegistryItem;
+  allConnections: ConnectionEntity[];
+  connectedAppNames: Set<string>;
+  connectingItemId: string | null;
+  onNavigateConnected: (conn: ConnectionEntity) => void;
+  onNavigateCatalog: (item: RegistryItem) => void;
+  onConnect: (item: RegistryItem) => void;
+}) {
+  const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "navigate" | "connect" | null
+  >(null);
+
+  const appName = item.server?.name || item.name || item.id || "";
+  const isConnected = connectedAppNames.has(appName);
+  const meshMeta = item._meta?.["mcp.mesh"] as
+    | Record<string, string>
+    | undefined;
+  const title =
+    meshMeta?.friendlyName ||
+    meshMeta?.friendly_name ||
+    item.server?.title ||
+    item.title ||
+    item.server?.name ||
+    item.name ||
+    item.id ||
+    "";
+  const description = item.server?.description || item.description || null;
+  const icon =
+    item.server?.icons?.[0]?.src ||
+    getGitHubAvatarUrl(item.server?.repository) ||
+    null;
+  const appInstances = allConnections.filter(
+    (c) => c.connection_type !== "VIRTUAL" && c.app_name === appName,
+  );
+
+  const isCommunity = isCommunityItem(item);
+
+  const handleClick = () => {
+    if (isConnected) {
+      const first = appInstances[0];
+      if (first) {
+        onNavigateConnected(first);
+      }
+      return;
+    }
+    if (isCommunity) {
+      setPendingAction("navigate");
+      setCommunityWarningOpen(true);
+    } else {
+      onNavigateCatalog(item);
+    }
+  };
+
+  const handleConnect = () => {
+    if (isCommunity) {
+      setPendingAction("connect");
+      setCommunityWarningOpen(true);
+    } else {
+      onConnect(item);
+    }
+  };
+
+  const handleCommunityConfirm = () => {
+    setCommunityWarningOpen(false);
+    if (pendingAction === "navigate") {
+      onNavigateCatalog(item);
+    } else if (pendingAction === "connect") {
+      onConnect(item);
+    }
+    setPendingAction(null);
+  };
+
+  return (
+    <>
+      <ConnectionCard
+        connection={{ title, description, icon }}
+        fallbackIcon={<Container />}
+        onClick={handleClick}
+        headerActionsAlwaysVisible
+        headerActions={
+          <div className="flex items-center gap-2">
+            {isCommunity && item._sourceIcon && (
+              <img
+                src={item._sourceIcon}
+                alt="Community"
+                className="size-4 rounded-sm object-contain"
+              />
+            )}
+            {isConnected ? (
+              <span className="text-xs text-muted-foreground font-normal">
+                Connected
+              </span>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 rounded-lg text-sm font-medium"
+                disabled={connectingItemId !== null}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleConnect();
+                }}
+              >
+                {connectingItemId === item.id ? (
+                  <Loading01 size={14} className="animate-spin" />
+                ) : (
+                  "Connect"
+                )}
+              </Button>
+            )}
+          </div>
+        }
+      />
+      <AlertDialog
+        open={communityWarningOpen}
+        onOpenChange={setCommunityWarningOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Community MCP Server</AlertDialogTitle>
+            <AlertDialogDescription>
+              This MCP server is from the Community MCP Registry and is not
+              maintained or verified by Deco. Community servers may have varying
+              levels of quality, security, and reliability. Proceed with caution
+              and review the server details before connecting.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCommunityConfirm}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function OrgMcpsContent() {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
@@ -822,10 +981,11 @@ function OrgMcpsContent() {
         : (existing ?? "all"),
   );
 
-  // Type & status filters
+  // Type, status & registry filters
   const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
   const [statusFilter, setStatusFilter] =
     useState<ConnectionStatusFilter>("ALL");
+  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
 
   // Agents list (for Add to Agent dialog)
   const agents = useAgents();
@@ -852,38 +1012,34 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Optional registry lookup: support multiple registries, let user pick on "All" tab
-  // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
-  // Deco Store / MCP Registry should be the default catalog source.
-  const registryConnections = useConnections({ binding: "REGISTRY" }).sort(
-    (a, b) => {
-      const isSelfA = a.app_name === "@deco/management-mcp";
-      const isSelfB = b.app_name === "@deco/management-mcp";
-      if (isSelfA && !isSelfB) return 1;
-      if (!isSelfA && isSelfB) return -1;
-      return 0;
-    },
-  );
-  const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
-    (existing) => existing ?? "",
-  );
-  const registryConnection =
-    (selectedRegistryId
-      ? registryConnections.find((r) => r.id === selectedRegistryId)
-      : undefined) ?? registryConnections[0];
-  const registryId = registryConnection?.id ?? "";
-  const registryListToolName = findListToolName(registryConnection?.tools);
-  const registryDiscovery = useStoreDiscovery({
-    registryId,
-    listToolName: registryListToolName,
-  });
-  const registryItems = registryDiscovery.items;
+  // Registry lookup: use org settings to determine which registries are enabled
+  const registryConnections = useRegistryConnections();
+  const { isRegistryEnabled } = useRegistrySettings();
+  const enabledRegistries: RegistrySource[] = registryConnections
+    .filter((c) => isRegistryEnabled(c.id))
+    .map((c) => ({ id: c.id, title: c.title, icon: c.icon }));
+
+  // When the private-registry plugin is enabled and toggled on in store settings,
+  // include it as a store source (runs on self MCP, exposes REGISTRY_ITEM_LIST)
+  const enabledPlugins = useProjectContext().project.enabledPlugins ?? [];
+  if (
+    enabledPlugins.includes("private-registry") &&
+    isRegistryEnabled(SELF_MCP_ALIAS_ID)
+  ) {
+    enabledRegistries.push({
+      id: SELF_MCP_ALIAS_ID,
+      title: "Private Registry",
+      icon: null,
+    });
+  }
+
+  const mergedDiscovery = useMergedStoreDiscovery(enabledRegistries);
+  const registryItems = mergedDiscovery.items;
 
   const catalogSentinelRef = useInfiniteScroll(
-    registryDiscovery.loadMore,
-    registryDiscovery.hasMore,
-    registryDiscovery.isLoadingMore,
+    mergedDiscovery.loadMore,
+    mergedDiscovery.hasMore,
+    mergedDiscovery.isLoadingMore,
   );
 
   // "All" tab: catalog items from registry (includes already-connected ones)
@@ -891,10 +1047,24 @@ function OrgMcpsContent() {
     connections.filter((c) => c.app_name).map((c) => c.app_name as string),
   );
 
+  // Reset registry filter if the selected registry is no longer enabled
+  const effectiveRegistryFilter =
+    registryFilter === "ALL" ||
+    enabledRegistries.some((r) => r.id === registryFilter)
+      ? registryFilter
+      : "ALL";
+
   const searchLower = listState.search.toLowerCase();
   const catalogItems =
     activeTab === "all" || searchLower
       ? registryItems.filter((item) => {
+          // Registry filter
+          if (
+            effectiveRegistryFilter !== "ALL" &&
+            item._registryId !== effectiveRegistryFilter
+          ) {
+            return false;
+          }
           if (!searchLower) return true;
           const meshMeta = item._meta?.["mcp.mesh"] as
             | Record<string, string>
@@ -924,19 +1094,6 @@ function OrgMcpsContent() {
         })
       : [];
 
-  const verifiedCatalogItems = catalogItems.filter(
-    (item) =>
-      item.verified ||
-      item._meta?.["mcp.mesh"]?.verified ||
-      item.meta?.verified,
-  );
-  const otherCatalogItems = catalogItems.filter(
-    (item) =>
-      !item.verified &&
-      !item._meta?.["mcp.mesh"]?.verified &&
-      !item.meta?.verified,
-  );
-
   // In "All" tab, don't show connected items at top — they belong in the Connected tab
   // But when searching, show connected items regardless of tab so results appear across both
   const groupedForDisplay = activeTab === "all" && !searchLower ? [] : grouped;
@@ -958,7 +1115,7 @@ function OrgMcpsContent() {
         org: org.slug,
         appName: serverSlug,
       },
-      search: { registryId, serverName },
+      search: { registryId: item._registryId, serverName },
     });
   };
 
@@ -2133,6 +2290,24 @@ function OrgMcpsContent() {
                     { id: "error", label: "Error" },
                   ],
                 },
+                ...(enabledRegistries.length > 1
+                  ? [
+                      {
+                        label: "Registry",
+                        value: registryFilter,
+                        onChange: (v: string) => setRegistryFilter(v || "ALL"),
+                        options: [
+                          { id: "ALL", label: "All registries" },
+                          ...enabledRegistries.map((r) => ({
+                            id: r.id,
+                            label: r.id.includes("community-registry")
+                              ? "Community MCP Registry"
+                              : r.title,
+                          })),
+                        ],
+                      },
+                    ]
+                  : []),
               ]}
             />
             {ctaButton}
@@ -2163,402 +2338,213 @@ function OrgMcpsContent() {
               activeTab={activeTab}
               onTabChange={(id) => setActiveTab(id as ConnectionTab)}
             />
-            {registryConnections.length > 0 && (
-              <div
-                className={cn(
-                  activeTab !== "all" && "invisible pointer-events-none",
-                )}
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 gap-1.5 text-sm font-normal"
-                    >
-                      {(() => {
-                        const active =
-                          registryConnections.find(
-                            (rc) =>
-                              rc.id ===
-                              (selectedRegistryId ||
-                                registryConnections[0]?.id),
-                          ) ?? registryConnections[0];
-                        return (
-                          <>
-                            <IntegrationIcon
-                              icon={active?.icon}
-                              name={active?.title ?? ""}
-                              size="2xs"
-                              className="shrink-0 rounded-sm"
-                            />
-                            <span>{active?.title}</span>
-                          </>
-                        );
-                      })()}
-                      <ChevronDown
-                        size={14}
-                        className="text-muted-foreground"
-                      />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {registryConnections.map((rc) => (
-                      <DropdownMenuItem
-                        key={rc.id}
-                        onClick={() => setSelectedRegistryId(rc.id)}
-                        className={cn(
-                          selectedRegistryId === rc.id ||
-                            (!selectedRegistryId &&
-                              rc.id === registryConnections[0]?.id)
-                            ? "bg-accent"
-                            : "",
-                        )}
-                      >
-                        <IntegrationIcon
-                          icon={rc.icon}
-                          name={rc.title}
-                          size="2xs"
-                          className="shrink-0 rounded-sm"
-                        />
-                        {rc.title}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Content: Cards */}
         <Page.Content>
-          <div className="flex-1 overflow-auto p-5">
-            {(
-              searchLower
-                ? verifiedCatalogItems.length === 0 &&
-                  otherCatalogItems.length === 0 &&
-                  filteredConnections.length === 0
-                : activeTab === "all"
-                  ? verifiedCatalogItems.length === 0 &&
-                    otherCatalogItems.length === 0
-                  : filteredConnections.length === 0
-            ) ? (
-              <EmptyState
-                image={
-                  <img
-                    src="/emptystate-mcp.svg"
-                    alt=""
-                    width={336}
-                    height={320}
-                    aria-hidden="true"
-                  />
-                }
-                title="No Connections found"
-                description={
-                  listState.search
-                    ? `No Connections match "${listState.search}"`
-                    : "Create a connection to get started."
-                }
+          {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
+            <div className="flex h-full items-center justify-center">
+              <Loading01
+                size={32}
+                className="animate-spin text-muted-foreground"
               />
-            ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                {groupedForDisplay.map((item) => {
-                  if (item.type === "group") {
-                    return (
-                      <ConnectionGroupCard
-                        key={item.key}
-                        group={item}
-                        onOpen={() => {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: item.key,
-                            },
-                          });
-                        }}
-                        selectionMode={selectionMode}
-                        selectedIds={selectedIds}
-                        onToggleSelect={toggleSelect}
-                      />
-                    );
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto p-5">
+              {(
+                searchLower
+                  ? catalogItems.length === 0 &&
+                    filteredConnections.length === 0
+                  : activeTab === "all"
+                    ? catalogItems.length === 0
+                    : filteredConnections.length === 0
+              ) ? (
+                <EmptyState
+                  image={
+                    <img
+                      src="/emptystate-mcp.svg"
+                      alt=""
+                      width={336}
+                      height={320}
+                      aria-hidden="true"
+                    />
                   }
-
-                  const connection = item.connection;
-                  const isSelected = selectedIds.has(connection.id);
-                  return (
-                    <ConnectionCard
-                      key={connection.id}
-                      connection={connection}
-                      fallbackIcon={<Container />}
-                      onClick={() =>
-                        selectionMode
-                          ? toggleSelect(connection.id)
-                          : navigate({
+                  title="No Connections found"
+                  description={
+                    listState.search
+                      ? `No Connections match "${listState.search}"`
+                      : "Create a connection to get started."
+                  }
+                />
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+                  {groupedForDisplay.map((item) => {
+                    if (item.type === "group") {
+                      return (
+                        <ConnectionGroupCard
+                          key={item.key}
+                          group={item}
+                          onOpen={() => {
+                            navigate({
                               to: "/$org/mcps/$appSlug",
                               params: {
                                 org: org.slug,
-                                appSlug: getConnectionSlug(connection),
+                                appSlug: item.key,
                               },
-                            })
-                      }
-                      className={cn(
-                        isSelected && "ring-2 ring-primary bg-primary/5",
-                      )}
-                      headerActionsAlwaysVisible
-                      headerActions={
-                        <div className="flex items-center gap-1">
-                          {selectionMode ? (
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() =>
-                                toggleSelect(connection.id)
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground font-normal">
-                              Connected
-                            </span>
-                          )}
-                          <div
-                            className={cn(
-                              "overflow-hidden transition-all duration-150 ease-out",
-                              selectionMode
-                                ? "w-8 opacity-100"
-                                : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
+                            });
+                          }}
+                          selectionMode={selectionMode}
+                          selectedIds={selectedIds}
+                          onToggleSelect={toggleSelect}
+                        />
+                      );
+                    }
+
+                    const connection = item.connection;
+                    const isSelected = selectedIds.has(connection.id);
+                    return (
+                      <ConnectionCard
+                        key={connection.id}
+                        connection={connection}
+                        fallbackIcon={<Container />}
+                        onClick={() =>
+                          selectionMode
+                            ? toggleSelect(connection.id)
+                            : navigate({
+                                to: "/$org/mcps/$appSlug",
+                                params: {
+                                  org: org.slug,
+                                  appSlug: getConnectionSlug(connection),
+                                },
+                              })
+                        }
+                        className={cn(
+                          isSelected && "ring-2 ring-primary bg-primary/5",
+                        )}
+                        headerActionsAlwaysVisible
+                        headerActions={
+                          <div className="flex items-center gap-1">
+                            {selectionMode ? (
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() =>
+                                  toggleSelect(connection.id)
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground font-normal">
+                                Connected
+                              </span>
                             )}
-                          >
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
+                            <div
+                              className={cn(
+                                "overflow-hidden transition-all duration-150 ease-out",
+                                selectionMode
+                                  ? "w-8 opacity-100"
+                                  : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
+                              )}
+                            >
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <DotsVertical size={20} />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <DotsVertical size={20} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate({
-                                      to: "/$org/mcps/$appSlug",
-                                      params: {
-                                        org: org.slug,
-                                        appSlug: getConnectionSlug(connection),
-                                      },
-                                    });
-                                  }}
-                                >
-                                  <Eye size={16} />
-                                  Open
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSelect(connection.id);
-                                  }}
-                                >
-                                  <CheckSquare size={16} />
-                                  Select
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    dispatch({ type: "delete", connection });
-                                  }}
-                                >
-                                  <Trash01 size={16} />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate({
+                                        to: "/$org/mcps/$appSlug",
+                                        params: {
+                                          org: org.slug,
+                                          appSlug:
+                                            getConnectionSlug(connection),
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <Eye size={16} />
+                                    Open
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleSelect(connection.id);
+                                    }}
+                                  >
+                                    <CheckSquare size={16} />
+                                    Select
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dispatch({ type: "delete", connection });
+                                    }}
+                                  >
+                                    <Trash01 size={16} />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
-                        </div>
-                      }
-                    />
-                  );
-                })}
-                {/* Catalog items (uninstalled) — only on "All" tab */}
-                {activeTab === "all" && verifiedCatalogItems.length > 0 && (
-                  <div className="col-span-full flex items-center gap-2 mt-2">
-                    <CheckVerified02
-                      size={13}
-                      className="text-muted-foreground shrink-0"
-                    />
-                    <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                      Verified
-                    </span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                )}
-                {verifiedCatalogItems.map((item) => {
-                  const appName =
-                    item.server?.name || item.name || item.id || "";
-                  const isConnected = connectedAppNames.has(appName);
-                  const meshMeta = item._meta?.["mcp.mesh"] as
-                    | Record<string, string>
-                    | undefined;
-                  const title =
-                    meshMeta?.friendlyName ||
-                    meshMeta?.friendly_name ||
-                    item.server?.title ||
-                    item.title ||
-                    item.server?.name ||
-                    item.name ||
-                    item.id ||
-                    "";
-                  const description =
-                    item.server?.description || item.description || null;
-                  const icon =
-                    item.server?.icons?.[0]?.src ||
-                    getGitHubAvatarUrl(item.server?.repository) ||
-                    null;
-                  return (
-                    <ConnectionCard
-                      key={`catalog-${item.id}`}
-                      connection={{ title, description, icon }}
-                      fallbackIcon={<Container />}
-                      onClick={() => {
-                        if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
-                        } else {
-                          navigateToCatalogItem(item);
                         }
-                      }}
-                      headerActionsAlwaysVisible
-                      headerActions={
-                        isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 rounded-lg text-sm font-medium"
-                            disabled={connectingItemId !== null}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInlineConnect(item);
-                            }}
-                          >
-                            {connectingItemId === item.id ? (
-                              <Loading01 size={14} className="animate-spin" />
-                            ) : (
-                              "Connect"
-                            )}
-                          </Button>
-                        )
-                      }
-                    />
-                  );
-                })}
-                {activeTab === "all" && otherCatalogItems.length > 0 && (
-                  <div className="col-span-full flex items-center gap-2 mt-2">
-                    <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                      All connections
-                    </span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                )}
-                {otherCatalogItems.map((item) => {
-                  const appName =
-                    item.server?.name || item.name || item.id || "";
-                  const isConnected = connectedAppNames.has(appName);
-                  const meshMeta = item._meta?.["mcp.mesh"] as
-                    | Record<string, string>
-                    | undefined;
-                  const title =
-                    meshMeta?.friendlyName ||
-                    meshMeta?.friendly_name ||
-                    item.server?.title ||
-                    item.title ||
-                    item.server?.name ||
-                    item.name ||
-                    item.id ||
-                    "";
-                  const description =
-                    item.server?.description || item.description || null;
-                  const icon =
-                    item.server?.icons?.[0]?.src ||
-                    getGitHubAvatarUrl(item.server?.repository) ||
-                    null;
-                  return (
-                    <ConnectionCard
-                      key={`catalog-${item.id}`}
-                      connection={{ title, description, icon }}
-                      fallbackIcon={<Container />}
-                      onClick={() => {
-                        if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
-                        } else {
-                          navigateToCatalogItem(item);
-                        }
-                      }}
-                      headerActionsAlwaysVisible
-                      headerActions={
-                        isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 rounded-lg text-sm font-medium"
-                            disabled={connectingItemId !== null}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInlineConnect(item);
-                            }}
-                          >
-                            {connectingItemId === item.id ? (
-                              <Loading01 size={14} className="animate-spin" />
-                            ) : (
-                              "Connect"
-                            )}
-                          </Button>
-                        )
-                      }
-                    />
-                  );
-                })}
-                {(activeTab === "all" || searchLower) && registryId && (
-                  <div ref={catalogSentinelRef} className="col-span-full h-4" />
-                )}
-                {(activeTab === "all" || searchLower) &&
-                  registryDiscovery.isLoadingMore && (
-                    <div className="col-span-full flex justify-center py-6">
-                      <Loading01
-                        size={24}
-                        className="animate-spin text-muted-foreground"
                       />
-                    </div>
-                  )}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                  {/* Catalog items (uninstalled) — only on "All" tab */}
+                  {catalogItems.map((item) => (
+                    <CatalogItemCard
+                      key={`catalog-${item._registryId}:${item.id}`}
+                      item={item}
+                      allConnections={connections}
+                      connectedAppNames={connectedAppNames}
+                      connectingItemId={connectingItemId}
+                      onNavigateConnected={(conn) =>
+                        navigate({
+                          to: "/$org/mcps/$appSlug",
+                          params: {
+                            org: org.slug,
+                            appSlug: getConnectionSlug(conn),
+                          },
+                        })
+                      }
+                      onNavigateCatalog={navigateToCatalogItem}
+                      onConnect={handleInlineConnect}
+                    />
+                  ))}
+                  {(activeTab === "all" || searchLower) &&
+                    enabledRegistries.length > 0 && (
+                      <div
+                        ref={catalogSentinelRef}
+                        className="col-span-full h-4"
+                      />
+                    )}
+                  {(activeTab === "all" || searchLower) &&
+                    mergedDiscovery.isLoadingMore && (
+                      <div className="col-span-full flex justify-center py-6">
+                        <Loading01
+                          size={24}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      </div>
+                    )}
+                </div>
+              )}
+            </div>
+          )}
         </Page.Content>
 
         {/* Floating bulk action bar */}

@@ -98,6 +98,7 @@ interface MCPServerCardStoreProps extends MCPServerCardBaseProps {
   isVerified: boolean;
   isOfficial: boolean;
   canInstall: boolean;
+  sourceName?: string | null;
 }
 
 interface MCPServerCardServerProps extends MCPServerCardBaseProps {
@@ -153,6 +154,9 @@ export function MCPServerCard(props: MCPServerCardProps) {
   const canInstall = !isServer
     ? (props as MCPServerCardStoreProps).canInstall
     : true;
+  const sourceName = !isServer
+    ? (props as MCPServerCardStoreProps).sourceName
+    : null;
 
   return (
     <Card
@@ -248,6 +252,15 @@ export function MCPServerCard(props: MCPServerCardProps) {
         {!description && !isServer && (
           <div className="text-sm text-muted-foreground line-clamp-2">
             No description available
+          </div>
+        )}
+
+        {/* Source badge (store variant, when multiple registries) */}
+        {!isServer && sourceName && (
+          <div className="mt-auto pt-1">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+              {sourceName}
+            </span>
           </div>
         )}
 

@@ -27,6 +27,8 @@ interface UseStoreDiscoveryOptions {
   filtersToolName?: string;
   /** Search term for server-side filtering */
   search?: string;
+  /** Whether to enable data fetching. Defaults to true. */
+  enabled?: boolean;
 }
 
 interface UseStoreDiscoveryResult {
@@ -72,6 +74,7 @@ export function useStoreDiscovery({
   listToolName,
   filtersToolName,
   search,
+  enabled = true,
 }: UseStoreDiscoveryOptions): UseStoreDiscoveryResult {
   const { org } = useProjectContext();
   // Filter state
@@ -101,6 +104,7 @@ export function useStoreDiscovery({
     },
     staleTime: 60 * 60 * 1000, // 1 hour - filters don't change often
     retry: 2,
+    enabled: enabled && Boolean(registryId) && Boolean(filtersToolName),
   });
 
   // Build where clause for server-side search
@@ -168,6 +172,7 @@ export function useStoreDiscovery({
     staleTime: 60 * 60 * 1000,
     placeholderData: keepPreviousData,
     retry: 2,
+    enabled: enabled && Boolean(registryId) && Boolean(listToolName),
   });
 
   // Extract totalCount from first page if available

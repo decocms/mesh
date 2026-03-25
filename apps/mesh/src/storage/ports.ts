@@ -118,7 +118,10 @@ export interface OrganizationSettingsStoragePort {
   upsert(
     organizationId: string,
     data?: Partial<
-      Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
+      Pick<
+        OrganizationSettings,
+        "sidebar_items" | "enabled_plugins" | "registry_config"
+      >
     >,
   ): Promise<OrganizationSettings>;
 }

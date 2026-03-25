@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
-import { SidebarItemSchema } from "./schema.ts";
+import { SidebarItemSchema, RegistryConfigSchema } from "./schema.ts";
 
 export const ORGANIZATION_SETTINGS_GET = defineTool({
   name: "ORGANIZATION_SETTINGS_GET",
   description:
-    "Get organization-level settings including sidebar configuration.",
+    "Get organization-level settings including sidebar configuration and store registry settings.",
   annotations: {
     title: "Get Organization Settings",
     readOnlyHint: true,
@@ -20,6 +20,7 @@ export const ORGANIZATION_SETTINGS_GET = defineTool({
     organizationId: z.string(),
     sidebar_items: z.array(SidebarItemSchema).nullable().optional(),
     enabled_plugins: z.array(z.string()).nullable().optional(),
+    registry_config: RegistryConfigSchema.nullable().optional(),
     createdAt: z.string().datetime().optional().describe("ISO 8601 timestamp"),
     updatedAt: z.string().datetime().optional().describe("ISO 8601 timestamp"),
   }),

@@ -8,16 +8,17 @@ import type { RegistryItem } from "@/web/components/store/types";
 import { authClient } from "@/web/lib/auth-client";
 import {
   useConnectionActions,
-  useConnections,
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import {
-  findListToolName,
+  inferRegistryListToolName,
   extractItemsFromResponse,
   callRegistryTool,
 } from "@/web/utils/registry-utils";
+import { useRegistryConnections } from "./use-registry-connections";
+import { useRegistrySettings } from "./use-registry-settings";
 
 interface InstallResult {
   id: string;
@@ -55,8 +56,12 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { data: session } = authClient.useSession();
   const actions = useConnectionActions();
 
-  // Get registry connections using server-side binding filter
-  const registryConnections = useConnections({ binding: "REGISTRY" });
+  // Get registry connections from registry_config, filtered to enabled only
+  const registryConnections = useRegistryConnections();
+  const { isRegistryEnabled } = useRegistrySettings();
+  const enabledRegistries = registryConnections.filter((c) =>
+    isRegistryEnabled(c.id),
+  );
 
   // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (
@@ -71,9 +76,11 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
 
     // Query all registries in parallel to find the MCP Server
     const results = await Promise.all(
-      registryConnections.map(async (registryConnection) => {
-        const listToolName = findListToolName(registryConnection.tools);
-        if (!listToolName) return null;
+      enabledRegistries.map(async (registryConnection) => {
+        const listToolName = inferRegistryListToolName(
+          registryConnection.id,
+          org.id,
+        );
 
         try {
           const result = await callRegistryTool(
