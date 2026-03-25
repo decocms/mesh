@@ -1050,9 +1050,6 @@ export const createMCPServer = <
 
       // Only close transport for non-streaming responses
       if (!isStreaming) {
-        console.debug(
-          "[MCP Transport] Closing transport for non-streaming response",
-        );
         try {
           await transport.close?.();
         } catch {
@@ -1063,10 +1060,6 @@ export const createMCPServer = <
       return response;
     } catch (error) {
       // On error, always try to close transport to prevent leaks
-      console.debug(
-        "[MCP Transport] Closing transport due to error:",
-        error instanceof Error ? error.message : error,
-      );
       try {
         await transport.close?.();
       } catch {

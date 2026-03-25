@@ -138,10 +138,6 @@ export function publicMCPServerRoutes(
   app.all("/org/:orgSlug/registry/*", async (c) => {
     const orgSlug = c.req.param("orgSlug");
 
-    console.log(
-      `[Public Registry MCP] Request for org slug: ${orgSlug}, path: ${c.req.path}`,
-    );
-
     // Lookup organization by slug
     const org = await db
       .selectFrom("organization")
@@ -149,10 +145,7 @@ export function publicMCPServerRoutes(
       .where("slug", "=", orgSlug)
       .executeTakeFirst();
 
-    console.log(`[Public Registry MCP] Found org:`, org);
-
     if (!org) {
-      console.log(`[Public Registry MCP] Organization not found: ${orgSlug}`);
       return c.json({ error: "Organization not found" }, 404);
     }
 
@@ -172,10 +165,6 @@ export function publicMCPServerRoutes(
     originalUrl.searchParams.forEach((value, key) => {
       newUrl.searchParams.set(key, value);
     });
-
-    console.log(
-      `[Public Registry MCP] Rewriting ${originalUrl.pathname} to ${newUrl.pathname}`,
-    );
 
     // Create a new request with the rewritten URL
     const newRequest = new Request(newUrl.toString(), {
