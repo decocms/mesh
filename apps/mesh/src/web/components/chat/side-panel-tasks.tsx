@@ -9,6 +9,7 @@
 import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { Loading01, MessageTextCircle02, Plus } from "@untitledui/icons";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { useMatch } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Suspense, useTransition } from "react";
@@ -53,12 +54,20 @@ function TasksPanelContent() {
           <button
             type="button"
             onClick={() => setChatOpen((prev) => !prev)}
-            className={`flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer ${isChatOpen ? "bg-accent" : ""}`}
+            className={cn(
+              "flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer",
+              isChatOpen && "bg-accent",
+            )}
             title="Toggle chat"
           >
             <MessageTextCircle02
               size={16}
-              className={`transition-colors ${isChatOpen ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+              className={cn(
+                "transition-colors",
+                isChatOpen
+                  ? "text-foreground"
+                  : "text-muted-foreground group-hover:text-foreground",
+              )}
             />
           </button>
           <button
