@@ -52,7 +52,7 @@ import {
   Loading01,
   Plus,
 } from "@untitledui/icons";
-import { Suspense, useState } from "react";
+import { Suspense, useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -162,15 +162,18 @@ function AddConnectionDialogContent({
   onAdd,
   onInlineConnect,
   connectingItemId,
+  search,
 }: {
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
   onInlineConnect: (item: RegistryItem) => void;
   connectingItemId: string | null;
+  search: string;
 }) {
   const { org } = useProjectContext();
-  const [search, setSearch] = useState("");
-  const searchLower = search.toLowerCase();
+  // Defer search so React keeps showing old results instead of suspense fallback
+  const deferredSearch = useDeferredValue(search);
+  const searchLower = deferredSearch.toLowerCase();
 
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
     LOCALSTORAGE_KEYS.connectionsTab(org.slug) + ":agent-modal",
@@ -184,19 +187,19 @@ function AddConnectionDialogContent({
     orgId: org.id,
   });
 
-  const where = search?.trim()
+  const where = deferredSearch?.trim()
     ? {
         operator: "or" as const,
         conditions: [
           {
             field: ["title"],
             operator: "contains" as const,
-            value: search.trim(),
+            value: deferredSearch.trim(),
           },
           {
             field: ["description"],
             operator: "contains" as const,
-            value: search.trim(),
+            value: deferredSearch.trim(),
           },
         ],
       }
@@ -427,15 +430,6 @@ function AddConnectionDialogContent({
 
   return (
     <>
-      {/* Search */}
-      <div className="pt-3 shrink-0">
-        <CollectionSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search connections..."
-        />
-      </div>
-
       {/* Tabs + Registry selector */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
         <CollectionTabs
@@ -654,6 +648,7 @@ export function AddConnectionDialog({
   onAdd,
 }: AddConnectionDialogProps) {
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
@@ -771,6 +766,15 @@ export function AddConnectionDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {/* Search lives outside Suspense so it never unmounts during refetches */}
+        <div className="pt-3 shrink-0">
+          <CollectionSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search connections..."
+          />
+        </div>
+
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center">
@@ -786,6 +790,7 @@ export function AddConnectionDialog({
             onAdd={onAdd}
             onInlineConnect={handleInlineConnect}
             connectingItemId={connectingItemId}
+            search={search}
           />
         </Suspense>
       </DialogContent>
