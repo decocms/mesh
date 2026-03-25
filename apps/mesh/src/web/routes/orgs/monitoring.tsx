@@ -71,8 +71,9 @@ import {
 } from "@deco/ui/components/time-range-picker.tsx";
 import { expressionToDate } from "@deco/ui/lib/time-expressions.ts";
 import {
+  useInfiniteQuery,
+  useQuery,
   useSuspenseInfiniteQuery,
-  useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type ReactNode, Suspense, useRef, useState } from "react";
@@ -1803,69 +1804,123 @@ function ThreadRow({
   );
 }
 
-function ThreadMessagesContent({
+const MESSAGES_PAGE_SIZE = 100;
+
+/**
+ * Self-contained conversation panel rendered inside the Suspense boundary.
+ * Owns both the SheetHeader content (so model is derived directly from
+ * messages, no parent-state callback needed) and the paginated message list.
+ */
+function ThreadConversationPanel({
   client,
   locator,
-  threadId,
-  onModelResolved,
+  thread,
+  connections,
+  virtualMcps,
+  members,
 }: {
   client: ReturnType<typeof useMCPClient>;
   locator: string;
-  threadId: string;
-  onModelResolved?: (model: string | null) => void;
+  thread: ThreadEntity;
+  connections: ReturnType<typeof useConnections>;
+  virtualMcps: ReturnType<typeof useVirtualMCPs>;
+  members: ReturnType<typeof useMembers>["data"] | undefined;
 }) {
-  const { data } = useSuspenseQuery({
-    queryKey: KEYS.threadMessages(locator, threadId),
-    queryFn: async () => {
-      if (!client) throw new Error("MCP client is not available");
-      const result = (await client.callTool({
-        name: "COLLECTION_THREAD_MESSAGES_LIST",
-        arguments: { thread_id: threadId, limit: 200 },
-      })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as {
-        items: ThreadMessageEntity[];
-        totalCount: number;
-        hasMore: boolean;
-      };
-    },
-  });
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useSuspenseInfiniteQuery({
+      queryKey: KEYS.threadMessages(locator, thread.id),
+      queryFn: async ({ pageParam = 0 }) => {
+        if (!client) throw new Error("MCP client is not available");
+        const result = (await client.callTool({
+          name: "COLLECTION_THREAD_MESSAGES_LIST",
+          arguments: {
+            thread_id: thread.id,
+            limit: MESSAGES_PAGE_SIZE,
+            offset: pageParam,
+          },
+        })) as { structuredContent?: unknown };
+        return (result.structuredContent ?? result) as {
+          items: ThreadMessageEntity[];
+          totalCount: number;
+          hasMore: boolean;
+        };
+      },
+      initialPageParam: 0 as number,
+      getNextPageParam: (lastPage, allPages) => {
+        const page = lastPage as { items?: ThreadMessageEntity[] } | undefined;
+        const pages = allPages as Array<{ items?: ThreadMessageEntity[] }>;
+        if ((page?.items?.length ?? 0) < MESSAGES_PAGE_SIZE) return undefined;
+        return pages.length * MESSAGES_PAGE_SIZE;
+      },
+      staleTime: 60_000,
+    });
 
-  const rawItems = data?.items ?? [];
-  const modelName = extractModelFromMessages(rawItems);
+  const allItems = data.pages.flatMap(
+    (p: { items?: ThreadMessageEntity[] }) => p.items ?? [],
+  );
+  const modelName = extractModelFromMessages(allItems);
 
-  const rawMessages = rawItems as unknown as ChatMessage[];
-  // Only keep user/assistant pairs — system messages are not visible in the chat UI
+  const rawMessages = allItems as unknown as ChatMessage[];
   const messages = rawMessages.filter(
     (m) => m.role === "user" || m.role === "assistant",
   );
   const messagePairs = useMessagePairs(messages);
 
-  // Report model to parent on first render (React Compiler keeps this stable)
-  if (onModelResolved) {
-    onModelResolved(modelName);
-  }
-
-  if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-        No messages in this thread
-      </div>
-    );
-  }
+  const lastMsgRef = useInfiniteScroll(
+    () => {
+      if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+    },
+    hasNextPage ?? false,
+    isFetchingNextPage,
+  );
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0">
-      <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
-        {messagePairs.map((pair, idx) => (
-          <MessagePair
-            key={pair.user.id}
-            pair={pair}
-            isLastPair={idx === messagePairs.length - 1}
-            status="ready"
-          />
-        ))}
-      </div>
-    </div>
+    <>
+      <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+        <SheetTitle className="text-sm pr-6 leading-snug">
+          {thread.title}
+        </SheetTitle>
+        <ThreadMetaRow
+          thread={thread}
+          connections={connections}
+          virtualMcps={virtualMcps}
+          members={members}
+          modelName={modelName}
+        />
+      </SheetHeader>
+
+      {messages.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          No messages in this thread
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex flex-col min-w-0 max-w-2xl mx-auto w-full">
+            {messagePairs.map((pair, idx) => (
+              <div
+                key={pair.user.id}
+                ref={
+                  idx === messagePairs.length - 1
+                    ? (lastMsgRef as (node: HTMLDivElement | null) => void)
+                    : undefined
+                }
+              >
+                <MessagePair
+                  pair={pair}
+                  isLastPair={idx === messagePairs.length - 1}
+                  status="ready"
+                />
+              </div>
+            ))}
+            {isFetchingNextPage && (
+              <div className="py-4 text-center text-xs text-muted-foreground">
+                Loading more…
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2052,14 +2107,21 @@ function ThreadsTabContent({
   dateRange,
 }: ThreadsTabContentProps) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [resolvedModel, setResolvedModel] = useState<string | null>(null);
 
   // Filter state
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [modelFilter, setModelFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  };
 
   const startDate = dateRange.startDate.toISOString();
   const endDate = dateRange.endDate.toISOString();
@@ -2067,14 +2129,14 @@ function ThreadsTabContent({
   const filterKey = JSON.stringify({
     startDate,
     endDate,
-    search,
+    search: debouncedSearch,
     status: statusFilter,
     userId: userFilter,
     agentId: agentFilter,
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useSuspenseInfiniteQuery({
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useInfiniteQuery({
       queryKey: KEYS.threadsInfinite(locator, filterKey),
       queryFn: async ({ pageParam = 0 }) => {
         if (!client) throw new Error("MCP client is not available");
@@ -2085,7 +2147,7 @@ function ThreadsTabContent({
             offset: pageParam,
             startDate,
             endDate,
-            ...(search ? { search } : {}),
+            ...(debouncedSearch ? { search: debouncedSearch } : {}),
             ...(statusFilter !== "all" ? { status: statusFilter } : {}),
             ...(userFilter !== "all" ? { userId: userFilter } : {}),
             ...(agentFilter !== "all" ? { agentId: agentFilter } : {}),
@@ -2097,33 +2159,48 @@ function ThreadsTabContent({
           hasMore: boolean;
         };
       },
-      initialPageParam: 0,
+      initialPageParam: 0 as number,
       getNextPageParam: (lastPage, allPages) => {
-        if ((lastPage?.items?.length ?? 0) < THREADS_PAGE_SIZE)
-          return undefined;
-        return allPages.length * THREADS_PAGE_SIZE;
+        const page = lastPage as { items?: ThreadEntity[] } | undefined;
+        const pages = allPages as Array<{ items?: ThreadEntity[] }>;
+        if ((page?.items?.length ?? 0) < THREADS_PAGE_SIZE) return undefined;
+        return pages.length * THREADS_PAGE_SIZE;
       },
       staleTime: 30_000,
     });
 
-  const { data: modelLogsData } = useSuspenseQuery({
+  const { data: modelLogsData } = useQuery({
     queryKey: KEYS.threadModelLogs(locator, filterKey),
     queryFn: async () => {
       if (!client) throw new Error("MCP client is not available");
-      const result = (await client.callTool({
-        name: "MONITORING_LOGS_LIST",
-        arguments: {
-          connectionId: "decopilot",
-          startDate,
-          endDate,
-          limit: 500,
-          offset: 0,
-        },
-      })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as MonitoringLogsResponse;
+      const LOG_BATCH = 500;
+      const allLogs: MonitoringLogsResponse["logs"] = [];
+      let offset = 0;
+      let total = Infinity;
+      while (offset < total) {
+        const raw = (await client.callTool({
+          name: "MONITORING_LOGS_LIST",
+          arguments: {
+            connectionId: "decopilot",
+            startDate,
+            endDate,
+            limit: LOG_BATCH,
+            offset,
+          },
+        })) as { structuredContent?: unknown };
+        const page = (raw.structuredContent ?? raw) as MonitoringLogsResponse & {
+          total?: number;
+        };
+        const batch = page.logs ?? [];
+        allLogs.push(...batch);
+        total = page.total ?? allLogs.length;
+        offset += LOG_BATCH;
+        if (batch.length < LOG_BATCH) break;
+      }
+      return { logs: allLogs, total: allLogs.length } as MonitoringLogsResponse;
     },
-    staleTime: 60_000,
-  });
+      staleTime: 60_000,
+    });
 
   interface ThreadUsage {
     inputTokens: number;
@@ -2166,7 +2243,9 @@ function ThreadsTabContent({
     }
   }
 
-  const allThreads = data.pages.flatMap((p) => p.items ?? []);
+  const allThreads = (data?.pages ?? []).flatMap(
+    (p: { items?: ThreadEntity[] }) => p.items ?? [],
+  );
 
   // Client-side model filter (model comes from logs, not threads query)
   const visibleThreads =
@@ -2210,7 +2289,7 @@ function ThreadsTabContent({
   ];
 
   const hasActiveFilters =
-    !!search ||
+    !!searchInput ||
     statusFilter !== "all" ||
     userFilter !== "all" ||
     modelFilter !== "all" ||
@@ -2221,13 +2300,16 @@ function ThreadsTabContent({
       {/* Search + filter bar */}
       <div className="shrink-0 flex items-center border-b border-border">
         <CollectionSearch
-          value={search}
-          onChange={setSearch}
+          value={searchInput}
+          onChange={handleSearchChange}
           placeholder="Search by title…"
           className="flex-1 border-0 border-b-0"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
-              setSearch("");
+              if (searchDebounceRef.current)
+                clearTimeout(searchDebounceRef.current);
+              setSearchInput("");
+              setDebouncedSearch("");
               (e.target as HTMLInputElement).blur();
             }
           }}
@@ -2262,7 +2344,11 @@ function ThreadsTabContent({
       </div>
 
       <div className="flex-1 overflow-auto">
-        {visibleThreads.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-1 items-center justify-center py-20">
+            <span className="text-sm text-muted-foreground">Loading…</span>
+          </div>
+        ) : visibleThreads.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-20">
             <EmptyState
               title={
@@ -2275,110 +2361,109 @@ function ThreadsTabContent({
               }
             />
           </div>
-        ) : null}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Title
-              </TableHead>
-              <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Agent
-              </TableHead>
-              <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Model
-              </TableHead>
-              <TableHead className="w-28 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                User
-              </TableHead>
-              <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Status
-              </TableHead>
-              <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Usage
-              </TableHead>
-              <TableHead className="w-20 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Date
-              </TableHead>
-              <TableHead className="w-24 px-3 pr-5 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
-                Time
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visibleThreads.map((thread, idx) => (
-              <ThreadRow
-                key={thread.id}
-                thread={thread}
-                members={membersData}
-                connections={allConnections}
-                virtualMcps={allVirtualMcps}
-                modelName={threadModelMap.get(thread.id)}
-                usage={threadUsageMap.get(thread.id)}
-                onClick={() => {
-                  setResolvedModel(null);
-                  setSelectedThreadId(thread.id);
-                }}
-                lastRowRef={
-                  idx === visibleThreads.length - 1
-                    ? (lastRowRef as (node: HTMLTableRowElement | null) => void)
-                    : undefined
-                }
-              />
-            ))}
-          </TableBody>
-        </Table>
-        {isFetchingNextPage && (
-          <div className="py-4 text-center text-sm text-muted-foreground">
-            Loading more...
-          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Title
+                  </TableHead>
+                  <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Agent
+                  </TableHead>
+                  <TableHead className="w-36 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Model
+                  </TableHead>
+                  <TableHead className="w-28 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    User
+                  </TableHead>
+                  <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Status
+                  </TableHead>
+                  <TableHead className="w-24 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Usage
+                  </TableHead>
+                  <TableHead className="w-20 px-3 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Date
+                  </TableHead>
+                  <TableHead className="w-24 px-3 pr-5 text-xs font-mono font-normal text-muted-foreground uppercase tracking-wide">
+                    Time
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleThreads.map((thread, idx) => (
+                  <ThreadRow
+                    key={thread.id}
+                    thread={thread}
+                    members={membersData}
+                    connections={allConnections}
+                    virtualMcps={allVirtualMcps}
+                    modelName={threadModelMap.get(thread.id)}
+                    usage={threadUsageMap.get(thread.id)}
+                    onClick={() => setSelectedThreadId(thread.id)}
+                    lastRowRef={
+                      idx === visibleThreads.length - 1
+                        ? (lastRowRef as (node: HTMLTableRowElement | null) => void)
+                        : undefined
+                    }
+                  />
+                ))}
+              </TableBody>
+            </Table>
+            {isFetchingNextPage && (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                Loading more...
+              </div>
+            )}
+          </>
         )}
       </div>
 
       <Sheet
         open={selectedThreadId !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setSelectedThreadId(null);
-            setResolvedModel(null);
-          }
+          if (!open) setSelectedThreadId(null);
         }}
       >
         <SheetContent className="sm:max-w-2xl flex flex-col p-0 gap-0">
-          <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
-            <SheetTitle className="text-sm pr-6 leading-snug">
-              {selectedThread?.title ?? "Thread"}
-            </SheetTitle>
-            {selectedThread && (
-              <ThreadMetaRow
-                thread={selectedThread}
-                connections={allConnections}
-                virtualMcps={allVirtualMcps}
-                members={membersData}
-                modelName={resolvedModel}
-              />
-            )}
-          </SheetHeader>
-          {selectedThreadId && (
+          {selectedThread && (
             <ErrorBoundary
               fallback={
-                <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                  Failed to load messages
-                </div>
+                <>
+                  <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+                    <SheetTitle className="text-sm pr-6 leading-snug">
+                      {selectedThread.title}
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                    Failed to load messages
+                  </div>
+                </>
               }
             >
               <Suspense
                 fallback={
-                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                    Loading conversation...
-                  </div>
+                  <>
+                    <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+                      <SheetTitle className="text-sm pr-6 leading-snug">
+                        {selectedThread.title}
+                      </SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                      Loading conversation…
+                    </div>
+                  </>
                 }
               >
-                <ThreadMessagesContent
+                <ThreadConversationPanel
                   client={client}
                   locator={locator}
-                  threadId={selectedThreadId}
-                  onModelResolved={setResolvedModel}
+                  thread={selectedThread}
+                  connections={allConnections}
+                  virtualMcps={allVirtualMcps}
+                  members={membersData}
                 />
               </Suspense>
             </ErrorBoundary>
