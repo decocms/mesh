@@ -54,13 +54,17 @@ export interface AutomationWithTriggerCount extends Automation {
   trigger_count: number;
 }
 
+export interface AutomationWithTriggerInfo extends AutomationWithTriggerCount {
+  nearest_next_run_at: string | null;
+}
+
 export interface AutomationsStorage {
   create(input: CreateAutomationInput): Promise<Automation>;
   findById(id: string, organizationId: string): Promise<Automation | null>;
   list(organizationId: string): Promise<Automation[]>;
   listWithTriggerCounts(
     organizationId: string,
-  ): Promise<AutomationWithTriggerCount[]>;
+  ): Promise<AutomationWithTriggerInfo[]>;
   update(
     id: string,
     organizationId: string,
@@ -222,7 +226,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
 
   async listWithTriggerCounts(
     organizationId: string,
-  ): Promise<AutomationWithTriggerCount[]> {
+  ): Promise<AutomationWithTriggerInfo[]> {
     const rows = await this.db
       .selectFrom("automations as a")
       .leftJoin("automation_triggers as t", "t.automation_id", "a.id")
@@ -240,6 +244,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.updated_at",
       ])
       .select((eb) => eb.fn.count("t.id").as("trigger_count"))
+      .select((eb) => eb.fn.min("t.next_run_at").as("nearest_next_run_at"))
       .where("a.organization_id", "=", organizationId)
       .groupBy([
         "a.id",
@@ -260,6 +265,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
     return rows.map((row) => ({
       ...automationFromDbRow(row),
       trigger_count: Number(row.trigger_count),
+      nearest_next_run_at: row.nearest_next_run_at
+        ? toIsoString(row.nearest_next_run_at as unknown as string)
+        : null,
     }));
   }
 

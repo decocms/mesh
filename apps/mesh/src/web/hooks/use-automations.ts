@@ -23,6 +23,8 @@ export interface AutomationListItem {
   created_by: string;
   created_at: string;
   trigger_count: number;
+  agent: { id: string; mode: string } | null;
+  nearest_next_run_at: string | null;
 }
 
 export interface AutomationTrigger {

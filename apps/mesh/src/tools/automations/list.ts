@@ -29,6 +29,8 @@ export const AUTOMATION_LIST = defineTool({
         created_by: z.string(),
         created_at: z.string(),
         trigger_count: z.number(),
+        agent: z.object({ id: z.string(), mode: z.string() }).nullable(),
+        nearest_next_run_at: z.string().nullable(),
       }),
     ),
   }),
@@ -41,14 +43,27 @@ export const AUTOMATION_LIST = defineTool({
       organization.id,
     );
 
-    const results = automations.map((automation) => ({
-      id: automation.id,
-      name: automation.name,
-      active: automation.active,
-      created_by: automation.created_by,
-      created_at: automation.created_at,
-      trigger_count: automation.trigger_count,
-    }));
+    const results = automations.map((automation) => {
+      let agent: { id: string; mode: string } | null = null;
+      try {
+        if (automation.agent) {
+          agent = JSON.parse(automation.agent);
+        }
+      } catch {
+        agent = null;
+      }
+
+      return {
+        id: automation.id,
+        name: automation.name,
+        active: automation.active,
+        created_by: automation.created_by,
+        created_at: automation.created_at,
+        trigger_count: automation.trigger_count,
+        agent,
+        nearest_next_run_at: automation.nearest_next_run_at,
+      };
+    });
 
     return { automations: results };
   },

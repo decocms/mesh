@@ -9,12 +9,11 @@ import { useChat } from "@/web/components/chat/index";
 import { useChatStable } from "@/web/components/chat/context";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { formatTimeAgo } from "@/web/lib/format-time";
+import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   buildDisplayGroups,
   getTaskVerb,
   STATUS_CONFIG,
-  type DisplayGroup,
   type StatusKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
@@ -35,6 +34,7 @@ import {
   FilterLines,
   Loading01,
   Archive,
+  RefreshCcw01,
 } from "@untitledui/icons";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useRef, useState } from "react";
@@ -62,6 +62,11 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import type { TaskOwnerFilter } from "./task";
 import { useChatStore } from "./store/selectors";
+import {
+  useAutomationsList,
+  type AutomationListItem,
+} from "@/web/hooks/use-automations";
+import { useNavigate } from "@tanstack/react-router";
 
 // ────────────────────────────────────────
 
@@ -207,29 +212,31 @@ function AgentAvatarStack({
 // ────────────────────────────────────────
 
 function GroupHeader({
-  group,
+  label,
+  icon: Icon,
+  iconClassName,
+  count,
   isOpen,
   onToggle,
 }: {
-  group: DisplayGroup;
+  label: string;
+  icon: typeof Loading01;
+  iconClassName: string;
+  count: number;
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const Icon = group.icon;
-
   return (
     <button
       type="button"
       onClick={onToggle}
       className="group flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
     >
-      <Icon size={14} className={group.iconClassName} />
-      <span className="text-sm font-medium text-muted-foreground">
-        {group.label}
-      </span>
+      <Icon size={14} className={iconClassName} />
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
       {!isOpen && (
         <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {group.tasks.length}
+          {count}
         </span>
       )}
       <ChevronRight
@@ -372,6 +379,116 @@ function TaskRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+// ────────────────────────────────────────
+// Automation row
+// ────────────────────────────────────────
+
+function AutomationRow({
+  automation,
+  connectionMap,
+  defaultAgent,
+  onClick,
+}: {
+  automation: AutomationListItem;
+  connectionMap: Map<
+    string,
+    { icon: string | null | undefined; title: string }
+  >;
+  defaultAgent: { icon: string | null | undefined; title: string };
+  onClick: () => void;
+}) {
+  const agentId = automation.agent?.id;
+  const agent = agentId
+    ? (connectionMap.get(agentId) ?? defaultAgent)
+    : defaultAgent;
+  const nextRun = automation.nearest_next_run_at;
+
+  return (
+    <div
+      className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
+      onClick={onClick}
+    >
+      <div className="shrink-0">
+        <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <TruncatedText
+            text={automation.name || "Untitled"}
+            className="text-sm text-foreground flex-1 min-w-0"
+          />
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap">
+            {nextRun ? formatTimeUntil(new Date(nextRun)) : "Event"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="truncate">{agent.title}</span>
+          <span>·</span>
+          <span className="shrink-0">
+            {nextRun ? "Scheduled" : "Event-based"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+// Incoming section (automations)
+// ────────────────────────────────────────
+
+function IncomingSection({
+  virtualMcpId,
+  connectionMap,
+  defaultAgent,
+}: {
+  virtualMcpId: string;
+  connectionMap: Map<
+    string,
+    { icon: string | null | undefined; title: string }
+  >;
+  defaultAgent: { icon: string | null | undefined; title: string };
+}) {
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const { data: allAutomations } = useAutomationsList();
+  const [isOpen, setIsOpen] = useState(true);
+
+  const automations = (allAutomations ?? []).filter(
+    (a) => a.active && a.agent?.id === virtualMcpId,
+  );
+
+  if (automations.length === 0) return null;
+
+  return (
+    <div>
+      <GroupHeader
+        label="Incoming"
+        icon={RefreshCcw01}
+        iconClassName="text-purple-500"
+        count={automations.length}
+        isOpen={isOpen}
+        onToggle={() => setIsOpen((prev) => !prev)}
+      />
+      {isOpen &&
+        automations.map((automation) => (
+          <AutomationRow
+            key={automation.id}
+            automation={automation}
+            connectionMap={connectionMap}
+            defaultAgent={defaultAgent}
+            onClick={() =>
+              navigate({
+                to: "/shell/$org/settings/automations/$automationId",
+                params: { org: org.slug, automationId: automation.id },
+              })
+            }
+          />
+        ))}
+    </div>
   );
 }
 
@@ -603,6 +720,13 @@ export function TaskListContent({
 
       {/* Grouped list */}
       <div className="flex-1 overflow-y-auto">
+        {virtualMcpId && (
+          <IncomingSection
+            virtualMcpId={virtualMcpId}
+            connectionMap={connectionMap}
+            defaultAgent={defaultAgent}
+          />
+        )}
         {groups.length === 0 ? (
           <EmptyState
             image={
@@ -627,7 +751,10 @@ export function TaskListContent({
               return (
                 <div key={group.key}>
                   <GroupHeader
-                    group={group}
+                    label={group.label}
+                    icon={group.icon}
+                    iconClassName={group.iconClassName}
+                    count={group.tasks.length}
                     isOpen={isGroupOpen}
                     onToggle={() => toggleGroup(group.key)}
                   />
