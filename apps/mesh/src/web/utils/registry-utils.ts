@@ -3,7 +3,7 @@
  * Centralizes duplicated logic across store-related files
  */
 
-import { createMCPClient } from "@decocms/mesh-sdk";
+import { createMCPClient, WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 /**
  * Find the LIST tool from a tools array
@@ -66,6 +66,52 @@ export function findRegistryToolBySuffix(
   );
   if (registryTool) return registryTool.name;
   return "";
+}
+
+/**
+ * Check if a connection ID belongs to a well-known (non-private) registry.
+ */
+function isWellKnownRegistry(connectionId: string, orgId: string): boolean {
+  return (
+    connectionId === WellKnownOrgMCPId.REGISTRY(orgId) ||
+    connectionId === WellKnownOrgMCPId.COMMUNITY_REGISTRY(orgId)
+  );
+}
+
+/**
+ * Infer the LIST tool name for a registry based on its connection ID.
+ * Well-known registries (Deco Store, Community) use COLLECTION_REGISTRY_APP_LIST.
+ * Private registries use REGISTRY_ITEM_LIST.
+ */
+export function inferRegistryListToolName(
+  connectionId: string,
+  orgId: string,
+): string {
+  if (isWellKnownRegistry(connectionId, orgId)) {
+    return "COLLECTION_REGISTRY_APP_LIST";
+  }
+  return "REGISTRY_ITEM_LIST";
+}
+
+/**
+ * Infer a registry tool name by suffix based on the connection ID.
+ * Well-known registries use COLLECTION_REGISTRY_APP_{suffix}.
+ * Private registries use REGISTRY_ITEM_{suffix}.
+ */
+export function inferRegistryToolBySuffix(
+  connectionId: string,
+  orgId: string,
+  suffix: "_GET" | "_VERSIONS" | "_SEARCH",
+): string {
+  if (isWellKnownRegistry(connectionId, orgId)) {
+    return `COLLECTION_REGISTRY_APP${suffix}`;
+  }
+  const suffixMap: Record<string, string> = {
+    _GET: "REGISTRY_ITEM_GET",
+    _VERSIONS: "REGISTRY_ITEM_VERSIONS",
+    _SEARCH: "REGISTRY_ITEM_SEARCH",
+  };
+  return suffixMap[suffix] ?? "";
 }
 
 /**

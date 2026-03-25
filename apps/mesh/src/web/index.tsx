@@ -280,6 +280,15 @@ const storeDetailRoute = createRoute({
   ),
 });
 
+// Org-level plugin route (mirrors /$org/projects/$virtualMcpId/$pluginId for org-admin)
+const orgPluginRoute = createRoute({
+  getParentRoute: () => orgLayout,
+  path: "/plugins/$pluginId",
+  component: lazyRouteComponent(
+    () => import("./layouts/org-plugin-layout.tsx"),
+  ),
+});
+
 // Automations
 const automationsRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -531,6 +540,7 @@ const orgRoutes = [
   collectionDetailRoute,
   monitoringRoute,
   storeDetailRoute,
+  orgPluginRoute,
   automationsRoute,
   automationDetailRoute,
   agentsRoute,

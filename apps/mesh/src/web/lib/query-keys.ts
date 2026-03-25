@@ -261,4 +261,8 @@ export const KEYS = {
   // Registry config (scoped by organization)
   registryConfig: (organizationId: string) =>
     ["registry-config", organizationId] as const,
+
+  // Store discovery (per-registry infinite query)
+  storeDiscovery: (orgId: string, registryId: string) =>
+    ["store-discovery", orgId, registryId] as const,
 } as const;

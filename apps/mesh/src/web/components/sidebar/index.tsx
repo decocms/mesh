@@ -1,11 +1,15 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
+import { KEYS } from "@/web/lib/query-keys";
 import {
   ProjectContextProvider,
+  SELF_MCP_ALIAS_ID,
   useIsOrgAdmin,
+  useMCPClient,
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
+import { useQuery } from "@tanstack/react-query";
 import { useMatch } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
@@ -124,6 +128,46 @@ function ProjectScopedSidebar({ virtualMcpId }: { virtualMcpId: string }) {
   );
 }
 
+/**
+ * On org-admin routes, the sidebar renders inside the shell-layout's
+ * ProjectContextProvider which has a minimal project stub without
+ * enabledPlugins.  We read org settings (sharing the cache with
+ * org-layout) and re-provide the project context so that plugin
+ * sidebar groups are visible.
+ */
+function OrgScopedSidebar() {
+  const { org, project } = useProjectContext();
+
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: orgSettings } = useQuery({
+    queryKey: KEYS.organizationSettings(org.id),
+    queryFn: async () => {
+      const result = await client.callTool({
+        name: "ORGANIZATION_SETTINGS_GET",
+        arguments: {},
+      });
+      const payload =
+        (result as { structuredContent?: unknown }).structuredContent ?? result;
+      return (payload ?? {}) as {
+        enabled_plugins?: string[] | null;
+      };
+    },
+    staleTime: 60_000,
+  });
+
+  const enabledPlugins = orgSettings?.enabled_plugins ?? null;
+
+  return (
+    <ProjectContextProvider org={org} project={{ ...project, enabledPlugins }}>
+      <SidebarContent />
+    </ProjectContextProvider>
+  );
+}
+
 export function MeshSidebar() {
   const projectMatch = useMatch({
     from: "/shell/$org/projects/$virtualMcpId",
@@ -135,5 +179,5 @@ export function MeshSidebar() {
     return <ProjectScopedSidebar virtualMcpId={virtualMcpId} />;
   }
 
-  return <SidebarContent />;
+  return <OrgScopedSidebar />;
 }

@@ -15,12 +15,12 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import {
   useProjectContext,
-  useConnections,
   WellKnownOrgMCPId,
   useConnectionActions,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
 import { ErrorBoundary } from "../../error-boundary";
+import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
 import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
 
 function ErrorFallback({ error }: { error: Error }) {
@@ -219,12 +219,14 @@ function RegistryCard({
 }
 
 function OrgStoreContent() {
-  const { org } = useProjectContext();
-  const registryConnections = useConnections({ binding: "REGISTRY" });
+  const { org, project } = useProjectContext();
+  const registryConnections = useRegistryConnections();
   const connectionActions = useConnectionActions();
   const { registryConfig, isRegistryEnabled, updateRegistryConfig } =
     useRegistrySettings();
   const queryClient = useQueryClient();
+  const enabledPlugins = project.enabledPlugins ?? [];
+  const hasPrivateRegistryPlugin = enabledPlugins.includes("private-registry");
 
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -317,6 +319,14 @@ function OrgStoreContent() {
         <h3 className="text-sm font-medium text-muted-foreground">
           Private Registries
         </h3>
+        {hasPrivateRegistryPlugin && (
+          <RegistryCard
+            name="Private Registry"
+            description="Your organization's private MCP registry (plugin)"
+            enabled={isRegistryEnabled("self")}
+            onToggle={(enabled) => handleToggle("self", enabled)}
+          />
+        )}
         {privateRegistries.map((registry) => (
           <RegistryCard
             key={registry.id}

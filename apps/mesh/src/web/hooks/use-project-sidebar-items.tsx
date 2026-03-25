@@ -163,7 +163,6 @@ export function useProjectSidebarItems(options?: {
   };
 
   // Plugin items mapped to navigation items (flat items)
-  // Plugins are scoped to the virtual MCP
   const pluginItems: NavigationSidebarItem[] = enabledPluginItems.map(
     (item) => ({
       key: item.pluginId,
@@ -171,14 +170,15 @@ export function useProjectSidebarItems(options?: {
       icon: item.icon,
       isActive: isActiveRoute(item.pluginId),
       onClick: () =>
-        navigate({
-          to: "/$org/projects/$virtualMcpId/$pluginId",
-          params: {
-            org,
-            virtualMcpId,
-            pluginId: item.pluginId,
-          },
-        }),
+        isOrgAdminProject
+          ? navigate({
+              to: "/$org/plugins/$pluginId",
+              params: { org, pluginId: item.pluginId },
+            })
+          : navigate({
+              to: "/$org/projects/$virtualMcpId/$pluginId",
+              params: { org, virtualMcpId, pluginId: item.pluginId },
+            }),
     }),
   );
 
@@ -200,14 +200,15 @@ export function useProjectSidebarItems(options?: {
           icon: item.icon,
           isActive: isActiveRoute(group.pluginId),
           onClick: () =>
-            navigate({
-              to: "/$org/projects/$virtualMcpId/$pluginId",
-              params: {
-                org,
-                virtualMcpId,
-                pluginId: group.pluginId,
-              },
-            }),
+            isOrgAdminProject
+              ? navigate({
+                  to: "/$org/plugins/$pluginId",
+                  params: { org, pluginId: group.pluginId },
+                })
+              : navigate({
+                  to: "/$org/projects/$virtualMcpId/$pluginId",
+                  params: { org, virtualMcpId, pluginId: group.pluginId },
+                }),
         })),
         defaultExpanded: group.defaultExpanded ?? true,
       },
@@ -271,6 +272,22 @@ export function useProjectSidebarItems(options?: {
         }),
     };
 
+    // Flatten plugin group items into the Manage group
+    const pluginGroupItems: NavigationSidebarItem[] =
+      enabledPluginGroups.flatMap((group) =>
+        group.items.map((item, index) => ({
+          key: `${group.pluginId}-${group.id}-${index}`,
+          label: item.label,
+          icon: item.icon,
+          isActive: isActiveRoute(group.pluginId),
+          onClick: () =>
+            navigate({
+              to: "/$org/plugins/$pluginId",
+              params: { org, pluginId: group.pluginId },
+            }),
+        })),
+      );
+
     const sections: SidebarSection[] = [
       {
         type: "items",
@@ -290,21 +307,16 @@ export function useProjectSidebarItems(options?: {
         group: {
           id: "manage",
           label: "Manage",
-          items: [monitorItem, settingsItem],
+          items: [
+            monitorItem,
+            ...pluginItems,
+            ...pluginGroupItems,
+            settingsItem,
+          ],
           defaultExpanded: true,
         },
       },
     ];
-
-    // Add flat plugin items if any
-    if (pluginItems.length > 0) {
-      sections.push({ type: "items", items: pluginItems });
-    }
-
-    // Add plugin groups
-    if (pluginGroupSections.length > 0) {
-      sections.push(...pluginGroupSections);
-    }
 
     // Add pinned views
     if (pinnedViewsSection) {
