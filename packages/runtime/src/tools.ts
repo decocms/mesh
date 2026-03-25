@@ -1058,11 +1058,6 @@ export const createMCPServer = <
         } catch {
           // Ignore close errors
         }
-      } else {
-        console.debug(
-          "[MCP Transport] Keeping transport open for streaming response (Content-Type: %s)",
-          contentType,
-        );
       }
 
       return response;
