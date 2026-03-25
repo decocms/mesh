@@ -45,6 +45,10 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
     .string()
     .optional()
     .describe("Filter by the user who created the thread"),
+  agentId: z
+    .string()
+    .optional()
+    .describe("Filter by agent (connection or virtual MCP) ID"),
 });
 
 /**
@@ -96,6 +100,7 @@ export const COLLECTION_THREADS_LIST = defineTool({
           endDate: input.endDate,
           search: input.search,
           status: input.status,
+          agentId: input.agentId,
         });
 
     const hasMore = offset + limit < total;

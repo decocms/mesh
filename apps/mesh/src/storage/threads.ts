@@ -75,6 +75,7 @@ export class OrgScopedThreadStorage {
       endDate?: string;
       search?: string;
       status?: string;
+      agentId?: string;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
@@ -253,6 +254,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       endDate?: string;
       search?: string;
       status?: string;
+      agentId?: string;
     },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
@@ -269,16 +271,29 @@ export class SqlThreadStorage implements ThreadStoragePort {
       query = query.where("virtual_mcp_id", "=", options.virtualMcpId);
     }
     if (options?.startDate) {
-      query = query.where("updated_at", ">=", new Date(options.startDate));
+      // updated_at is stored as ISO text — string comparison is correct for ISO dates
+      query = query.where(
+        "updated_at",
+        ">=",
+        options.startDate as unknown as Date,
+      );
     }
     if (options?.endDate) {
-      query = query.where("updated_at", "<=", new Date(options.endDate));
+      query = query.where(
+        "updated_at",
+        "<=",
+        options.endDate as unknown as Date,
+      );
     }
     if (options?.search) {
       query = query.where("title", "ilike", `%${options.search}%`);
     }
     if (options?.status) {
       query = query.where("status", "=", options.status as ThreadStatus);
+    }
+    if (options?.agentId) {
+      // agent_ids is stored as a JSON text array — match the quoted ID inside it
+      query = query.where("agent_ids", "like", `%"${options.agentId}"%`);
     }
 
     let countQuery = this.db
@@ -301,14 +316,14 @@ export class SqlThreadStorage implements ThreadStoragePort {
       countQuery = countQuery.where(
         "updated_at",
         ">=",
-        new Date(options.startDate),
+        options.startDate as unknown as Date,
       );
     }
     if (options?.endDate) {
       countQuery = countQuery.where(
         "updated_at",
         "<=",
-        new Date(options.endDate),
+        options.endDate as unknown as Date,
       );
     }
     if (options?.search) {
@@ -319,6 +334,13 @@ export class SqlThreadStorage implements ThreadStoragePort {
         "status",
         "=",
         options.status as ThreadStatus,
+      );
+    }
+    if (options?.agentId) {
+      countQuery = countQuery.where(
+        "agent_ids",
+        "like",
+        `%"${options.agentId}"%`,
       );
     }
 
