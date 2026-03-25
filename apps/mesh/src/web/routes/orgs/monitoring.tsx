@@ -2120,7 +2120,10 @@ function ThreadsTabContent({
   const handleSearchChange = (value: string) => {
     setSearchInput(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+    searchDebounceRef.current = setTimeout(
+      () => setDebouncedSearch(value),
+      300,
+    );
   };
 
   const startDate = dateRange.startDate.toISOString();
@@ -2188,7 +2191,8 @@ function ThreadsTabContent({
             offset,
           },
         })) as { structuredContent?: unknown };
-        const page = (raw.structuredContent ?? raw) as MonitoringLogsResponse & {
+        const page = (raw.structuredContent ??
+          raw) as MonitoringLogsResponse & {
           total?: number;
         };
         const batch = page.logs ?? [];
@@ -2199,8 +2203,8 @@ function ThreadsTabContent({
       }
       return { logs: allLogs, total: allLogs.length } as MonitoringLogsResponse;
     },
-      staleTime: 60_000,
-    });
+    staleTime: 60_000,
+  });
 
   interface ThreadUsage {
     inputTokens: number;
@@ -2405,7 +2409,9 @@ function ThreadsTabContent({
                     onClick={() => setSelectedThreadId(thread.id)}
                     lastRowRef={
                       idx === visibleThreads.length - 1
-                        ? (lastRowRef as (node: HTMLTableRowElement | null) => void)
+                        ? (lastRowRef as (
+                            node: HTMLTableRowElement | null,
+                          ) => void)
                         : undefined
                     }
                   />
