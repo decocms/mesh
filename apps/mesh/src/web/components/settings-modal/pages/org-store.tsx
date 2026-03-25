@@ -1,7 +1,7 @@
 import { Suspense, useState } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertCircle, Plus, Trash01 } from "@untitledui/icons";
+import { AlertCircle, Plus, Trash01, Settings01 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import { useNavigate } from "@tanstack/react-router";
 import {
   useProjectContext,
   useConnections,
@@ -20,6 +21,8 @@ import {
   useConnectionActions,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
+import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import { ErrorBoundary } from "../../error-boundary";
 import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
 
@@ -139,6 +142,7 @@ function RegistryCard({
   enabled,
   onToggle,
   onDelete,
+  onManage,
 }: {
   name: string;
   description: string;
@@ -146,6 +150,7 @@ function RegistryCard({
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   onDelete?: () => void;
+  onManage?: () => void;
 }) {
   return (
     <div
@@ -179,6 +184,19 @@ function RegistryCard({
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {onManage && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onManage();
+            }}
+          >
+            <Settings01 size={14} />
+          </Button>
+        )}
         {onDelete && (
           <Popover>
             <PopoverTrigger asChild>
@@ -220,6 +238,8 @@ function RegistryCard({
 
 function OrgStoreContent() {
   const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const { close: closeSettings } = useSettingsModal();
   const registryConnections = useConnections({ binding: "REGISTRY" });
   const connectionActions = useConnectionActions();
   const { registryConfig, isRegistryEnabled, updateRegistryConfig } =
@@ -326,6 +346,16 @@ function OrgStoreContent() {
             enabled={isRegistryEnabled(registry.id)}
             onToggle={(enabled) => handleToggle(registry.id, enabled)}
             onDelete={() => handleDelete(registry.id)}
+            onManage={() => {
+              closeSettings();
+              navigate({
+                to: "/$org/mcps/$appSlug",
+                params: {
+                  org: org.slug,
+                  appSlug: getConnectionSlug(registry),
+                },
+              });
+            }}
           />
         ))}
         {showAddForm ? (
