@@ -36,6 +36,8 @@ interface MultiSelectProps {
   asChild?: boolean;
   className?: string;
   disabled?: boolean;
+  /** When provided, disables client-side filtering and delegates search to the caller. */
+  onSearchChange?: (term: string) => void;
 }
 
 export function MultiSelect({
@@ -50,6 +52,7 @@ export function MultiSelect({
   asChild = false,
   className,
   disabled = false,
+  onSearchChange,
 }: MultiSelectProps) {
   const [selectedValues, setSelectedValues] =
     React.useState<string[]>(defaultValue);
@@ -172,10 +175,11 @@ export function MultiSelect({
         align="start"
         onEscapeKeyDown={() => setIsPopoverOpen(false)}
       >
-        <Command className="rounded-xl">
+        <Command shouldFilter={!onSearchChange} className="rounded-xl">
           <CommandInput
             placeholder="Search..."
             onKeyDown={handleInputKeyDown}
+            onValueChange={onSearchChange}
             className="rounded-t-xl"
           />
           <CommandList className="rounded-b-xl">
