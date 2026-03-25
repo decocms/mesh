@@ -19,11 +19,26 @@ import { project } from "./run-projector";
 import type { RunReactorDeps } from "./run-reactor";
 import { reactAll } from "./run-reactor";
 import type { Thread } from "@/storage/types";
+import { meter } from "@/observability";
 
 export type { RunReactorDeps };
 
 const REAP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_RUN_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+/** Events that mark a new inflight run. */
+const INFLIGHT_START_EVENTS = new Set(["RUN_STARTED", "RUN_RESUMED"]);
+/** Events that mark the end of an inflight run. */
+const INFLIGHT_END_EVENTS = new Set([
+  "RUN_COMPLETED",
+  "RUN_FAILED",
+  "RUN_REQUIRES_ACTION",
+]);
+
+const inflightRuns = meter.createUpDownCounter("decopilot.stream.inflight", {
+  description: "Number of in-flight decopilot stream requests",
+  unit: "{requests}",
+});
 
 export class RunRegistry {
   private readonly states = new Map<string, RunState>();
@@ -84,6 +99,13 @@ export class RunRegistry {
       }
 
       transitions.push({ event, state: newState });
+
+      // Update inflight metric
+      if (INFLIGHT_START_EVENTS.has(event.type)) {
+        inflightRuns.add(1, { "org.id": event.orgId });
+      } else if (INFLIGHT_END_EVENTS.has(event.type)) {
+        inflightRuns.add(-1, { "org.id": event.orgId });
+      }
     }
 
     return transitions;
