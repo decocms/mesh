@@ -8,7 +8,7 @@ import {
 import { StoreDiscovery } from "@/web/components/store";
 import { StoreRegistrySelect } from "@/web/components/store/store-registry-select";
 import { StoreRegistryEmptyState } from "@/web/components/store/store-registry-empty-state";
-import { useRegistryConnections } from "@/web/hooks/use-binding";
+
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import {
@@ -71,7 +71,6 @@ function StoreErrorFallback({
 
 export default function StorePage() {
   const { org, project } = useProjectContext();
-  const allConnections = useConnections();
   const connectionActions = useConnectionActions();
 
   // Check if we're viewing a child route (server detail)
@@ -80,8 +79,8 @@ export default function StorePage() {
     routerState.location.pathname.includes("/store/") &&
     routerState.location.pathname.split("/").length > 3;
 
-  // Filter to only show registry connections (those with collections)
-  const allRegistryConnections = useRegistryConnections(allConnections);
+  // Filter to only show registry connections using server-side binding
+  const allRegistryConnections = useConnections({ binding: "REGISTRY" });
 
   // The self MCP caches ALL tools (including plugin tools) in its tools column.
   // When the private-registry plugin is disabled, the COLLECTION_REGISTRY_APP_*

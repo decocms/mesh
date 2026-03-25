@@ -5,7 +5,12 @@
  * Supports filtering, sorting, and pagination.
  */
 
-import { type Binder, createBindingChecker } from "@decocms/bindings";
+import {
+  type Binder,
+  createBindingChecker,
+  EVENT_BUS_BINDING,
+  TRIGGER_BINDING,
+} from "@decocms/bindings";
 import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
   CollectionListInputSchema,
@@ -14,7 +19,13 @@ import {
   type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
+import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
+import {
+  WORKFLOW_BINDING,
+  WORKFLOW_EXECUTION_BINDING,
+} from "@decocms/bindings/workflow";
+import { AI_GATEWAY_BILLING_BINDING } from "@decocms/bindings/ai-gateway";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
@@ -29,10 +40,29 @@ import { clientFromConnection } from "../../mcp-clients";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
+/**
+ * Registry binding: matches connections that expose COLLECTION_REGISTRY_APP_LIST
+ * or REGISTRY_ITEM_LIST tools (i.e., can act as a store/registry).
+ */
+const REGISTRY_BINDING: Binder = [
+  {
+    name: /^(COLLECTION_REGISTRY_APP_LIST|REGISTRY_ITEM_LIST)$/,
+    inputSchema: z.object({}),
+  },
+] as unknown as Binder;
+
 const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   LLM: LANGUAGE_MODEL_BINDING,
+  LLMS: LANGUAGE_MODEL_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
+  MCP: MCP_BINDING,
   OBJECT_STORAGE: OBJECT_STORAGE_BINDING,
+  WORKFLOW: WORKFLOW_BINDING,
+  WORKFLOW_EXECUTION: WORKFLOW_EXECUTION_BINDING,
+  AI_GATEWAY_BILLING: AI_GATEWAY_BILLING_BINDING,
+  EVENT_BUS: EVENT_BUS_BINDING,
+  TRIGGER: TRIGGER_BINDING,
+  REGISTRY: REGISTRY_BINDING,
 };
 
 /**

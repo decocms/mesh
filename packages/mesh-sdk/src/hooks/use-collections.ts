@@ -65,6 +65,8 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
   defaultSortKey?: keyof T;
   /** Page size for pagination (default: 100) */
   pageSize?: number;
+  /** Additional arguments forwarded to the collection tool call (e.g., binding, include_virtual) */
+  additionalToolArgs?: Record<string, unknown>;
 }
 
 /**
@@ -254,6 +256,7 @@ export function useCollectionList<T extends CollectionEntity>(
     searchFields = ["title", "description"] satisfies (keyof T)[],
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
+    additionalToolArgs,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -266,11 +269,12 @@ export function useCollectionList<T extends CollectionEntity>(
     defaultSortKey,
   );
 
-  const toolArguments: CollectionListInput = {
+  const toolArguments: CollectionListInput & Record<string, unknown> = {
     ...(where && { where }),
     ...(orderBy && { orderBy }),
     limit: pageSize,
     offset: 0,
+    ...additionalToolArgs,
   };
 
   const argsKey = JSON.stringify(toolArguments);
@@ -329,6 +333,7 @@ export function buildCollectionQueryKey<T extends CollectionEntity>(
     searchFields = ["title", "description"] satisfies (keyof T)[],
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
+    additionalToolArgs,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -340,11 +345,12 @@ export function buildCollectionQueryKey<T extends CollectionEntity>(
     defaultSortKey,
   );
 
-  const toolArguments: CollectionListInput = {
+  const toolArguments: CollectionListInput & Record<string, unknown> = {
     ...(where && { where }),
     ...(orderBy && { orderBy }),
     limit: pageSize,
     offset: 0,
+    ...additionalToolArgs,
   };
 
   const argsKey = JSON.stringify(toolArguments);

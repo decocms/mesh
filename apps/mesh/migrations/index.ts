@@ -48,10 +48,10 @@ import * as migration046removeobjectstorageplugin from "./046-remove-object-stor
 import * as migration047addnextrunat from "./047-add-next-run-at.ts";
 import * as migration048mergeprojectsagents from "./048-merge-projects-agents.ts";
 import * as migration049removeorgadminprojects from "./049-remove-org-admin-projects.ts";
-import * as migration049threadagentids from "./049-thread-agent-ids.ts";
 import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
-import * as migration052triggercallbacktokens from "./052-trigger-callback-tokens.ts";
+import * as migration052threadagentids from "./052-thread-agent-ids.ts";
+import * as migration053triggercallbacktokens from "./053-trigger-callback-tokens.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -114,10 +114,10 @@ const migrations: Record<string, Migration> = {
   "047-add-next-run-at": migration047addnextrunat,
   "048-merge-projects-agents": migration048mergeprojectsagents,
   "049-remove-org-admin-projects": migration049removeorgadminprojects,
-  "049-thread-agent-ids": migration049threadagentids,
   "050-durable-agent-runs": migration050durableagentruns,
   "051-org-sso": migration051orgsso,
-  "052-trigger-callback-tokens": migration052triggercallbacktokens,
+  "052-thread-agent-ids": migration052threadagentids,
+  "053-trigger-callback-tokens": migration053triggercallbacktokens,
 };
 
 export default migrations;

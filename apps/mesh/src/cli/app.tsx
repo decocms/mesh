@@ -10,7 +10,7 @@ import {
   toggleViewMode,
   toggleVibeState,
 } from "./cli-store";
-import { toggleVibe } from "./vibe/vibe-player";
+import { skipTrack, toggleVibe } from "./vibe/vibe-player";
 
 const HEADER_HEIGHT = 15;
 const HEADER_HEIGHT_VIBE = 17;
@@ -28,6 +28,9 @@ export function App({ home }: { home: string }) {
     if ((_input === "v" || _input === "V") && state.dataDir) {
       toggleVibe(state.dataDir);
       toggleVibeState();
+    }
+    if ((_input === "n" || _input === "N") && state.vibe) {
+      skipTrack();
     }
   });
 
