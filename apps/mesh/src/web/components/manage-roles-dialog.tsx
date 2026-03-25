@@ -1721,7 +1721,6 @@ export function ManageRolesDialog({
                       {...form.register("role.label")}
                       placeholder="Enter role name"
                       className="flex-1 text-sm font-medium border-0 shadow-none h-auto px-0 py-0 focus-visible:ring-0 bg-transparent"
-                      autoFocus
                     />
                     <Badge
                       variant="secondary"
