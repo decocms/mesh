@@ -7,6 +7,7 @@ import {
   Zap,
   CpuChip01,
   Lock01,
+  PackageCheck,
 } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import { type SettingsSection } from "@/web/hooks/use-settings-modal";
@@ -60,6 +61,11 @@ export function SettingsSidebar({
       key: "org.ai-providers" as SettingsSection,
       label: "AI Providers",
       icon: <CpuChip01 size={14} />,
+    },
+    {
+      key: "org.store" as SettingsSection,
+      label: "Store",
+      icon: <PackageCheck size={14} />,
     },
     {
       key: "org.members" as SettingsSection,

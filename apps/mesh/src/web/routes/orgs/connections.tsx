@@ -11,12 +11,12 @@ import type { RegistryItem } from "@/web/components/store/types";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
+import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { useAuthConfig } from "@/web/providers/auth-config-provider";
-import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
+import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { findListToolName } from "@/web/utils/registry-utils";
 import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { slugify } from "@/web/utils/slugify";
 import {
@@ -96,7 +96,6 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   CheckSquare,
   CheckVerified02,
-  ChevronDown,
   Container,
   DotsVertical,
   Eye,
@@ -783,6 +782,175 @@ function BulkDeleteDialog({
 
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// Catalog item card (used in "All" tab for registry items)
+// ---------------------------------------------------------------------------
+
+function isCommunityItem(item: RegistryItem): boolean {
+  return item._registryId?.includes("community-registry") === true;
+}
+
+function SourceBadge({ item }: { item: RegistryItem }) {
+  if (isCommunityItem(item)) {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-border text-foreground">
+        Community MCP Registry
+      </span>
+    );
+  }
+  const label = item._sourceName || "Deco Store";
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border border-primary/30 text-primary">
+      {label}
+    </span>
+  );
+}
+
+function CatalogItemCard({
+  item,
+  allConnections,
+  connectedAppNames,
+  connectingItemId,
+  onNavigateConnected,
+  onNavigateCatalog,
+  onConnect,
+}: {
+  item: RegistryItem;
+  allConnections: ConnectionEntity[];
+  connectedAppNames: Set<string>;
+  connectingItemId: string | null;
+  onNavigateConnected: (conn: ConnectionEntity) => void;
+  onNavigateCatalog: (item: RegistryItem) => void;
+  onConnect: (item: RegistryItem) => void;
+}) {
+  const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "navigate" | "connect" | null
+  >(null);
+
+  const appName = item.server?.name || item.name || item.id || "";
+  const isConnected = connectedAppNames.has(appName);
+  const meshMeta = item._meta?.["mcp.mesh"] as
+    | Record<string, string>
+    | undefined;
+  const title =
+    meshMeta?.friendlyName ||
+    meshMeta?.friendly_name ||
+    item.server?.title ||
+    item.title ||
+    item.server?.name ||
+    item.name ||
+    item.id ||
+    "";
+  const description = item.server?.description || item.description || null;
+  const icon =
+    item.server?.icons?.[0]?.src ||
+    getGitHubAvatarUrl(item.server?.repository) ||
+    null;
+  const appInstances = allConnections.filter(
+    (c) => c.connection_type !== "VIRTUAL" && c.app_name === appName,
+  );
+
+  const isCommunity = isCommunityItem(item);
+
+  const handleClick = () => {
+    if (isConnected) {
+      const first = appInstances[0];
+      if (first) {
+        onNavigateConnected(first);
+      }
+      return;
+    }
+    if (isCommunity) {
+      setPendingAction("navigate");
+      setCommunityWarningOpen(true);
+    } else {
+      onNavigateCatalog(item);
+    }
+  };
+
+  const handleConnect = () => {
+    if (isCommunity) {
+      setPendingAction("connect");
+      setCommunityWarningOpen(true);
+    } else {
+      onConnect(item);
+    }
+  };
+
+  const handleCommunityConfirm = () => {
+    setCommunityWarningOpen(false);
+    if (pendingAction === "navigate") {
+      onNavigateCatalog(item);
+    } else if (pendingAction === "connect") {
+      onConnect(item);
+    }
+    setPendingAction(null);
+  };
+
+  return (
+    <>
+      <ConnectionCard
+        connection={{ title, description, icon }}
+        fallbackIcon={<Container />}
+        onClick={handleClick}
+        headerActionsAlwaysVisible
+        headerActions={
+          isConnected ? (
+            <span className="text-xs text-muted-foreground font-normal">
+              Connected
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 rounded-lg text-sm font-medium"
+              disabled={connectingItemId !== null}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleConnect();
+              }}
+            >
+              {connectingItemId === item.id ? (
+                <Loading01 size={14} className="animate-spin" />
+              ) : (
+                "Connect"
+              )}
+            </Button>
+          )
+        }
+        body={
+          item._sourceName || item._registryId ? (
+            <SourceBadge item={item} />
+          ) : undefined
+        }
+      />
+      <AlertDialog
+        open={communityWarningOpen}
+        onOpenChange={setCommunityWarningOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Community MCP Server</AlertDialogTitle>
+            <AlertDialogDescription>
+              This MCP server is from the Community MCP Registry and is not
+              maintained or verified by Deco. Community servers may have varying
+              levels of quality, security, and reliability. Proceed with caution
+              and review the server details before connecting.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCommunityConfirm}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function OrgMcpsContent() {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
@@ -822,10 +990,11 @@ function OrgMcpsContent() {
         : (existing ?? "all"),
   );
 
-  // Type & status filters
+  // Type, status & registry filters
   const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
   const [statusFilter, setStatusFilter] =
     useState<ConnectionStatusFilter>("ALL");
+  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
 
   // Agents list (for Add to Agent dialog)
   const agents = useAgents();
@@ -852,38 +1021,19 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Optional registry lookup: support multiple registries, let user pick on "All" tab
-  // Sort so the self/management MCP (Mesh MCP) appears last — external registries like
-  // Deco Store / MCP Registry should be the default catalog source.
-  const registryConnections = useConnections({ binding: "REGISTRY" }).sort(
-    (a, b) => {
-      const isSelfA = a.app_name === "@deco/management-mcp";
-      const isSelfB = b.app_name === "@deco/management-mcp";
-      if (isSelfA && !isSelfB) return 1;
-      if (!isSelfA && isSelfB) return -1;
-      return 0;
-    },
+  // Registry lookup: use org settings to determine which registries are enabled
+  const registryConnections = useConnections({ binding: "REGISTRY" });
+  const { isRegistryEnabled } = useRegistrySettings();
+  const enabledRegistries = registryConnections.filter((c) =>
+    isRegistryEnabled(c.id),
   );
-  const [selectedRegistryId, setSelectedRegistryId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.selectedRegistry(org.slug),
-    (existing) => existing ?? "",
-  );
-  const registryConnection =
-    (selectedRegistryId
-      ? registryConnections.find((r) => r.id === selectedRegistryId)
-      : undefined) ?? registryConnections[0];
-  const registryId = registryConnection?.id ?? "";
-  const registryListToolName = findListToolName(registryConnection?.tools);
-  const registryDiscovery = useStoreDiscovery({
-    registryId,
-    listToolName: registryListToolName,
-  });
-  const registryItems = registryDiscovery.items;
+  const mergedDiscovery = useMergedStoreDiscovery(enabledRegistries);
+  const registryItems = mergedDiscovery.items;
 
   const catalogSentinelRef = useInfiniteScroll(
-    registryDiscovery.loadMore,
-    registryDiscovery.hasMore,
-    registryDiscovery.isLoadingMore,
+    mergedDiscovery.loadMore,
+    mergedDiscovery.hasMore,
+    mergedDiscovery.isLoadingMore,
   );
 
   // "All" tab: catalog items from registry (includes already-connected ones)
@@ -895,6 +1045,10 @@ function OrgMcpsContent() {
   const catalogItems =
     activeTab === "all" || searchLower
       ? registryItems.filter((item) => {
+          // Registry filter
+          if (registryFilter !== "ALL" && item._registryId !== registryFilter) {
+            return false;
+          }
           if (!searchLower) return true;
           const meshMeta = item._meta?.["mcp.mesh"] as
             | Record<string, string>
@@ -924,17 +1078,16 @@ function OrgMcpsContent() {
         })
       : [];
 
-  const verifiedCatalogItems = catalogItems.filter(
-    (item) =>
-      item.verified ||
+  const isVerifiedItem = (item: RegistryItem) =>
+    !isCommunityItem(item) &&
+    (item.verified ||
       item._meta?.["mcp.mesh"]?.verified ||
-      item.meta?.verified,
-  );
+      item._meta?.["mcp.mesh"]?.official ||
+      item.meta?.verified);
+
+  const verifiedCatalogItems = catalogItems.filter(isVerifiedItem);
   const otherCatalogItems = catalogItems.filter(
-    (item) =>
-      !item.verified &&
-      !item._meta?.["mcp.mesh"]?.verified &&
-      !item.meta?.verified,
+    (item) => !isVerifiedItem(item),
   );
 
   // In "All" tab, don't show connected items at top — they belong in the Connected tab
@@ -958,7 +1111,7 @@ function OrgMcpsContent() {
         org: org.slug,
         appName: serverSlug,
       },
-      search: { registryId, serverName },
+      search: { registryId: item._registryId, serverName },
     });
   };
 
@@ -2133,6 +2286,24 @@ function OrgMcpsContent() {
                     { id: "error", label: "Error" },
                   ],
                 },
+                ...(enabledRegistries.length > 1
+                  ? [
+                      {
+                        label: "Registry",
+                        value: registryFilter,
+                        onChange: (v: string) => setRegistryFilter(v || "ALL"),
+                        options: [
+                          { id: "ALL", label: "All registries" },
+                          ...enabledRegistries.map((r) => ({
+                            id: r.id,
+                            label: r.id.includes("community-registry")
+                              ? "Community MCP Registry"
+                              : r.title,
+                          })),
+                        ],
+                      },
+                    ]
+                  : []),
               ]}
             />
             {ctaButton}
@@ -2163,71 +2334,6 @@ function OrgMcpsContent() {
               activeTab={activeTab}
               onTabChange={(id) => setActiveTab(id as ConnectionTab)}
             />
-            {registryConnections.length > 0 && (
-              <div
-                className={cn(
-                  activeTab !== "all" && "invisible pointer-events-none",
-                )}
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 gap-1.5 text-sm font-normal"
-                    >
-                      {(() => {
-                        const active =
-                          registryConnections.find(
-                            (rc) =>
-                              rc.id ===
-                              (selectedRegistryId ||
-                                registryConnections[0]?.id),
-                          ) ?? registryConnections[0];
-                        return (
-                          <>
-                            <IntegrationIcon
-                              icon={active?.icon}
-                              name={active?.title ?? ""}
-                              size="2xs"
-                              className="shrink-0 rounded-sm"
-                            />
-                            <span>{active?.title}</span>
-                          </>
-                        );
-                      })()}
-                      <ChevronDown
-                        size={14}
-                        className="text-muted-foreground"
-                      />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {registryConnections.map((rc) => (
-                      <DropdownMenuItem
-                        key={rc.id}
-                        onClick={() => setSelectedRegistryId(rc.id)}
-                        className={cn(
-                          selectedRegistryId === rc.id ||
-                            (!selectedRegistryId &&
-                              rc.id === registryConnections[0]?.id)
-                            ? "bg-accent"
-                            : "",
-                        )}
-                      >
-                        <IntegrationIcon
-                          icon={rc.icon}
-                          name={rc.title}
-                          size="2xs"
-                          className="shrink-0 rounded-sm"
-                        />
-                        {rc.title}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2400,74 +2506,26 @@ function OrgMcpsContent() {
                     <div className="flex-1 h-px bg-border" />
                   </div>
                 )}
-                {verifiedCatalogItems.map((item) => {
-                  const appName =
-                    item.server?.name || item.name || item.id || "";
-                  const isConnected = connectedAppNames.has(appName);
-                  const meshMeta = item._meta?.["mcp.mesh"] as
-                    | Record<string, string>
-                    | undefined;
-                  const title =
-                    meshMeta?.friendlyName ||
-                    meshMeta?.friendly_name ||
-                    item.server?.title ||
-                    item.title ||
-                    item.server?.name ||
-                    item.name ||
-                    item.id ||
-                    "";
-                  const description =
-                    item.server?.description || item.description || null;
-                  const icon =
-                    item.server?.icons?.[0]?.src ||
-                    getGitHubAvatarUrl(item.server?.repository) ||
-                    null;
-                  return (
-                    <ConnectionCard
-                      key={`catalog-${item.id}`}
-                      connection={{ title, description, icon }}
-                      fallbackIcon={<Container />}
-                      onClick={() => {
-                        if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
-                        } else {
-                          navigateToCatalogItem(item);
-                        }
-                      }}
-                      headerActionsAlwaysVisible
-                      headerActions={
-                        isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 rounded-lg text-sm font-medium"
-                            disabled={connectingItemId !== null}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInlineConnect(item);
-                            }}
-                          >
-                            {connectingItemId === item.id ? (
-                              <Loading01 size={14} className="animate-spin" />
-                            ) : (
-                              "Connect"
-                            )}
-                          </Button>
-                        )
-                      }
-                    />
-                  );
-                })}
+                {verifiedCatalogItems.map((item) => (
+                  <CatalogItemCard
+                    key={`catalog-${item.id}`}
+                    item={item}
+                    allConnections={connections}
+                    connectedAppNames={connectedAppNames}
+                    connectingItemId={connectingItemId}
+                    onNavigateConnected={(conn) =>
+                      navigate({
+                        to: "/$org/mcps/$appSlug",
+                        params: {
+                          org: org.slug,
+                          appSlug: getConnectionSlug(conn),
+                        },
+                      })
+                    }
+                    onNavigateCatalog={navigateToCatalogItem}
+                    onConnect={handleInlineConnect}
+                  />
+                ))}
                 {activeTab === "all" && otherCatalogItems.length > 0 && (
                   <div className="col-span-full flex items-center gap-2 mt-2">
                     <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
@@ -2476,79 +2534,35 @@ function OrgMcpsContent() {
                     <div className="flex-1 h-px bg-border" />
                   </div>
                 )}
-                {otherCatalogItems.map((item) => {
-                  const appName =
-                    item.server?.name || item.name || item.id || "";
-                  const isConnected = connectedAppNames.has(appName);
-                  const meshMeta = item._meta?.["mcp.mesh"] as
-                    | Record<string, string>
-                    | undefined;
-                  const title =
-                    meshMeta?.friendlyName ||
-                    meshMeta?.friendly_name ||
-                    item.server?.title ||
-                    item.title ||
-                    item.server?.name ||
-                    item.name ||
-                    item.id ||
-                    "";
-                  const description =
-                    item.server?.description || item.description || null;
-                  const icon =
-                    item.server?.icons?.[0]?.src ||
-                    getGitHubAvatarUrl(item.server?.repository) ||
-                    null;
-                  return (
-                    <ConnectionCard
-                      key={`catalog-${item.id}`}
-                      connection={{ title, description, icon }}
-                      fallbackIcon={<Container />}
-                      onClick={() => {
-                        if (isConnected) {
-                          navigate({
-                            to: "/$org/mcps/$appSlug",
-                            params: {
-                              org: org.slug,
-                              appSlug: appName,
-                            },
-                          });
-                        } else {
-                          navigateToCatalogItem(item);
-                        }
-                      }}
-                      headerActionsAlwaysVisible
-                      headerActions={
-                        isConnected ? (
-                          <span className="text-xs text-muted-foreground font-normal">
-                            Connected
-                          </span>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 rounded-lg text-sm font-medium"
-                            disabled={connectingItemId !== null}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInlineConnect(item);
-                            }}
-                          >
-                            {connectingItemId === item.id ? (
-                              <Loading01 size={14} className="animate-spin" />
-                            ) : (
-                              "Connect"
-                            )}
-                          </Button>
-                        )
-                      }
-                    />
-                  );
-                })}
-                {(activeTab === "all" || searchLower) && registryId && (
-                  <div ref={catalogSentinelRef} className="col-span-full h-4" />
-                )}
+                {otherCatalogItems.map((item) => (
+                  <CatalogItemCard
+                    key={`catalog-${item.id}`}
+                    item={item}
+                    allConnections={connections}
+                    connectedAppNames={connectedAppNames}
+                    connectingItemId={connectingItemId}
+                    onNavigateConnected={(conn) =>
+                      navigate({
+                        to: "/$org/mcps/$appSlug",
+                        params: {
+                          org: org.slug,
+                          appSlug: getConnectionSlug(conn),
+                        },
+                      })
+                    }
+                    onNavigateCatalog={navigateToCatalogItem}
+                    onConnect={handleInlineConnect}
+                  />
+                ))}
                 {(activeTab === "all" || searchLower) &&
-                  registryDiscovery.isLoadingMore && (
+                  enabledRegistries.length > 0 && (
+                    <div
+                      ref={catalogSentinelRef}
+                      className="col-span-full h-4"
+                    />
+                  )}
+                {(activeTab === "all" || searchLower) &&
+                  mergedDiscovery.isLoadingMore && (
                     <div className="col-span-full flex justify-center py-6">
                       <Loading01
                         size={24}

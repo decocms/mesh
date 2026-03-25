@@ -264,7 +264,7 @@ const monitoringRoute = createRoute({
   ),
 });
 
-// Store
+// Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/store/$appName",

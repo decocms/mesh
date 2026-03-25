@@ -23,6 +23,7 @@ import { AccountPreferencesPage } from "./pages/account-preferences";
 import { OrgGeneralPage } from "./pages/org-general";
 import { ProjectPluginsPage } from "./pages/project-plugins";
 import { OrgAiProvidersPage } from "./pages/org-ai-providers";
+import { OrgStorePage } from "./pages/org-store";
 import { OrgMembersPage } from "./pages/org-members";
 import { OrgSsoPage } from "./pages/org-sso";
 
@@ -119,6 +120,8 @@ function SettingsContent({ section }: { section: SettingsSection }) {
       return <ProjectPluginsPage />;
     case "org.ai-providers":
       return <OrgAiProvidersPage />;
+    case "org.store":
+      return <OrgStorePage />;
     case "org.members":
       return <OrgMembersPage />;
     case "org.sso":
@@ -134,6 +137,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   "org.general": "General",
   "org.plugins": "Features",
   "org.ai-providers": "AI Providers",
+  "org.store": "Store",
   "org.billing": "Billing",
   "org.members": "Members",
   "org.sso": "SSO",

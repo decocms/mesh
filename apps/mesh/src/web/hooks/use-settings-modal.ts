@@ -6,6 +6,7 @@ export type SettingsSection =
   | "org.general"
   | "org.plugins"
   | "org.ai-providers"
+  | "org.store"
   | "org.billing"
   | "org.members"
   | "org.sso";
@@ -16,6 +17,7 @@ const VALID_SECTIONS = new Set<string>([
   "org.general",
   "org.plugins",
   "org.ai-providers",
+  "org.store",
   "org.billing",
   "org.members",
   "org.sso",

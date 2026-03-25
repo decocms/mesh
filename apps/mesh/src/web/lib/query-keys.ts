@@ -257,4 +257,8 @@ export const KEYS = {
     ["org-sso-config", organizationId] as const,
   orgSsoStatus: (organizationId: string) =>
     ["org-sso-status", organizationId] as const,
+
+  // Registry config (scoped by organization)
+  registryConfig: (organizationId: string) =>
+    ["registry-config", organizationId] as const,
 } as const;
