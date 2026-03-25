@@ -33,6 +33,7 @@ const INFLIGHT_END_EVENTS = new Set([
   "RUN_COMPLETED",
   "RUN_FAILED",
   "RUN_REQUIRES_ACTION",
+  "PREVIOUS_RUN_ABORTED",
 ]);
 
 const inflightRuns = meter.createUpDownCounter("decopilot.stream.inflight", {
@@ -100,10 +101,14 @@ export class RunRegistry {
 
       transitions.push({ event, state: newState });
 
-      // Update inflight metric
+      // Update inflight metric — only decrement when this registry had a
+      // running state; ghost FORCE_FAIL events have no prior increment.
       if (INFLIGHT_START_EVENTS.has(event.type)) {
         inflightRuns.add(1, { "org.id": event.orgId });
-      } else if (INFLIGHT_END_EVENTS.has(event.type)) {
+      } else if (
+        INFLIGHT_END_EVENTS.has(event.type) &&
+        stateBeforeEvent?.status.tag === "running"
+      ) {
         inflightRuns.add(-1, { "org.id": event.orgId });
       }
     }
