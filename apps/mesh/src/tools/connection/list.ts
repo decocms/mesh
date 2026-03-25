@@ -318,7 +318,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
           connection.id,
           fetchLive,
           cache,
-          (p) => ctx.pendingRevalidations.push(p),
         );
         if (tools !== null) {
           connection.tools = tools as Tool[];
