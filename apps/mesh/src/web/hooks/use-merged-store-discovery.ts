@@ -20,6 +20,14 @@ import { KEYS } from "@/web/lib/query-keys";
 import type { RegistryItem } from "@/web/components/store/types";
 
 const PAGE_SIZE = 24;
+
+/**
+ * Maximum number of non-community registry query slots.
+ * Each slot corresponds to one unconditional useInfiniteQuery call.
+ * Registries beyond this limit are silently ignored with a dev warning.
+ */
+const MAX_NON_COMMUNITY_SLOTS = 10;
+
 /** Minimal registry source descriptor — only needs id, title, icon */
 export interface RegistrySource {
   id: string;
@@ -126,6 +134,13 @@ function useSingleRegistryQuery(
   };
 }
 
+function resolveSlot(
+  registries: RegistrySource[],
+  index: number,
+): RegistrySource | null {
+  return registries[index] ?? null;
+}
+
 export function useMergedStoreDiscovery(
   registries: RegistrySource[],
 ): MergedDiscoveryResult {
@@ -142,22 +157,72 @@ export function useMergedStoreDiscovery(
   const nonCommunityRegistries = sorted.filter((r) => !isCommunityRegistry(r));
   const communityRegistries = sorted.filter((r) => isCommunityRegistry(r));
 
-  // Resolve slots explicitly (hooks must be called unconditionally)
-  const ncSlot0: RegistrySource | null = nonCommunityRegistries[0] ?? null;
-  const ncSlot1: RegistrySource | null = nonCommunityRegistries[1] ?? null;
-  const ncSlot2: RegistrySource | null = nonCommunityRegistries[2] ?? null;
-  const ncSlot3: RegistrySource | null = nonCommunityRegistries[3] ?? null;
-  const ncSlot4: RegistrySource | null = nonCommunityRegistries[4] ?? null;
-  const communitySlot: RegistrySource | null = communityRegistries[0] ?? null;
+  if (
+    process.env.NODE_ENV !== "production" &&
+    nonCommunityRegistries.length > MAX_NON_COMMUNITY_SLOTS
+  ) {
+    console.warn(
+      `[useMergedStoreDiscovery] ${nonCommunityRegistries.length} non-community registries exceed the ${MAX_NON_COMMUNITY_SLOTS}-slot limit. Some registries will be ignored.`,
+    );
+  }
 
-  // Non-community queries (always enabled)
-  const nc0 = useSingleRegistryQuery(ncSlot0, org.id, true);
-  const nc1 = useSingleRegistryQuery(ncSlot1, org.id, true);
-  const nc2 = useSingleRegistryQuery(ncSlot2, org.id, true);
-  const nc3 = useSingleRegistryQuery(ncSlot3, org.id, true);
-  const nc4 = useSingleRegistryQuery(ncSlot4, org.id, true);
-  const ncQueries = [nc0, nc1, nc2, nc3, nc4];
-  const activeNcQueries = ncQueries.slice(0, nonCommunityRegistries.length);
+  // 10 non-community query slots (hooks must be called unconditionally)
+  const nc0 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 0),
+    org.id,
+    true,
+  );
+  const nc1 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 1),
+    org.id,
+    true,
+  );
+  const nc2 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 2),
+    org.id,
+    true,
+  );
+  const nc3 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 3),
+    org.id,
+    true,
+  );
+  const nc4 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 4),
+    org.id,
+    true,
+  );
+  const nc5 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 5),
+    org.id,
+    true,
+  );
+  const nc6 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 6),
+    org.id,
+    true,
+  );
+  const nc7 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 7),
+    org.id,
+    true,
+  );
+  const nc8 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 8),
+    org.id,
+    true,
+  );
+  const nc9 = useSingleRegistryQuery(
+    resolveSlot(nonCommunityRegistries, 9),
+    org.id,
+    true,
+  );
+  const ncQueries = [nc0, nc1, nc2, nc3, nc4, nc5, nc6, nc7, nc8, nc9];
+  const activeNcCount = Math.min(
+    nonCommunityRegistries.length,
+    MAX_NON_COMMUNITY_SLOTS,
+  );
+  const activeNcQueries = ncQueries.slice(0, activeNcCount);
 
   // Community queries are deferred until all non-community registries are exhausted
   const allNonCommunityExhausted = activeNcQueries.every(
@@ -165,12 +230,11 @@ export function useMergedStoreDiscovery(
   );
 
   const c0 = useSingleRegistryQuery(
-    communitySlot,
+    resolveSlot(communityRegistries, 0),
     org.id,
     allNonCommunityExhausted,
   );
-  const cQueries = [c0];
-  const activeCQueries = cQueries.slice(0, communityRegistries.length);
+  const activeCQueries = communityRegistries.length > 0 ? [c0] : [];
 
   // Stable key to detect registry list changes and reset committed items
   const registryKey = registries
