@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { THREAD_STATUSES } from "@/storage/types";
+import { PersistedRunConfigSchema } from "@/api/routes/decopilot/run-config";
 
 // ============================================================================
 // Thread Message Schema
@@ -61,8 +62,7 @@ export const ThreadEntitySchema = z.object({
     .describe(
       "Connection IDs used in this thread, ordered by first appearance",
     ),
-  run_config: z
-    .record(z.string(), z.unknown())
+  run_config: PersistedRunConfigSchema.passthrough()
     .nullable()
     .optional()
     .describe("Persisted run configuration (contains agent and model info)"),
