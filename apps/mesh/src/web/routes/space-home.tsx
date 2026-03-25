@@ -1,7 +1,44 @@
-/**
- * Space Home — empty center content.
- * The sidebar chat panel (opened by virtual-mcp-layout) is the main interaction point.
- */
+import { VirtualMcpDetailView } from "@/web/components/details/virtual-mcp";
+import { ErrorBoundary } from "@/web/components/error-boundary";
+import { Loading01 } from "@untitledui/icons";
+import { useMatch } from "@tanstack/react-router";
+import { Suspense } from "react";
+
+function SpaceHomeContent() {
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId/",
+    shouldThrow: false,
+  });
+  const projectsMatch = useMatch({
+    from: "/shell/$org/projects/$virtualMcpId/",
+    shouldThrow: false,
+  });
+  const virtualMcpId =
+    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
+  return (
+    <VirtualMcpDetailView
+      key={virtualMcpId}
+      virtualMcpId={virtualMcpId}
+      variant="project"
+    />
+  );
+}
+
 export default function SpaceHomePage() {
-  return null;
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center bg-background">
+            <Loading01
+              size={32}
+              className="animate-spin text-muted-foreground"
+            />
+          </div>
+        }
+      >
+        <SpaceHomeContent />
+      </Suspense>
+    </ErrorBoundary>
+  );
 }

@@ -1,27 +1,22 @@
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { Page } from "@/web/components/page";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { Users03, X } from "@untitledui/icons";
+import { Users03 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
 import { Chat, useChat } from "./index";
 import { ChatContextPanel } from "./context-panel";
 
-import { EditableTaskTitle } from "./editable-task-title";
 import { useAiProviders } from "@/web/hooks/collections/use-llm";
 
 function ChatPanelContent() {
   const { org } = useProjectContext();
-  const [, setOpen] = useDecoChatOpen();
   const aiProviders = useAiProviders();
-  const { selectedVirtualMcp, isChatEmpty, activeTaskId, tasks } = useChat();
-  const activeTask = tasks.find((task) => task.id === activeTaskId);
+  const { selectedVirtualMcp, isChatEmpty } = useChat();
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
 
   // Use Decopilot as default agent
@@ -35,23 +30,6 @@ function ChatPanelContent() {
 
     return (
       <Chat className="animate-in fade-in-0 duration-200">
-        <Page.Header className="flex-none" hideSidebarTrigger>
-          <Page.Header.Left className="gap-2" />
-          <Page.Header.Right className="gap-1">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
-              title="Close chat"
-            >
-              <X
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-          </Page.Header.Right>
-        </Page.Header>
-
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
             <Chat.NoLlmBindingEmptyState
@@ -75,31 +53,6 @@ function ChatPanelContent() {
             : "opacity-100",
         )}
       >
-        <Page.Header className="flex-none" hideSidebarTrigger>
-          <Page.Header.Left className="gap-2">
-            {!isChatEmpty && activeTask?.title && (
-              <EditableTaskTitle
-                taskId={activeTask.id}
-                text={activeTask.title}
-                className="text-sm font-medium text-foreground"
-              />
-            )}
-          </Page.Header.Left>
-          <Page.Header.Right className="gap-1">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
-              title="Close chat"
-            >
-              <X
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-          </Page.Header.Right>
-        </Page.Header>
-
         <Chat.Main>
           {isChatEmpty ? (
             <Chat.EmptyState>

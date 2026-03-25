@@ -441,15 +441,6 @@ const projectHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-// Space settings
-const spaceSettingsRoute = createRoute({
-  getParentRoute: () => spacesLayout,
-  path: "/settings",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/layout.tsx"),
-  ),
-});
-
 // Space app view
 const spaceAppViewRoute = createRoute({
   getParentRoute: () => spacesLayout,
@@ -659,7 +650,6 @@ const projectSettingsWithChildren = projectSettingsRoute.addChildren([
 
 const spacesWithChildren = spacesLayout.addChildren([
   spaceHomeRoute,
-  spaceSettingsRoute,
   spaceAppViewRoute,
   spaceWorkflowsRoute,
   spacePluginLayoutRoute,

@@ -8,19 +8,17 @@
 
 import { Page } from "@/web/components/page";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { Loading01, Plus, Settings01 } from "@untitledui/icons";
-import { useMatch, useNavigate } from "@tanstack/react-router";
-import { useProjectContext } from "@decocms/mesh-sdk";
+import { Loading01, MessageTextCircle02, Plus } from "@untitledui/icons";
+import { useMatch } from "@tanstack/react-router";
+import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Suspense, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 
 function TasksPanelContent() {
-  const [, setChatOpen] = useDecoChatOpen();
+  const [isChatOpen, setChatOpen] = useDecoChatOpen();
   const { createTask, switchToTask } = useChat();
-  const navigate = useNavigate();
-  const { org } = useProjectContext();
   const [isPending, startTransition] = useTransition();
 
   const spacesMatch = useMatch({
@@ -34,6 +32,8 @@ function TasksPanelContent() {
   const virtualMcpId =
     (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? null;
 
+  const virtualMcp = useVirtualMCP(virtualMcpId);
+
   const handleNewTask = () => {
     startTransition(() => {
       createTask();
@@ -44,31 +44,23 @@ function TasksPanelContent() {
     <div className="flex flex-col h-full">
       <Page.Header className="flex-none" hideSidebarTrigger>
         <Page.Header.Left className="gap-2">
-          <span className="text-sm font-medium text-foreground">Tasks</span>
+          <span className="text-sm font-medium text-foreground truncate">
+            {virtualMcp?.title ?? "Tasks"}
+          </span>
         </Page.Header.Left>
         <Page.Header.Right className="gap-1">
           <OwnerFilter />
-          {virtualMcpId && (
-            <button
-              type="button"
-              onClick={() =>
-                navigate({
-                  to: "/$org/spaces/$virtualMcpId/settings",
-                  params: {
-                    org: org.slug,
-                    virtualMcpId,
-                  },
-                })
-              }
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer"
-              title="Space settings"
-            >
-              <Settings01
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setChatOpen((prev) => !prev)}
+            className={`flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer ${isChatOpen ? "bg-accent" : ""}`}
+            title="Toggle chat"
+          >
+            <MessageTextCircle02
+              size={16}
+              className={`transition-colors ${isChatOpen ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+            />
+          </button>
           <button
             type="button"
             onClick={handleNewTask}

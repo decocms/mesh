@@ -180,6 +180,14 @@ function ShellLayoutInner({
     return () => clearTimeout(id);
   }, [chatOpen]);
 
+  // Open chat panel when entering a space route
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (isSpaceRoute) {
+      setChatOpen(true);
+    }
+  }, [isSpaceRoute]);
+
   // Close chat panel when navigating to settings
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
@@ -238,21 +246,20 @@ function ShellLayoutInner({
             order={2}
             style={{ overflow: "visible" }}
           >
-            <div
-              className={cn(
-                "flex flex-col flex-1 min-h-0 bg-card overflow-hidden",
-                "border-t border-sidebar-border",
-                "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                // Left edge: rounded when tasks panel is open (gap visible), border-l always
-                "border-l",
-                "rounded-tl-[0.75rem]",
-                // Right edge: rounded + border when chat panel is open (gap visible)
-                hasRightPanel && "rounded-tr-[0.75rem] border-r",
-                isMobile && "rounded-tr-[0.75rem] border-r",
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <Outlet />
+            <div className="h-full pb-1.5 overflow-hidden">
+              <div
+                className={cn(
+                  "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                  "border border-sidebar-border shadow-sm",
+                  "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                  "rounded-tl-[0.75rem] rounded-bl-[0.75rem]",
+                  (hasRightPanel || isMobile) &&
+                    "rounded-tr-[0.75rem] rounded-br-[0.75rem]",
+                )}
+              >
+                <div className="flex-1 overflow-hidden">
+                  <Outlet />
+                </div>
               </div>
             </div>
           </ResizablePanel>

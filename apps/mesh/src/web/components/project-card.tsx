@@ -87,7 +87,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
               </button>
             )}
             <Link
-              to="/$org/spaces/$virtualMcpId/settings"
+              to="/$org/spaces/$virtualMcpId"
               params={{ org: org.slug, virtualMcpId: project.id }}
               onClick={(e) => e.stopPropagation()}
               className={cn(
