@@ -1371,7 +1371,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
     // Phase 1: Stop all workers/consumers in parallel (independent of each other)
     await Promise.allSettled([
-      currentEventBus?.isRunning() ? currentEventBus.stop() : Promise.resolve(),
+      eventBus.isRunning() ? eventBus.stop() : Promise.resolve(),
       sseHub.stop(),
       currentCronWorkerCleanup
         ? Promise.resolve(currentCronWorkerCleanup()).finally(() => {

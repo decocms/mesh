@@ -37,7 +37,7 @@ const envSchema = z
     NATS_URL: z
       .string()
       .default("nats://localhost:4222")
-      .transform((s) => s.split(",").map((u) => u.trim())),
+      .transform((s) => s.split(",").map((u) => u.trim()).filter(Boolean)),
 
     // Config files
     CONFIG_PATH: z.string().default("./config.json"),

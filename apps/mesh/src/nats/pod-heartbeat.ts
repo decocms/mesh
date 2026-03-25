@@ -49,6 +49,10 @@ export class NatsPodHeartbeat implements PodHeartbeat {
       })
       .then((kv) => {
         this.kv = kv;
+      })
+      .catch((err) => {
+        this.initPromise = null;
+        throw err;
       });
     return this.initPromise;
   }
