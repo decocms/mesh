@@ -5,7 +5,11 @@ import DocsLayout from "../../../layouts/DocsLayout.astro";
 import { getCollection } from "astro:content";
 import RenderDocument from "../../../components/ui/RenderDocument.astro";
 
-import { VERSION_IDS, LATEST_VERSION } from "../../../config/versions";
+import {
+  VERSION_IDS,
+  LATEST_VERSION,
+  versions,
+} from "../../../config/versions";
 
 const version = Astro.params.version;
 const lang = Astro.params.locale;
@@ -84,9 +88,11 @@ if (slug === "getting-started/context-engineers") {
   return Astro.redirect(`/${version}/${lang}/getting-started/developers`);
 }
 
-// Redirect to quickstart if no document is found
+// Redirect to version root if no document is found
 if (!doc) {
-  return Astro.redirect(`/${version}/${lang}/studio/quickstart`);
+  const versionConfig = versions.find((v) => v.id === version);
+  const root = versionConfig?.root ?? "studio/quickstart";
+  return Astro.redirect(`/${version}/${lang}/${root}`);
 }
 ---
 

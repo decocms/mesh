@@ -34,7 +34,7 @@ Este Helm chart encapsula todos os recursos Kubernetes necessários para executa
 
 ### Arquitetura
 
-![Infraestrutura](https://raw.githubusercontent.com/deco Studio/helm-chart-deco-mcp-mesh/main/img/mcp-mesh-infra-arch.jpg)
+![Infraestrutura](https://raw.githubusercontent.com/decocms/helm-chart-deco-mcp-mesh/main/img/mcp-mesh-infra-arch.jpg)
 
 ## Pré-requisitos
 
@@ -185,7 +185,7 @@ Os principais valores configuráveis estão em `values.yaml`.
 | Parâmetro | Descrição | Padrão |
 |-----------|-------------|---------|
 | `replicaCount` | Número de réplicas | `3` |
-| `image.repository` | Repositório da imagem | `ghcr.io/decocms/mesh/mesh` |
+| `image.repository` | Repositório da imagem | `ghcr.io/decocms/studio/studio` |
 | `image.tag` | Tag da imagem | `latest` |
 | `service.type` | Tipo do Service | `ClusterIP` |
 | `persistence.enabled` | Habilitar PVC | `true` |
@@ -307,7 +307,7 @@ A lista completa está em `values.yaml`; abaixo estão os parâmetros mais impor
 
 ```yaml
 image:
-  repository: ghcr.io/decocms/mesh/mesh
+  repository: ghcr.io/decocms/studio/studio
   pullPolicy: Always # Always, IfNotPresent, Never
   tag: "latest"
 ```

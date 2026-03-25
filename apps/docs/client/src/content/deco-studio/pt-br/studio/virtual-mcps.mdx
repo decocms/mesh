@@ -81,38 +81,29 @@ O verdadeiro poder vem de combinar ambas as abordagens — remixar capacidades d
 
 Um MCP virtual, múltiplas fontes (conexões + definições inline), experiência unificada para o agente.
 
-## Namespacing e Prevenção de Colisões
+## Nomeação de Ferramentas e Tratamento de Colisões
 
-Ao agregar capacidades de múltiplas conexões, o deco Studio usa **namespacing baseado em conexão** para evitar colisões. Cada conexão recebe um ID único, e todas as capacidades daquela conexão são prefixadas com este ID.
+Ao agregar ferramentas de múltiplas conexões, o deco Studio usa uma **abordagem baseada em mapeamento** para rotear chamadas de ferramentas para a conexão correta.
 
-### Ferramentas e Prompts
+### Como Funciona
 
-Ferramentas e prompts usam o formato: `connection_id::CAPABILITY_NAME`
+Ferramentas mantêm seus nomes originais — nenhum prefixo ou namespacing é aplicado. Internamente, o deco Studio mantém um mapeamento de `toolName → connectionId` para saber para qual conexão rotear cada chamada.
 
-- **Separador de namespace**: `::` (dois-pontos duplo) entre o ID da conexão e o nome da capacidade
-- **Limite de 64 caracteres**: O nome completo com namespace não pode exceder 64 caracteres
+**Primeira ocorrência vence**: Se duas conexões expõem uma ferramenta com o mesmo nome, a primeira encontrada é usada e a duplicata é silenciosamente descartada. A ordem é determinada pela lista de agregação de conexões na configuração do MCP Virtual.
 
-**Exemplo**: Duas conexões Shopify podem expor uma ferramenta `GET_ORDERS`:
-- `shopify_store_a_456::GET_ORDERS` (Conta da Loja A)
-- `shopify_store_b_789::GET_ORDERS` (Conta da Loja B)
+**Exemplo**: Se tanto uma conexão Shopify quanto uma conexão personalizada expõem uma ferramenta `GET_ORDERS`, apenas a da conexão que aparece primeiro na agregação estará disponível.
 
-Isso garante que capacidades permaneçam distintas mesmo quando múltiplas conexões expõem ferramentas com o mesmo nome.
+Para evitar colisões, você pode:
+- **Curar sua seleção de ferramentas** usando os filtros de seleção para incluir apenas as ferramentas necessárias de cada conexão
+- **Reordenar conexões** na agregação para priorizar a versão desejada
 
-### Recursos
+### Ferramentas Virtuais Têm Precedência
 
-Recursos usam namespacing baseado em URI, **exceto para protocolos conhecidos**.
+Ferramentas inline definidas diretamente no MCP Virtual sempre têm precedência sobre ferramentas de conexões downstream.
 
-**Protocolos personalizados** (como `store://`, `inventory://`) recebem namespace com o ID da conexão e são URL-encoded:
-- Original: `store://my-brand/products/catalog.json`
-- Com namespace: `shopify_conn_123://store%3A%2F%2Fmy-brand%2Fproducts%2Fcatalog.json`
+### Recursos e Prompts
 
-**Protocolos conhecidos** (como `http://`, `https://`, `ws://`) **NÃO recebem namespace** e permanecem inalterados.
-
-**Reescrita automática de conteúdo**: Quando recursos são lidos através de um MCP virtual, o deco Studio automaticamente reescreve links internos de recursos para usar o formato com namespace. Isso garante que recursos possam referenciar uns aos outros corretamente.
-
-<Callout type="info">
-Ferramentas e prompts usam o formato `connection_id::CAPABILITY_NAME` (máx. 64 caracteres). Recursos usam `connection_id://encodedUri` para protocolos personalizados, ou permanecem inalterados para protocolos conhecidos.
-</Callout>
+Recursos e prompts seguem a mesma abordagem baseada em mapeamento. URIs de protocolos conhecidos (`http://`, `https://`) passam inalterados.
 
 ## Funcionalidades Sustentadas por MCPs Virtuais
 

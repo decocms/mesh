@@ -14,10 +14,21 @@ export async function getNavigationLinks(
   const allDocs = await getCollection("docs");
   // doc.id format: "version/locale/...path" (e.g. "latest/en/mcp-mesh/overview")
   const [docVersion, docLocale] = currentDocId.split("/");
-  const docs = allDocs.filter(
-    (doc) =>
-      doc.id.split("/")[0] === docVersion && doc.id.split("/")[1] === docLocale,
-  );
+  const isLatest = docVersion === LATEST_VERSION.id;
+  const legacyPrefixes = ["no-code-guides/", "full-code-guides/"];
+  const docs = allDocs.filter((doc) => {
+    if (
+      doc.id.split("/")[0] !== docVersion ||
+      doc.id.split("/")[1] !== docLocale
+    )
+      return false;
+    // For the latest version, exclude legacy admin guides from navigation
+    if (isLatest) {
+      const path = doc.id.split("/").slice(2).join("/");
+      if (legacyPrefixes.some((p) => path.startsWith(p))) return false;
+    }
+    return true;
+  });
 
   // Define the correct order for navigation, version-aware
   const latestOrder = [
@@ -80,19 +91,19 @@ export async function getNavigationLinks(
     "introduction",
 
     // MCP Mesh section
-    "studio/overview",
-    "studio/quickstart",
-    "studio/concepts",
-    "studio/connect-clients",
-    "studio/authentication",
-    "studio/authorization-and-roles",
-    "studio/mcp-servers",
-    "studio/mcp-gateways",
-    "studio/api-keys",
-    "studio/monitoring",
-    "studio/api-reference",
-    "studio/deploy/local-docker-compose",
-    "studio/deploy/kubernetes-helm-chart",
+    "mcp-mesh/overview",
+    "mcp-mesh/quickstart",
+    "mcp-mesh/concepts",
+    "mcp-mesh/connect-clients",
+    "mcp-mesh/authentication",
+    "mcp-mesh/authorization-and-roles",
+    "mcp-mesh/mcp-servers",
+    "mcp-mesh/mcp-gateways",
+    "mcp-mesh/api-keys",
+    "mcp-mesh/monitoring",
+    "mcp-mesh/api-reference",
+    "mcp-mesh/deploy/local-docker-compose",
+    "mcp-mesh/deploy/kubernetes-helm-chart",
 
     // MCP Studio
     "mcp-studio/overview",
@@ -112,7 +123,7 @@ export async function getNavigationLinks(
     "api-reference/built-in-tools/user-ask",
   ];
 
-  const order = docVersion === LATEST_VERSION.id ? latestOrder : previousOrder;
+  const order = isLatest ? latestOrder : previousOrder;
 
   // Sort docs according to the defined order
   const sortedDocs = docs.sort((a, b) => {
