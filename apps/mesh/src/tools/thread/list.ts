@@ -23,6 +23,16 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
       virtual_mcp_id: z.string().optional(),
     })
     .optional(),
+  startDate: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Filter threads updated at or after this ISO timestamp"),
+  endDate: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Filter threads updated at or before this ISO timestamp"),
 });
 
 /**
@@ -69,6 +79,8 @@ export const COLLECTION_THREADS_LIST = defineTool({
           limit,
           offset,
           virtualMcpId,
+          startDate: input.startDate,
+          endDate: input.endDate,
         });
 
     const hasMore = offset + limit < total;

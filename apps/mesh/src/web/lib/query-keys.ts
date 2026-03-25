@@ -164,8 +164,8 @@ export const KEYS = {
     ["threads", "list-infinite", locator, paramsKey] as const,
   threadMessages: (locator: string, threadId: string) =>
     ["threads", "messages", locator, threadId] as const,
-  threadModelLogs: (locator: string) =>
-    ["threads", "model-logs", locator] as const,
+  threadModelLogs: (locator: string, dateKey: string) =>
+    ["threads", "model-logs", locator, dateKey] as const,
 
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP

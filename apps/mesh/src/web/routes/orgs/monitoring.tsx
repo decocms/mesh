@@ -1875,6 +1875,7 @@ interface ThreadsTabContentProps {
   membersData: ReturnType<typeof useMembers>["data"] | undefined;
   allConnections: ReturnType<typeof useConnections>;
   allVirtualMcps: ReturnType<typeof useVirtualMCPs>;
+  dateRange: { startDate: Date; endDate: Date };
 }
 
 const THREADS_PAGE_SIZE = 50;
@@ -1885,18 +1886,28 @@ function ThreadsTabContent({
   membersData,
   allConnections,
   allVirtualMcps,
+  dateRange,
 }: ThreadsTabContentProps) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [resolvedModel, setResolvedModel] = useState<string | null>(null);
 
+  const startDate = dateRange.startDate.toISOString();
+  const endDate = dateRange.endDate.toISOString();
+  const dateKey = `${startDate}|${endDate}`;
+
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useSuspenseInfiniteQuery({
-      queryKey: KEYS.threadsInfinite(locator, "all"),
+      queryKey: KEYS.threadsInfinite(locator, dateKey),
       queryFn: async ({ pageParam = 0 }) => {
         if (!client) throw new Error("MCP client is not available");
         const result = (await client.callTool({
           name: "COLLECTION_THREADS_LIST",
-          arguments: { limit: THREADS_PAGE_SIZE, offset: pageParam },
+          arguments: {
+            limit: THREADS_PAGE_SIZE,
+            offset: pageParam,
+            startDate,
+            endDate,
+          },
         })) as { structuredContent?: unknown };
         return (result.structuredContent ?? result) as {
           items: ThreadEntity[];
@@ -1914,19 +1925,15 @@ function ThreadsTabContent({
     });
 
   const { data: modelLogsData } = useSuspenseQuery({
-    queryKey: KEYS.threadModelLogs(locator),
+    queryKey: KEYS.threadModelLogs(locator, dateKey),
     queryFn: async () => {
       if (!client) throw new Error("MCP client is not available");
-      const farPast = new Date(
-        Date.now() - 365 * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const farFuture = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const result = (await client.callTool({
         name: "MONITORING_LOGS_LIST",
         arguments: {
           connectionId: "decopilot",
-          startDate: farPast,
-          endDate: farFuture,
+          startDate,
+          endDate,
           limit: 500,
           offset: 0,
         },
@@ -2340,53 +2347,57 @@ function MonitoringDashboardContent({
             </BreadcrumbList>
           </Breadcrumb>
         </Page.Header.Left>
-        {(tab === "overview" || tab === "audit") && (
+        {(tab === "overview" || tab === "audit" || tab === "threads") && (
           <Page.Header.Right>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Filters Button */}
-              <FiltersPopover
-                connectionIds={connectionIds}
-                virtualMcpIds={virtualMcpIds}
-                tool={tool}
-                status={status}
-                hideSystem={hideSystem}
-                propertyFilters={propertyFilters}
-                connectionOptions={connectionOptions}
-                virtualMcpOptions={virtualMcpOptions}
-                activeFiltersCount={activeFiltersCount}
-                onUpdateFilters={onUpdateFilters}
-                connectionSearchTerm={connectionSearch}
-                onConnectionSearchChange={setConnectionSearch}
-              />
+              {tab !== "threads" && (
+                <>
+                  {/* Filters Button */}
+                  <FiltersPopover
+                    connectionIds={connectionIds}
+                    virtualMcpIds={virtualMcpIds}
+                    tool={tool}
+                    status={status}
+                    hideSystem={hideSystem}
+                    propertyFilters={propertyFilters}
+                    connectionOptions={connectionOptions}
+                    virtualMcpOptions={virtualMcpOptions}
+                    activeFiltersCount={activeFiltersCount}
+                    onUpdateFilters={onUpdateFilters}
+                    connectionSearchTerm={connectionSearch}
+                    onConnectionSearchChange={setConnectionSearch}
+                  />
 
-              {/* AI Only Toggle (Audit tab only) */}
-              {tab === "audit" && (
-                <Button
-                  variant={aiOnly ? "secondary" : "outline"}
-                  size="sm"
-                  className="h-7 px-2 sm:px-3 text-xs"
-                  onClick={() => setAiOnly(!aiOnly)}
-                >
-                  AI Usage
-                </Button>
+                  {/* AI Only Toggle (Audit tab only) */}
+                  {tab === "audit" && (
+                    <Button
+                      variant={aiOnly ? "secondary" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 sm:px-3 text-xs"
+                      onClick={() => setAiOnly(!aiOnly)}
+                    >
+                      AI Usage
+                    </Button>
+                  )}
+
+                  {/* Streaming Toggle */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 px-0 sm:w-auto sm:px-3 gap-1.5"
+                    onClick={onStreamingToggle}
+                  >
+                    {isStreaming ? (
+                      <PauseCircle size={16} className="animate-pulse" />
+                    ) : (
+                      <PlayCircle size={16} />
+                    )}
+                    <span className="hidden sm:inline">
+                      {isStreaming ? "Streaming" : "Stream"}
+                    </span>
+                  </Button>
+                </>
               )}
-
-              {/* Streaming Toggle */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 w-7 px-0 sm:w-auto sm:px-3 gap-1.5"
-                onClick={onStreamingToggle}
-              >
-                {isStreaming ? (
-                  <PauseCircle size={16} className="animate-pulse" />
-                ) : (
-                  <PlayCircle size={16} />
-                )}
-                <span className="hidden sm:inline">
-                  {isStreaming ? "Streaming" : "Stream"}
-                </span>
-              </Button>
 
               {/* Time Range Picker */}
               <TimeRangePicker
@@ -2416,6 +2427,7 @@ function MonitoringDashboardContent({
           membersData={membersData}
           allConnections={allConnections}
           allVirtualMcps={allVirtualMcps}
+          dateRange={dateRange}
         />
       ) : tab === "audit" ? (
         <AuditTabContent

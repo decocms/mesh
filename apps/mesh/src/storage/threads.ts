@@ -67,7 +67,13 @@ export class OrgScopedThreadStorage {
 
   list(
     createdBy?: string,
-    options?: { limit?: number; offset?: number; virtualMcpId?: string },
+    options?: {
+      limit?: number;
+      offset?: number;
+      virtualMcpId?: string;
+      startDate?: string;
+      endDate?: string;
+    },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
   }
@@ -237,7 +243,13 @@ export class SqlThreadStorage implements ThreadStoragePort {
   async list(
     organizationId: string,
     createdBy?: string,
-    options?: { limit?: number; offset?: number; virtualMcpId?: string },
+    options?: {
+      limit?: number;
+      offset?: number;
+      virtualMcpId?: string;
+      startDate?: string;
+      endDate?: string;
+    },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
       .selectFrom("threads")
@@ -251,6 +263,12 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     if (options?.virtualMcpId) {
       query = query.where("virtual_mcp_id", "=", options.virtualMcpId);
+    }
+    if (options?.startDate) {
+      query = query.where("updated_at", ">=", options.startDate);
+    }
+    if (options?.endDate) {
+      query = query.where("updated_at", "<=", options.endDate);
     }
 
     let countQuery = this.db
@@ -268,6 +286,12 @@ export class SqlThreadStorage implements ThreadStoragePort {
         "=",
         options.virtualMcpId,
       );
+    }
+    if (options?.startDate) {
+      countQuery = countQuery.where("updated_at", ">=", options.startDate);
+    }
+    if (options?.endDate) {
+      countQuery = countQuery.where("updated_at", "<=", options.endDate);
     }
 
     if (options?.limit) {
