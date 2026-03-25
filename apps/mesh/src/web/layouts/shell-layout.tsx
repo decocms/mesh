@@ -300,9 +300,6 @@ function ShellLayoutInner({
     setChatOpen((prev) => !prev);
   };
 
-  // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && showThreePanels;
-
   return (
     <SidebarLayout
       className="flex-1 bg-sidebar"
@@ -427,12 +424,7 @@ function ShellLayoutInner({
             onCollapse={() => setMainOpen(false)}
             onExpand={() => setMainOpen(true)}
           >
-            <div
-              className={cn(
-                "h-full pb-1.5 overflow-hidden",
-                !hasRightPanel && "pr-1.5",
-              )}
-            >
+            <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
               <div
                 className={cn(
                   "flex flex-col h-full min-h-0 bg-card overflow-hidden",
@@ -459,7 +451,7 @@ function ShellLayoutInner({
                 onCollapse={() => setChatOpen(false)}
                 onExpand={() => setChatOpen(true)}
               >
-                <div className="h-full pl-1.5 pr-1.5 pb-1.5">
+                <div className="h-full pr-1.5 pb-1.5">
                   <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                     <ChatPanel variant={isOrgHome ? "home" : undefined} />
                   </div>
