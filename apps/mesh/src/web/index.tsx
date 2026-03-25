@@ -265,15 +265,9 @@ const monitoringRoute = createRoute({
 });
 
 // Store
-const storeRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
-});
-
 const storeDetailRoute = createRoute({
-  getParentRoute: () => storeRoute,
-  path: "/$appName",
+  getParentRoute: () => orgLayout,
+  path: "/store/$appName",
   component: lazyRouteComponent(
     () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
@@ -512,8 +506,6 @@ const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 // ROUTE TREE
 // ============================================
 
-const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
-
 const projectSettingsWithChildren = projectSettingsRoute.addChildren([
   projectSettingsGeneralRedirect,
   projectSettingsDependenciesRedirect,
@@ -538,7 +530,7 @@ const orgRoutes = [
   connectionDetailRoute,
   collectionDetailRoute,
   monitoringRoute,
-  storeRouteWithChildren,
+  storeDetailRoute,
   automationsRoute,
   automationDetailRoute,
   agentsRoute,

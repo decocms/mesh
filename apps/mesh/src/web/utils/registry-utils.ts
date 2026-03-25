@@ -33,34 +33,6 @@ export function findListToolName(
 }
 
 /**
- * Find the FILTERS tool from a tools array
- * Returns the tool name if found, empty string otherwise
- * Note: Not all registries support filters
- */
-export function findFiltersToolName(
-  tools?: Array<{ name: string }> | null,
-): string {
-  if (!tools) return "";
-  const preferred = tools.find(
-    (tool) => tool.name === "COLLECTION_REGISTRY_APP_FILTERS",
-  );
-  if (preferred) return preferred.name;
-
-  const privateRegistryFilters = tools.find(
-    (tool) => tool.name === "REGISTRY_ITEM_FILTERS",
-  );
-  if (privateRegistryFilters) return privateRegistryFilters.name;
-
-  const filtersTool = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith("_FILTERS"),
-  );
-  if (filtersTool) return filtersTool.name;
-  return "";
-}
-
-/**
  * Find a REGISTRY_APP tool by suffix (e.g., "_GET", "_VERSIONS")
  */
 export function findRegistryToolBySuffix(
