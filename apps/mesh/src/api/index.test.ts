@@ -87,7 +87,7 @@ describe("Hono App", () => {
 
   describe("readiness check", () => {
     it("should return 200 with per-service status (postgres up, nats down in test)", async () => {
-      const res = await app.request("/readyz");
+      const res = await app.request("/health/ready");
       expect(res.status).toBe(200);
 
       const json = (await res.json()) as {

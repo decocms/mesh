@@ -10,7 +10,6 @@ export const SYSTEM_PATHS = {
   HEALTH: "/health",
   HEALTH_LIVE: "/health/live",
   HEALTH_READY: "/health/ready",
-  READYZ: "/readyz",
   METRICS: "/metrics",
 } as const;
 
@@ -34,7 +33,6 @@ function isSystemPath(path: string): boolean {
     path === SYSTEM_PATHS.HEALTH ||
     path === SYSTEM_PATHS.HEALTH_LIVE ||
     path === SYSTEM_PATHS.HEALTH_READY ||
-    path === SYSTEM_PATHS.READYZ ||
     path === SYSTEM_PATHS.METRICS ||
     path.startsWith(PATH_PREFIXES.WELL_KNOWN)
   );

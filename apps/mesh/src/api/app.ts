@@ -502,38 +502,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     );
   });
 
-  // Legacy readiness probe — redirects to /health/ready
-  app.get(SYSTEM_PATHS.READYZ, async (c) => {
-    if (isShuttingDown) {
-      return c.json({ status: "shutting_down" }, 503);
-    }
-
-    const services: Record<string, { status: "up" | "down" }> = {};
-
-    try {
-      await sql`SELECT 1`.execute(database.db);
-      services.postgres = { status: "up" };
-    } catch {
-      services.postgres = { status: "down" };
-    }
-
-    if (natsProvider) {
-      services.nats = natsProvider.isConnected()
-        ? { status: "up" }
-        : { status: "down" };
-    } else {
-      services.nats = { status: "down" };
-    }
-
-    const ready = services.postgres.status === "up";
-    const httpStatus = ready ? 200 : 503;
-
-    return c.json(
-      { status: ready ? "ready" : "not_ready", services },
-      httpStatus,
-    );
-  });
-
   // Prometheus metrics endpoint
   app.get(SYSTEM_PATHS.METRICS, async (c) => {
     try {
