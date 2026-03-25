@@ -29,7 +29,8 @@ export type ToolCategory =
   | "Event Bus"
   | "Tags"
   | "AI Providers"
-  | "Automations";
+  | "Automations"
+  | "Context Repo";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -119,6 +120,21 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
+
+  // Context repo tools
+  "CONTEXT_REPO_STATUS",
+  "CONTEXT_REPO_SETUP",
+  "CONTEXT_REPO_UPDATE_FOLDERS",
+  "CONTEXT_REPO_DISCONNECT",
+  "CONTEXT_REPO_SYNC",
+  "CONTEXT_REPO_SEARCH",
+  "CONTEXT_REPO_READ",
+  "CONTEXT_REPO_LIST_SKILLS",
+  "CONTEXT_ISSUE_CREATE",
+  "CONTEXT_ISSUE_LIST",
+  "CONTEXT_ISSUE_GET",
+  "CONTEXT_ISSUE_COMMENT",
+  "CONTEXT_AGENT_SAVE",
 ] as const;
 
 /**
@@ -530,6 +546,74 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
+
+  // Context repo tools
+  {
+    name: "CONTEXT_REPO_STATUS",
+    description: "Get context repo status and GitHub CLI auth status",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_SETUP",
+    description: "Connect a GitHub repository as the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_UPDATE_FOLDERS",
+    description: "Update which folders are indexed in the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_DISCONNECT",
+    description: "Disconnect context repo and clean up local clone",
+    category: "Context Repo",
+    dangerous: true,
+  },
+  {
+    name: "CONTEXT_REPO_SYNC",
+    description: "Pull latest changes and reindex the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_SEARCH",
+    description: "Search files in the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_READ",
+    description: "Read a file from the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_REPO_LIST_SKILLS",
+    description: "List skills from the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_ISSUE_CREATE",
+    description: "Create a GitHub issue in the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_ISSUE_LIST",
+    description: "List issues in the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_ISSUE_GET",
+    description: "Get an issue with comments from the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_ISSUE_COMMENT",
+    description: "Comment on an issue in the context repo",
+    category: "Context Repo",
+  },
+  {
+    name: "CONTEXT_AGENT_SAVE",
+    description: "Save an agent definition to the context repo via PR",
+    category: "Context Repo",
+  },
 ];
 
 /**
@@ -608,6 +692,21 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
+
+  // Context repo tools
+  CONTEXT_REPO_STATUS: "Context repo status",
+  CONTEXT_REPO_SETUP: "Setup context repo",
+  CONTEXT_REPO_UPDATE_FOLDERS: "Update indexed folders",
+  CONTEXT_REPO_DISCONNECT: "Disconnect context repo",
+  CONTEXT_REPO_SYNC: "Sync context repo",
+  CONTEXT_REPO_SEARCH: "Search context repo",
+  CONTEXT_REPO_READ: "Read context file",
+  CONTEXT_REPO_LIST_SKILLS: "List context skills",
+  CONTEXT_ISSUE_CREATE: "Create context issue",
+  CONTEXT_ISSUE_LIST: "List context issues",
+  CONTEXT_ISSUE_GET: "Get context issue",
+  CONTEXT_ISSUE_COMMENT: "Comment on context issue",
+  CONTEXT_AGENT_SAVE: "Save agent to context repo",
 };
 
 // ============================================================================

@@ -11,6 +11,7 @@ import {
   Container,
   Dataflow03,
   Folder,
+  GitBranch01,
   Home02,
   LayoutLeft,
   RefreshCcw01,
@@ -290,7 +291,21 @@ export function useProjectSidebarItems(options?: {
         group: {
           id: "manage",
           label: "Manage",
-          items: [monitorItem, settingsItem],
+          items: [
+            monitorItem,
+            {
+              key: "context-repo",
+              label: "Context Repo",
+              icon: <GitBranch01 />,
+              isActive: false,
+              onClick: () => {
+                window.dispatchEvent(
+                  new CustomEvent("open-context-repo-modal"),
+                );
+              },
+            },
+            settingsItem,
+          ],
           defaultExpanded: true,
         },
       },
