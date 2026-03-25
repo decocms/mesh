@@ -52,7 +52,9 @@ const REGISTRY_BINDING: Binder = [
 ] as unknown as Binder;
 
 const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
+  /** @deprecated llm-binding — migrate to native AI SDK providers */
   LLM: LANGUAGE_MODEL_BINDING,
+  /** @deprecated llm-binding — migrate to native AI SDK providers */
   LLMS: LANGUAGE_MODEL_BINDING,
   ASSISTANTS: ASSISTANTS_BINDING,
   MCP: MCP_BINDING,

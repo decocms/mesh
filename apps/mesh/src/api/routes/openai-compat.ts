@@ -589,6 +589,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
           ctx,
           { superUser: false },
         );
+        // @deprecated: llm-binding path — migrate to native AI SDK providers
         const llmBinding = LanguageModelBinding.forClient(
           toServerClient(streamableClient),
         );
@@ -724,6 +725,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
     } else {
       // Non-streaming response
       // Note: No need for await using - client pool manages lifecycle
+      // @deprecated: llm-binding path — migrate to native AI SDK providers
       const client = await clientFromConnection(connection, ctx, false);
       const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
       const provider = createLLMProvider(llmBinding).languageModel(modelId);
