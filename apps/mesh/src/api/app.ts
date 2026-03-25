@@ -453,15 +453,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Health Check & Metrics
   // ============================================================================
 
-  // Health check endpoint (no auth required) — kept for backwards compatibility
-  app.get(SYSTEM_PATHS.HEALTH, (c) => {
-    return c.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      version: "1.0.0",
-    });
-  });
-
   // Liveness probe — the process is alive and the event loop is not stuck
   app.get(SYSTEM_PATHS.HEALTH_LIVE, (c) => {
     return c.json({ status: "ok" });

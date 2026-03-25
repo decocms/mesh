@@ -69,19 +69,13 @@ describe("Hono App", () => {
   afterEach(async () => {
     await closeTestDatabase(database);
   });
-  describe("health check", () => {
-    it("should respond to health check", async () => {
-      const res = await app.request("/health");
+  describe("liveness check", () => {
+    it("should respond to liveness probe", async () => {
+      const res = await app.request("/health/live");
       expect(res.status).toBe(200);
 
-      const json = (await res.json()) as {
-        status: string;
-        timestamp: string;
-        version: string;
-      };
+      const json = (await res.json()) as { status: string };
       expect(json.status).toBe("ok");
-      expect(json.timestamp).toBeDefined();
-      expect(json.version).toBe("1.0.0");
     });
   });
 
@@ -113,7 +107,7 @@ describe("Hono App", () => {
 
   describe("CORS", () => {
     it("should have CORS headers", async () => {
-      const res = await app.request("/health", {
+      const res = await app.request("/health/live", {
         headers: { Origin: "http://localhost:3000" },
       });
 
@@ -122,7 +116,7 @@ describe("Hono App", () => {
     });
 
     it("should allow credentials", async () => {
-      const res = await app.request("/health", {
+      const res = await app.request("/health/live", {
         headers: { Origin: "http://localhost:3000" },
       });
 
