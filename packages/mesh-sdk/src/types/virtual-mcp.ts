@@ -108,6 +108,20 @@ export const VirtualMCPEntitySchema = z.object({
         .nullable()
         .optional()
         .describe("List of enabled plugin IDs"),
+      ice_breakers: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe(
+          "Static conversation starter prompts shown in the chat UI as clickable pills",
+        ),
+      required_apps: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe(
+          "app_names of MCPs this agent needs. Used for auto-wiring when MCPs are installed",
+        ),
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
@@ -157,6 +171,16 @@ export const VirtualMCPCreateDataSchema = z.object({
         .nullable()
         .optional()
         .describe("List of enabled plugin IDs"),
+      ice_breakers: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe("Static conversation starter prompts"),
+      required_apps: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe("app_names of MCPs this agent needs"),
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
@@ -199,6 +223,16 @@ export const VirtualMCPUpdateDataSchema = z.object({
         .nullable()
         .optional()
         .describe("List of enabled plugin IDs"),
+      ice_breakers: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe("Static conversation starter prompts"),
+      required_apps: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .describe("app_names of MCPs this agent needs"),
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
