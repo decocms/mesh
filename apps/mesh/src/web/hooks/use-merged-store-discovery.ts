@@ -1,12 +1,17 @@
 /**
  * Hook that merges store discovery items from multiple registries into a single list.
  * Each item is stamped with _sourceName, _sourceIcon, and _registryId.
+ *
+ * Uses a fixed number of hook slots with `enabled` guards so that unused slots
+ * don't fire API calls. Supports up to MAX_REGISTRIES concurrent registries.
  */
 
 import { useStoreDiscovery } from "@/web/hooks/use-store-discovery";
 import { findListToolName } from "@/web/utils/registry-utils";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import type { RegistryItem } from "@/web/components/store/types";
+
+const MAX_REGISTRIES = 6;
 
 interface MergedDiscoveryResult {
   items: RegistryItem[];
@@ -16,39 +21,43 @@ interface MergedDiscoveryResult {
   loadMore: () => void;
 }
 
+function useSlot(registry: ConnectionEntity | undefined) {
+  return useStoreDiscovery({
+    registryId: registry?.id ?? "",
+    listToolName: findListToolName(registry?.tools) ?? "",
+    enabled: registry != null,
+  });
+}
+
 /**
- * Merges items from up to 3 registry connections into a single list.
+ * Merges items from multiple registry connections into a single list.
  * Items are stamped with source metadata for badges.
  */
 export function useMergedStoreDiscovery(
   registries: ConnectionEntity[],
 ): MergedDiscoveryResult {
-  const r0 = registries[0];
-  const r1 = registries[1];
-  const r2 = registries[2];
+  if (registries.length > MAX_REGISTRIES) {
+    console.warn(
+      `useMergedStoreDiscovery: only ${MAX_REGISTRIES} registries are supported, got ${registries.length}. Extra registries will be ignored.`,
+    );
+  }
 
-  const d0 = useStoreDiscovery({
-    registryId: r0?.id ?? "",
-    listToolName: findListToolName(r0?.tools) ?? "",
-  });
-  const d1 = useStoreDiscovery({
-    registryId: r1?.id ?? "",
-    listToolName: findListToolName(r1?.tools) ?? "",
-  });
-  const d2 = useStoreDiscovery({
-    registryId: r2?.id ?? "",
-    listToolName: findListToolName(r2?.tools) ?? "",
-  });
+  // Fixed hook slots — React requires the same number of hook calls every render.
+  // Each slot is enabled only when a registry exists at that index.
+  const d0 = useSlot(registries[0]);
+  const d1 = useSlot(registries[1]);
+  const d2 = useSlot(registries[2]);
+  const d3 = useSlot(registries[3]);
+  const d4 = useSlot(registries[4]);
+  const d5 = useSlot(registries[5]);
 
-  const discoveries = [
-    { registry: r0, discovery: d0 },
-    { registry: r1, discovery: d1 },
-    { registry: r2, discovery: d2 },
-  ].filter((d) => d.registry != null);
+  const allSlots = [d0, d1, d2, d3, d4, d5];
+  const activeCount = Math.min(registries.length, MAX_REGISTRIES);
 
   const items: RegistryItem[] = [];
-  for (const { registry, discovery } of discoveries) {
-    if (!registry) continue;
+  for (let i = 0; i < activeCount; i++) {
+    const registry = registries[i]!;
+    const discovery = allSlots[i]!;
     for (const item of discovery.items) {
       items.push({
         ...item,
@@ -59,16 +68,15 @@ export function useMergedStoreDiscovery(
     }
   }
 
-  const isInitialLoading = discoveries.some(
-    (d) => d.discovery.isInitialLoading,
-  );
-  const isLoadingMore = discoveries.some((d) => d.discovery.isLoadingMore);
-  const hasMore = discoveries.some((d) => d.discovery.hasMore);
+  const activeSlots = allSlots.slice(0, activeCount);
+  const isInitialLoading = activeSlots.some((d) => d.isInitialLoading);
+  const isLoadingMore = activeSlots.some((d) => d.isLoadingMore);
+  const hasMore = activeSlots.some((d) => d.hasMore);
 
   const loadMore = () => {
-    for (const { discovery } of discoveries) {
-      if (discovery.hasMore && !discovery.isLoadingMore) {
-        discovery.loadMore();
+    for (const d of activeSlots) {
+      if (d.hasMore && !d.isLoadingMore) {
+        d.loadMore();
       }
     }
   };
