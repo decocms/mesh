@@ -56,7 +56,7 @@ function SpaceListItem({
   );
 }
 
-export function PinSpacePopover() {
+function PinSpacePopover() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const allSpaces = useVirtualMCPs();
