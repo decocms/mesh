@@ -583,13 +583,10 @@ export function ChatInput({
               onSubmit={handleSubmit}
               className={cn(
                 "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background",
-                isPlanMode && "border border-dashed border-purple-500",
+                isPlanMode
+                  ? "border border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
+                  : "shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
               )}
-              style={{
-                boxShadow: isPlanMode
-                  ? "0px 2px 6px 0px #00000008, 0px 6px 30px 0px #0000000a"
-                  : "0px 10px 28px 0px rgba(0, 0, 0, 0.06), 0px 0px 0px 1px rgba(0, 0, 0, 0.05)",
-              }}
             >
               <div className="group/input relative flex flex-col gap-2 flex-1">
                 {/* Input Area with Tiptap */}
