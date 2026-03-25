@@ -6,69 +6,6 @@
 import { createMCPClient, WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 /**
- * Find the LIST tool from a tools array
- * Returns the tool name if found, empty string otherwise
- */
-export function findListToolName(
-  tools?: Array<{ name: string }> | null,
-): string {
-  if (!tools) return "";
-  const preferred = tools.find(
-    (tool) => tool.name === "COLLECTION_REGISTRY_APP_LIST",
-  );
-  if (preferred) return preferred.name;
-
-  const privateRegistryList = tools.find(
-    (tool) => tool.name === "REGISTRY_ITEM_LIST",
-  );
-  if (privateRegistryList) return privateRegistryList.name;
-
-  const registryList = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith("_LIST"),
-  );
-  if (registryList) return registryList.name;
-  return "";
-}
-
-/**
- * Find a REGISTRY_APP tool by suffix (e.g., "_GET", "_VERSIONS")
- */
-export function findRegistryToolBySuffix(
-  tools: Array<{ name: string }> | null | undefined,
-  suffix: "_GET" | "_VERSIONS" | "_SEARCH",
-): string {
-  if (!tools) return "";
-
-  const preferred = tools.find(
-    (tool) => tool.name === `COLLECTION_REGISTRY_APP${suffix}`,
-  );
-  if (preferred) return preferred.name;
-
-  const privateRegistryToolNameBySuffix: Record<
-    "_GET" | "_VERSIONS" | "_SEARCH",
-    string
-  > = {
-    _GET: "REGISTRY_ITEM_GET",
-    _VERSIONS: "REGISTRY_ITEM_VERSIONS",
-    _SEARCH: "REGISTRY_ITEM_SEARCH",
-  };
-  const privateRegistryTool = tools.find(
-    (tool) => tool.name === privateRegistryToolNameBySuffix[suffix],
-  );
-  if (privateRegistryTool) return privateRegistryTool.name;
-
-  const registryTool = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith(suffix),
-  );
-  if (registryTool) return registryTool.name;
-  return "";
-}
-
-/**
  * Check if a connection ID belongs to a well-known (non-private) registry.
  */
 function isWellKnownRegistry(connectionId: string, orgId: string): boolean {
