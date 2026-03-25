@@ -8,6 +8,12 @@
 
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { JSONCodec, StorageType, type JetStreamClient, type KV } from "nats";
+import { meter } from "../observability";
+
+const cacheCounter = meter.createCounter("mcp_list_cache.fetches", {
+  description: "MCP list cache fetch outcomes (hit, miss, error)",
+  unit: "{fetches}",
+});
 
 export type McpListType = "tools" | "resources" | "prompts";
 
@@ -117,10 +123,11 @@ export async function fetchWithCache(
       return await fetchLive();
     } catch (err) {
       if (isMethodNotFound(err)) return [];
-      console.warn(
-        `[fetchWithCache] ${type}:${connectionId} no-cache live FAILED:`,
-        err,
-      );
+      cacheCounter.add(1, {
+        type,
+        outcome: "error",
+        stage: "no_cache",
+      });
       return null;
     }
   }
@@ -133,20 +140,23 @@ export async function fetchWithCache(
     try {
       const data = await fetchLive();
       cache.set(type, connectionId, data).catch(() => {});
+      cacheCounter.add(1, { type, outcome: "miss", stage: "miss" });
       return data;
     } catch (err) {
       if (isMethodNotFound(err)) {
         cache.set(type, connectionId, []).catch(() => {});
         return [];
       }
-      console.warn(
-        `[fetchWithCache] ${type}:${connectionId} cache-miss live FAILED:`,
-        err,
-      );
+      cacheCounter.add(1, {
+        type,
+        outcome: "error",
+        stage: "miss",
+      });
       return null;
     }
   }
 
+  cacheCounter.add(1, { type, outcome: "hit", stage: "hit" });
   // Cache hit: return immediately, revalidate in background
   const revalKey = `${type}:${connectionId}`;
   if (!revalidating.has(revalKey)) {
@@ -160,10 +170,11 @@ export async function fetchWithCache(
           }
           return;
         }
-        console.warn(
-          `[fetchWithCache] ${type}:${connectionId} background revalidation FAILED:`,
-          err,
-        );
+        cacheCounter.add(1, {
+          type,
+          outcome: "error",
+          stage: "revalidation",
+        });
       })
       .finally(() => revalidating.delete(revalKey));
 
