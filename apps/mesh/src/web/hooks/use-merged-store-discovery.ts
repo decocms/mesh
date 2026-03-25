@@ -21,6 +21,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import type { RegistryItem } from "@/web/components/store/types";
 
 const PAGE_SIZE = 24;
+const RETRY_ATTEMPTS = 3;
 
 /** Minimal registry source descriptor — only needs id, title, icon */
 export interface RegistrySource {
@@ -73,7 +74,7 @@ function useRegistryGroupQuery(
       queryFn: async ({ pageParam }): Promise<RegistryPageResult[]> => {
         const cursors: PageParam = pageParam ?? {};
 
-        const results = await Promise.allSettled(
+        const results = await Promise.all(
           registries.map(async (registry): Promise<RegistryPageResult> => {
             const cursor = cursors[registry.id];
             if (cursor === "EXHAUSTED") {
@@ -86,60 +87,73 @@ function useRegistryGroupQuery(
             }
 
             const listToolName = inferRegistryListToolName(registry.id, orgId);
-            const client = await createMCPClient({
-              connectionId: registry.id,
-              orgId,
-            });
 
-            try {
-              const params: Record<string, unknown> = { limit: PAGE_SIZE };
-              if (cursor) {
-                params.cursor = cursor;
+            // Per-registry retry (2 attempts) since Promise.all would
+            // otherwise let one failure reject the entire group
+            let lastError: unknown;
+            for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+              const client = await createMCPClient({
+                connectionId: registry.id,
+                orgId,
+              });
+
+              try {
+                const params: Record<string, unknown> = { limit: PAGE_SIZE };
+                if (cursor) {
+                  params.cursor = cursor;
+                }
+
+                const result = (await client.callTool({
+                  name: listToolName,
+                  arguments: params,
+                })) as { structuredContent?: unknown };
+
+                const payload = (result.structuredContent ?? result) as Record<
+                  string,
+                  unknown
+                >;
+
+                const nextCursor =
+                  (payload as { nextCursor?: string; cursor?: string })
+                    .nextCursor ||
+                  (payload as { nextCursor?: string; cursor?: string })
+                    .cursor ||
+                  undefined;
+
+                const items = flattenPaginatedItems<RegistryItem>(
+                  payload ? [payload] : [],
+                );
+
+                return {
+                  registryId: registry.id,
+                  registryTitle: registry.title,
+                  registryIcon: registry.icon,
+                  items,
+                  nextCursor,
+                };
+              } catch (err) {
+                lastError = err;
+              } finally {
+                await client.close().catch(() => {});
               }
-
-              const result = (await client.callTool({
-                name: listToolName,
-                arguments: params,
-              })) as { structuredContent?: unknown };
-
-              const payload = (result.structuredContent ?? result) as Record<
-                string,
-                unknown
-              >;
-
-              const nextCursor =
-                (payload as { nextCursor?: string; cursor?: string })
-                  .nextCursor ||
-                (payload as { nextCursor?: string; cursor?: string }).cursor ||
-                undefined;
-
-              const items = flattenPaginatedItems<RegistryItem>(
-                payload ? [payload] : [],
-              );
-
-              return {
-                registryId: registry.id,
-                registryTitle: registry.title,
-                registryIcon: registry.icon,
-                items,
-                nextCursor,
-              };
-            } finally {
-              await client.close().catch(() => {});
             }
+
+            // All retries exhausted — log and return empty so other registries
+            // in the group are not affected
+            console.warn(
+              `[useMergedStoreDiscovery] Registry "${registry.title}" (${registry.id}) failed after ${RETRY_ATTEMPTS} attempts:`,
+              lastError,
+            );
+            return {
+              registryId: registry.id,
+              registryTitle: registry.title,
+              registryIcon: registry.icon,
+              items: [],
+            };
           }),
         );
 
-        return results.map((r) =>
-          r.status === "fulfilled"
-            ? r.value
-            : {
-                registryId: "",
-                registryTitle: "",
-                registryIcon: null,
-                items: [],
-              },
-        );
+        return results;
       },
       initialPageParam: {} as PageParam,
       getNextPageParam: (lastPage) => {
@@ -160,7 +174,7 @@ function useRegistryGroupQuery(
       },
       staleTime: 60 * 60 * 1000,
       placeholderData: keepPreviousData,
-      retry: 2,
+      retry: false,
       enabled: enabled && registries.length > 0,
     });
 
