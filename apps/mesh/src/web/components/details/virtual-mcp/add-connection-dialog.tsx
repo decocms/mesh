@@ -173,6 +173,7 @@ function AddConnectionDialogContent({
   const { org } = useProjectContext();
   // Defer search so React keeps showing old results instead of suspense fallback
   const deferredSearch = useDeferredValue(search);
+  const isSearchStale = search !== deferredSearch;
   const searchLower = deferredSearch.toLowerCase();
 
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
@@ -504,7 +505,12 @@ function AddConnectionDialogContent({
       </div>
 
       {/* Content grid */}
-      <div className="flex-1 overflow-auto p-5">
+      <div
+        className={cn(
+          "flex-1 overflow-auto p-5 transition-opacity duration-150",
+          isSearchStale && "opacity-50 pointer-events-none",
+        )}
+      >
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
           {/* Connected connections (shown in Connected tab, or in All when searching) */}
           {groupedForDisplay.map((item) => {
