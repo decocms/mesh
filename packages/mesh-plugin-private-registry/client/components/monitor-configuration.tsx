@@ -59,10 +59,7 @@ export function MonitorConfiguration() {
   const [justSaved, setJustSaved] = useState(false);
   const [showDefaultPrompt, setShowDefaultPrompt] = useState(false);
   const { org } = useProjectContext();
-  const allConnections = useConnections();
-  const llmConnections = (allConnections ?? []).filter((connection) =>
-    (connection.tools ?? []).some((tool) => tool.name === "LLM_DO_GENERATE"),
-  );
+  const llmConnections = useConnections({ binding: "LLM" });
   const effectiveLLMConnectionId =
     draft.llmConnectionId ||
     registryLLMConnectionId ||
