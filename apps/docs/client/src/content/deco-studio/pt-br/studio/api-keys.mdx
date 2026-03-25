@@ -28,15 +28,14 @@ API keys permitem que sistemas externos se conectem ao deco Studio sem precisar 
 
 ## Criando uma API Key
 
-1. Abra o **Painel do deco Studio**
-2. Vá em **Settings** → **API Keys**
-3. Clique em **Create API Key**
-4. Dê um nome (como "Meu Script de Automação")
-5. Atribua [papéis e permissões](/pt-br/studio/user-management)
-6. **Copie a chave imediatamente**
+API keys são gerenciadas através das ferramentas MCP de gerenciamento ou da API. Ao criar uma API key, você especifica:
+
+1. Um nome descritivo (como "Meu Script de Automação")
+2. Permissões diretas no formato `{ resource: [actions...] }` — onde o recurso é `"self"` para ferramentas de gerenciamento ou `"conn_<UUID>"` para acesso específico a conexões
+3. **Copie a chave imediatamente** — ela só é exibida uma vez
 
 <Callout type="error">
-  Você só pode ver a API key uma vez. Copie agora e armazene em um lugar seguro como um gerenciador de senhas.
+  Você só pode ver a API key uma vez. Armazene em um lugar seguro como um gerenciador de senhas.
 </Callout>
 
 ## Usando Sua API Key

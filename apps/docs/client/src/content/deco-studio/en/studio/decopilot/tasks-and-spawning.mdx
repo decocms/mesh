@@ -31,10 +31,10 @@ Tasks move through different states as work progresses. Understanding these stat
 
 Every task has one of four statuses:
 
-- **In Progress** - Active work happening, agent is executing or waiting for next message
-- **Requires Action** - Paused, waiting for your input (tool approval or question response)
-- **Success** - Work completed successfully
-- **Failed** - Something went wrong or task timed out
+- **In Progress** (`in_progress`) - Active work happening, agent is executing or waiting for next message
+- **Requires Action** (`requires_action`) - Paused, waiting for your input (tool approval or question response)
+- **Completed** (`completed`) - Work completed successfully
+- **Failed** (`failed`) - Something went wrong or task timed out
 
 ### When Tasks Require Attention
 
@@ -77,7 +77,7 @@ This makes subtasks perfect for intensive work that would otherwise fill up your
 When you spawn a subtask:
 
 1. **Fresh start** - Subtask begins with clean context (just scope instructions and system prompt)
-2. **Independent execution** - Subtask is a regular task with restricted built-in tools (no `subtask_run` or `user_ask`)
+2. **Independent execution** - Subtask is a regular task with restricted built-in tools (no `subtask` or `user_ask`)
 3. **Summary return** - Parent task receives only a concise summary (200-500 tokens)
 4. **Full details preserved** - Complete subtask conversation saved in task history
 
@@ -88,7 +88,7 @@ The parent task sees just the summary—keeping your main conversation lean—wh
 | Feature | Main Task | Subtask |
 |---------|-----------|---------|
 | Context | Accumulated history | Fresh, clean start |
-| Available tools | All built-in tools + current scope's tools | Same, but no `subtask_run` or `user_ask` |
+| Available tools | All built-in tools + current scope's tools | Same, but no `subtask` or `user_ask` |
 | Result visibility | Full conversation | Summary only to parent |
 | User interaction | Can ask questions (`user_ask`) | Cannot ask questions |
 

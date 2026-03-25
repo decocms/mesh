@@ -11,7 +11,7 @@ import Callout from "../../../../components/ui/Callout.astro";
 deco Studio treats monitoring as **infrastructure, not an afterthought**. Every tool invocation that flows through the control plane creates a monitoring log—there's no way to disable this, and that's by design.
 
 <Callout type="tip">
-**Every tool call is monitored by deco Studio.** Whether it's a simple GitHub query or a complex database operation, every MCP tool invocation creates a structured log entry with full request/response details, timing, attribution, and error information. This happens automatically—no configuration required.
+**MCP proxy tool calls are monitored by deco Studio.** Tool invocations that flow through connections and Virtual MCPs (e.g., GitHub queries, database operations, Shopify calls) create structured log entries with full request/response details, timing, attribution, and error information. This happens automatically—no configuration required. Internal management API operations (creating connections, managing API keys) are not included in monitoring logs.
 </Callout>
 
 Traditional MCP deployments have fragmented observability: each client logs independently (or doesn't log at all), each MCP server has its own logging strategy, and there's no unified view of what happened across the system. deco Studio solves this by logging **at the control plane level**, creating a single source of truth for all MCP traffic.

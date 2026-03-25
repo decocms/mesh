@@ -31,10 +31,10 @@ As tarefas passam por diferentes estados conforme o trabalho progride. Entender 
 
 Toda tarefa tem um dos quatro status:
 
-- **Em Progresso** - Trabalho ativo acontecendo, agente esta executando ou aguardando proxima mensagem
-- **Requer Acao** - Pausada, aguardando sua entrada (aprovacao de ferramenta ou resposta a pergunta)
-- **Sucesso** - Trabalho concluido com sucesso
-- **Falha** - Algo deu errado ou a tarefa expirou
+- **Em Progresso** (`in_progress`) - Trabalho ativo acontecendo, agente esta executando ou aguardando proxima mensagem
+- **Requer Acao** (`requires_action`) - Pausada, aguardando sua entrada (aprovacao de ferramenta ou resposta a pergunta)
+- **Concluida** (`completed`) - Trabalho concluido com sucesso
+- **Falha** (`failed`) - Algo deu errado ou a tarefa expirou
 
 ### Quando Tarefas Requerem Atencao
 
@@ -77,7 +77,7 @@ Isso torna as subtarefas perfeitas para trabalho intensivo que, de outra forma, 
 Quando voce cria uma subtarefa:
 
 1. **Inicio novo** - A subtarefa comeca com contexto limpo (apenas instrucoes de escopo e prompt do sistema)
-2. **Execucao independente** - A subtarefa e uma tarefa regular com ferramentas integradas restritas (sem `subtask_run` ou `user_ask`)
+2. **Execucao independente** - A subtarefa e uma tarefa regular com ferramentas integradas restritas (sem `subtask` ou `user_ask`)
 3. **Retorno de resumo** - A tarefa pai recebe apenas um resumo conciso (200-500 tokens)
 4. **Detalhes completos preservados** - A conversa completa da subtarefa e salva no historico de tarefas
 
@@ -88,7 +88,7 @@ A tarefa pai ve apenas o resumo — mantendo sua conversa principal enxuta — e
 | Caracteristica | Tarefa Principal | Subtarefa |
 |----------------|-----------------|-----------|
 | Contexto | Historico acumulado | Inicio novo e limpo |
-| Ferramentas disponiveis | Todas as ferramentas integradas + ferramentas do escopo atual | Mesmo, mas sem `subtask_run` ou `user_ask` |
+| Ferramentas disponiveis | Todas as ferramentas integradas + ferramentas do escopo atual | Mesmo, mas sem `subtask` ou `user_ask` |
 | Visibilidade dos resultados | Conversa completa | Apenas resumo para o pai |
 | Interacao com usuario | Pode fazer perguntas (`user_ask`) | Nao pode fazer perguntas |
 

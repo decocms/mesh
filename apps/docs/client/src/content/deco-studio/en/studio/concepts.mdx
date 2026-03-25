@@ -9,14 +9,18 @@ icon: BookOpen
 - **Organization**: the top-level tenant boundary. Everything (connections, agents, projects, logs) is org-scoped.
 - **Members**: users invited into an organization with specific roles and permissions.
 - **Connection**: a configured upstream MCP endpoint (usually HTTP), optionally with stored credentials. See [Connections](/en/studio/connections).
-- **Virtual MCP**: aggregates tools/resources/prompts from connected servers into a single MCP. See [Virtual MCPs](/en/studio/virtual-mcps).
-- **Agent**: single-purpose Virtual MCPs optimized for specific tasks. See [Agents](/en/studio/agents).
+- **Virtual MCP**: aggregates tools/resources/prompts from connected servers into a single MCP. Agents and Projects are both Virtual MCPs distinguished by a `subtype` field. See [Virtual MCPs](/en/studio/virtual-mcps).
+- **Agent**: a Virtual MCP with subtype `agent` — focused on specific tasks with a curated toolset. See [Agents](/en/studio/agents).
+- **Project**: a Virtual MCP with subtype `project` — organizes project-specific tools, resources, prompts, and config. See [Projects](/en/studio/projects).
 - **Automation**: unattended agent runs on a schedule or event trigger. See [Automations](/en/studio/automations).
-- **Project**: Virtual MCPs to organize project-specific tools, resources, prompts, and config. See [Projects](/en/studio/projects).
+- **Thread**: a persistent conversation session with an agent. Stores chat messages and tracks status (`in_progress`, `requires_action`, `completed`, `failed`).
+- **Event Bus**: pub/sub system between connections following CloudEvents v1.0 spec. Supports scheduled delivery, cron-based recurring events, and at-least-once delivery guarantees.
+- **Tags**: organization-level labels for categorizing and filtering members.
+- **AI Provider Keys**: API key management for AI model providers (e.g. OpenRouter).
 
 ## Understanding Agents vs. Projects
 
-Both agents and projects are Virtual MCPs, but they serve different purposes in your workflow:
+Both agents and projects are Virtual MCPs stored in the same `connections` table, distinguished by a `subtype` field (`agent` or `project`). They serve different purposes in your workflow:
 
 **Projects** are general-purpose organizational units for ongoing work:
 - **Broad scope** - Cover multiple workflows and capabilities within a work context
@@ -32,7 +36,7 @@ Both agents and projects are Virtual MCPs, but they serve different purposes in 
 - **Example** - "Refund Processing Agent" that only handles customer refunds and return authorizations
 - **When to use** - Focused operations, built-in mesh management, or specialized workflows
 
-Both follow the same Virtual MCP architecture, but their design principles differ: projects organize capabilities for broad work contexts, while agents are reusable configurations that can be instantiated on-demand with fresh execution state.
+Both share the same Virtual MCP architecture and storage model, but their design principles differ: projects organize capabilities for broad work contexts, while agents are reusable configurations that can be instantiated on-demand with fresh execution state.
 
 ## MCP Protocol Primitives
 

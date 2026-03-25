@@ -12,7 +12,7 @@ import Callout from "../../../../../components/ui/Callout.astro";
 
 ## Overview
 
-Decopilot uses two types of tools: **built-in tools** for discovering capabilities and managing work, and **scope tools** from the current [scope](/en/studio/decopilot/scopes) for domain-specific actions. Tools are discovered with `tool_search` and activated on-demand with `tool_enable`, keeping execution focused and preventing tool overload.
+Decopilot uses two types of tools: **built-in tools** for discovering capabilities and managing work, and **scope tools** from the current [scope](/en/studio/decopilot/scopes) for domain-specific actions. Scope tools are available based on the connections in the current scope's Virtual MCP — decopilot sees them listed in its system prompt.
 
 ## Tool Reference
 
@@ -23,19 +23,20 @@ All built-in tools are available across all scopes. Availability varies between 
 | Tool | Task | Subtask | Description |
 |------|:----:|:-------:|-------------|
 | **Discovery** |
-| `tool_search` | ✓ | ✓ | Search for tools in current scope |
-| `tool_enable` | ✓ | ✓ | Activate a tool for use in current task |
 | `agent_search` | ✓ | ✓ | Find agents configured in the organization |
 | **Execution** |
-| `subtask_run` | ✓ | ✗ | Spawn subtask with fresh context, optionally specifying an agent |
+| `subtask` | ✓ | ✗ | Spawn subtask with fresh context, optionally specifying an agent |
 | `user_ask` | ✓ | ✗ | Ask user for input or clarification |
+| `sandbox` | ✓ | ✓ | Execute JavaScript code with access to MCP tools |
 | **Context** |
-| `resource_read` | ✓ | ✓ | Read documentation/guidelines from current scope (supports line ranges) |
-| `prompt_read` | ✓ | ✓ | Read prompt templates from current scope |
+| `read_resource` | ✓ | ✓ | Read documentation/guidelines from current scope (supports line ranges) |
+| `read_prompt` | ✓ | ✓ | Read prompt templates from current scope |
+| `read_tool_output` | ✓ | ✓ | Filter large tool outputs using regex patterns |
+| `propose_plan` | ✓ | ✗ | Propose execution plans for user approval (in "plan" approval mode) |
 
 ### Scope Tools
 
-Scope tools come from the current scope—domain-specific capabilities like Shopify, inventory systems, or shipping tools. These are discovered via `tool_search` and enabled via `tool_enable`.
+Scope tools come from the current scope—domain-specific capabilities like Shopify, inventory systems, or shipping tools. These are available based on the connections configured in the scope's Virtual MCP.
 
 **Example**: A project with Shopify and ShipStation connections might expose:
 - `GET_ORDERS` - Fetch customer orders
@@ -65,6 +66,8 @@ These annotations allow decopilot to respect tool constraints automatically. For
 **Subtasks** are spawned by decopilot for parallel work, specialized execution, or isolated context. They have restricted access:
 - **Cannot spawn additional subtasks** - Prevents infinite delegation
 - **Cannot ask user questions** - Subtasks run autonomously without blocking
+- **Step limit of 15** (vs parent's 30) - Ensures subtasks stay focused
+- **Must return a summary** - Results flow back to the parent task
 
 These restrictions ensure subtasks complete independently and don't create blocking dependencies.
 
@@ -72,37 +75,35 @@ These restrictions ensure subtasks complete independently and don't create block
 
 Decopilot starts each task with only built-in tools, then discovers and enables capabilities as needed:
 
-1. **Explore** - Use `tool_search` to see what's available in the current scope
-2. **Enable** - Use `tool_enable` to activate specific tools for the task
-3. **Execute** - Use enabled tools to accomplish work
-4. **Delegate** - Spawn subtasks via `subtask_run` for parallel or specialized work
-
-This discover-and-enable pattern ensures decopilot deliberately chooses its toolset rather than being overwhelmed by every available capability.
+1. **Explore** - Scope tools are listed in the system prompt based on the current Virtual MCP
+2. **Execute** - Use available tools to accomplish work
+3. **Delegate** - Spawn subtasks via `subtask` for parallel or specialized work
+4. **Read context** - Use `read_resource` and `read_prompt` to load domain knowledge
 
 ## Common Workflows
 
-### Discover-Enable-Execute
+### Execute Scope Tools
 
 The most common pattern for using scope tools:
 
-1. Search for capabilities with `tool_search`
-2. Enable specific tools with `tool_enable`
-3. Use enabled tools to accomplish work
+1. Review available tools from the current scope
+2. Use tools to accomplish the requested work
+3. Read resources/prompts for domain context when needed
 
 ### Delegate to Specialists
 
 For work requiring specialized expertise:
 
 1. Search for agents with `agent_search`
-2. Spawn a subtask with `subtask_run` and specific agent
+2. Spawn a subtask with `subtask` and specific agent
 3. Continue main task while subtask runs in parallel
 
 ### Context-Driven Execution
 
 For tasks requiring domain knowledge:
 
-1. Read relevant resources with `resource_read`
-2. Read workflow templates with `prompt_read`
+1. Read relevant resources with `read_resource`
+2. Read workflow templates with `read_prompt`
 3. Use context to inform tool selection and execution
 
 ---

@@ -28,15 +28,14 @@ API keys let external systems connect to deco Studio without needing a user to l
 
 ## Creating an API Key
 
-1. Open the **deco Studio Dashboard**
-2. Go to **Settings** → **API Keys**
-3. Click **Create API Key**
-4. Give it a name (like "My Automation Script")
-5. Assign [roles and permissions](/en/studio/user-management)
-6. **Copy the key immediately**
+API keys are managed through the management MCP tools or the API. When creating an API key, you specify:
+
+1. A descriptive name (like "My Automation Script")
+2. Direct permissions in the format `{ resource: [actions...] }` — where the resource is either `"self"` for management tools or `"conn_<UUID>"` for connection-specific access
+3. **Copy the key immediately** — it is only shown once
 
 <Callout type="error">
-  You can only see the API key once. Copy it now and store it somewhere safe like a password manager.
+  You can only see the API key once. Store it somewhere safe like a password manager.
 </Callout>
 
 ## Using Your API Key
