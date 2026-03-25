@@ -154,15 +154,10 @@ export async function startServer(options: ServeOptions): Promise<void> {
   setMigrationsDone();
 
   // ── Env ──────────────────────────────────────────────────────────────
-  // In bundled builds (dist/server/cli.js), env.ts may have been evaluated
-  // at module load time — before we resolved secrets above. That means the
-  // env singleton captured the zod default ("") for ENCRYPTION_KEY instead
-  // of the real key from secrets.json.  Force-update the stale snapshot so
-  // that downstream code (app.ts → CredentialVault) uses the resolved key.
-  const { env } = await import("../../env");
-  env.ENCRYPTION_KEY = secrets.ENCRYPTION_KEY;
-  env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
-  setEnv(env);
+  // In bundled builds, env.ts is evaluated at bundle-load time with Zod
+  // defaults. Re-parse now that process.env has the resolved secrets.
+  const { refreshEnv } = await import("../../env");
+  setEnv(refreshEnv());
 
   // ── Start server ─────────────────────────────────────────────────────
   process.env.DECO_CLI = "1";
