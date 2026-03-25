@@ -34,6 +34,7 @@ export class JetStreamKVMcpListCache implements McpListCache {
     const js = this.options.getJetStream();
     this.kv = await js.views.kv(KV_BUCKET, {
       storage: StorageType.Memory,
+      replicas: 3,
     });
   }
 

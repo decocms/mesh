@@ -58,7 +58,7 @@ export class AutomationJobStream {
       retention: RetentionPolicy.Workqueue,
       discard: DiscardPolicy.Old,
       max_msgs: 10_000,
-      num_replicas: 1,
+      num_replicas: 3,
     };
 
     try {

@@ -82,7 +82,7 @@ export class NatsStreamBuffer implements StreamBuffer {
       max_msgs_per_subject: MAX_MSGS_PER_SUBJECT,
       discard: DiscardPolicy.Old,
       retention: RetentionPolicy.Limits,
-      num_replicas: 1,
+      num_replicas: 3,
     };
 
     try {
