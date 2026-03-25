@@ -5,7 +5,8 @@
  * The scheduler publishes jobs when triggers are due; workers pull and execute.
  *
  * - WorkQueue retention: messages deleted on ack (no replay needed)
- * - Memory storage: jobs are transient; the DB is the authority
+ * - File storage: jobs survive pod restarts during rolling deploys
+ * - 3 replicas: jobs are not lost if the NATS leader changes
  * - Pull-based consumer: natural backpressure, one job per worker
  * - Ack wait > automation timeout: prevents premature redelivery
  */
@@ -20,9 +21,9 @@ import {
   type NatsConnection,
 } from "nats";
 
-const STREAM_NAME = "AUTOMATION_JOBS";
+const STREAM_NAME = "AUTOMATION_JOBS_FILE";
 const SUBJECT_PREFIX = "automation.fire";
-const CONSUMER_NAME = "automation-worker";
+const CONSUMER_NAME = "automation-worker-file";
 const MAX_DELIVER = 3;
 const ACK_WAIT_NS = 6 * 60 * 1_000_000_000; // 6 min (> 5 min automation timeout)
 const PULL_BATCH_SIZE = 5;
@@ -62,18 +63,8 @@ export class AutomationJobStream {
     };
 
     try {
-      const info = await jsm.streams.info(STREAM_NAME);
-      if (info.config.storage !== config.storage) {
-        // Storage type cannot be changed via update — recreate the stream.
-        // Safe because the previous stream was Memory (no durable data to lose).
-        console.log(
-          `[AutomationJobStream] Recreating stream ${STREAM_NAME}: storage type changed from ${info.config.storage} to ${config.storage}`,
-        );
-        await jsm.streams.delete(STREAM_NAME);
-        await jsm.streams.add(config);
-      } else {
-        await jsm.streams.update(STREAM_NAME, config);
-      }
+      await jsm.streams.info(STREAM_NAME);
+      await jsm.streams.update(STREAM_NAME, config);
     } catch (err: unknown) {
       const isNotFound =
         err instanceof Error && err.message.includes("stream not found");
