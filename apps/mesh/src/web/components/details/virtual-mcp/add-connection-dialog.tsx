@@ -33,11 +33,17 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   type ConnectionEntity,
+  SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnections,
+  useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useQueryClient } from "@tanstack/react-query";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
+import {
+  useQueryClient,
+  useSuspenseInfiniteQuery,
+} from "@tanstack/react-query";
 import {
   Check,
   CheckVerified02,
@@ -46,7 +52,7 @@ import {
   Loading01,
   Plus,
 } from "@untitledui/icons";
-import { Suspense, useState } from "react";
+import { Suspense, useDeferredValue, useState } from "react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -156,25 +162,106 @@ function AddConnectionDialogContent({
   onAdd,
   onInlineConnect,
   connectingItemId,
+  search,
 }: {
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
   onInlineConnect: (item: RegistryItem) => void;
   connectingItemId: string | null;
+  search: string;
 }) {
   const { org } = useProjectContext();
-  const [search, setSearch] = useState("");
-  const searchLower = search.toLowerCase();
+  // Defer search so React keeps showing old results instead of suspense fallback
+  const deferredSearch = useDeferredValue(search);
+  const isSearchStale = search !== deferredSearch;
+  const searchLower = deferredSearch.toLowerCase();
 
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
     LOCALSTORAGE_KEYS.connectionsTab(org.slug) + ":agent-modal",
     () => "all",
   );
 
-  // Connections - server-side search (VIRTUAL excluded by default)
-  const allConnections = useConnections({
-    searchTerm: search || undefined,
+  // Connections - server-side search with infinite scroll (VIRTUAL excluded by default)
+  const PAGE_SIZE = 100;
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
   });
+
+  const where = deferredSearch?.trim()
+    ? {
+        operator: "or" as const,
+        conditions: [
+          {
+            field: ["title"],
+            operator: "contains" as const,
+            value: deferredSearch.trim(),
+          },
+          {
+            field: ["description"],
+            operator: "contains" as const,
+            value: deferredSearch.trim(),
+          },
+        ],
+      }
+    : undefined;
+
+  const toolArguments = {
+    ...(where && { where }),
+    orderBy: [{ field: ["updated_at"], direction: "asc" as const }],
+    limit: PAGE_SIZE,
+    offset: 0,
+  };
+  const argsKey = JSON.stringify(toolArguments);
+
+  const {
+    data: connectionsData,
+    fetchNextPage: fetchNextConnectionsPage,
+    hasNextPage: hasNextConnectionsPage,
+    isFetchingNextPage: isFetchingNextConnectionsPage,
+  } = useSuspenseInfiniteQuery({
+    queryKey: [
+      ...KEYS.collectionListInfinite(
+        client,
+        org.id,
+        "",
+        "CONNECTIONS",
+        argsKey,
+      ),
+    ],
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_LIST",
+        arguments: {
+          ...(where && { where }),
+          orderBy: [{ field: ["updated_at"], direction: "asc" }],
+          limit: PAGE_SIZE,
+          offset: pageParam,
+        },
+      });
+      const payload =
+        result.structuredContent as CollectionListOutput<ConnectionEntity>;
+      return payload;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: CollectionListOutput<ConnectionEntity>,
+      allPages: CollectionListOutput<ConnectionEntity>[],
+    ) => {
+      if (!lastPage?.hasMore) return undefined;
+      return allPages.reduce(
+        (sum: number, page: CollectionListOutput<ConnectionEntity>) =>
+          sum + (page?.items?.length ?? 0),
+        0,
+      );
+    },
+    staleTime: 30_000,
+  });
+
+  const allConnections =
+    connectionsData?.pages.flatMap(
+      (p: CollectionListOutput<ConnectionEntity>) => p?.items ?? [],
+    ) ?? [];
   const grouped = groupConnections(allConnections);
 
   // Registry / catalog - use server-side binding filter
@@ -207,6 +294,12 @@ function AddConnectionDialogContent({
     registryDiscovery.loadMore,
     registryDiscovery.hasMore,
     registryDiscovery.isLoadingMore,
+  );
+
+  const connectedSentinelRef = useInfiniteScroll(
+    fetchNextConnectionsPage,
+    hasNextConnectionsPage ?? false,
+    isFetchingNextConnectionsPage,
   );
 
   const connectedAppNames = new Set(
@@ -338,15 +431,6 @@ function AddConnectionDialogContent({
 
   return (
     <>
-      {/* Search */}
-      <div className="pt-3 shrink-0">
-        <CollectionSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search connections..."
-        />
-      </div>
-
       {/* Tabs + Registry selector */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
         <CollectionTabs
@@ -421,7 +505,12 @@ function AddConnectionDialogContent({
       </div>
 
       {/* Content grid */}
-      <div className="flex-1 overflow-auto p-5">
+      <div
+        className={cn(
+          "flex-1 overflow-auto p-5 transition-opacity duration-150",
+          isSearchStale && "opacity-50 pointer-events-none",
+        )}
+      >
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
           {/* Connected connections (shown in Connected tab, or in All when searching) */}
           {groupedForDisplay.map((item) => {
@@ -478,6 +567,21 @@ function AddConnectionDialogContent({
               />
             );
           })}
+
+          {/* Infinite scroll sentinel for connected results (Connected tab or search in All tab) */}
+          {(activeTab === "connected" || searchLower) && (
+            <>
+              <div ref={connectedSentinelRef} className="col-span-full h-4" />
+              {isFetchingNextConnectionsPage && (
+                <div className="col-span-full flex justify-center py-6">
+                  <Loading01
+                    size={24}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Verified catalog items */}
           {(activeTab === "all" || searchLower) &&
@@ -550,6 +654,7 @@ export function AddConnectionDialog({
   onAdd,
 }: AddConnectionDialogProps) {
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
@@ -667,6 +772,15 @@ export function AddConnectionDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {/* Search lives outside Suspense so it never unmounts during refetches */}
+        <div className="pt-3 shrink-0">
+          <CollectionSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search connections..."
+          />
+        </div>
+
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center">
@@ -682,6 +796,7 @@ export function AddConnectionDialog({
             onAdd={onAdd}
             onInlineConnect={handleInlineConnect}
             connectingItemId={connectingItemId}
+            search={search}
           />
         </Suspense>
       </DialogContent>

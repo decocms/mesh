@@ -1097,7 +1097,8 @@ export function ManageRolesDialog({
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  // Get all connections for selection
+  // Get all connections for permission save/load logic (wildcard expansion, ID lookup).
+  // Display-level search is handled inside ToolSetSelector's own useConnections call.
   const connections = useConnections() ?? [];
 
   // Get existing custom roles
@@ -1720,7 +1721,6 @@ export function ManageRolesDialog({
                       {...form.register("role.label")}
                       placeholder="Enter role name"
                       className="flex-1 text-sm font-medium border-0 shadow-none h-auto px-0 py-0 focus-visible:ring-0 bg-transparent"
-                      autoFocus
                     />
                     <Badge
                       variant="secondary"
@@ -1815,7 +1815,9 @@ export function ManageRolesDialog({
                 <ToolSetSelector
                   toolSet={form.watch("toolSet")}
                   onToolSetChange={(newToolSet) =>
-                    form.setValue("toolSet", newToolSet, { shouldDirty: true })
+                    form.setValue("toolSet", newToolSet, {
+                      shouldDirty: true,
+                    })
                   }
                 />
               )}

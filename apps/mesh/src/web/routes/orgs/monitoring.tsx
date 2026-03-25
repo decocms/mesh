@@ -817,6 +817,8 @@ interface FiltersPopoverProps {
   virtualMcpOptions: Array<{ value: string; label: string }>;
   activeFiltersCount: number;
   onUpdateFilters: (updates: Partial<MonitoringSearchParams>) => void;
+  connectionSearchTerm?: string;
+  onConnectionSearchChange?: (term: string) => void;
 }
 
 const OPERATOR_OPTIONS: Array<{
@@ -840,6 +842,7 @@ function FiltersPopover({
   virtualMcpOptions,
   activeFiltersCount,
   onUpdateFilters,
+  onConnectionSearchChange,
 }: FiltersPopoverProps) {
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [propertyFilterMode, setPropertyFilterMode] = useState<"raw" | "form">(
@@ -993,6 +996,7 @@ function FiltersPopover({
                 onValueChange={(values) =>
                   onUpdateFilters({ connectionId: values })
                 }
+                onSearchChange={onConnectionSearchChange}
                 placeholder="All servers"
                 variant="secondary"
                 className="w-full"
@@ -1691,7 +1695,13 @@ function MonitoringDashboardContent({
   const allConnections = useConnections();
   const allVirtualMcps = useVirtualMCPs();
   const { data: membersData } = useMembers();
-  const connectionOptions = (allConnections ?? []).map((conn) => ({
+
+  // Separate search-filtered connections for the dropdown
+  const [connectionSearch, setConnectionSearch] = useState("");
+  const searchFilteredConnections = useConnections({
+    searchTerm: connectionSearch || undefined,
+  });
+  const connectionOptions = (searchFilteredConnections ?? []).map((conn) => ({
     value: conn.id,
     label: conn.title || conn.id,
   }));
@@ -1774,6 +1784,8 @@ function MonitoringDashboardContent({
                 virtualMcpOptions={virtualMcpOptions}
                 activeFiltersCount={activeFiltersCount}
                 onUpdateFilters={onUpdateFilters}
+                connectionSearchTerm={connectionSearch}
+                onConnectionSearchChange={setConnectionSearch}
               />
 
               {/* AI Only Toggle (Audit tab only) */}

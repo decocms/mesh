@@ -6,6 +6,9 @@
  */
 import { chmod, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
+import { refreshEnv } from "../../env";
+import { ensureServices } from "../../services/ensure-services";
+import { migrateToLatest } from "../../database/migrate";
 import { resolveSecrets, type SecretsFile } from "./resolve-secrets";
 import {
   addLogEntry,
@@ -79,7 +82,7 @@ export function interceptConsoleForTui() {
 export async function startServer(options: ServeOptions): Promise<void> {
   const { port, home, skipMigrations, localMode, noTui } = options;
 
-  // Set env vars before any imports that read them
+  // Set env vars — refreshEnv() below re-parses them into the env singleton
   if (noTui) {
     process.env.DECO_NO_TUI = "true";
   }
@@ -129,7 +132,6 @@ export async function startServer(options: ServeOptions): Promise<void> {
   }
 
   // ── Services ─────────────────────────────────────────────────────────
-  const { ensureServices } = await import("../../services/ensure-services");
   const services = await ensureServices(home);
 
   for (const s of services) {
@@ -144,7 +146,6 @@ export async function startServer(options: ServeOptions): Promise<void> {
   // ── Migrations ───────────────────────────────────────────────────────
   if (!skipMigrations) {
     try {
-      const { migrateToLatest } = await import("../../database/migrate");
       await migrateToLatest({ keepOpen: true });
     } catch (error) {
       console.error("Failed to run migrations:", error);
@@ -154,15 +155,9 @@ export async function startServer(options: ServeOptions): Promise<void> {
   setMigrationsDone();
 
   // ── Env ──────────────────────────────────────────────────────────────
-  // In bundled builds (dist/server/cli.js), env.ts may have been evaluated
-  // at module load time — before we resolved secrets above. That means the
-  // env singleton captured the zod default ("") for ENCRYPTION_KEY instead
-  // of the real key from secrets.json.  Force-update the stale snapshot so
-  // that downstream code (app.ts → CredentialVault) uses the resolved key.
-  const { env } = await import("../../env");
-  env.ENCRYPTION_KEY = secrets.ENCRYPTION_KEY;
-  env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
-  setEnv(env);
+  // In bundled builds, env.ts is evaluated at bundle-load time with Zod
+  // defaults. Re-parse now that process.env has the resolved secrets.
+  setEnv(refreshEnv());
 
   // ── Start server ─────────────────────────────────────────────────────
   process.env.DECO_CLI = "1";

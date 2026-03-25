@@ -351,15 +351,9 @@ const settingsSsoRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
 });
 // Store
-const storeRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
-});
-
 const storeDetailRoute = createRoute({
-  getParentRoute: () => storeRoute,
-  path: "/$appName",
+  getParentRoute: () => orgLayout,
+  path: "/store/$appName",
   component: lazyRouteComponent(
     () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
@@ -481,6 +475,91 @@ const workflowsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
+// Project settings — layout for /$org/projects/$virtualMcpId/settings/*
+const projectSettingsRoute = createRoute({
+  getParentRoute: () => virtualMcpLayout,
+  path: "/settings",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/project-settings/layout.tsx"),
+  ),
+});
+
+// Backward-compat redirects: old sub-routes → /settings
+const projectSettingsGeneralRedirect = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/general",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/projects/$virtualMcpId/settings",
+      params: {
+        org: params.org,
+        virtualMcpId: (params as Record<string, string>).virtualMcpId,
+      },
+    });
+  },
+  component: () => null,
+});
+
+const projectSettingsDependenciesRedirect = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/dependencies",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/projects/$virtualMcpId/settings",
+      params: {
+        org: params.org,
+        virtualMcpId: (params as Record<string, string>).virtualMcpId,
+      },
+    });
+  },
+  component: () => null,
+});
+
+const projectSettingsSidebarRedirect = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/sidebar",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/projects/$virtualMcpId/settings",
+      params: {
+        org: params.org,
+        virtualMcpId: (params as Record<string, string>).virtualMcpId,
+      },
+    });
+  },
+  component: () => null,
+});
+
+const projectSettingsPluginsRedirect = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/plugins",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/projects/$virtualMcpId/settings",
+      params: {
+        org: params.org,
+        virtualMcpId: (params as Record<string, string>).virtualMcpId,
+      },
+    });
+  },
+  component: () => null,
+});
+
+const projectSettingsDangerRedirect = createRoute({
+  getParentRoute: () => projectSettingsRoute,
+  path: "/danger",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/projects/$virtualMcpId/settings",
+      params: {
+        org: params.org,
+        virtualMcpId: (params as Record<string, string>).virtualMcpId,
+      },
+    });
+  },
+  component: () => null,
+});
+
 // ============================================
 // PLUGIN ROUTES
 // ============================================
@@ -539,8 +618,6 @@ const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
 // ROUTE TREE
 // ============================================
 
-const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
-
 const settingsWithChildren = settingsLayout.addChildren([
   settingsIndexRoute,
   settingsAccountProfileRoute,
@@ -565,8 +642,17 @@ const spacesWithChildren = spacesLayout.addChildren([
   spacePluginLayoutRoute,
 ]);
 
+const projectSettingsWithChildren = projectSettingsRoute.addChildren([
+  projectSettingsGeneralRedirect,
+  projectSettingsDependenciesRedirect,
+  projectSettingsSidebarRedirect,
+  projectSettingsPluginsRedirect,
+  projectSettingsDangerRedirect,
+]);
+
 const virtualMcpWithChildren = virtualMcpLayout.addChildren([
   projectHomeRoute,
+  projectSettingsWithChildren,
   projectAppViewRoute,
   workflowsRoute,
   pluginLayoutWithChildren,
@@ -578,7 +664,7 @@ const orgRoutes = [
   spacesWithChildren,
   projectsListRoute,
   settingsWithChildren,
-  storeRouteWithChildren,
+  storeDetailRoute,
   agentsRoute,
   agentDetailRoute,
   virtualMcpWithChildren,
