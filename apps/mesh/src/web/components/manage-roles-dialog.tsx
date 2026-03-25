@@ -1097,13 +1097,9 @@ export function ManageRolesDialog({
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  // Connection search state for server-side filtering
-  const [connectionSearch, setConnectionSearch] = useState("");
-
-  // Get connections with server-side search filtering
-  const connections = useConnections({
-    searchTerm: connectionSearch || undefined,
-  });
+  // Get all connections for permission save/load logic (wildcard expansion, ID lookup).
+  // Display-level search is handled inside ToolSetSelector's own useConnections call.
+  const connections = useConnections() ?? [];
 
   // Get existing custom roles
   const { customRoles, refetch: refetchRoles } = useOrganizationRoles();
@@ -1817,25 +1813,14 @@ export function ManageRolesDialog({
                 tearing down hundreds of DOM nodes during the close animation */}
             <div className="flex-1 overflow-hidden min-h-0">
               {open && activeTab === "mcp" && !viewingBuiltinRole && (
-                <div className="flex flex-col h-full">
-                  <div className="p-2 border-b border-border">
-                    <Input
-                      placeholder="Search connections..."
-                      value={connectionSearch}
-                      onChange={(e) => setConnectionSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    <ToolSetSelector
-                      toolSet={form.watch("toolSet")}
-                      onToolSetChange={(newToolSet) =>
-                        form.setValue("toolSet", newToolSet, {
-                          shouldDirty: true,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                <ToolSetSelector
+                  toolSet={form.watch("toolSet")}
+                  onToolSetChange={(newToolSet) =>
+                    form.setValue("toolSet", newToolSet, {
+                      shouldDirty: true,
+                    })
+                  }
+                />
               )}
               {open && activeTab === "org" && (
                 <OrgPermissionsTab
