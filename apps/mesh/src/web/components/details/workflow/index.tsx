@@ -43,6 +43,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 import { usePollingWorkflowExecution } from "./hooks";
 import { useWorkflowSSE } from "./hooks/use-workflow-sse";
@@ -57,9 +58,10 @@ export function useCollectionWorkflow({ itemId }: { itemId: string }) {
   const { appSlug } = useParams({
     from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
   });
-  const slugConnections = useConnections({
-    filters: [{ column: "app_name", value: appSlug }],
-  });
+  const allConnections = useConnections();
+  const slugConnections = allConnections.filter(
+    (c) => getConnectionSlug(c) === appSlug,
+  );
   const connection = slugConnections[0] ?? null;
   const connectionId = connection?.id ?? appSlug;
   const scopeKey = connectionId ?? "no-connection";
@@ -395,9 +397,10 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   const { appSlug } = useParams({
     from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
   });
-  const slugConnections = useConnections({
-    filters: [{ column: "app_name", value: appSlug }],
-  });
+  const allConnections = useConnections();
+  const slugConnections = allConnections.filter(
+    (c) => getConnectionSlug(c) === appSlug,
+  );
   const connection = slugConnections[0] ?? null;
   const connectionId = connection?.id ?? appSlug;
   const scopeKey = connectionId ?? "no-connection";

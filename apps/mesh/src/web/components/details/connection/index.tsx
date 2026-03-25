@@ -74,6 +74,7 @@ import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { getConnectionSlug } from "@/web/utils/connection-slug";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -754,10 +755,14 @@ function ConnectionInspectorViewContent() {
 
   const actions = useConnectionActions();
 
-  // Resolve appSlug → matching connections (server-side filter by app_name, excludes VIRTUAL by default)
-  const siblings = useConnections({
-    filters: [{ column: "app_name", value: appSlug }],
-  });
+  // Resolve appSlug → matching connections.
+  // Fetch all connections then match client-side by slug, because the URL slug
+  // is a slugified version of app_name (e.g. "deco.cx" → "decocx") which won't
+  // match an exact server-side app_name filter.
+  const allConnections = useConnections();
+  const siblings = allConnections.filter(
+    (c) => getConnectionSlug(c) === appSlug,
+  );
   const connection = siblings[0] ?? null;
   const connectionId = connection?.id ?? "";
 
