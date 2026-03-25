@@ -582,7 +582,7 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background",
+                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-input/30",
                 isPlanMode
                   ? "border border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
                   : "shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
