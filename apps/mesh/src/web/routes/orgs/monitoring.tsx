@@ -1308,7 +1308,7 @@ function MonitoringLogsTableContent({
   // Use the infinite scroll hook with loading guard
   const lastLogRef = useInfiniteScroll(onLoadMore, hasMore, isLoadingMore);
 
-  const members = membersData?.data?.members ?? [];
+  const members = getOrgMembers(membersData);
   const userMap = new Map(members.map((m) => [m.userId, m.user]));
 
   // Create virtual MCP lookup map
