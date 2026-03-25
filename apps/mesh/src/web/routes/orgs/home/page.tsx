@@ -42,7 +42,6 @@ function ProjectSettingsContent() {
 
 export default function OrgHomePage() {
   const { view } = useSearch({ strict: false }) as { view?: string };
-
   if (view === "settings") {
     return (
       <ErrorBoundary>

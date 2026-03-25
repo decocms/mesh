@@ -454,7 +454,7 @@ function ShellLayoutInner({
               <ResizableHandle className="bg-sidebar" />
               <PersistentResizablePanel
                 panelRef={chatPanelRef}
-                defaultCollapsed={!chatOpen}
+                defaultCollapsed={false}
                 defaultFullWidth={isOrgHome}
                 onCollapse={() => setChatOpen(false)}
                 onExpand={() => setChatOpen(true)}

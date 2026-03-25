@@ -1274,7 +1274,6 @@ export function VirtualMcpDetailView({
   const { org } = useProjectContext();
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
-
   if (!virtualMcp) {
     return (
       <div className="flex h-full w-full bg-background">
