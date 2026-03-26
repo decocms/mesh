@@ -39,6 +39,21 @@
     }
   }
 
+  @keyframes grid-ripple {
+    0% {
+      background-color: transparent;
+    }
+    10% {
+      background-color: var(--cell-color);
+    }
+    75% {
+      background-color: transparent;
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
   @keyframes slideUpFade {
     0% {
       opacity: 0;
