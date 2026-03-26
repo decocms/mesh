@@ -105,7 +105,7 @@ export async function streamAgent(
 
   const credentialId = params.credentialId ?? config.credentialId;
   const thinking = params.thinking ?? config.thinking;
-  const hasModels = credentialId && thinking?.id;
+  const hasModels = thinking?.id;
 
   const request = {
     messages: params.messages,
