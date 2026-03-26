@@ -1,3 +1,4 @@
+import { AgentTemplates } from "@/web/components/agents/agent-templates.tsx";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { Page } from "@/web/components/page";
@@ -11,16 +12,16 @@ import { ConnectionCard } from "@/web/components/connections/connection-card.tsx
 import { ConnectionStatus } from "@/web/components/connections/connection-status.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { AgentAvatar } from "@/web/components/agent-icon";
+import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useListState } from "@/web/hooks/use-list-state";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import {
   isDecopilot,
   useProjectContext,
+  useVirtualMCPs,
   useVirtualMCPActions,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
-import { useAgents } from "@/web/hooks/use-agents";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +49,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@deco/ui/components/sheet.tsx";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@deco/ui/components/tabs.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { type TableColumn } from "@/web/components/collections/collection-table.tsx";
 import {
@@ -290,7 +297,7 @@ function AgentGroupCard({
           >
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
               <div className="flex items-center gap-3">
-                <AgentAvatar
+                <IntegrationIcon
                   icon={group.icon}
                   name={group.title}
                   size="md"
@@ -322,7 +329,7 @@ function AgentGroupCard({
                     onNavigate(a.id);
                   }}
                 >
-                  <AgentAvatar
+                  <IntegrationIcon
                     icon={a.icon}
                     name={a.title}
                     size="sm"
@@ -386,7 +393,7 @@ function AgentGroupCard({
           <DialogContent className="sm:max-w-lg p-0 gap-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <div className="flex items-center gap-3">
-                <AgentAvatar
+                <IntegrationIcon
                   icon={group.icon}
                   name={group.title}
                   size="md"
@@ -418,7 +425,7 @@ function AgentGroupCard({
                     onNavigate(a.id);
                   }}
                 >
-                  <AgentAvatar
+                  <IntegrationIcon
                     icon={a.icon}
                     name={a.title}
                     size="sm"
@@ -725,7 +732,7 @@ function GroupedAgentTable({
                       return (
                         <TableCell key={col.id} className={base}>
                           <div className="flex items-center gap-2 min-w-0">
-                            <AgentAvatar
+                            <IntegrationIcon
                               icon={group.icon}
                               name={group.title}
                               size="sm"
@@ -839,13 +846,17 @@ function OrgAgentsContent() {
     defaultViewMode: "cards",
   });
 
-  const virtualMcps = useAgents(listState);
+  const virtualMcps = useVirtualMCPs(listState);
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
   const actions = useVirtualMCPActions();
 
   const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
+
+  // Default to templates tab when org has no agents (onboarding)
+  const defaultTab = virtualMcps.length === 0 ? "templates" : "my-agents";
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Bulk selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -944,7 +955,7 @@ function OrgAgentsContent() {
       header: "Name",
       render: (virtualMcp) => (
         <div className="flex items-center gap-2 min-w-0">
-          <AgentAvatar
+          <IntegrationIcon
             icon={virtualMcp.icon}
             name={virtualMcp.title}
             size="sm"
@@ -1185,215 +1196,239 @@ function OrgAgentsContent() {
         </Page.Header.Right>
       </Page.Header>
 
-      {/* Search Bar */}
-      <div className="flex items-center gap-3 px-5 pb-0">
-        <div className="flex-1">
-          <CollectionSearch
-            value={listState.search}
-            onChange={listState.setSearch}
-            placeholder="Search for an agent..."
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                listState.setSearch("");
-                (event.target as HTMLInputElement).blur();
-              }
-            }}
-          />
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex flex-col flex-1 overflow-hidden"
+      >
+        <div className="px-5">
+          <TabsList>
+            <TabsTrigger value="my-agents">My Agents</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+          </TabsList>
         </div>
-      </div>
 
-      {/* Content: Cards or Table */}
-      <Page.Content>
-        {listState.viewMode === "cards" ? (
-          <div className="flex-1 overflow-auto p-5">
-            {filteredAgents.length === 0 ? (
-              <div className="flex items-center justify-center min-h-[60vh]">
-                <EmptyState
-                  image={
-                    <Users03 size={48} className="text-muted-foreground" />
+        <TabsContent value="templates" className="flex-1 overflow-hidden mt-0">
+          <AgentTemplates />
+        </TabsContent>
+
+        <TabsContent value="my-agents" className="flex-1 overflow-hidden mt-0">
+          {/* Search Bar */}
+          <div className="flex items-center gap-3 px-5 pb-0">
+            <div className="flex-1">
+              <CollectionSearch
+                value={listState.search}
+                onChange={listState.setSearch}
+                placeholder="Search for an agent..."
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    listState.setSearch("");
+                    (event.target as HTMLInputElement).blur();
                   }
-                  title={listState.search ? "No agents found" : "No agents yet"}
-                  description={
-                    listState.search
-                      ? `No agents match "${listState.search}"`
-                      : "Create an agent to aggregate tools from multiple Connections."
-                  }
-                  actions={
-                    !listState.search && (
-                      <Button
-                        size="sm"
-                        onClick={createVirtualMCP}
-                        disabled={isCreating}
-                      >
-                        <Plus size={14} />
-                        {isCreating ? "Creating..." : "Create Agent"}
-                      </Button>
-                    )
-                  }
-                />
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Content: Cards or Table */}
+          <Page.Content>
+            {listState.viewMode === "cards" ? (
+              <div className="flex-1 overflow-auto p-5">
+                {filteredAgents.length === 0 ? (
+                  <div className="flex items-center justify-center min-h-[60vh]">
+                    <EmptyState
+                      image={
+                        <Users03 size={48} className="text-muted-foreground" />
+                      }
+                      title={
+                        listState.search ? "No agents found" : "No agents yet"
+                      }
+                      description={
+                        listState.search
+                          ? `No agents match "${listState.search}"`
+                          : "Create an agent to aggregate tools from multiple Connections."
+                      }
+                      actions={
+                        !listState.search && (
+                          <Button
+                            size="sm"
+                            onClick={createVirtualMCP}
+                            disabled={isCreating}
+                          >
+                            <Plus size={14} />
+                            {isCreating ? "Creating..." : "Create Agent"}
+                          </Button>
+                        )
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+                    {grouped.map((item) => {
+                      if (item.type === "group") {
+                        return (
+                          <AgentGroupCard
+                            key={item.key}
+                            group={item}
+                            onNavigate={navigateToAgent}
+                            onDelete={(a) =>
+                              dispatch({ type: "delete", virtualMcp: a })
+                            }
+                            selectionMode={selectionMode}
+                            selectedIds={selectedIds}
+                            onToggleSelect={toggleSelect}
+                          />
+                        );
+                      }
+
+                      const agent = item.agent;
+                      return (
+                        <div key={agent.id} className="relative">
+                          {selectionMode && (
+                            <div className="absolute top-3 left-3 z-10">
+                              <Checkbox
+                                checked={selectedIds.has(agent.id)}
+                                onCheckedChange={() => toggleSelect(agent.id)}
+                              />
+                            </div>
+                          )}
+                          <ConnectionCard
+                            connection={{
+                              id: agent.id ?? "",
+                              title: agent.title,
+                              description: agent.description,
+                              icon: agent.icon,
+                              status: agent.status,
+                            }}
+                            fallbackIcon={<Users03 />}
+                            onClick={() => navigateToAgent(agent.id)}
+                            className={cn(
+                              selectionMode &&
+                                selectedIds.has(agent.id) &&
+                                "ring-2 ring-primary",
+                            )}
+                            footer={
+                              <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
+                                <div className="flex-1 min-w-0">
+                                  <User
+                                    id={agent.updated_by ?? agent.created_by}
+                                    size="3xs"
+                                  />
+                                </div>
+                                <span className="shrink-0 ml-2">
+                                  {agent.updated_at
+                                    ? formatTimeAgo(new Date(agent.updated_at))
+                                    : "—"}
+                                </span>
+                              </div>
+                            }
+                            headerActions={
+                              !selectionMode ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <DotsVertical size={20} />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigateToAgent(agent.id);
+                                      }}
+                                    >
+                                      <Eye size={16} />
+                                      Open
+                                    </DropdownMenuItem>
+                                    {!isDecopilot(agent.id) && (
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          dispatch({
+                                            type: "delete",
+                                            virtualMcp: agent,
+                                          });
+                                        }}
+                                      >
+                                        <Trash01 size={16} />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : undefined
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                {grouped.map((item) => {
-                  if (item.type === "group") {
-                    return (
-                      <AgentGroupCard
-                        key={item.key}
-                        group={item}
-                        onNavigate={navigateToAgent}
-                        onDelete={(a) =>
-                          dispatch({ type: "delete", virtualMcp: a })
+              <div className="h-full flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-auto min-w-0">
+                  {grouped.length === 0 ? (
+                    <div className="flex items-center justify-center min-h-[60vh]">
+                      <EmptyState
+                        image={
+                          <Users03
+                            size={48}
+                            className="text-muted-foreground"
+                          />
                         }
+                        title={
+                          listState.search ? "No agents found" : "No agents yet"
+                        }
+                        description={
+                          listState.search
+                            ? `No agents match "${listState.search}"`
+                            : "Create an agent to aggregate tools from multiple Connections."
+                        }
+                        actions={
+                          !listState.search && (
+                            <Button
+                              size="sm"
+                              onClick={createVirtualMCP}
+                              disabled={isCreating}
+                            >
+                              <Plus size={14} />
+                              {isCreating ? "Creating..." : "Create Agent"}
+                            </Button>
+                          )
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div className="min-w-[1000px]">
+                      <GroupedAgentTable
+                        columns={columns}
+                        grouped={grouped}
+                        sortKey={listState.sortKey}
+                        sortDirection={listState.sortDirection}
+                        onSort={listState.handleSort}
+                        onRowClick={(agent) => navigateToAgent(agent.id)}
                         selectionMode={selectionMode}
                         selectedIds={selectedIds}
                         onToggleSelect={toggleSelect}
                       />
-                    );
-                  }
-
-                  const agent = item.agent;
-                  return (
-                    <div key={agent.id} className="relative">
-                      {selectionMode && (
-                        <div className="absolute top-3 left-3 z-10">
-                          <Checkbox
-                            checked={selectedIds.has(agent.id)}
-                            onCheckedChange={() => toggleSelect(agent.id)}
-                          />
-                        </div>
-                      )}
-                      <ConnectionCard
-                        connection={{
-                          id: agent.id ?? "",
-                          title: agent.title,
-                          description: agent.description,
-                          icon: agent.icon,
-                          status: agent.status,
-                        }}
-                        fallbackIcon={<Users03 />}
-                        onClick={() => navigateToAgent(agent.id)}
-                        className={cn(
-                          selectionMode &&
-                            selectedIds.has(agent.id) &&
-                            "ring-2 ring-primary",
-                        )}
-                        footer={
-                          <div className="flex items-center justify-between text-xs text-muted-foreground w-full min-w-0">
-                            <div className="flex-1 min-w-0">
-                              <User
-                                id={agent.updated_by ?? agent.created_by}
-                                size="3xs"
-                              />
-                            </div>
-                            <span className="shrink-0 ml-2">
-                              {agent.updated_at
-                                ? formatTimeAgo(new Date(agent.updated_at))
-                                : "—"}
-                            </span>
-                          </div>
-                        }
-                        headerActions={
-                          !selectionMode ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <DotsVertical size={20} />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigateToAgent(agent.id);
-                                  }}
-                                >
-                                  <Eye size={16} />
-                                  Open
-                                </DropdownMenuItem>
-                                {!isDecopilot(agent.id) && (
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dispatch({
-                                        type: "delete",
-                                        virtualMcp: agent,
-                                      });
-                                    }}
-                                  >
-                                    <Trash01 size={16} />
-                                    Delete
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : undefined
-                        }
-                      />
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
             )}
-          </div>
-        ) : (
-          <div className="h-full flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto min-w-0">
-              {grouped.length === 0 ? (
-                <div className="flex items-center justify-center min-h-[60vh]">
-                  <EmptyState
-                    image={
-                      <Users03 size={48} className="text-muted-foreground" />
-                    }
-                    title={
-                      listState.search ? "No agents found" : "No agents yet"
-                    }
-                    description={
-                      listState.search
-                        ? `No agents match "${listState.search}"`
-                        : "Create an agent to aggregate tools from multiple Connections."
-                    }
-                    actions={
-                      !listState.search && (
-                        <Button
-                          size="sm"
-                          onClick={createVirtualMCP}
-                          disabled={isCreating}
-                        >
-                          <Plus size={14} />
-                          {isCreating ? "Creating..." : "Create Agent"}
-                        </Button>
-                      )
-                    }
-                  />
-                </div>
-              ) : (
-                <div className="min-w-[1000px]">
-                  <GroupedAgentTable
-                    columns={columns}
-                    grouped={grouped}
-                    sortKey={listState.sortKey}
-                    sortDirection={listState.sortDirection}
-                    onSort={listState.handleSort}
-                    onRowClick={(agent) => navigateToAgent(agent.id)}
-                    selectionMode={selectionMode}
-                    selectedIds={selectedIds}
-                    onToggleSelect={toggleSelect}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Page.Content>
+          </Page.Content>
+        </TabsContent>
+      </Tabs>
 
       {/* Bulk Action Bar */}
       {selectionMode && (
