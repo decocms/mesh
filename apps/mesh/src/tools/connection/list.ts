@@ -37,7 +37,6 @@ import {
   fetchWithCache,
 } from "../../mcp-clients/mcp-list-cache";
 import { clientFromConnection } from "../../mcp-clients";
-import { getConnectionSlug } from "../../shared/utils/connection-slug";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
 
@@ -294,6 +293,7 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     // By default, exclude VIRTUAL connections unless explicitly requested
     const connections = await ctx.storage.connections.list(organization.id, {
       includeVirtual: input.include_virtual ?? false,
+      slug: input.slug,
     });
 
     // Only fetch tools from MCP servers when we need them for binding filtering.
@@ -378,14 +378,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
           results.filter((c): c is ConnectionEntity => c !== null),
         )
       : connections;
-
-    // Apply slug filter if specified (matches computed slug from app_name, connection_url, or title)
-    if (input.slug) {
-      const slug = input.slug;
-      filteredConnections = filteredConnections.filter(
-        (conn) => getConnectionSlug(conn) === slug,
-      );
-    }
 
     // Apply where filter if specified
     if (input.where) {

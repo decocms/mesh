@@ -19,6 +19,7 @@ import {
   getWellKnownDecopilotConnection,
   isDecopilot,
 } from "@decocms/mesh-sdk";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import type { ConnectionStoragePort } from "./ports";
 import type { Database } from "./types";
 
@@ -42,6 +43,7 @@ type RawConnectionRow = {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
+  slug: string | null;
   connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
   connection_url: string | null;
   connection_token: string | null;
@@ -75,9 +77,11 @@ export class ConnectionStorage implements ConnectionStoragePort {
       return this.update(id, data);
     }
 
+    const slug = getConnectionSlug(data);
     const serialized = await this.serializeConnection({
       ...data,
       id: data.id ?? id,
+      slug,
       status: "active",
       created_at: now,
       updated_at: now,
@@ -121,7 +125,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
 
   async list(
     organizationId: string,
-    options?: { includeVirtual?: boolean },
+    options?: { includeVirtual?: boolean; slug?: string },
   ): Promise<ConnectionEntity[]> {
     let query = this.db
       .selectFrom("connections")
@@ -131,6 +135,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
     // By default, exclude VIRTUAL connections unless explicitly requested
     if (!options?.includeVirtual) {
       query = query.where("connection_type", "!=", "VIRTUAL");
+    }
+
+    if (options?.slug) {
+      query = query.where("slug", "=", options.slug);
     }
 
     const rows = await query.execute();
@@ -150,8 +158,26 @@ export class ConnectionStorage implements ConnectionStoragePort {
       return connection;
     }
 
+    // Recompute slug if any slug-relevant field changed
+    const slugData: Record<string, unknown> = { ...data };
+    if (
+      data.app_name !== undefined ||
+      data.connection_url !== undefined ||
+      data.title !== undefined
+    ) {
+      const existing = await this.findById(id);
+      if (existing) {
+        slugData.slug = getConnectionSlug({
+          app_name: data.app_name ?? existing.app_name,
+          connection_url: data.connection_url ?? existing.connection_url,
+          title: data.title ?? existing.title,
+          id,
+        });
+      }
+    }
+
     const serialized = await this.serializeConnection({
-      ...data,
+      ...slugData,
       updated_at: new Date().toISOString(),
     });
 
@@ -356,6 +382,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       icon: row.icon,
       app_name: row.app_name,
       app_id: row.app_id,
+      slug: row.slug,
       connection_type: row.connection_type,
       connection_url: row.connection_url,
       connection_token: decryptedToken,

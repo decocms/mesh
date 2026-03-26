@@ -52,6 +52,7 @@ import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
 import * as migration052threadagentids from "./052-thread-agent-ids.ts";
 import * as migration053registryconfig from "./053-registry-config.ts";
+import * as migration054connectionslug from "./054-connection-slug.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -118,6 +119,7 @@ const migrations: Record<string, Migration> = {
   "051-org-sso": migration051orgsso,
   "052-thread-agent-ids": migration052threadagentids,
   "053-registry-config": migration053registryconfig,
+  "054-connection-slug": migration054connectionslug,
 };
 
 export default migrations;

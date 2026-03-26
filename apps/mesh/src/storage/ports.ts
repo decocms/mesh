@@ -96,7 +96,7 @@ export interface ConnectionStoragePort {
   findById(id: string): Promise<ConnectionEntity | null>;
   list(
     organizationId: string,
-    options?: { includeVirtual?: boolean },
+    options?: { includeVirtual?: boolean; slug?: string },
   ): Promise<ConnectionEntity[]>;
   update(
     id: string,
