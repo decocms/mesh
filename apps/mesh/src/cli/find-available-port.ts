@@ -33,9 +33,7 @@ export async function findAvailablePort(port: number): Promise<number> {
     });
   });
 
-  console.warn(
-    `Port ${port} is in use, using port ${actualPort} instead.`,
-  );
+  console.warn(`Port ${port} is in use, using port ${actualPort} instead.`);
 
   return actualPort;
 }
