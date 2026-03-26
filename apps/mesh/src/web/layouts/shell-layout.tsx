@@ -415,34 +415,35 @@ function ShellLayoutInner({
             </>
           )}
 
-          {/* Main content */}
-          <ResizablePanel
-            ref={mainPanelRef}
-            className="min-w-0 flex flex-col"
-            order={2}
-            style={{ overflow: "visible" }}
-            defaultSize={isOrgHome ? 0 : undefined}
-            collapsible={showThreePanels}
-            collapsedSize={0}
-            minSize={showThreePanels ? 20 : undefined}
-            onCollapse={() => setMainOpen(false)}
-            onExpand={() => setMainOpen(true)}
-          >
-            <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
-              <div
-                className={cn(
-                  "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                  "border border-sidebar-border shadow-sm",
-                  "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                  "rounded-[0.75rem]",
-                )}
-              >
-                <div className="flex-1 overflow-hidden">
-                  <Outlet />
+          {/* Main content — not rendered on org home */}
+          {!isOrgHome && (
+            <ResizablePanel
+              ref={mainPanelRef}
+              className="min-w-0 flex flex-col"
+              order={2}
+              style={{ overflow: "visible" }}
+              collapsible={isSpaceRoute}
+              collapsedSize={0}
+              minSize={isSpaceRoute ? 20 : undefined}
+              onCollapse={() => setMainOpen(false)}
+              onExpand={() => setMainOpen(true)}
+            >
+              <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                <div
+                  className={cn(
+                    "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                    "border border-sidebar-border shadow-sm",
+                    "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                    "rounded-[0.75rem]",
+                  )}
+                >
+                  <div className="flex-1 overflow-hidden">
+                    <Outlet />
+                  </div>
                 </div>
               </div>
-            </div>
-          </ResizablePanel>
+            </ResizablePanel>
+          )}
 
           {/* Desktop: Chat card as resizable side panel */}
           {showThreePanels && !isMobile && (
