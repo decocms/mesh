@@ -475,7 +475,7 @@ function ConnectionModelsSection({
           <img
             src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
             alt={connection.providerId}
-            className="w-4 h-4 rounded-sm"
+            className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
           />
           <div className="flex flex-col">
             <h4 className="text-sm font-medium text-muted-foreground/75">
@@ -518,7 +518,7 @@ function ConnectionModelsSection({
                 {model.logo && (
                   <img
                     src={model.logo}
-                    className="w-4 h-4 shrink-0 rounded-sm"
+                    className="w-4 h-4 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
                     alt={model.title}
                   />
                 )}

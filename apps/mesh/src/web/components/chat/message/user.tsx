@@ -104,11 +104,11 @@ export function MessageUser<T extends Metadata>({
           <div
             ref={setContentRef}
             className={cn(
-              "z-10 px-4 py-2 transition-opacity max-h-[84px] flex-1",
+              "z-10 px-4 py-2 flex-1 transition-[max-height,opacity] duration-300 ease-out",
               isFocused
-                ? "overflow-auto opacity-100"
+                ? "max-h-[50vh] overflow-auto opacity-100"
                 : cn(
-                    "overflow-hidden opacity-99",
+                    "max-h-[84px] overflow-hidden opacity-99",
                     isOverflowing && "mask-b-from-1%",
                   ),
             )}

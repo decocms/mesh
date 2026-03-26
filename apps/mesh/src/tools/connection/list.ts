@@ -173,8 +173,44 @@ function evaluateWhereExpression(
 }
 
 /**
- * Get a field value from a connection, handling nested paths
- * Since ConnectionEntity now uses snake_case matching the entity schema, no mapping needed
+ * Derive a URL-friendly slug from a connection's properties.
+ * Mirrors the client-side getConnectionSlug() logic so that
+ * server-side filtering by app_name also works for connections
+ * where app_name is null (slug is derived from connection_url or title).
+ */
+function deriveConnectionSlug(connection: ConnectionEntity): string {
+  if (connection.connection_url) {
+    try {
+      const parsed = new URL(connection.connection_url);
+      const host = parsed.port
+        ? `${parsed.hostname}-${parsed.port}`
+        : parsed.hostname;
+      const raw = (host + parsed.pathname).replace(/\/+$/, "");
+      return slugifyStr(raw);
+    } catch {
+      return slugifyStr(connection.connection_url);
+    }
+  }
+  if (connection.title) {
+    return slugifyStr(connection.title);
+  }
+  return connection.id;
+}
+
+function slugifyStr(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/\//g, "-")
+    .replace(/[^a-z0-9\s_-]+/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Get a field value from a connection, handling nested paths.
+ * For the "app_name" field, falls back to a derived slug when app_name is null,
+ * so that URL-slug-based filters work for custom connections.
  */
 function getFieldValue(
   connection: ConnectionEntity,
@@ -185,6 +221,9 @@ function getFieldValue(
   for (const part of parts) {
     if (value == null || typeof value !== "object") return undefined;
     value = (value as Record<string, unknown>)[part];
+  }
+  if (fieldPath === "app_name" && value == null) {
+    return deriveConnectionSlug(connection);
   }
   return value;
 }

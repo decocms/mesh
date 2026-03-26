@@ -608,7 +608,7 @@ export function ProviderCard({
                 <img
                   src={provider.logo}
                   alt={provider.name}
-                  className="size-8 rounded-md object-contain"
+                  className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
                 />
               ) : (
                 <Avatar

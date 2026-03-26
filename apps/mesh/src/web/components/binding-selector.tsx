@@ -57,8 +57,6 @@ export function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  const allConnections = useConnections({ binding });
-
   // Parse binding type for registry-based filtering
   const parsedBindingType = (() => {
     if (!bindingType?.startsWith("@")) return null;
@@ -66,32 +64,32 @@ export function BindingSelector({
     return scope && appName ? { scope, appName } : null;
   })();
 
-  // Further filter by app name if bindingType is provided
+  // Build server-side filters for app_name and metadata.scopeName
+  const bindingFilters = parsedBindingType
+    ? [
+        {
+          column: "app_name" as const,
+          value: parsedBindingType.appName,
+        },
+        {
+          column: "metadata.scopeName" as const,
+          value: parsedBindingType.scope,
+        },
+      ]
+    : undefined;
+
+  const allConnections = useConnections({ binding, filters: bindingFilters });
+
+  // Include currently selected connection even if it doesn't match filters
   const connections = (() => {
-    let result = allConnections;
-
-    if (parsedBindingType) {
-      result = result.filter((conn) => {
-        const connAppName = conn.app_name;
-        const connScopeName = (conn.metadata as Record<string, unknown> | null)
-          ?.scopeName as string | undefined;
-
-        return (
-          connAppName === parsedBindingType.appName &&
-          connScopeName === parsedBindingType.scope
-        );
-      });
-    }
-
-    // Include currently selected connection even if it doesn't match filters
-    if (value && !result.some((c) => c.id === value)) {
+    if (value && !allConnections.some((c) => c.id === value)) {
       const selectedConnection = allConnections?.find((c) => c.id === value);
       if (selectedConnection) {
-        return [selectedConnection, ...result];
+        return [selectedConnection, ...allConnections];
       }
     }
 
-    return result;
+    return allConnections;
   })();
 
   const canInstallInline = bindingType?.startsWith("@");
