@@ -7,7 +7,7 @@ import {
   generateCodeVerifier,
   generateCodeChallenge,
 } from "../../ai-providers/pkce";
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 
 export const AI_PROVIDER_OAUTH_URL = defineTool({
   name: "AI_PROVIDER_OAUTH_URL",
@@ -20,7 +20,8 @@ export const AI_PROVIDER_OAUTH_URL = defineTool({
       .url()
       .refine(
         (url) => {
-          const base = env.BASE_URL ?? `http://localhost:${env.PORT}`;
+          const settings = getSettings();
+          const base = settings.baseUrl ?? `http://localhost:${settings.port}`;
           return new URL(url).origin === new URL(base).origin;
         },
         { message: "callbackUrl must be on the same origin as BASE_URL" },

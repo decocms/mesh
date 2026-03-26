@@ -9,7 +9,7 @@
  * Configuration is file-based (auth-config.json), not environment variables.
  */
 
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { getToolsByCategory } from "@/tools/registry";
 import { sso } from "@better-auth/sso";
 import { organization } from "@decocms/better-auth/plugins";
@@ -377,7 +377,7 @@ export const auth = betterAuth({
   // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)
   // Must be AFTER authConfig spread to ensure it takes precedence
   rateLimit: {
-    enabled: !env.DISABLE_RATE_LIMIT,
+    enabled: !getSettings().disableRateLimit,
     window: 60,
     max: 10000, // Very high limit as fallback
   },

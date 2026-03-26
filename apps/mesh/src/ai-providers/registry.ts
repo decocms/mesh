@@ -5,9 +5,9 @@ import { openrouterAdapter } from "./adapters/openrouter";
 import type { ProviderId } from "./provider-ids";
 import type { ProviderAdapter } from "./types";
 import { decoAiGatewayAdapter } from "./adapters/deco-ai-gateway";
-import { env } from "../env";
+import { getSettings } from "../settings";
 
-const isDecoAiGatewayEnabled = env.DECO_AI_GATEWAY_ENABLED;
+const isDecoAiGatewayEnabled = getSettings().aiGatewayEnabled;
 
 export const PROVIDERS: Partial<Record<ProviderId, ProviderAdapter>> = {
   ...(isDecoAiGatewayEnabled && { deco: decoAiGatewayAdapter }),

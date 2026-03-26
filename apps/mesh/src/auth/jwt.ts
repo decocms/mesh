@@ -11,7 +11,7 @@
 
 import { decodeJwt, type JWTPayload, jwtVerify, SignJWT } from "jose";
 import { randomBytes } from "crypto";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { authConfig } from "./index";
 
 // JWT signing secret - loaded from env or generated
@@ -25,8 +25,11 @@ function getSecret(): Uint8Array {
     return jwtSecret;
   }
 
+  const settings = getSettings();
   const envSecret =
-    env.MESH_JWT_SECRET ?? authConfig.jwt?.secret ?? env.BETTER_AUTH_SECRET;
+    settings.meshJwtSecret ??
+    authConfig.jwt?.secret ??
+    settings.betterAuthSecret;
   if (envSecret) {
     jwtSecret = new TextEncoder().encode(envSecret);
   } else {
@@ -135,14 +138,17 @@ export async function mintGatewayJwt(
   userId: string,
   expiresIn = 3600,
 ): Promise<string> {
-  const envSecret =
-    env.MESH_JWT_SECRET ?? authConfig.jwt?.secret ?? env.BETTER_AUTH_SECRET;
-  if (!envSecret) {
+  const settings = getSettings();
+  const gwSecret =
+    settings.meshJwtSecret ??
+    authConfig.jwt?.secret ??
+    settings.betterAuthSecret;
+  if (!gwSecret) {
     throw new Error(
       "A deterministic JWT secret is required to mint gateway JWTs — set MESH_JWT_SECRET, BETTER_AUTH_SECRET, or authConfig.jwt.secret",
     );
   }
-  const secret = new TextEncoder().encode(envSecret);
+  const secret = new TextEncoder().encode(gwSecret);
   return await new SignJWT({ iss: "mesh", sub: userId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()

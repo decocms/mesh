@@ -13,7 +13,7 @@ import type { Meter, Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
@@ -770,15 +770,16 @@ export async function createMeshContextFactory(
   const vault = new CredentialVault(config.encryption.key);
 
   // Create monitoring engines (shared across requests)
-  const isClickHouse = !!env.CLICKHOUSE_URL;
+  const clickhouseUrl = getSettings().clickhouseUrl;
+  const isClickHouse = !!clickhouseUrl;
   const dialect: SqlDialect = isClickHouse ? "clickhouse" : "duckdb";
 
   let monitoringEngine: QueryEngine;
   let metricEngine: QueryEngine;
 
   if (isClickHouse) {
-    monitoringEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
-    metricEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
+    monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
+    metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {
     const { engine: me } = await createMonitoringEngine({
       basePath: DEFAULT_LOGS_DIR,
@@ -884,7 +885,7 @@ export async function createMeshContextFactory(
 
     // Derive base URL from request or fallback to configured base URL
     const baseUrl = req
-      ? (env.BASE_URL ?? `${new URL(req.url).origin}`)
+      ? (getSettings().baseUrl ?? `${new URL(req.url).origin}`)
       : getBaseUrl();
 
     // Create AccessControl instance with bound auth client

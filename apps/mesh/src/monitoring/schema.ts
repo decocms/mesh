@@ -13,8 +13,8 @@ export const MONITORING_SPAN_NAME = "mcp.proxy.callTool";
 
 /** Default base paths for monitoring NDJSON files. */
 import { join } from "node:path";
-import { env } from "../env";
-export const DATA_DIR = env.DATA_DIR;
+import { getSettings } from "../settings";
+export const DATA_DIR = getSettings().dataDir;
 export const DEFAULT_LOGS_DIR = join(DATA_DIR, "logs");
 export const DEFAULT_TRACES_DIR = join(DATA_DIR, "traces");
 export const DEFAULT_METRICS_DIR = join(DATA_DIR, "metrics");
