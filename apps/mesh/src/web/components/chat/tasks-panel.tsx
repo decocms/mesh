@@ -6,6 +6,7 @@
  */
 
 import { useChat } from "@/web/components/chat/index";
+import { CollectionSearch } from "@/web/components/collections/collection-search";
 import { useChatStable } from "@/web/components/chat/context";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
@@ -739,84 +740,76 @@ export function TaskListContent({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Tasks header + search/filter */}
-      <div className="px-2 py-1 flex items-center gap-0.5 min-h-[36px]">
-        {searchOpen ? (
-          <>
-            <div className="flex-1 relative">
-              <SearchMd
-                size={13}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
-              />
-              <input
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search tasks..."
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setSearchQuery("");
-                    setSearchOpen(false);
-                  }
-                }}
-                className="w-full h-7 pl-7 pr-2 text-sm bg-accent rounded-md border-0 outline-none placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchOpen(false);
+      {searchOpen ? (
+        <div className="flex items-center">
+          <div className="flex-1 min-w-0">
+            <CollectionSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search tasks..."
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearchQuery("");
+                  setSearchOpen(false);
+                }
               }}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="Close search"
-            >
-              <X size={16} />
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-              Tasks
-            </span>
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                searchQuery
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-              title="Search tasks"
-            >
-              <SearchMd size={16} />
-            </button>
-            <FilterDropdown
-              statusFilter={statusFilter}
-              agentFilter={agentFilter}
-              availableAgents={availableAgents}
-              connectionMap={connectionMap}
-              defaultAgent={defaultAgent}
-              onStatusChange={(s) =>
-                setStatusFilter((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(s)) next.delete(s);
-                  else next.add(s);
-                  return next;
-                })
-              }
-              onAgentChange={(a) =>
-                setAgentFilter((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(a)) next.delete(a);
-                  else next.add(a);
-                  return next;
-                })
-              }
             />
-          </>
-        )}
-      </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setSearchOpen(false);
+            }}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground mr-2"
+            title="Close search"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <div className="px-2 py-1 flex items-center gap-0.5 min-h-[36px]">
+          <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+            Tasks
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+              searchQuery
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+            title="Search tasks"
+          >
+            <SearchMd size={16} />
+          </button>
+          <FilterDropdown
+            statusFilter={statusFilter}
+            agentFilter={agentFilter}
+            availableAgents={availableAgents}
+            connectionMap={connectionMap}
+            defaultAgent={defaultAgent}
+            onStatusChange={(s) =>
+              setStatusFilter((prev) => {
+                const next = new Set(prev);
+                if (next.has(s)) next.delete(s);
+                else next.add(s);
+                return next;
+              })
+            }
+            onAgentChange={(a) =>
+              setAgentFilter((prev) => {
+                const next = new Set(prev);
+                if (next.has(a)) next.delete(a);
+                else next.add(a);
+                return next;
+              })
+            }
+          />
+        </div>
+      )}
 
       {/* Grouped list */}
       <div className="flex-1 overflow-y-auto">
