@@ -65,8 +65,12 @@ export function useStreamManager(
   useDecopilotEvents({
     orgId,
     taskId: threadId,
-    onStep: () => tryResumeStream("sse-step"),
+    onStep: () => {
+      console.log("[stream-mgr] onStep", { threadId });
+      tryResumeStream("sse-step");
+    },
     onFinish: () => {
+      console.log("[stream-mgr] onFinish", { threadId });
       if (!isChatActive()) {
         hasResumedRef.current = null;
         resumeFailCountRef.current = 0;
@@ -74,7 +78,12 @@ export function useStreamManager(
         setTimeout(invalidateMessages, 2000);
       }
     },
-    onTaskStatus: () => {
+    onTaskStatus: (event) => {
+      console.log("[stream-mgr] onTaskStatus", {
+        threadId,
+        subject: event.subject,
+        status: event.data?.status,
+      });
       if (!isChatActive()) {
         invalidateThreadList();
       }

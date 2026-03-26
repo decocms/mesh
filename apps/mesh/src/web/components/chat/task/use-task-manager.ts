@@ -310,6 +310,11 @@ export function useTaskManager(virtualMcpId: string) {
     orgId: org.id,
     enabled: true,
     onTaskStatus: (event) => {
+      console.log("[task-mgr] onTaskStatus", {
+        subject: event.subject,
+        status: event.data?.status,
+        virtualMcpId,
+      });
       const threadId = event.subject;
       const newStatus = event.data.status;
       const updatedAt = event.time;

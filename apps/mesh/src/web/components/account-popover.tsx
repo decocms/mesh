@@ -535,11 +535,12 @@ export function AccountPopover() {
                     {user?.email}
                   </p>
                 </div>
-                <TooltipProvider>
+                <TooltipProvider delayDuration={300}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => {
                           if (!user?.id) return;
                           navigator.clipboard.writeText(user.id).then(() => {
@@ -563,6 +564,7 @@ export function AccountPopover() {
                 {/* Organizations */}
                 <button
                   type="button"
+                  autoFocus
                   className={cn(navItemClass("organizations"))}
                   onMouseEnter={() => setActivePanel("organizations")}
                 >
