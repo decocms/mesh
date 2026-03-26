@@ -393,7 +393,7 @@ function ModelDetailsPanel({
           {model.logo && (
             <img
               src={model.logo}
-              className="size-6 shrink-0 rounded-md"
+              className="size-6 shrink-0 rounded-md dark:bg-white dark:rounded-sm dark:p-px"
               alt={model.title}
             />
           )}
@@ -552,7 +552,7 @@ function ModelItemContent({
     >
       <img
         src={providerLogo}
-        className="w-4 h-4 shrink-0 rounded-sm"
+        className="w-4 h-4 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
         alt={model.title}
       />
       <div className="flex flex-col flex-1 min-w-0">
@@ -691,7 +691,7 @@ function ManageModelItem({
       />
       <img
         src={logo}
-        className="w-5 h-5 shrink-0 rounded-sm"
+        className="w-5 h-5 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
         alt={model.title}
       />
       <span className="text-sm text-foreground flex-1 min-w-0 line-clamp-1">
@@ -924,7 +924,7 @@ function SelectedModelDisplay({
     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
       <img
         src={providerLogo}
-        className="w-3.5 h-3.5 shrink-0 rounded-sm"
+        className="w-3.5 h-3.5 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
         alt={model.title}
       />
       <span className="text-sm truncate whitespace-nowrap text-muted-foreground max-w-[100px] sm:max-w-none">
@@ -1093,7 +1093,7 @@ function ModelSelectorInner({
                             <img
                               src={provider.logo}
                               alt={provider.name}
-                              className="w-4 h-4 rounded shrink-0"
+                              className="w-4 h-4 rounded shrink-0 dark:bg-white dark:rounded-sm dark:p-px"
                             />
                           ) : (
                             <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
@@ -1121,7 +1121,7 @@ function ModelSelectorInner({
                             <img
                               src={provider.logo}
                               alt={provider.name}
-                              className="w-4 h-4 rounded"
+                              className="w-4 h-4 rounded dark:bg-white dark:rounded-sm dark:p-px"
                             />
                           ) : (
                             <div className="w-4 h-4 rounded bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
