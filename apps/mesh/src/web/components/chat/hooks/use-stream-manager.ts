@@ -31,34 +31,56 @@ export function useStreamManager(
   const hasResumedRef = useRef<string | null>(null);
   const resumeFailCountRef = useRef(0);
 
+  // All mutable state accessed via refs so callbacks are stable
+  const stateRef = useRef({
+    threadId,
+    chat,
+    isRunInProgress,
+    locator,
+    queryClient,
+  });
+  stateRef.current = {
+    threadId,
+    chat,
+    isRunInProgress,
+    locator,
+    queryClient,
+  };
+
   const invalidateThreadList = () => {
-    queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
+    stateRef.current.queryClient.invalidateQueries({
+      queryKey: KEYS.tasks(stateRef.current.locator),
+    });
   };
 
   const invalidateMessages = () => {
-    if (!threadId) return;
-    queryClient.invalidateQueries({
+    const id = stateRef.current.threadId;
+    if (!id) return;
+    stateRef.current.queryClient.invalidateQueries({
       predicate: (query) => {
         const key = query.queryKey;
         if (key[3] !== "collection" || key[4] !== "THREAD_MESSAGES")
           return false;
         const serialized = typeof key[6] === "string" ? key[6] : "";
-        return serialized.includes(threadId);
+        return serialized.includes(id);
       },
     });
   };
 
-  const isChatActive = () =>
-    chat.status === "submitted" || chat.status === "streaming";
+  const isChatActive = () => {
+    const s = stateRef.current.chat.status;
+    return s === "submitted" || s === "streaming";
+  };
 
   const tryResumeStream = (reason: string) => {
-    if (!threadId || hasResumedRef.current === threadId) return;
+    const id = stateRef.current.threadId;
+    if (!id || hasResumedRef.current === id) return;
     if (resumeFailCountRef.current >= MAX_RESUME_RETRIES) return;
     if (isChatActive()) return;
-    hasResumedRef.current = threadId;
+    hasResumedRef.current = id;
 
-    console.log(`[chat] resumeStream (${reason})`, threadId);
-    chat.resumeStream().catch((err: unknown) => {
+    console.log(`[chat] resumeStream (${reason})`, id);
+    stateRef.current.chat.resumeStream().catch((err: unknown) => {
       console.error("[chat] resumeStream error", err);
       resumeFailCountRef.current++;
       hasResumedRef.current = null;
@@ -87,9 +109,10 @@ export function useStreamManager(
     },
   });
 
-  // Safety-net polling when run is in_progress but no active stream
-  const subscribe = (_onStoreChange: () => void) => {
-    if (!isRunInProgress) return () => {};
+  // Safety-net: subscribe reads from stateRef so the function itself is stable.
+  // Created once via useRef to guarantee referential stability for useSyncExternalStore.
+  const subscribeRef = useRef((_onStoreChange: () => void) => {
+    if (!stateRef.current.isRunInProgress) return () => {};
 
     tryResumeStream("page-load");
 
@@ -98,7 +121,7 @@ export function useStreamManager(
       invalidateMessages();
     }, SAFETY_NET_POLL_MS);
     return () => clearInterval(id);
-  };
+  });
 
-  useSyncExternalStore(subscribe, getSnapshotStub, getSnapshotStub);
+  useSyncExternalStore(subscribeRef.current, getSnapshotStub, getSnapshotStub);
 }
