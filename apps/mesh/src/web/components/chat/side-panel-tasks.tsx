@@ -9,7 +9,6 @@
 
 import { Page } from "@/web/components/page";
 
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import {
   LayoutLeft,
@@ -17,7 +16,6 @@ import {
   MessageTextCircle02,
   RefreshCcw01,
   Settings01,
-  X,
 } from "@untitledui/icons";
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -217,7 +215,6 @@ function TasksPanelContent({
 }: {
   virtualMcpId?: string;
 }) {
-  const [isChatOpen, setChatOpen] = useDecoChatOpen();
   const [, setTasksOpen] = useDecoTasksOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
   const { org } = useProjectContext();
@@ -266,36 +263,6 @@ function TasksPanelContent({
           </Page.Header.Left>
           <Page.Header.Right className="gap-1">
             <OwnerFilter />
-            <button
-              type="button"
-              onClick={() => setChatOpen((prev) => !prev)}
-              className={cn(
-                "flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent group cursor-pointer",
-                isChatOpen && "bg-accent",
-              )}
-              title="Toggle chat"
-            >
-              <MessageTextCircle02
-                size={16}
-                className={cn(
-                  "transition-colors",
-                  isChatOpen
-                    ? "text-foreground"
-                    : "text-muted-foreground group-hover:text-foreground",
-                )}
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => setTasksOpen(false)}
-              className="flex size-10 md:size-6 items-center justify-center rounded-full p-1 outline-none focus-visible:ring-0 hover:bg-transparent transition-colors group cursor-pointer"
-              title="Close tasks"
-            >
-              <X
-                size={16}
-                className="text-muted-foreground group-hover:text-foreground transition-colors"
-              />
-            </button>
           </Page.Header.Right>
         </Page.Header>
       )}
