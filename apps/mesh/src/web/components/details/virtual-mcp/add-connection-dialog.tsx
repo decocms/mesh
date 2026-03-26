@@ -178,7 +178,7 @@ function AddConnectionDialogContent({
 
   const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
     LOCALSTORAGE_KEYS.connectionsTab(org.slug) + ":agent-modal",
-    () => "all",
+    (existing) => existing ?? "connected",
   );
 
   // Connections - server-side search with infinite scroll (VIRTUAL excluded by default)
