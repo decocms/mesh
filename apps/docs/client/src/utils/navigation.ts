@@ -46,6 +46,7 @@ export async function getNavigationLinks(
     // 5. Working with MCP
     "studio/connections",
     "studio/virtual-mcps",
+    "studio/store",
     "studio/projects",
     "studio/agents",
     "studio/agent-bindings",
@@ -60,7 +61,10 @@ export async function getNavigationLinks(
     "studio/decopilot/scopes",
     "studio/decopilot/architecture",
 
-    // 7. Monitoring & Observability
+    // 7. AI Providers
+    "studio/ai-providers",
+
+    // 8. Monitoring & Observability
     "studio/monitoring",
 
     // 8. User Management
