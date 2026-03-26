@@ -624,7 +624,7 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <Chat.Provider virtualMcpId={spaceVirtualMcpId}>
+          <Chat.Provider key={spaceVirtualMcpId ?? "org"} virtualMcpId={spaceVirtualMcpId}>
             <ShellLayoutInner
               isSpaceRoute={isSpaceRoute}
               isOrgHome={isOrgHome}
