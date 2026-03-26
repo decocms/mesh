@@ -567,7 +567,7 @@ export function ChatInput({
         {/* Inner container with the input */}
         <div
           className={cn(
-            "relative z-10 bg-background rounded-b-xl transition-[padding] duration-250 ease-out",
+            "transition-[padding] duration-250 ease-out",
             showWrapper ? "p-0.5" : "p-0",
           )}
         >
@@ -582,7 +582,7 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-input/30",
+                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted",
                 isPlanMode
                   ? "border border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
                   : "shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
