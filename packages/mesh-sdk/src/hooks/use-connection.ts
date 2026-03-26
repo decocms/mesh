@@ -32,7 +32,7 @@ export interface UseConnectionsOptions
    * Can be a well-known binding name (e.g., "LLM", "ASSISTANTS", "OBJECT_STORAGE")
    * or a custom binding schema object.
    */
-  binding?: string | Record<string, unknown>;
+  binding?: string | Record<string, unknown> | Record<string, unknown>[];
   /**
    * Whether to include VIRTUAL connections in results. Defaults to false (server default).
    */

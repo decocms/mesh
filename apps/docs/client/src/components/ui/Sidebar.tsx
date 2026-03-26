@@ -102,7 +102,6 @@ function VersionSelector({
           {versionOptions.map((v) => (
             <option key={v.id} value={v.id}>
               {v.shortLabel}
-              {v.isLatest ? " (latest)" : ""}
             </option>
           ))}
         </select>
@@ -211,13 +210,16 @@ function TreeItem({
       return (
         <Icon
           name={
-            node.id === "mcp-mesh/self-hosting"
+            node.id === "studio/self-hosting"
               ? "Database"
-              : node.id === "mcp-mesh/self-hosting/deploy"
+              : node.id === "studio/self-hosting/deploy"
                 ? "Rocket"
-                : node.id === "mcp-mesh/decopilot"
+                : node.id === "studio/decopilot"
                   ? "Cpu"
-                  : "Folder"
+                  : node.id === "studio/api-reference" ||
+                      node.id === "api-reference"
+                    ? "Code"
+                    : "Folder"
           }
           size={16}
           className={`shrink-0 ${active ? "text-primary" : ""}`}
@@ -447,7 +449,7 @@ export default function Sidebar({
   // Handle version change by navigating to the new version's root page
   const versionRoots = Object.fromEntries(versions.map((v) => [v.id, v.root]));
   const handleVersionChange = (newVersion: string) => {
-    const root = versionRoots[newVersion] ?? "mcp-mesh/quickstart";
+    const root = versionRoots[newVersion] ?? "studio/quickstart";
     navigate(`/${newVersion}/${locale}/${root}`);
   };
 

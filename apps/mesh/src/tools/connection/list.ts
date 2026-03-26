@@ -230,7 +230,13 @@ function applyOrderBy(
  * Extended input schema with optional binding and include_virtual parameters
  */
 const ConnectionListInputSchema = CollectionListInputSchema.extend({
-  binding: z.union([z.object({}).passthrough(), z.string()]).optional(),
+  binding: z
+    .union([
+      z.array(z.object({}).passthrough()),
+      z.object({}).passthrough(),
+      z.string(),
+    ])
+    .optional(),
   include_virtual: z
     .boolean()
     .optional()

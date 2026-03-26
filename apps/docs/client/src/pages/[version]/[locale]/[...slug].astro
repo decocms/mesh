@@ -5,7 +5,11 @@ import DocsLayout from "../../../layouts/DocsLayout.astro";
 import { getCollection } from "astro:content";
 import RenderDocument from "../../../components/ui/RenderDocument.astro";
 
-import { VERSION_IDS, LATEST_VERSION } from "../../../config/versions";
+import {
+  VERSION_IDS,
+  LATEST_VERSION,
+  versions,
+} from "../../../config/versions";
 
 const version = Astro.params.version;
 const lang = Astro.params.locale;
@@ -20,18 +24,30 @@ export async function getStaticPaths() {
       params: { version: "latest", locale },
       props: { doc: null, version: "latest" },
     })),
-    // "latest" alias for all latest docs (so /latest/en/... redirects to /2026-03-10/en/...)
+    // "latest" alias for all docs across all versions (so old /latest/en/... URLs redirect properly)
     ...allDocs
-      .filter((doc) => doc.id.startsWith(`${LATEST_VERSION.id}/`))
-      .map((doc) => {
+      .flatMap((doc) => {
         const parts = doc.id.split("/");
         const locale = parts[1];
         const slug = parts.slice(2).join("/");
+        // Check if this slug exists in the latest version
+        const existsInLatest = allDocs.some(
+          (d) => d.id === `${LATEST_VERSION.id}/${locale}/${slug}`,
+        );
         return {
           params: { version: "latest", locale, slug },
-          props: { doc: null, version: "latest" },
+          props: { doc: null, version: "latest", existsInLatest },
         };
-      }),
+      })
+      // Deduplicate by locale+slug (same slug may exist in multiple versions)
+      .filter(
+        (entry, index, arr) =>
+          arr.findIndex(
+            (e) =>
+              e.params.locale === entry.params.locale &&
+              e.params.slug === entry.params.slug,
+          ) === index,
+      ),
 
     // Actual versioned paths
     ...VERSION_IDS.flatMap((version) => [
@@ -68,15 +84,15 @@ export async function getStaticPaths() {
   ];
 }
 
-const { doc, version: propVersion } = Astro.props;
+const { doc, version: propVersion, existsInLatest } = Astro.props;
 const slug = Astro.params.slug;
 
 // Redirect "latest" alias to actual version
 if (version === "latest") {
-  const target = slug
-    ? `/${LATEST_VERSION.id}/${lang}/${slug}`
-    : `/${LATEST_VERSION.id}/${lang}/mcp-mesh/quickstart`;
-  return Astro.redirect(target);
+  if (slug && existsInLatest) {
+    return Astro.redirect(`/${LATEST_VERSION.id}/${lang}/${slug}`);
+  }
+  return Astro.redirect(`/${LATEST_VERSION.id}/${lang}/${LATEST_VERSION.root}`);
 }
 
 // Legacy redirects
@@ -84,9 +100,11 @@ if (slug === "getting-started/context-engineers") {
   return Astro.redirect(`/${version}/${lang}/getting-started/developers`);
 }
 
-// Redirect to quickstart if no document is found
+// Redirect to version root if no document is found
 if (!doc) {
-  return Astro.redirect(`/${version}/${lang}/mcp-mesh/quickstart`);
+  const versionConfig = versions.find((v) => v.id === version);
+  const root = versionConfig?.root ?? "studio/quickstart";
+  return Astro.redirect(`/${version}/${lang}/${root}`);
 }
 ---
 
