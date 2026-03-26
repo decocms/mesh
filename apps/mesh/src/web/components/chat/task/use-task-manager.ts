@@ -109,10 +109,11 @@ export function useTaskMessages(taskId: string | null) {
     orgId: org.id,
   });
 
+  // Pass null client when no taskId to skip the query entirely
   const data = useCollectionList<CollectionEntity & ChatMessage>(
     org.id,
     "THREAD_MESSAGES",
-    client,
+    taskId ? client : null,
     {
       filters: taskId ? [{ column: "thread_id", value: taskId }] : [],
       pageSize: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
