@@ -186,7 +186,7 @@ if (command === "dev") {
     values.home ||
     process.env.DATA_DIR ||
     process.env.DECOCMS_HOME ||
-    join(process.cwd(), ".deco");
+    join(homedir(), "deco");
 
   const noTui = values["no-tui"] === true || !process.stdout.isTTY;
 
