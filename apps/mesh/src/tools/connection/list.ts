@@ -140,6 +140,9 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     // since binding filtering happens in-memory and may remove rows.
     const needsBindingFilter = !!bindingChecker;
 
+    const limit = input.limit ?? 100;
+    const offset = input.offset ?? 0;
+
     const { items: connections, totalCount: sqlTotalCount } =
       await ctx.storage.connections.list(organization.id, {
         includeVirtual: input.include_virtual ?? false,
@@ -147,8 +150,8 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
         where: input.where,
         orderBy: input.orderBy,
         // Only push pagination to SQL when no post-filtering is needed
-        limit: needsBindingFilter ? undefined : input.limit,
-        offset: needsBindingFilter ? undefined : input.offset,
+        limit: needsBindingFilter ? undefined : limit,
+        offset: needsBindingFilter ? undefined : offset,
       });
 
     // Only fetch tools from MCP servers when we need them for binding filtering.
@@ -235,8 +238,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       ).filter((c): c is ConnectionEntity => c !== null);
 
       const totalCount = filteredConnections.length;
-      const offset = input.offset ?? 0;
-      const limit = input.limit ?? 100;
       const paginatedConnections = filteredConnections.slice(
         offset,
         offset + limit,
@@ -251,8 +252,6 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
     }
 
     // Non-binding path: SQL already handled where/orderBy/pagination
-    const offset = input.offset ?? 0;
-    const limit = input.limit ?? 100;
     const hasMore = offset + limit < sqlTotalCount;
 
     return {
