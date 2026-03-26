@@ -65,10 +65,6 @@ export interface Config {
   autoCreateOrganizationOnSignup?: boolean;
 }
 
-// Config paths can be overridden via environment variables for k8s flexibility
-const configPath = getSettings().configPath;
-const authConfigPath = getSettings().authConfigPath;
-
 /**
  * Load optional configuration from file
  *
@@ -77,6 +73,9 @@ const authConfigPath = getSettings().authConfigPath;
  * - AUTH_CONFIG_PATH: Auth config file path (default: ./auth-config.json)
  */
 function loadConfig(): Config {
+  const configPath = getSettings().configPath;
+  const authConfigPath = getSettings().authConfigPath;
+
   if (existsSync(configPath)) {
     try {
       const content = readFileSync(configPath, "utf-8");

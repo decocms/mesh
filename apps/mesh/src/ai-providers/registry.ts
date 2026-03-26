@@ -7,12 +7,12 @@ import type { ProviderAdapter } from "./types";
 import { decoAiGatewayAdapter } from "./adapters/deco-ai-gateway";
 import { getSettings } from "../settings";
 
-const isDecoAiGatewayEnabled = getSettings().aiGatewayEnabled;
-
-export const PROVIDERS: Partial<Record<ProviderId, ProviderAdapter>> = {
-  ...(isDecoAiGatewayEnabled && { deco: decoAiGatewayAdapter }),
-  "claude-code": claudeCodeAdapter,
-  anthropic: anthropicAdapter,
-  google: googleAdapter,
-  openrouter: openrouterAdapter,
-};
+export function getProviders(): Partial<Record<ProviderId, ProviderAdapter>> {
+  return {
+    ...(getSettings().aiGatewayEnabled && { deco: decoAiGatewayAdapter }),
+    "claude-code": claudeCodeAdapter,
+    anthropic: anthropicAdapter,
+    google: googleAdapter,
+    openrouter: openrouterAdapter,
+  };
+}

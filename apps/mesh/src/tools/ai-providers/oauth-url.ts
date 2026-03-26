@@ -2,7 +2,7 @@ import z from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
-import { PROVIDERS } from "../../ai-providers/registry";
+import { getProviders } from "../../ai-providers/registry";
 import {
   generateCodeVerifier,
   generateCodeChallenge,
@@ -38,7 +38,7 @@ export const AI_PROVIDER_OAUTH_URL = defineTool({
     const org = requireOrganization(ctx);
     await ctx.access.check();
 
-    const adapter = PROVIDERS[input.providerId];
+    const adapter = getProviders()[input.providerId];
     if (!adapter) {
       throw new Error(`Unknown provider: ${input.providerId}`);
     }
