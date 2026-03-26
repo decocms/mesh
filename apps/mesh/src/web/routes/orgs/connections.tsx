@@ -1229,7 +1229,7 @@ function OrgMcpsContent() {
 
   const openCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: { action: "create" },
     });
@@ -1237,7 +1237,7 @@ function OrgMcpsContent() {
 
   const closeCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: {},
     });
