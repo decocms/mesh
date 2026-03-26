@@ -15,7 +15,14 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
-import { Plus, X } from "@untitledui/icons";
+import { Plus, Settings01, X } from "@untitledui/icons";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
   useProjectContext,
@@ -54,14 +61,20 @@ function AgentListItem({
   const actions = useVirtualMCPActions();
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const xRef = useRef<HTMLButtonElement>(null);
+  const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleIconMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-    setButtonRect(
-      (e.currentTarget as HTMLButtonElement).getBoundingClientRect(),
-    );
+    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+    showTimeoutRef.current = setTimeout(() => {
+      setButtonRect(rect);
+    }, 550);
   };
 
   const handleIconMouseLeave = (e: React.MouseEvent) => {
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    }
     if (
       xRef.current &&
       e.relatedTarget instanceof Node &&
@@ -76,7 +89,9 @@ function AgentListItem({
   const xTotalWidth = buttonRect ? buttonRect.width + xVisibleWidth : 0;
 
   return (
+    <ContextMenu>
     <SidebarMenuItem className={cn(buttonRect && "z-[55]")}>
+      <ContextMenuTrigger asChild>
       <SidebarMenuButton
         tooltip={buttonRect ? undefined : agent.title}
         isActive={isActive}
@@ -100,6 +115,35 @@ function AgentListItem({
           <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
         )}
       </SidebarMenuButton>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent>
+        <ContextMenuItem
+          onClick={() => {
+            onMarkSeen?.();
+            navigate({
+              to: "/$org/$virtualMcpId",
+              params: { org, virtualMcpId: agent.id },
+            });
+          }}
+        >
+          <Settings01 size={14} />
+          Settings
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => {
+            actions.update.mutate({ id: agent.id, data: { pinned: false } });
+            if (isActive) {
+              navigate({ to: "/$org", params: { org } });
+            }
+          }}
+          className=""
+        >
+          <X size={14} />
+          Unpin
+        </ContextMenuItem>
+      </ContextMenuContent>
 
       {buttonRect &&
         createPortal(
@@ -138,6 +182,7 @@ function AgentListItem({
           document.body,
         )}
     </SidebarMenuItem>
+    </ContextMenu>
   );
 }
 
