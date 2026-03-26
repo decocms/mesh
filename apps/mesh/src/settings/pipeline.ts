@@ -16,6 +16,8 @@ import { setGlobalSettings } from "./index";
 export interface BuildResult {
   settings: Settings;
   services: Array<{ name: string; port: number }>;
+  /** Names of services that this process spawned (owner === "managed"). */
+  managedServiceNames: string[];
 }
 
 export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
@@ -61,5 +63,8 @@ export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
       name: s.name === "PostgreSQL" ? "Postgres" : s.name,
       port: s.port,
     })),
+    managedServiceNames: services
+      .filter((s) => s.owner === "managed")
+      .map((s) => s.name),
   };
 }

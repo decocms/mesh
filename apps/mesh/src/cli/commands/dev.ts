@@ -93,7 +93,7 @@ export async function startDevServer(
 
   const port = await findAvailablePort(Number(options.port));
 
-  const { settings, services } = await buildSettings({
+  const { settings, services, managedServiceNames } = await buildSettings({
     port: String(port),
     home: options.home,
     baseUrl: options.baseUrl,
@@ -147,8 +147,16 @@ export async function startDevServer(
   setServerUrl(serverUrl);
   updateService({ name: "Vite", status: "ready", port: Number(vitePort) });
 
-  process.on("SIGINT", () => child.kill("SIGINT"));
-  process.on("SIGTERM", () => child.kill("SIGTERM"));
+  const shutdown = async (signal: NodeJS.Signals) => {
+    child.kill(signal);
+    if (managedServiceNames.length > 0) {
+      const { stopServices } = await import("../../services/ensure-services");
+      await stopServices(settings.dataDir);
+    }
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   return { port: Number(settings.port), process: child };
 }
