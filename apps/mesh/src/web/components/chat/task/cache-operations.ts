@@ -144,56 +144,6 @@ export function addTaskToCache(
 }
 
 /**
- * Prefetch messages for a task
- */
-export async function prefetchTaskMessages(
-  queryClient: QueryClient,
-  client: Client | null,
-  orgId: string,
-  taskId: string,
-): Promise<void> {
-  if (!client) {
-    return;
-  }
-
-  const queryKey = buildCollectionQueryKey(client, "THREAD_MESSAGES", orgId, {
-    filters: [{ column: "thread_id", value: taskId }],
-    pageSize: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
-  });
-
-  if (!queryKey) {
-    return;
-  }
-
-  // Check if data already exists in cache
-  const existingData = queryClient.getQueryData(queryKey);
-  if (existingData) {
-    return;
-  }
-
-  // Fetch messages using the new top-level thread_id param
-  const listToolName = "COLLECTION_THREAD_MESSAGES_LIST";
-  const toolArguments = {
-    thread_id: taskId,
-    limit: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
-    offset: 0,
-  };
-
-  await queryClient.fetchQuery({
-    queryKey,
-    queryFn: async () => {
-      const result = await client.callTool({
-        name: listToolName,
-        arguments: toolArguments,
-      });
-      return result;
-    },
-    staleTime: TASK_CONSTANTS.QUERY_STALE_TIME,
-    retry: false,
-  });
-}
-
-/**
  * Update messages cache for a task with new messages
  * Populates the cache directly without refetching from backend
  */

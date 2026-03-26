@@ -621,7 +621,7 @@ export function ChatContextProvider({
 // Hooks
 // ============================================================================
 
-export function useChatStream(): ChatStreamContextValue {
+function useChatStream(): ChatStreamContextValue {
   const ctx = useContext(ChatStreamCtx);
   if (!ctx)
     throw new Error("useChatStream must be used within ChatContextProvider");
@@ -635,7 +635,7 @@ export function useChatTask(): ChatTaskContextValue {
   return ctx;
 }
 
-export function useChatPrefs(): ChatPrefsContextValue {
+function useChatPrefs(): ChatPrefsContextValue {
   const ctx = useContext(ChatPrefsCtx);
   if (!ctx)
     throw new Error("useChatPrefs must be used within ChatContextProvider");

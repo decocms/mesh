@@ -6,7 +6,15 @@ import {
 } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from "@deco/ui/components/sidebar.tsx";
 import { PageContentClassNameProvider } from "@/web/components/page";
 import {
   ArrowNarrowLeft,
@@ -33,19 +41,19 @@ function ContentSkeleton() {
   );
 }
 
-interface SidebarItem {
+interface SettingsNavItem {
   key: string;
   label: string;
   icon: React.ReactNode;
   to: string;
 }
 
-interface SidebarGroup {
+interface SettingsNavGroup {
   label: string;
-  items: SidebarItem[];
+  items: SettingsNavItem[];
 }
 
-function useSettingsSidebarGroups(): SidebarGroup[] {
+function useSettingsSidebarGroups(): SettingsNavGroup[] {
   return [
     {
       label: "",
@@ -116,44 +124,56 @@ export function SettingsSidebar() {
   };
 
   return (
-    <div className="hidden md:flex w-56 shrink-0 flex-col gap-4 bg-sidebar/50 overflow-y-auto py-3">
-      {/* Back to org */}
-      <div className="px-2">
-        <Link
-          to="/$org"
-          params={{ org }}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-        >
-          <ArrowNarrowLeft size={14} />
-          <span>Settings</span>
-        </Link>
-      </div>
+    <Sidebar variant="sidebar">
+      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden mt-2 px-2 pb-2 gap-0">
+        {/* Back to org */}
+        <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1.5">
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link
+                    to="/$org"
+                    params={{ org }}
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
+                    <ArrowNarrowLeft size={14} />
+                    <span>Settings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-0.5 px-2">
-          {group.label && (
-            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground/60">
-              {group.label}
-            </p>
-          )}
-          {group.items.map((item) => (
-            <Link
-              key={item.key}
-              to={item.to}
-              params={{ org }}
-              className={cn(
-                "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-left w-full transition-colors",
-                isActive(item.to)
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              )}
-            >
-              <span className="shrink-0">{item.icon}</span>
-              <span className="truncate">{item.label}</span>
-            </Link>
-          ))}
-        </div>
-      ))}
+        {groups.map((group) => (
+          <SidebarGroup key={group.label} className="pt-0 pr-0 pb-0 pl-0">
+            {group.label && (
+              <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground/60">
+                {group.label}
+              </p>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton asChild isActive={isActive(item.to)}>
+                      <Link
+                        to={item.to}
+                        params={{ org }}
+                        className="flex items-center gap-2.5 text-sm"
+                      >
+                        <span className="shrink-0">{item.icon}</span>
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
 
       {/* Version */}
       <div className="mt-auto px-4 pb-1">
@@ -161,7 +181,7 @@ export function SettingsSidebar() {
           v{__MESH_VERSION__}
         </span>
       </div>
-    </div>
+    </Sidebar>
   );
 }
 

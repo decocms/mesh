@@ -55,6 +55,7 @@ import * as migration052spaces from "./052-spaces.ts";
 import * as migration053registryconfig from "./053-registry-config.ts";
 import * as migration054automationprojectscope from "./054-automation-project-scope.ts";
 import * as migration054connectionslug from "./054-connection-slug.ts";
+import * as migration055threadvirtualmcpid from "./055-thread-virtual-mcp-id.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -124,6 +125,7 @@ const migrations: Record<string, Migration> = {
   "053-registry-config": migration053registryconfig,
   "054-automation-project-scope": migration054automationprojectscope,
   "054-connection-slug": migration054connectionslug,
+  "055-thread-virtual-mcp-id": migration055threadvirtualmcpid,
 };
 
 export default migrations;

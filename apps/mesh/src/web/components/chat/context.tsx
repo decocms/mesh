@@ -13,9 +13,7 @@
 export {
   ChatContextProvider,
   useChatContext as useChat,
-  useChatStream,
   useChatTask,
-  useChatPrefs,
   type ChatContextValue,
   type ChatStreamContextValue,
   type ChatTaskContextValue,
