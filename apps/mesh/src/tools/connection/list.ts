@@ -37,6 +37,7 @@ import {
 import { clientFromConnection } from "../../mcp-clients";
 import { createDevAssetsConnectionEntity, isDevMode } from "./dev-assets";
 import { type ConnectionEntity, ConnectionEntitySchema } from "./schema";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 
 /**
  * Registry binding: matches connections that expose COLLECTION_REGISTRY_APP_LIST
@@ -202,13 +203,17 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       const baseUrl = getBaseUrl();
       const devAssetsId = WellKnownOrgMCPId.DEV_ASSETS(organization.id);
 
-      // Only add if not already in the list (shouldn't be, but just in case)
+      // Only add if not already in the list and if it matches the slug filter (if any)
       if (!connections.some((c) => c.id === devAssetsId)) {
         const devAssetsConnection = createDevAssetsConnectionEntity(
           organization.id,
           baseUrl,
         );
-        connections.unshift(devAssetsConnection);
+        const slugMatches =
+          !input.slug || getConnectionSlug(devAssetsConnection) === input.slug;
+        if (slugMatches) {
+          connections.unshift(devAssetsConnection);
+        }
       }
     }
 
