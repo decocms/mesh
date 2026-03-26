@@ -76,21 +76,27 @@ export function ViewLayout({ children, breadcrumb }: ViewLayoutProps) {
   const leftRef = (node: HTMLDivElement | null) => {
     leftElRef.current = node;
     if (node) {
-      setSlots((prev) => ({ ...prev, leftEl: node }));
+      setSlots((prev) =>
+        prev.leftEl === node ? prev : { ...prev, leftEl: node },
+      );
     }
   };
 
   const tabsRef = (node: HTMLDivElement | null) => {
     tabsElRef.current = node;
     if (node) {
-      setSlots((prev) => ({ ...prev, tabsEl: node }));
+      setSlots((prev) =>
+        prev.tabsEl === node ? prev : { ...prev, tabsEl: node },
+      );
     }
   };
 
   const actionsRef = (node: HTMLDivElement | null) => {
     actionsElRef.current = node;
     if (node) {
-      setSlots((prev) => ({ ...prev, actionsEl: node }));
+      setSlots((prev) =>
+        prev.actionsEl === node ? prev : { ...prev, actionsEl: node },
+      );
     }
   };
 

@@ -20,7 +20,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute();
 
   // Drop the CHECK constraint on subtype
-  await sql`ALTER TABLE connections DROP CONSTRAINT IF EXISTS connections_subtype_check`.execute(
+  await sql`ALTER TABLE connections DROP CONSTRAINT IF EXISTS chk_connections_subtype`.execute(
     db,
   );
 
@@ -57,7 +57,7 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   );
 
   // Re-add CHECK constraint
-  await sql`ALTER TABLE connections ADD CONSTRAINT connections_subtype_check CHECK (subtype IN ('agent', 'project') OR subtype IS NULL)`.execute(
+  await sql`ALTER TABLE connections ADD CONSTRAINT chk_connections_subtype CHECK (subtype IN ('agent', 'project') OR subtype IS NULL)`.execute(
     db,
   );
 

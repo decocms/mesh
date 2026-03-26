@@ -45,7 +45,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
 
   const pathname = routerState.location.pathname;
 
-  const basePath = `/${org}`;
+  const basePath = `/${org}/projects/${virtualMcpId}`;
 
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
