@@ -399,7 +399,7 @@ export function ChatContextProvider({
     chat.status === "ready";
 
   // Stream manager (SSE + resume) — task-scoped
-  useStreamManager(effectiveTaskId, org.id, chat, isRunInProgress);
+  useStreamManager(effectiveTaskId, org.id, chat);
 
   // Consume pending message from in-memory Map (from useSendToChat)
   const pendingConsumedRef = useRef<string | null>(null);

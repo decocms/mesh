@@ -1,13 +1,10 @@
 /**
  * useStreamManager — task-scoped SSE subscription + stream resume logic.
  *
- * Extracted from the old TaskStreamManager component. Handles:
- * - SSE event listening for the active task (step/finish/status)
- * - Stream resume on reconnect
- * - Safety-net polling when a run is in_progress but no active stream
+ * Listens for SSE events on the active task and resumes disconnected streams.
  */
 
-import { useRef, useSyncExternalStore } from "react";
+import { useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { UseChatHelpers } from "@ai-sdk/react";
@@ -15,15 +12,12 @@ import { useDecopilotEvents } from "../../../hooks/use-decopilot-events";
 import { KEYS } from "../../../lib/query-keys";
 import type { ChatMessage } from "../types";
 
-const SAFETY_NET_POLL_MS = 30_000;
 const MAX_RESUME_RETRIES = 3;
-const getSnapshotStub = () => 0;
 
 export function useStreamManager(
   threadId: string,
   orgId: string,
   chat: UseChatHelpers<ChatMessage>,
-  isRunInProgress: boolean,
 ) {
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
@@ -86,24 +80,4 @@ export function useStreamManager(
       }
     },
   });
-
-  // Safety-net polling when run is in_progress but no active stream
-  const subscribe = (_onStoreChange: () => void) => {
-    console.log("[stream-mgr] subscribe called", {
-      isRunInProgress,
-      threadId,
-      chatStatus: chat.status,
-    });
-    if (!isRunInProgress) return () => {};
-
-    tryResumeStream("page-load");
-
-    const id = setInterval(() => {
-      invalidateThreadList();
-      invalidateMessages();
-    }, SAFETY_NET_POLL_MS);
-    return () => clearInterval(id);
-  };
-
-  useSyncExternalStore(subscribe, getSnapshotStub, getSnapshotStub);
 }
