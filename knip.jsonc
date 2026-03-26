@@ -7,8 +7,7 @@
       "project": [],
       "ignoreDependencies": []
     },
-    "packages/ui": {
-    },
+    "packages/ui": {},
     "packages/runtime": {
       "entry": ["scripts/generate-json-schema.ts"]
     },
@@ -20,15 +19,12 @@
         // Dev-only module loaded via require() - needs explicit entry
         "src/api/routes/dev-only.ts"
       ],
-      "ignore": [
-        "src/api/index.ts"
-      ]
+      "ignore": ["src/api/index.ts"]
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
     },
-    "packages/typegen": {
-    }
+    "packages/typegen": {}
   },
   "ignoreDependencies": ["@types/*"],
   // TODO(@camudo): Remove this config once I fix all unused type exports
