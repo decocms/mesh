@@ -145,6 +145,12 @@ export async function startServer(options: ServeOptions): Promise<void> {
     updateService(svc);
   }
 
+  // ── Env ──────────────────────────────────────────────────────────────
+  // In bundled builds, env.ts is evaluated at bundle-load time with Zod
+  // defaults. Re-parse now that process.env has the resolved secrets
+  // and the dynamic DATABASE_URL from ensureServices.
+  setEnv(refreshEnv());
+
   // ── Migrations ───────────────────────────────────────────────────────
   if (!skipMigrations) {
     try {
@@ -155,11 +161,6 @@ export async function startServer(options: ServeOptions): Promise<void> {
     }
   }
   setMigrationsDone();
-
-  // ── Env ──────────────────────────────────────────────────────────────
-  // In bundled builds, env.ts is evaluated at bundle-load time with Zod
-  // defaults. Re-parse now that process.env has the resolved secrets.
-  setEnv(refreshEnv());
 
   // ── Start server ─────────────────────────────────────────────────────
   process.env.DECO_CLI = "1";
