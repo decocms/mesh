@@ -20,6 +20,7 @@ import type { Settings } from "../settings";
 try {
   setGlobalSettings({
     dataDir: "/tmp/test-deco",
+    port: 3000,
   } as Settings);
 } catch {
   // Already initialized

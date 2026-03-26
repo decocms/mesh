@@ -104,7 +104,7 @@ function ChatFooter({
   return (
     <div
       className={cn(
-        "flex-none w-full mx-auto p-2",
+        "flex-none w-full mx-auto p-2 pt-0",
         "max-w-2xl min-w-0",
         className,
       )}
