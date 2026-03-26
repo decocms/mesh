@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-<a href="https://docs.deco.page/">Docs</a> ·
+<a href="https://docs.decocms.com/">Docs</a> ·
 <a href="https://decocms.com/discord">Discord</a> ·
 <a href="https://decocms.com/studio">decocms.com/studio</a>
 </p>
@@ -274,7 +274,7 @@ No vendor lock-in. Runs on Docker, Kubernetes, AWS, GCP, or local runtimes.
 - Free for client projects (agencies, SIs)
 - Commercial license required for SaaS or revenue-generating production systems
 
-Questions? [contact@decocms.com](mailto:contact@decocms.com)
+Questions? [builders@decocms.com](mailto:builders@decocms.com)
 
 ---
 
