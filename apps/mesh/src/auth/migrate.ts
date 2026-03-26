@@ -10,13 +10,17 @@
  */
 
 import { getMigrations } from "better-auth/db";
+import { sso } from "@better-auth/sso";
 import { organization } from "@decocms/better-auth/plugins";
 import {
   admin as adminPlugin,
   apiKey,
   jwt,
+  magicLink,
+  mcp,
   openAPI,
 } from "better-auth/plugins";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { getDatabaseUrl, getDbDialect } from "../database";
 
 /**
@@ -33,7 +37,17 @@ export async function migrateBetterAuth(databaseUrl?: string): Promise<string> {
   // Does not need auth config, rate limiting, hooks, etc.
   const options = {
     database: freshDatabase,
-    plugins: [organization(), adminPlugin(), apiKey(), jwt(), openAPI()],
+    plugins: [
+      organization(),
+      adminPlugin(),
+      apiKey(),
+      jwt(),
+      openAPI(),
+      mcp({ loginPage: "/login" }),
+      sso(),
+      magicLink({ sendMagicLink: async () => {} }),
+      emailOTP({ sendVerificationOTP: async () => {} }),
+    ],
   };
 
   const { toBeAdded, toBeCreated, runMigrations } =

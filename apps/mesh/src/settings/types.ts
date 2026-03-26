@@ -71,6 +71,7 @@ export interface CliFlags {
   skipMigrations: boolean;
   noTui?: boolean;
   vitePort?: string;
+  nodeEnv?: "production" | "development" | "test";
 }
 
 export interface ServiceInputs {

@@ -6,10 +6,6 @@
  * Or: bun run src/index.ts
  */
 
-// Initialize OpenTelemetry SDK (must be called after buildSettings())
-import { initObservability } from "./observability";
-initObservability();
-
 import {
   createAssetHandler,
   resolveClientDir,
@@ -20,6 +16,10 @@ import { getSettings } from "./settings";
 import { red } from "./fmt";
 
 const settings = getSettings();
+
+// Initialize OpenTelemetry SDK (must be called after getSettings())
+import { initObservability } from "./observability";
+initObservability();
 const port = settings.port;
 
 // Refuse local mode in production — it disables authentication

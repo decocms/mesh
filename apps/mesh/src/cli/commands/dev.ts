@@ -88,7 +88,7 @@ function pipeToLogStore(stream: ReadableStream<Uint8Array>) {
 export async function startDevServer(
   options: DevOptions,
 ): Promise<{ port: number; process: Subprocess }> {
-  const { port, vitePort, baseUrl, noTui } = options;
+  const { vitePort, baseUrl, noTui } = options;
 
   const { settings, services } = await buildSettings({
     port: options.port,
@@ -140,12 +140,12 @@ export async function startDevServer(
     pipeToLogStore(child.stderr as ReadableStream<Uint8Array>);
   }
 
-  const serverUrl = baseUrl || `http://localhost:${port}`;
+  const serverUrl = baseUrl || `http://localhost:${settings.port}`;
   setServerUrl(serverUrl);
   updateService({ name: "Vite", status: "ready", port: Number(vitePort) });
 
   process.on("SIGINT", () => child.kill("SIGINT"));
   process.on("SIGTERM", () => child.kill("SIGTERM"));
 
-  return { port: Number(port), process: child };
+  return { port: Number(settings.port), process: child };
 }

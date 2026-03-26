@@ -48,7 +48,7 @@ export function resolveConfig(
 
   const localMode = flags.localMode;
   const nodeEnv: Settings["nodeEnv"] =
-    (envVars.NODE_ENV as Settings["nodeEnv"]) || "development";
+    flags.nodeEnv || (envVars.NODE_ENV as Settings["nodeEnv"]) || "development";
 
   const natsRaw = envVars.NATS_URL || "nats://localhost:4222";
 

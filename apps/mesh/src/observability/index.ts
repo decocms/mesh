@@ -213,7 +213,6 @@ let _initialized = false;
  */
 export function initObservability(): void {
   if (_initialized) return;
-  _initialized = true;
 
   const _settings = getSettings();
 
@@ -286,6 +285,8 @@ export function initObservability(): void {
   // Enable custom Bun fetch instrumentation (must be after SDK start)
   // This wraps global fetch with tracing since Bun's fetch doesn't use undici
   enableFetchInstrumentation();
+
+  _initialized = true;
 }
 
 /**

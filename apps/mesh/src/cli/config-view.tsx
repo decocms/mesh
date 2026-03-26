@@ -36,6 +36,11 @@ function formatValue(
       : { text: "not set", dimColor: true };
   }
   if (URL_KEYS.has(key)) {
+    if (Array.isArray(raw)) {
+      if (raw.length === 0) return { text: "not set", dimColor: true };
+      const redacted = raw.map((u) => redactUrl(u as string)).join(", ");
+      return { text: redacted, color: "cyan" };
+    }
     const redacted = redactUrl(raw as string | undefined);
     return redacted === "not set"
       ? { text: redacted, dimColor: true }
