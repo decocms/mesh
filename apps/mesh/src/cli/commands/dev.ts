@@ -15,6 +15,7 @@ import {
   setServerUrl,
   updateService,
 } from "../cli-store";
+import { findAvailablePort } from "../find-available-port";
 
 export interface DevOptions {
   port: string;
@@ -90,8 +91,10 @@ export async function startDevServer(
 ): Promise<{ port: number; process: Subprocess }> {
   const { vitePort, baseUrl, noTui } = options;
 
+  const port = await findAvailablePort(Number(options.port));
+
   const { settings, services } = await buildSettings({
-    port: options.port,
+    port: String(port),
     home: options.home,
     baseUrl: options.baseUrl,
     localMode: options.localMode,

@@ -14,6 +14,7 @@ import {
   setTuiConsoleIntercepted,
   updateService,
 } from "../cli-store";
+import { findAvailablePort } from "../find-available-port";
 
 export interface ServeOptions {
   port: string;
@@ -75,8 +76,10 @@ export function interceptConsoleForTui() {
 }
 
 export async function startServer(options: ServeOptions): Promise<void> {
+  const port = await findAvailablePort(Number(options.port));
+
   const { settings, services } = await buildSettings({
-    port: options.port,
+    port: String(port),
     home: options.home,
     localMode: options.localMode,
     skipMigrations: options.skipMigrations,
@@ -93,7 +96,5 @@ export async function startServer(options: ServeOptions): Promise<void> {
   // Boot server — settings available via getSettings()
   await import("../../index");
 
-  // Re-read settings: port may have changed if the original was in use
-  const { getSettings } = await import("../../settings");
-  setServerUrl(`http://localhost:${getSettings().port}`);
+  setServerUrl(`http://localhost:${settings.port}`);
 }

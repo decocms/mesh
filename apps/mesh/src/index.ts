@@ -12,7 +12,7 @@ import {
 } from "@decocms/runtime/asset-server";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import { getSettings, setGlobalSettings } from "./settings";
+import { getSettings } from "./settings";
 import { red } from "./fmt";
 
 const settings = getSettings();
@@ -81,12 +81,12 @@ if (!settings.isCli) {
   }
 }
 
-const serveOptions = {
+const server = Bun.serve({
   // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
   idleTimeout: 0,
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
-  fetch: async (request: Request, server: import("bun").Server) => {
+  fetch: async (request, server) => {
     // Try assets first (static files or dev proxy), then API
     // Pass server as env so Hono's getConnInfo can access requestIP
     const assetRes = await handleAssets(request);
@@ -94,28 +94,7 @@ const serveOptions = {
     return app.fetch(request, { server });
   },
   development: settings.nodeEnv !== "production",
-};
-
-let server: import("bun").Server;
-try {
-  server = Bun.serve(serveOptions);
-} catch (err: unknown) {
-  if (
-    err instanceof Error &&
-    "code" in err &&
-    err.code === "EADDRINUSE"
-  ) {
-    // Port is busy — let the OS assign an available port
-    server = Bun.serve({ ...serveOptions, port: 0 });
-    // Update global settings so getBaseUrl()/getInternalUrl() use the actual port
-    setGlobalSettings({ ...settings, port: server.port });
-    console.warn(
-      `Port ${port} is in use, listening on port ${server.port} instead.`,
-    );
-  } else {
-    throw err;
-  }
-}
+});
 
 // Local mode: seed admin user + organization after server is listening
 // This must run after Bun.serve() so that the org seed can fetch tools
