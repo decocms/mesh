@@ -393,22 +393,23 @@ function ShellLayoutInner({
                 >
                   <LayoutLeft size={16} />
                 </button>
-                {!isOrgHome && (
-                  <button
-                    type="button"
-                    onClick={toggleMain}
-                    aria-pressed={mainOpen}
-                    className={cn(
-                      "flex size-7 items-center justify-center rounded-md transition-colors",
-                      mainOpen
+                <button
+                  type="button"
+                  onClick={toggleMain}
+                  aria-pressed={mainOpen}
+                  disabled={isOrgHome}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    isOrgHome
+                      ? "text-sidebar-foreground/30 cursor-not-allowed"
+                      : mainOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle content"
-                  >
-                    <Browser size={16} />
-                  </button>
-                )}
+                  )}
+                  title="Toggle content"
+                >
+                  <Browser size={16} />
+                </button>
                 <button
                   type="button"
                   onClick={toggleChat}

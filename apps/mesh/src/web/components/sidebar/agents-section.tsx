@@ -27,7 +27,6 @@ import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
-import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 const SITE_EDITOR_AGENT = {
@@ -36,13 +35,7 @@ const SITE_EDITOR_AGENT = {
   icon: "icon://Globe01?color=violet",
 } as const;
 
-const SLIDE_BUILDER_AGENT = {
-  id: "slide-builder",
-  title: "Slide Builder",
-  icon: "icon://PresentationChart01?color=yellow",
-} as const;
-
-const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SLIDE_BUILDER_AGENT];
+const DEFAULT_AGENTS = [SITE_EDITOR_AGENT];
 
 function AgentListItem({
   agent,
@@ -186,8 +179,6 @@ function PinAgentPopoverContent({
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
-  const { createSlideBuilder, isCreating: isCreatingSlideBuilder } =
-    useCreateSlideBuilder();
 
   const navigate = useNavigate();
 
@@ -220,8 +211,6 @@ function PinAgentPopoverContent({
     setSearch("");
     if (agentId === SITE_EDITOR_AGENT.id) {
       onOpenSiteEditorModal();
-    } else if (agentId === SLIDE_BUILDER_AGENT.id) {
-      createSlideBuilder();
     } else {
       navigate({
         to: "/$org/agents/$virtualMcpId",
@@ -292,10 +281,6 @@ function PinAgentPopoverContent({
                 <button
                   key={agent.id}
                   type="button"
-                  disabled={
-                    agent.id === SLIDE_BUILDER_AGENT.id &&
-                    isCreatingSlideBuilder
-                  }
                   onClick={() => handleDefaultAgentClick(agent.id)}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >

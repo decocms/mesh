@@ -38,8 +38,14 @@ export function createClaudeCodeModel(
 
   switch (options?.toolApprovalLevel) {
     case "plan":
-      settings.permissionMode = "plan";
-      settings.disallowedTools = [...HEADLESS_DISALLOWED_TOOLS];
+      settings.permissionMode = "bypassPermissions";
+      settings.disallowedTools = [
+        ...HEADLESS_DISALLOWED_TOOLS,
+        "Write",
+        "Edit",
+        "Bash",
+        "NotebookEdit",
+      ];
       break;
     case "readonly":
       settings.permissionMode = "bypassPermissions";
