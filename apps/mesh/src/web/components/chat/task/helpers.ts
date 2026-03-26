@@ -42,13 +42,13 @@ export async function callUpdateTaskTool(
 /**
  * Build an optimistic task object for immediate cache insertion
  */
-export function buildOptimisticTask(id: string): Task {
+export function buildOptimisticTask(id: string, virtualMcpId?: string): Task {
   const now = new Date().toISOString();
   return {
     id,
-    title: "New chat", // Empty title until first message generates one
+    title: "New chat",
     created_at: now,
     updated_at: now,
-    // agent_ids intentionally omitted — populated on first sendMessage via addAgentToTask
+    virtual_mcp_id: virtualMcpId,
   };
 }

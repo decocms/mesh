@@ -1,8 +1,9 @@
 /**
- * Chat Store Hooks using React Query + IndexedDB
+ * Task Manager — React Query hooks for thread/task management.
  *
- * Provides React hooks for working with tasks and messages stored in IndexedDB.
- * Uses TanStack React Query for caching and mutations with idb-keyval for persistence.
+ * Scoped by virtualMcpId: only fetches threads for the current agent.
+ * Keeps an org-wide SSE subscription for real-time sidebar status updates.
+ * URL owns the active task ID — this hook no longer manages it.
  */
 
 import type { CollectionListOutput } from "@decocms/bindings/collections";
@@ -21,14 +22,11 @@ import {
 import { toast } from "sonner";
 import { authClient } from "../../../lib/auth-client";
 import { useCollectionCachePrefill } from "../../../hooks/use-collection-cache-prefill";
-import { useLocalStorage } from "../../../hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "../../../lib/localstorage-keys";
 import { KEYS } from "../../../lib/query-keys";
 import { useDecopilotEvents } from "../../../hooks/use-decopilot-events";
-import { useTaskReadState } from "../../../hooks/use-task-read-state";
 import {
   addTaskToCache,
-  prefetchTaskMessages,
   updateMessagesCache,
   updateTaskInCache,
 } from "./cache-operations.ts";
@@ -39,14 +37,15 @@ import { TASK_CONSTANTS } from "./types.ts";
 
 export type TaskOwnerFilter = "me" | "everyone";
 
-/**
- * Hook to get all tasks with infinite scroll pagination
- *
- * @param ownerFilter - "me" filters to current user's tasks, "everyone" shows all org tasks
- * @param userId - current user's ID, used only for cache key isolation (not sent to server)
- * @returns Object with tasks array, pagination helpers, and refetch function
- */
-function useTasks(ownerFilter: TaskOwnerFilter, userId: string | undefined) {
+// ============================================================================
+// useTasks — fetch task list scoped by virtualMcpId
+// ============================================================================
+
+function useTasks(
+  ownerFilter: TaskOwnerFilter,
+  userId: string | undefined,
+  virtualMcpId: string,
+) {
   const { locator, org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -59,19 +58,20 @@ function useTasks(ownerFilter: TaskOwnerFilter, userId: string | undefined) {
         locator,
         ownerFilter,
         ownerFilter === "me" ? userId : undefined,
+        virtualMcpId,
       ),
       queryFn: async ({ pageParam = 0 }) => {
         if (!client) {
           throw new Error("MCP client is not available");
         }
-        const baseInput = {
+        const input = {
           limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
           offset: pageParam,
+          where: {
+            ...(ownerFilter === "me" && { created_by: "me" }),
+            virtual_mcp_id: virtualMcpId,
+          },
         };
-        const input =
-          ownerFilter === "me"
-            ? { ...baseInput, where: { created_by: "me" } }
-            : baseInput;
 
         const result = (await client.callTool({
           name: "COLLECTION_THREADS_LIST",
@@ -87,42 +87,28 @@ function useTasks(ownerFilter: TaskOwnerFilter, userId: string | undefined) {
         };
       },
       getNextPageParam: (lastPage, allPages) => {
-        if (!lastPage.hasMore) {
-          return undefined;
-        }
+        if (!lastPage.hasMore) return undefined;
         return allPages.length * TASK_CONSTANTS.TASKS_PAGE_SIZE;
       },
       initialPageParam: 0,
       staleTime: TASK_CONSTANTS.QUERY_STALE_TIME,
     });
 
-  // Flatten all pages into a single tasks array
   const tasks = data?.pages.flatMap((page) => page.items) ?? [];
-
-  return {
-    tasks,
-    refetch,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  };
+  return { tasks, refetch, hasNextPage, isFetchingNextPage, fetchNextPage };
 }
 
-/**
- * Hook to get messages for a specific task
- *
- * @param taskId - The ID of the task
- * @returns Suspense query result with messages array
- */
-function useTaskMessages(taskId: string | null) {
+// ============================================================================
+// useTaskMessages — fetch messages for a specific task (exported for provider)
+// ============================================================================
+
+export function useTaskMessages(taskId: string | null) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
-  // Use type assertion since ThreadMessageEntity doesn't extend CollectionEntity
-  // but the runtime behavior works correctly
   const data = useCollectionList<CollectionEntity & ChatMessage>(
     org.id,
     "THREAD_MESSAGES",
@@ -136,21 +122,19 @@ function useTaskMessages(taskId: string | null) {
   return data ?? [];
 }
 
-/**
- * Unified hook that manages all task state and operations
- * Encapsulates task fetching, message fetching, active task management, and all task actions
- *
- * @returns Object with task state, pagination info, and action methods
- */
-export function useTaskManager() {
+// ============================================================================
+// useTaskManager — unified task management hook
+// ============================================================================
+
+export function useTaskManager(virtualMcpId: string) {
   const { locator, org } = useProjectContext();
   const queryClient = useQueryClient();
   const { prefillCollectionCache } = useCollectionCachePrefill();
-  const { markTaskRead } = useTaskReadState();
 
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
+  // Owner filter (localStorage-backed)
   const readStoredFilter = (loc: ProjectLocator): TaskOwnerFilter => {
     try {
       const stored = localStorage.getItem(
@@ -166,9 +150,6 @@ export function useTaskManager() {
     readStoredFilter(locator),
   );
 
-  // When locator changes (project/org switch), re-read the persisted filter
-  // for the new context. Calling setState during render causes React to discard
-  // the in-progress render and immediately re-render with the corrected value.
   const [prevLocator, setPrevLocator] = useState(locator);
   if (prevLocator !== locator) {
     setPrevLocator(locator);
@@ -185,75 +166,44 @@ export function useTaskManager() {
         JSON.stringify(filter),
       );
     } catch {
-      // ignore storage errors
+      // ignore
     }
   };
 
-  // Fetch tasks list with pagination
+  // Fetch tasks (scoped by virtualMcpId)
   const { tasks, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasks(
     ownerFilter,
     userId,
+    virtualMcpId,
   );
 
-  // Initialize MCP client internally
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
-  // Manage active task ID with localStorage persistence
-  const [activeTaskId, setActiveTaskId] = useLocalStorage<string>(
-    LOCALSTORAGE_KEYS.assistantChatActiveTask(locator),
-    tasks[0]?.id ?? crypto.randomUUID(),
-  );
-
-  // Fetch messages for the active task
-  const messages = useTaskMessages(activeTaskId);
-
-  /**
-   * Create a new task
-   * Generates a new task ID, optimistically adds it to cache, prefills message cache, and switches to it
-   */
+  // Create task (optimistic + cache)
   const createTask = (): string => {
     const newTaskId = crypto.randomUUID();
-    const optimisticTask = buildOptimisticTask(newTaskId);
-
-    // Add task optimistically to cache so it appears immediately
+    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId);
     addTaskToCache(
       queryClient,
       locator,
       optimisticTask,
       ownerFilter,
       ownerFilter === "me" ? userId : undefined,
+      virtualMcpId,
     );
-
-    // Prefill message cache
     if (client) {
       prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
         filters: [{ column: "thread_id", value: newTaskId }],
         pageSize: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
       });
     }
-
-    // Switch to the new task
-    setActiveTaskId(newTaskId);
     return newTaskId;
   };
 
-  /**
-   * Switch to a task
-   * Prefetches messages if needed to prevent suspension, then updates active task ID
-   */
-  const switchToTask = async (taskId: string) => {
-    await prefetchTaskMessages(queryClient, client, org.id, taskId);
-    setActiveTaskId(taskId);
-    markTaskRead(taskId);
-  };
-
-  /**
-   * Update a task in the cache
-   * Updates task data directly in React Query cache without refetching
-   */
+  // Update task in cache
   const updateTask = (taskId: string, updates: Partial<Task>) => {
     updateTaskInCache(
       queryClient,
@@ -262,42 +212,11 @@ export function useTaskManager() {
       updates,
       ownerFilter,
       ownerFilter === "me" ? userId : undefined,
+      virtualMcpId,
     );
   };
 
-  /**
-   * Add an agent ID to a task's agent_ids (deduplicated, append-only).
-   * Called optimistically when sending a message so the avatar updates immediately.
-   */
-  const addAgentToTask = (taskId: string, agentId: string) => {
-    // Read current task to get existing agent_ids
-    for (const filter of ["me", "everyone"] as const) {
-      const filterUserId = filter === "me" ? userId : undefined;
-      const cached = queryClient.getQueryData<TasksInfiniteQueryData>(
-        KEYS.tasks(locator, filter, filterUserId),
-      );
-      if (!cached) continue;
-      const task = cached.pages
-        .flatMap((p) => p.items)
-        .find((t) => t.id === taskId);
-      if (!task) continue;
-      const current = task.agent_ids ?? [];
-      if (current.includes(agentId)) continue; // Already present in this cache
-      updateTaskInCache(
-        queryClient,
-        locator,
-        taskId,
-        { agent_ids: [...current, agentId] },
-        filter,
-        filterUserId,
-      );
-    }
-  };
-
-  /**
-   * Set the status of a task
-   * Calls backend to update task status, then updates both caches
-   */
+  // Set task status (backend + cache)
   const setTaskStatus = async (taskId: string, status: string) => {
     try {
       const updatedTask = await callUpdateTaskTool(client, taskId, {
@@ -320,6 +239,7 @@ export function useTaskManager() {
             updates,
             filter,
             filter === "me" ? userId : undefined,
+            virtualMcpId,
           );
         }
       }
@@ -330,15 +250,10 @@ export function useTaskManager() {
     }
   };
 
-  /**
-   * Rename a task
-   * Calls backend to update task title, then updates cache
-   */
+  // Rename task (backend + cache)
   const renameTask = async (taskId: string, title: string) => {
     try {
-      const updatedTask = await callUpdateTaskTool(client, taskId, {
-        title,
-      });
+      const updatedTask = await callUpdateTaskTool(client, taskId, { title });
       if (updatedTask) {
         updateTaskInCache(
           queryClient,
@@ -350,6 +265,7 @@ export function useTaskManager() {
           },
           ownerFilter,
           ownerFilter === "me" ? userId : undefined,
+          virtualMcpId,
         );
       }
     } catch (error) {
@@ -359,62 +275,28 @@ export function useTaskManager() {
     }
   };
 
-  /**
-   * Hide a task
-   * Calls backend to hide task, switches away if it's the current task, and updates cache
-   */
+  // Hide task (backend + cache)
   const hideTask = async (taskId: string) => {
-    console.log("[chat] taskManager.hideTask called", {
-      taskId,
-      activeTaskId,
-      clientAvailable: !!client,
-      taskExists: tasks.some((t) => t.id === taskId),
-      taskCount: tasks.length,
-    });
     try {
-      const updatedTask = await callUpdateTaskTool(client, taskId, {
-        hidden: true,
-      });
-      console.log("[chat] taskManager.hideTask: backend response", {
-        taskId,
-        success: !!updatedTask,
-      });
-      if (!updatedTask) {
-        // Frontend-only thread (never sent a message) — no backend record.
-        // Still remove it from cache so the UI hides it.
-        console.log(
-          "[chat] taskManager.hideTask: frontend-only task, hiding from cache",
-          { taskId },
-        );
-      }
+      await callUpdateTaskTool(client, taskId, { hidden: true });
     } catch (error) {
       const err = error as Error;
-      console.error("[chat] taskManager.hideTask: FAILED", {
-        taskId,
-        error: err.message,
-      });
       toast.error(`Failed to update task: ${err.message}`);
+      console.error("[chat] Failed to hide task:", error);
       return;
     }
-
-    // Update cache and switch away regardless of whether the backend had a record
     updateTaskInCache(
       queryClient,
       locator,
       taskId,
-      {
-        hidden: true,
-        updated_at: new Date().toISOString(),
-      },
+      { hidden: true, updated_at: new Date().toISOString() },
       ownerFilter,
       ownerFilter === "me" ? userId : undefined,
+      virtualMcpId,
     );
   };
 
-  /**
-   * Update messages cache for a task with new messages
-   * Populates the cache directly without refetching from backend
-   */
+  // Update messages cache
   const updateMessagesInCache = (
     taskId: string,
     newMessages: ChatMessage[],
@@ -422,8 +304,7 @@ export function useTaskManager() {
     updateMessagesCache(queryClient, client, org.id, taskId, newMessages);
   };
 
-  // Subscribe to org-wide SSE events so the task list stays real-time.
-  // No taskId filter — we want status changes for ALL threads in the org.
+  // Org-wide SSE for real-time sidebar task status updates
   useDecopilotEvents({
     orgId: org.id,
     enabled: true,
@@ -435,7 +316,7 @@ export function useTaskManager() {
       for (const filter of ["me", "everyone"] as const) {
         const filterUserId = filter === "me" ? userId : undefined;
         const cached = queryClient.getQueryData<TasksInfiniteQueryData>(
-          KEYS.tasks(locator, filter, filterUserId),
+          KEYS.tasks(locator, filter, filterUserId, virtualMcpId),
         );
         const inCache =
           cached?.pages.some((p) => p.items.some((t) => t.id === threadId)) ??
@@ -449,13 +330,8 @@ export function useTaskManager() {
             { status: newStatus, updated_at: updatedAt },
             filter,
             filterUserId,
+            virtualMcpId,
           );
-        } else if (filter === "everyone") {
-          // Task not yet in the "everyone" cache — could be a new task from
-          // another user. Mark as stale so the next render triggers a refetch.
-          queryClient.invalidateQueries({
-            queryKey: KEYS.tasks(locator, "everyone"),
-          });
         }
       }
     },
@@ -463,9 +339,6 @@ export function useTaskManager() {
 
   return {
     tasks,
-    activeTaskId,
-    setActiveTaskId,
-    messages,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -473,9 +346,7 @@ export function useTaskManager() {
     setOwnerFilter,
     isFilterChangePending,
     createTask,
-    switchToTask,
     updateTask,
-    addAgentToTask,
     renameTask,
     hideTask,
     setTaskStatus,

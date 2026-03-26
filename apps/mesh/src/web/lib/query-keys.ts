@@ -21,10 +21,12 @@ export const KEYS = {
     locator: string,
     ownerFilter?: "me" | "everyone",
     userId?: string | null,
+    virtualMcpId?: string,
   ): unknown[] => {
     const key: unknown[] = ["tasks", locator];
     if (ownerFilter !== undefined) key.push(ownerFilter);
     if (ownerFilter === "me") key.push(userId ?? null);
+    if (virtualMcpId) key.push(virtualMcpId);
     return key;
   },
   messages: (locator: string) => ["messages", locator] as const,
