@@ -32,6 +32,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decocms/studio",
+    "directory": "packages/typegen"
+  },
   "publishConfig": {
     "access": "public"
   }
