@@ -15,8 +15,6 @@ import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
   CollectionListInputSchema,
   createCollectionListOutputSchema,
-  type OrderByExpression,
-  type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
@@ -66,165 +64,6 @@ const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
   TRIGGER: TRIGGER_BINDING,
   REGISTRY: REGISTRY_BINDING,
 };
-
-/**
- * Convert SQL LIKE pattern to regex pattern by tokenizing
- * Handles % (any chars) and _ (single char) wildcards
- */
-function convertLikeToRegex(likePattern: string): string {
-  const result: string[] = [];
-  let i = 0;
-
-  while (i < likePattern.length) {
-    const char = likePattern[i] as string;
-    if (char === "%") {
-      result.push(".*");
-    } else if (char === "_") {
-      result.push(".");
-    } else if (/[.*+?^${}()|[\]\\]/.test(char)) {
-      // Escape regex special characters
-      result.push("\\" + char);
-    } else {
-      result.push(char);
-    }
-    i++;
-  }
-
-  return result.join("");
-}
-
-function isStringOrValue(value: unknown): value is string | number {
-  return typeof value === "string" || typeof value === "number";
-}
-
-/**
- * Evaluate a where expression against a connection entity
- */
-function evaluateWhereExpression(
-  connection: ConnectionEntity,
-  where: WhereExpression,
-): boolean {
-  if ("conditions" in where) {
-    // Logical operator
-    const { operator, conditions } = where;
-    switch (operator) {
-      case "and":
-        return conditions.every((c) => evaluateWhereExpression(connection, c));
-      case "or":
-        return conditions.some((c) => evaluateWhereExpression(connection, c));
-      case "not":
-        return !conditions.every((c) => evaluateWhereExpression(connection, c));
-      default:
-        return true;
-    }
-  }
-
-  // Comparison expression
-  const { field, operator, value } = where;
-  const fieldPath = field.join(".");
-  const fieldValue = getFieldValue(connection, fieldPath);
-
-  switch (operator) {
-    case "eq":
-      return fieldValue === value;
-    case "gt":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue > value
-      );
-    case "gte":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue >= value
-      );
-    case "lt":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue < value
-      );
-    case "lte":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue <= value
-      );
-    case "in":
-      return Array.isArray(value) && value.includes(fieldValue);
-    case "like":
-      if (typeof fieldValue !== "string" || typeof value !== "string") {
-        return false;
-      }
-      // Limit pattern length to prevent ReDoS
-      if (value.length > 100) return false;
-      // Convert SQL LIKE pattern to regex by tokenizing and escaping
-      const pattern = convertLikeToRegex(value);
-      return new RegExp(`^${pattern}$`, "i").test(fieldValue);
-    case "contains":
-      if (typeof fieldValue !== "string" || typeof value !== "string") {
-        return false;
-      }
-      return fieldValue.toLowerCase().includes(value.toLowerCase());
-    default:
-      return true;
-  }
-}
-
-/**
- * Get a field value from a connection, handling nested paths
- * Since ConnectionEntity now uses snake_case matching the entity schema, no mapping needed
- */
-function getFieldValue(
-  connection: ConnectionEntity,
-  fieldPath: string,
-): unknown {
-  const parts = fieldPath.split(".");
-  let value: unknown = connection;
-  for (const part of parts) {
-    if (value == null || typeof value !== "object") return undefined;
-    value = (value as Record<string, unknown>)[part];
-  }
-  return value;
-}
-
-/**
- * Apply orderBy expressions to sort connections
- */
-function applyOrderBy(
-  connections: ConnectionEntity[],
-  orderBy: OrderByExpression[],
-): ConnectionEntity[] {
-  return [...connections].sort((a, b) => {
-    for (const order of orderBy) {
-      const fieldPath = order.field.join(".");
-      const aValue = getFieldValue(a, fieldPath);
-      const bValue = getFieldValue(b, fieldPath);
-
-      let comparison = 0;
-
-      // Handle nulls
-      if (aValue == null && bValue == null) continue;
-      if (aValue == null) {
-        comparison = order.nulls === "first" ? -1 : 1;
-      } else if (bValue == null) {
-        comparison = order.nulls === "first" ? 1 : -1;
-      } else if (typeof aValue === "string" && typeof bValue === "string") {
-        comparison = aValue.localeCompare(bValue);
-      } else if (typeof aValue === "number" && typeof bValue === "number") {
-        comparison = aValue - bValue;
-      } else {
-        comparison = String(aValue).localeCompare(String(bValue));
-      }
-
-      if (comparison !== 0) {
-        return order.direction === "desc" ? -comparison : comparison;
-      }
-    }
-    return 0;
-  });
-}
 
 /**
  * Extended input schema with optional binding and include_virtual parameters
@@ -290,18 +129,18 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       ? createBindingChecker(bindingDefinition)
       : undefined;
 
-    // When binding filtering is needed, we must fetch all connections first
-    // (binding checks require live tool data that can't be done in SQL).
-    // Otherwise, push where/orderBy/pagination to the database.
+    // Always push where/orderBy to SQL to reduce the result set.
+    // Pagination can only go to SQL when there's no binding filter,
+    // since binding filtering happens in-memory and may remove rows.
     const needsBindingFilter = !!bindingChecker;
 
     const { items: connections, totalCount: sqlTotalCount } =
       await ctx.storage.connections.list(organization.id, {
         includeVirtual: input.include_virtual ?? false,
         slug: input.slug,
-        // Only push to SQL when we don't need to post-filter by binding
-        where: needsBindingFilter ? undefined : input.where,
-        orderBy: needsBindingFilter ? undefined : input.orderBy,
+        where: input.where,
+        orderBy: input.orderBy,
+        // Only push pagination to SQL when no post-filtering is needed
         limit: needsBindingFilter ? undefined : input.limit,
         offset: needsBindingFilter ? undefined : input.offset,
       });
@@ -364,40 +203,30 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       }
     }
 
-    // When binding filtering is active, all filtering must happen in-memory
-    // since we need to check tools from live MCP connections.
+    // Binding filter: SQL already handled where/orderBy, we just need to
+    // post-filter by binding (requires live tool data) and paginate.
     if (needsBindingFilter) {
-      let filteredConnections = await Promise.all(
-        connections.map(async (connection) => {
-          if (!connection.tools || connection.tools.length === 0) {
-            return null;
-          }
+      const filteredConnections = (
+        await Promise.all(
+          connections.map(async (connection) => {
+            if (!connection.tools || connection.tools.length === 0) {
+              return null;
+            }
 
-          const isValid = bindingChecker!.isImplementedBy(
-            connection.tools.map((t) => ({
-              name: t.name,
-              inputSchema: t.inputSchema as Record<string, unknown>,
-              outputSchema: t.outputSchema as
-                | Record<string, unknown>
-                | undefined,
-            })),
-          );
+            const isValid = bindingChecker!.isImplementedBy(
+              connection.tools.map((t) => ({
+                name: t.name,
+                inputSchema: t.inputSchema as Record<string, unknown>,
+                outputSchema: t.outputSchema as
+                  | Record<string, unknown>
+                  | undefined,
+              })),
+            );
 
-          return isValid ? connection : null;
-        }),
-      ).then((results) =>
-        results.filter((c): c is ConnectionEntity => c !== null),
-      );
-
-      // Apply where/orderBy/pagination in-memory (binding path only)
-      if (input.where) {
-        filteredConnections = filteredConnections.filter((conn) =>
-          evaluateWhereExpression(conn, input.where!),
-        );
-      }
-      if (input.orderBy && input.orderBy.length > 0) {
-        filteredConnections = applyOrderBy(filteredConnections, input.orderBy);
-      }
+            return isValid ? connection : null;
+          }),
+        )
+      ).filter((c): c is ConnectionEntity => c !== null);
 
       const totalCount = filteredConnections.length;
       const offset = input.offset ?? 0;
