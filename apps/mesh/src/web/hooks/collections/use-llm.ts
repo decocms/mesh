@@ -30,14 +30,14 @@ export type LLM = z.infer<typeof ModelCollectionEntitySchema>;
 export type UseLLMsOptions = UseCollectionListOptions<LLM>;
 
 export function useAiProviders() {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.aiProviders(locator),
+    queryKey: KEYS.aiProviders(org.id),
     staleTime: Infinity,
     queryFn: async () => {
       const result = (await client.callTool({
@@ -53,14 +53,14 @@ export function useAiProviders() {
 }
 
 export function useAiProviderKeyList() {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.aiProviderKeys(locator),
+    queryKey: KEYS.aiProviderKeys(org.id),
     staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({
@@ -76,14 +76,14 @@ export function useAiProviderKeyList() {
 }
 
 export function useAiProviderModels(keyId: string | undefined) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: KEYS.aiProviderModels(locator, keyId ?? ""),
+    queryKey: KEYS.aiProviderModels(org.id, keyId ?? ""),
     enabled: !!keyId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -100,14 +100,14 @@ export function useAiProviderModels(keyId: string | undefined) {
 }
 
 export function useSuspenseAiProviderModels(keyId: string) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
   const { data } = useSuspenseQuery({
-    queryKey: KEYS.aiProviderModels(locator, keyId),
+    queryKey: KEYS.aiProviderModels(org.id, keyId),
     staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({

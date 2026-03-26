@@ -9,7 +9,7 @@
 
 import { Page } from "@/web/components/page";
 
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useChatPanel } from "@/web/contexts/panel-context";
 import {
   LayoutLeft,
   Loading01,
@@ -202,7 +202,7 @@ function TasksPanelContent({
 }: {
   virtualMcpId?: string;
 }) {
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
   const agentCtx = useOptionalAgentContext();
   const [isPending, startTransition] = useTransition();

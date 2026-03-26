@@ -31,7 +31,7 @@ import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
 import { Suspense } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -169,7 +169,7 @@ export function GenericToolCallPart({
   const { selectedVirtualMcp, sendMessage, setAppContext, clearAppContext } =
     useChatStable();
   const { org } = useProjectContext();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 

@@ -3,7 +3,7 @@
  *
  * Combines:
  * 1. Entity fetch (useVirtualMCP) — Suspense-based
- * 2. ProjectContextProvider override (agent-scoped, isOrgAdmin: false)
+ * 2. ProjectContextProvider override (agent-scoped)
  * 3. AgentContext (URL-driven mainView, navigateToMain, navigateToTask)
  *
  * Rendered conditionally in ShellLayoutInner — only on agent routes.
@@ -13,7 +13,6 @@
 import { Suspense, type ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
 import {
-  ProjectContextProvider,
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
@@ -21,7 +20,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { EmptyState } from "@/web/components/empty-state";
 import { AlertCircle } from "@untitledui/icons";
-import { mapVirtualMcpToProject } from "@/web/lib/map-virtual-mcp-to-project";
 import {
   AgentContext,
   type MainView,
@@ -79,9 +77,6 @@ function VirtualMCPProviderContent({
       </div>
     );
   }
-
-  // Build project data from entity
-  const projectData = mapVirtualMcpToProject(entity, org.id);
 
   // --- AgentContext: URL-driven state ---
 
@@ -154,9 +149,7 @@ function VirtualMCPProviderContent({
   };
 
   return (
-    <ProjectContextProvider org={org} project={projectData}>
-      <AgentContext value={agentValue}>{children}</AgentContext>
-    </ProjectContextProvider>
+    <AgentContext value={agentValue}>{children}</AgentContext>
   );
 }
 

@@ -7,7 +7,6 @@ import { KEYS } from "@/web/lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
-  useIsOrgAdmin,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { ArrowRight, Users03 } from "@untitledui/icons";
@@ -93,7 +92,6 @@ function HomeEmptyState({
   onOpenContextPanel: () => void;
 }) {
   const { org } = useProjectContext();
-  const isOrgAdmin = useIsOrgAdmin();
   const { data: session } = authClient.useSession();
   const { selectedVirtualMcp } = useChat();
   const [importOpen, setImportOpen] = useState(false);
@@ -129,14 +127,12 @@ function HomeEmptyState({
               <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             </div>
           </div>
-          {isOrgAdmin && (
-            <div className="w-full max-w-[800px] mt-10 mx-auto">
-              <AgentsList />
-            </div>
-          )}
+          <div className="w-full max-w-[800px] mt-10 mx-auto">
+            <AgentsList />
+          </div>
         </div>
         <div className="w-full max-w-[500px] mx-auto flex flex-col gap-2 pb-6">
-          {isDecoUser && isOrgAdmin && (
+          {isDecoUser && (
             <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
           )}
         </div>

@@ -124,7 +124,7 @@ function ConnectApiKeyForm({
   onCancel: () => void;
   onSuccess: () => void;
 }) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -151,8 +151,8 @@ function ConnectApiKeyForm({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(locator) });
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(locator) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success("Key saved successfully");
       onSuccess();
     },
@@ -335,14 +335,14 @@ function TopUpForm({
 }
 
 function CreditsBalance({ providerId }: { providerId: string }) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: KEYS.aiProviderCredits(locator, providerId),
+    queryKey: KEYS.aiProviderCredits(org.id, providerId),
     staleTime: 60_000,
     queryFn: async () => {
       const result = (await client.callTool({
@@ -395,7 +395,7 @@ export function ProviderCard({
   provider: AiProvider;
   keys: AiProviderKey[];
 }) {
-  const { locator, org } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -419,10 +419,10 @@ export function ProviderCard({
     },
     onSuccess: (deletedKeyId) => {
       if (topUpKeyId === deletedKeyId) setTopUpKeyId(null);
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(locator) });
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(locator) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       queryClient.invalidateQueries({
-        queryKey: KEYS.aiProviderModels(locator, deletedKeyId),
+        queryKey: KEYS.aiProviderModels(org.id, deletedKeyId),
       });
       toast.success("Key deleted");
     },
@@ -454,8 +454,8 @@ export function ProviderCard({
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(locator) });
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(locator) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
       toast.success(`${provider.name} connected successfully`);
       setIsOAuthPending(false);
       setOauthStateToken(null);
@@ -488,10 +488,10 @@ export function ProviderCard({
         return;
       }
       queryClient.invalidateQueries({
-        queryKey: KEYS.aiProviderKeys(locator),
+        queryKey: KEYS.aiProviderKeys(org.id),
       });
       queryClient.invalidateQueries({
-        queryKey: KEYS.aiProviders(locator),
+        queryKey: KEYS.aiProviders(org.id),
       });
       toast.success("Claude Code activated");
     },

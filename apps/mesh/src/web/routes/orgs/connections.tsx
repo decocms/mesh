@@ -90,9 +90,9 @@ import {
   useMCPClient,
   useProjectContext,
   type ConnectionEntity,
+  useVirtualMCPs,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
-import { useAgents } from "@/web/hooks/use-agents";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -988,7 +988,7 @@ function OrgMcpsContent() {
   const [registryFilter, setRegistryFilter] = useState<string>("ALL");
 
   // Agents list (for Add to Agent dialog)
-  const agents = useAgents();
+  const agents = useVirtualMCPs();
 
   // Apply UI filters (VIRTUAL already excluded server-side)
   const filteredConnections = connections.filter((c) => {

@@ -57,6 +57,5 @@ export function mapVirtualMcpToProject(
             }> | null) ?? null,
         }
       : null,
-    isOrgAdmin: false,
   };
 }

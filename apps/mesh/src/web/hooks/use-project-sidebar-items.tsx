@@ -5,14 +5,14 @@ import type {
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home01, LayoutLeft } from "@untitledui/icons";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
+import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const [, setTasksOpen] = useDecoTasksOpen();
+  const [, setTasksOpen] = useTasksPanel();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 

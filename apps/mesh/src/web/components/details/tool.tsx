@@ -64,7 +64,7 @@ import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolAnnotationBadges } from "@/web/components/tools/tools-list.tsx";
 import { useChatStable } from "@/web/components/chat/context.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
 export interface ToolDetailsViewProps {
@@ -200,7 +200,7 @@ function ToolDetailsAuthenticated({
   const { org } = useProjectContext();
   const connection = useConnection(connectionId);
   const { sendMessage, setAppContext, clearAppContext } = useChatStable();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
   const sourceId = `${connectionId}:${toolName}`;
 
   const client = useMCPClient({

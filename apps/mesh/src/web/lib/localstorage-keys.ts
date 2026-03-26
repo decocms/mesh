@@ -10,7 +10,6 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:assistant-chat:tasks:${locator}`,
   messages: (locator: ProjectLocator, taskId: string) =>
     `mesh:messages:${locator}:${taskId}`,
-  decoChatOpen: () => `mesh:decochat:open`,
   chatSelectedModel: (locator: ProjectLocator) =>
     `mesh:chat:selectedModel:${locator}`,
   chatSelectedMode: (locator: ProjectLocator) =>
@@ -19,8 +18,6 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:selectedKeyId:${locator}`,
   assistantChatActiveTask: (locator: ProjectLocator) =>
     `mesh:assistant-chat:active-task:${locator}`,
-  decoTasksOpen: () => `mesh:decotasks:open`,
-  decoMainOpen: () => `mesh:decomain:open`,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
   decoTasksPanelWidth: () => `mesh:decotasks:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,

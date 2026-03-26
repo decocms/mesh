@@ -13,7 +13,7 @@ import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri, MCP_APP_DISPLAY_MODES } from "@/mcp-apps/types.ts";
 import { useChatStable } from "@/web/components/chat/context.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { Page } from "@/web/components/page/index.tsx";
 
 const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
@@ -35,7 +35,7 @@ function AppRenderer({
   connectionId: string;
 }) {
   const { sendMessage, setAppContext, clearAppContext } = useChatStable();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
   const sourceId = `${connectionId}:${tool.name}`;
   const { data: toolResult } = useMCPToolCall({
     client,

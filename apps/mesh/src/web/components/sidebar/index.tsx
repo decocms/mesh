@@ -1,6 +1,5 @@
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { useProjectSidebarItems } from "@/web/hooks/use-project-sidebar-items";
-import { useIsOrgAdmin } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
 import { MobileNavigationSidebar } from "./navigation-mobile";
@@ -16,33 +15,22 @@ export type {
   Invitation,
 } from "./types";
 
-/**
- * Sidebar content that reads from the current ProjectContext.
- * Always renders org-level sidebar items.
- */
-function SidebarContent() {
+export function MeshSidebar() {
   const sidebarSections = useProjectSidebarItems();
-  const isOrgAdmin = useIsOrgAdmin();
 
   return (
     <NavigationSidebar
       sections={sidebarSections}
       footer={<SidebarInboxFooter />}
       additionalContent={
-        isOrgAdmin ? (
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              <SidebarAgentsSection />
-            </Suspense>
-          </ErrorBoundary>
-        ) : null
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <SidebarAgentsSection />
+          </Suspense>
+        </ErrorBoundary>
       }
     />
   );
-}
-
-export function MeshSidebar() {
-  return <SidebarContent />;
 }
 
 /**
@@ -51,7 +39,6 @@ export function MeshSidebar() {
  */
 export function MeshSidebarMobile({ onClose }: { onClose: () => void }) {
   const sidebarSections = useProjectSidebarItems();
-  const isOrgAdmin = useIsOrgAdmin();
 
   return (
     <MobileNavigationSidebar
@@ -59,13 +46,11 @@ export function MeshSidebarMobile({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       footer={<SidebarInboxFooterMobile onClose={onClose} />}
       additionalContent={
-        isOrgAdmin ? (
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              <SidebarAgentsSection />
-            </Suspense>
-          </ErrorBoundary>
-        ) : null
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <SidebarAgentsSection />
+          </Suspense>
+        </ErrorBoundary>
       }
     />
   );

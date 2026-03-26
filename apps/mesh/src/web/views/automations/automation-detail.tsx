@@ -24,7 +24,7 @@ import {
   useAutomationTriggerAdd,
 } from "@/web/hooks/use-automations";
 import { useChat } from "@/web/components/chat/index";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { useChatPanel } from "@/web/contexts/panel-context";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import {
   AlertDialog,
@@ -126,7 +126,7 @@ export function SettingsTab({
     credentialId: chatCredentialId,
     model: chatModel,
   } = useChat();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
   const [preferences, setPreferences] = usePreferences();
   const sendToChat = useSendToChat();
 

@@ -241,18 +241,18 @@ export const KEYS = {
     ["project-connections", projectId, "details", connectionIds] as const,
 
   // AI providers (static registry — staleTime: Infinity recommended)
-  aiProviders: (locator: string) => ["ai-providers", locator] as const,
+  aiProviders: (orgId: string) => ["ai-providers", orgId] as const,
 
   // AI provider models (scoped by keyId)
-  aiProviderModels: (locator: string, keyId: string) =>
-    ["ai-provider-models", locator, keyId] as const,
+  aiProviderModels: (orgId: string, keyId: string) =>
+    ["ai-provider-models", orgId, keyId] as const,
 
-  // AI provider stored keys (scoped by locator)
-  aiProviderKeys: (locator: string) => ["ai-provider-keys", locator] as const,
+  // AI provider stored keys (scoped by org)
+  aiProviderKeys: (orgId: string) => ["ai-provider-keys", orgId] as const,
 
-  // AI provider credits balance (scoped by locator + keyId)
-  aiProviderCredits: (locator: string, keyId: string) =>
-    ["ai-provider-credits", locator, keyId] as const,
+  // AI provider credits balance (scoped by org + keyId)
+  aiProviderCredits: (orgId: string, keyId: string) =>
+    ["ai-provider-credits", orgId, keyId] as const,
 
   // Organization SSO
   orgSsoConfig: (organizationId: string) =>
