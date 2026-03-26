@@ -27,11 +27,7 @@ import { enableFetchInstrumentation } from "./instrumentations/fetch";
 import { NDJSONLogExporter } from "../monitoring/ndjson-log-exporter";
 import { NDJSONMetricExporter } from "../monitoring/ndjson-metric-exporter";
 import { NDJSONTraceExporter } from "../monitoring/ndjson-trace-exporter";
-import {
-  DEFAULT_LOGS_DIR,
-  DEFAULT_METRICS_DIR,
-  DEFAULT_TRACES_DIR,
-} from "../monitoring/schema";
+import { getLogsDir, getMetricsDir, getTracesDir } from "../monitoring/schema";
 import { getSettings } from "../settings";
 
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
@@ -213,17 +209,17 @@ const traceExporter = _settings.clickhouseUrl
 const monitoringLogExporter =
   _settings.nodeEnv === "test"
     ? null
-    : new NDJSONLogExporter({ basePath: DEFAULT_LOGS_DIR });
+    : new NDJSONLogExporter({ basePath: getLogsDir() });
 
 const monitoringTraceExporter =
   _settings.nodeEnv === "test"
     ? null
-    : new NDJSONTraceExporter({ basePath: DEFAULT_TRACES_DIR });
+    : new NDJSONTraceExporter({ basePath: getTracesDir() });
 
 const monitoringMetricExporter =
   _settings.nodeEnv === "test"
     ? null
-    : new NDJSONMetricExporter({ basePath: DEFAULT_METRICS_DIR });
+    : new NDJSONMetricExporter({ basePath: getMetricsDir() });
 
 const monitoringMetricReader = monitoringMetricExporter
   ? new PeriodicExportingMetricReader({

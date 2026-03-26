@@ -75,11 +75,7 @@ import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
 import { SqlThreadStorage } from "../storage/threads";
 import type { Thread } from "../storage/types";
 import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
-import {
-  DEFAULT_LOGS_DIR,
-  DEFAULT_TRACES_DIR,
-  DEFAULT_METRICS_DIR,
-} from "../monitoring/schema";
+import { getLogsDir, getTracesDir, getMetricsDir } from "../monitoring/schema";
 import {
   AutomationCronWorker,
   AutomationJobStream,
@@ -1013,11 +1009,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   }, 10_000); // 10s grace for rolling deploys
 
   // NDJSON monitoring retention cleanup (always — local files are always written)
-  const SIGNAL_DIRS = [
-    DEFAULT_LOGS_DIR,
-    DEFAULT_TRACES_DIR,
-    DEFAULT_METRICS_DIR,
-  ];
+  const SIGNAL_DIRS = [getLogsDir(), getTracesDir(), getMetricsDir()];
 
   for (const dir of SIGNAL_DIRS) {
     cleanupOldMonitoringFiles(dir)

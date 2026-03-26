@@ -14,10 +14,18 @@ export const MONITORING_SPAN_NAME = "mcp.proxy.callTool";
 /** Default base paths for monitoring NDJSON files. */
 import { join } from "node:path";
 import { getSettings } from "../settings";
-export const DATA_DIR = getSettings().dataDir;
-export const DEFAULT_LOGS_DIR = join(DATA_DIR, "logs");
-export const DEFAULT_TRACES_DIR = join(DATA_DIR, "traces");
-export const DEFAULT_METRICS_DIR = join(DATA_DIR, "metrics");
+export function getDataDir(): string {
+  return getSettings().dataDir;
+}
+export function getLogsDir(): string {
+  return join(getSettings().dataDir, "logs");
+}
+export function getTracesDir(): string {
+  return join(getSettings().dataDir, "traces");
+}
+export function getMetricsDir(): string {
+  return join(getSettings().dataDir, "metrics");
+}
 
 /**
  * A single monitoring row written to NDJSON and read by ClickHouse.

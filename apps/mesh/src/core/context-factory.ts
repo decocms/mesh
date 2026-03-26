@@ -24,7 +24,7 @@ import {
 import { createMonitoringEngine } from "../monitoring/query-engine";
 import { ClickHouseClientEngine } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
-import { DEFAULT_LOGS_DIR, DEFAULT_METRICS_DIR } from "../monitoring/schema";
+import { getLogsDir, getMetricsDir } from "../monitoring/schema";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
@@ -782,18 +782,18 @@ export async function createMeshContextFactory(
     metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {
     const { engine: me } = await createMonitoringEngine({
-      basePath: DEFAULT_LOGS_DIR,
+      basePath: getLogsDir(),
     });
     const { engine: metricE } = await createMonitoringEngine({
-      basePath: DEFAULT_METRICS_DIR,
+      basePath: getMetricsDir(),
     });
     monitoringEngine = me;
     metricEngine = metricE;
   }
 
   const { resolve } = await import("node:path");
-  const logsBasePath = resolve(DEFAULT_LOGS_DIR);
-  const metricsBasePath = resolve(DEFAULT_METRICS_DIR);
+  const logsBasePath = resolve(getLogsDir());
+  const metricsBasePath = resolve(getMetricsDir());
 
   const logSourceFactory = isClickHouse
     ? (_orgId: string) => "monitoring_logs"
