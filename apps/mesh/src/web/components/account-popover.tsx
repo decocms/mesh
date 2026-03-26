@@ -13,7 +13,6 @@ import {
   Globe01,
   LogOut01,
   Plus,
-  Settings01,
   Shield01,
   Users03,
 } from "@untitledui/icons";
@@ -149,19 +148,6 @@ export function AccountPopover() {
   const close = () => setOpen(false);
 
   const menuItems: MenuItem[] = [
-    {
-      key: "settings",
-      label: "Settings",
-      icon: <Settings01 size={16} />,
-      onClick: () => {
-        if (orgParam) {
-          navigate({
-            to: "/$org/settings",
-            params: { org: orgParam },
-          });
-        }
-      },
-    },
     {
       key: "terms",
       label: "Terms of Use",

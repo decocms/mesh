@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Chat, useChat } from "@/web/components/chat/index";
+import { Chat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
@@ -33,7 +33,6 @@ import {
   Browser,
   ChevronLeft,
   ChevronRight,
-  Edit05,
   LayoutLeft,
   MessageTextCircle02,
 } from "@untitledui/icons";
@@ -232,7 +231,6 @@ function ShellLayoutInner({
   const [mainOpen, setMainOpen] = useDecoMainOpen();
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
-  const { createTask } = useChat();
 
   // Extract virtualMcpId from route for space context
   const spacesMatch = useMatch({
@@ -353,36 +351,6 @@ function ShellLayoutInner({
         {!isMobile && (
           <div className="shrink-0 flex items-center justify-between px-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
-              {showThreePanels && (
-                <button
-                  type="button"
-                  onClick={toggleTasks}
-                  aria-pressed={tasksOpen}
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    tasksOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle tasks"
-                >
-                  <LayoutLeft size={16} />
-                </button>
-              )}
-              {showThreePanels && !tasksOpen && (
-                <button
-                  type="button"
-                  onClick={createTask}
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    "animate-in fade-in-0 zoom-in-75 duration-150",
-                    "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="New task"
-                >
-                  <Edit05 size={16} />
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => window.history.back()}
@@ -579,6 +547,11 @@ function ShellLayoutContent() {
     `/${org}/settings`,
   );
 
+  // Extract virtualMcpId from space route for ChatProvider init
+  const spaceVirtualMcpId = isSpaceRoute
+    ? routerState.location.pathname.split("/spaces/")[1]?.split("/")[0]
+    : undefined;
+
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
     queryFn: async () => {
@@ -651,7 +624,7 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <Chat.Provider>
+          <Chat.Provider virtualMcpId={spaceVirtualMcpId}>
             <ShellLayoutInner
               isSpaceRoute={isSpaceRoute}
               isOrgHome={isOrgHome}

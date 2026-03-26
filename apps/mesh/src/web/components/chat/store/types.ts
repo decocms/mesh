@@ -35,7 +35,7 @@ export interface ChatStoreState {
   // Selections (persisted to localStorage)
   selectedModel: AiProviderModel | null;
   isModelsLoading: boolean;
-  selectedAgent: VirtualMCPInfo | null;
+  selectedVirtualMcp: VirtualMCPInfo | null;
   credentialId: string | null;
 
   // All available agents and model connections
@@ -65,7 +65,7 @@ export interface SendMessageParams {
   parts?: ChatMessage["parts"];
   threadId?: string;
   model?: AiProviderModel;
-  agent?: VirtualMCPInfo | null;
+  virtualMcp?: VirtualMCPInfo | null;
   toolApprovalLevel?: ToolApprovalLevel;
 }
 

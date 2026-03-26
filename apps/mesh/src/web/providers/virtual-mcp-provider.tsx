@@ -5,10 +5,9 @@
  * 1. Entity fetch (useVirtualMCP) — Suspense-based
  * 2. ProjectContextProvider override (space-scoped, isOrgAdmin: false)
  * 3. SpaceContext (URL-driven mainView, navigateToMain, navigateToTask)
- * 4. Chat agent sync (setVirtualMcpId on mount/unmount)
  *
  * Rendered conditionally in ShellLayoutInner — only on space routes.
- * Chat.Provider sits ABOVE this provider to keep chat store stable.
+ * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
 import { Suspense, useEffect, type ReactNode } from "react";
@@ -51,23 +50,6 @@ function VirtualMCPProviderContent({
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
-
-  // Select this virtual MCP in the chat store directly from the
-  // Suspense-resolved entity — no pending mechanism needed.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (entity) {
-      chatStore.setAgent({
-        id: entity.id,
-        title: entity.title,
-        description: entity.description,
-        icon: entity.icon,
-      });
-    }
-    return () => {
-      chatStore.setAgent(null);
-    };
-  }, [virtualMcpId]);
 
   // Not found
   if (!entity) {

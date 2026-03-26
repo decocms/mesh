@@ -126,16 +126,9 @@ function ConnectionItem({
   const connection = useConnection(connection_id);
   const { org } = useProjectContext();
 
-  // Find sibling instances (same app_name) using server-side filter
-  const appName = connection?.app_name;
-  const siblings = useConnections(
-    appName ? { filters: [{ column: "app_name", value: appName }] } : {},
-  );
-
   if (!connection) return null;
 
   const slug = getConnectionSlug(connection);
-  const hasMultipleInstances = siblings.length > 1;
 
   return (
     <Suspense
@@ -149,7 +142,7 @@ function ConnectionItem({
         connectionType={connection.connection_type}
         slug={slug}
         orgSlug={org.slug}
-        siblings={hasMultipleInstances ? siblings : []}
+        appName={connection.app_name}
         selected_tools={selected_tools}
         selected_resources={selected_resources}
         selected_prompts={selected_prompts}
@@ -170,7 +163,7 @@ function ConnectionItemWithAuth({
   connectionType,
   slug,
   orgSlug,
-  siblings,
+  appName,
   selected_tools,
   selected_resources,
   selected_prompts,
@@ -186,7 +179,7 @@ function ConnectionItemWithAuth({
   connectionType: string;
   slug: string;
   orgSlug: string;
-  siblings: Array<{ id: string; title: string }>;
+  appName?: string | null;
   selected_tools: string[] | null;
   selected_resources: string[] | null;
   selected_prompts: string[] | null;
@@ -195,6 +188,12 @@ function ConnectionItemWithAuth({
   onAuthenticate: (connectionId: string) => void;
   onSwitchInstance: (oldId: string, newId: string) => void;
 }) {
+  // Find sibling instances (same app_name) — always filter to avoid unfiltered fetch
+  const siblingsFromQuery = useConnections({
+    filters: [{ column: "app_name", value: appName ?? "" }],
+  });
+  const siblings =
+    appName && siblingsFromQuery.length > 1 ? siblingsFromQuery : [];
   const authStatus = useMCPAuthStatus({ connectionId: connection_id });
   const isVirtual = connectionType === "VIRTUAL";
   const needsAuth =
@@ -791,7 +790,7 @@ function VirtualMcpDetailViewWithData({
           text: `/writing-prompts ${virtualMcp.id}\n\n<instructions>\n${currentInstructions}\n</instructions>`,
         },
       ],
-      agent: {
+      virtualMcp: {
         id: getDecopilotId(org.id),
         title: "Decopilot",
         description: null,
@@ -806,7 +805,7 @@ function VirtualMcpDetailViewWithData({
 
   const handleTestAgent = () => {
     setChatOpen(true);
-    chatStore.setAgent({
+    chatStore.setSelectedVirtualMcp({
       id: virtualMcp.id,
       title: virtualMcp.title,
       description: virtualMcp.description,

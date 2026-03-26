@@ -25,12 +25,10 @@ import {
   readOwnerFilter,
   readSelectedKeyId,
   readSelectedModel,
-  readSelectedVirtualMcpId,
   writeActiveThreadId,
   writeOwnerFilter,
   writeSelectedKeyId,
   writeSelectedModel,
-  writeSelectedVirtualMcpId,
   pushRecentAgentId,
 } from "./local-storage";
 import type {
@@ -131,7 +129,7 @@ class ChatStore {
       isFilterChangePending: false,
       selectedModel: null,
       isModelsLoading: false,
-      selectedAgent: null,
+      selectedVirtualMcp: null,
       credentialId: null,
       virtualMcps: [],
       allModelsConnections: [] as ReturnType<typeof useAiProviderKeyList>,
@@ -182,14 +180,25 @@ class ChatStore {
     org: { id: string; slug: string };
     locator: ProjectLocator;
     user: { name: string; image?: string } | null;
+    virtualMcpId?: string;
   }): void {
-    const { org, locator, user } = ctx;
+    const { org, locator, user, virtualMcpId } = ctx;
 
     const storedModel = readSelectedModel(locator);
     const storedKeyId = readSelectedKeyId(locator);
-    const storedVirtualMcpId = readSelectedVirtualMcpId(locator);
     const storedActiveThreadId = readActiveThreadId(locator);
     const storedOwnerFilter = readOwnerFilter(locator);
+
+    // Resolve selectedVirtualMcp from the route id if available.
+    // The full entity data will be refreshed by setVirtualMcps once the list loads.
+    const selectedVirtualMcp = virtualMcpId
+      ? (this.state.virtualMcps.find((v) => v.id === virtualMcpId) ?? {
+          id: virtualMcpId,
+          title: "",
+          description: null,
+          icon: null,
+        })
+      : null;
 
     this.state = {
       ...this.defaultState(),
@@ -200,18 +209,11 @@ class ChatStore {
       selectedModel: storedModel,
       credentialId: storedKeyId,
       ownerFilter: storedOwnerFilter,
-      // selectedAgent is resolved when VirtualMCPProvider mounts (Suspense)
-      // or when setVirtualMcps refreshes it from the list.
-      selectedAgent: null,
+      selectedVirtualMcp,
     };
-
-    // Store the localStorage virtual MCP id so setVirtualMcps can resolve it.
-    this._storedVirtualMcpId = storedVirtualMcpId;
 
     this.notify();
   }
-
-  private _storedVirtualMcpId: string | null = null;
 
   reset(): void {
     this.chatBridge = null;
@@ -448,11 +450,10 @@ class ChatStore {
     this.notify();
   }
 
-  setAgent(agent: VirtualMCPInfo | null): void {
-    this.state = { ...this.state, selectedAgent: agent };
-    writeSelectedVirtualMcpId(this.state.locator, agent?.id ?? null);
-    if (agent?.id) {
-      pushRecentAgentId(this.state.locator, agent.id);
+  setSelectedVirtualMcp(virtualMcp: VirtualMCPInfo | null): void {
+    this.state = { ...this.state, selectedVirtualMcp: virtualMcp };
+    if (virtualMcp?.id) {
+      pushRecentAgentId(this.state.locator, virtualMcp.id);
     }
     this.notify();
   }
@@ -464,20 +465,13 @@ class ChatStore {
   }
 
   setVirtualMcps(virtualMcps: VirtualMCPInfo[]): void {
-    let selectedAgent = this.state.selectedAgent;
+    // Refresh selectedVirtualMcp with latest data (e.g. icon/title changes)
+    const current = this.state.selectedVirtualMcp;
+    const selectedVirtualMcp = current
+      ? (virtualMcps.find((v) => v.id === current.id) ?? current)
+      : null;
 
-    // On first load, resolve the localStorage-stored virtual MCP id.
-    // On subsequent calls, refresh selectedAgent with latest data.
-    if (this._storedVirtualMcpId && !selectedAgent) {
-      selectedAgent =
-        virtualMcps.find((v) => v.id === this._storedVirtualMcpId) ?? null;
-      this._storedVirtualMcpId = null;
-    } else if (selectedAgent) {
-      selectedAgent =
-        virtualMcps.find((v) => v.id === selectedAgent!.id) ?? selectedAgent;
-    }
-
-    this.state = { ...this.state, virtualMcps, selectedAgent };
+    this.state = { ...this.state, virtualMcps, selectedVirtualMcp };
     this.notify();
   }
 
@@ -552,7 +546,8 @@ class ChatStore {
 
     // Apply overrides
     if (params.model) this.setModel(params.model);
-    if (params.agent !== undefined) this.setAgent(params.agent);
+    if (params.virtualMcp !== undefined)
+      this.setSelectedVirtualMcp(params.virtualMcp);
     // Use a one-shot override so automation-level approval doesn't leak into later messages
     this._toolApprovalOverride = params.toolApprovalLevel;
 
@@ -568,11 +563,11 @@ class ChatStore {
     this.notify();
 
     const decopilotId = getWellKnownDecopilotVirtualMCP(this.state.org.id).id;
-    const selectedAgent = this.state.selectedAgent;
+    const selectedVirtualMcp = this.state.selectedVirtualMcp;
     const effectiveKeyId = this.state.credentialId;
 
     // Optimistically ensure the selected agent appears in agent_ids
-    const effectiveAgentId = selectedAgent?.id ?? decopilotId;
+    const effectiveAgentId = selectedVirtualMcp?.id ?? decopilotId;
     this.addAgentToTaskFn?.(this.state.activeThreadId, effectiveAgentId);
 
     // Determine effective tool approval level for metadata persistence
@@ -584,7 +579,7 @@ class ChatStore {
       created_at: new Date().toISOString(),
       thread_id: this.state.activeThreadId,
       agent: {
-        id: selectedAgent?.id ?? decopilotId,
+        id: selectedVirtualMcp?.id ?? decopilotId,
       },
       user: {
         avatar: this.state.user?.image ?? undefined,

@@ -12,8 +12,15 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@deco/ui/components/select.tsx";
-import { Bell01, Code01, Shield01 } from "@untitledui/icons";
-import { usePreferences } from "@/web/hooks/use-preferences.ts";
+import {
+  Bell01,
+  Code01,
+  Monitor01,
+  Moon01,
+  Shield01,
+  Sun,
+} from "@untitledui/icons";
+import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 
 function SettingRow({
@@ -97,6 +104,52 @@ export function AccountPreferencesPage() {
       </Page.Header>
       <Page.Content>
         <div className="flex flex-col">
+          <SettingRow
+            icon={<Sun size={16} />}
+            label="Theme"
+            description="Choose between light, dark, or system theme."
+            control={
+              <Select
+                value={preferences.theme}
+                onValueChange={(value) =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    theme: value as ThemeMode,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-36">
+                  <span>
+                    {
+                      { light: "Light", dark: "Dark", system: "System" }[
+                        preferences.theme
+                      ]
+                    }
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light" textValue="Light">
+                    <div className="flex items-center gap-2">
+                      <Sun size={14} />
+                      <span>Light</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dark" textValue="Dark">
+                    <div className="flex items-center gap-2">
+                      <Moon01 size={14} />
+                      <span>Dark</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="system" textValue="System">
+                    <div className="flex items-center gap-2">
+                      <Monitor01 size={14} />
+                      <span>System</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            }
+          />
           <SettingRow
             icon={<Code01 size={16} />}
             label="Developer Mode"

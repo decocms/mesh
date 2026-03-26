@@ -166,7 +166,7 @@ export function SettingsTab({
           text: `/writing-prompts for automation with id ${automationId}. The current message is\n\n<message>\n${instructionsText}\n</message>`,
         },
       ],
-      agent: {
+      virtualMcp: {
         id: getDecopilotId(org.id),
         title: "Decopilot",
         description: null,

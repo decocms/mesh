@@ -222,7 +222,9 @@ function ReactSyncer() {
   );
 
   // Context prompt
-  const storedVirtualMcpId = useChatStore((s) => s.selectedAgent?.id ?? null);
+  const storedVirtualMcpId = useChatStore(
+    (s) => s.selectedVirtualMcp?.id ?? null,
+  );
   const contextPrompt = useContextHook(storedVirtualMcpId);
 
   // Sync into store after render to avoid "cannot update component
@@ -254,7 +256,10 @@ function ReactSyncer() {
 // ChatProvider
 // ============================================================================
 
-export function ChatProvider({ children }: PropsWithChildren) {
+export function ChatProvider({
+  children,
+  virtualMcpId,
+}: PropsWithChildren<{ virtualMcpId?: string }>) {
   const { locator, org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const user = session?.user ?? null;
@@ -268,9 +273,17 @@ export function ChatProvider({ children }: PropsWithChildren) {
       org,
       locator,
       user: user ? { name: user.name, image: user.image ?? undefined } : null,
+      virtualMcpId,
     });
+
+    // On space routes, start a fresh thread via the task manager so the
+    // thread is properly registered in the cache (avoids unnecessary fetch).
+    if (virtualMcpId) {
+      chatStore.createThread();
+    }
+
     return () => chatStore.reset();
-  }, [locator]);
+  }, [locator, virtualMcpId]);
 
   const activeThreadId = useActiveThreadId();
 

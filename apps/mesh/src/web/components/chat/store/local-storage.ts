@@ -79,19 +79,6 @@ export function writeSelectedKeyId(
   writeJSON(LOCALSTORAGE_KEYS.chatSelectedKeyId(locator), keyId);
 }
 
-export function readSelectedVirtualMcpId(
-  locator: ProjectLocator,
-): string | null {
-  return readJSON<string>(`${locator}:selected-virtual-mcp-id`);
-}
-
-export function writeSelectedVirtualMcpId(
-  locator: ProjectLocator,
-  id: string | null,
-): void {
-  writeJSON(`${locator}:selected-virtual-mcp-id`, id);
-}
-
 const MAX_RECENT_AGENTS = 20;
 
 export function readRecentAgentIds(locator: ProjectLocator): string[] {

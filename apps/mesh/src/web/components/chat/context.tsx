@@ -111,7 +111,7 @@ export function useChatStable(): ChatStableValue {
     ownerFilter: state.ownerFilter,
     isFilterChangePending: state.isFilterChangePending,
     virtualMcps: state.virtualMcps,
-    selectedVirtualMcp: state.selectedAgent,
+    selectedVirtualMcp: state.selectedVirtualMcp,
     model: state.selectedModel,
     isModelsLoading: state.isModelsLoading,
     allModelsConnections: state.allModelsConnections,
@@ -147,9 +147,9 @@ export function useChatStable(): ChatStableValue {
       if (id) {
         const virtualMcps = chatStore.getSnapshot().virtualMcps;
         const agent = virtualMcps.find((v) => v.id === id) ?? null;
-        chatStore.setAgent(agent);
+        chatStore.setSelectedVirtualMcp(agent);
       } else {
-        chatStore.setAgent(null);
+        chatStore.setSelectedVirtualMcp(null);
       }
     },
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
