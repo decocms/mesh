@@ -1,4 +1,4 @@
-import { slugify } from "@/web/utils/slugify";
+import { slugify } from "@/shared/utils/slugify";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {

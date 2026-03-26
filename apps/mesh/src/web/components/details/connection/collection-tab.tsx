@@ -10,7 +10,7 @@ import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { BaseCollectionJsonSchema } from "@/web/utils/constants";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import {
   AlertDialog,
   AlertDialogAction,
