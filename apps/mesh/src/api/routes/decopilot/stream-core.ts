@@ -371,7 +371,7 @@ async function streamCoreInner(
           : await getBuiltInTools(
               writer,
               {
-                provider: provider!,
+                provider,
                 organization,
                 models: input.models,
                 toolApprovalLevel: input.toolApprovalLevel,
