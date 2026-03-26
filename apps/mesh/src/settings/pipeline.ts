@@ -13,7 +13,12 @@ import type { CliFlags, Settings } from "./types";
 import { resolveConfig } from "./resolve-config";
 import { setGlobalSettings } from "./index";
 
-export async function buildSettings(flags: CliFlags): Promise<Settings> {
+export interface BuildResult {
+  settings: Settings;
+  services: Array<{ name: string; port: number }>;
+}
+
+export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
   // 1. Snapshot env vars (Bun already loaded .env files)
   const envVars: Record<string, string | undefined> = { ...process.env };
 
@@ -22,7 +27,7 @@ export async function buildSettings(flags: CliFlags): Promise<Settings> {
 
   // 3. Start services if needed
   const { ensureServices } = await import("../services/ensure-services");
-  const { outputs: serviceOutputs } = await ensureServices({
+  const { outputs: serviceOutputs, services } = await ensureServices({
     home: config.settings.dataDir,
     externalDatabaseUrl: config.externalDatabaseUrl,
     externalNatsUrl: config.externalNatsUrl,
@@ -50,5 +55,11 @@ export async function buildSettings(flags: CliFlags): Promise<Settings> {
   };
 
   setGlobalSettings(settings);
-  return settings;
+  return {
+    settings,
+    services: services.map((s) => ({
+      name: s.name === "PostgreSQL" ? "Postgres" : s.name,
+      port: s.port,
+    })),
+  };
 }

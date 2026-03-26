@@ -89,7 +89,7 @@ export async function startDevServer(
 ): Promise<{ port: number; process: Subprocess }> {
   const { port, vitePort, baseUrl, noTui } = options;
 
-  const settings = await buildSettings({
+  const { settings, services } = await buildSettings({
     port: options.port,
     home: options.home,
     baseUrl: options.baseUrl,
@@ -99,6 +99,9 @@ export async function startDevServer(
     vitePort: options.vitePort,
   });
 
+  for (const s of services) {
+    updateService({ name: s.name, status: "ready", port: s.port });
+  }
   setMigrationsDone();
 
   // ── Spawn dev servers ─────────────────────────────────────────────

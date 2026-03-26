@@ -11,6 +11,7 @@ import {
   setMigrationsDone,
   setServerUrl,
   setTuiConsoleIntercepted,
+  updateService,
 } from "../cli-store";
 
 export interface ServeOptions {
@@ -73,7 +74,7 @@ export function interceptConsoleForTui() {
 }
 
 export async function startServer(options: ServeOptions): Promise<void> {
-  const settings = await buildSettings({
+  const { settings, services } = await buildSettings({
     port: options.port,
     home: options.home,
     localMode: options.localMode,
@@ -81,6 +82,9 @@ export async function startServer(options: ServeOptions): Promise<void> {
     noTui: options.noTui,
   });
 
+  for (const s of services) {
+    updateService({ name: s.name, status: "ready", port: s.port });
+  }
   setMigrationsDone();
 
   // Boot server — settings available via getSettings()
