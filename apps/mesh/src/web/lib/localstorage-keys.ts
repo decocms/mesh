@@ -37,4 +37,5 @@ export const LOCALSTORAGE_KEYS = {
   taskLastViewed: (locator: ProjectLocator) =>
     `mesh:chat:task-last-viewed:${locator}`,
   agentLastSeen: (orgId: string) => `mesh:agent:last-seen:${orgId}`,
+  agentLastUpdated: (orgId: string) => `mesh:agent:last-updated:${orgId}`,
 } as const;

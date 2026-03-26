@@ -641,6 +641,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
           description: null,
           status: "in_progress",
           trigger_id: triggerId,
+          virtual_mcp_id: automation.virtual_mcp_id ?? "",
           hidden: false,
           created_at: now,
           updated_at: now,

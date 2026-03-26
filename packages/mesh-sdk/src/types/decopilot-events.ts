@@ -66,7 +66,7 @@ export interface DecopilotFinishEvent extends BaseDecopilotEvent {
 
 export interface DecopilotThreadStatusEvent extends BaseDecopilotEvent {
   type: typeof DECOPILOT_EVENTS.THREAD_STATUS;
-  data: { status: ThreadStatus };
+  data: { status: ThreadStatus; virtual_mcp_id?: string };
 }
 
 export type DecopilotSSEEvent =
@@ -116,13 +116,17 @@ export function createDecopilotFinishEvent(
 export function createDecopilotThreadStatusEvent(
   taskId: string,
   status: ThreadStatus,
+  virtualMcpId?: string,
 ): DecopilotThreadStatusEvent {
   return {
     id: crypto.randomUUID(),
     type: DECOPILOT_EVENTS.THREAD_STATUS,
     source: "decopilot",
     subject: taskId,
-    data: { status },
+    data: {
+      status,
+      ...(virtualMcpId && { virtual_mcp_id: virtualMcpId }),
+    },
     time: new Date().toISOString(),
   };
 }

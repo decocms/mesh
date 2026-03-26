@@ -20,6 +20,7 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
     .object({
       created_by: z.string().optional(),
       trigger_ids: z.array(z.string()).optional(),
+      virtual_mcp_id: z.string().optional(),
     })
     .optional(),
 });
@@ -54,6 +55,7 @@ export const COLLECTION_THREADS_LIST = defineTool({
     const limit = input.limit ?? 100;
 
     const triggerIds = input.where?.trigger_ids;
+    const virtualMcpId = input.where?.virtual_mcp_id;
     // "me" is a reserved value meaning "filter by the authenticated user"
     const createdBy =
       input.where?.created_by === "me" ? userId : input.where?.created_by;
@@ -66,6 +68,7 @@ export const COLLECTION_THREADS_LIST = defineTool({
       : await ctx.storage.threads.list(createdBy, {
           limit,
           offset,
+          virtualMcpId,
         });
 
     const hasMore = offset + limit < total;

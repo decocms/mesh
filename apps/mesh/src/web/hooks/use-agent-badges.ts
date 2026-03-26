@@ -1,58 +1,70 @@
 import { useProjectContext } from "@decocms/mesh-sdk";
-import { useChatStore } from "@/web/components/chat/store/selectors";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import type { Task } from "@/web/components/chat/task/types";
+import { useDecopilotEvents } from "@/web/hooks/use-decopilot-events";
 
 /**
- * Pure function: compute which agents have unseen task updates.
+ * Pure function: compute which agents have unseen updates.
  * Exported for unit testing.
  */
 export function computeAgentBadges(
-  threads: Task[],
   agentIds: string[],
+  agentUpdatedMap: Record<string, string>,
   lastSeenMap: Record<string, string>,
 ): Record<string, boolean> {
   const badges: Record<string, boolean> = {};
   for (const agentId of agentIds) {
+    const lastUpdated = agentUpdatedMap[agentId];
     const lastSeen = lastSeenMap[agentId];
-    if (!lastSeen) {
+    if (!lastUpdated) {
       badges[agentId] = false;
       continue;
     }
-    badges[agentId] = threads.some(
-      (t) =>
-        !t.hidden && t.agent_ids?.includes(agentId) && t.updated_at > lastSeen,
-    );
+    badges[agentId] = !lastSeen || lastUpdated > lastSeen;
   }
   return badges;
 }
 
+/**
+ * SSE-driven agent badges.
+ *
+ * Listens to org-wide `decopilot.thread.status` events and records
+ * the latest update timestamp per agent in localStorage. No dependency
+ * on the thread list or ChatStore — works across all virtualMcpIds.
+ */
 export function useAgentBadges(agentIds: string[]): {
   badges: Record<string, boolean>;
   markSeen: (agentId: string) => void;
 } {
   const { org } = useProjectContext();
-  const threads = useChatStore((s) => s.threads);
+
+  const [agentUpdatedMap, setAgentUpdatedMap] = useLocalStorage<
+    Record<string, string>
+  >(LOCALSTORAGE_KEYS.agentLastUpdated(org.id), {});
+
   const [lastSeenMap, setLastSeenMap] = useLocalStorage<Record<string, string>>(
     LOCALSTORAGE_KEYS.agentLastSeen(org.id),
     {},
   );
 
-  const badges = computeAgentBadges(threads, agentIds, lastSeenMap);
+  useDecopilotEvents({
+    orgId: org.id,
+    onTaskStatus: (event) => {
+      const virtualMcpId = event.data.virtual_mcp_id;
+      if (!virtualMcpId) return;
+
+      setAgentUpdatedMap((prev) => {
+        if (prev[virtualMcpId] && event.time <= prev[virtualMcpId]) return prev;
+        return { ...prev, [virtualMcpId]: event.time };
+      });
+    },
+  });
+
+  const badges = computeAgentBadges(agentIds, agentUpdatedMap, lastSeenMap);
 
   const markSeen = (agentId: string) => {
-    let maxUpdatedAt: string | undefined;
-    for (const t of threads) {
-      if (!t.hidden && t.agent_ids?.includes(agentId)) {
-        if (!maxUpdatedAt || t.updated_at > maxUpdatedAt) {
-          maxUpdatedAt = t.updated_at;
-        }
-      }
-    }
-    if (maxUpdatedAt) {
-      setLastSeenMap((prev) => ({ ...prev, [agentId]: maxUpdatedAt }));
-    }
+    const now = new Date().toISOString();
+    setLastSeenMap((prev) => ({ ...prev, [agentId]: now }));
   };
 
   return { badges, markSeen };

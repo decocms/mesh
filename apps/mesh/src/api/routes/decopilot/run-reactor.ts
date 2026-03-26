@@ -54,6 +54,10 @@ async function handleTerminalStatus(
   deps: RunReactorDeps,
 ): Promise<void> {
   const { storage, streamBuffer, sseHub } = deps;
+  // Read thread to get virtual_mcp_id for SSE event
+  const thread = await storage.get(taskId, orgId);
+  const virtualMcpId = thread?.virtual_mcp_id ?? undefined;
+
   await storage.update(taskId, orgId, {
     status,
     run_owner_pod: null,
@@ -61,7 +65,10 @@ async function handleTerminalStatus(
     run_started_at: null,
   });
   streamBuffer.purge(taskId);
-  sseHub.emit(orgId, createDecopilotThreadStatusEvent(taskId, status));
+  sseHub.emit(
+    orgId,
+    createDecopilotThreadStatusEvent(taskId, status, virtualMcpId),
+  );
   sseHub.emit(orgId, createDecopilotFinishEvent(taskId, status));
 }
 
@@ -88,23 +95,35 @@ async function react(event: RunEvent, deps: RunReactorDeps): Promise<void> {
       if (!claimed) {
         throw new RunClaimError(event.taskId);
       }
+      // Read virtual_mcp_id for SSE event (thread exists at this point)
+      const startedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.taskId, "in_progress"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "in_progress",
+          startedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       return;
     }
 
-    case "RUN_RESUMED":
+    case "RUN_RESUMED": {
       await storage.update(event.taskId, event.orgId, {
         run_owner_pod: event.podId,
         run_started_at: new Date().toISOString(),
       });
+      const resumedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.taskId, "in_progress"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "in_progress",
+          resumedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       return;
+    }
 
     case "STEP_COMPLETED":
       sseHub.emit(
@@ -149,9 +168,14 @@ async function react(event: RunEvent, deps: RunReactorDeps): Promise<void> {
         });
       }
       streamBuffer.purge(event.taskId);
+      const failedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.taskId, "failed"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "failed",
+          failedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       sseHub.emit(
         event.orgId,
