@@ -2,8 +2,8 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AlertCircle, AlertTriangle, X } from "@untitledui/icons";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
-import { useChat } from "../context";
-import { chatStore } from "../store/chat-store";
+import { useChat, useChatTask } from "../context";
+import { useSendToChat } from "../hooks/use-send-to-chat";
 import { ApprovalHighlight, extractPendingApprovals } from "./approval";
 import { ProposePlanHighlight, extractPendingPlans } from "./propose-plan";
 import { UserAskQuestionHighlight } from "./user-ask-question";
@@ -134,6 +134,8 @@ export function ChatHighlight() {
     sendMessage,
   } = useChat();
   const [preferences, setPreferences] = usePreferences();
+  const { virtualMcpId } = useChatTask();
+  const sendToChat = useSendToChat();
 
   const lastMessage = messages.at(-1);
 
@@ -203,12 +205,12 @@ export function ChatHighlight() {
     // Set approval level to auto and persist
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
-    // Create a new thread and queue the plan as the initial message.
-    // createThreadAndSend() stores the message and drains it once
-    // ChatBridge re-registers with the fresh Chat instance, avoiding
-    // the race where sendMessage() would use the old bridge methods.
-    chatStore.createThreadAndSend({
-      parts: [{ type: "text", text: `Implement this plan:\n\n${planText}` }],
+    // Send plan to a new thread via sendToChat
+    sendToChat({
+      virtualMcpId,
+      message: {
+        parts: [{ type: "text", text: `Implement this plan:\n\n${planText}` }],
+      },
     });
   };
 

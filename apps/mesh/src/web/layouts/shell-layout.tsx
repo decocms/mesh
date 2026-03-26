@@ -212,7 +212,7 @@ function ShellLayoutInner({
 
   // Extract virtualMcpId from route for agent context
   const agentsMatch = useMatch({
-    from: "/shell/$org/agents/$virtualMcpId",
+    from: "/shell/$org/$virtualMcpId",
     shouldThrow: false,
   });
   const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
@@ -533,6 +533,10 @@ function ShellLayoutContent() {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const org = orgMatch?.params.org;
   const routerState = useRouterState();
+  const agentsMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
   const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -547,10 +551,9 @@ function ShellLayoutContent() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Check if we're on an agent route (/$org/agents/$id) but not settings
+  // Check if we're on an agent route (/$org/$virtualMcpId) but not settings
   const isAgentRoute =
-    routerState.location.pathname.startsWith(`/${org}/agents/`) &&
-    !routerState.location.pathname.includes("/settings");
+    !!agentsMatch && !routerState.location.pathname.includes("/settings");
 
   // Check if we're on the org home route (/$org or /$org/)
   const isOrgHome =
@@ -563,9 +566,7 @@ function ShellLayoutContent() {
   );
 
   // Extract virtualMcpId from agent route for ChatProvider init
-  const agentVirtualMcpId = isAgentRoute
-    ? routerState.location.pathname.split("/agents/")[1]?.split("/")[0]
-    : undefined;
+  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
 
   const { data: projectContext } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
@@ -640,8 +641,12 @@ function ShellLayoutContent() {
       <PersistentSidebarProvider>
         <div className="flex flex-col h-dvh overflow-hidden">
           <Chat.Provider
-            key={agentVirtualMcpId ?? "org"}
-            virtualMcpId={agentVirtualMcpId}
+            key={
+              agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id
+            }
+            virtualMcpId={
+              agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id
+            }
           >
             <ShellLayoutInner
               isAgentRoute={isAgentRoute}

@@ -62,7 +62,6 @@ import {
   ContextMenuTrigger,
 } from "@deco/ui/components/context-menu.tsx";
 import type { TaskOwnerFilter } from "./task";
-import { useChatStore } from "./store/selectors";
 import {
   useAutomationsList,
   useAutomationCreate,
@@ -215,11 +214,9 @@ function TaskRow({
 }) {
   const { setTaskStatus, hideTask } = useChatStable();
   const status = task.status;
-  const cachedMessages = useChatStore((s) => s.threadMessages[task.id]);
-  const taskVerb = getTaskVerb(task, cachedMessages);
+  const taskVerb = getTaskVerb(task, undefined);
 
-  const agentIds = task.agent_ids ?? [];
-  const firstAgentId = agentIds[0];
+  const firstAgentId = task.virtual_mcp_id;
   const primaryAgent =
     firstAgentId !== undefined
       ? (() => {
@@ -571,7 +568,9 @@ export function TaskListContent({
   // Compute needed agent IDs from tasks
   const agentIds = [
     ...new Set(
-      tasks.filter((t) => !t.hidden).flatMap((t) => t.agent_ids ?? []),
+      tasks
+        .filter((t) => !t.hidden && t.virtual_mcp_id)
+        .map((t) => t.virtual_mcp_id!),
     ),
   ];
 
@@ -606,11 +605,15 @@ export function TaskListContent({
   // When inside a space, show only tasks that involve this space's agent
   const spaceId = virtualMcpId ?? null;
   const spaceFiltered = spaceId
-    ? visible.filter((t) => t.agent_ids?.includes(spaceId))
+    ? visible.filter((t) => t.virtual_mcp_id === spaceId)
     : visible;
 
   const availableAgents = [
-    ...new Set(spaceFiltered.flatMap((t) => t.agent_ids ?? [])),
+    ...new Set(
+      spaceFiltered
+        .filter((t) => t.virtual_mcp_id)
+        .map((t) => t.virtual_mcp_id!),
+    ),
   ];
 
   // Intersect agentFilter with available agents to avoid stale filters hiding all tasks
@@ -632,8 +635,8 @@ export function TaskListContent({
     )
       return false;
     if (effectiveAgentFilter.size > 0) {
-      const taskAgents = task.agent_ids ?? [];
-      if (!taskAgents.some((id) => effectiveAgentFilter.has(id))) return false;
+      if (task.virtual_mcp_id && !effectiveAgentFilter.has(task.virtual_mcp_id))
+        return false;
     }
     return true;
   });

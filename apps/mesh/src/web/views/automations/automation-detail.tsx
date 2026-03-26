@@ -75,7 +75,7 @@ import {
   derivePartsFromTiptapDoc,
   tiptapDocToMessages,
 } from "@/web/components/chat/derive-parts.ts";
-import { chatStore } from "@/web/components/chat/store/chat-store";
+import { useSendToChat } from "@/web/components/chat/hooks/use-send-to-chat";
 
 // ============================================================================
 // Types
@@ -128,6 +128,7 @@ export function SettingsTab({
   } = useChat();
   const [, setChatOpen] = useDecoChatOpen();
   const [preferences, setPreferences] = usePreferences();
+  const sendToChat = useSendToChat();
 
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
@@ -162,18 +163,15 @@ export function SettingsTab({
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
-    chatStore.createThreadAndSend({
-      parts: [
-        {
-          type: "text",
-          text: `/writing-prompts for automation with id ${automationId}. The current message is\n\n<message>\n${instructionsText}\n</message>`,
-        },
-      ],
-      virtualMcp: {
-        id: getDecopilotId(org.id),
-        title: "Decopilot",
-        description: null,
-        icon: null,
+    sendToChat({
+      virtualMcpId: getDecopilotId(org.id),
+      message: {
+        parts: [
+          {
+            type: "text",
+            text: `/writing-prompts for automation with id ${automationId}. The current message is\n\n<message>\n${instructionsText}\n</message>`,
+          },
+        ],
       },
     });
   };

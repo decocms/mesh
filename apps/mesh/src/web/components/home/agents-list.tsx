@@ -23,7 +23,16 @@ import {
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
-import { readRecentAgentIds } from "@/web/components/chat/store/local-storage";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+
+function readRecentAgentIds(locator: ProjectLocator): string[] {
+  try {
+    const raw = localStorage.getItem(`mesh:chat:recent-agents:${locator}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
@@ -53,7 +62,7 @@ function AgentPreview({
       onSpecialClick();
     } else {
       navigate({
-        to: "/$org/agents/$virtualMcpId",
+        to: "/$org/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agent.id },
       });
     }

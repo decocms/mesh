@@ -1,212 +1,28 @@
 /**
- * Chat Context — compatibility layer over ChatStore.
+ * Chat Context — consumer hooks composing from 3 internal contexts.
  *
- * Provides useChat() and useChatStable() hooks that match the original API
- * while delegating all state to the singleton ChatStore.
+ * useChat() provides the full combined interface.
+ * useChatStable() is deprecated — identical to useChat().
  *
- * New code should import from ./store/selectors directly.
+ * For fine-grained subscriptions (avoid unnecessary re-renders), use:
+ *   useChatStream() — messages, status, streaming state
+ *   useChatTask() — tasks, navigation, virtualMcpId
+ *   useChatPrefs() — model selection, app contexts, tiptap
  */
 
-import type { McpUiUpdateModelContextRequest } from "@modelcontextprotocol/ext-apps";
-import { chatStore } from "./store/chat-store";
-import { useChatStore } from "./store/selectors";
-import type { AiProviderModel } from "../../hooks/collections/use-llm";
-import type { VirtualMCPInfo } from "./select-virtual-mcp";
-import type { Task, TaskOwnerFilter } from "./task";
-import type { ChatMessage, Metadata } from "./types";
-import { useOptionalAgentContext } from "@/web/contexts/agent-context";
-
-export { ChatProvider } from "./chat-provider";
-
-// ============================================================================
-// Stable value interface (matches original ChatStableValue)
-// ============================================================================
-
-interface ChatStableValue {
-  tiptapDocRef: { current: Metadata["tiptapDoc"] };
-  resetInteraction: () => void;
-
-  activeTaskId: string;
-  createTask: () => void;
-  switchToTask: (taskId: string) => Promise<void>;
-  renameTask: (taskId: string, title: string) => Promise<void>;
-  setTaskStatus: (taskId: string, status: string) => Promise<void>;
-  tasks: Task[];
-  hideTask: (taskId: string) => void;
-
-  hasNextPage?: boolean;
-  isFetchingNextPage?: boolean;
-  fetchNextPage?: () => void;
-
-  ownerFilter: TaskOwnerFilter;
-  setOwnerFilter: (filter: TaskOwnerFilter) => void;
-  isFilterChangePending: boolean;
-
-  virtualMcps: VirtualMCPInfo[];
-  selectedVirtualMcp: VirtualMCPInfo | null;
-  setVirtualMcpId: (virtualMcpId: string | null) => void;
-
-  model: AiProviderModel | null;
-  isModelsLoading: boolean;
-  setSelectedModel: (model: AiProviderModel) => void;
-  sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) => Promise<void>;
-  cancelRun: () => Promise<void>;
-  setAppContext: (
-    sourceId: string,
-    params: McpUiUpdateModelContextRequest["params"],
-  ) => void;
-  clearAppContext: (sourceId: string) => void;
-  allModelsConnections: ReturnType<
-    typeof import("../../hooks/collections/use-llm").useAiProviderKeyList
-  >;
-  credentialId: string | null;
-  setCredentialId: (credentialId: string | null) => void;
-}
-
-// ============================================================================
-// Stream value interface (matches original ChatStreamValue)
-// ============================================================================
-
-interface ChatStreamValue {
-  messages: ChatMessage[];
-  status: "ready" | "submitted" | "streaming" | "error";
-  setMessages: (messages: ChatMessage[]) => void;
-  error: Error | null;
-  clearError: () => void;
-  stop: () => Promise<void>;
-  addToolOutput: (...args: Parameters<typeof chatStore.addToolOutput>) => void;
-  addToolApprovalResponse: (
-    ...args: Parameters<typeof chatStore.addToolApprovalResponse>
-  ) => void;
-  isStreaming: boolean;
-  isChatEmpty: boolean;
-  finishReason: string | null;
-  clearFinishReason: () => void;
-  isWaitingForApprovals: boolean;
-  isRunInProgress: boolean;
-}
-
-type ChatContextValue = ChatStableValue & ChatStreamValue;
-
-// ============================================================================
-// Hooks
-// ============================================================================
+export {
+  ChatContextProvider,
+  useChatContext as useChat,
+  useChatStream,
+  useChatTask,
+  useChatPrefs,
+  type ChatContextValue,
+  type ChatStreamContextValue,
+  type ChatTaskContextValue,
+  type ChatPrefsContextValue,
+} from "./chat-context";
 
 /**
- * Stable chat values (model, mode, tasks, virtual MCP, actions).
+ * @deprecated Use useChat() instead. This is an identical re-export.
  */
-export function useChatStable(): ChatStableValue {
-  const agentCtx = useOptionalAgentContext();
-
-  const s = useChatStore((state) => ({
-    activeTaskId: state.activeThreadId,
-    tasks: state.threads,
-    hasNextPage: state.hasNextPage,
-    isFetchingNextPage: state.isFetchingNextPage,
-    fetchNextPage: state.fetchNextPage,
-    ownerFilter: state.ownerFilter,
-    isFilterChangePending: state.isFilterChangePending,
-    virtualMcps: state.virtualMcps,
-    selectedVirtualMcp: state.selectedVirtualMcp,
-    model: state.selectedModel,
-    isModelsLoading: state.isModelsLoading,
-    allModelsConnections: state.allModelsConnections,
-    credentialId: state.credentialId,
-    tiptapDoc: state.tiptapDoc,
-  }));
-
-  return {
-    ...s,
-    tiptapDocRef: { current: s.tiptapDoc },
-    resetInteraction: () => chatStore.clearFinishReason(),
-    createTask: () => {
-      const newId = chatStore.createThread();
-      if (agentCtx) {
-        agentCtx.navigateToTask(newId);
-      }
-    },
-    switchToTask: async (taskId: string) => {
-      if (agentCtx) {
-        agentCtx.navigateToTask(taskId);
-      } else {
-        chatStore.setActiveThread(taskId);
-      }
-    },
-    renameTask: (taskId: string, title: string) =>
-      chatStore.renameTask(taskId, title),
-    setTaskStatus: (taskId: string, status: string) =>
-      chatStore.setTaskStatus(taskId, status),
-    hideTask: (taskId: string) => {
-      void chatStore.hideTask(taskId);
-    },
-    setVirtualMcpId: (id: string | null) => {
-      if (id) {
-        const virtualMcps = chatStore.getSnapshot().virtualMcps;
-        const agent = virtualMcps.find((v) => v.id === id) ?? null;
-        chatStore.setSelectedVirtualMcp(agent);
-      } else {
-        chatStore.setSelectedVirtualMcp(null);
-      }
-    },
-    setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
-    setOwnerFilter: (filter: TaskOwnerFilter) =>
-      chatStore.setOwnerFilter(filter),
-    sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) =>
-      chatStore.sendMessage({ tiptapDoc }),
-    cancelRun: () => chatStore.cancelRun(),
-    setAppContext: (sourceId, params) =>
-      chatStore.setAppContext(sourceId, params),
-    clearAppContext: (sourceId) => chatStore.clearAppContext(sourceId),
-    setCredentialId: (id) => chatStore.setCredentialId(id),
-  };
-}
-
-/**
- * Full chat context (stable + stream merged).
- */
-export function useChat(): ChatContextValue {
-  const stable = useChatStable();
-
-  const stream = useChatStore((state) => {
-    const messages = state.threadMessages[state.activeThreadId] ?? [];
-    const isStreaming =
-      state.status === "submitted" || state.status === "streaming";
-    const last = messages.at(-1);
-    const isWaitingForApprovals =
-      !isStreaming &&
-      last?.role === "assistant" &&
-      last.parts.some(
-        (part) => "state" in part && part.state === "approval-requested",
-      );
-    const thread = state.threads.find((t) => t.id === state.activeThreadId);
-    const isRunInProgress =
-      (thread?.status === "in_progress" || thread?.status === "expired") &&
-      state.status === "ready";
-
-    return {
-      messages,
-      status: state.status,
-      error: state.error,
-      isStreaming,
-      isChatEmpty: messages.length === 0,
-      finishReason: state.finishReason,
-      isWaitingForApprovals: isWaitingForApprovals ?? false,
-      isRunInProgress,
-    };
-  });
-
-  return {
-    ...stable,
-    ...stream,
-    setMessages: (messages: ChatMessage[]) => chatStore.setMessages(messages),
-    clearError: () => chatStore.clearError(),
-    stop: () => {
-      chatStore.stop();
-      return Promise.resolve();
-    },
-    addToolOutput: (...args) => chatStore.addToolOutput(...args),
-    addToolApprovalResponse: (...args) =>
-      chatStore.addToolApprovalResponse(...args),
-    clearFinishReason: () => chatStore.clearFinishReason(),
-  };
-}
+export { useChatContext as useChatStable } from "./chat-context";

@@ -208,7 +208,7 @@ function TasksPanelContent({
   const [isPending, startTransition] = useTransition();
 
   const agentsMatch = useMatch({
-    from: "/shell/$org/agents/$virtualMcpId",
+    from: "/shell/$org/$virtualMcpId",
     shouldThrow: false,
   });
   const virtualMcpId =

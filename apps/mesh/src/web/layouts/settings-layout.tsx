@@ -8,7 +8,6 @@ import { Suspense } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { PageContentClassNameProvider } from "@/web/components/page";
-import { Avatar } from "@deco/ui/components/avatar.tsx";
 import {
   ArrowNarrowLeft,
   BarChart10,
@@ -17,11 +16,9 @@ import {
   CpuChip01,
   Lock01,
   RefreshCcw01,
-  Settings01,
   Users03,
   Zap,
 } from "@untitledui/icons";
-import { authClient } from "@/web/lib/auth-client";
 
 function ContentSkeleton() {
   return (
@@ -49,10 +46,6 @@ interface SidebarGroup {
 }
 
 function useSettingsSidebarGroups(): SidebarGroup[] {
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
-  const userImage = (user as { image?: string } | undefined)?.image;
-
   return [
     {
       label: "",
@@ -107,37 +100,12 @@ function useSettingsSidebarGroups(): SidebarGroup[] {
         },
       ],
     },
-    {
-      label: "Account",
-      items: [
-        {
-          key: "profile",
-          label: user?.name ?? "Profile",
-          icon: (
-            <Avatar
-              url={userImage}
-              fallback={user?.name ?? "U"}
-              shape="circle"
-              size="2xs"
-              className="size-4 shrink-0"
-            />
-          ),
-          to: "/$org/settings/account/profile",
-        },
-        {
-          key: "preferences",
-          label: "Preferences",
-          icon: <Settings01 size={14} />,
-          to: "/$org/settings/account/preferences",
-        },
-      ],
-    },
   ];
 }
 
 export function SettingsSidebar() {
   const groups = useSettingsSidebarGroups();
-  const { org } = useParams({ strict: false }) as { org: string };
+  const { org } = useParams({ from: "/shell/$org" });
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
@@ -199,11 +167,11 @@ export function SettingsSidebar() {
 
 export default function SettingsLayout() {
   return (
-    <PageContentClassNameProvider value="p-5 sm:p-8">
+    <PageContentClassNameProvider value="p-0">
       <div className="flex-1 min-w-0 overflow-hidden h-full">
         <Suspense
           fallback={
-            <div className="p-5 sm:p-8">
+            <div className="p-0">
               <ContentSkeleton />
             </div>
           }

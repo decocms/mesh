@@ -68,8 +68,12 @@ import { LOCALSTORAGE_KEYS } from "../../lib/localstorage-keys";
 export interface ChatStreamContextValue {
   messages: ChatMessage[];
   status: "ready" | "submitted" | "streaming" | "error";
-  sendMessage: (params: SendMessageParams) => Promise<void>;
+  sendMessage: (
+    params: SendMessageParams | Metadata["tiptapDoc"],
+  ) => Promise<void>;
   stop: () => void;
+  /** @deprecated Use stop */
+  cancelRun: () => void;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   addToolOutput: UseChatHelpers<ChatMessage>["addToolOutput"];
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
@@ -86,7 +90,11 @@ export interface ChatStreamContextValue {
 export interface ChatTaskContextValue {
   virtualMcpId: string;
   taskId: string;
+  /** @deprecated Use taskId */
+  activeTaskId: string;
   navigateToTask: (taskId: string) => void;
+  /** @deprecated Use navigateToTask */
+  switchToTask: (taskId: string) => void;
   createTask: () => void;
   tasks: Task[];
   hideTask: (taskId: string) => Promise<void>;
@@ -97,11 +105,16 @@ export interface ChatTaskContextValue {
   fetchNextPage: () => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
+  isFilterChangePending: boolean;
 }
 
 export interface ChatPrefsContextValue {
   selectedModel: AiProviderModel | null;
+  /** @deprecated Use selectedModel */
+  model: AiProviderModel | null;
   setModel: (model: AiProviderModel) => void;
+  /** @deprecated Use setModel */
+  setSelectedModel: (model: AiProviderModel) => void;
   credentialId: string | null;
   setCredentialId: (id: string | null) => void;
   allModelsConnections: ReturnType<typeof useAiProviderKeyList>;
@@ -113,6 +126,12 @@ export interface ChatPrefsContextValue {
   clearAppContext: (sourceId: string) => void;
   tiptapDoc: Metadata["tiptapDoc"];
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
+  /** @deprecated Use tiptapDoc directly */
+  tiptapDocRef: { current: Metadata["tiptapDoc"] };
+  /** @deprecated No-op — virtualMcpId is URL-driven */
+  setVirtualMcpId: (id: string | null) => void;
+  /** @deprecated Use clearFinishReason */
+  resetInteraction: () => void;
 }
 
 export type ChatContextValue = ChatStreamContextValue &
@@ -506,11 +525,24 @@ export function ChatContextProvider({
 
   // ---- Build context values ----
 
+  // sendMessage wrapper: accept both SendMessageParams and raw tiptapDoc
+  const sendMessagePublic = (
+    params: SendMessageParams | Metadata["tiptapDoc"],
+  ): Promise<void> => {
+    if (params && typeof params === "object" && "type" in params) {
+      return sendMessageInternal({
+        tiptapDoc: params as Metadata["tiptapDoc"],
+      });
+    }
+    return sendMessageInternal(params as SendMessageParams);
+  };
+
   const streamValue: ChatStreamContextValue = {
     messages,
     status: chat.status,
-    sendMessage: sendMessageInternal,
+    sendMessage: sendMessagePublic,
     stop: () => void cancelRun(),
+    cancelRun: () => void cancelRun(),
     setMessages: chat.setMessages,
     addToolOutput: chat.addToolOutput,
     addToolApprovalResponse: chat.addToolApprovalResponse,
@@ -527,7 +559,9 @@ export function ChatContextProvider({
   const taskValue: ChatTaskContextValue = {
     virtualMcpId,
     taskId: effectiveTaskId,
+    activeTaskId: effectiveTaskId,
     navigateToTask,
+    switchToTask: navigateToTask,
     createTask,
     tasks,
     hideTask,
@@ -538,11 +572,14 @@ export function ChatContextProvider({
     fetchNextPage: taskManager.fetchNextPage ?? (() => {}),
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
+    isFilterChangePending: taskManager.isFilterChangePending ?? false,
   };
 
   const prefsValue: ChatPrefsContextValue = {
     selectedModel,
+    model: selectedModel,
     setModel: setStoredModel,
+    setSelectedModel: setStoredModel,
     credentialId: effectiveKeyId,
     setCredentialId: setStoredCredentialId,
     allModelsConnections: keys,
@@ -554,6 +591,9 @@ export function ChatContextProvider({
     clearAppContext,
     tiptapDoc,
     setTiptapDoc,
+    tiptapDocRef: { current: tiptapDoc },
+    setVirtualMcpId: () => {},
+    resetInteraction: () => setFinishReason(null),
   };
 
   return (

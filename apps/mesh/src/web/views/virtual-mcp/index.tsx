@@ -1,6 +1,7 @@
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { chatStore } from "@/web/components/chat/store/chat-store";
+import { useSendToChat } from "@/web/components/chat/hooks/use-send-to-chat";
+import { useChatTask } from "@/web/components/chat/context";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
@@ -42,7 +43,7 @@ import {
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
@@ -477,19 +478,55 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const serverDefaultMain = uiMeta?.layout?.defaultMainView ?? null;
 
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
-  const [defaultMainView, setDefaultMainView] = useState<string>(
-    serverDefaultMain
-      ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
-      : "settings",
-  );
+  const [defaultMainView, setDefaultMainView] = useState<string>(() => {
+    if (!serverDefaultMain || serverDefaultMain.type === "settings") {
+      return "settings";
+    }
+    return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
+  });
   const [isSaving, setIsSaving] = useState(false);
 
-  const hasChanges =
-    JSON.stringify(pinnedViews) !== JSON.stringify(serverPinned) ||
-    defaultMainView !==
-      (serverDefaultMain
-        ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
-        : "settings");
+  // Parse default main view from composite key
+  const parseDefaultMainView = (value: string) => {
+    const [type, id, toolName] = value.split(":");
+    if (type === "settings") return { type: "settings" as const };
+    if (type === "ext-apps" && id)
+      return { type: "ext-apps" as const, id, toolName: toolName || undefined };
+    return null;
+  };
+
+  // Auto-save helper that persists given state
+  const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
+    setIsSaving(true);
+    const doSave = async () => {
+      try {
+        const result = await client.callTool({
+          name: "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
+          arguments: {
+            virtualMcpId,
+            pinnedViews: nextPinned,
+            layout: { defaultMainView: parseDefaultMainView(nextDefaultMain) },
+          },
+        });
+        unwrapToolResult(result);
+        queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey) &&
+            query.queryKey.includes("collection") &&
+            query.queryKey.includes("VIRTUAL_MCP"),
+        });
+        toast.success("Layout updated");
+      } catch (error) {
+        toast.error(
+          "Failed to update layout: " +
+            (error instanceof Error ? error.message : "Unknown error"),
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    doSave();
+  };
 
   const handleTogglePin = (
     connectionId: string,
@@ -499,18 +536,19 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     const pinned = pinnedViews.some(
       (v) => v.connectionId === connectionId && v.toolName === toolName,
     );
+    let nextPinned: PinnedView[];
     if (pinned) {
-      setPinnedViews((prev) =>
-        prev.filter(
-          (v) => !(v.connectionId === connectionId && v.toolName === toolName),
-        ),
+      nextPinned = pinnedViews.filter(
+        (v) => !(v.connectionId === connectionId && v.toolName === toolName),
       );
     } else {
-      setPinnedViews((prev) => [
-        ...prev,
+      nextPinned = [
+        ...pinnedViews,
         { connectionId, toolName, label: toolName, icon: connectionIcon },
-      ]);
+      ];
     }
+    setPinnedViews(nextPinned);
+    saveLayout(nextPinned, defaultMainView);
   };
 
   const handleLabelChange = (
@@ -527,58 +565,13 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     );
   };
 
-  // Parse default main view from composite key
-  const parseDefaultMainView = () => {
-    const [type, id, toolName] = defaultMainView.split(":");
-    if (type === "settings") return { type: "settings" as const };
-    if (type === "ext-apps" && id)
-      return { type: "ext-apps" as const, id, toolName: toolName || undefined };
-    return null;
+  const handleLabelBlur = () => {
+    saveLayout(pinnedViews, defaultMainView);
   };
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      // Save pinned views
-      const result = await client.callTool({
-        name: "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
-        arguments: {
-          virtualMcpId,
-          pinnedViews,
-          layout: { defaultMainView: parseDefaultMainView() },
-        },
-      });
-      unwrapToolResult(result);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey.includes("collection") &&
-          query.queryKey.includes("VIRTUAL_MCP"),
-      });
-      toast.success("Layout updated");
-    },
-    onError: (error) => {
-      toast.error(
-        "Failed to update layout: " +
-          (error instanceof Error ? error.message : "Unknown error"),
-      );
-    },
-    onSettled: () => setIsSaving(false),
-  });
-
-  const handleSave = () => {
-    setIsSaving(true);
-    mutation.mutate();
-  };
-
-  const handleCancel = () => {
-    setPinnedViews(serverPinned);
-    setDefaultMainView(
-      serverDefaultMain
-        ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
-        : "settings",
-    );
+  const handleDefaultMainViewChange = (value: string) => {
+    setDefaultMainView(value);
+    saveLayout(pinnedViews, value);
   };
 
   const noConnections = connectionIds.length === 0;
@@ -606,7 +599,10 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         <p className="text-xs text-muted-foreground mb-3">
           The view shown in the central panel when opening this space.
         </p>
-        <Select value={defaultMainView} onValueChange={setDefaultMainView}>
+        <Select
+          value={defaultMainView}
+          onValueChange={handleDefaultMainViewChange}
+        >
           <SelectTrigger className="w-56 h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
@@ -705,6 +701,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                               e.target.value,
                             )
                           }
+                          onBlur={handleLabelBlur}
                           className="h-8 text-sm w-56"
                           disabled={isSaving}
                         />
@@ -717,22 +714,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           )}
         </div>
       ))}
-
-      {hasChanges && (
-        <div className="flex items-center gap-3 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={isSaving}
-          >
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Layout"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -781,6 +762,8 @@ function VirtualMcpDetailViewWithData({
   // Chat hooks
   const [, setChatOpen] = useDecoChatOpen();
   const [preferences, setPreferences] = usePreferences();
+  const sendToChat = useSendToChat();
+  const { createTask } = useChatTask();
 
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
@@ -789,31 +772,22 @@ function VirtualMcpDetailViewWithData({
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
-    chatStore.createThreadAndSend({
-      parts: [
-        {
-          type: "text",
-          text: `/writing-prompts ${virtualMcp.id}\n\n<instructions>\n${currentInstructions}\n</instructions>`,
-        },
-      ],
-      virtualMcp: {
-        id: getDecopilotId(org.id),
-        title: "Decopilot",
-        description: null,
-        icon: null,
+    sendToChat({
+      virtualMcpId: getDecopilotId(org.id),
+      message: {
+        parts: [
+          {
+            type: "text",
+            text: `/writing-prompts ${virtualMcp.id}\n\n<instructions>\n${currentInstructions}\n</instructions>`,
+          },
+        ],
       },
     });
   };
 
   const handleTestAgent = () => {
     setChatOpen(true);
-    chatStore.setSelectedVirtualMcp({
-      id: virtualMcp.id,
-      title: virtualMcp.title,
-      description: virtualMcp.description,
-      icon: virtualMcp.icon,
-    });
-    chatStore.createThread();
+    createTask();
   };
 
   const hasFormChanges = form.formState.isDirty;

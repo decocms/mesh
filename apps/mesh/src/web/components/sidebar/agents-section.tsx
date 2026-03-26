@@ -50,7 +50,7 @@ function AgentListItem({
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isActive = pathname.startsWith(`/${org}/agents/${agent.id}`);
+  const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const actions = useVirtualMCPActions();
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const xRef = useRef<HTMLButtonElement>(null);
@@ -83,7 +83,7 @@ function AgentListItem({
         onClick={() => {
           onMarkSeen?.();
           navigate({
-            to: "/$org/agents/$virtualMcpId",
+            to: "/$org/$virtualMcpId",
             params: { org, virtualMcpId: agent.id },
           });
         }}
@@ -201,7 +201,7 @@ function PinAgentPopoverContent({
     onClose();
     setSearch("");
     navigate({
-      to: "/$org/agents/$virtualMcpId",
+      to: "/$org/$virtualMcpId",
       params: { org: org.slug, virtualMcpId: agent.id },
     });
   };
@@ -213,7 +213,7 @@ function PinAgentPopoverContent({
       onOpenSiteEditorModal();
     } else {
       navigate({
-        to: "/$org/agents/$virtualMcpId",
+        to: "/$org/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agentId },
       });
     }
@@ -245,7 +245,7 @@ function PinAgentPopoverContent({
               const { id } = await createVirtualMCP();
               onClose();
               navigate({
-                to: "/$org/agents/$virtualMcpId",
+                to: "/$org/$virtualMcpId",
                 params: { org: org.slug, virtualMcpId: id },
               });
             }}

@@ -27,7 +27,7 @@ function OrgHomeContent() {
 
 function ProjectSettingsContent() {
   const agentsMatch = useMatch({
-    from: "/shell/$org/agents/$virtualMcpId",
+    from: "/shell/$org/$virtualMcpId",
     shouldThrow: false,
   });
   const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
@@ -52,7 +52,7 @@ function AutomationDetailContent({ automationId }: { automationId: string }) {
 }
 
 export default function OrgHomePage() {
-  const { view, main, automationId } = useSearch({ strict: false }) as {
+  const { view, main, automationId } = useSearch({ from: "/shell/$org/" }) as {
     view?: string;
     main?: string;
     automationId?: string;

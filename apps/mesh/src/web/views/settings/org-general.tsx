@@ -21,7 +21,7 @@ export function OrgGeneralPage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content>
+      <Page.Content className="p-4">
         <OrganizationForm />
       </Page.Content>
     </Page>

@@ -183,13 +183,6 @@ const orgHomeRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-// Projects list
-const projectsListRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/projects",
-  component: lazyRouteComponent(() => import("./routes/projects-list.tsx")),
-});
-
 // ============================================
 // SETTINGS LAYOUT (/$org/settings)
 // ============================================
@@ -211,23 +204,6 @@ const settingsIndexRoute = createRoute({
     });
   },
   component: () => null,
-});
-
-// Account
-const settingsAccountProfileRoute = createRoute({
-  getParentRoute: () => settingsLayout,
-  path: "/account/profile",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/settings/account-profile.tsx"),
-  ),
-});
-
-const settingsAccountPreferencesRoute = createRoute({
-  getParentRoute: () => settingsLayout,
-  path: "/account/preferences",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/settings/account-preferences.tsx"),
-  ),
 });
 
 // Operations: Connections
@@ -369,7 +345,7 @@ const storeDetailRoute = createRoute({
   ),
 });
 
-// Org-level plugin route (mirrors /$org/agents/$virtualMcpId/$pluginId for org-admin)
+// Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/plugins/$pluginId",
@@ -389,10 +365,10 @@ const agentsListRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
-// Agents layout (/$org/agents/$virtualMcpId)
+// Agents layout (/$org/$virtualMcpId)
 const agentsLayout = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/agents/$virtualMcpId",
+  path: "/$virtualMcpId",
   component: Outlet,
 });
 
@@ -495,8 +471,6 @@ const agentPluginWithChildren =
 
 const settingsWithChildren = settingsLayout.addChildren([
   settingsIndexRoute,
-  settingsAccountProfileRoute,
-  settingsAccountPreferencesRoute,
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
@@ -522,7 +496,6 @@ const orgRoutes = [
   orgHomeRoute,
   agentsListRoute,
   agentsWithChildren,
-  projectsListRoute,
   settingsWithChildren,
   storeDetailRoute,
   orgPluginRoute,

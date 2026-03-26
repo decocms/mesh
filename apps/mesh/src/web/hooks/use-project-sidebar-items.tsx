@@ -6,7 +6,7 @@ import type {
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home01, LayoutLeft } from "@untitledui/icons";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
-import { chatStore } from "@/web/components/chat/store/chat-store";
+import { useChatTask } from "@/web/components/chat/context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
@@ -14,6 +14,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const [, setTasksOpen] = useDecoTasksOpen();
+  const { createTask } = useChatTask();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 
@@ -46,7 +47,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
 
   const pathname = routerState.location.pathname;
 
-  const basePath = `/${org}/agents/${virtualMcpId}`;
+  const basePath = `/${org}/${virtualMcpId}`;
 
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
@@ -61,7 +62,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
       isActive: isActiveRoute(item.pluginId),
       onClick: () =>
         navigate({
-          to: "/$org/agents/$virtualMcpId/$pluginId",
+          to: "/$org/$virtualMcpId/$pluginId",
           params: {
             org,
             virtualMcpId,
@@ -90,7 +91,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
           isActive: isActiveRoute(group.pluginId),
           onClick: () =>
             navigate({
-              to: "/$org/agents/$virtualMcpId/$pluginId",
+              to: "/$org/$virtualMcpId/$pluginId",
               params: {
                 org,
                 virtualMcpId,
@@ -118,7 +119,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     ),
     onClick: () =>
       navigate({
-        to: "/$org/agents/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org,
           virtualMcpId,
@@ -149,7 +150,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     onClick: () => {
       setTasksOpen(false);
       navigate({ to: "/$org", params: { org } });
-      chatStore.createThread();
+      createTask();
     },
   };
 

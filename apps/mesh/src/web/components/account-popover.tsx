@@ -6,20 +6,44 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { Switch } from "@deco/ui/components/switch.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@deco/ui/components/select.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  Bell01,
   Check,
+  Code01,
+  Copy01,
   File06,
   Globe01,
   LogOut01,
+  Monitor01,
+  Moon01,
   Plus,
+  Settings01,
   Shield01,
+  Sun,
   Users03,
 } from "@untitledui/icons";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
+import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
+import { toast } from "@deco/ui/components/sonner.js";
+
+type PanelView = "organizations" | "profile" | "preferences";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -114,6 +138,352 @@ function MenuItemButton({
   );
 }
 
+function OrganizationsPanel({
+  sortedOrgs,
+  orgParam,
+  onSelectOrg,
+  onCreateOrg,
+}: {
+  sortedOrgs: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    logo?: string | null;
+  }>;
+  orgParam?: string;
+  onSelectOrg: (slug: string) => void;
+  onCreateOrg: () => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground/60">
+          Your Organizations
+        </span>
+        <button
+          type="button"
+          onClick={onCreateOrg}
+          className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1">
+        {sortedOrgs.map((org) => (
+          <button
+            key={org.id}
+            type="button"
+            onClick={() => onSelectOrg(org.slug)}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left w-full transition-colors",
+              org.slug === orgParam
+                ? "bg-accent text-accent-foreground"
+                : "text-foreground hover:bg-accent/50",
+            )}
+          >
+            <OrgIcon org={org} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{org.name}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {org.slug}
+              </p>
+            </div>
+            {org.slug === orgParam && (
+              <Check
+                size={14}
+                className="ml-auto text-muted-foreground shrink-0"
+              />
+            )}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProfilePanel({
+  user,
+  userImage,
+}: {
+  user: { id: string; name?: string | null; email?: string | null } | undefined;
+  userImage?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyUserId = () => {
+    if (!user?.id) return;
+    navigator.clipboard.writeText(user.id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="p-4 flex flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <Avatar
+          url={userImage}
+          fallback={user?.name ?? "U"}
+          shape="circle"
+          size="xl"
+          className="size-16 shrink-0"
+        />
+        <div className="flex flex-col gap-1 min-w-0">
+          <span className="text-sm font-semibold text-foreground truncate">
+            {user?.name ?? "User"}
+          </span>
+          <span className="text-sm text-muted-foreground truncate">
+            {user?.email}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col">
+        <p className="py-3 text-xs font-semibold text-muted-foreground/60 border-b border-border">
+          User ID
+        </p>
+        <div className="flex items-center justify-between gap-4 py-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleCopyUserId}
+                  className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span className="font-mono text-sm">{user?.id}</span>
+                  {copied ? (
+                    <Check size={14} className="text-green-600 shrink-0" />
+                  ) : (
+                    <Copy01
+                      size={14}
+                      className="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
+                    />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">Copy user ID</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreferenceRow({
+  icon,
+  label,
+  description,
+  control,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+  control: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between gap-4 py-3 border-b border-border last:border-0"
+      onClick={disabled ? undefined : onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined}
+      onKeyDown={
+        onClick && !disabled
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      style={{ cursor: onClick && !disabled ? "pointer" : undefined }}
+    >
+      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+        <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+            {description}
+          </p>
+        </div>
+      </div>
+      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+        {control}
+      </div>
+    </div>
+  );
+}
+
+function PreferencesPanel() {
+  const [preferences, setPreferences] = usePreferences();
+
+  const handleNotificationsChange = async (checked: boolean) => {
+    if (checked) {
+      const result = await Notification.requestPermission();
+      if (result !== "granted") {
+        toast.error(
+          "Notifications denied. Please enable them in your browser settings.",
+        );
+        setPreferences((prev) => ({ ...prev, enableNotifications: false }));
+        return;
+      }
+    }
+    setPreferences((prev) => ({ ...prev, enableNotifications: checked }));
+  };
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground/60">
+          Preferences
+        </span>
+      </div>
+      <div className="px-4 flex flex-col">
+        <PreferenceRow
+          icon={<Sun size={14} />}
+          label="Theme"
+          description="Light, dark, or system theme."
+          control={
+            <Select
+              value={preferences.theme}
+              onValueChange={(value) =>
+                setPreferences((prev) => ({
+                  ...prev,
+                  theme: value as ThemeMode,
+                }))
+              }
+            >
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <span>
+                  {
+                    { light: "Light", dark: "Dark", system: "System" }[
+                      preferences.theme
+                    ]
+                  }
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light" textValue="Light">
+                  <div className="flex items-center gap-2">
+                    <Sun size={14} />
+                    <span>Light</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="dark" textValue="Dark">
+                  <div className="flex items-center gap-2">
+                    <Moon01 size={14} />
+                    <span>Dark</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="system" textValue="System">
+                  <div className="flex items-center gap-2">
+                    <Monitor01 size={14} />
+                    <span>System</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+        <PreferenceRow
+          icon={<Code01 size={14} />}
+          label="Developer Mode"
+          description="Show technical details for tool calls."
+          onClick={() =>
+            setPreferences((prev) => ({ ...prev, devMode: !prev.devMode }))
+          }
+          control={
+            <Switch
+              checked={preferences.devMode}
+              onCheckedChange={(checked) =>
+                setPreferences((prev) => ({ ...prev, devMode: checked }))
+              }
+            />
+          }
+        />
+        <PreferenceRow
+          icon={<Bell01 size={14} />}
+          label="Notifications"
+          description="Sound and notification when chat completes."
+          disabled={typeof Notification === "undefined"}
+          onClick={() =>
+            handleNotificationsChange(!preferences.enableNotifications)
+          }
+          control={
+            <Switch
+              disabled={typeof Notification === "undefined"}
+              checked={preferences.enableNotifications}
+              onCheckedChange={handleNotificationsChange}
+            />
+          }
+        />
+        <PreferenceRow
+          icon={<Shield01 size={14} />}
+          label="Tool Approval"
+          description="When to require approval before tools execute."
+          control={
+            <Select
+              value={preferences.toolApprovalLevel}
+              onValueChange={(value) =>
+                setPreferences((prev) => ({
+                  ...prev,
+                  toolApprovalLevel: value as "auto" | "readonly" | "plan",
+                }))
+              }
+            >
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <span>
+                  {
+                    {
+                      readonly: "Skip read-only",
+                      auto: "Auto-approve",
+                      plan: "Plan mode",
+                    }[preferences.toolApprovalLevel]
+                  }
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="readonly" textValue="Skip read-only">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Skip read-only</span>
+                    <span className="text-xs text-muted-foreground">
+                      Auto-approve read-only tools
+                    </span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="auto" textValue="Auto-approve all">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Auto-approve all</span>
+                    <span className="text-xs text-muted-foreground">
+                      Execute all without approval
+                    </span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="plan" textValue="Plan mode">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Plan mode</span>
+                    <span className="text-xs text-muted-foreground">
+                      Read-only, then propose a plan
+                    </span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 export function AccountPopover() {
   const { data: session } = authClient.useSession();
   const { data: organizations } = authClient.useListOrganizations();
@@ -123,6 +493,7 @@ export function AccountPopover() {
 
   const [open, setOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelView>("organizations");
 
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
@@ -192,9 +563,23 @@ export function AccountPopover() {
     onClick: () => authClient.signOut(),
   };
 
+  const navItemClass = (view: PanelView) =>
+    cn(
+      "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-left w-full transition-colors",
+      activePanel === view
+        ? "bg-sidebar-accent text-foreground"
+        : "text-foreground/80 hover:bg-sidebar-accent hover:text-foreground",
+    );
+
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) setActivePanel("organizations");
+        }}
+      >
         <PopoverTrigger asChild>
           <SidebarMenuButton
             tooltip={currentOrg?.name ?? "Account"}
@@ -234,8 +619,16 @@ export function AccountPopover() {
           <div className="flex min-h-[380px] w-full">
             {/* Left panel */}
             <div className="w-60 shrink-0 flex flex-col border-r border-border bg-sidebar/75">
-              {/* User info */}
-              <div className="flex items-center gap-3 px-4 py-4">
+              {/* User info - hoverable to show profile */}
+              <div
+                className={cn(
+                  "flex items-center gap-3 px-4 py-4 cursor-pointer rounded-md mx-1 mt-1 transition-colors",
+                  activePanel === "profile"
+                    ? "bg-sidebar-accent"
+                    : "hover:bg-sidebar-accent/50",
+                )}
+                onMouseEnter={() => setActivePanel("profile")}
+              >
                 <Avatar
                   url={userImage}
                   fallback={user?.name ?? "U"}
@@ -253,12 +646,41 @@ export function AccountPopover() {
                 </div>
               </div>
 
-              {/* Menu items */}
-              <nav className="flex-1 flex flex-col px-2">
+              {/* Navigation items */}
+              <nav className="flex-1 flex flex-col px-2 pt-1">
+                {/* Organizations */}
+                <button
+                  type="button"
+                  className={navItemClass("organizations")}
+                  onMouseEnter={() => setActivePanel("organizations")}
+                >
+                  <span className="shrink-0 text-muted-foreground">
+                    <Users03 size={16} />
+                  </span>
+                  <span className="flex-1">Organizations</span>
+                </button>
+
+                {/* Preferences */}
+                <button
+                  type="button"
+                  className={navItemClass("preferences")}
+                  onMouseEnter={() => setActivePanel("preferences")}
+                >
+                  <span className="shrink-0 text-muted-foreground">
+                    <Settings01 size={16} />
+                  </span>
+                  <span className="flex-1">Preferences</span>
+                </button>
+
+                {/* Divider */}
+                <div className="my-2 border-t border-border" />
+
+                {/* External links */}
                 {menuItems.map((item) => (
                   <MenuItemButton key={item.key} item={item} onClose={close} />
                 ))}
                 <MenuItemButton item={signOutItem} onClose={close} />
+
                 <div className="flex-1" />
                 <div className="px-3 py-1.5">
                   <span className="text-xs text-muted-foreground/60">
@@ -268,55 +690,23 @@ export function AccountPopover() {
               </nav>
             </div>
 
-            {/* Right panel */}
+            {/* Right panel - contextual */}
             <div className="flex-1 flex flex-col min-w-0">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm font-medium text-muted-foreground/60">
-                  Your Organizations
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
+              {activePanel === "organizations" && (
+                <OrganizationsPanel
+                  sortedOrgs={sortedOrgs}
+                  orgParam={orgParam}
+                  onSelectOrg={handleSelectOrg}
+                  onCreateOrg={() => {
                     setOpen(false);
                     setCreatingOrg(true);
                   }}
-                  className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-
-              {/* Org list */}
-              <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1">
-                {sortedOrgs.map((org) => (
-                  <button
-                    key={org.id}
-                    type="button"
-                    onClick={() => handleSelectOrg(org.slug)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-left w-full transition-colors",
-                      org.slug === orgParam
-                        ? "bg-accent text-accent-foreground"
-                        : "text-foreground hover:bg-accent/50",
-                    )}
-                  >
-                    <OrgIcon org={org} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{org.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {org.slug}
-                      </p>
-                    </div>
-                    {org.slug === orgParam && (
-                      <Check
-                        size={14}
-                        className="ml-auto text-muted-foreground shrink-0"
-                      />
-                    )}
-                  </button>
-                ))}
-              </div>
+                />
+              )}
+              {activePanel === "profile" && (
+                <ProfilePanel user={user} userImage={userImage} />
+              )}
+              {activePanel === "preferences" && <PreferencesPanel />}
             </div>
           </div>
         </PopoverContent>

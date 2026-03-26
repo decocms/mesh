@@ -55,7 +55,7 @@ export function useCreateProject() {
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: KEYS.projects(org.id) });
       navigate({
-        to: "/$org/agents/$virtualMcpId/",
+        to: "/$org/$virtualMcpId/",
         params: { org: org.slug, virtualMcpId: item.id },
         search: { view: "settings" },
       });

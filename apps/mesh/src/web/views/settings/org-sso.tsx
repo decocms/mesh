@@ -121,7 +121,7 @@ export function OrgSsoPage() {
             </Breadcrumb>
           </Page.Header.Left>
         </Page.Header>
-        <Page.Content>
+        <Page.Content className="p-4">
           <div className="text-sm text-muted-foreground">Loading...</div>
         </Page.Content>
       </Page>
@@ -141,7 +141,7 @@ export function OrgSsoPage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content>
+      <Page.Content className="p-4">
         <div className="flex flex-col gap-6">
           <p className="text-sm text-muted-foreground">
             Configure OIDC-based SSO for your organization. When enforced,

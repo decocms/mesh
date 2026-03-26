@@ -13,11 +13,13 @@ import { Suspense } from "react";
 
 function AgentAutomationsContent() {
   const agentsMatch = useMatch({
-    from: "/shell/$org/agents/$virtualMcpId/automations",
+    from: "/shell/$org/$virtualMcpId/automations",
     shouldThrow: false,
   });
   const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
-  const search = useSearch({ strict: false }) as {
+  const search = useSearch({
+    from: "/shell/$org/$virtualMcpId/automations",
+  }) as {
     automationId?: string;
   };
   return (

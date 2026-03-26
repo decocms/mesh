@@ -10,7 +10,7 @@
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
-import { Suspense, useRef, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
 import {
   ProjectContextProvider,
@@ -21,7 +21,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { EmptyState } from "@/web/components/empty-state";
 import { AlertCircle } from "@untitledui/icons";
-import { chatStore } from "@/web/components/chat/store/chat-store";
 import { mapVirtualMcpToProject } from "@/web/lib/map-virtual-mcp-to-project";
 import {
   AgentContext,
@@ -44,7 +43,7 @@ function VirtualMCPProviderContent({
   const navigate = useNavigate();
 
   const agentsMatch = useMatch({
-    from: "/shell/$org/agents/$virtualMcpId",
+    from: "/shell/$org/$virtualMcpId",
     shouldThrow: false,
   });
 
@@ -56,24 +55,28 @@ function VirtualMCPProviderContent({
   // Not found
   if (!entity) {
     return (
-      <EmptyState
-        image={<AlertCircle size={48} className="text-muted-foreground" />}
-        title="Agent not found"
-        description={`The agent "${virtualMcpId}" does not exist in this organization.`}
-        actions={
-          <Button
-            variant="outline"
-            onClick={() =>
-              navigate({
-                to: "/$org",
-                params: { org: orgSlug },
-              })
+      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+        <div className="flex flex-col h-full bg-card overflow-hidden border border-sidebar-border shadow-sm rounded-[0.75rem]">
+          <EmptyState
+            image={<AlertCircle size={48} className="text-muted-foreground" />}
+            title="Agent not found"
+            description={`The agent "${virtualMcpId}" does not exist in this organization.`}
+            actions={
+              <Button
+                variant="outline"
+                onClick={() =>
+                  navigate({
+                    to: "/$org",
+                    params: { org: orgSlug },
+                  })
+                }
+              >
+                Go to organization home
+              </Button>
             }
-          >
-            Go to organization home
-          </Button>
-        }
-      />
+          />
+        </div>
+      </div>
     );
   }
 
@@ -82,7 +85,7 @@ function VirtualMCPProviderContent({
 
   // --- AgentContext: URL-driven state ---
 
-  const search = useSearch({ strict: false }) as {
+  const search = useSearch({ from: "/shell/$org/$virtualMcpId/" }) as {
     main?: string;
     id?: string;
     automationId?: string;
@@ -106,15 +109,8 @@ function VirtualMCPProviderContent({
     mainView = null;
   }
 
-  const routeBase = "/$org/agents/$virtualMcpId/" as const;
+  const routeBase = "/$org/$virtualMcpId/" as const;
   const params = { org: orgSlug, virtualMcpId };
-
-  // Sync taskId from URL → chat store (render-phase, ref-guarded)
-  const prevTaskIdRef = useRef<string | undefined>(undefined);
-  if (search.taskId && search.taskId !== prevTaskIdRef.current) {
-    prevTaskIdRef.current = search.taskId;
-    chatStore.setActiveThread(search.taskId);
-  }
 
   const navigateToTask: AgentContextValue["navigateToTask"] = (taskId) => {
     navigate({
