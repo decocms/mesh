@@ -349,7 +349,7 @@ function getTrustedOrigins(): string[] {
 const settings = getSettings();
 
 export const auth = betterAuth({
-  secret: settings.betterAuthSecret || "deco-default-secret",
+  secret: settings.betterAuthSecret || "deco-default-secret-k7x9m2p4q8w3n5v6",
 
   // Base URL for OAuth - will be overridden by request context
   baseURL: baseUrl,
