@@ -24,40 +24,149 @@ const PRETTIER_CONFIG = {
   semi: true,
 };
 
+/**
+ * Parse compile() output into individual declarations.
+ * Each declaration may be preceded by a JSDoc comment block.
+ */
+function parseDeclarations(raw: string): {
+  name: string;
+  kind: "type" | "interface";
+  body: string;
+  full: string;
+}[] {
+  const declarations: {
+    name: string;
+    kind: "type" | "interface";
+    body: string;
+    full: string;
+  }[] = [];
+
+  const lines = raw.split("\n");
+  let i = 0;
+
+  while (i < lines.length) {
+    // Skip blank lines
+    if (lines[i].trim() === "") {
+      i++;
+      continue;
+    }
+
+    // Consume optional JSDoc comment
+    if (lines[i].trim().startsWith("/**")) {
+      while (i < lines.length && !lines[i].includes("*/")) i++;
+      i++; // skip the closing */ line
+      continue;
+    }
+
+    // Match `export type Name = ...` (may span multiple lines for union/intersection types)
+    const typeMatch = lines[i].match(/^export\s+type\s+(\w+)\s*=\s*(.*)/);
+    if (typeMatch) {
+      const name = typeMatch[1];
+      const bodyLines: string[] = [typeMatch[2]];
+      let braceDepth = 0;
+      for (const ch of typeMatch[2]) {
+        if (ch === "{") braceDepth++;
+        if (ch === "}") braceDepth--;
+      }
+      // Accumulate lines until all braces are closed and we hit a trailing semicolon
+      while (i + 1 < lines.length) {
+        const trimmed = bodyLines.join("\n").trimEnd();
+        if (braceDepth === 0 && trimmed.endsWith(";")) break;
+        i++;
+        bodyLines.push(lines[i]);
+        for (const ch of lines[i]) {
+          if (ch === "{") braceDepth++;
+          if (ch === "}") braceDepth--;
+        }
+      }
+      const body = bodyLines.join("\n").replace(/;\s*$/, "").trim();
+      declarations.push({
+        name,
+        kind: "type",
+        body,
+        full: bodyLines.join("\n"),
+      });
+      i++;
+      continue;
+    }
+
+    // Match `export interface Name {`
+    const ifaceMatch = lines[i].match(/^export\s+interface\s+(\w+)\s*\{/);
+    if (ifaceMatch) {
+      const name = ifaceMatch[1];
+      let braceDepth = 0;
+      const blockLines: string[] = [];
+      for (; i < lines.length; i++) {
+        blockLines.push(lines[i]);
+        for (const ch of lines[i]) {
+          if (ch === "{") braceDepth++;
+          if (ch === "}") braceDepth--;
+        }
+        if (braceDepth === 0) break;
+      }
+      i++;
+      const full = blockLines.join("\n");
+      // Body = everything between the outer braces
+      const body = full
+        .replace(/^export\s+interface\s+\w+\s*/, "")
+        .replace(/;\s*$/, "")
+        .trim();
+      declarations.push({ name, kind: "interface", body, full });
+      continue;
+    }
+
+    i++;
+  }
+
+  return declarations;
+}
+
 async function schemaToTs(schema: object, typeName: string): Promise<string> {
   const raw = await compile(schema as never, typeName, {
     bannerComment: "",
     additionalProperties: false,
   });
 
-  // compile() may emit helper type aliases alongside the primary declaration, e.g.:
-  //   export interface PrimaryInput { query?: Query; }
-  //   export type Query = string | null;
-  // Collect these aliases so we can inline them.
-  const aliases = new Map<string, string>();
-  const aliasRe = /^export\s+type\s+(\w+)\s*=\s*([^{][^;]*);$/gm;
-  for (const m of raw.matchAll(aliasRe)) {
-    if (m[1] !== typeName) aliases.set(m[1], m[2].trim());
+  const decls = parseDeclarations(raw);
+
+  // compile() may use the schema's `title` instead of our typeName for the primary
+  // declaration. Find by name first, then fall back to the "root" declaration — the
+  // one whose name isn't referenced in any other declaration's body.
+  let primary = decls.find((d) => d.name === typeName);
+  if (!primary && decls.length > 0) {
+    const allBodies = decls.map((d) => d.body).join("\n");
+    primary = decls.find((d) => {
+      const others = allBodies.replace(d.body, "");
+      return !new RegExp(`\\b${d.name}\\b`).test(others);
+    });
+    primary ??= decls[decls.length - 1];
   }
 
-  // Strip the primary declaration header
-  let result = raw
-    .replace(/^export\s+(interface|type)\s+\S+\s*(=\s*)?/m, "")
-    .replace(/;\s*$/, "")
-    .trim();
+  if (!primary) {
+    return raw.replace(/;\s*$/, "").trim();
+  }
 
-  // Remove extra type alias declarations (and any preceding JSDoc comments)
-  result = result
-    .replace(
-      /\/\*\*[\s\S]*?\*\/\s*\nexport\s+type\s+\w+\s*=\s*[^{][^;]*;/gm,
-      "",
-    )
-    .replace(/^export\s+type\s+\w+\s*=\s*[^{][^;]*;$/gm, "")
-    .trim();
+  let result = primary.body;
 
-  // Inline type aliases into the result
-  for (const [name, body] of aliases) {
-    result = result.replace(new RegExp(`\\b${name}\\b`, "g"), body);
+  const helpers = decls.filter((d) => d !== primary);
+  if (helpers.length > 0) {
+    const replacements = new Map<string, string>();
+    for (const helper of helpers) {
+      replacements.set(
+        helper.name,
+        helper.kind === "type" ? `(${helper.body})` : helper.body,
+      );
+    }
+
+    // Multi-pass inlining: helpers may reference other helpers (e.g. Filter uses Operator).
+    // Keep replacing until stable or a safety cap is reached.
+    let prev = "";
+    for (let pass = 0; pass < 10 && result !== prev; pass++) {
+      prev = result;
+      for (const [name, replacement] of replacements) {
+        result = result.replace(new RegExp(`\\b${name}\\b`, "g"), replacement);
+      }
+    }
   }
 
   return result;
