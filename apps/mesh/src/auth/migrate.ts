@@ -4,43 +4,36 @@
  * Runs Better Auth migrations programmatically without requiring the CLI.
  * This gets bundled with the application, avoiding the need for node_modules.
  *
- * IMPORTANT: This file creates a minimal auth configuration to avoid bundling
- * the entire application (tools registry, plugins, etc.) which would cause OOM.
+ * IMPORTANT: Uses a fresh database dialect from the current env.DATABASE_URL
+ * because the `auth` object is created at module load time — before
+ * ensureServices starts Postgres on its dynamic port and updates DATABASE_URL.
  */
 
 import { getMigrations } from "better-auth/db";
 import { auth } from "./index";
+import { getDatabaseUrl, getDbDialect } from "../database";
 
 /**
- * Create a minimal auth configuration for migrations only.
- * This avoids loading the tools registry and other heavy dependencies.
+ * Run Better Auth migrations programmatically.
  *
- * Note: We use minimal plugin configuration here. The schema will be
- * the same, but the roles/permissions are simplified for migration purposes.
- */
-
-/**
- * Run Better Auth migrations programmatically
+ * Creates a fresh database dialect using the current DATABASE_URL to avoid
+ * the stale connection from the eagerly-created `auth` object.
+ * Throws on failure — Kysely migrations depend on Better Auth tables
+ * (e.g. `organization`) so they cannot proceed if this fails.
  */
 export async function migrateBetterAuth(): Promise<string> {
-  try {
-    const { toBeAdded, toBeCreated, runMigrations } = await getMigrations(
-      auth.options,
-    );
+  const freshDatabase = getDbDialect(getDatabaseUrl());
+  const options = { ...auth.options, database: freshDatabase };
 
-    if (!toBeAdded.length && !toBeCreated.length) {
-      return "up to date";
-    }
+  const { toBeAdded, toBeCreated, runMigrations } =
+    await getMigrations(options);
 
-    await runMigrations();
-
-    const count = toBeCreated.length + toBeAdded.length;
-    return `${count} table(s) migrated`;
-  } catch (error) {
-    console.warn(
-      "Better Auth migration failed (tables may be created on first use):",
-      error,
-    );
-    return "failed (will retry on first use)";
+  if (!toBeAdded.length && !toBeCreated.length) {
+    return "up to date";
   }
+
+  await runMigrations();
+
+  const count = toBeCreated.length + toBeAdded.length;
+  return `${count} table(s) migrated`;
 }
