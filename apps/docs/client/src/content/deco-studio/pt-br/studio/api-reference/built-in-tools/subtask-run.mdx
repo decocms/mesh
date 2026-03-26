@@ -1,5 +1,5 @@
 ---
-title: subtask_run
+title: subtask
 description: Criar uma subtarefa com contexto isolado
 icon: GitBranch
 ---
@@ -22,7 +22,7 @@ Cria uma subtarefa com contexto isolado. Opcionalmente especifique um agente par
 ## Assinatura
 
 ```typescript
-subtask_run(prompt: string, agent_id?: string)
+subtask(prompt: string, agent_id?: string)
 ```
 
 ## Parâmetros
@@ -49,17 +49,17 @@ Resultados da subtarefa e status de conclusão.
 
 ```typescript
 // Criar subtarefa com escopo atual
-subtask_run("Analyze the error logs and identify the root cause")
+subtask("Analyze the error logs and identify the root cause")
 
 // Criar subtarefa com agente específico
-subtask_run(
+subtask(
   "Review the pull request for code quality issues",
   "code-review-agent"
 )
 
 // Subtarefas paralelas para trabalho independente
-subtask_run("Deploy to staging environment")
-subtask_run("Run integration tests")
+subtask("Deploy to staging environment")
+subtask("Run integration tests")
 ```
 
 ## Casos de Uso
@@ -69,9 +69,9 @@ subtask_run("Run integration tests")
 Crie múltiplas subtarefas para trabalho independente que pode ser executado em paralelo:
 
 ```typescript
-subtask_run("Analyze inventory levels across all warehouses")
-subtask_run("Fetch pending customer orders from Shopify")
-subtask_run("Check shipping carrier delivery status")
+subtask("Analyze inventory levels across all warehouses")
+subtask("Fetch pending customer orders from Shopify")
+subtask("Check shipping carrier delivery status")
 ```
 
 ### Execução Especializada
@@ -83,7 +83,7 @@ Delegue trabalho a agentes especializados:
 const agents = agent_search("code review")
 
 // Criar subtarefa com especialista
-subtask_run("Review this pull request", agents[0].agent_id)
+subtask("Review this pull request", agents[0].agent_id)
 ```
 
 ### Contexto Isolado
@@ -91,7 +91,7 @@ subtask_run("Review this pull request", agents[0].agent_id)
 Crie contexto isolado para trabalho focado sem poluir a tarefa principal:
 
 ```typescript
-subtask_run("Generate a detailed technical report on the performance bottlenecks")
+subtask("Generate a detailed technical report on the performance bottlenecks")
 ```
 
 ## Relacionados

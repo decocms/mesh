@@ -34,7 +34,7 @@ Status de sucesso e confirmação de habilitação.
 - Só é possível habilitar ferramentas que existem no MCP virtual do escopo atual
 - A ferramenta permanece habilitada apenas durante a tarefa
 - Deve ser chamada antes de invocar as ferramentas alvo
-- Ferramentas são descobertas via `tool_search` primeiro
+- Ferramentas são descobertas implicitamente das conexões no escopo atual
 
 ## Exemplo de Uso
 
@@ -52,8 +52,7 @@ tool_enable("CREATE_SHIPPING_LABEL")
 ## Padrão de Fluxo de Trabalho
 
 ```typescript
-// 1. Descobrir ferramentas disponíveis
-const tools = tool_search("order")
+// 1. Ferramentas são disponíveis das conexões no escopo atual
 
 // 2. Habilitar ferramenta específica
 tool_enable("GET_ORDERS")
@@ -64,5 +63,5 @@ GET_ORDERS({ status: "pending", limit: 50 })
 
 ## Relacionados
 
-- [**tool_search**](/pt-br/studio/api-reference/built-in-tools/tool-search) - Descobrir ferramentas disponíveis
+- [**Descoberta de Ferramentas**](/pt-br/studio/api-reference/built-in-tools/tool-search) - Como ferramentas são descobertas
 - [Visão Geral das Ferramentas Integradas](/pt-br/studio/api-reference/built-in-tools)

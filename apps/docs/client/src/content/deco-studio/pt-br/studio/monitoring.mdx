@@ -14,7 +14,7 @@ O deco Studio trata o monitoramento como **infraestrutura, não como algo secund
 **Chamadas de ferramentas MCP proxy são monitoradas pelo deco Studio.** Invocações de ferramentas que passam por conexões e MCPs Virtuais (ex: consultas ao GitHub, operações de banco de dados, chamadas Shopify) criam entradas de log estruturadas com detalhes completos de requisição/resposta, timing, atribuição e informações de erro. Isso acontece automaticamente — sem configuração necessária. Operações internas da API de gerenciamento (criação de conexões, gerenciamento de API keys) não são incluídas nos logs de monitoramento.
 </Callout>
 
-Deploys MCP tradicionais têm observabilidade fragmentada: cada cliente registra logs independentemente (ou não registra), cada servidor MCP tem sua própria estratégia de logging, e não há visão unificada do que aconteceu no sistema. O deco Studio resolve isso registrando logs **no nível do control plane**, criando uma única fonte de verdade para todo o tráfego MCP.
+Deploys MCP tradicionais têm observabilidade fragmentada: cada cliente registra logs independentemente (ou não registra), cada servidor MCP tem sua própria estratégia de logging, e não há visão unificada do que aconteceu no sistema. O deco Studio resolve isso registrando logs **no nível do control plane**, criando uma única fonte de verdade para todo o tráfego MCP proxy.
 
 ## Por que o Monitoramento é de Primeira Classe
 
@@ -35,13 +35,13 @@ Ao registrar logs no control plane (deco Studio), o monitoramento se torna:
 
 **Consistente**: Toda entrada de log segue o mesmo schema com o mesmo nível de detalhe.
 
-**Completo**: Nenhuma invocação pode burlar o monitoramento — se passou pelo deco Studio, está registrado.
+**Completo**: Nenhuma invocação proxy pode burlar o monitoramento — se passou pelo deco Studio, está registrado.
 
 **Correlacionado**: O contexto da requisição conecta operações relacionadas, permitindo rastreamento distribuído entre múltiplas invocações de ferramentas.
 
 ## O que é Registrado
 
-Toda invocação de ferramenta cria um log de monitoramento com:
+Toda invocação de ferramenta através de uma conexão cria um log de monitoramento com:
 
 ### Identidade e Atribuição
 - **Chamador**: Qual usuário ou API key fez a requisição
@@ -77,7 +77,7 @@ Esta informação está disponível imediatamente na interface do deco Studio, s
 
 ### Segurança e Conformidade
 
-O monitoramento cria uma **trilha de auditoria imutável** de toda atividade MCP:
+O monitoramento cria uma **trilha de auditoria imutável** de toda atividade MCP proxy:
 - Quem acessou quais ferramentas, quando
 - Quais dados foram lidos ou modificados
 - Quais credenciais foram usadas
