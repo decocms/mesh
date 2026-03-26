@@ -82,7 +82,7 @@ export function ImportFromDecoDialog({
     isLoading,
     error: sitesError,
   } = useQuery({
-    queryKey: ["deco-sites", session?.user?.email],
+    queryKey: KEYS.decoSites(session?.user?.email),
     queryFn: loadDecoSites,
     enabled: open && Boolean(session?.user?.email),
     staleTime: 60_000,

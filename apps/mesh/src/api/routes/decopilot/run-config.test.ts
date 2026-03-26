@@ -26,7 +26,7 @@ describe("PersistedRunConfigSchema", () => {
   });
 
   it("accepts optional fields as undefined", () => {
-    const { windowSize, ...minimal } = validConfig;
+    const { windowSize: _windowSize, ...minimal } = validConfig;
     const result = PersistedRunConfigSchema.safeParse(minimal);
     expect(result.success).toBe(true);
   });

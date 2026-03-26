@@ -14,6 +14,10 @@ import {
   SelectTrigger,
 } from "@deco/ui/components/select.tsx";
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@deco/ui/components/toggle-group.tsx";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -43,7 +47,7 @@ import { CreateOrganizationDialog } from "@/web/components/create-organization-d
 import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 
-type PanelView = "organizations" | "profile" | "preferences";
+type PanelView = "organizations" | "preferences";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -201,96 +205,22 @@ function OrganizationsPanel({
   );
 }
 
-function ProfilePanel({
-  user,
-  userImage,
-}: {
-  user: { id: string; name?: string | null; email?: string | null } | undefined;
-  userImage?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyUserId = () => {
-    if (!user?.id) return;
-    navigator.clipboard.writeText(user.id).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  return (
-    <div className="p-4 flex flex-col gap-6">
-      <div className="flex items-center gap-4">
-        <Avatar
-          url={userImage}
-          fallback={user?.name ?? "U"}
-          shape="circle"
-          size="xl"
-          className="size-16 shrink-0"
-        />
-        <div className="flex flex-col gap-1 min-w-0">
-          <span className="text-sm font-semibold text-foreground truncate">
-            {user?.name ?? "User"}
-          </span>
-          <span className="text-sm text-muted-foreground truncate">
-            {user?.email}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-col">
-        <p className="py-3 text-xs font-semibold text-muted-foreground/60 border-b border-border">
-          User ID
-        </p>
-        <div className="flex items-center justify-between gap-4 py-3">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleCopyUserId}
-                  className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <span className="font-mono text-sm">{user?.id}</span>
-                  {copied ? (
-                    <Check size={14} className="text-green-600 shrink-0" />
-                  ) : (
-                    <Copy01
-                      size={14}
-                      className="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
-                    />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p className="text-xs">Copy user ID</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function PreferenceRow({
   icon,
   label,
-  description,
   control,
   onClick,
   disabled,
 }: {
   icon: React.ReactNode;
   label: string;
-  description: string;
   control: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-4 py-3 border-b border-border last:border-0"
+      className="flex items-center justify-between gap-3 py-1.5"
       onClick={disabled ? undefined : onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick && !disabled ? 0 : undefined}
@@ -306,14 +236,9 @@ function PreferenceRow({
       }
       style={{ cursor: onClick && !disabled ? "pointer" : undefined }}
     >
-      <div className="flex items-start gap-2.5 min-w-0 flex-1">
-        <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-            {description}
-          </p>
-        </div>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-muted-foreground shrink-0">{icon}</span>
+        <span className="text-sm text-foreground">{label}</span>
       </div>
       <div onClick={(e) => e.stopPropagation()} className="shrink-0">
         {control}
@@ -340,146 +265,120 @@ function PreferencesPanel() {
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="px-4 py-3">
-        <span className="text-sm font-medium text-muted-foreground/60">
-          Preferences
-        </span>
-      </div>
-      <div className="px-4 flex flex-col">
-        <PreferenceRow
-          icon={<Sun size={14} />}
-          label="Theme"
-          description="Light, dark, or system theme."
-          control={
-            <Select
-              value={preferences.theme}
-              onValueChange={(value) =>
+    <div className="flex flex-col px-4 py-3 gap-1">
+      <PreferenceRow
+        icon={<Sun size={14} />}
+        label="Theme"
+        control={
+          <ToggleGroup
+            type="single"
+            size="sm"
+            variant="outline"
+            value={preferences.theme}
+            onValueChange={(value) => {
+              if (value) {
                 setPreferences((prev) => ({
                   ...prev,
                   theme: value as ThemeMode,
-                }))
+                }));
               }
-            >
-              <SelectTrigger className="w-32 h-8 text-xs">
-                <span>
+            }}
+          >
+            <ToggleGroupItem value="light" aria-label="Light theme">
+              <Sun size={14} />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="dark" aria-label="Dark theme">
+              <Moon01 size={14} />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="system" aria-label="System theme">
+              <Monitor01 size={14} />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        }
+      />
+      <PreferenceRow
+        icon={<Code01 size={14} />}
+        label="Developer Mode"
+        onClick={() =>
+          setPreferences((prev) => ({ ...prev, devMode: !prev.devMode }))
+        }
+        control={
+          <Switch
+            checked={preferences.devMode}
+            onCheckedChange={(checked) =>
+              setPreferences((prev) => ({ ...prev, devMode: checked }))
+            }
+          />
+        }
+      />
+      <PreferenceRow
+        icon={<Bell01 size={14} />}
+        label="Notifications"
+        disabled={typeof Notification === "undefined"}
+        onClick={() =>
+          handleNotificationsChange(!preferences.enableNotifications)
+        }
+        control={
+          <Switch
+            disabled={typeof Notification === "undefined"}
+            checked={preferences.enableNotifications}
+            onCheckedChange={handleNotificationsChange}
+          />
+        }
+      />
+      <PreferenceRow
+        icon={<Shield01 size={14} />}
+        label="Tool Approval"
+        control={
+          <Select
+            value={preferences.toolApprovalLevel}
+            onValueChange={(value) =>
+              setPreferences((prev) => ({
+                ...prev,
+                toolApprovalLevel: value as "auto" | "readonly" | "plan",
+              }))
+            }
+          >
+            <SelectTrigger className="w-28 h-7 text-xs">
+              <span>
+                {
                   {
-                    { light: "Light", dark: "Dark", system: "System" }[
-                      preferences.theme
-                    ]
-                  }
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light" textValue="Light">
-                  <div className="flex items-center gap-2">
-                    <Sun size={14} />
-                    <span>Light</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="dark" textValue="Dark">
-                  <div className="flex items-center gap-2">
-                    <Moon01 size={14} />
-                    <span>Dark</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="system" textValue="System">
-                  <div className="flex items-center gap-2">
-                    <Monitor01 size={14} />
-                    <span>System</span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-        <PreferenceRow
-          icon={<Code01 size={14} />}
-          label="Developer Mode"
-          description="Show technical details for tool calls."
-          onClick={() =>
-            setPreferences((prev) => ({ ...prev, devMode: !prev.devMode }))
-          }
-          control={
-            <Switch
-              checked={preferences.devMode}
-              onCheckedChange={(checked) =>
-                setPreferences((prev) => ({ ...prev, devMode: checked }))
-              }
-            />
-          }
-        />
-        <PreferenceRow
-          icon={<Bell01 size={14} />}
-          label="Notifications"
-          description="Sound and notification when chat completes."
-          disabled={typeof Notification === "undefined"}
-          onClick={() =>
-            handleNotificationsChange(!preferences.enableNotifications)
-          }
-          control={
-            <Switch
-              disabled={typeof Notification === "undefined"}
-              checked={preferences.enableNotifications}
-              onCheckedChange={handleNotificationsChange}
-            />
-          }
-        />
-        <PreferenceRow
-          icon={<Shield01 size={14} />}
-          label="Tool Approval"
-          description="When to require approval before tools execute."
-          control={
-            <Select
-              value={preferences.toolApprovalLevel}
-              onValueChange={(value) =>
-                setPreferences((prev) => ({
-                  ...prev,
-                  toolApprovalLevel: value as "auto" | "readonly" | "plan",
-                }))
-              }
-            >
-              <SelectTrigger className="w-32 h-8 text-xs">
-                <span>
-                  {
-                    {
-                      readonly: "Skip read-only",
-                      auto: "Auto-approve",
-                      plan: "Plan mode",
-                    }[preferences.toolApprovalLevel]
-                  }
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="readonly" textValue="Skip read-only">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">Skip read-only</span>
-                    <span className="text-xs text-muted-foreground">
-                      Auto-approve read-only tools
-                    </span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="auto" textValue="Auto-approve all">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">Auto-approve all</span>
-                    <span className="text-xs text-muted-foreground">
-                      Execute all without approval
-                    </span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="plan" textValue="Plan mode">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">Plan mode</span>
-                    <span className="text-xs text-muted-foreground">
-                      Read-only, then propose a plan
-                    </span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-      </div>
+                    readonly: "Skip read-only",
+                    auto: "Auto-approve",
+                    plan: "Plan mode",
+                  }[preferences.toolApprovalLevel]
+                }
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="readonly" textValue="Skip read-only">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">Skip read-only</span>
+                  <span className="text-xs text-muted-foreground">
+                    Auto-approve read-only tools
+                  </span>
+                </div>
+              </SelectItem>
+              <SelectItem value="auto" textValue="Auto-approve all">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">Auto-approve all</span>
+                  <span className="text-xs text-muted-foreground">
+                    Execute all without approval
+                  </span>
+                </div>
+              </SelectItem>
+              <SelectItem value="plan" textValue="Plan mode">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">Plan mode</span>
+                  <span className="text-xs text-muted-foreground">
+                    Read-only, then propose a plan
+                  </span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
     </div>
   );
 }
@@ -619,16 +518,8 @@ export function AccountPopover() {
           <div className="flex min-h-[380px] w-full">
             {/* Left panel */}
             <div className="w-60 shrink-0 flex flex-col border-r border-border bg-sidebar/75">
-              {/* User info - hoverable to show profile */}
-              <div
-                className={cn(
-                  "flex items-center gap-3 px-4 py-4 cursor-pointer rounded-md mx-1 mt-1 transition-colors",
-                  activePanel === "profile"
-                    ? "bg-sidebar-accent"
-                    : "hover:bg-sidebar-accent/50",
-                )}
-                onMouseEnter={() => setActivePanel("profile")}
-              >
+              {/* User info */}
+              <div className="flex items-center gap-3 px-4 py-3 mx-1 mt-1">
                 <Avatar
                   url={userImage}
                   fallback={user?.name ?? "U"}
@@ -644,6 +535,27 @@ export function AccountPopover() {
                     {user?.email}
                   </p>
                 </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!user?.id) return;
+                          navigator.clipboard.writeText(user.id).then(() => {
+                            toast.success("User ID copied");
+                          });
+                        }}
+                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Copy01 size={14} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p className="text-xs">Copy user ID</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {/* Navigation items */}
@@ -651,7 +563,7 @@ export function AccountPopover() {
                 {/* Organizations */}
                 <button
                   type="button"
-                  className={navItemClass("organizations")}
+                  className={cn(navItemClass("organizations"))}
                   onMouseEnter={() => setActivePanel("organizations")}
                 >
                   <span className="shrink-0 text-muted-foreground">
@@ -663,7 +575,7 @@ export function AccountPopover() {
                 {/* Preferences */}
                 <button
                   type="button"
-                  className={navItemClass("preferences")}
+                  className={cn(navItemClass("preferences"))}
                   onMouseEnter={() => setActivePanel("preferences")}
                 >
                   <span className="shrink-0 text-muted-foreground">
@@ -702,9 +614,6 @@ export function AccountPopover() {
                     setCreatingOrg(true);
                   }}
                 />
-              )}
-              {activePanel === "profile" && (
-                <ProfilePanel user={user} userImage={userImage} />
               )}
               {activePanel === "preferences" && <PreferencesPanel />}
             </div>

@@ -267,4 +267,10 @@ export const KEYS = {
   // Store discovery (per-registry infinite query)
   storeDiscovery: (orgId: string, registryId: string) =>
     ["store-discovery", orgId, registryId] as const,
+
+  // Deco profile (scoped by user email)
+  decoProfile: (email: string | undefined) => ["deco-profile", email] as const,
+
+  // Deco sites (scoped by user email)
+  decoSites: (email: string | undefined) => ["deco-sites", email] as const,
 } as const;

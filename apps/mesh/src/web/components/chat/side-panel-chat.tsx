@@ -3,6 +3,7 @@ import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { authClient } from "@/web/lib/auth-client";
+import { KEYS } from "@/web/lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -72,7 +73,7 @@ function ImportDecoSiteBanner({ onClick }: { onClick: () => void }) {
 function useIsDecoUser() {
   const { data: session } = authClient.useSession();
   const { data } = useQuery({
-    queryKey: ["deco-profile", session?.user?.email],
+    queryKey: KEYS.decoProfile(session?.user?.email),
     queryFn: async () => {
       const res = await fetch("/api/deco-sites/profile");
       if (!res.ok) return { isDecoUser: false };

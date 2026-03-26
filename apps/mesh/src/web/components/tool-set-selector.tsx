@@ -189,15 +189,13 @@ export function ToolSetSelector({
     hasNextPage,
     isFetchingNextPage,
   } = useSuspenseInfiniteQuery({
-    queryKey: [
-      ...KEYS.collectionListInfinite(
-        client,
-        org.id,
-        "",
-        "CONNECTIONS",
-        argsKey,
-      ),
-    ],
+    queryKey: KEYS.collectionListInfinite(
+      client,
+      org.id,
+      "",
+      "CONNECTIONS",
+      argsKey,
+    ),
     queryFn: async ({ pageParam = 0 }) => {
       const result = await client.callTool({
         name: "COLLECTION_CONNECTIONS_LIST",

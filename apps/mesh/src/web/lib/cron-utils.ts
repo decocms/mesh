@@ -5,7 +5,7 @@
 export function isValidCron(expr: string): boolean {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return false;
-  return parts.every((p) => /^[\d*/,\-]+$/.test(p));
+  return parts.every((p) => /^[\d*/,-]+$/.test(p));
 }
 
 export function humanReadableCron(expr: string): string {

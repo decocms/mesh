@@ -100,7 +100,7 @@ export default function AutomationsPage() {
           automationId: result.id,
         },
       });
-    } catch (err) {
+    } catch {
       toast.error("Failed to create automation");
     }
   };

@@ -149,7 +149,7 @@ export async function fireAutomation(opts: {
       );
       try {
         await storage.markRunFailed(taskId);
-      } catch (_) {
+      } catch {
         // best-effort
       }
     } finally {
