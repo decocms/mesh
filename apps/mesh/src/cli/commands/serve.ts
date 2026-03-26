@@ -93,5 +93,7 @@ export async function startServer(options: ServeOptions): Promise<void> {
   // Boot server — settings available via getSettings()
   await import("../../index");
 
-  setServerUrl(`http://localhost:${settings.port}`);
+  // Re-read settings: port may have changed if the original was in use
+  const { getSettings } = await import("../../settings");
+  setServerUrl(`http://localhost:${getSettings().port}`);
 }
