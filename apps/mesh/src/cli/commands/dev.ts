@@ -151,7 +151,7 @@ export async function startDevServer(
     child.kill(signal);
     if (managedServiceNames.length > 0) {
       const { stopServices } = await import("../../services/ensure-services");
-      await stopServices(options.home);
+      await stopServices(settings.dataDir);
     }
   };
 
