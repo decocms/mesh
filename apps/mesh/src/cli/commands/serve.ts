@@ -1,15 +1,11 @@
 /**
  * Server startup logic extracted from cli.ts.
  *
- * Resolves secrets, starts services, runs migrations, and launches the server.
- * Reports progress via the CLI store so the Ink UI can update live.
+ * Delegates environment resolution, service startup, and migrations to
+ * buildSettings(). Reports progress via the CLI store so the Ink UI can
+ * update live.
  */
-import { chmod, mkdir, writeFile } from "fs/promises";
-import { join } from "path";
-import { refreshEnv } from "../../env";
-import { ensureServices } from "../../services/ensure-services";
-import { migrateToLatest } from "../../database/migrate";
-import { resolveSecrets, type SecretsFile } from "./resolve-secrets";
+import { buildSettings } from "../../settings/pipeline";
 import {
   addLogEntry,
   setEnv,
@@ -18,7 +14,7 @@ import {
   setTuiConsoleIntercepted,
   updateService,
 } from "../cli-store";
-import type { ServiceStatus } from "../header";
+import { findAvailablePort } from "../find-available-port";
 
 export interface ServeOptions {
   port: string;
@@ -80,91 +76,25 @@ export function interceptConsoleForTui() {
 }
 
 export async function startServer(options: ServeOptions): Promise<void> {
-  const { port, home, skipMigrations, localMode, noTui } = options;
+  const port = await findAvailablePort(Number(options.port));
 
-  // Set env vars — refreshEnv() below re-parses them into the env singleton
-  if (noTui) {
-    process.env.DECO_NO_TUI = "true";
-  }
-  process.env.DECOCMS_HOME = home;
-  process.env.DATA_DIR = home;
-  process.env.PORT = port;
-  process.env.DECOCMS_LOCAL_MODE = localMode ? "true" : "false";
-
-  if (localMode) {
-    process.env.NODE_ENV = "production";
-    process.env.DECOCMS_ALLOW_LOCAL_PROD = "true";
-  } else if (!process.env.NODE_ENV) {
-    process.env.NODE_ENV = "production";
-  }
-
-  // ── Secrets ──────────────────────────────────────────────────────────
-  const secretsFilePath = join(home, "secrets.json");
-  await mkdir(home, { recursive: true, mode: 0o700 });
-
-  let savedSecrets: SecretsFile = {};
-  try {
-    const file = Bun.file(secretsFilePath);
-    if (await file.exists()) {
-      savedSecrets = await file.json();
-    }
-  } catch {
-    // File doesn't exist or is invalid
-  }
-
-  const rawEnvEncKey = process.env.ENCRYPTION_KEY;
-  const rawEnvAuthSecret = process.env.BETTER_AUTH_SECRET;
-  const { secrets, modified: secretsModified } = resolveSecrets(savedSecrets, {
-    BETTER_AUTH_SECRET: rawEnvAuthSecret,
-    ENCRYPTION_KEY: rawEnvEncKey,
+  const { settings, services } = await buildSettings({
+    port: String(port),
+    home: options.home,
+    localMode: options.localMode,
+    skipMigrations: options.skipMigrations,
+    noTui: options.noTui,
+    nodeEnv: "production",
   });
 
-  process.env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
-  process.env.ENCRYPTION_KEY = secrets.ENCRYPTION_KEY;
-
-  if (secretsModified) {
-    try {
-      await writeFile(secretsFilePath, JSON.stringify(secrets, null, 2), {
-        mode: 0o600,
-      });
-      await chmod(secretsFilePath, 0o600);
-    } catch {
-      // Non-fatal — continue
-    }
-  }
-
-  // ── Services ─────────────────────────────────────────────────────────
-  const services = await ensureServices(home);
-
   for (const s of services) {
-    const svc: ServiceStatus = {
-      name: s.name === "PostgreSQL" ? "Postgres" : s.name,
-      status: "ready",
-      port: s.port,
-    };
-    updateService(svc);
+    updateService({ name: s.name, status: "ready", port: s.port });
   }
-
-  // ── Env ──────────────────────────────────────────────────────────────
-  // In bundled builds, env.ts is evaluated at bundle-load time with Zod
-  // defaults. Re-parse now that process.env has the resolved secrets
-  // and the dynamic DATABASE_URL from ensureServices.
-  setEnv(refreshEnv());
-
-  // ── Migrations ───────────────────────────────────────────────────────
-  if (!skipMigrations) {
-    try {
-      await migrateToLatest({ keepOpen: true });
-    } catch (error) {
-      console.error("Failed to run migrations:", error);
-      process.exit(1);
-    }
-  }
+  setEnv(settings);
   setMigrationsDone();
 
-  // ── Start server ─────────────────────────────────────────────────────
-  process.env.DECO_CLI = "1";
+  // Boot server — settings available via getSettings()
   await import("../../index");
 
-  setServerUrl(`http://localhost:${port}`);
+  setServerUrl(`http://localhost:${settings.port}`);
 }

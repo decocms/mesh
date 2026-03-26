@@ -46,12 +46,15 @@ async function supabaseGet<T>(
   return res.json() as Promise<T[]>;
 }
 
+import { getSettings } from "../../settings";
+
 function getSupabaseConfig(): {
   supabaseUrl: string;
   serviceKey: string;
 } | null {
-  const supabaseUrl = process.env.DECO_SUPABASE_URL;
-  const serviceKey = process.env.DECO_SUPABASE_SERVICE_KEY;
+  const settings = getSettings();
+  const supabaseUrl = settings.decoSupabaseUrl;
+  const serviceKey = settings.decoSupabaseServiceKey;
   if (!supabaseUrl || !serviceKey) return null;
   return { supabaseUrl, serviceKey };
 }

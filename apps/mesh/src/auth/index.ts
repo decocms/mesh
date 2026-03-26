@@ -9,7 +9,7 @@
  * Configuration is file-based (auth-config.json), not environment variables.
  */
 
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { getToolsByCategory } from "@/tools/registry";
 import { sso } from "@better-auth/sso";
 import { organization } from "@decocms/better-auth/plugins";
@@ -29,7 +29,7 @@ import {
   defaultStatements,
 } from "better-auth/plugins/organization/access";
 
-import { config } from "@/core/config";
+import { getConfig } from "@/core/config";
 import { getBaseUrl } from "@/core/server-constants";
 import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
 import { getDatabaseUrl, getDbDialect } from "../database";
@@ -111,7 +111,7 @@ const scopes = Object.values(getToolsByCategory())
   .map((tool) => tool.map((t) => `self:${t.name}`))
   .flat();
 
-export const authConfig = config.auth;
+export const authConfig = getConfig().auth;
 
 let sendInvitationEmail: OrganizationOptions["sendInvitationEmail"] = undefined;
 
@@ -377,7 +377,7 @@ export const auth = betterAuth({
   // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)
   // Must be AFTER authConfig spread to ensure it takes precedence
   rateLimit: {
-    enabled: !env.DISABLE_RATE_LIMIT,
+    enabled: !getSettings().disableRateLimit,
     window: 60,
     max: 10000, // Very high limit as fallback
   },
@@ -390,7 +390,7 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           // Check if auto-creation is enabled (default: true)
-          if (config.autoCreateOrganizationOnSignup === false) {
+          if (getConfig().autoCreateOrganizationOnSignup === false) {
             return;
           }
 

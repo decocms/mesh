@@ -35,7 +35,7 @@ import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
 import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
-import { POD_ID } from "@/core/pod-identity";
+import { getPodId } from "@/core/pod-identity";
 
 // ============================================================================
 // Request Validation
@@ -463,7 +463,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       const claimed = await threadStorage.claimOrphanedRun(
         taskId,
         organization.id,
-        POD_ID,
+        getPodId(),
       );
       if (!claimed) {
         return c.body(null, 204);

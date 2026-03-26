@@ -7,7 +7,7 @@
 
 import { Hono } from "hono";
 import { getConnInfo } from "hono/bun";
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 import { authConfig, resetPasswordEnabled } from "../../auth";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
 import {
@@ -75,8 +75,9 @@ app.get("/config", async (c) => {
     }));
 
     // STDIO is disabled in production unless explicitly allowed
+    const settings = getSettings();
     const stdioEnabled =
-      env.NODE_ENV !== "production" || env.UNSAFE_ALLOW_STDIO_TRANSPORT;
+      settings.nodeEnv !== "production" || settings.unsafeAllowStdioTransport;
 
     const config: AuthConfig = {
       emailAndPassword: {
