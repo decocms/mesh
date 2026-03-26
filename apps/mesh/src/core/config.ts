@@ -8,7 +8,7 @@ import {
 } from "@/monitoring/types";
 import { BetterAuthOptions } from "better-auth";
 import { existsSync, readFileSync } from "fs";
-import { env } from "../env";
+import { getSettings } from "../settings";
 
 const DEFAULT_AUTH_CONFIG: Partial<BetterAuthOptions> = {
   emailAndPassword: {
@@ -65,10 +65,6 @@ export interface Config {
   autoCreateOrganizationOnSignup?: boolean;
 }
 
-// Config paths can be overridden via environment variables for k8s flexibility
-const configPath = env.CONFIG_PATH;
-const authConfigPath = env.AUTH_CONFIG_PATH;
-
 /**
  * Load optional configuration from file
  *
@@ -77,6 +73,9 @@ const authConfigPath = env.AUTH_CONFIG_PATH;
  * - AUTH_CONFIG_PATH: Auth config file path (default: ./auth-config.json)
  */
 function loadConfig(): Config {
+  const configPath = getSettings().configPath;
+  const authConfigPath = getSettings().authConfigPath;
+
   if (existsSync(configPath)) {
     try {
       const content = readFileSync(configPath, "utf-8");
@@ -115,7 +114,14 @@ function loadConfig(): Config {
   };
 }
 
-export const config = loadConfig();
+let _config: Config | null = null;
+
+export function getConfig(): Config {
+  if (!_config) {
+    _config = loadConfig();
+  }
+  return _config;
+}
 
 /**
  * Get monitoring configuration with defaults
@@ -123,7 +129,7 @@ export const config = loadConfig();
 export function getMonitoringConfig(): MonitoringConfig {
   return {
     ...DEFAULT_MONITORING_CONFIG,
-    ...config.monitoring,
+    ...getConfig().monitoring,
   };
 }
 
@@ -131,5 +137,5 @@ export function getMonitoringConfig(): MonitoringConfig {
  * Get theme configuration
  */
 export function getThemeConfig(): ThemeConfig | undefined {
-  return config.theme;
+  return getConfig().theme;
 }

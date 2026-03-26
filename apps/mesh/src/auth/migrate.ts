@@ -4,26 +4,51 @@
  * Runs Better Auth migrations programmatically without requiring the CLI.
  * This gets bundled with the application, avoiding the need for node_modules.
  *
- * IMPORTANT: Uses a fresh database dialect from the current env.DATABASE_URL
- * because the `auth` object is created at module load time — before
- * ensureServices starts Postgres on its dynamic port and updates DATABASE_URL.
+ * IMPORTANT: Does NOT import auth/index.ts to avoid triggering the full
+ * Better Auth initialization (which requires Settings to be initialized).
+ * Instead, constructs minimal options needed for migration discovery.
  */
 
 import { getMigrations } from "better-auth/db";
-import { auth } from "./index";
+import { sso } from "@better-auth/sso";
+import { organization } from "@decocms/better-auth/plugins";
+import {
+  admin as adminPlugin,
+  apiKey,
+  jwt,
+  magicLink,
+  mcp,
+  openAPI,
+} from "better-auth/plugins";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { getDatabaseUrl, getDbDialect } from "../database";
 
 /**
  * Run Better Auth migrations programmatically.
  *
- * Creates a fresh database dialect using the current DATABASE_URL to avoid
- * the stale connection from the eagerly-created `auth` object.
- * Throws on failure — Kysely migrations depend on Better Auth tables
- * (e.g. `organization`) so they cannot proceed if this fails.
+ * Constructs minimal Better Auth options with just the plugins needed
+ * to discover migration tables, without importing the full auth module
+ * (which would trigger getSettings() at module load time).
  */
-export async function migrateBetterAuth(): Promise<string> {
-  const freshDatabase = getDbDialect(getDatabaseUrl());
-  const options = { ...auth.options, database: freshDatabase };
+export async function migrateBetterAuth(databaseUrl?: string): Promise<string> {
+  const freshDatabase = getDbDialect(databaseUrl || getDatabaseUrl());
+
+  // Minimal options — only needs plugins to discover which tables to create.
+  // Does not need auth config, rate limiting, hooks, etc.
+  const options = {
+    database: freshDatabase,
+    plugins: [
+      organization(),
+      adminPlugin(),
+      apiKey(),
+      jwt(),
+      openAPI(),
+      mcp({ loginPage: "/login" }),
+      sso(),
+      magicLink({ sendMagicLink: async () => {} }),
+      emailOTP({ sendVerificationOTP: async () => {} }),
+    ],
+  };
 
   const { toBeAdded, toBeCreated, runMigrations } =
     await getMigrations(options);

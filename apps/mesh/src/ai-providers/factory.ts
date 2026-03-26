@@ -2,7 +2,7 @@ import type { ModelCapability } from "@decocms/mesh-sdk";
 import type { AIProviderKeyStorage } from "../storage/ai-provider-keys";
 import type { ModelListCache } from "./model-list-cache";
 import type { MeshProvider, ModelInfo, OpenRouterAPIModel } from "./types";
-import { PROVIDERS } from "./registry";
+import { getProviders } from "./registry";
 
 // Sentinel org ID for the shared OpenRouter metadata cache (not org-specific)
 const OR_INDEX_ORG_ID = "_global";
@@ -119,7 +119,7 @@ export class AIProviderFactory {
       keyId,
       organizationId,
     );
-    const adapter = PROVIDERS[keyInfo.providerId];
+    const adapter = getProviders()[keyInfo.providerId];
     if (!adapter) throw new Error(`Unknown provider: ${keyInfo.providerId}`);
     return adapter.create(apiKey);
   }
@@ -139,7 +139,7 @@ export class AIProviderFactory {
       if (cached) return cached;
     }
 
-    const adapter = PROVIDERS[providerId];
+    const adapter = getProviders()[providerId];
     if (!adapter) throw new Error(`Unknown provider: ${providerId}`);
     const provider = adapter.create(apiKey);
     const rawModels = await provider.listModels();

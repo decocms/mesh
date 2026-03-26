@@ -1,7 +1,7 @@
 import z from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
-import { PROVIDERS } from "../../ai-providers/registry";
+import { getProviders } from "../../ai-providers/registry";
 
 export const AI_PROVIDERS_ACTIVE = defineTool({
   name: "AI_PROVIDERS_ACTIVE",
@@ -39,7 +39,8 @@ export const AI_PROVIDERS_ACTIVE = defineTool({
 
     const providers = [...countByProvider.entries()].flatMap(
       ([providerId, keyCount]) => {
-        const adapter = PROVIDERS[providerId as keyof typeof PROVIDERS];
+        const providers = getProviders();
+        const adapter = providers[providerId as keyof typeof providers];
         if (!adapter) {
           console.warn(
             `AI provider "${providerId}" has stored keys but is not in the registry; skipping.`,

@@ -13,7 +13,7 @@ import type { Meter, Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
@@ -24,7 +24,7 @@ import {
 import { createMonitoringEngine } from "../monitoring/query-engine";
 import { ClickHouseClientEngine } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
-import { DEFAULT_LOGS_DIR, DEFAULT_METRICS_DIR } from "../monitoring/schema";
+import { getLogsDir, getMetricsDir } from "../monitoring/schema";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
@@ -770,29 +770,30 @@ export async function createMeshContextFactory(
   const vault = new CredentialVault(config.encryption.key);
 
   // Create monitoring engines (shared across requests)
-  const isClickHouse = !!env.CLICKHOUSE_URL;
+  const clickhouseUrl = getSettings().clickhouseUrl;
+  const isClickHouse = !!clickhouseUrl;
   const dialect: SqlDialect = isClickHouse ? "clickhouse" : "duckdb";
 
   let monitoringEngine: QueryEngine;
   let metricEngine: QueryEngine;
 
   if (isClickHouse) {
-    monitoringEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
-    metricEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
+    monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
+    metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {
     const { engine: me } = await createMonitoringEngine({
-      basePath: DEFAULT_LOGS_DIR,
+      basePath: getLogsDir(),
     });
     const { engine: metricE } = await createMonitoringEngine({
-      basePath: DEFAULT_METRICS_DIR,
+      basePath: getMetricsDir(),
     });
     monitoringEngine = me;
     metricEngine = metricE;
   }
 
   const { resolve } = await import("node:path");
-  const logsBasePath = resolve(DEFAULT_LOGS_DIR);
-  const metricsBasePath = resolve(DEFAULT_METRICS_DIR);
+  const logsBasePath = resolve(getLogsDir());
+  const metricsBasePath = resolve(getMetricsDir());
 
   const logSourceFactory = isClickHouse
     ? (_orgId: string) => "monitoring_logs"
@@ -884,7 +885,7 @@ export async function createMeshContextFactory(
 
     // Derive base URL from request or fallback to configured base URL
     const baseUrl = req
-      ? (env.BASE_URL ?? `${new URL(req.url).origin}`)
+      ? (getSettings().baseUrl ?? `${new URL(req.url).origin}`)
       : getBaseUrl();
 
     // Create AccessControl instance with bound auth client

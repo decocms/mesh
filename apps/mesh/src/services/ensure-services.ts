@@ -20,6 +20,7 @@ import { createRequire } from "module";
 import { createConnection, createServer } from "net";
 import { arch, platform } from "os";
 import { dirname, join } from "path";
+import type { ServiceInputs, ServiceOutputs } from "../settings/types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -647,16 +648,6 @@ async function stopNats(home: string): Promise<void> {
 // Public API
 // ---------------------------------------------------------------------------
 
-function isLocalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname;
-    return host === "localhost" || host === "127.0.0.1" || host === "::1";
-  } catch {
-    return true; // If we can't parse it, assume local (safe fallback)
-  }
-}
-
 function portFromUrl(url: string, fallback: number): number {
   try {
     const parsed = new URL(url);
@@ -666,42 +657,50 @@ function portFromUrl(url: string, fallback: number): number {
   }
 }
 
-export async function ensureServices(home: string): Promise<ServiceInfo[]> {
-  ensureDir(servicesDir(home));
+export async function ensureServices(inputs: ServiceInputs): Promise<{
+  services: ServiceInfo[];
+  outputs: ServiceOutputs;
+}> {
+  ensureDir(servicesDir(inputs.home));
 
-  const skipPostgres =
-    process.env.DATABASE_URL && !isLocalUrl(process.env.DATABASE_URL);
-  const skipNats = process.env.NATS_URL && !isLocalUrl(process.env.NATS_URL);
+  const skipPostgres = inputs.externalDatabaseUrl !== null;
+  const skipNats = inputs.externalNatsUrl !== null;
 
   const pgInfo: ServiceInfo = skipPostgres
     ? {
         name: "PostgreSQL",
         state: "external",
         pid: null,
-        port: portFromUrl(process.env.DATABASE_URL!, 5432),
+        port: portFromUrl(inputs.externalDatabaseUrl!, 5432),
         owner: "external",
       }
-    : await ensurePostgres(home);
+    : await ensurePostgres(inputs.home);
 
   const natsInfo: ServiceInfo = skipNats
     ? {
         name: "NATS",
         state: "external",
         pid: null,
-        port: portFromUrl(process.env.NATS_URL!, 4222),
+        port: portFromUrl(inputs.externalNatsUrl!, 4222),
         owner: "external",
       }
-    : await ensureNats(home);
+    : await ensureNats(inputs.home);
 
-  if (!skipPostgres && !process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = pgConnectionString(pgInfo.port);
-  }
+  const databaseUrl = skipPostgres
+    ? inputs.externalDatabaseUrl!
+    : pgConnectionString(pgInfo.port);
 
-  if (!skipNats && !process.env.NATS_URL) {
-    process.env.NATS_URL = `nats://localhost:${natsInfo.port}`;
-  }
+  const natsUrl = skipNats
+    ? inputs.externalNatsUrl!
+    : `nats://localhost:${natsInfo.port}`;
 
-  return [pgInfo, natsInfo];
+  return {
+    services: [pgInfo, natsInfo],
+    outputs: {
+      databaseUrl,
+      natsUrls: [natsUrl],
+    },
+  };
 }
 
 export async function stopServices(home: string): Promise<void> {

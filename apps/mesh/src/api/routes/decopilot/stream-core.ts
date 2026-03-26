@@ -47,7 +47,7 @@ import {
 } from "@/ai-providers/adapters/claude-code";
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
-import { POD_ID } from "@/core/pod-identity";
+import { getPodId } from "@/core/pod-identity";
 
 /**
  * Creates a language model from the provider, enabling reasoning when the
@@ -231,7 +231,7 @@ async function streamCoreInner(
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
-        podId: POD_ID,
+        podId: getPodId(),
       });
     } else {
       await runRegistry.execute({
@@ -240,7 +240,7 @@ async function streamCoreInner(
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
-        podId: POD_ID,
+        podId: getPodId(),
         runConfig: {
           models: input.models,
           agent: input.agent,

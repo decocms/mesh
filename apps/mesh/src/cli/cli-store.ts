@@ -2,7 +2,7 @@
  * External store for CLI state. The server startup code pushes state updates
  * here, and Ink components subscribe via useSyncExternalStore (no useEffect).
  */
-import type { Env } from "../env";
+import type { Settings } from "../settings";
 import type { ServiceStatus } from "./header";
 import type { LogEntry } from "./log-emitter";
 
@@ -12,7 +12,7 @@ interface CliState {
   services: ServiceStatus[];
   migrationsStatus: "pending" | "done";
   serverUrl: string | null;
-  env: Env | null;
+  env: Settings | null;
   logs: LogEntry[];
   viewMode: "requests" | "config";
   logFlow: boolean;
@@ -68,7 +68,7 @@ export function setServerUrl(url: string) {
   emit();
 }
 
-export function setEnv(env: Env) {
+export function setEnv(env: Settings) {
   state = { ...state, env };
   emit();
 }

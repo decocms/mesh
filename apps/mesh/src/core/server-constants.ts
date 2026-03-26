@@ -5,7 +5,7 @@
  * Respects BASE_URL and PORT environment variables.
  */
 
-import { env } from "../env";
+import { getSettings } from "../settings";
 
 /**
  * Get the base URL for the server.
@@ -15,10 +15,11 @@ import { env } from "../env";
  * 2. http://localhost:{PORT} where PORT defaults to 3000
  */
 export function getBaseUrl(): string {
-  if (env.BASE_URL) {
-    return env.BASE_URL;
+  const settings = getSettings();
+  if (settings.baseUrl) {
+    return settings.baseUrl;
   }
-  return `http://localhost:${env.PORT}`;
+  return `http://localhost:${settings.port}`;
 }
 
 /**
@@ -27,5 +28,5 @@ export function getBaseUrl(): string {
  * even when BASE_URL is a proxy hostname (e.g. tokyo.localhost).
  */
 export function getInternalUrl(): string {
-  return `http://localhost:${env.PORT}`;
+  return `http://localhost:${getSettings().port}`;
 }

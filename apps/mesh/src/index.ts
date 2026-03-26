@@ -6,25 +6,27 @@
  * Or: bun run src/index.ts
  */
 
-// Import observability module early to initialize OpenTelemetry SDK
-import "./observability";
-
 import {
   createAssetHandler,
   resolveClientDir,
 } from "@decocms/runtime/asset-server";
 import { createApp } from "./api/app";
 import { isServerPath } from "./api/utils/paths";
-import { env, logConfiguration } from "./env";
+import { getSettings } from "./settings";
 import { red } from "./fmt";
 
-const port = env.PORT;
+const settings = getSettings();
+
+// Initialize OpenTelemetry SDK (must be called after getSettings())
+import { initObservability } from "./observability";
+initObservability();
+const port = settings.port;
 
 // Refuse local mode in production — it disables authentication
 if (
-  env.DECOCMS_LOCAL_MODE &&
-  env.NODE_ENV === "production" &&
-  !env.DECOCMS_ALLOW_LOCAL_PROD
+  settings.localMode &&
+  settings.nodeEnv === "production" &&
+  !settings.allowLocalProd
 ) {
   console.error(
     red(
@@ -70,15 +72,13 @@ function withSecurityHeaders(res: Response): Response {
 // Create the Hono app
 const app = await createApp();
 
-// When DECO_CLI is set, the calling script handles its own banner/config output
-if (!process.env.DECO_CLI) {
+// When running via CLI, the calling script handles its own banner/config output
+if (!settings.isCli) {
   const { ASCII_ART } = await import("./fmt");
   console.log("");
   for (const line of ASCII_ART) {
     console.log(line);
   }
-
-  logConfiguration(env);
 }
 
 const server = Bun.serve({
@@ -93,13 +93,13 @@ const server = Bun.serve({
     if (assetRes) return withSecurityHeaders(assetRes);
     return app.fetch(request, { server });
   },
-  development: env.NODE_ENV !== "production",
+  development: settings.nodeEnv !== "production",
 });
 
 // Local mode: seed admin user + organization after server is listening
 // This must run after Bun.serve() so that the org seed can fetch tools
 // from the self MCP endpoint (http://localhost:PORT/mcp/self)
-if (env.DECOCMS_LOCAL_MODE) {
+if (settings.localMode) {
   import("./auth/local-mode")
     .then(async ({ seedLocalMode, markSeedComplete }) => {
       try {

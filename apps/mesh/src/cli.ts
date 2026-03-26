@@ -34,9 +34,6 @@ const { values, positionals } = parseArgs({
     "base-url": {
       type: "string",
     },
-    "env-file": {
-      type: "string",
-    },
     help: {
       type: "boolean",
       short: "h",
@@ -92,7 +89,6 @@ Server Options:
 Dev Options:
   --vite-port <port>    Vite dev server port (default: 4000)
   --base-url <url>      Base URL for the server
-  --env-file <path>     Path to .env file to load
 
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
@@ -109,7 +105,6 @@ Examples:
   deco --no-local-mode             Disable auto-login (production)
   deco dev                        Start dev server
   deco dev --vite-port 5000       Dev server with custom Vite port
-  deco dev --env-file .env        Dev server with env file
   deco services up                Start Postgres and NATS
   deco services status            Show service status
   deco services down              Stop services
@@ -181,7 +176,6 @@ if (command === "services") {
   await servicesCommand({
     subcommand,
     home: decoHome,
-    envFile: values["env-file"],
   });
   process.exit(0);
 }
@@ -202,7 +196,6 @@ if (command === "dev") {
     home: decoHome,
     baseUrl: values["base-url"],
     skipMigrations: values["skip-migrations"] === true,
-    envFile: values["env-file"],
     noTui,
     localMode: values["no-local-mode"] !== true,
   };
