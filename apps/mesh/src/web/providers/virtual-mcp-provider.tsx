@@ -12,10 +12,7 @@
 
 import { Suspense, type ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
-import {
-  useProjectContext,
-  useVirtualMCP,
-} from "@decocms/mesh-sdk";
+import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { EmptyState } from "@/web/components/empty-state";
@@ -148,9 +145,7 @@ function VirtualMCPProviderContent({
     navigateToTask,
   };
 
-  return (
-    <AgentContext value={agentValue}>{children}</AgentContext>
-  );
+  return <AgentContext value={agentValue}>{children}</AgentContext>;
 }
 
 // ---------------------------------------------------------------------------

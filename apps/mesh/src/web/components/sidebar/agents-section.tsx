@@ -31,6 +31,7 @@ import {
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { useNavigateToNewTask } from "@/web/hooks/use-navigate-to-new-task";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
@@ -56,6 +57,7 @@ function AgentListItem({
   onMarkSeen?: () => void;
 }) {
   const navigate = useNavigate();
+  const navigateToNewTask = useNavigateToNewTask();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const actions = useVirtualMCPActions();
@@ -97,10 +99,7 @@ function AgentListItem({
         isActive={isActive}
         onClick={() => {
           onMarkSeen?.();
-          navigate({
-            to: "/$org/$virtualMcpId",
-            params: { org, virtualMcpId: agent.id },
-          });
+          navigateToNewTask(agent.id);
         }}
         onMouseEnter={handleIconMouseEnter}
         onMouseLeave={handleIconMouseLeave}
@@ -225,7 +224,7 @@ function PinAgentPopoverContent({
   const { org } = useProjectContext();
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
 
-  const navigate = useNavigate();
+  const navigateToNewTask = useNavigateToNewTask();
 
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
@@ -245,10 +244,7 @@ function PinAgentPopoverContent({
     }
     onClose();
     setSearch("");
-    navigate({
-      to: "/$org/$virtualMcpId",
-      params: { org: org.slug, virtualMcpId: agent.id },
-    });
+    navigateToNewTask(agent.id);
   };
 
   const handleDefaultAgentClick = (agentId: string) => {
@@ -257,10 +253,7 @@ function PinAgentPopoverContent({
     if (agentId === SITE_EDITOR_AGENT.id) {
       onOpenSiteEditorModal();
     } else {
-      navigate({
-        to: "/$org/$virtualMcpId",
-        params: { org: org.slug, virtualMcpId: agentId },
-      });
+      navigateToNewTask(agentId);
     }
   };
 
@@ -289,10 +282,7 @@ function PinAgentPopoverContent({
             onClick={async () => {
               const { id } = await createVirtualMCP();
               onClose();
-              navigate({
-                to: "/$org/$virtualMcpId",
-                params: { org: org.slug, virtualMcpId: id },
-              });
+              navigateToNewTask(id);
             }}
             className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
           >
