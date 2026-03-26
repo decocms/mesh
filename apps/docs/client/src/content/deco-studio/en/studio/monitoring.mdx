@@ -14,7 +14,7 @@ deco Studio treats monitoring as **infrastructure, not an afterthought**. Every 
 **MCP proxy tool calls are monitored by deco Studio.** Tool invocations that flow through connections and Virtual MCPs (e.g., GitHub queries, database operations, Shopify calls) create structured log entries with full request/response details, timing, attribution, and error information. This happens automatically—no configuration required. Internal management API operations (creating connections, managing API keys) are not included in monitoring logs.
 </Callout>
 
-Traditional MCP deployments have fragmented observability: each client logs independently (or doesn't log at all), each MCP server has its own logging strategy, and there's no unified view of what happened across the system. deco Studio solves this by logging **at the control plane level**, creating a single source of truth for all MCP traffic.
+Traditional MCP deployments have fragmented observability: each client logs independently (or doesn't log at all), each MCP server has its own logging strategy, and there's no unified view of what happened across the system. deco Studio solves this by logging **at the control plane level**, creating a single source of truth for all MCP proxy traffic.
 
 ## Why Monitoring is First-Class
 
@@ -35,13 +35,13 @@ By logging at the control plane (deco Studio), monitoring becomes:
 
 **Consistent**: Every log entry follows the same schema with the same level of detail.
 
-**Complete**: No invocation can bypass monitoring—if it went through deco Studio, it's logged.
+**Complete**: No proxy invocation can bypass monitoring—if it went through deco Studio, it's logged.
 
 **Correlated**: Request context connects related operations, enabling distributed tracing across multiple tool invocations.
 
 ## What Gets Recorded
 
-Every tool invocation creates a monitoring log with:
+Every tool invocation through a connection creates a monitoring log with:
 
 ### Identity & Attribution
 - **Caller**: Which user or API key made the request
@@ -77,7 +77,7 @@ This information is available immediately in the deco Studio UI, without SSH-ing
 
 ### Security & Compliance
 
-Monitoring creates an **immutable audit trail** of all MCP activity:
+Monitoring creates an **immutable audit trail** of all MCP proxy activity:
 - Who accessed which tools, when
 - What data was read or modified
 - Which credentials were used

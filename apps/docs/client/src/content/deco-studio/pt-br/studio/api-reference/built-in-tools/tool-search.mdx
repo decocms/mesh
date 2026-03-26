@@ -1,55 +1,22 @@
 ---
-title: tool_search
-description: Pesquisar ferramentas disponíveis no escopo atual
+title: Descoberta de Ferramentas
+description: Como ferramentas são descobertas no escopo atual
 icon: Search
 ---
 
+import Callout from "../../../../../../components/ui/Callout.astro";
+
 ## Visão Geral
 
-Pesquisa ferramentas disponíveis no escopo atual (organização, projeto ou agente). Retorna ferramentas apenas do MCP virtual do escopo atual.
+Ferramentas são descobertas **implicitamente** com base nas conexões listadas no MCP Virtual do escopo atual. Não existe uma ferramenta `tool_search` integrada — as ferramentas disponíveis são automaticamente fornecidas a partir das conexões configuradas no escopo ativo.
 
-## Disponibilidade
+## Como Funciona a Descoberta
 
-- **Tarefas**: ✓ Disponível
-- **Subtarefas**: ✓ Disponível
+Quando você entra em um escopo (organização, projeto ou agente), as ferramentas disponíveis de todas as conexões no MCP Virtual daquele escopo são automaticamente listadas. Você pode então habilitar ferramentas específicas com `tool_enable` antes de invocá-las.
 
-## Assinatura
-
-```typescript
-tool_search(search_term?: string)
-```
-
-## Parâmetros
-
-| Parâmetro | Tipo | Obrigatório | Descrição |
-|-----------|------|----------|-------------|
-| `search_term` | `string` | Opcional | Termo de busca para filtrar ferramentas. Busca vazia retorna todas as ferramentas disponíveis. |
-
-## Retorno
-
-Array de definições de ferramentas com:
-- **name**: Identificador da ferramenta
-- **description**: O que a ferramenta faz
-- **source**: De onde a ferramenta vem (conexão/servidor)
-
-## Comportamento
-
-- Retorna ferramentas apenas do MCP virtual do escopo atual
-- Busca vazia retorna todas as ferramentas disponíveis no escopo atual
-- Ferramentas devem ser habilitadas via `tool_enable` antes de serem invocadas
-
-## Exemplo de Uso
-
-```typescript
-// Pesquisar todas as ferramentas
-tool_search()
-
-// Pesquisar ferramentas relacionadas a pedidos
-tool_search("order")
-
-// Pesquisar ferramentas de inventário
-tool_search("inventory")
-```
+<Callout type="info">
+  A descoberta de ferramentas é automática. Você não precisa pesquisar ferramentas — elas estão disponíveis com base na configuração do MCP Virtual do seu escopo atual.
+</Callout>
 
 ## Relacionados
 
