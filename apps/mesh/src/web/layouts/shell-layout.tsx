@@ -330,6 +330,22 @@ function ShellLayoutInner({
       >
         <div className="shrink-0 flex items-center justify-between px-2 h-10">
           <div className="flex items-center gap-0.5 min-w-0">
+            {showThreePanels && (
+              <button
+                type="button"
+                onClick={toggleTasks}
+                aria-pressed={tasksOpen}
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                  tasksOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle tasks"
+              >
+                <LayoutLeft size={16} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => window.history.back()}
@@ -350,20 +366,6 @@ function ShellLayoutInner({
           </div>
           {showThreePanels && (
             <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={toggleTasks}
-                aria-pressed={tasksOpen}
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                  tasksOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle tasks"
-              >
-                <LayoutLeft size={16} />
-              </button>
               <button
                 type="button"
                 onClick={toggleMain}
