@@ -85,7 +85,7 @@ const UNKNOWN: StatusConfig = {
   labelColor: "text-muted-foreground",
 };
 
-export function getStatusConfig(status: string | undefined): StatusConfig {
+function getStatusConfig(status: string | undefined): StatusConfig {
   return STATUS_CONFIG[(status ?? "completed") as StatusKey] ?? UNKNOWN;
 }
 

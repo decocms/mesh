@@ -9,7 +9,7 @@
 
 import { Page } from "@/web/components/page";
 
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
 import {
   LayoutLeft,
   Loading01,
@@ -143,7 +143,7 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
     }
   };
 
-  const handleDescriptionBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+  const handleDescriptionBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value !== (project.description ?? "")) {
       actions.update.mutate({
@@ -214,7 +214,7 @@ function TasksPanelContent({
 }: {
   virtualMcpId?: string;
 }) {
-  const [, setTasksOpen] = useDecoTasksOpen();
+  const [, setChatOpen] = useDecoChatOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
   const { org } = useProjectContext();
   const navigate = useNavigate();

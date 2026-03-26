@@ -131,7 +131,7 @@ export function OwnerFilter() {
         >
           <Icon
             size={16}
-            className={isFilterChangePending ? "animate-spin" : ""}
+            className={cn(isFilterChangePending && "animate-spin")}
           />
         </button>
       </DropdownMenuTrigger>
