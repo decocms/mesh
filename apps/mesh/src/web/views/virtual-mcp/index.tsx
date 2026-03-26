@@ -6,6 +6,7 @@ import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { usePreferences } from "@/web/hooks/use-preferences";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { authenticateMcp } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
@@ -777,11 +778,16 @@ function VirtualMcpDetailViewWithData({
     return validTabIds.includes(effective) ? effective : "instructions";
   });
 
+  // Chat hooks
+  const [, setChatOpen] = useDecoChatOpen();
+  const [preferences, setPreferences] = usePreferences();
+
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
     setChatOpen(true);
+    setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
     chatStore.createThreadAndSend({
       parts: [
@@ -796,12 +802,8 @@ function VirtualMcpDetailViewWithData({
         description: null,
         icon: null,
       },
-      toolApprovalLevel: "plan",
     });
   };
-
-  // Chat hooks
-  const [, setChatOpen] = useDecoChatOpen();
 
   const handleTestAgent = () => {
     setChatOpen(true);

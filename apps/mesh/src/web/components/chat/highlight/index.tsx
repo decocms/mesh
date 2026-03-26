@@ -201,7 +201,6 @@ export function ChatHighlight() {
 
   const handlePlanApprove = (planText: string) => {
     // Set approval level to auto and persist
-    chatStore.setToolApprovalLevel("auto");
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
     // Create a new thread and queue the plan as the initial message.
@@ -210,7 +209,6 @@ export function ChatHighlight() {
     // the race where sendMessage() would use the old bridge methods.
     chatStore.createThreadAndSend({
       parts: [{ type: "text", text: `Implement this plan:\n\n${planText}` }],
-      toolApprovalLevel: "auto",
     });
   };
 

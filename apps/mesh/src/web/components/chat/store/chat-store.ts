@@ -85,8 +85,6 @@ class ChatStore {
   // External deps injected from React
   private contextPrompt = "";
   private toolApprovalLevel: ToolApprovalLevel | undefined;
-  /** One-shot override from sendMessage params; consumed and cleared by the transport. */
-  private _toolApprovalOverride: ToolApprovalLevel | undefined;
   private showNotification:
     | ((opts: { tag: string; title: string; body: string }) => void)
     | null = null;
@@ -548,8 +546,6 @@ class ChatStore {
     if (params.model) this.setModel(params.model);
     if (params.virtualMcp !== undefined)
       this.setSelectedVirtualMcp(params.virtualMcp);
-    // Use a one-shot override so automation-level approval doesn't leak into later messages
-    this._toolApprovalOverride = params.toolApprovalLevel;
 
     // Sync server-sourced messages into useAIChat before sending
     const existingMessages =
@@ -570,10 +566,6 @@ class ChatStore {
     const effectiveAgentId = selectedVirtualMcp?.id ?? decopilotId;
     this.addAgentToTaskFn?.(this.state.activeThreadId, effectiveAgentId);
 
-    // Determine effective tool approval level for metadata persistence
-    const effectiveApprovalLevel =
-      params.toolApprovalLevel ?? this.toolApprovalLevel;
-
     const messageMetadata: Metadata = {
       tiptapDoc: params.tiptapDoc,
       created_at: new Date().toISOString(),
@@ -585,8 +577,8 @@ class ChatStore {
         avatar: this.state.user?.image ?? undefined,
         name: this.state.user?.name ?? "you",
       },
-      ...(effectiveApprovalLevel && {
-        toolApprovalLevel: effectiveApprovalLevel,
+      ...(this.toolApprovalLevel && {
+        toolApprovalLevel: this.toolApprovalLevel,
       }),
     };
 
@@ -862,17 +854,13 @@ class ChatStore {
           thread_id: metadata.thread_id ?? lastMsgMeta.thread_id,
         };
 
-        const effectiveApproval =
-          store._toolApprovalOverride ?? store.toolApprovalLevel;
-        store._toolApprovalOverride = undefined;
-
         return {
           api: `/api/${store.state.org.slug}/decopilot/stream`,
           body: {
             messages: allMessages,
             ...mergedMetadata,
-            ...(effectiveApproval && {
-              toolApprovalLevel: effectiveApproval,
+            ...(store.toolApprovalLevel && {
+              toolApprovalLevel: store.toolApprovalLevel,
             }),
           },
         };

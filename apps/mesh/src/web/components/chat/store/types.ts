@@ -6,7 +6,6 @@ import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { Task } from "../task/types";
 import type { TaskOwnerFilter } from "../task/use-task-manager";
 import type { ChatMessage, Metadata } from "../types";
-import type { ToolApprovalLevel } from "../../../hooks/use-preferences";
 
 // ============================================================================
 // Store State
@@ -66,7 +65,6 @@ export interface SendMessageParams {
   threadId?: string;
   model?: AiProviderModel;
   virtualMcp?: VirtualMCPInfo | null;
-  toolApprovalLevel?: ToolApprovalLevel;
 }
 
 // ============================================================================

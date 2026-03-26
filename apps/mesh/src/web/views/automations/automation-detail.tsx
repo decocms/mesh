@@ -25,6 +25,7 @@ import {
 } from "@/web/hooks/use-automations";
 import { useChat } from "@/web/components/chat/index";
 import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { usePreferences } from "@/web/hooks/use-preferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,6 +127,7 @@ export function SettingsTab({
     model: chatModel,
   } = useChat();
   const [, setChatOpen] = useDecoChatOpen();
+  const [preferences, setPreferences] = usePreferences();
 
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
@@ -158,6 +160,7 @@ export function SettingsTab({
     if (!instructionsText.trim()) return;
 
     setChatOpen(true);
+    setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
     chatStore.createThreadAndSend({
       parts: [
@@ -172,7 +175,6 @@ export function SettingsTab({
         description: null,
         icon: null,
       },
-      toolApprovalLevel: "plan",
     });
   };
 
@@ -282,10 +284,11 @@ export function SettingsTab({
     }
 
     setChatOpen(true);
+    setPreferences({ ...preferences, toolApprovalLevel: "auto" });
     createTask();
 
     setTimeout(() => {
-      sendMessage(tiptapDoc, { toolApprovalLevel: "auto" });
+      sendMessage(tiptapDoc);
     }, 0);
   };
 

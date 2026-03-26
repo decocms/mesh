@@ -150,59 +150,6 @@ export function OwnerFilter() {
 // Multi-agent avatar stack
 // ────────────────────────────────────────
 
-function AgentAvatarStack({
-  agentIds,
-  connectionMap,
-  defaultAgent,
-}: {
-  agentIds: string[];
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
-}) {
-  const display =
-    agentIds.length > 0
-      ? agentIds.slice(0, 2).map((id) => {
-          const conn = connectionMap.get(id);
-          return conn ? { icon: conn.icon, title: conn.title } : defaultAgent;
-        })
-      : [defaultAgent];
-
-  const extra = Math.max(0, agentIds.length - 2);
-
-  const total = display.length + (extra > 0 ? 1 : 0);
-
-  return (
-    <div className="flex shrink-0">
-      {display.map((agent, i) => (
-        <div
-          key={i}
-          style={{ zIndex: total - i }}
-          className={cn(
-            "ring-1 ring-background rounded-md transition-all duration-150 ease-out",
-            i > 0 && "-ml-[20px] group-hover/row:-ml-1",
-          )}
-        >
-          <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
-        </div>
-      ))}
-      {extra > 0 && (
-        <div
-          style={{ zIndex: 0 }}
-          className={cn(
-            "flex items-center justify-center size-6 rounded-md bg-muted text-[9px] font-medium text-muted-foreground ring-1 ring-background transition-all duration-150 ease-out",
-            "-ml-[20px] group-hover/row:-ml-1",
-          )}
-        >
-          +{extra}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ────────────────────────────────────────
 // Group header
 // ────────────────────────────────────────
@@ -291,15 +238,6 @@ function TaskRow({
           )}
           onClick={onClick}
         >
-          {/* Agent avatar stack */}
-          <div className="shrink-0">
-            <AgentAvatarStack
-              agentIds={agentIds}
-              connectionMap={connectionMap}
-              defaultAgent={defaultAgent}
-            />
-          </div>
-
           {/* Content */}
           <div className="flex-1 min-w-0">
             {/* Line 1: Title + time */}
@@ -386,22 +324,11 @@ function TaskRow({
 
 function AutomationRow({
   automation,
-  connectionMap,
-  defaultAgent,
   onClick,
 }: {
   automation: AutomationListItem;
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
   onClick: () => void;
 }) {
-  const agentId = automation.agent?.id;
-  const agent = agentId
-    ? (connectionMap.get(agentId) ?? defaultAgent)
-    : defaultAgent;
   const nextRun = automation.nearest_next_run_at;
 
   return (
@@ -409,9 +336,6 @@ function AutomationRow({
       className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
       onClick={onClick}
     >
-      <div className={cn("shrink-0", !automation.active && "opacity-50")}>
-        <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
-      </div>
       <div className={cn("flex-1 min-w-0", !automation.active && "opacity-50")}>
         <div className="flex items-center gap-1.5">
           <TruncatedText
@@ -448,18 +372,7 @@ function AutomationRow({
 // Incoming section (automations)
 // ────────────────────────────────────────
 
-function IncomingSection({
-  virtualMcpId,
-  connectionMap,
-  defaultAgent,
-}: {
-  virtualMcpId: string;
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
-}) {
+function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
   const agentCtx = useOptionalAgentContext();
   const { data: allAutomations } = useAutomationsList();
   const createMutation = useAutomationCreate();
@@ -547,8 +460,6 @@ function IncomingSection({
           <AutomationRow
             key={automation.id}
             automation={automation}
-            connectionMap={connectionMap}
-            defaultAgent={defaultAgent}
             onClick={() => {
               console.log("[AutomationRow click]", {
                 automationId: automation.id,
@@ -851,13 +762,7 @@ export function TaskListContent({
               </div>
             );
           })}
-        {virtualMcpId && (
-          <IncomingSection
-            virtualMcpId={virtualMcpId}
-            connectionMap={connectionMap}
-            defaultAgent={defaultAgent}
-          />
-        )}
+        {virtualMcpId && <IncomingSection virtualMcpId={virtualMcpId} />}
         {groups
           .filter((g) => g.key === "done")
           .map((group) => {

@@ -6,6 +6,7 @@ import type {
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home01, LayoutLeft } from "@untitledui/icons";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
+import { chatStore } from "@/web/components/chat/store/chat-store";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
@@ -148,6 +149,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     onClick: () => {
       setTasksOpen(false);
       navigate({ to: "/" });
+      chatStore.createThread();
     },
   };
 

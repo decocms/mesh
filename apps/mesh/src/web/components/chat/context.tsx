@@ -13,7 +13,6 @@ import { useChatStore } from "./store/selectors";
 import type { AiProviderModel } from "../../hooks/collections/use-llm";
 import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import type { Task, TaskOwnerFilter } from "./task";
-import type { ToolApprovalLevel } from "../../hooks/use-preferences";
 import type { ChatMessage, Metadata } from "./types";
 import { useOptionalAgentContext } from "@/web/contexts/agent-context";
 
@@ -50,10 +49,7 @@ interface ChatStableValue {
   model: AiProviderModel | null;
   isModelsLoading: boolean;
   setSelectedModel: (model: AiProviderModel) => void;
-  sendMessage: (
-    tiptapDoc: Metadata["tiptapDoc"],
-    options?: { toolApprovalLevel?: ToolApprovalLevel },
-  ) => Promise<void>;
+  sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) => Promise<void>;
   cancelRun: () => Promise<void>;
   setAppContext: (
     sourceId: string,
@@ -155,10 +151,8 @@ export function useChatStable(): ChatStableValue {
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
     setOwnerFilter: (filter: TaskOwnerFilter) =>
       chatStore.setOwnerFilter(filter),
-    sendMessage: (
-      tiptapDoc: Metadata["tiptapDoc"],
-      options?: { toolApprovalLevel?: ToolApprovalLevel },
-    ) => chatStore.sendMessage({ tiptapDoc, ...options }),
+    sendMessage: (tiptapDoc: Metadata["tiptapDoc"]) =>
+      chatStore.sendMessage({ tiptapDoc }),
     cancelRun: () => chatStore.cancelRun(),
     setAppContext: (sourceId, params) =>
       chatStore.setAppContext(sourceId, params),
