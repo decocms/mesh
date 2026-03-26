@@ -68,7 +68,7 @@ type RawConnectionRow = {
   created_at: Date | string;
   updated_at: Date | string;
 };
-/** Top-level columns on the connections table (safe for direct SQL access) */
+/** Top-level columns on the connections table that are safe for user-controlled WHERE filtering */
 const TOP_LEVEL_COLUMNS = new Set([
   "id",
   "organization_id",
@@ -82,17 +82,17 @@ const TOP_LEVEL_COLUMNS = new Set([
   "slug",
   "connection_type",
   "connection_url",
-  "connection_token",
+  // connection_token is intentionally excluded — sensitive
   "status",
   "created_at",
   "updated_at",
 ]);
 
-/** JSON columns that support nested access via ->> */
+/** JSON columns that support nested access via ->>. Excludes sensitive columns. */
 const JSON_COLUMNS = new Set([
   "metadata",
-  "connection_headers",
-  "oauth_config",
+  // connection_headers excluded — may contain auth headers
+  // oauth_config excluded — contains client secrets and tokens
   "configuration_scopes",
   "bindings",
 ]);
@@ -172,8 +172,11 @@ function applyWhereToSql(where: WhereExpression): RawBuilder<SqlBool> {
       return sql<SqlBool>`${ref} IN (${sql.join(value.map((v) => sql.val(v)))})`;
     case "like":
       return sql<SqlBool>`${ref} ILIKE ${sql.val(value)}`;
-    case "contains":
-      return sql<SqlBool>`${ref} ILIKE ${sql.val(`%${value}%`)}`;
+    case "contains": {
+      // Escape LIKE metacharacters so they match literally
+      const escaped = String(value).replace(/[%_\\]/g, "\\$&");
+      return sql<SqlBool>`${ref} ILIKE ${sql.val(`%${escaped}%`)}`;
+    }
     default:
       return sql<SqlBool>`true`;
   }
