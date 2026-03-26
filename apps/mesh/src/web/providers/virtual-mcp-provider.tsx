@@ -1,12 +1,12 @@
 /**
- * VirtualMCPProvider — Unified provider for space routes.
+ * VirtualMCPProvider — Unified provider for agent routes.
  *
  * Combines:
  * 1. Entity fetch (useVirtualMCP) — Suspense-based
- * 2. ProjectContextProvider override (space-scoped, isOrgAdmin: false)
- * 3. SpaceContext (URL-driven mainView, navigateToMain, navigateToTask)
+ * 2. ProjectContextProvider override (agent-scoped, isOrgAdmin: false)
+ * 3. AgentContext (URL-driven mainView, navigateToMain, navigateToTask)
  *
- * Rendered conditionally in ShellLayoutInner — only on space routes.
+ * Rendered conditionally in ShellLayoutInner — only on agent routes.
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
@@ -19,13 +19,15 @@ import {
 } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { EmptyState } from "@/web/components/empty-state";
+import { AlertCircle } from "@untitledui/icons";
 import { chatStore } from "@/web/components/chat/store/chat-store";
 import { mapVirtualMcpToProject } from "@/web/lib/map-virtual-mcp-to-project";
 import {
-  SpaceContext,
+  AgentContext,
   type MainView,
-  type SpaceContextValue,
-} from "@/web/contexts/space-context";
+  type AgentContextValue,
+} from "@/web/contexts/agent-context";
 
 // ---------------------------------------------------------------------------
 // Inner content (uses Suspense-based useVirtualMCP)
@@ -41,12 +43,12 @@ function VirtualMCPProviderContent({
   const { org } = useProjectContext();
   const navigate = useNavigate();
 
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
+  const agentsMatch = useMatch({
+    from: "/shell/$org/agents/$virtualMcpId",
     shouldThrow: false,
   });
 
-  const orgSlug = spacesMatch?.params.org ?? "";
+  const orgSlug = agentsMatch?.params.org ?? "";
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
@@ -54,31 +56,31 @@ function VirtualMCPProviderContent({
   // Not found
   if (!entity) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-        <h1 className="text-xl font-semibold">Space not found</h1>
-        <p className="text-muted-foreground text-center">
-          The space &quot;{virtualMcpId}&quot; does not exist in this
-          organization.
-        </p>
-        <Button
-          variant="link"
-          onClick={() =>
-            navigate({
-              to: "/$org",
-              params: { org: orgSlug },
-            })
-          }
-        >
-          Go to organization home
-        </Button>
-      </div>
+      <EmptyState
+        image={<AlertCircle size={48} className="text-muted-foreground" />}
+        title="Agent not found"
+        description={`The agent "${virtualMcpId}" does not exist in this organization.`}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() =>
+              navigate({
+                to: "/$org",
+                params: { org: orgSlug },
+              })
+            }
+          >
+            Go to organization home
+          </Button>
+        }
+      />
     );
   }
 
   // Build project data from entity
   const projectData = mapVirtualMcpToProject(entity, org.id);
 
-  // --- SpaceContext: URL-driven state ---
+  // --- AgentContext: URL-driven state ---
 
   const search = useSearch({ strict: false }) as {
     main?: string;
@@ -104,7 +106,7 @@ function VirtualMCPProviderContent({
     mainView = null;
   }
 
-  const routeBase = "/$org/spaces/$virtualMcpId/" as const;
+  const routeBase = "/$org/agents/$virtualMcpId/" as const;
   const params = { org: orgSlug, virtualMcpId };
 
   // Sync taskId from URL → chat store
@@ -115,7 +117,7 @@ function VirtualMCPProviderContent({
     }
   }, [search.taskId]);
 
-  const navigateToTask: SpaceContextValue["navigateToTask"] = (taskId) => {
+  const navigateToTask: AgentContextValue["navigateToTask"] = (taskId) => {
     navigate({
       to: routeBase,
       params,
@@ -123,7 +125,7 @@ function VirtualMCPProviderContent({
     });
   };
 
-  const navigateToMain: SpaceContextValue["navigateToMain"] = (main, opts) => {
+  const navigateToMain: AgentContextValue["navigateToMain"] = (main, opts) => {
     if (main === "default") {
       navigate({
         to: routeBase,
@@ -149,7 +151,7 @@ function VirtualMCPProviderContent({
     });
   };
 
-  const spaceValue: SpaceContextValue = {
+  const agentValue: AgentContextValue = {
     virtualMcpId,
     mainView,
     navigateToMain,
@@ -158,7 +160,7 @@ function VirtualMCPProviderContent({
 
   return (
     <ProjectContextProvider org={org} project={projectData}>
-      <SpaceContext value={spaceValue}>{children}</SpaceContext>
+      <AgentContext value={agentValue}>{children}</AgentContext>
     </ProjectContextProvider>
   );
 }

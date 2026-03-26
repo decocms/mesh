@@ -4,7 +4,7 @@ import { useIsOrgAdmin } from "@decocms/mesh-sdk";
 import { Suspense } from "react";
 import { NavigationSidebar } from "./navigation";
 import { SidebarInboxFooter } from "./footer/inbox";
-import { SidebarSpacesSection } from "./spaces-section";
+import { SidebarAgentsSection } from "./agents-section";
 
 // Export types for external use
 export type {
@@ -30,7 +30,7 @@ function SidebarContent() {
         isOrgAdmin ? (
           <ErrorBoundary>
             <Suspense fallback={null}>
-              <SidebarSpacesSection />
+              <SidebarAgentsSection />
             </Suspense>
           </ErrorBoundary>
         ) : null

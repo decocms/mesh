@@ -1,5 +1,5 @@
 /**
- * Space Context — Types, context object, and hooks for URL-driven space state.
+ * Agent Context — Types, context object, and hooks for URL-driven agent state.
  *
  * The actual provider logic lives in VirtualMCPProvider.
  * This file exports the context, hooks, and types consumed by components.
@@ -24,7 +24,7 @@ export type MainView =
     }
   | null; // null = no explicit `main` param — consumer resolves default
 
-export interface SpaceContextValue {
+export interface AgentContextValue {
   virtualMcpId: string;
   mainView: MainView;
   navigateToMain: (
@@ -38,21 +38,21 @@ export interface SpaceContextValue {
 // Context
 // ---------------------------------------------------------------------------
 
-export const SpaceContext = createContext<SpaceContextValue | null>(null);
+export const AgentContext = createContext<AgentContextValue | null>(null);
 
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
-export function useSpaceContext(): SpaceContextValue {
-  const ctx = use(SpaceContext);
+export function useAgentContext(): AgentContextValue {
+  const ctx = use(AgentContext);
   if (!ctx) {
-    throw new Error("useSpaceContext must be used within a VirtualMCPProvider");
+    throw new Error("useAgentContext must be used within a VirtualMCPProvider");
   }
   return ctx;
 }
 
-/** Returns null when not inside a space route — safe for components used in both contexts. */
-export function useOptionalSpaceContext(): SpaceContextValue | null {
-  return use(SpaceContext);
+/** Returns null when not inside an agent route — safe for components used in both contexts. */
+export function useOptionalAgentContext(): AgentContextValue | null {
+  return use(AgentContext);
 }

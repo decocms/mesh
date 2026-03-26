@@ -3,7 +3,7 @@
  *
  * Main content panel for the org home route. Chat lives in the sidebar panel
  * (ChatPanel), so this page renders the decopilot detail/settings view
- * (same pattern as SpaceHomePage).
+ * (same pattern as AgentHomePage).
  *
  * When ?view=settings is set, renders project settings instead.
  */
@@ -26,11 +26,11 @@ function OrgHomeContent() {
 }
 
 function ProjectSettingsContent() {
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
+  const agentsMatch = useMatch({
+    from: "/shell/$org/agents/$virtualMcpId",
     shouldThrow: false,
   });
-  const virtualMcpId = spacesMatch?.params.virtualMcpId ?? "";
+  const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
   );

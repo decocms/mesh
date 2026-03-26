@@ -213,7 +213,7 @@ export function PluginLayout({
           </div>
           <Button asChild>
             <Link
-              to="/$org/spaces/$virtualMcpId/"
+              to="/$org/agents/$virtualMcpId/"
               params={{
                 org: orgParam ?? org.slug,
                 virtualMcpId: virtualMcpId ?? project.id ?? "",

@@ -45,7 +45,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
 
   const pathname = routerState.location.pathname;
 
-  const basePath = `/${org}/spaces/${virtualMcpId}`;
+  const basePath = `/${org}/agents/${virtualMcpId}`;
 
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
@@ -60,7 +60,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
       isActive: isActiveRoute(item.pluginId),
       onClick: () =>
         navigate({
-          to: "/$org/spaces/$virtualMcpId/$pluginId",
+          to: "/$org/agents/$virtualMcpId/$pluginId",
           params: {
             org,
             virtualMcpId,
@@ -89,7 +89,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
           isActive: isActiveRoute(group.pluginId),
           onClick: () =>
             navigate({
-              to: "/$org/spaces/$virtualMcpId/$pluginId",
+              to: "/$org/agents/$virtualMcpId/$pluginId",
               params: {
                 org,
                 virtualMcpId,
@@ -117,7 +117,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     ),
     onClick: () =>
       navigate({
-        to: "/$org/spaces/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/agents/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org,
           virtualMcpId,

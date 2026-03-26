@@ -28,7 +28,7 @@ import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
-import { useSpaceBadges } from "@/web/hooks/use-space-badges";
+import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -44,20 +44,20 @@ const SLIDE_BUILDER_AGENT = {
 
 const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SLIDE_BUILDER_AGENT];
 
-function SpaceListItem({
-  space,
+function AgentListItem({
+  agent,
   org,
   hasBadge,
   onMarkSeen,
 }: {
-  space: VirtualMCPEntity;
+  agent: VirtualMCPEntity;
   org: string;
   hasBadge?: boolean;
   onMarkSeen?: () => void;
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isActive = pathname.startsWith(`/${org}/spaces/${space.id}`);
+  const isActive = pathname.startsWith(`/${org}/agents/${agent.id}`);
   const actions = useVirtualMCPActions();
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const xRef = useRef<HTMLButtonElement>(null);
@@ -85,21 +85,21 @@ function SpaceListItem({
   return (
     <SidebarMenuItem className={cn(buttonRect && "z-[55]")}>
       <SidebarMenuButton
-        tooltip={buttonRect ? undefined : space.title}
+        tooltip={buttonRect ? undefined : agent.title}
         isActive={isActive}
         onClick={() => {
           onMarkSeen?.();
           navigate({
-            to: "/$org/spaces/$virtualMcpId",
-            params: { org, virtualMcpId: space.id },
+            to: "/$org/agents/$virtualMcpId",
+            params: { org, virtualMcpId: agent.id },
           });
         }}
         onMouseEnter={handleIconMouseEnter}
         onMouseLeave={handleIconMouseLeave}
       >
         <AgentAvatar
-          icon={space.icon}
-          name={space.title}
+          icon={agent.icon}
+          name={agent.title}
           size="xs"
           className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
         />
@@ -117,7 +117,7 @@ function SpaceListItem({
             onClick={(e) => {
               e.stopPropagation();
               setButtonRect(null);
-              actions.update.mutate({ id: space.id, data: { pinned: false } });
+              actions.update.mutate({ id: agent.id, data: { pinned: false } });
               navigate({ to: "/$org", params: { org } });
             }}
             className={cn(
@@ -149,10 +149,10 @@ function SpaceListItem({
 }
 
 function AgentGridItem({
-  space,
+  agent,
   onClick,
 }: {
-  space: VirtualMCPEntity;
+  agent: VirtualMCPEntity;
   onClick: () => void;
 }) {
   return (
@@ -162,19 +162,19 @@ function AgentGridItem({
       className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group"
     >
       <AgentAvatar
-        icon={space.icon}
-        name={space.title}
+        icon={agent.icon}
+        name={agent.title}
         size="md"
         className="transition-transform group-hover:scale-105"
       />
       <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
-        {space.title}
+        {agent.title}
       </span>
     </button>
   );
 }
 
-function PinSpacePopoverContent({
+function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
 }: {
@@ -182,7 +182,7 @@ function PinSpacePopoverContent({
   onOpenSiteEditorModal: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const allSpaces = useVirtualMCPs();
+  const allAgents = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
@@ -192,7 +192,7 @@ function PinSpacePopoverContent({
   const navigate = useNavigate();
 
   const lowerSearch = search.toLowerCase();
-  const userAgents = allSpaces
+  const userAgents = allAgents
     .filter((s) => !isDecopilot(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
@@ -200,18 +200,18 @@ function PinSpacePopoverContent({
     (a) => !search || a.title.toLowerCase().includes(lowerSearch),
   );
 
-  const handleSelect = async (space: VirtualMCPEntity) => {
-    if (!space.pinned) {
+  const handleSelect = async (agent: VirtualMCPEntity) => {
+    if (!agent.pinned) {
       await actions.update.mutateAsync({
-        id: space.id,
+        id: agent.id,
         data: { pinned: true },
       });
     }
     onClose();
     setSearch("");
     navigate({
-      to: "/$org/spaces/$virtualMcpId",
-      params: { org: org.slug, virtualMcpId: space.id },
+      to: "/$org/agents/$virtualMcpId",
+      params: { org: org.slug, virtualMcpId: agent.id },
     });
   };
 
@@ -224,7 +224,7 @@ function PinSpacePopoverContent({
       createSlideBuilder();
     } else {
       navigate({
-        to: "/$org/spaces/$virtualMcpId",
+        to: "/$org/agents/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agentId },
       });
     }
@@ -256,7 +256,7 @@ function PinSpacePopoverContent({
               const { id } = await createVirtualMCP();
               onClose();
               navigate({
-                to: "/$org/spaces/$virtualMcpId",
+                to: "/$org/agents/$virtualMcpId",
                 params: { org: org.slug, virtualMcpId: id },
               });
             }}
@@ -270,11 +270,11 @@ function PinSpacePopoverContent({
             </span>
           </button>
 
-          {userAgents.map((space) => (
+          {userAgents.map((agent) => (
             <AgentGridItem
-              key={space.id}
-              space={space}
-              onClick={() => handleSelect(space)}
+              key={agent.id}
+              agent={agent}
+              onClick={() => handleSelect(agent)}
             />
           ))}
         </div>
@@ -326,7 +326,7 @@ function PinSpacePopoverContent({
       {/* Footer */}
       <div className="border-t border-border px-3 py-2.5">
         <Link
-          to="/$org/spaces"
+          to="/$org/agents"
           params={{ org: org.slug }}
           onClick={() => onClose()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
@@ -338,7 +338,7 @@ function PinSpacePopoverContent({
   );
 }
 
-function PinSpacePopover() {
+function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
 
@@ -368,7 +368,7 @@ function PinSpacePopover() {
                 </div>
               }
             >
-              <PinSpacePopoverContent
+              <PinAgentPopoverContent
                 onClose={() => setOpen(false)}
                 onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
               />
@@ -384,25 +384,25 @@ function PinSpacePopover() {
   );
 }
 
-function SpacesSectionContent() {
-  const allSpaces = useVirtualMCPs();
-  const spaces = allSpaces.filter((s) => s.pinned);
+function AgentsSectionContent() {
+  const allAgents = useVirtualMCPs();
+  const agents = allAgents.filter((s) => s.pinned);
   const { org } = useProjectContext();
-  const { badges, markSeen } = useSpaceBadges(spaces.map((s) => s.id));
+  const { badges, markSeen } = useAgentBadges(agents.map((s) => s.id));
 
   return (
     <SidebarGroup className="py-0 px-0 mt-2">
       <div className="h-px bg-border mx-2 mb-2" />
       <SidebarGroupContent>
         <SidebarMenu className="gap-2">
-          <PinSpacePopover />
-          {spaces.map((space) => (
-            <SpaceListItem
-              key={space.id}
-              space={space}
+          <PinAgentPopover />
+          {agents.map((agent) => (
+            <AgentListItem
+              key={agent.id}
+              agent={agent}
               org={org.slug}
-              hasBadge={badges[space.id]}
-              onMarkSeen={() => markSeen(space.id)}
+              hasBadge={badges[agent.id]}
+              onMarkSeen={() => markSeen(agent.id)}
             />
           ))}
         </SidebarMenu>
@@ -411,7 +411,7 @@ function SpacesSectionContent() {
   );
 }
 
-export function SidebarSpacesSection() {
+export function SidebarAgentsSection() {
   return (
     <Suspense
       fallback={
@@ -429,7 +429,7 @@ export function SidebarSpacesSection() {
         </SidebarGroup>
       }
     >
-      <SpacesSectionContent />
+      <AgentsSectionContent />
     </Suspense>
   );
 }

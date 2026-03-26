@@ -202,7 +202,10 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
+  const savingRef = useRef(false);
   const handleSave = async (): Promise<boolean> => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
     const values = form.getValues();
     try {
       const coercedCredentialId =
@@ -246,6 +249,8 @@ export function SettingsTab({
     } catch {
       toast.error("Failed to save automation");
       return false;
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -327,7 +332,7 @@ export function SettingsTab({
           <Input
             {...form.register("name")}
             onBlur={() => {
-              if (form.formState.isDirty) handleSave();
+              if (form.formState.isDirty) void handleSave();
             }}
             placeholder="Automation name"
             className="border border-transparent shadow-none px-0 text-2xl md:text-2xl font-semibold h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent"
@@ -488,12 +493,14 @@ export function SettingsTab({
           >
             <div
               className="rounded-xl border border-border min-h-[120px] flex flex-col"
-              onBlur={() => {
+              onBlur={(e) => {
+                // Skip if focus moved to another element inside this container
+                if (e.currentTarget.contains(e.relatedTarget)) return;
                 const docChanged =
                   JSON.stringify(tiptapDoc ?? null) !==
                   JSON.stringify(savedDoc ?? null);
                 if (form.formState.isDirty || docChanged) {
-                  handleSave();
+                  void handleSave();
                 }
               }}
             >

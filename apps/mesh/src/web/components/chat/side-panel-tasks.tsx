@@ -25,7 +25,7 @@ import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useOptionalSpaceContext } from "@/web/contexts/space-context";
+import { useOptionalAgentContext } from "@/web/contexts/agent-context";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -68,7 +68,7 @@ function NewTaskButton({
 // ────────────────────────────────────────
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const spaceCtx = useOptionalSpaceContext();
+  const agentCtx = useOptionalAgentContext();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -82,7 +82,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
   if (pinnedViews.length === 0) return null;
 
   // Determine which pinned view is currently active
-  const currentMain = spaceCtx?.mainView;
+  const currentMain = agentCtx?.mainView;
   const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
     currentMain?.type === "ext-apps" &&
     currentMain.id === view.connectionId &&
@@ -95,7 +95,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           key={`${view.connectionId}-${view.toolName}`}
           type="button"
           onClick={() =>
-            spaceCtx?.navigateToMain("ext-apps", {
+            agentCtx?.navigateToMain("ext-apps", {
               id: view.connectionId,
               toolName: view.toolName,
             })
@@ -204,19 +204,19 @@ function TasksPanelContent({
 }) {
   const [, setChatOpen] = useDecoChatOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
-  const spaceCtx = useOptionalSpaceContext();
+  const agentCtx = useOptionalAgentContext();
   const [isPending, startTransition] = useTransition();
 
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
+  const agentsMatch = useMatch({
+    from: "/shell/$org/agents/$virtualMcpId",
     shouldThrow: false,
   });
   const virtualMcpId =
-    virtualMcpIdProp ?? spacesMatch?.params.virtualMcpId ?? null;
+    virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
 
-  const allSpaces = useVirtualMCPs();
+  const allAgents = useVirtualMCPs();
   const project = virtualMcpId
-    ? (allSpaces.find((s) => s.id === virtualMcpId) ?? null)
+    ? (allAgents.find((s) => s.id === virtualMcpId) ?? null)
     : null;
 
   const handleNewTask = () => {
@@ -230,8 +230,8 @@ function TasksPanelContent({
   };
 
   const isSettingsActive =
-    spaceCtx?.mainView?.type === "settings" ||
-    (spaceCtx && spaceCtx.mainView === null);
+    agentCtx?.mainView?.type === "settings" ||
+    (agentCtx && agentCtx.mainView === null);
 
   return (
     <div className="flex flex-col h-full">
@@ -260,7 +260,7 @@ function TasksPanelContent({
         {project && (
           <button
             type="button"
-            onClick={() => spaceCtx?.navigateToMain("settings")}
+            onClick={() => agentCtx?.navigateToMain("settings")}
             className={cn(
               navItemClass,
               isSettingsActive && "bg-accent text-foreground",

@@ -41,7 +41,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
 
   return (
     <Link
-      to="/$org/spaces/$virtualMcpId"
+      to="/$org/agents/$virtualMcpId"
       params={{ org: org.slug, virtualMcpId: project.id }}
       className="block group h-full"
     >
@@ -87,7 +87,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
               </button>
             )}
             <Link
-              to="/$org/spaces/$virtualMcpId"
+              to="/$org/agents/$virtualMcpId"
               params={{ org: org.slug, virtualMcpId: project.id }}
               onClick={(e) => e.stopPropagation()}
               className={cn(

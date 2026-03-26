@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { computeSpaceBadges } from "./use-space-badges";
+import { computeAgentBadges } from "./use-agent-badges";
 import type { Task } from "@/web/components/chat/task/types";
 
 function makeTask(overrides: Partial<Task> & { id: string }): Task {
@@ -11,9 +11,9 @@ function makeTask(overrides: Partial<Task> & { id: string }): Task {
   };
 }
 
-describe("computeSpaceBadges", () => {
+describe("computeAgentBadges", () => {
   test("returns all false when there are no tasks", () => {
-    const result = computeSpaceBadges([], ["s1", "s2"], {
+    const result = computeAgentBadges([], ["s1", "s2"], {
       s1: "2025-01-01T00:00:00Z",
     });
     expect(result).toEqual({ s1: false, s2: false });
@@ -27,7 +27,7 @@ describe("computeSpaceBadges", () => {
         updated_at: "2025-01-01T00:00:00Z",
       }),
     ];
-    const result = computeSpaceBadges(tasks, ["s1"], {
+    const result = computeAgentBadges(tasks, ["s1"], {
       s1: "2025-01-02T00:00:00Z",
     });
     expect(result).toEqual({ s1: false });
@@ -41,7 +41,7 @@ describe("computeSpaceBadges", () => {
         updated_at: "2025-01-03T00:00:00Z",
       }),
     ];
-    const result = computeSpaceBadges(tasks, ["s1"], {
+    const result = computeAgentBadges(tasks, ["s1"], {
       s1: "2025-01-02T00:00:00Z",
     });
     expect(result).toEqual({ s1: true });
@@ -56,7 +56,7 @@ describe("computeSpaceBadges", () => {
         hidden: true,
       }),
     ];
-    const result = computeSpaceBadges(tasks, ["s1"], {
+    const result = computeAgentBadges(tasks, ["s1"], {
       s1: "2025-01-02T00:00:00Z",
     });
     expect(result).toEqual({ s1: false });
@@ -70,19 +70,19 @@ describe("computeSpaceBadges", () => {
         updated_at: "2025-01-03T00:00:00Z",
       }),
     ];
-    const result = computeSpaceBadges(tasks, ["s1"], {});
+    const result = computeAgentBadges(tasks, ["s1"], {});
     expect(result).toEqual({ s1: false });
   });
 
   test("excludes tasks with no agent_ids", () => {
     const tasks = [makeTask({ id: "t1", updated_at: "2025-01-03T00:00:00Z" })];
-    const result = computeSpaceBadges(tasks, ["s1"], {
+    const result = computeAgentBadges(tasks, ["s1"], {
       s1: "2025-01-02T00:00:00Z",
     });
     expect(result).toEqual({ s1: false });
   });
 
-  test("handles multiple spaces with mixed states", () => {
+  test("handles multiple agents with mixed states", () => {
     const tasks = [
       makeTask({
         id: "t1",
@@ -100,7 +100,7 @@ describe("computeSpaceBadges", () => {
         updated_at: "2025-01-05T00:00:00Z",
       }),
     ];
-    const result = computeSpaceBadges(tasks, ["s1", "s2", "s3"], {
+    const result = computeAgentBadges(tasks, ["s1", "s2", "s3"], {
       s1: "2025-01-02T00:00:00Z",
       s2: "2025-01-02T00:00:00Z",
       // s3 has no entry — cold start

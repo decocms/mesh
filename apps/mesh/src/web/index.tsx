@@ -369,7 +369,7 @@ const storeDetailRoute = createRoute({
   ),
 });
 
-// Org-level plugin route (mirrors /$org/spaces/$virtualMcpId/$pluginId for org-admin)
+// Org-level plugin route (mirrors /$org/agents/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/plugins/$pluginId",
@@ -378,50 +378,27 @@ const orgPluginRoute = createRoute({
   ),
 });
 
-// Agents
-const agentsRoute = createRoute({
+// ============================================
+// AGENTS (sidebar agents with chat)
+// ============================================
+
+// Agents list (view all)
+const agentsListRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/agents",
-  component: lazyRouteComponent(() => import("./routes/orgs/agents.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      action: z.enum(["create"]).optional(),
-    }),
-  ),
+  component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
-const agentDetailRoute = createRoute({
+// Agents layout (/$org/agents/$virtualMcpId)
+const agentsLayout = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/agents/$agentId",
-  component: lazyRouteComponent(() => import("./routes/orgs/agent-detail.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
-  ),
-});
-
-// ============================================
-// SPACES
-// ============================================
-
-// Spaces list (view all)
-const spacesListRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/spaces",
-  component: lazyRouteComponent(() => import("./routes/spaces-list.tsx")),
-});
-
-// Spaces layout (/$org/spaces/$virtualMcpId)
-const spacesLayout = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/spaces/$virtualMcpId",
+  path: "/agents/$virtualMcpId",
   component: Outlet,
 });
 
-// Space home - empty center, sidebar chat is the interaction point
-const spaceHomeRoute = createRoute({
-  getParentRoute: () => spacesLayout,
+// Agent home - empty center, sidebar chat is the interaction point
+const agentHomeRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/",
   validateSearch: z.object({
     taskId: z.string().optional(),
@@ -429,36 +406,36 @@ const spaceHomeRoute = createRoute({
     id: z.string().optional(),
     automationId: z.string().optional(),
   }),
-  component: lazyRouteComponent(() => import("./routes/space-home.tsx")),
+  component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });
 
-// Space app view
-const spaceAppViewRoute = createRoute({
-  getParentRoute: () => spacesLayout,
+// Agent app view
+const agentAppViewRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/apps/$connectionId/$toolName",
   component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
 });
 
-// Space workflows
-const spaceWorkflowsRoute = createRoute({
-  getParentRoute: () => spacesLayout,
+// Agent workflows
+const agentWorkflowsRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/workflows",
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
-// Space automations
-const spaceAutomationsRoute = createRoute({
-  getParentRoute: () => spacesLayout,
+// Agent automations
+const agentAutomationsRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/automations",
   validateSearch: z.object({ automationId: z.string().optional() }),
   component: lazyRouteComponent(
-    () => import("./views/automations/space-automations.tsx"),
+    () => import("./views/automations/agent-automations.tsx"),
   ),
 });
 
-// Space plugin layout
-const spacePluginLayoutRoute = createRoute({
-  getParentRoute: () => spacesLayout,
+// Agent plugin layout
+const agentPluginLayoutRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
@@ -491,7 +468,7 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   if (!plugin.setup) return;
 
   const context: PluginSetupContext = {
-    parentRoute: spacePluginLayoutRoute as AnyRoute,
+    parentRoute: agentPluginLayoutRoute as AnyRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
@@ -508,9 +485,9 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   plugin.setup(context);
 });
 
-// Add all plugin routes as children of the space plugin layout
-const spacePluginWithChildren =
-  spacePluginLayoutRoute.addChildren(pluginRoutes);
+// Add all plugin routes as children of the agent plugin layout
+const agentPluginWithChildren =
+  agentPluginLayoutRoute.addChildren(pluginRoutes);
 
 // ============================================
 // ROUTE TREE
@@ -533,24 +510,22 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsSsoRoute,
 ]);
 
-const spacesWithChildren = spacesLayout.addChildren([
-  spaceHomeRoute,
-  spaceAppViewRoute,
-  spaceWorkflowsRoute,
-  spaceAutomationsRoute,
-  spacePluginWithChildren,
+const agentsWithChildren = agentsLayout.addChildren([
+  agentHomeRoute,
+  agentAppViewRoute,
+  agentWorkflowsRoute,
+  agentAutomationsRoute,
+  agentPluginWithChildren,
 ]);
 
 const orgRoutes = [
   orgHomeRoute,
-  spacesListRoute,
-  spacesWithChildren,
+  agentsListRoute,
+  agentsWithChildren,
   projectsListRoute,
   settingsWithChildren,
   storeDetailRoute,
   orgPluginRoute,
-  agentsRoute,
-  agentDetailRoute,
 ];
 
 const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);
@@ -572,6 +547,23 @@ const routeTree = rootRoute.addChildren([
 
 const router = createRouter({
   routeTree,
+  defaultNotFoundComponent: () => (
+    <div className="flex h-full items-center justify-center">
+      <div className="flex flex-col items-center gap-4 p-8">
+        <h3 className="text-lg font-medium text-foreground">Page not found</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-[300px]">
+          The page you are looking for does not exist or has been moved.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="text-sm text-primary hover:underline"
+        >
+          Go back
+        </button>
+      </div>
+    </div>
+  ),
 });
 
 declare module "@tanstack/react-router" {

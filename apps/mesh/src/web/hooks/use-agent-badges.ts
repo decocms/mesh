@@ -5,54 +5,53 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import type { Task } from "@/web/components/chat/task/types";
 
 /**
- * Pure function: compute which spaces have unseen task updates.
+ * Pure function: compute which agents have unseen task updates.
  * Exported for unit testing.
  */
-export function computeSpaceBadges(
+export function computeAgentBadges(
   threads: Task[],
-  spaceIds: string[],
+  agentIds: string[],
   lastSeenMap: Record<string, string>,
 ): Record<string, boolean> {
   const badges: Record<string, boolean> = {};
-  for (const spaceId of spaceIds) {
-    const lastSeen = lastSeenMap[spaceId];
+  for (const agentId of agentIds) {
+    const lastSeen = lastSeenMap[agentId];
     if (!lastSeen) {
-      badges[spaceId] = false;
+      badges[agentId] = false;
       continue;
     }
-    badges[spaceId] = threads.some(
+    badges[agentId] = threads.some(
       (t) =>
-        !t.hidden && t.agent_ids?.includes(spaceId) && t.updated_at > lastSeen,
+        !t.hidden && t.agent_ids?.includes(agentId) && t.updated_at > lastSeen,
     );
   }
   return badges;
 }
 
-export function useSpaceBadges(spaceIds: string[]): {
+export function useAgentBadges(agentIds: string[]): {
   badges: Record<string, boolean>;
-  markSeen: (spaceId: string) => void;
+  markSeen: (agentId: string) => void;
 } {
   const { org } = useProjectContext();
   const threads = useChatStore((s) => s.threads);
   const [lastSeenMap, setLastSeenMap] = useLocalStorage<Record<string, string>>(
-    LOCALSTORAGE_KEYS.spaceLastSeen(org.id),
+    LOCALSTORAGE_KEYS.agentLastSeen(org.id),
     {},
   );
 
-  const badges = computeSpaceBadges(threads, spaceIds, lastSeenMap);
+  const badges = computeAgentBadges(threads, agentIds, lastSeenMap);
 
-  const markSeen = (spaceId: string) => {
-    // Find the max updated_at among tasks for this space
+  const markSeen = (agentId: string) => {
     let maxUpdatedAt: string | undefined;
     for (const t of threads) {
-      if (!t.hidden && t.agent_ids?.includes(spaceId)) {
+      if (!t.hidden && t.agent_ids?.includes(agentId)) {
         if (!maxUpdatedAt || t.updated_at > maxUpdatedAt) {
           maxUpdatedAt = t.updated_at;
         }
       }
     }
     if (maxUpdatedAt) {
-      setLastSeenMap((prev) => ({ ...prev, [spaceId]: maxUpdatedAt }));
+      setLastSeenMap((prev) => ({ ...prev, [agentId]: maxUpdatedAt }));
     }
   };
 

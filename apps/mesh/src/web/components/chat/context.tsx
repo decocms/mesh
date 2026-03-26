@@ -15,7 +15,7 @@ import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import type { Task, TaskOwnerFilter } from "./task";
 import type { ToolApprovalLevel } from "../../hooks/use-preferences";
 import type { ChatMessage, Metadata } from "./types";
-import { useOptionalSpaceContext } from "@/web/contexts/space-context";
+import { useOptionalAgentContext } from "@/web/contexts/agent-context";
 
 export { ChatProvider } from "./chat-provider";
 
@@ -100,7 +100,7 @@ type ChatContextValue = ChatStableValue & ChatStreamValue;
  * Stable chat values (model, mode, tasks, virtual MCP, actions).
  */
 export function useChatStable(): ChatStableValue {
-  const spaceCtx = useOptionalSpaceContext();
+  const agentCtx = useOptionalAgentContext();
 
   const s = useChatStore((state) => ({
     activeTaskId: state.activeThreadId,
@@ -125,13 +125,13 @@ export function useChatStable(): ChatStableValue {
     resetInteraction: () => chatStore.clearFinishReason(),
     createTask: () => {
       const newId = chatStore.createThread();
-      if (spaceCtx) {
-        spaceCtx.navigateToTask(newId);
+      if (agentCtx) {
+        agentCtx.navigateToTask(newId);
       }
     },
     switchToTask: async (taskId: string) => {
-      if (spaceCtx) {
-        spaceCtx.navigateToTask(taskId);
+      if (agentCtx) {
+        agentCtx.navigateToTask(taskId);
       } else {
         chatStore.setActiveThread(taskId);
       }

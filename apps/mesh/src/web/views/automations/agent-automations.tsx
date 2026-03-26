@@ -11,12 +11,12 @@ import { Loading01 } from "@untitledui/icons";
 import { useMatch, useSearch } from "@tanstack/react-router";
 import { Suspense } from "react";
 
-function SpaceAutomationsContent() {
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId/automations",
+function AgentAutomationsContent() {
+  const agentsMatch = useMatch({
+    from: "/shell/$org/agents/$virtualMcpId/automations",
     shouldThrow: false,
   });
-  const virtualMcpId = spacesMatch?.params.virtualMcpId ?? "";
+  const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
   const search = useSearch({ strict: false }) as {
     automationId?: string;
   };
@@ -43,7 +43,7 @@ function SpaceAutomationsContent() {
   );
 }
 
-export default function SpaceAutomationsPage() {
+export default function AgentAutomationsPage() {
   return (
     <ErrorBoundary>
       <Suspense
@@ -56,7 +56,7 @@ export default function SpaceAutomationsPage() {
           </div>
         }
       >
-        <SpaceAutomationsContent />
+        <AgentAutomationsContent />
       </Suspense>
     </ErrorBoundary>
   );

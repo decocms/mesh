@@ -118,8 +118,8 @@ export function createSSESubscription(
         reconnectAttempt: 0,
         reconnectTimer: null,
       };
-      connections.set(key, conn);
       createEventSource(key, conn);
+      connections.set(key, conn);
     }
     return conn;
   }

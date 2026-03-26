@@ -8,7 +8,7 @@
 import { useChat } from "@/web/components/chat/index";
 import { CollectionSearch } from "@/web/components/collections/collection-search";
 import { useChatStable } from "@/web/components/chat/context";
-import { useOptionalSpaceContext } from "@/web/contexts/space-context";
+import { useOptionalAgentContext } from "@/web/contexts/agent-context";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
@@ -460,7 +460,7 @@ function IncomingSection({
   >;
   defaultAgent: { icon: string | null | undefined; title: string };
 }) {
-  const spaceCtx = useOptionalSpaceContext();
+  const agentCtx = useOptionalAgentContext();
   const { data: allAutomations } = useAutomationsList();
   const createMutation = useAutomationCreate();
   const [isOpen, setIsOpen] = useState(false);
@@ -475,14 +475,14 @@ function IncomingSection({
   const navigateToAutomation = (automationId?: string) => {
     console.log("[navigateToAutomation]", {
       automationId,
-      hasSpaceCtx: !!spaceCtx,
+      hasSpaceCtx: !!agentCtx,
       virtualMcpId,
       currentUrl: window.location.href,
     });
     if (automationId) {
-      spaceCtx?.navigateToMain("automation", { id: automationId });
+      agentCtx?.navigateToMain("automation", { id: automationId });
     } else {
-      spaceCtx?.navigateToMain("default");
+      agentCtx?.navigateToMain("default");
     }
   };
 

@@ -141,6 +141,23 @@ function PersistentSidebarProvider({ children }: PropsWithChildren) {
   return <SidebarProvider>{children}</SidebarProvider>;
 }
 
+function OptionalAgentProvider({
+  virtualMcpId,
+  children,
+}: {
+  virtualMcpId?: string;
+  children: React.ReactNode;
+}) {
+  if (virtualMcpId) {
+    return (
+      <VirtualMCPProvider virtualMcpId={virtualMcpId}>
+        {children}
+      </VirtualMCPProvider>
+    );
+  }
+  return <>{children}</>;
+}
+
 function MobileFABsAndDrawers({
   chatOpen,
   setChatOpen,
@@ -201,14 +218,14 @@ function ToolbarBreadcrumb() {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const org = orgMatch?.params.org;
 
-  const isSpacesList =
-    org && routerState.location.pathname === `/${org}/spaces`;
+  const isAgentsList =
+    org && routerState.location.pathname === `/${org}/agents`;
 
-  if (isSpacesList) {
+  if (isAgentsList) {
     return (
       <div className="flex items-center min-w-0 ml-1.5">
         <span className="text-sm font-medium text-sidebar-foreground">
-          Spaces
+          Agents
         </span>
       </div>
     );
@@ -218,11 +235,11 @@ function ToolbarBreadcrumb() {
 }
 
 function ShellLayoutInner({
-  isSpaceRoute,
+  isAgentRoute,
   isOrgHome,
   isSettingsRoute,
 }: {
-  isSpaceRoute: boolean;
+  isAgentRoute: boolean;
   isOrgHome: boolean;
   isSettingsRoute: boolean;
 }) {
@@ -232,14 +249,14 @@ function ShellLayoutInner({
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
 
-  // Extract virtualMcpId from route for space context
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
+  // Extract virtualMcpId from route for agent context
+  const agentsMatch = useMatch({
+    from: "/shell/$org/agents/$virtualMcpId",
     shouldThrow: false,
   });
-  const spaceVirtualMcpId = spacesMatch?.params.virtualMcpId;
+  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
 
-  const showThreePanels = isSpaceRoute || isOrgHome;
+  const showThreePanels = isAgentRoute || isOrgHome;
 
   // Compute decopilot virtualMcpId for tasks filtering on org home
   const tasksVirtualMcpId = isOrgHome
@@ -278,8 +295,8 @@ function ShellLayoutInner({
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    setTasksOpen(isSpaceRoute);
-  }, [isSpaceRoute]);
+    setTasksOpen(isAgentRoute);
+  }, [isAgentRoute]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
@@ -288,17 +305,17 @@ function ShellLayoutInner({
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isSpaceRoute || isOrgHome) setChatOpen(true);
-  }, [isSpaceRoute, isOrgHome]);
+    if (isAgentRoute || isOrgHome) setChatOpen(true);
+  }, [isAgentRoute, isOrgHome]);
 
   // When entering a space route (e.g. from org home where chat was full-width),
   // resize the chat panel to its persisted width so main gets the bulk of space.
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
-    if (isSpaceRoute) {
+    if (isAgentRoute) {
       chatPanelRef.current?.resize(chatPanelWidth);
     }
-  }, [isSpaceRoute]);
+  }, [isAgentRoute]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
@@ -321,15 +338,6 @@ function ShellLayoutInner({
     if (chatOpen && expandedCount <= 1) return;
     setChatOpen((prev) => !prev);
   };
-
-  // Wrapper: provide space context when on a space route
-  const MaybeSpaceProvider = spaceVirtualMcpId
-    ? ({ children }: { children: React.ReactNode }) => (
-        <VirtualMCPProvider virtualMcpId={spaceVirtualMcpId}>
-          {children}
-        </VirtualMCPProvider>
-      )
-    : ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
   const content = (
     <SidebarLayout
@@ -420,7 +428,7 @@ function ShellLayoutInner({
           </div>
         )}
 
-        <MaybeSpaceProvider>
+        <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
           <ResizablePanelGroup
             direction="horizontal"
             className="flex-1 min-h-0"
@@ -431,7 +439,7 @@ function ShellLayoutInner({
               <>
                 <PersistentTasksResizablePanel
                   panelRef={tasksPanelRef}
-                  defaultCollapsed={!isSpaceRoute}
+                  defaultCollapsed={!isAgentRoute}
                   onCollapse={() => setTasksOpen(false)}
                   onExpand={() => setTasksOpen(true)}
                 >
@@ -452,9 +460,9 @@ function ShellLayoutInner({
                 className="min-w-0 flex flex-col"
                 order={2}
                 style={{ overflow: "visible" }}
-                collapsible={isSpaceRoute}
+                collapsible={isAgentRoute}
                 collapsedSize={0}
-                minSize={isSpaceRoute ? 20 : undefined}
+                minSize={isAgentRoute ? 20 : undefined}
                 onCollapse={() => setMainOpen(false)}
                 onExpand={() => setMainOpen(true)}
               >
@@ -496,7 +504,7 @@ function ShellLayoutInner({
               </>
             )}
           </ResizablePanelGroup>
-        </MaybeSpaceProvider>
+        </OptionalAgentProvider>
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
@@ -532,9 +540,9 @@ function ShellLayoutContent() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Check if we're on a space route (/$org/spaces/$id) but not settings
-  const isSpaceRoute =
-    routerState.location.pathname.startsWith(`/${org}/spaces/`) &&
+  // Check if we're on an agent route (/$org/agents/$id) but not settings
+  const isAgentRoute =
+    routerState.location.pathname.startsWith(`/${org}/agents/`) &&
     !routerState.location.pathname.includes("/settings");
 
   // Check if we're on the org home route (/$org or /$org/)
@@ -547,9 +555,9 @@ function ShellLayoutContent() {
     `/${org}/settings`,
   );
 
-  // Extract virtualMcpId from space route for ChatProvider init
-  const spaceVirtualMcpId = isSpaceRoute
-    ? routerState.location.pathname.split("/spaces/")[1]?.split("/")[0]
+  // Extract virtualMcpId from agent route for ChatProvider init
+  const agentVirtualMcpId = isAgentRoute
+    ? routerState.location.pathname.split("/agents/")[1]?.split("/")[0]
     : undefined;
 
   const { data: projectContext } = useSuspenseQuery({
@@ -624,9 +632,12 @@ function ShellLayoutContent() {
     <ProjectContextProvider {...projectContext}>
       <PersistentSidebarProvider>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <Chat.Provider key={spaceVirtualMcpId ?? "org"} virtualMcpId={spaceVirtualMcpId}>
+          <Chat.Provider
+            key={agentVirtualMcpId ?? "org"}
+            virtualMcpId={agentVirtualMcpId}
+          >
             <ShellLayoutInner
-              isSpaceRoute={isSpaceRoute}
+              isAgentRoute={isAgentRoute}
               isOrgHome={isOrgHome}
               isSettingsRoute={isSettingsRoute}
             />

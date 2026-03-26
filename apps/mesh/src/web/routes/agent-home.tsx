@@ -4,10 +4,10 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Loading01 } from "@untitledui/icons";
 import { Suspense, lazy } from "react";
 import {
-  useSpaceContext,
+  useAgentContext,
   type MainView,
   type MainViewType,
-} from "@/web/contexts/space-context";
+} from "@/web/contexts/agent-context";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 
 const ProjectAppViewContent = lazy(() =>
@@ -21,13 +21,13 @@ const ProjectAppViewContent = lazy(() =>
  * otherwise fall back to the entity's layout config, then to settings.
  */
 function useResolvedMainView(): MainView & {} {
-  const { virtualMcpId, mainView } = useSpaceContext();
+  const { virtualMcpId, mainView } = useAgentContext();
+  const entity = useVirtualMCP(virtualMcpId);
 
   // URL specified an explicit view — use it
   if (mainView !== null) return mainView;
 
   // Resolve default from entity layout config
-  const entity = useVirtualMCP(virtualMcpId);
   const layoutConfig = (
     entity?.metadata?.ui as Record<string, unknown> | null | undefined
   )?.layout as {
@@ -50,8 +50,8 @@ function useResolvedMainView(): MainView & {} {
   }
 }
 
-function SpaceHomeContent() {
-  const { virtualMcpId } = useSpaceContext();
+function AgentHomeContent() {
+  const { virtualMcpId } = useAgentContext();
   const resolved = useResolvedMainView();
 
   if (resolved.type === "automation") {
@@ -84,7 +84,7 @@ function SpaceHomeContent() {
   );
 }
 
-export default function SpaceHomePage() {
+export default function AgentHomePage() {
   return (
     <ErrorBoundary>
       <Suspense
@@ -97,7 +97,7 @@ export default function SpaceHomePage() {
           </div>
         }
       >
-        <SpaceHomeContent />
+        <AgentHomeContent />
       </Suspense>
     </ErrorBoundary>
   );

@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { useProjectContext, useVirtualMCPActions } from "@decocms/mesh-sdk";
-import { useSpaces } from "@/web/hooks/use-spaces";
+import {
+  useProjectContext,
+  useVirtualMCPActions,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
 import { Page } from "@/web/components/page";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { ProjectCard } from "@/web/components/project-card";
@@ -26,9 +29,9 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
 
-export default function SpacesListPage() {
+export default function AgentsListPage() {
   const { org } = useProjectContext();
-  const spaces = useSpaces();
+  const agents = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const [search, setSearch] = useState("");
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
@@ -39,7 +42,7 @@ export default function SpacesListPage() {
     title: string;
   } | null>(null);
   // Filter out org-admin and apply search
-  const filteredSpaces = spaces.filter(
+  const filteredAgents = agents.filter(
     (s) =>
       s.id !== org.id &&
       (s.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -65,7 +68,7 @@ export default function SpacesListPage() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Spaces</BreadcrumbPage>
+                <BreadcrumbPage>Agents</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -77,7 +80,7 @@ export default function SpacesListPage() {
             size="sm"
           >
             <Plus size={14} />
-            Create Space
+            Create Agent
           </Button>
         </Page.Header.Right>
       </Page.Header>
@@ -85,7 +88,7 @@ export default function SpacesListPage() {
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search for a space..."
+        placeholder="Search for an agent..."
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setSearch("");
@@ -95,17 +98,17 @@ export default function SpacesListPage() {
       />
 
       <Page.Content className="@container">
-        {filteredSpaces.length === 0 && (
+        {filteredAgents.length === 0 && (
           <div className="flex items-center h-full">
             <EmptyState
               image={
                 <FolderClosed size={48} className="text-muted-foreground" />
               }
-              title={search ? "No spaces found" : "No spaces yet"}
+              title={search ? "No agents found" : "No agents yet"}
               description={
                 search
-                  ? `No spaces match "${search}"`
-                  : "Create a space to get started."
+                  ? `No agents match "${search}"`
+                  : "Create an agent to get started."
               }
               actions={
                 !search && (
@@ -115,7 +118,7 @@ export default function SpacesListPage() {
                     disabled={isCreating}
                   >
                     <Plus size={14} />
-                    Create Space
+                    Create Agent
                   </Button>
                 )
               }
@@ -123,17 +126,17 @@ export default function SpacesListPage() {
           </div>
         )}
 
-        {filteredSpaces.length > 0 && (
+        {filteredAgents.length > 0 && (
           <div className="p-5">
             <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
-              {filteredSpaces.map((space) => (
+              {filteredAgents.map((agent) => (
                 <ProjectCard
-                  key={space.id}
-                  project={space}
+                  key={agent.id}
+                  project={agent}
                   onDeleteClick={() =>
                     setDeleteTarget({
-                      id: space.id,
-                      title: space.title,
+                      id: agent.id,
+                      title: agent.title,
                     })
                   }
                 />
@@ -149,7 +152,7 @@ export default function SpacesListPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Space?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Agent?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
