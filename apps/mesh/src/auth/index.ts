@@ -333,11 +333,15 @@ const baseUrl = getBaseUrl();
 // Build trusted origins: include both localhost and 127.0.0.1 variants
 function getTrustedOrigins(): string[] {
   const origins = [baseUrl];
-  const url = new URL(baseUrl);
-  if (url.hostname === "localhost") {
-    origins.push(baseUrl.replace("localhost", "127.0.0.1"));
-  } else if (url.hostname === "127.0.0.1") {
-    origins.push(baseUrl.replace("127.0.0.1", "localhost"));
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname === "localhost") {
+      origins.push(baseUrl.replace("localhost", "127.0.0.1"));
+    } else if (url.hostname === "127.0.0.1") {
+      origins.push(baseUrl.replace("127.0.0.1", "localhost"));
+    }
+  } catch {
+    // baseUrl may be invalid during test module loading; fall back to base only
   }
   return origins;
 }
