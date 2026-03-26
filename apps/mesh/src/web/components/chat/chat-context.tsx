@@ -216,17 +216,6 @@ export function ChatContextProvider({
   // taskId comes from the URL (seeded by router's validateSearch if absent)
   const effectiveTaskId = urlTaskId ?? tasks[0]?.id ?? "";
 
-  // DEBUG
-  const _rc = useRef(0);
-  _rc.current++;
-  console.log(`[chat-ctx] render #${_rc.current}`, {
-    effectiveTaskId,
-    urlTaskId,
-    firstTaskId: tasks[0]?.id,
-    virtualMcpId,
-    tasksLen: tasks.length,
-  });
-
   // Messages for current task (from React Query / server)
   const serverMessages = useTaskMessages(effectiveTaskId || null);
 

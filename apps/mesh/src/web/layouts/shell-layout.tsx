@@ -593,10 +593,12 @@ function ShellLayoutContent() {
         <div className="flex flex-col h-dvh overflow-hidden">
           <Chat.Provider
             key={
-              agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id
+              agentVirtualMcpId ??
+              getWellKnownDecopilotVirtualMCP(projectContext.org?.id ?? "").id
             }
             virtualMcpId={
-              agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id
+              agentVirtualMcpId ??
+              getWellKnownDecopilotVirtualMCP(projectContext.org?.id ?? "").id
             }
           >
             <ShellLayoutInner
