@@ -4,7 +4,7 @@ import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
-import { MeshSidebar } from "@/web/components/sidebar";
+import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
 import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
@@ -15,7 +15,6 @@ import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import {
   type ImperativePanelHandle,
   ResizableHandle,
@@ -27,6 +26,7 @@ import {
   SidebarLayout,
   SidebarProvider,
 } from "@deco/ui/components/sidebar.tsx";
+import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
@@ -34,6 +34,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutLeft,
+  Menu01,
   MessageTextCircle02,
 } from "@untitledui/icons";
 import {
@@ -158,58 +159,18 @@ function OptionalAgentProvider({
   return <>{children}</>;
 }
 
-function MobileFABsAndDrawers({
-  chatOpen,
-  setChatOpen,
-  tasksVirtualMcpId,
-  chatVariant,
-}: {
-  chatOpen: boolean;
-  setChatOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
-  tasksVirtualMcpId?: string;
-  chatVariant?: "home" | "default";
-}) {
-  const [tasksOpen, setTasksOpen] = useState(false);
-
+function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   return (
-    <>
+    <div className="shrink-0 flex items-center justify-between px-3 h-12 bg-background border-b border-border">
       <button
         type="button"
-        onClick={() => setTasksOpen((prev) => !prev)}
-        className={cn(
-          "fixed bottom-4 left-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
-          tasksOpen
-            ? "bg-accent text-foreground"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
-        )}
-        aria-label="Toggle tasks"
+        onClick={onOpenSidebar}
+        className="flex size-8 items-center justify-center rounded-md text-foreground/60 hover:bg-accent hover:text-foreground transition-colors"
+        aria-label="Open menu"
       >
-        <LayoutLeft size={20} />
+        <Menu01 size={20} />
       </button>
-      <button
-        type="button"
-        onClick={() => setChatOpen((prev) => !prev)}
-        className={cn(
-          "fixed bottom-4 right-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
-          chatOpen
-            ? "bg-accent text-foreground"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
-        )}
-        aria-label="Toggle chat"
-      >
-        <MessageTextCircle02 size={20} />
-      </button>
-      <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
-        <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-          <ChatPanel variant={chatVariant} />
-        </DrawerContent>
-      </Drawer>
-      <Drawer open={tasksOpen} onOpenChange={setTasksOpen} direction="bottom">
-        <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-          <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
-        </DrawerContent>
-      </Drawer>
-    </>
+    </div>
   );
 }
 
@@ -339,7 +300,72 @@ function ShellLayoutInner({
     setChatOpen((prev) => !prev);
   };
 
-  const content = (
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // --- Mobile layout: full-screen chat with hamburger toolbar ---
+  if (isMobile) {
+    return (
+      <div className="flex flex-col flex-1 bg-background min-h-0">
+        {showThreePanels ? (
+          <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+            <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ChatPanel variant={isOrgHome ? "home" : undefined} />
+            </div>
+            {/* Mobile sidebar: icon rail + tasks panel */}
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent
+                side="left"
+                className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+              >
+                <SheetTitle className="sr-only">Navigation</SheetTitle>
+                <div className="flex h-full">
+                  {/* Icon sidebar rail */}
+                  <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
+                    <MeshSidebarMobile
+                      onClose={() => setMobileSidebarOpen(false)}
+                    />
+                  </div>
+                  {/* Tasks / agent panel */}
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </OptionalAgentProvider>
+        ) : (
+          <>
+            <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+            <div className="flex-1 overflow-hidden">
+              <Outlet />
+            </div>
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent
+                side="left"
+                className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+              >
+                <SheetTitle className="sr-only">Navigation</SheetTitle>
+                <div className="flex h-full">
+                  <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
+                    <MeshSidebarMobile
+                      onClose={() => setMobileSidebarOpen(false)}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <TasksSidePanel />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // --- Desktop layout: resizable 3-panel ---
+  return (
     <SidebarLayout
       className="flex-1 bg-sidebar"
       style={
@@ -349,85 +375,80 @@ function ShellLayoutInner({
       }
     >
       {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
-      {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
-          through the rounded corners of the inner card */}
       <SidebarInset
         className="flex flex-col"
         style={{ background: "transparent", containerType: "inline-size" }}
       >
-        {/* Top toolbar — sits in the sidebar-colored area above all panels */}
-        {!isMobile && (
-          <div className="shrink-0 flex items-center justify-between px-2 h-10">
-            <div className="flex items-center gap-0.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go back"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.forward()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go forward"
-              >
-                <ChevronRight size={16} />
-              </button>
-              <ToolbarBreadcrumb />
-            </div>
-            {showThreePanels && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={toggleTasks}
-                  aria-pressed={tasksOpen}
-                  className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                    tasksOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle tasks"
-                >
-                  <LayoutLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleMain}
-                  aria-pressed={mainOpen}
-                  disabled={isOrgHome}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome
-                      ? "text-sidebar-foreground/30 cursor-not-allowed"
-                      : mainOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle content"
-                >
-                  <Browser size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleChat}
-                  aria-pressed={chatOpen}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    chatOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle chat"
-                >
-                  <MessageTextCircle02 size={16} />
-                </button>
-              </div>
-            )}
+        <div className="shrink-0 flex items-center justify-between px-2 h-10">
+          <div className="flex items-center gap-0.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              title="Go back"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => window.history.forward()}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              title="Go forward"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <ToolbarBreadcrumb />
           </div>
-        )}
+          {showThreePanels && (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={toggleTasks}
+                aria-pressed={tasksOpen}
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                  tasksOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle tasks"
+              >
+                <LayoutLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleMain}
+                aria-pressed={mainOpen}
+                disabled={isOrgHome}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  isOrgHome
+                    ? "text-sidebar-foreground/30 cursor-not-allowed"
+                    : mainOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleChat}
+                aria-pressed={chatOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  chatOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle chat"
+              >
+                <MessageTextCircle02 size={16} />
+              </button>
+            </div>
+          )}
+        </div>
 
         <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
           <ResizablePanelGroup
@@ -435,8 +456,7 @@ function ShellLayoutInner({
             className="flex-1 min-h-0"
             style={{ overflow: "visible" }}
           >
-            {/* Desktop: Tasks panel on the left */}
-            {!isMobile && showThreePanels && (
+            {showThreePanels && (
               <>
                 <PersistentTasksResizablePanel
                   panelRef={tasksPanelRef}
@@ -454,7 +474,6 @@ function ShellLayoutInner({
               </>
             )}
 
-            {/* Main content — not rendered on org home */}
             {!isOrgHome && (
               <ResizablePanel
                 ref={mainPanelRef}
@@ -484,8 +503,7 @@ function ShellLayoutInner({
               </ResizablePanel>
             )}
 
-            {/* Desktop: Chat card as resizable side panel */}
-            {showThreePanels && !isMobile && (
+            {showThreePanels && (
               <>
                 <ResizableHandle className="bg-sidebar" />
                 <PersistentResizablePanel
@@ -507,20 +525,8 @@ function ShellLayoutInner({
           </ResizablePanelGroup>
         </OptionalAgentProvider>
       </SidebarInset>
-
-      {/* Mobile: FABs + bottom Drawers */}
-      {showThreePanels && isMobile && (
-        <MobileFABsAndDrawers
-          chatOpen={chatOpen}
-          setChatOpen={setChatOpen}
-          tasksVirtualMcpId={tasksVirtualMcpId}
-          chatVariant={isOrgHome ? "home" : undefined}
-        />
-      )}
     </SidebarLayout>
   );
-
-  return content;
 }
 
 function ShellLayoutContent() {
