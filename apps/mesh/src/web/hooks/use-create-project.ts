@@ -33,7 +33,6 @@ export function useCreateProject() {
           data: {
             title: "My Project",
             description: null,
-            subtype: "project",
             pinned: true,
             metadata: {
               instructions: null,

@@ -204,56 +204,51 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
-  const savingRef = useRef(false);
-  const handleSave = async (): Promise<boolean> => {
-    if (savingRef.current) return false;
-    savingRef.current = true;
-    const values = form.getValues();
-    try {
-      const coercedCredentialId =
-        values.credential_id && values.model_id ? values.credential_id : "";
-      const coercedModelId =
-        values.credential_id && values.model_id ? values.model_id : "";
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const handleSave = (): Promise<boolean> => {
+    if (savePromiseRef.current) return savePromiseRef.current;
+    const promise = (async () => {
+      const values = form.getValues();
+      try {
+        const coercedCredentialId =
+          values.credential_id && values.model_id ? values.credential_id : "";
+        const coercedModelId =
+          values.credential_id && values.model_id ? values.model_id : "";
 
-      const updatePayload = {
-        id: automationId,
-        name: values.name,
-        active: values.active,
-        agent: {
-          id: fixedAgentId ?? values.agent_id,
-        },
-        models: {
-          credentialId: coercedCredentialId,
-          thinking: {
-            id: coercedModelId,
+        const updatePayload = {
+          id: automationId,
+          name: values.name,
+          active: values.active,
+          agent: {
+            id: fixedAgentId ?? values.agent_id,
           },
-        },
-        messages: tiptapDocToMessages(tiptapDoc),
-        temperature: 0,
-      };
-      console.log("[SettingsTab] save", {
-        automationId,
-        fixedAgentId,
-        formAgentId: values.agent_id,
-        resolvedAgentId: fixedAgentId ?? values.agent_id,
-        payload: updatePayload,
-      });
-      const updateResult = await updateMutation.mutateAsync(updatePayload);
-      console.log("[SettingsTab] save result", updateResult);
-      form.reset({
-        ...values,
-        credential_id: coercedCredentialId,
-        model_id: coercedModelId,
-      });
-      setSavedDoc(tiptapDoc);
-      toast.success("Automation saved");
-      return true;
-    } catch {
-      toast.error("Failed to save automation");
-      return false;
-    } finally {
-      savingRef.current = false;
-    }
+          models: {
+            credentialId: coercedCredentialId,
+            thinking: {
+              id: coercedModelId,
+            },
+          },
+          messages: tiptapDocToMessages(tiptapDoc),
+          temperature: 0,
+        };
+        await updateMutation.mutateAsync(updatePayload);
+        form.reset({
+          ...values,
+          credential_id: coercedCredentialId,
+          model_id: coercedModelId,
+        });
+        setSavedDoc(tiptapDoc);
+        toast.success("Automation saved");
+        return true;
+      } catch {
+        toast.error("Failed to save automation");
+        return false;
+      } finally {
+        savePromiseRef.current = null;
+      }
+    })();
+    savePromiseRef.current = promise;
+    return promise;
   };
 
   const handleUndo = () => {

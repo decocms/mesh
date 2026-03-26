@@ -170,20 +170,20 @@ export function useAutomationUpdate() {
 
   return useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
-      console.log("[useAutomationUpdate] calling AUTOMATION_UPDATE", input);
       const result = (await client.callTool({
         name: "AUTOMATION_UPDATE",
         arguments: input,
       })) as { structuredContent?: unknown };
       const parsed = (result.structuredContent ?? result) as { id: string };
-      console.log("[useAutomationUpdate] result", { raw: result, parsed });
       return parsed;
     },
     onSuccess: (_data, variables) => {
       // Invalidate all automation lists regardless of virtualMcpId filter
       queryClient.invalidateQueries({
         predicate: (query) =>
-          Array.isArray(query.queryKey) && query.queryKey[0] === "automations",
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === "automations" &&
+          query.queryKey[1] === org.id,
       });
       if (typeof variables.id === "string") {
         queryClient.invalidateQueries({

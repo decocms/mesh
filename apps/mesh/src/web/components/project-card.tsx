@@ -89,6 +89,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
             <Link
               to="/$org/agents/$virtualMcpId"
               params={{ org: org.slug, virtualMcpId: project.id }}
+              search={{ main: "settings" }}
               onClick={(e) => e.stopPropagation()}
               className={cn(
                 "size-6 rounded-md flex items-center justify-center",

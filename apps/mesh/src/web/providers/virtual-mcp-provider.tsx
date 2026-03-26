@@ -10,7 +10,7 @@
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
-import { Suspense, useEffect, type ReactNode } from "react";
+import { Suspense, useRef, type ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
 import {
   ProjectContextProvider,
@@ -109,13 +109,12 @@ function VirtualMCPProviderContent({
   const routeBase = "/$org/agents/$virtualMcpId/" as const;
   const params = { org: orgSlug, virtualMcpId };
 
-  // Sync taskId from URL → chat store
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (search.taskId) {
-      chatStore.setActiveThread(search.taskId);
-    }
-  }, [search.taskId]);
+  // Sync taskId from URL → chat store (render-phase, ref-guarded)
+  const prevTaskIdRef = useRef<string | undefined>(undefined);
+  if (search.taskId && search.taskId !== prevTaskIdRef.current) {
+    prevTaskIdRef.current = search.taskId;
+    chatStore.setActiveThread(search.taskId);
+  }
 
   const navigateToTask: AgentContextValue["navigateToTask"] = (taskId) => {
     navigate({

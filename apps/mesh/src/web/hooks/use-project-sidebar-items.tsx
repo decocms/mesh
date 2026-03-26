@@ -145,10 +145,10 @@ export function useProjectSidebarItems(): SidebarSection[] {
     key: "home",
     label: "Home",
     icon: <Home01 className="!size-4" />,
-    isActive: pathname === "/",
+    isActive: pathname === `/${org}` || pathname === `/${org}/`,
     onClick: () => {
       setTasksOpen(false);
-      navigate({ to: "/" });
+      navigate({ to: "/$org", params: { org } });
       chatStore.createThread();
     },
   };

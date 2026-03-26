@@ -24,12 +24,12 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import { readRecentAgentIds } from "@/web/components/chat/store/local-storage";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 
 /**
  * Individual agent preview component
@@ -45,13 +45,17 @@ function AgentPreview({
   };
   onSpecialClick?: () => void;
 }) {
-  const { setVirtualMcpId } = useChatStable();
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
 
   const handleClick = () => {
     if (onSpecialClick) {
       onSpecialClick();
     } else {
-      setVirtualMcpId(agent.id);
+      navigate({
+        to: "/$org/agents/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: agent.id },
+      });
     }
   };
 
@@ -98,16 +102,6 @@ function SeeAllButton({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
-
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
     setOpen(false);
@@ -140,6 +134,12 @@ function SeeAllButton({
         align="start"
         side="top"
         sideOffset={8}
+        onOpenAutoFocus={(e) => {
+          if (!isMobile) {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          }
+        }}
       >
         <VirtualMCPPopoverContent
           virtualMcps={virtualMcps}
@@ -159,15 +159,6 @@ const SITE_EDITOR_AGENT = {
   id: "site-editor",
   title: "Site Editor",
   icon: "icon://Globe01?color=violet",
-} as const;
-
-/**
- * Hardcoded Slide Builder agent for quick presentation creation.
- */
-const SLIDE_BUILDER_AGENT = {
-  id: "slide-builder",
-  title: "Slide Builder",
-  icon: "icon://PresentationChart01?color=yellow",
 } as const;
 
 /**
@@ -208,7 +199,6 @@ function AgentsListContent() {
   const { selectedVirtualMcp, setVirtualMcpId } = useChatStable();
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
-  const { createSlideBuilder } = useCreateSlideBuilder();
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -252,11 +242,6 @@ function AgentsListContent() {
             key={SITE_EDITOR_AGENT.id}
             agent={SITE_EDITOR_AGENT}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
-          />
-          <AgentPreview
-            key={SLIDE_BUILDER_AGENT.id}
-            agent={SLIDE_BUILDER_AGENT}
-            onSpecialClick={createSlideBuilder}
           />
           {agents.map((agent) => (
             <AgentPreview key={agent.id ?? "default"} agent={agent} />

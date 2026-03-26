@@ -1,19 +1,12 @@
 import { useVirtualMCPs, type UseVirtualMCPsOptions } from "@decocms/mesh-sdk";
 
 /**
- * Hook to fetch only project virtual MCPs (subtype = "project").
- * Mirrors the useAgents() pattern for agent-scoped data.
+ * Hook to fetch pinned virtual MCPs (projects).
+ * Migration 052-spaces replaced the `subtype` column with a `pinned` boolean.
  */
-export function useProjects(
-  options: UseVirtualMCPsOptions & { pinnedOnly?: boolean } = {},
-) {
-  const { pinnedOnly, ...rest } = options;
+export function useProjects(options: UseVirtualMCPsOptions = {}) {
   return useVirtualMCPs({
-    ...rest,
-    filters: [
-      ...(rest.filters ?? []),
-      { column: "subtype", value: "project" },
-      ...(pinnedOnly ? [{ column: "pinned", value: true }] : []),
-    ],
+    ...options,
+    filters: [...(options.filters ?? []), { column: "pinned", value: true }],
   });
 }

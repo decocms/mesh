@@ -386,12 +386,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     );
 
   const navigateToAutomation = (automationId?: string) => {
-    console.log("[navigateToAutomation]", {
-      automationId,
-      hasSpaceCtx: !!agentCtx,
-      virtualMcpId,
-      currentUrl: window.location.href,
-    });
     if (automationId) {
       agentCtx?.navigateToMain("automation", { id: automationId });
     } else {
@@ -460,13 +454,7 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
           <AutomationRow
             key={automation.id}
             automation={automation}
-            onClick={() => {
-              console.log("[AutomationRow click]", {
-                automationId: automation.id,
-                automationName: automation.name,
-              });
-              navigateToAutomation(automation.id);
-            }}
+            onClick={() => navigateToAutomation(automation.id)}
           />
         ))}
     </div>
@@ -625,6 +613,12 @@ export function TaskListContent({
     ...new Set(spaceFiltered.flatMap((t) => t.agent_ids ?? [])),
   ];
 
+  // Intersect agentFilter with available agents to avoid stale filters hiding all tasks
+  const availableSet = new Set(availableAgents);
+  const effectiveAgentFilter = new Set(
+    [...agentFilter].filter((id) => availableSet.has(id)),
+  );
+
   const searched = searchQuery.trim()
     ? spaceFiltered.filter((t) =>
         t.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -637,9 +631,9 @@ export function TaskListContent({
       !statusFilter.has((task.status ?? "completed") as StatusKey)
     )
       return false;
-    if (agentFilter.size > 0) {
+    if (effectiveAgentFilter.size > 0) {
       const taskAgents = task.agent_ids ?? [];
-      if (!taskAgents.some((id) => agentFilter.has(id))) return false;
+      if (!taskAgents.some((id) => effectiveAgentFilter.has(id))) return false;
     }
     return true;
   });
