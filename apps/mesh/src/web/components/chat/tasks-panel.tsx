@@ -41,7 +41,6 @@ import {
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
-import { Button } from "@deco/ui/components/button.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -123,23 +122,22 @@ export function OwnerFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="size-7"
+        <button
+          type="button"
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+            isFilterChangePending || isFiltered
+              ? "text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
           title={isFiltered ? "My tasks" : "All tasks"}
           disabled={isFilterChangePending}
         >
           <Icon
             size={14}
-            className={cn(
-              isFilterChangePending
-                ? "animate-spin text-muted-foreground"
-                : isFiltered
-                  ? "text-foreground"
-                  : "text-muted-foreground",
-            )}
+            className={isFilterChangePending ? "animate-spin" : ""}
           />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup
@@ -529,7 +527,7 @@ function IncomingSection({
         </div>
         <button
           type="button"
-          className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0 mr-2 cursor-pointer"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground mr-2"
           onClick={handleCreate}
           disabled={createMutation.isPending}
           title="Create automation"
@@ -593,7 +591,7 @@ function FilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
+          className="relative flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
           title="Filter"
         >
           <FilterLines
@@ -696,7 +694,6 @@ export function TaskListContent({
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
   const [agentFilter, setAgentFilter] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -750,82 +747,57 @@ export function TaskListContent({
     <div className="flex flex-col flex-1 min-h-0">
       {/* Tasks header + search/filter */}
       <div className="px-2 py-1 flex items-center gap-1 min-h-[36px]">
-        {searchOpen ? (
-          <>
-            <div className="flex-1 relative">
-              <SearchMd
-                size={13}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
-              />
-              <input
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search tasks..."
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setSearchQuery("");
-                    setSearchOpen(false);
-                  }
-                }}
-                className="w-full h-7 pl-7 pr-2 text-sm bg-accent rounded-md border-0 outline-none placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchOpen(false);
-              }}
-              className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-              title="Close search"
-            >
-              <X size={14} className="text-muted-foreground" />
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-              Tasks
-            </span>
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              className="flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-              title="Search tasks"
-            >
-              <SearchMd
-                size={14}
-                className={cn(
-                  searchQuery ? "text-foreground" : "text-muted-foreground/50",
-                )}
-              />
-            </button>
-            <FilterDropdown
-              statusFilter={statusFilter}
-              agentFilter={agentFilter}
-              availableAgents={availableAgents}
-              connectionMap={connectionMap}
-              defaultAgent={defaultAgent}
-              onStatusChange={(s) =>
-                setStatusFilter((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(s)) next.delete(s);
-                  else next.add(s);
-                  return next;
-                })
-              }
-              onAgentChange={(a) =>
-                setAgentFilter((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(a)) next.delete(a);
-                  else next.add(a);
-                  return next;
-                })
-              }
-            />
-          </>
+        <span className="text-xs font-medium text-muted-foreground px-2 shrink-0">
+          Tasks
+        </span>
+        <div className="flex-1 relative">
+          <SearchMd
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 pointer-events-none"
+          />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearchQuery("");
+            }}
+            className="w-full h-7 pl-7 pr-2 text-sm bg-transparent rounded-md border-0 outline-none placeholder:text-muted-foreground/30 focus:bg-accent transition-colors"
+          />
+        </div>
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
         )}
+        <FilterDropdown
+          statusFilter={statusFilter}
+          agentFilter={agentFilter}
+          availableAgents={availableAgents}
+          connectionMap={connectionMap}
+          defaultAgent={defaultAgent}
+          onStatusChange={(s) =>
+            setStatusFilter((prev) => {
+              const next = new Set(prev);
+              if (next.has(s)) next.delete(s);
+              else next.add(s);
+              return next;
+            })
+          }
+          onAgentChange={(a) =>
+            setAgentFilter((prev) => {
+              const next = new Set(prev);
+              if (next.has(a)) next.delete(a);
+              else next.add(a);
+              return next;
+            })
+          }
+        />
       </div>
 
       {/* Grouped list */}
