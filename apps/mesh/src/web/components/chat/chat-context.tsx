@@ -213,12 +213,11 @@ export function ChatContextProvider({
   const taskManager = useTaskManager(virtualMcpId);
   const { tasks } = taskManager;
 
-  // Stable fallback taskId (generated once per mount, not per render)
-  const [fallbackId] = useState(() => crypto.randomUUID());
-  const effectiveTaskId = urlTaskId ?? tasks[0]?.id ?? fallbackId;
+  // taskId comes from the URL (seeded by router's validateSearch if absent)
+  const effectiveTaskId = urlTaskId ?? tasks[0]?.id ?? "";
 
   // Messages for current task (from React Query / server)
-  const serverMessages = useTaskMessages(effectiveTaskId);
+  const serverMessages = useTaskMessages(effectiveTaskId || null);
 
   // Context prompt
   const contextPrompt = useContextHook(virtualMcpId);

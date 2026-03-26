@@ -89,6 +89,11 @@ export function useStreamManager(
 
   // Safety-net polling when run is in_progress but no active stream
   const subscribe = (_onStoreChange: () => void) => {
+    console.log("[stream-mgr] subscribe called", {
+      isRunInProgress,
+      threadId,
+      chatStatus: chat.status,
+    });
     if (!isRunInProgress) return () => {};
 
     tryResumeStream("page-load");

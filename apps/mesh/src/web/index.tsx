@@ -377,7 +377,10 @@ const agentHomeRoute = createRoute({
   getParentRoute: () => agentsLayout,
   path: "/",
   validateSearch: z.object({
-    taskId: z.string().optional(),
+    taskId: z
+      .string()
+      .optional()
+      .transform((v) => v ?? crypto.randomUUID()),
     main: z.string().optional(),
     id: z.string().optional(),
     automationId: z.string().optional(),
