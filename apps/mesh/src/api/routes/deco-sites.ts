@@ -214,6 +214,22 @@ app.get("/", async (c) => {
 
 const ADMIN_MCP = "https://sites-admin-mcp.decocache.com/api/mcp";
 
+async function fetchFaviconAsDataUrl(domain: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://${domain}/favicon.ico`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "image/x-icon";
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength === 0) return null;
+    const base64 = Buffer.from(buffer).toString("base64");
+    return `data:${contentType};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/deco-sites/connection
  *
@@ -285,6 +301,10 @@ app.post("/connection", async (c) => {
       ? fetchResult.scopes
       : null;
 
+    // Fetch the favicon server-side to avoid CORS issues.
+    // Returned to the caller so it can be set as the project icon.
+    const faviconIcon = await fetchFaviconAsDataUrl(`${siteName}.deco.site`);
+
     // Store the connection with the API key encrypted by the vault.
     // The key is never serialised into any response body.
     const connection = await ctx.storage.connections.create({
@@ -309,7 +329,7 @@ app.post("/connection", async (c) => {
       configuration_scopes,
     });
 
-    return c.json({ connId: connection.id });
+    return c.json({ connId: connection.id, icon: faviconIcon });
   } catch (err) {
     console.error("[deco-sites] POST /connection error:", err);
     return c.json({ error: "Failed to create connection" }, 500);
