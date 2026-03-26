@@ -567,7 +567,7 @@ export function ChatInput({
         {/* Inner container with the input */}
         <div
           className={cn(
-            "transition-[padding] duration-250 ease-out",
+            "transition-[padding] duration-250 ease-out bg-background rounded-b-xl",
             showWrapper ? "p-0.5" : "p-0",
           )}
         >
