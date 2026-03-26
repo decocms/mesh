@@ -125,7 +125,7 @@ export function useCreateSlideBuilder() {
       });
       queryClient.invalidateQueries({ queryKey: KEYS.projects(org.id) });
       navigate({
-        to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/spaces/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org: org.slug,
           virtualMcpId,

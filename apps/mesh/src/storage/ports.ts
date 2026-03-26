@@ -49,7 +49,7 @@ export interface ThreadStoragePort {
   ): Promise<{ threads: Thread[]; total: number }>;
   /** Atomically claim an orphaned run. Returns true if this pod won the CAS. */
   claimOrphanedRun(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     podId: string,
   ): Promise<boolean>;
@@ -65,7 +65,7 @@ export interface ThreadStoragePort {
    * Allows: new runs (not in_progress), orphans (null pod), or same-pod restarts.
    */
   claimRunStart(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     data: Partial<Thread>,
     podId: string | null,
@@ -77,7 +77,7 @@ export interface ThreadStoragePort {
   // Message operations - upserts by id (updates existing rows)
   saveMessages(data: ThreadMessage[], organizationId: string): Promise<void>;
   listMessages(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     options?: {
       limit?: number;

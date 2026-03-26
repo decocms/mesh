@@ -1,7 +1,14 @@
 import { SidebarTrigger } from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { PropsWithChildren, ReactElement, ReactNode } from "react";
-import { Children, isValidElement } from "react";
+import { Children, createContext, isValidElement, useContext } from "react";
+
+// Context for providing default className to Page.Content from a parent layout
+const PageContentDefaultClassNameContext = createContext<string | undefined>(
+  undefined,
+);
+export const PageContentClassNameProvider =
+  PageContentDefaultClassNameContext.Provider;
 
 // Helper to find child by type for slot-based composition
 function findChild<T>(
@@ -101,8 +108,11 @@ function PageContent({
   children,
   className,
 }: PropsWithChildren<{ className?: string }>) {
+  const defaultClassName = useContext(PageContentDefaultClassNameContext);
   return (
-    <div className={cn("flex-1 overflow-auto", className)}>{children}</div>
+    <div className={cn("flex-1 overflow-auto", defaultClassName, className)}>
+      {children}
+    </div>
   );
 }
 

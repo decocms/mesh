@@ -369,7 +369,7 @@ const storeDetailRoute = createRoute({
   ),
 });
 
-// Org-level plugin route (mirrors /$org/projects/$virtualMcpId/$pluginId for org-admin)
+// Org-level plugin route (mirrors /$org/spaces/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/plugins/$pluginId",
@@ -416,9 +416,7 @@ const spacesListRoute = createRoute({
 const spacesLayout = createRoute({
   getParentRoute: () => orgLayout,
   path: "/spaces/$virtualMcpId",
-  component: lazyRouteComponent(
-    () => import("./layouts/virtual-mcp-layout.tsx"),
-  ),
+  component: Outlet,
 });
 
 // Space home - empty center, sidebar chat is the interaction point
@@ -426,34 +424,12 @@ const spaceHomeRoute = createRoute({
   getParentRoute: () => spacesLayout,
   path: "/",
   validateSearch: z.object({
+    taskId: z.string().optional(),
     main: z.string().optional(),
+    id: z.string().optional(),
     automationId: z.string().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/space-home.tsx")),
-});
-
-// ============================================
-// BACKWARD COMPAT: VIRTUAL MCP LAYOUT (/$org/projects/$virtualMcpId)
-// ============================================
-
-const virtualMcpLayout = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/projects/$virtualMcpId",
-  component: lazyRouteComponent(
-    () => import("./layouts/virtual-mcp-layout.tsx"),
-  ),
-});
-
-// Project home - chat view (same as org home), with optional ?view=settings
-const projectHomeRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/",
-  validateSearch: z.object({
-    view: z.enum(["settings"]).optional(),
-    main: z.string().optional(),
-    automationId: z.string().optional(),
-  }),
-  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
 // Space app view
@@ -489,126 +465,9 @@ const spacePluginLayoutRoute = createRoute({
   ),
 });
 
-// Pinned App View (virtual MCP scoped)
-const projectAppViewRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/apps/$connectionId/$toolName",
-  component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
-});
-
-// Workflows (virtual MCP scoped)
-const workflowsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/workflows",
-  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
-});
-
-// Automations (virtual MCP scoped)
-const projectAutomationsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/automations",
-  validateSearch: z.object({ automationId: z.string().optional() }),
-  component: lazyRouteComponent(
-    () => import("./views/automations/space-automations.tsx"),
-  ),
-});
-
-// Project settings — layout for /$org/projects/$virtualMcpId/settings/*
-const projectSettingsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/settings",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/layout.tsx"),
-  ),
-});
-
-// Backward-compat redirects: old sub-routes → /settings
-const projectSettingsGeneralRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/general",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDependenciesRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/dependencies",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsSidebarRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/sidebar",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsPluginsRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/plugins",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDangerRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/danger",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
 // ============================================
 // PLUGIN ROUTES
 // ============================================
-
-const pluginLayoutRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/$pluginId",
-  component: lazyRouteComponent(
-    () => import("./layouts/dynamic-plugin-layout.tsx"),
-  ),
-});
 
 // Plugin setup (same as before)
 export const pluginRootSidebarItems: {
@@ -632,7 +491,7 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   if (!plugin.setup) return;
 
   const context: PluginSetupContext = {
-    parentRoute: pluginLayoutRoute as AnyRoute,
+    parentRoute: spacePluginLayoutRoute as AnyRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
@@ -649,8 +508,9 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   plugin.setup(context);
 });
 
-// Add all plugin routes as children of the plugin layout
-const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+// Add all plugin routes as children of the space plugin layout
+const spacePluginWithChildren =
+  spacePluginLayoutRoute.addChildren(pluginRoutes);
 
 // ============================================
 // ROUTE TREE
@@ -678,24 +538,7 @@ const spacesWithChildren = spacesLayout.addChildren([
   spaceAppViewRoute,
   spaceWorkflowsRoute,
   spaceAutomationsRoute,
-  spacePluginLayoutRoute,
-]);
-
-const projectSettingsWithChildren = projectSettingsRoute.addChildren([
-  projectSettingsGeneralRedirect,
-  projectSettingsDependenciesRedirect,
-  projectSettingsSidebarRedirect,
-  projectSettingsPluginsRedirect,
-  projectSettingsDangerRedirect,
-]);
-
-const virtualMcpWithChildren = virtualMcpLayout.addChildren([
-  projectHomeRoute,
-  projectSettingsWithChildren,
-  projectAppViewRoute,
-  workflowsRoute,
-  projectAutomationsRoute,
-  pluginLayoutWithChildren,
+  spacePluginWithChildren,
 ]);
 
 const orgRoutes = [
@@ -708,7 +551,6 @@ const orgRoutes = [
   orgPluginRoute,
   agentsRoute,
   agentDetailRoute,
-  virtualMcpWithChildren,
 ];
 
 const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);

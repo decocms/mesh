@@ -16,12 +16,7 @@ function SpaceAutomationsContent() {
     from: "/shell/$org/spaces/$virtualMcpId/automations",
     shouldThrow: false,
   });
-  const projectsMatch = useMatch({
-    from: "/shell/$org/projects/$virtualMcpId/automations",
-    shouldThrow: false,
-  });
-  const match = spacesMatch ?? projectsMatch;
-  const virtualMcpId = match?.params.virtualMcpId ?? "";
+  const virtualMcpId = spacesMatch?.params.virtualMcpId ?? "";
   const search = useSearch({ strict: false }) as {
     automationId?: string;
   };

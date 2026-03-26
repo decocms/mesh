@@ -8,11 +8,9 @@
  */
 
 import { Outlet } from "@tanstack/react-router";
-import { Suspense, useEffect } from "react";
+import { Suspense } from "react";
 import { SplashScreen } from "@/web/components/splash-screen";
-import { useChatStable } from "@/web/components/chat/context";
 import {
-  getWellKnownDecopilotVirtualMCP,
   ProjectContextProvider,
   SELF_MCP_ALIAS_ID,
   useMCPClient,
@@ -32,14 +30,6 @@ type OrgSettingsPayload = {
  */
 function OrgLayoutContent() {
   const { org } = useProjectContext();
-  const { setVirtualMcpId } = useChatStable();
-  // Set decopilot as the active virtual MCP for org-level routes
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
-    setVirtualMcpId(decopilotId);
-    return () => setVirtualMcpId(null);
-  }, [org.id]);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,

@@ -36,4 +36,5 @@ export const LOCALSTORAGE_KEYS = {
   connectionsTab: (org: string) => `mesh:connections:tab:${org}`,
   taskLastViewed: (locator: ProjectLocator) =>
     `mesh:chat:task-last-viewed:${locator}`,
+  spaceLastSeen: (orgId: string) => `mesh:space:last-seen:${orgId}`,
 } as const;

@@ -24,11 +24,11 @@ import {
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useSpaces } from "@/web/hooks/use-spaces";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateSlideBuilder } from "@/web/hooks/use-create-slide-builder";
+import { useSpaceBadges } from "@/web/hooks/use-space-badges";
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -47,9 +47,13 @@ const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SLIDE_BUILDER_AGENT];
 function SpaceListItem({
   space,
   org,
+  hasBadge,
+  onMarkSeen,
 }: {
   space: VirtualMCPEntity;
   org: string;
+  hasBadge?: boolean;
+  onMarkSeen?: () => void;
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -83,12 +87,13 @@ function SpaceListItem({
       <SidebarMenuButton
         tooltip={buttonRect ? undefined : space.title}
         isActive={isActive}
-        onClick={() =>
+        onClick={() => {
+          onMarkSeen?.();
           navigate({
             to: "/$org/spaces/$virtualMcpId",
             params: { org, virtualMcpId: space.id },
-          })
-        }
+          });
+        }}
         onMouseEnter={handleIconMouseEnter}
         onMouseLeave={handleIconMouseLeave}
       >
@@ -98,6 +103,9 @@ function SpaceListItem({
           size="xs"
           className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
         />
+        {hasBadge && !isActive && (
+          <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
+        )}
       </SidebarMenuButton>
 
       {buttonRect &&
@@ -166,10 +174,14 @@ function AgentGridItem({
   );
 }
 
-function PinSpacePopover() {
-  const [open, setOpen] = useState(false);
+function PinSpacePopoverContent({
+  onClose,
+  onOpenSiteEditorModal,
+}: {
+  onClose: () => void;
+  onOpenSiteEditorModal: () => void;
+}) {
   const [search, setSearch] = useState("");
-  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const allSpaces = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
@@ -195,7 +207,7 @@ function PinSpacePopover() {
         data: { pinned: true },
       });
     }
-    setOpen(false);
+    onClose();
     setSearch("");
     navigate({
       to: "/$org/spaces/$virtualMcpId",
@@ -204,10 +216,10 @@ function PinSpacePopover() {
   };
 
   const handleDefaultAgentClick = (agentId: string) => {
-    setOpen(false);
+    onClose();
     setSearch("");
     if (agentId === SITE_EDITOR_AGENT.id) {
-      setSiteEditorModalOpen(true);
+      onOpenSiteEditorModal();
     } else if (agentId === SLIDE_BUILDER_AGENT.id) {
       createSlideBuilder();
     } else {
@@ -217,6 +229,118 @@ function PinSpacePopover() {
       });
     }
   };
+
+  return (
+    <div className="flex flex-col max-h-[min(640px,80dvh)]">
+      {/* Search */}
+      <CollectionSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search agents..."
+      />
+
+      {/* Scrollable content */}
+      <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
+        {/* Your Agents section */}
+        <div className="px-1 pt-3 pb-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Your Agents
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {/* Create new button */}
+          <button
+            type="button"
+            disabled={isCreating}
+            onClick={async () => {
+              const { id } = await createVirtualMCP();
+              onClose();
+              navigate({
+                to: "/$org/spaces/$virtualMcpId",
+                params: { org: org.slug, virtualMcpId: id },
+              });
+            }}
+            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+              <Plus size={18} className="text-muted-foreground" />
+            </div>
+            <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
+              Create new
+            </span>
+          </button>
+
+          {userAgents.map((space) => (
+            <AgentGridItem
+              key={space.id}
+              space={space}
+              onClick={() => handleSelect(space)}
+            />
+          ))}
+        </div>
+
+        {/* Default Agents section */}
+        {filteredDefaults.length > 0 && (
+          <>
+            <div className="px-1 pt-4 pb-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Agents
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {filteredDefaults.map((agent) => (
+                <button
+                  key={agent.id}
+                  type="button"
+                  disabled={
+                    agent.id === SLIDE_BUILDER_AGENT.id &&
+                    isCreatingSlideBuilder
+                  }
+                  onClick={() => handleDefaultAgentClick(agent.id)}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <AgentAvatar
+                    icon={agent.icon}
+                    name={agent.title}
+                    size="md"
+                    className="transition-transform group-hover:scale-105"
+                  />
+                  <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
+                    {agent.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {userAgents.length === 0 &&
+          filteredDefaults.length === 0 &&
+          !isCreating && (
+            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+              {search ? "No agents found" : "No agents yet"}
+            </div>
+          )}
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-border px-3 py-2.5">
+        <Link
+          to="/$org/spaces"
+          params={{ org: org.slug }}
+          onClick={() => onClose()}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
+        >
+          See all agents
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function PinSpacePopover() {
+  const [open, setOpen] = useState(false);
+  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
 
   return (
     <>
@@ -236,110 +360,20 @@ function PinSpacePopover() {
           side="right"
           align="start"
         >
-          <div className="flex flex-col max-h-[min(640px,80dvh)]">
-            {/* Search */}
-            <CollectionSearch
-              value={search}
-              onChange={setSearch}
-              placeholder="Search agents..."
-            />
-
-            {/* Scrollable content */}
-            <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
-              {/* Your Agents section */}
-              <div className="px-1 pt-3 pb-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Your Agents
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1">
-                {/* Create new button */}
-                <button
-                  type="button"
-                  disabled={isCreating}
-                  onClick={async () => {
-                    const { id } = await createVirtualMCP();
-                    setOpen(false);
-                    navigate({
-                      to: "/$org/spaces/$virtualMcpId",
-                      params: { org: org.slug, virtualMcpId: id },
-                    });
-                  }}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-12 h-12 rounded-xl border-2 border-dashed border-border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-                    <Plus size={18} className="text-muted-foreground" />
-                  </div>
-                  <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
-                    Create new
-                  </span>
-                </button>
-
-                {userAgents.map((space) => (
-                  <AgentGridItem
-                    key={space.id}
-                    space={space}
-                    onClick={() => handleSelect(space)}
-                  />
-                ))}
-              </div>
-
-              {/* Default Agents section */}
-              {filteredDefaults.length > 0 && (
-                <>
-                  <div className="px-1 pt-4 pb-2">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Agents
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {filteredDefaults.map((agent) => (
-                      <button
-                        key={agent.id}
-                        type="button"
-                        disabled={
-                          agent.id === SLIDE_BUILDER_AGENT.id &&
-                          isCreatingSlideBuilder
-                        }
-                        onClick={() => handleDefaultAgentClick(agent.id)}
-                        className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <AgentAvatar
-                          icon={agent.icon}
-                          name={agent.title}
-                          size="md"
-                          className="transition-transform group-hover:scale-105"
-                        />
-                        <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
-                          {agent.title}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {userAgents.length === 0 &&
-                filteredDefaults.length === 0 &&
-                !isCreating && (
-                  <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-                    {search ? "No agents found" : "No agents yet"}
-                  </div>
-                )}
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-border px-3 py-2.5">
-              <Link
-                to="/$org/spaces"
-                params={{ org: org.slug }}
-                onClick={() => setOpen(false)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
-              >
-                See all agents
-              </Link>
-            </div>
-          </div>
+          {open && (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-8">
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              }
+            >
+              <PinSpacePopoverContent
+                onClose={() => setOpen(false)}
+                onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
+              />
+            </Suspense>
+          )}
         </PopoverContent>
       </Popover>
       <SiteEditorOnboardingModal
@@ -351,8 +385,10 @@ function PinSpacePopover() {
 }
 
 function SpacesSectionContent() {
-  const spaces = useSpaces({ pinnedOnly: true });
+  const allSpaces = useVirtualMCPs();
+  const spaces = allSpaces.filter((s) => s.pinned);
   const { org } = useProjectContext();
+  const { badges, markSeen } = useSpaceBadges(spaces.map((s) => s.id));
 
   return (
     <SidebarGroup className="py-0 px-0 mt-2">
@@ -361,7 +397,13 @@ function SpacesSectionContent() {
         <SidebarMenu className="gap-2">
           <PinSpacePopover />
           {spaces.map((space) => (
-            <SpaceListItem key={space.id} space={space} org={org.slug} />
+            <SpaceListItem
+              key={space.id}
+              space={space}
+              org={org.slug}
+              hasBadge={badges[space.id]}
+              onMarkSeen={() => markSeen(space.id)}
+            />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>

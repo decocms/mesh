@@ -95,7 +95,7 @@ export function AccountPreferencesPage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content className="p-5 sm:p-8">
+      <Page.Content>
         <div className="flex flex-col">
           <SettingRow
             icon={<Code01 size={16} />}

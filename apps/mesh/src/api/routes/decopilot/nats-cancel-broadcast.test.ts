@@ -58,7 +58,7 @@ describe("NatsCancelBroadcast", () => {
     const payload = JSON.parse(
       new TextDecoder().decode(published[0]?.data ?? new Uint8Array()),
     );
-    expect(payload.threadId).toBe("thread-1");
+    expect(payload.taskId).toBe("thread-1");
   });
 
   it("stop unsubscribes and nulls callback", async () => {
@@ -74,7 +74,7 @@ describe("NatsCancelBroadcast", () => {
 
   it("subscription handler invokes onCancel for valid messages", async () => {
     const encoder = new TextEncoder();
-    const msg = { data: encoder.encode(JSON.stringify({ threadId: "t-abc" })) };
+    const msg = { data: encoder.encode(JSON.stringify({ taskId: "t-abc" })) };
     const sub = createMockSubscription([msg]);
     const { nc } = createMockNatsConnection(sub);
     const broadcast = new NatsCancelBroadcast({ getConnection: () => nc });

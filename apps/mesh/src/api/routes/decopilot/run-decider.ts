@@ -13,7 +13,7 @@ export function decide(
     case "START": {
       const started: RunEvent = {
         type: "RUN_STARTED",
-        threadId: command.threadId,
+        taskId: command.taskId,
         orgId: command.orgId,
         userId: command.userId,
         abortController: command.abortController,
@@ -24,7 +24,7 @@ export function decide(
       if (state?.status.tag === "running") {
         const aborted: RunEvent = {
           type: "PREVIOUS_RUN_ABORTED",
-          threadId: command.threadId,
+          taskId: command.taskId,
           orgId: state.orgId,
         };
         return [aborted, started];
@@ -40,7 +40,7 @@ export function decide(
 
       const completed: RunEvent = {
         type: "STEP_COMPLETED",
-        threadId: command.threadId,
+        taskId: command.taskId,
         orgId: state.orgId,
         stepCount: state.status.stepCount + 1,
       };
@@ -59,7 +59,7 @@ export function decide(
         return [
           {
             type: "RUN_COMPLETED",
-            threadId: command.threadId,
+            taskId: command.taskId,
             orgId: state.orgId,
             stepCount,
           },
@@ -70,7 +70,7 @@ export function decide(
         return [
           {
             type: "RUN_REQUIRES_ACTION",
-            threadId: command.threadId,
+            taskId: command.taskId,
             orgId: state.orgId,
             stepCount,
           },
@@ -81,7 +81,7 @@ export function decide(
       return [
         {
           type: "RUN_FAILED",
-          threadId: command.threadId,
+          taskId: command.taskId,
           orgId: state.orgId,
           reason: "error",
         },
@@ -96,7 +96,7 @@ export function decide(
       return [
         {
           type: "RUN_FAILED",
-          threadId: command.threadId,
+          taskId: command.taskId,
           orgId: state.orgId,
           reason: "cancelled",
         },
@@ -110,7 +110,7 @@ export function decide(
       return [
         {
           type: "RUN_RESUMED" as const,
-          threadId: command.threadId,
+          taskId: command.taskId,
           orgId: command.orgId,
           userId: command.userId,
           abortController: command.abortController,
@@ -127,7 +127,7 @@ export function decide(
         return [
           {
             type: "RUN_FAILED",
-            threadId: command.threadId,
+            taskId: command.taskId,
             orgId: state?.orgId ?? command.orgId,
             reason: command.reason,
           },
@@ -141,7 +141,7 @@ export function decide(
       return [
         {
           type: "RUN_FAILED",
-          threadId: command.threadId,
+          taskId: command.taskId,
           orgId: state.orgId,
           reason: command.reason,
         },

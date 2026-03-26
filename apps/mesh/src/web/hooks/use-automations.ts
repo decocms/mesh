@@ -180,7 +180,11 @@ export function useAutomationUpdate() {
       return parsed;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      // Invalidate all automation lists regardless of virtualMcpId filter
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) && query.queryKey[0] === "automations",
+      });
       if (typeof variables.id === "string") {
         queryClient.invalidateQueries({
           queryKey: KEYS.automation(org.id, variables.id),

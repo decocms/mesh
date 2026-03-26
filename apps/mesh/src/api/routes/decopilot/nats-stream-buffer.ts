@@ -32,12 +32,12 @@ function assertSafeSubjectToken(id: string): void {
   if (/[.*>\s]/.test(id)) throw new Error("Invalid NATS subject token");
 }
 
-function streamSubject(threadId: string): string {
-  assertSafeSubjectToken(threadId);
-  return `${SUBJECT_PREFIX}.${threadId}`;
+function streamSubject(taskId: string): string {
+  assertSafeSubjectToken(taskId);
+  return `${SUBJECT_PREFIX}.${taskId}`;
 }
 
-function createPublishTracker(threadId: string) {
+function createPublishTracker(taskId: string) {
   let errors = 0;
   return {
     publish(js: JetStreamClient, subj: string, data: Uint8Array): void {
@@ -45,7 +45,7 @@ function createPublishTracker(threadId: string) {
         errors++;
         if (errors === 1 || errors % 100 === 0) {
           console.warn(
-            `[Decopilot] JetStream publish failed for thread ${threadId} (${errors} total):`,
+            `[Decopilot] JetStream publish failed for thread ${taskId} (${errors} total):`,
             err,
           );
         }
@@ -105,14 +105,14 @@ export class NatsStreamBuffer implements StreamBuffer {
 
   relay(
     stream: ReadableStream,
-    threadId: string,
+    taskId: string,
     abortSignal?: AbortSignal,
   ): ReadableStream {
     const js = this.js;
     if (!js) return stream;
 
-    const subj = streamSubject(threadId);
-    const tracker = createPublishTracker(threadId);
+    const subj = streamSubject(taskId);
+    const tracker = createPublishTracker(taskId);
     const encoder = this.encoder;
     let terminated = false;
 
@@ -144,11 +144,11 @@ export class NatsStreamBuffer implements StreamBuffer {
     );
   }
 
-  async createReplayStream(threadId: string): Promise<ReadableStream | null> {
+  async createReplayStream(taskId: string): Promise<ReadableStream | null> {
     const js = this.js;
     if (!js) return null;
 
-    const subj = streamSubject(threadId);
+    const subj = streamSubject(taskId);
 
     let sub;
     try {
@@ -223,10 +223,10 @@ export class NatsStreamBuffer implements StreamBuffer {
     });
   }
 
-  purge(threadId: string): void {
+  purge(taskId: string): void {
     if (!this.jsm) return;
     this.jsm.streams
-      .purge(STREAM_NAME, { filter: streamSubject(threadId) })
+      .purge(STREAM_NAME, { filter: streamSubject(taskId) })
       .catch(() => {});
   }
 

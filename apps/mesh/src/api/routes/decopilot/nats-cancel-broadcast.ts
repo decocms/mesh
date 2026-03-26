@@ -20,13 +20,13 @@ export interface NatsCancelBroadcastOptions {
 
 export class NatsCancelBroadcast implements CancelBroadcast {
   private sub: Subscription | null = null;
-  private onCancel: ((threadId: string) => void) | null = null;
+  private onCancel: ((taskId: string) => void) | null = null;
   private readonly encoder = new TextEncoder();
   private readonly originId = crypto.randomUUID();
 
   constructor(private readonly options: NatsCancelBroadcastOptions) {}
 
-  async start(onCancel?: (threadId: string) => void): Promise<void> {
+  async start(onCancel?: (taskId: string) => void): Promise<void> {
     if (onCancel) this.onCancel = onCancel;
 
     if (this.sub) return;
@@ -43,11 +43,11 @@ export class NatsCancelBroadcast implements CancelBroadcast {
       for await (const msg of this.sub!) {
         try {
           const parsed = JSON.parse(decoder.decode(msg.data)) as {
-            threadId: string;
+            taskId: string;
             originId?: string;
           };
           if (parsed.originId === this.originId) continue;
-          this.onCancel?.(parsed.threadId);
+          this.onCancel?.(parsed.taskId);
         } catch {
           // Ignore malformed messages
         }
@@ -55,15 +55,15 @@ export class NatsCancelBroadcast implements CancelBroadcast {
     })().catch(console.error);
   }
 
-  broadcast(threadId: string): void {
-    if (/[.*>\s]/.test(threadId)) {
+  broadcast(taskId: string): void {
+    if (/[.*>\s]/.test(taskId)) {
       console.warn(
         "[NatsCancelBroadcast] Invalid threadId, skipping broadcast",
       );
       return;
     }
 
-    this.onCancel?.(threadId);
+    this.onCancel?.(taskId);
 
     try {
       const nc = this.options.getConnection();
@@ -71,7 +71,7 @@ export class NatsCancelBroadcast implements CancelBroadcast {
       nc.publish(
         CANCEL_SUBJECT,
         this.encoder.encode(
-          JSON.stringify({ threadId, originId: this.originId }),
+          JSON.stringify({ taskId, originId: this.originId }),
         ),
       );
     } catch (err) {

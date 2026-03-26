@@ -15,6 +15,7 @@ import type { VirtualMCPInfo } from "./select-virtual-mcp";
 import type { Task, TaskOwnerFilter } from "./task";
 import type { ToolApprovalLevel } from "../../hooks/use-preferences";
 import type { ChatMessage, Metadata } from "./types";
+import { useOptionalSpaceContext } from "@/web/contexts/space-context";
 
 export { ChatProvider } from "./chat-provider";
 
@@ -99,6 +100,8 @@ type ChatContextValue = ChatStableValue & ChatStreamValue;
  * Stable chat values (model, mode, tasks, virtual MCP, actions).
  */
 export function useChatStable(): ChatStableValue {
+  const spaceCtx = useOptionalSpaceContext();
+
   const s = useChatStore((state) => ({
     activeTaskId: state.activeThreadId,
     tasks: state.threads,
@@ -120,8 +123,19 @@ export function useChatStable(): ChatStableValue {
     ...s,
     tiptapDocRef: { current: s.tiptapDoc },
     resetInteraction: () => chatStore.clearFinishReason(),
-    createTask: () => chatStore.createThread(),
-    switchToTask: async (taskId: string) => chatStore.setActiveThread(taskId),
+    createTask: () => {
+      const newId = chatStore.createThread();
+      if (spaceCtx) {
+        spaceCtx.navigateToTask(newId);
+      }
+    },
+    switchToTask: async (taskId: string) => {
+      if (spaceCtx) {
+        spaceCtx.navigateToTask(taskId);
+      } else {
+        chatStore.setActiveThread(taskId);
+      }
+    },
     renameTask: (taskId: string, title: string) =>
       chatStore.renameTask(taskId, title),
     setTaskStatus: (taskId: string, status: string) =>
@@ -130,10 +144,13 @@ export function useChatStable(): ChatStableValue {
       void chatStore.hideTask(taskId);
     },
     setVirtualMcpId: (id: string | null) => {
-      const agent = id
-        ? (chatStore.getSnapshot().virtualMcps.find((v) => v.id === id) ?? null)
-        : null;
-      chatStore.setAgent(agent);
+      if (id) {
+        const virtualMcps = chatStore.getSnapshot().virtualMcps;
+        const agent = virtualMcps.find((v) => v.id === id) ?? null;
+        chatStore.setAgent(agent);
+      } else {
+        chatStore.setAgent(null);
+      }
     },
     setSelectedModel: (model: AiProviderModel) => chatStore.setModel(model),
     setOwnerFilter: (filter: TaskOwnerFilter) =>

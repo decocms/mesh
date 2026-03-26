@@ -52,7 +52,7 @@ export function AutomationInlineDetail({
   onBack,
 }: {
   automationId: string;
-  onBack: () => void;
+  onBack?: () => void;
 }) {
   const { data: automation, isLoading } = useAutomationDetail(automationId);
 

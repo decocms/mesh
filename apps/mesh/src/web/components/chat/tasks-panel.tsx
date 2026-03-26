@@ -8,6 +8,7 @@
 import { useChat } from "@/web/components/chat/index";
 import { CollectionSearch } from "@/web/components/collections/collection-search";
 import { useChatStable } from "@/web/components/chat/context";
+import { useOptionalSpaceContext } from "@/web/contexts/space-context";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
@@ -29,17 +30,15 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import {
-  CheckDone02,
+  CheckDone01,
   ChevronRight,
   FilterLines,
   Loading01,
-  Archive,
   Plus,
   RefreshCcw01,
   SearchMd,
   X,
 } from "@untitledui/icons";
-import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
@@ -67,12 +66,9 @@ import { useChatStore } from "./store/selectors";
 import {
   useAutomationsList,
   useAutomationCreate,
-  useAutomationUpdate,
   buildDefaultAutomationInput,
   type AutomationListItem,
 } from "@/web/hooks/use-automations";
-import { Switch } from "@deco/ui/components/switch.tsx";
-import { useNavigate, useMatch } from "@tanstack/react-router";
 
 // ────────────────────────────────────────
 
@@ -332,18 +328,20 @@ function TaskRow({
             </div>
           </div>
 
-          {/* Archive button — shown on hover */}
-          <button
-            type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              hideTask(task.id);
-            }}
-            title="Archive"
-          >
-            <Archive size={14} className="text-muted-foreground" />
-          </button>
+          {/* Mark done button — shown on hover for non-completed tasks */}
+          {status !== "completed" && (
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                void setTaskStatus(task.id, "completed");
+              }}
+              title="Mark as done"
+            >
+              <CheckDone01 size={14} className="text-muted-foreground" />
+            </button>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
@@ -391,7 +389,6 @@ function AutomationRow({
   connectionMap,
   defaultAgent,
   onClick,
-  onToggleActive,
 }: {
   automation: AutomationListItem;
   connectionMap: Map<
@@ -400,7 +397,6 @@ function AutomationRow({
   >;
   defaultAgent: { icon: string | null | undefined; title: string };
   onClick: () => void;
-  onToggleActive: (id: string, active: boolean) => void;
 }) {
   const agentId = automation.agent?.id;
   const agent = agentId
@@ -423,27 +419,26 @@ function AutomationRow({
             className="text-sm text-foreground flex-1 min-w-0"
           />
           <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap">
-            {nextRun ? formatTimeUntil(new Date(nextRun)) : "Event"}
+            {!automation.active
+              ? ""
+              : automation.trigger_count === 0
+                ? ""
+                : nextRun
+                  ? formatTimeUntil(new Date(nextRun))
+                  : `${automation.trigger_count} starter${automation.trigger_count > 1 ? "s" : ""}`}
           </span>
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span className="truncate">{agent.title}</span>
-          <span>·</span>
           <span className="shrink-0">
-            {nextRun ? "Scheduled" : "Event-based"}
+            {!automation.active
+              ? "Disabled"
+              : automation.trigger_count === 0
+                ? "No starters"
+                : nextRun
+                  ? "Scheduled"
+                  : `${automation.trigger_count} event starter${automation.trigger_count > 1 ? "s" : ""}`}
           </span>
         </div>
-      </div>
-      <div
-        className="shrink-0"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <Switch
-          checked={automation.active}
-          onCheckedChange={(checked) => onToggleActive(automation.id, checked)}
-          className="cursor-pointer scale-75"
-        />
       </div>
     </div>
   );
@@ -465,38 +460,30 @@ function IncomingSection({
   >;
   defaultAgent: { icon: string | null | undefined; title: string };
 }) {
-  const { org } = useProjectContext();
-  const navigate = useNavigate();
+  const spaceCtx = useOptionalSpaceContext();
   const { data: allAutomations } = useAutomationsList();
   const createMutation = useAutomationCreate();
-  const updateMutation = useAutomationUpdate();
-  const [isOpen, setIsOpen] = useState(true);
-
-  const spacesMatch = useMatch({
-    from: "/shell/$org/spaces/$virtualMcpId",
-    shouldThrow: false,
-  });
+  const [isOpen, setIsOpen] = useState(false);
 
   const automations = (allAutomations ?? [])
     .filter((a) => a.agent?.id === virtualMcpId)
-    .sort((a, b) => {
-      if (a.active !== b.active) return a.active ? -1 : 1;
-      return (
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    });
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   const navigateToAutomation = (automationId?: string) => {
-    const routeBase = spacesMatch
-      ? "/shell/$org/spaces/$virtualMcpId/"
-      : "/shell/$org/projects/$virtualMcpId/";
-    navigate({
-      to: routeBase,
-      params: { org: org.slug, virtualMcpId },
-      search: automationId
-        ? { main: "automation", automationId }
-        : ({} as never),
+    console.log("[navigateToAutomation]", {
+      automationId,
+      hasSpaceCtx: !!spaceCtx,
+      virtualMcpId,
+      currentUrl: window.location.href,
     });
+    if (automationId) {
+      spaceCtx?.navigateToMain("automation", { id: automationId });
+    } else {
+      spaceCtx?.navigateToMain("default");
+    }
   };
 
   const handleCreate = async () => {
@@ -512,22 +499,40 @@ function IncomingSection({
 
   return (
     <div>
-      <div className="flex items-center">
-        <div className="flex-1 min-w-0">
-          <GroupHeader
-            label="Incoming"
-            icon={RefreshCcw01}
-            iconClassName="text-purple-500"
-            count={automations.length}
-            isOpen={isOpen}
-            onToggle={() => setIsOpen((prev) => !prev)}
-          />
-        </div>
-        <button
-          type="button"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground mr-2"
-          onClick={handleCreate}
-          disabled={createMutation.isPending}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="group/incoming flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+      >
+        <RefreshCcw01 size={14} className="text-purple-500" />
+        <span className="text-sm font-medium text-muted-foreground">
+          Incoming
+        </span>
+        {!isOpen && (
+          <span className="text-xs text-muted-foreground/60 tabular-nums">
+            {automations.length}
+          </span>
+        )}
+        <ChevronRight
+          size={12}
+          className={cn(
+            "text-muted-foreground/40 opacity-0 group-hover/incoming:opacity-100 transition-all duration-150",
+            isOpen && "rotate-90",
+          )}
+        />
+        <span className="flex-1" />
+        <span
+          role="button"
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground",
+            createMutation.isPending
+              ? "opacity-100"
+              : "opacity-0 group-hover/incoming:opacity-100",
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCreate();
+          }}
           title="Create automation"
         >
           {createMutation.isPending ? (
@@ -535,8 +540,8 @@ function IncomingSection({
           ) : (
             <Plus size={16} />
           )}
-        </button>
-      </div>
+        </span>
+      </button>
       {isOpen &&
         automations.map((automation) => (
           <AutomationRow
@@ -544,10 +549,13 @@ function IncomingSection({
             automation={automation}
             connectionMap={connectionMap}
             defaultAgent={defaultAgent}
-            onClick={() => navigateToAutomation(automation.id)}
-            onToggleActive={(id, active) =>
-              updateMutation.mutate({ id, active })
-            }
+            onClick={() => {
+              console.log("[AutomationRow click]", {
+                automationId: automation.id,
+                automationName: automation.name,
+              });
+              navigateToAutomation(automation.id);
+            }}
           />
         ))}
     </div>
@@ -692,7 +700,7 @@ export function TaskListContent({
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
   const [agentFilter, setAgentFilter] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const visible = tasks.filter((t) => !t.hidden);
 
@@ -728,7 +736,7 @@ export function TaskListContent({
   const groups = buildDisplayGroups(filtered);
 
   const toggleGroup = (key: string) => {
-    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSelect = async (task: Task) => {
@@ -815,6 +823,34 @@ export function TaskListContent({
 
       {/* Grouped list */}
       <div className="flex-1 overflow-y-auto">
+        {groups
+          .filter((g) => g.key !== "done")
+          .map((group) => {
+            const isGroupOpen = !!expanded[group.key];
+            return (
+              <div key={group.key}>
+                <GroupHeader
+                  label={group.label}
+                  icon={group.icon}
+                  iconClassName={group.iconClassName}
+                  count={group.tasks.length}
+                  isOpen={isGroupOpen}
+                  onToggle={() => toggleGroup(group.key)}
+                />
+                {isGroupOpen &&
+                  group.tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      isActive={task.id === activeTaskId}
+                      connectionMap={connectionMap}
+                      defaultAgent={defaultAgent}
+                      onClick={() => handleSelect(task)}
+                    />
+                  ))}
+              </div>
+            );
+          })}
         {virtualMcpId && (
           <IncomingSection
             virtualMcpId={virtualMcpId}
@@ -822,53 +858,34 @@ export function TaskListContent({
             defaultAgent={defaultAgent}
           />
         )}
-        {groups.length === 0 ? (
-          <EmptyState
-            image={
-              <CheckDone02 size={40} className="text-muted-foreground/40" />
-            }
-            title={
-              searchQuery || statusFilter.size > 0 || agentFilter.size > 0
-                ? "No matches"
-                : "No tasks yet"
-            }
-            description={
-              searchQuery || statusFilter.size > 0 || agentFilter.size > 0
-                ? "No tasks match the current filters"
-                : "Tasks appear here as agents work."
-            }
-            className="py-12"
-          />
-        ) : (
-          <div className="flex flex-col gap-1">
-            {groups.map((group) => {
-              const isGroupOpen = !collapsed[group.key];
-              return (
-                <div key={group.key}>
-                  <GroupHeader
-                    label={group.label}
-                    icon={group.icon}
-                    iconClassName={group.iconClassName}
-                    count={group.tasks.length}
-                    isOpen={isGroupOpen}
-                    onToggle={() => toggleGroup(group.key)}
-                  />
-                  {isGroupOpen &&
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === activeTaskId}
-                        connectionMap={connectionMap}
-                        defaultAgent={defaultAgent}
-                        onClick={() => handleSelect(task)}
-                      />
-                    ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {groups
+          .filter((g) => g.key === "done")
+          .map((group) => {
+            const isGroupOpen = !!expanded[group.key];
+            return (
+              <div key={group.key}>
+                <GroupHeader
+                  label={group.label}
+                  icon={group.icon}
+                  iconClassName={group.iconClassName}
+                  count={group.tasks.length}
+                  isOpen={isGroupOpen}
+                  onToggle={() => toggleGroup(group.key)}
+                />
+                {isGroupOpen &&
+                  group.tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      isActive={task.id === activeTaskId}
+                      connectionMap={connectionMap}
+                      defaultAgent={defaultAgent}
+                      onClick={() => handleSelect(task)}
+                    />
+                  ))}
+              </div>
+            );
+          })}
       </div>
     </div>
   );

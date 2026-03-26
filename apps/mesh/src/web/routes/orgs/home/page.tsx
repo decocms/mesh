@@ -30,12 +30,7 @@ function ProjectSettingsContent() {
     from: "/shell/$org/spaces/$virtualMcpId",
     shouldThrow: false,
   });
-  const projectsMatch = useMatch({
-    from: "/shell/$org/projects/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const virtualMcpId =
-    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
+  const virtualMcpId = spacesMatch?.params.virtualMcpId ?? "";
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
   );
@@ -62,6 +57,13 @@ export default function OrgHomePage() {
     main?: string;
     automationId?: string;
   };
+
+  console.log("[OrgHomePage]", {
+    view,
+    main,
+    automationId,
+    currentUrl: window.location.href,
+  });
 
   if (main === "automation" && automationId) {
     return (

@@ -72,9 +72,9 @@ describe("buildStreamRequest", () => {
     expect(result.triggerId).toBeUndefined();
   });
 
-  it("passes threadId through", () => {
+  it("passes taskId through", () => {
     const result = buildStreamRequest(makeAutomation(), null, "thrd_abc");
-    expect(result.threadId).toBe("thrd_abc");
+    expect(result.taskId).toBe("thrd_abc");
   });
 
   it("uses automation temperature", () => {

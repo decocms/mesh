@@ -6,7 +6,7 @@ import { Suspense } from "react";
 
 function ProjectSettingsContent() {
   const { virtualMcpId } = useParams({
-    from: "/shell/$org/projects/$virtualMcpId/settings",
+    from: "/shell/$org/spaces/$virtualMcpId/settings",
   });
   return <VirtualMcpDetailView virtualMcpId={virtualMcpId} />;
 }

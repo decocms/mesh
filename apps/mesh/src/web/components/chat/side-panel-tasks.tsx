@@ -16,12 +16,8 @@ import {
   MessageTextCircle02,
   Settings01,
 } from "@untitledui/icons";
-import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  useProjectContext,
-  useVirtualMCPActions,
-  useVirtualMCPs,
-} from "@decocms/mesh-sdk";
+import { useMatch } from "@tanstack/react-router";
+import { useVirtualMCPActions, useVirtualMCPs } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
@@ -29,6 +25,7 @@ import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
+import { useOptionalSpaceContext } from "@/web/contexts/space-context";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -70,15 +67,8 @@ function NewTaskButton({
 // Views section — pinned UIs for the project
 // ────────────────────────────────────────
 
-function ProjectViewsSection({
-  project,
-  org,
-}: {
-  project: VirtualMCPEntity;
-  org: string;
-}) {
-  const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
+  const spaceCtx = useOptionalSpaceContext();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -91,40 +81,38 @@ function ProjectViewsSection({
 
   if (pinnedViews.length === 0) return null;
 
+  // Determine which pinned view is currently active
+  const currentMain = spaceCtx?.mainView;
+  const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
+    currentMain?.type === "ext-apps" &&
+    currentMain.id === view.connectionId &&
+    currentMain.toolName === view.toolName;
+
   return (
     <>
-      {pinnedViews.map((view) => {
-        const viewPath = `/${org}/projects/${project.id}/apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`;
-        const isActive = pathname.startsWith(viewPath);
-        return (
-          <button
-            key={`${view.connectionId}-${view.toolName}`}
-            type="button"
-            onClick={() =>
-              navigate({
-                to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
-                params: {
-                  org,
-                  virtualMcpId: project.id,
-                  connectionId: view.connectionId,
-                  toolName: view.toolName,
-                },
-              })
-            }
-            className={cn(
-              navItemClass,
-              isActive && "bg-accent text-foreground",
-            )}
-          >
-            {view.icon ? (
-              <img src={view.icon} alt="" className="size-4 rounded shrink-0" />
-            ) : (
-              <LayoutLeft size={15} className="shrink-0" />
-            )}
-            <span className="truncate">{view.label || view.toolName}</span>
-          </button>
-        );
-      })}
+      {pinnedViews.map((view) => (
+        <button
+          key={`${view.connectionId}-${view.toolName}`}
+          type="button"
+          onClick={() =>
+            spaceCtx?.navigateToMain("ext-apps", {
+              id: view.connectionId,
+              toolName: view.toolName,
+            })
+          }
+          className={cn(
+            navItemClass,
+            isExtAppActive(view) && "bg-accent text-foreground",
+          )}
+        >
+          {view.icon ? (
+            <img src={view.icon} alt="" className="size-4 rounded shrink-0" />
+          ) : (
+            <LayoutLeft size={15} className="shrink-0" />
+          )}
+          <span className="truncate">{view.label || view.toolName}</span>
+        </button>
+      ))}
     </>
   );
 }
@@ -216,22 +204,15 @@ function TasksPanelContent({
 }) {
   const [, setChatOpen] = useDecoChatOpen();
   const { createTask, switchToTask, setVirtualMcpId } = useChat();
-  const { org } = useProjectContext();
-  const navigate = useNavigate();
+  const spaceCtx = useOptionalSpaceContext();
   const [isPending, startTransition] = useTransition();
 
   const spacesMatch = useMatch({
     from: "/shell/$org/spaces/$virtualMcpId",
     shouldThrow: false,
   });
-  const projectsMatch = useMatch({
-    from: "/shell/$org/projects/$virtualMcpId",
-    shouldThrow: false,
-  });
   const virtualMcpId =
-    virtualMcpIdProp ??
-    (spacesMatch ?? projectsMatch)?.params.virtualMcpId ??
-    null;
+    virtualMcpIdProp ?? spacesMatch?.params.virtualMcpId ?? null;
 
   const allSpaces = useVirtualMCPs();
   const project = virtualMcpId
@@ -247,6 +228,10 @@ function TasksPanelContent({
       setChatOpen(true);
     });
   };
+
+  const isSettingsActive =
+    spaceCtx?.mainView?.type === "settings" ||
+    (spaceCtx && spaceCtx.mainView === null);
 
   return (
     <div className="flex flex-col h-full">
@@ -275,20 +260,17 @@ function TasksPanelContent({
         {project && (
           <button
             type="button"
-            onClick={() =>
-              navigate({
-                to: "/$org/projects/$virtualMcpId/",
-                params: { org: org.slug, virtualMcpId: project.id },
-                search: { view: "settings" },
-              })
-            }
-            className={navItemClass}
+            onClick={() => spaceCtx?.navigateToMain("settings")}
+            className={cn(
+              navItemClass,
+              isSettingsActive && "bg-accent text-foreground",
+            )}
           >
             <Settings01 size={14} className="shrink-0" />
             Settings
           </button>
         )}
-        {project && <ProjectViewsSection project={project} org={org.slug} />}
+        {project && <ProjectViewsSection project={project} />}
       </div>
 
       {/* Task list */}

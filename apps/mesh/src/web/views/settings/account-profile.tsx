@@ -44,7 +44,7 @@ export function AccountProfilePage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content className="p-5 sm:p-8">
+      <Page.Content>
         <div className="flex flex-col gap-8">
           <div className="flex items-center gap-4">
             <Avatar

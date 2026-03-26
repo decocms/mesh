@@ -8,7 +8,7 @@ import type { RunState } from "./run-state.ts";
 
 function makeRunningState(overrides?: Partial<RunState>): RunState {
   return {
-    threadId: "thread1",
+    taskId: "thread1",
     orgId: "org1",
     userId: "u1",
     status: {
@@ -21,8 +21,8 @@ function makeRunningState(overrides?: Partial<RunState>): RunState {
   };
 }
 
-function makeRunningStateForThread(threadId: string): RunState {
-  return makeRunningState({ threadId });
+function makeRunningStateForThread(taskId: string): RunState {
+  return makeRunningState({ taskId });
 }
 
 // ============================================================================
@@ -35,7 +35,7 @@ describe("START", () => {
     const events = decide(
       {
         type: "START",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         userId: "u1",
         abortController: ac,
@@ -46,7 +46,7 @@ describe("START", () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_STARTED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       userId: "u1",
       abortController: ac,
@@ -54,12 +54,12 @@ describe("START", () => {
   });
 
   it("running state → [PREVIOUS_RUN_ABORTED, RUN_STARTED]", () => {
-    const oldState = makeRunningState({ orgId: "org-old", threadId: "t1" });
+    const oldState = makeRunningState({ orgId: "org-old", taskId: "t1" });
     const ac = new AbortController();
     const events = decide(
       {
         type: "START",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org-new",
         userId: "u2",
         abortController: ac,
@@ -70,12 +70,12 @@ describe("START", () => {
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({
       type: "PREVIOUS_RUN_ABORTED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org-old",
     });
     expect(events[1]).toEqual({
       type: "RUN_STARTED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org-new",
       userId: "u2",
       abortController: ac,
@@ -90,23 +90,21 @@ describe("START", () => {
 describe("STEP_DONE", () => {
   it("running state (stepCount 3) → [STEP_COMPLETED] with stepCount 4", () => {
     const events = decide(
-      { type: "STEP_DONE", threadId: "t1" },
+      { type: "STEP_DONE", taskId: "t1" },
       makeRunningState(),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "STEP_COMPLETED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       stepCount: 4,
     });
   });
 
   it("undefined state → []", () => {
-    expect(decide({ type: "STEP_DONE", threadId: "t1" }, undefined)).toEqual(
-      [],
-    );
+    expect(decide({ type: "STEP_DONE", taskId: "t1" }, undefined)).toEqual([]);
   });
 });
 
@@ -117,14 +115,14 @@ describe("STEP_DONE", () => {
 describe("FINISH", () => {
   it('running state + threadStatus "completed" → [RUN_COMPLETED] with correct stepCount and orgId', () => {
     const events = decide(
-      { type: "FINISH", threadId: "t1", threadStatus: "completed" },
+      { type: "FINISH", taskId: "t1", threadStatus: "completed" },
       makeRunningState(),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_COMPLETED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       stepCount: 3,
     });
@@ -132,14 +130,14 @@ describe("FINISH", () => {
 
   it('running state + threadStatus "requires_action" → [RUN_REQUIRES_ACTION] with orgId', () => {
     const events = decide(
-      { type: "FINISH", threadId: "t1", threadStatus: "requires_action" },
+      { type: "FINISH", taskId: "t1", threadStatus: "requires_action" },
       makeRunningState(),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_REQUIRES_ACTION",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       stepCount: 3,
     });
@@ -147,14 +145,14 @@ describe("FINISH", () => {
 
   it('running state + threadStatus "failed" → [RUN_FAILED] with reason "error"', () => {
     const events = decide(
-      { type: "FINISH", threadId: "t1", threadStatus: "failed" },
+      { type: "FINISH", taskId: "t1", threadStatus: "failed" },
       makeRunningState({ orgId: "org1" }),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_FAILED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       reason: "error",
     });
@@ -163,7 +161,7 @@ describe("FINISH", () => {
   it("undefined state → []", () => {
     expect(
       decide(
-        { type: "FINISH", threadId: "t1", threadStatus: "completed" },
+        { type: "FINISH", taskId: "t1", threadStatus: "completed" },
         undefined,
       ),
     ).toEqual([]);
@@ -177,21 +175,21 @@ describe("FINISH", () => {
 describe("CANCEL", () => {
   it("running state → [RUN_FAILED] with reason 'cancelled' and correct orgId", () => {
     const events = decide(
-      { type: "CANCEL", threadId: "t1" },
+      { type: "CANCEL", taskId: "t1" },
       makeRunningState({ orgId: "org1" }),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_FAILED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       reason: "cancelled",
     });
   });
 
   it("undefined state → []", () => {
-    expect(decide({ type: "CANCEL", threadId: "t1" }, undefined)).toEqual([]);
+    expect(decide({ type: "CANCEL", taskId: "t1" }, undefined)).toEqual([]);
   });
 });
 
@@ -202,14 +200,14 @@ describe("CANCEL", () => {
 describe("FORCE_FAIL", () => {
   it('running state + reason "ghost" → [RUN_FAILED] with reason "ghost"', () => {
     const events = decide(
-      { type: "FORCE_FAIL", threadId: "t1", reason: "ghost", orgId: "org1" },
+      { type: "FORCE_FAIL", taskId: "t1", reason: "ghost", orgId: "org1" },
       makeRunningState({ orgId: "org1" }),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_FAILED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       reason: "ghost",
     });
@@ -217,14 +215,14 @@ describe("FORCE_FAIL", () => {
 
   it('running state + reason "reaped" → [RUN_FAILED] with reason "reaped"', () => {
     const events = decide(
-      { type: "FORCE_FAIL", threadId: "t1", reason: "reaped" },
+      { type: "FORCE_FAIL", taskId: "t1", reason: "reaped" },
       makeRunningState({ orgId: "org1" }),
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_FAILED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       reason: "reaped",
     });
@@ -232,14 +230,14 @@ describe("FORCE_FAIL", () => {
 
   it("ghost + undefined state + orgId → [RUN_FAILED] with reason 'ghost' (B1 fix)", () => {
     const events = decide(
-      { type: "FORCE_FAIL", threadId: "t1", reason: "ghost", orgId: "org1" },
+      { type: "FORCE_FAIL", taskId: "t1", reason: "ghost", orgId: "org1" },
       undefined,
     );
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       type: "RUN_FAILED",
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       reason: "ghost",
     });
@@ -247,10 +245,7 @@ describe("FORCE_FAIL", () => {
 
   it("reaped + undefined state → [] (non-ghost is a no-op when no in-memory state)", () => {
     expect(
-      decide(
-        { type: "FORCE_FAIL", threadId: "t1", reason: "reaped" },
-        undefined,
-      ),
+      decide({ type: "FORCE_FAIL", taskId: "t1", reason: "reaped" }, undefined),
     ).toEqual([]);
   });
 });
@@ -265,7 +260,7 @@ describe("RESUME", () => {
     const events = decide(
       {
         type: "RESUME",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         userId: "u1",
         abortController: ac,
@@ -276,7 +271,7 @@ describe("RESUME", () => {
     expect(events).toHaveLength(1);
     expect(events[0]!.type).toBe("RUN_RESUMED");
     expect(events[0]).toMatchObject({
-      threadId: "t1",
+      taskId: "t1",
       orgId: "org1",
       userId: "u1",
       podId: "pod-1",
@@ -287,7 +282,7 @@ describe("RESUME", () => {
     const events = decide(
       {
         type: "RESUME",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         userId: "u1",
         abortController: new AbortController(),

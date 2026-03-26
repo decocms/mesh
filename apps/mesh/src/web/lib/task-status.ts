@@ -4,10 +4,7 @@
  * Status is a small colored icon inline with the title.
  * Each status has a "verb" — what this means for you as a manager.
  *
- * Display groups collapse 5 raw statuses into 3 sections:
- *   - "Needs input"  → requires_action
- *   - "In progress"  → in_progress, failed, expired
- *   - "Done"         → completed
+ * Display groups show one section per status key, always rendered even when empty.
  */
 
 import type { Task } from "@/web/components/chat/task/types";
@@ -18,7 +15,6 @@ import {
   Circle,
   Hourglass03,
   Loading01,
-  MessageQuestionCircle,
   XCircle,
 } from "@untitledui/icons";
 
@@ -90,10 +86,10 @@ function getStatusConfig(status: string | undefined): StatusConfig {
 }
 
 // ============================================================================
-// Display groups — 3 sections for the task list
+// Display groups — 3 sections: Needs review, Running, Done
 // ============================================================================
 
-export type DisplayGroupKey = "needs_input" | "in_progress" | "done";
+export type DisplayGroupKey = "needs_review" | "running" | "done";
 
 export interface DisplayGroup {
   key: DisplayGroupKey;
@@ -107,13 +103,13 @@ const DISPLAY_GROUP_META: Record<
   DisplayGroupKey,
   { label: string; icon: typeof Loading01; iconClassName: string }
 > = {
-  needs_input: {
-    label: "Needs input",
-    icon: MessageQuestionCircle,
+  needs_review: {
+    label: "Needs review",
+    icon: AlertCircle,
     iconClassName: "text-orange-500",
   },
-  in_progress: {
-    label: "In progress",
+  running: {
+    label: "Running",
     icon: Loading01,
     iconClassName: "text-blue-500",
   },
@@ -127,19 +123,21 @@ const DISPLAY_GROUP_META: Record<
 function toDisplayGroupKey(status: string | undefined): DisplayGroupKey {
   switch (status) {
     case "requires_action":
-      return "needs_input";
-    case "completed":
-      return "done";
+    case "failed":
+    case "expired":
+      return "needs_review";
+    case "in_progress":
+      return "running";
     default:
-      return "in_progress";
+      return "done";
   }
 }
 
-/** Build 3 display groups from a list of tasks, sorted by recency within each. */
+/** Build 3 display groups, always rendered even when empty. */
 export function buildDisplayGroups(tasks: Task[]): DisplayGroup[] {
   const buckets: Record<DisplayGroupKey, Task[]> = {
-    needs_input: [],
-    in_progress: [],
+    needs_review: [],
+    running: [],
     done: [],
   };
 
@@ -155,14 +153,13 @@ export function buildDisplayGroups(tasks: Task[]): DisplayGroup[] {
     );
   }
 
-  const order: DisplayGroupKey[] = ["needs_input", "in_progress", "done"];
-  const groups: DisplayGroup[] = [];
-  for (const key of order) {
-    if (buckets[key].length === 0) continue;
-    groups.push({ key, ...DISPLAY_GROUP_META[key], tasks: buckets[key] });
-  }
+  const order: DisplayGroupKey[] = ["needs_review", "running", "done"];
 
-  return groups;
+  return order.map((key) => ({
+    key,
+    ...DISPLAY_GROUP_META[key],
+    tasks: buckets[key],
+  }));
 }
 
 // ============================================================================

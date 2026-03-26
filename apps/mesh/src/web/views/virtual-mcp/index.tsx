@@ -1,6 +1,5 @@
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatStable } from "@/web/components/chat/context";
 import { chatStore } from "@/web/components/chat/store/chat-store";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -32,7 +31,6 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getDecopilotId,
-  isDecopilot,
   SELF_MCP_ALIAS_ID,
   useConnection,
   useConnectionActions,
@@ -41,9 +39,7 @@ import {
   useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
-  useVirtualMCPs,
 } from "@decocms/mesh-sdk";
-import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -56,13 +52,12 @@ import {
   XClose,
   ZapCircle,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useReducer, useState } from "react";
+import { Suspense, useReducer, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Header, ViewLayout } from "@/web/components/details/layout";
 import { SaveActions } from "@/web/components/save-actions";
 import { AddConnectionDialog } from "./add-connection-dialog";
-import { AgentCapabilities } from "./agent-capabilities";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED, getSelectionSummary } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
@@ -379,7 +374,7 @@ function ConnectionItemSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar tab content (projects only)
+// Layout tab content (projects only)
 // ---------------------------------------------------------------------------
 
 interface UITool {
@@ -401,7 +396,7 @@ interface ConnectionWithTools {
   uiTools: UITool[];
 }
 
-function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
+function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -464,19 +459,37 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   const connectionsData: ConnectionWithTools[] = connectionsWithTools ?? [];
 
   // Current pinned views from virtual MCP metadata
-  const serverPinned: PinnedView[] =
-    (
-      virtualMcp?.metadata?.ui as
-        | { pinnedViews?: PinnedView[] | null }
-        | null
-        | undefined
-    )?.pinnedViews ?? [];
+  const uiMeta = virtualMcp?.metadata?.ui as
+    | {
+        pinnedViews?: PinnedView[] | null;
+        layout?: {
+          defaultMainView?: {
+            type: string;
+            id?: string;
+            toolName?: string;
+          } | null;
+        } | null;
+      }
+    | null
+    | undefined;
+
+  const serverPinned: PinnedView[] = uiMeta?.pinnedViews ?? [];
+  const serverDefaultMain = uiMeta?.layout?.defaultMainView ?? null;
 
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
+  const [defaultMainView, setDefaultMainView] = useState<string>(
+    serverDefaultMain
+      ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
+      : "settings",
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const hasChanges =
-    JSON.stringify(pinnedViews) !== JSON.stringify(serverPinned);
+    JSON.stringify(pinnedViews) !== JSON.stringify(serverPinned) ||
+    defaultMainView !==
+      (serverDefaultMain
+        ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
+        : "settings");
 
   const handleTogglePin = (
     connectionId: string,
@@ -514,11 +527,25 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     );
   };
 
+  // Parse default main view from composite key
+  const parseDefaultMainView = () => {
+    const [type, id, toolName] = defaultMainView.split(":");
+    if (type === "settings") return { type: "settings" as const };
+    if (type === "ext-apps" && id)
+      return { type: "ext-apps" as const, id, toolName: toolName || undefined };
+    return null;
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
+      // Save pinned views
       const result = await client.callTool({
         name: "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
-        arguments: { virtualMcpId, pinnedViews },
+        arguments: {
+          virtualMcpId,
+          pinnedViews,
+          layout: { defaultMainView: parseDefaultMainView() },
+        },
       });
       unwrapToolResult(result);
     },
@@ -529,11 +556,11 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           query.queryKey.includes("collection") &&
           query.queryKey.includes("VIRTUAL_MCP"),
       });
-      toast.success("Sidebar updated");
+      toast.success("Layout updated");
     },
     onError: (error) => {
       toast.error(
-        "Failed to update sidebar: " +
+        "Failed to update layout: " +
           (error instanceof Error ? error.message : "Unknown error"),
       );
     },
@@ -547,30 +574,64 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const handleCancel = () => {
     setPinnedViews(serverPinned);
+    setDefaultMainView(
+      serverDefaultMain
+        ? `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`
+        : "settings",
+    );
   };
 
-  if (connectionIds.length === 0) {
-    return (
-      <div className="px-6 py-4">
-        <p className="text-sm text-muted-foreground">
-          No connections yet. Add connections in the Connections tab first.
-        </p>
-      </div>
-    );
-  }
+  const noConnections = connectionIds.length === 0;
+  const noInteractiveTools =
+    connectionsWithTools && connectionsData.length === 0;
 
-  if (connectionsWithTools && connectionsData.length === 0) {
-    return (
-      <div className="px-6 py-4">
-        <p className="text-sm text-muted-foreground">
-          None of the connected servers have interactive tools available.
-        </p>
-      </div>
-    );
+  // Build options for default main view selector
+  const defaultMainOptions: { value: string; label: string }[] = [
+    { value: "settings", label: "Settings" },
+  ];
+  for (const pv of pinnedViews) {
+    defaultMainOptions.push({
+      value: `ext-apps:${pv.connectionId}:${pv.toolName}`,
+      label: pv.label || pv.toolName,
+    });
   }
 
   return (
     <div className="px-6 py-4 space-y-6">
+      {/* Default main view */}
+      <div>
+        <h3 className="text-sm font-medium text-foreground mb-2">
+          Default view
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          The view shown in the central panel when opening this space.
+        </p>
+        <Select value={defaultMainView} onValueChange={setDefaultMainView}>
+          <SelectTrigger className="w-56 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {defaultMainOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Pinned views */}
+      {noConnections && (
+        <p className="text-sm text-muted-foreground">
+          No connections yet. Add connections in the Connections tab to
+          configure pinned views.
+        </p>
+      )}
+      {noInteractiveTools && !noConnections && (
+        <p className="text-sm text-muted-foreground">
+          None of the connected servers have interactive tools available.
+        </p>
+      )}
       {connectionsData.map((conn) => (
         <div key={conn.id}>
           <div className="flex items-center gap-2 mb-3">
@@ -668,7 +729,7 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             Cancel
           </Button>
           <Button size="sm" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Sidebar"}
+            {isSaving ? "Saving..." : "Save Layout"}
           </Button>
         </div>
       )}
@@ -677,118 +738,6 @@ function SidebarTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Agents tab (projects only)
-// ---------------------------------------------------------------------------
-
-function AgentsTabContent({
-  currentVirtualMcpId,
-  connections,
-  onAdd,
-  onRemove,
-}: {
-  currentVirtualMcpId: string;
-  connections: Array<{ connection_id: string }>;
-  onAdd: (id: string) => void;
-  onRemove: (id: string) => void;
-}) {
-  const virtualMcps = useVirtualMCPs();
-  const { org } = useProjectContext();
-  const navigate = useNavigate();
-  const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
-
-  const linkedIds = new Set(connections.map((c) => c.connection_id));
-
-  const agents = virtualMcps.filter(
-    (a): a is typeof a & { id: string } =>
-      a.id !== null && a.id !== currentVirtualMcpId && !isDecopilot(a.id),
-  );
-
-  const handleCreate = async () => {
-    try {
-      const result = await createVirtualMCP();
-      navigate({
-        to: "/$org/spaces/$virtualMcpId/settings",
-        params: { org: org.slug, virtualMcpId: result.id },
-      });
-    } catch {
-      toast.error("Failed to create agent");
-    }
-  };
-
-  if (agents.length === 0) {
-    return (
-      <div className="px-6 py-8 flex flex-col items-center gap-3">
-        <p className="text-sm text-muted-foreground">No agents yet.</p>
-        <Button size="sm" onClick={handleCreate} disabled={isCreating}>
-          <Plus size={14} />
-          Create Agent
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col">
-      {agents.map((agent) => {
-        const isLinked = linkedIds.has(agent.id);
-        return (
-          <div
-            key={agent.id}
-            className="flex items-center justify-between gap-3 px-6 py-3 border-b border-border last:border-0"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <IntegrationIcon
-                icon={agent.icon}
-                name={agent.title}
-                size="sm"
-                className="shrink-0"
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{agent.title}</p>
-                {agent.description && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {agent.description}
-                  </p>
-                )}
-              </div>
-            </div>
-            <Button
-              variant={isLinked ? "ghost" : "outline"}
-              size="sm"
-              className="h-7 shrink-0"
-              onClick={() => (isLinked ? onRemove(agent.id) : onAdd(agent.id))}
-            >
-              {isLinked ? (
-                <>
-                  <XClose size={13} />
-                  Remove
-                </>
-              ) : (
-                <>
-                  <Plus size={13} />
-                  Add
-                </>
-              )}
-            </Button>
-          </div>
-        );
-      })}
-      <div className="px-6 py-3">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1.5 px-2 text-xs"
-          onClick={handleCreate}
-          disabled={isCreating}
-        >
-          <Plus size={13} />
-          Create New Agent
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Main detail view
 // ---------------------------------------------------------------------------
@@ -821,16 +770,12 @@ function VirtualMcpDetailViewWithData({
   });
 
   // Tab state
-  const validTabIds = [
-    "instructions",
-    "connections",
-    "capabilities",
-    "agents",
-    "sidebar",
-  ];
+  const validTabIds = ["instructions", "connections", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
-    return validTabIds.includes(stored) ? stored : "instructions";
+    // Migrate old "sidebar" tab to "layout"
+    const effective = stored === "sidebar" ? "layout" : stored;
+    return validTabIds.includes(effective) ? effective : "instructions";
   });
 
   const handleImprovePrompt = () => {
@@ -858,17 +803,16 @@ function VirtualMcpDetailViewWithData({
 
   // Chat hooks
   const [, setChatOpen] = useDecoChatOpen();
-  const { setVirtualMcpId } = useChatStable();
-
-  // Select this virtual MCP in chat store on mount/change
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    setVirtualMcpId(virtualMcp.id);
-  }, [virtualMcp.id]);
 
   const handleTestAgent = () => {
-    setVirtualMcpId(virtualMcp.id);
     setChatOpen(true);
+    chatStore.setAgent({
+      id: virtualMcp.id,
+      title: virtualMcp.title,
+      description: virtualMcp.description,
+      icon: virtualMcp.icon,
+    });
+    chatStore.createThread();
   };
 
   const hasFormChanges = form.formState.isDirty;
@@ -1040,7 +984,9 @@ Define step-by-step how the agent should handle requests.
   const isSaving = actions.update.isPending;
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
 
-  const breadcrumb = null;
+  const breadcrumb = (
+    <span className="text-sm font-medium text-foreground">Settings</span>
+  );
 
   // Variant-specific tabs
   const tabs = [
@@ -1053,9 +999,7 @@ Define step-by-step how the agent should handle requests.
       label: "Connections",
       count: connections.length || undefined,
     },
-    { id: "capabilities", label: "Capabilities" },
-    { id: "agents", label: "Agents" },
-    { id: "sidebar", label: "Sidebar" },
+    { id: "layout", label: "Layout" },
   ];
 
   return (
@@ -1150,7 +1094,7 @@ Define step-by-step how the agent should handle requests.
           {/* Tab content */}
           <div className="flex-1 overflow-auto">
             {activeTab === "connections" && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 p-6">
                 {connections.length === 0 ? (
                   <button
                     type="button"
@@ -1192,21 +1136,8 @@ Define step-by-step how the agent should handle requests.
               </div>
             )}
 
-            {activeTab === "capabilities" && (
-              <AgentCapabilities connections={connections} />
-            )}
-
-            {activeTab === "agents" && (
-              <AgentsTabContent
-                currentVirtualMcpId={virtualMcp.id}
-                connections={connections}
-                onAdd={handleAddConnection}
-                onRemove={handleRemoveConnection}
-              />
-            )}
-
-            {activeTab === "sidebar" && (
-              <SidebarTabContent virtualMcpId={virtualMcp.id} />
+            {activeTab === "layout" && (
+              <LayoutTabContent virtualMcpId={virtualMcp.id} />
             )}
 
             {activeTab === "instructions" && (

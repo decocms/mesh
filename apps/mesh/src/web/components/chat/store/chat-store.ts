@@ -200,17 +200,18 @@ class ChatStore {
       selectedModel: storedModel,
       credentialId: storedKeyId,
       ownerFilter: storedOwnerFilter,
-      // selectedAgent is resolved later when virtualMcps arrive
+      // selectedAgent is resolved when VirtualMCPProvider mounts (Suspense)
+      // or when setVirtualMcps refreshes it from the list.
       selectedAgent: null,
     };
 
-    // Store the virtual MCP id so setVirtualMcps can resolve it
-    this._pendingVirtualMcpId = storedVirtualMcpId;
+    // Store the localStorage virtual MCP id so setVirtualMcps can resolve it.
+    this._storedVirtualMcpId = storedVirtualMcpId;
 
     this.notify();
   }
 
-  private _pendingVirtualMcpId: string | null = null;
+  private _storedVirtualMcpId: string | null = null;
 
   reset(): void {
     this.chatBridge = null;
@@ -465,13 +466,13 @@ class ChatStore {
   setVirtualMcps(virtualMcps: VirtualMCPInfo[]): void {
     let selectedAgent = this.state.selectedAgent;
 
-    // Resolve pending virtual MCP id from localStorage
-    if (this._pendingVirtualMcpId) {
+    // On first load, resolve the localStorage-stored virtual MCP id.
+    // On subsequent calls, refresh selectedAgent with latest data.
+    if (this._storedVirtualMcpId && !selectedAgent) {
       selectedAgent =
-        virtualMcps.find((v) => v.id === this._pendingVirtualMcpId) ?? null;
-      this._pendingVirtualMcpId = null;
+        virtualMcps.find((v) => v.id === this._storedVirtualMcpId) ?? null;
+      this._storedVirtualMcpId = null;
     } else if (selectedAgent) {
-      // Refresh selectedAgent with latest data (e.g. color/icon changes)
       selectedAgent =
         virtualMcps.find((v) => v.id === selectedAgent!.id) ?? selectedAgent;
     }

@@ -100,7 +100,7 @@ export interface AutomationsStorage {
     triggerId: string | null,
     maxConcurrent: number,
   ): Promise<string | null>;
-  markRunFailed(threadId: string): Promise<void>;
+  markRunFailed(taskId: string): Promise<void>;
   updateTriggerLastRunAt(triggerId: string, lastRunAt: string): Promise<void>;
   deactivateAutomation(id: string): Promise<void>;
 }
@@ -629,13 +629,13 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       }
 
       // Create a thread for this run
-      const threadId = generatePrefixedId("thrd");
+      const taskId = generatePrefixedId("thrd");
       const now = new Date().toISOString();
 
       await trx
         .insertInto("threads")
         .values({
-          id: threadId,
+          id: taskId,
           organization_id: automation.organization_id,
           title: `Automation: ${automation.name}`,
           description: null,
@@ -649,15 +649,15 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         })
         .execute();
 
-      return threadId;
+      return taskId;
     });
   }
 
-  async markRunFailed(threadId: string): Promise<void> {
+  async markRunFailed(taskId: string): Promise<void> {
     await this.db
       .updateTable("threads")
       .set({ status: "failed", updated_at: new Date().toISOString() })
-      .where("id", "=", threadId)
+      .where("id", "=", taskId)
       .where("status", "=", "in_progress")
       .execute();
   }

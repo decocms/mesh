@@ -16,8 +16,6 @@ import {
   type AiProviderModel,
 } from "@/web/hooks/collections/use-llm.ts";
 import { ModelSelector } from "@/web/components/chat/select-model.tsx";
-import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp.tsx";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { User } from "@/web/components/user/user.tsx";
 import {
   useAutomationDetail,
@@ -47,11 +45,6 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Tooltip,
@@ -67,13 +60,11 @@ import {
   Loading01,
   Stars01,
   Trash01,
-  Users03,
   XClose,
 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
-import { useVirtualMCPs, isDecopilot } from "@decocms/mesh-sdk";
 import type { Metadata } from "@/web/components/chat/types.ts";
 import {
   TiptapProvider,
@@ -107,138 +98,6 @@ import { TriggerCard } from "@/web/components/automations/trigger-card.tsx";
 
 // ============================================================================
 // Agent Picker
-// ============================================================================
-
-function AgentPicker({
-  selectedId,
-  onChange,
-}: {
-  selectedId: string | null;
-  onChange: (id: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const allVirtualMcps = useVirtualMCPs();
-  const virtualMcps = allVirtualMcps.filter((v) => !v.id || !isDecopilot(v.id));
-  const selected = selectedId
-    ? virtualMcps.find((v) => v.id === selectedId)
-    : null;
-
-  if (selected) {
-    return (
-      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
-            >
-              <IntegrationIcon
-                icon={selected.icon}
-                name={selected.title}
-                size="sm"
-                fallbackIcon={<Users03 size={16} />}
-                className="rounded-md shrink-0"
-              />
-              <span className="text-sm font-medium truncate">
-                {selected.title}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-[550px] p-0 overflow-hidden"
-            align="start"
-            sideOffset={8}
-          >
-            <VirtualMCPPopoverContent
-              virtualMcps={virtualMcps}
-              selectedVirtualMcpId={selectedId}
-              onVirtualMcpChange={(id) => {
-                onChange(id);
-                setOpen(false);
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="shrink-0 size-7 text-muted-foreground hover:text-foreground"
-          onClick={() => onChange(null)}
-          title="Remove agent"
-        >
-          <XClose size={13} />
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
-        >
-          <div className="relative flex items-center justify-center size-8 rounded-md text-muted-foreground/75 shrink-0">
-            <svg className="absolute inset-0 size-full" fill="none">
-              <defs>
-                <linearGradient
-                  id="agent-picker-border-gradient"
-                  gradientUnits="userSpaceOnUse"
-                  x1="0"
-                  y1="0"
-                  x2="32"
-                  y2="32"
-                >
-                  <animateTransform
-                    attributeName="gradientTransform"
-                    type="rotate"
-                    from="0 16 16"
-                    to="360 16 16"
-                    dur="6s"
-                    repeatCount="indefinite"
-                  />
-                  <stop offset="0%" stopColor="var(--chart-1)" />
-                  <stop offset="100%" stopColor="var(--chart-4)" />
-                </linearGradient>
-              </defs>
-              <rect
-                x="0.5"
-                y="0.5"
-                width="31"
-                height="31"
-                rx="5.5"
-                stroke="url(#agent-picker-border-gradient)"
-                strokeWidth="1"
-                strokeDasharray="3 3"
-              />
-            </svg>
-            <Users03 size={16} />
-          </div>
-          <span className="text-sm text-muted-foreground">
-            No agent selected. All connections available.
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[550px] p-0 overflow-hidden"
-        align="start"
-        sideOffset={8}
-      >
-        <VirtualMCPPopoverContent
-          virtualMcps={virtualMcps}
-          selectedVirtualMcpId={selectedId}
-          onVirtualMcpChange={(id) => {
-            onChange(id);
-            setOpen(false);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 // ============================================================================
 // Settings Tab
 // ============================================================================
@@ -467,6 +326,9 @@ export function SettingsTab({
         <div className="flex flex-col gap-1.5">
           <Input
             {...form.register("name")}
+            onBlur={() => {
+              if (form.formState.isDirty) handleSave();
+            }}
             placeholder="Automation name"
             className="border border-transparent shadow-none px-0 text-2xl md:text-2xl font-semibold h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent"
           />
@@ -477,7 +339,10 @@ export function SettingsTab({
               render={({ field }) => (
                 <Switch
                   checked={field.value}
-                  onCheckedChange={field.onChange}
+                  onCheckedChange={(checked) => {
+                    field.onChange(checked);
+                    setTimeout(() => handleSave(), 0);
+                  }}
                   className="cursor-pointer"
                 />
               )}
@@ -599,21 +464,6 @@ export function SettingsTab({
           )}
         </div>
 
-        {/* Section: Agent — hidden when fixedAgentId is set */}
-        {!fixedAgentId && (
-          <div className="flex flex-col gap-2.5">
-            <span className="text-xs font-semibold text-muted-foreground/60">
-              Agent
-            </span>
-            <AgentPicker
-              selectedId={watchAgentId || null}
-              onChange={(id) =>
-                form.setValue("agent_id", id ?? "", { shouldDirty: true })
-              }
-            />
-          </div>
-        )}
-
         {/* Section: Instructions */}
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
@@ -636,7 +486,17 @@ export function SettingsTab({
             setTiptapDoc={setTiptapDoc}
             placeholder="What should this automation do?"
           >
-            <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
+            <div
+              className="rounded-xl border border-border min-h-[120px] flex flex-col"
+              onBlur={() => {
+                const docChanged =
+                  JSON.stringify(tiptapDoc ?? null) !==
+                  JSON.stringify(savedDoc ?? null);
+                if (form.formState.isDirty || docChanged) {
+                  handleSave();
+                }
+              }}
+            >
               <TiptapInput
                 virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
               />

@@ -86,42 +86,42 @@ export interface DecopilotEventMap {
 // ============================================================================
 
 export function createDecopilotStepEvent(
-  threadId: string,
+  taskId: string,
   stepCount: number,
 ): DecopilotStepEvent {
   return {
     id: crypto.randomUUID(),
     type: DECOPILOT_EVENTS.STEP,
     source: "decopilot",
-    subject: threadId,
+    subject: taskId,
     data: { stepCount },
     time: new Date().toISOString(),
   };
 }
 
 export function createDecopilotFinishEvent(
-  threadId: string,
+  taskId: string,
   status: ThreadStatus,
 ): DecopilotFinishEvent {
   return {
     id: crypto.randomUUID(),
     type: DECOPILOT_EVENTS.FINISH,
     source: "decopilot",
-    subject: threadId,
+    subject: taskId,
     data: { status },
     time: new Date().toISOString(),
   };
 }
 
 export function createDecopilotThreadStatusEvent(
-  threadId: string,
+  taskId: string,
   status: ThreadStatus,
 ): DecopilotThreadStatusEvent {
   return {
     id: crypto.randomUUID(),
     type: DECOPILOT_EVENTS.THREAD_STATUS,
     source: "decopilot",
-    subject: threadId,
+    subject: taskId,
     data: { status },
     time: new Date().toISOString(),
   };

@@ -21,7 +21,7 @@ export function ProjectPluginsPage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content className="p-5 sm:p-8">
+      <Page.Content>
         <div className="flex flex-col gap-6">
           <p className="text-sm text-muted-foreground">
             Extend your project with built-in capabilities that activate

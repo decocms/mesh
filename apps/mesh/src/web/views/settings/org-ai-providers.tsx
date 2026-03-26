@@ -754,7 +754,7 @@ export function OrgAiProvidersPage() {
           </Breadcrumb>
         </Page.Header.Left>
       </Page.Header>
-      <Page.Content className="p-5 sm:p-8">
+      <Page.Content>
         <ErrorBoundary
           fallback={({ error }) => (
             <ErrorFallback

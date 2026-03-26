@@ -49,6 +49,7 @@ import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
+import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -233,6 +234,13 @@ function ShellLayoutInner({
   const { org } = useProjectContext();
   const { createTask } = useChat();
 
+  // Extract virtualMcpId from route for space context
+  const spacesMatch = useMatch({
+    from: "/shell/$org/spaces/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const spaceVirtualMcpId = spacesMatch?.params.virtualMcpId;
+
   const showThreePanels = isSpaceRoute || isOrgHome;
 
   // Compute decopilot virtualMcpId for tasks filtering on org home
@@ -243,6 +251,10 @@ function ShellLayoutInner({
   const chatPanelRef = useRef<ImperativePanelHandle>(null);
   const tasksPanelRef = useRef<ImperativePanelHandle>(null);
   const mainPanelRef = useRef<ImperativePanelHandle>(null);
+  const [chatPanelWidth] = useLocalStorage(
+    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
+    25,
+  );
 
   // --- State → panel ref sync effects ---
 
@@ -281,6 +293,15 @@ function ShellLayoutInner({
     if (isSpaceRoute || isOrgHome) setChatOpen(true);
   }, [isSpaceRoute, isOrgHome]);
 
+  // When entering a space route (e.g. from org home where chat was full-width),
+  // resize the chat panel to its persisted width so main gets the bulk of space.
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    if (isSpaceRoute) {
+      chatPanelRef.current?.resize(chatPanelWidth);
+    }
+  }, [isSpaceRoute]);
+
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
   useEffect(() => {
     if (isSettingsRoute) setChatOpen(false);
@@ -303,7 +324,16 @@ function ShellLayoutInner({
     setChatOpen((prev) => !prev);
   };
 
-  return (
+  // Wrapper: provide space context when on a space route
+  const MaybeSpaceProvider = spaceVirtualMcpId
+    ? ({ children }: { children: React.ReactNode }) => (
+        <VirtualMCPProvider virtualMcpId={spaceVirtualMcpId}>
+          {children}
+        </VirtualMCPProvider>
+      )
+    : ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+  const content = (
     <SidebarLayout
       className="flex-1 bg-sidebar"
       style={
@@ -373,6 +403,20 @@ function ShellLayoutInner({
             </div>
             {showThreePanels && (
               <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={toggleTasks}
+                  aria-pressed={tasksOpen}
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                    tasksOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle tasks"
+                >
+                  <LayoutLeft size={16} />
+                </button>
                 {!isOrgHome && (
                   <button
                     type="button"
@@ -408,81 +452,83 @@ function ShellLayoutInner({
           </div>
         )}
 
-        <ResizablePanelGroup
-          direction="horizontal"
-          className="flex-1 min-h-0"
-          style={{ overflow: "visible" }}
-        >
-          {/* Desktop: Tasks panel on the left */}
-          {!isMobile && showThreePanels && (
-            <>
-              <PersistentTasksResizablePanel
-                panelRef={tasksPanelRef}
-                defaultCollapsed={!isSpaceRoute}
-                onCollapse={() => setTasksOpen(false)}
-                onExpand={() => setTasksOpen(true)}
+        <MaybeSpaceProvider>
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="flex-1 min-h-0"
+            style={{ overflow: "visible" }}
+          >
+            {/* Desktop: Tasks panel on the left */}
+            {!isMobile && showThreePanels && (
+              <>
+                <PersistentTasksResizablePanel
+                  panelRef={tasksPanelRef}
+                  defaultCollapsed={!isSpaceRoute}
+                  onCollapse={() => setTasksOpen(false)}
+                  onExpand={() => setTasksOpen(true)}
+                >
+                  <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                      <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                    </div>
+                  </div>
+                </PersistentTasksResizablePanel>
+                <ResizableHandle className="bg-sidebar" />
+              </>
+            )}
+
+            {/* Main content — not rendered on org home */}
+            {!isOrgHome && (
+              <ResizablePanel
+                ref={mainPanelRef}
+                className="min-w-0 flex flex-col"
+                order={2}
+                style={{ overflow: "visible" }}
+                collapsible={isSpaceRoute}
+                collapsedSize={0}
+                minSize={isSpaceRoute ? 20 : undefined}
+                onCollapse={() => setMainOpen(false)}
+                onExpand={() => setMainOpen(true)}
               >
                 <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
-                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                  <div
+                    className={cn(
+                      "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                      "border border-sidebar-border shadow-sm",
+                      "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                      "rounded-[0.75rem]",
+                    )}
+                  >
+                    <div className="flex-1 overflow-hidden">
+                      <Outlet />
+                    </div>
                   </div>
                 </div>
-              </PersistentTasksResizablePanel>
-              <ResizableHandle className="bg-sidebar" />
-            </>
-          )}
+              </ResizablePanel>
+            )}
 
-          {/* Main content — not rendered on org home */}
-          {!isOrgHome && (
-            <ResizablePanel
-              ref={mainPanelRef}
-              className="min-w-0 flex flex-col"
-              order={2}
-              style={{ overflow: "visible" }}
-              collapsible={isSpaceRoute}
-              collapsedSize={0}
-              minSize={isSpaceRoute ? 20 : undefined}
-              onCollapse={() => setMainOpen(false)}
-              onExpand={() => setMainOpen(true)}
-            >
-              <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
-                <div
-                  className={cn(
-                    "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                    "border border-sidebar-border shadow-sm",
-                    "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                    "rounded-[0.75rem]",
-                  )}
+            {/* Desktop: Chat card as resizable side panel */}
+            {showThreePanels && !isMobile && (
+              <>
+                <ResizableHandle className="bg-sidebar" />
+                <PersistentResizablePanel
+                  key={isOrgHome ? "chat-home" : "chat-default"}
+                  panelRef={chatPanelRef}
+                  defaultCollapsed={false}
+                  defaultFullWidth={isOrgHome}
+                  onCollapse={() => setChatOpen(false)}
+                  onExpand={() => setChatOpen(true)}
                 >
-                  <div className="flex-1 overflow-hidden">
-                    <Outlet />
+                  <div className="h-full pr-1.5 pb-1.5">
+                    <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                      <ChatPanel variant={isOrgHome ? "home" : undefined} />
+                    </div>
                   </div>
-                </div>
-              </div>
-            </ResizablePanel>
-          )}
-
-          {/* Desktop: Chat card as resizable side panel */}
-          {showThreePanels && !isMobile && (
-            <>
-              <ResizableHandle className="bg-sidebar" />
-              <PersistentResizablePanel
-                key={isOrgHome ? "chat-home" : "chat-default"}
-                panelRef={chatPanelRef}
-                defaultCollapsed={false}
-                defaultFullWidth={isOrgHome}
-                onCollapse={() => setChatOpen(false)}
-                onExpand={() => setChatOpen(true)}
-              >
-                <div className="h-full pr-1.5 pb-1.5">
-                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <ChatPanel variant={isOrgHome ? "home" : undefined} />
-                  </div>
-                </div>
-              </PersistentResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+                </PersistentResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        </MaybeSpaceProvider>
       </SidebarInset>
 
       {/* Mobile: FABs + bottom Drawers */}
@@ -496,6 +542,8 @@ function ShellLayoutInner({
       )}
     </SidebarLayout>
   );
+
+  return content;
 }
 
 function ShellLayoutContent() {
@@ -516,10 +564,9 @@ function ShellLayoutContent() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Check if we're on a space route (/$org/spaces/$id or /$org/projects/$id) but not settings
+  // Check if we're on a space route (/$org/spaces/$id) but not settings
   const isSpaceRoute =
-    (routerState.location.pathname.startsWith(`/${org}/spaces/`) ||
-      routerState.location.pathname.startsWith(`/${org}/projects/`)) &&
+    routerState.location.pathname.startsWith(`/${org}/spaces/`) &&
     !routerState.location.pathname.includes("/settings");
 
   // Check if we're on the org home route (/$org or /$org/)

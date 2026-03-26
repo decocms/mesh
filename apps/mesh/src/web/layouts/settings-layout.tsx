@@ -7,6 +7,7 @@ import {
 import { Suspense } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { PageContentClassNameProvider } from "@/web/components/page";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import {
   ArrowNarrowLeft,
@@ -198,16 +199,18 @@ export function SettingsSidebar() {
 
 export default function SettingsLayout() {
   return (
-    <div className="flex-1 min-w-0 overflow-hidden h-full">
-      <Suspense
-        fallback={
-          <div className="p-5 sm:p-8">
-            <ContentSkeleton />
-          </div>
-        }
-      >
-        <Outlet />
-      </Suspense>
-    </div>
+    <PageContentClassNameProvider value="p-5 sm:p-8">
+      <div className="flex-1 min-w-0 overflow-hidden h-full">
+        <Suspense
+          fallback={
+            <div className="p-5 sm:p-8">
+              <ContentSkeleton />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
+      </div>
+    </PageContentClassNameProvider>
   );
 }

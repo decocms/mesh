@@ -69,7 +69,7 @@ function AppRenderer({
   );
 }
 
-function AppViewContent({
+export function AppViewContent({
   connectionId,
   toolName,
 }: {
@@ -118,7 +118,7 @@ function AppViewContent({
 
 export default function ProjectAppView() {
   const { connectionId, toolName } = useParams({
-    from: "/shell/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+    from: "/shell/$org/spaces/$virtualMcpId/apps/$connectionId/$toolName",
   });
 
   return (

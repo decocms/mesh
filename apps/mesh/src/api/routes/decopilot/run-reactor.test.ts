@@ -31,9 +31,9 @@ function makeDeps(): RunReactorDeps {
   };
 }
 
-function makeRunningState(threadId = "t1", orgId = "org1") {
+function makeRunningState(taskId = "t1", orgId = "org1") {
   return {
-    threadId,
+    taskId,
     orgId,
     userId: "u1",
     status: {
@@ -57,7 +57,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_STARTED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             userId: "u1",
             abortController: new AbortController(),
@@ -95,7 +95,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_STARTED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             userId: "u1",
             abortController: new AbortController(),
@@ -117,7 +117,7 @@ describe("reactAll", () => {
           {
             event: {
               type: "RUN_RESUMED",
-              threadId: "t1",
+              taskId: "t1",
               orgId: "org1",
               userId: "u1",
               abortController: new AbortController(),
@@ -145,7 +145,7 @@ describe("reactAll", () => {
           {
             event: {
               type: "RUN_RESUMED",
-              threadId: "t1",
+              taskId: "t1",
               orgId: "org1",
               userId: "u1",
               abortController: new AbortController(),
@@ -166,7 +166,7 @@ describe("reactAll", () => {
           {
             event: {
               type: "RUN_RESUMED",
-              threadId: "t1",
+              taskId: "t1",
               orgId: "org1",
               userId: "u1",
               abortController: new AbortController(),
@@ -188,7 +188,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "STEP_COMPLETED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             stepCount: 3,
           },
@@ -210,7 +210,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_COMPLETED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             stepCount: 5,
           },
@@ -240,7 +240,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_REQUIRES_ACTION",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             stepCount: 4,
           },
@@ -270,7 +270,7 @@ describe("reactAll", () => {
           {
             event: {
               type: "RUN_FAILED",
-              threadId: "t1",
+              taskId: "t1",
               orgId: "org1",
               reason,
             },
@@ -298,7 +298,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_FAILED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             reason: "ghost",
           },
@@ -333,7 +333,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_FAILED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             reason: "ghost",
           },
@@ -357,7 +357,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "PREVIOUS_RUN_ABORTED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
           },
           state: undefined,
@@ -385,7 +385,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_STARTED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             userId: "u1",
             abortController: new AbortController(),
@@ -395,7 +395,7 @@ describe("reactAll", () => {
         {
           event: {
             type: "RUN_COMPLETED",
-            threadId: "t1",
+            taskId: "t1",
             orgId: "org1",
             stepCount: 1,
           },

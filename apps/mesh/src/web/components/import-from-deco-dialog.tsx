@@ -197,7 +197,7 @@ export function ImportFromDecoDialog({
       handleClose(false);
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
       navigate({
-        to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/spaces/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org: org.slug,
           virtualMcpId,
