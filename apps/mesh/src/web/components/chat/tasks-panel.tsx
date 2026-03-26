@@ -126,8 +126,8 @@ export function OwnerFilter() {
           type="button"
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-            isFilterChangePending || isFiltered
-              ? "text-foreground"
+            isFiltered
+              ? "bg-accent text-foreground"
               : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
           title={isFiltered ? "My tasks" : "All tasks"}
