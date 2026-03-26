@@ -15,10 +15,31 @@ function useMarkdownStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
     style.id = STYLE_ID;
-    style.textContent = [
-      lightCss,
-      darkCss.replaceAll(".markdown-body", ".dark .markdown-body"),
-    ].join("\n");
+    // Scope dark styles to the .dark class and override GitHub's palette
+    // so the readme blends with the app's own dark theme tokens.
+    const scopedDark = darkCss.replaceAll(
+      ".markdown-body",
+      ".dark .markdown-body",
+    );
+    const overrides = `
+.dark .markdown-body {
+  color-scheme: dark;
+  color: var(--foreground);
+  background-color: transparent;
+}
+.dark .markdown-body code,
+.dark .markdown-body pre {
+  background-color: var(--sidebar);
+}
+`;
+    const lightOverrides = `
+.markdown-body {
+  background-color: transparent;
+}
+`;
+    style.textContent = [lightCss, lightOverrides, scopedDark, overrides].join(
+      "\n",
+    );
     document.head.appendChild(style);
   }, []);
 }
