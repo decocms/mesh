@@ -232,57 +232,6 @@ function ShellLayoutInner({
     25,
   );
 
-  // --- State → panel ref sync effects ---
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (chatOpen) chatPanelRef.current?.expand();
-    else chatPanelRef.current?.collapse();
-  }, [chatOpen]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (tasksOpen) tasksPanelRef.current?.expand();
-    else tasksPanelRef.current?.collapse();
-  }, [tasksOpen]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (mainOpen) mainPanelRef.current?.expand();
-    else mainPanelRef.current?.collapse();
-  }, [mainOpen]);
-
-  // --- Route-change effects (set state only, refs sync via above) ---
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    setTasksOpen(isAgentRoute);
-  }, [isAgentRoute]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    setMainOpen(!isOrgHome);
-  }, [isOrgHome]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (isAgentRoute || isOrgHome) setChatOpen(true);
-  }, [isAgentRoute, isOrgHome]);
-
-  // When entering a space route (e.g. from org home where chat was full-width),
-  // resize the chat panel to its persisted width so main gets the bulk of space.
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (isAgentRoute) {
-      chatPanelRef.current?.resize(chatPanelWidth);
-    }
-  }, [isAgentRoute]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (isSettingsRoute) setChatOpen(false);
-  }, [isSettingsRoute]);
-
   // --- Toggle handlers with all-panels-collapsed guard ---
 
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
