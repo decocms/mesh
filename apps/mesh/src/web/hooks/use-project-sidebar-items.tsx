@@ -6,7 +6,6 @@ import type {
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home01, LayoutLeft } from "@untitledui/icons";
 import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
-import { useChatTask } from "@/web/components/chat/context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
 export function useProjectSidebarItems(): SidebarSection[] {
@@ -14,7 +13,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const [, setTasksOpen] = useDecoTasksOpen();
-  const { createTask } = useChatTask();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 
@@ -150,7 +148,6 @@ export function useProjectSidebarItems(): SidebarSection[] {
     onClick: () => {
       setTasksOpen(false);
       navigate({ to: "/$org", params: { org } });
-      createTask();
     },
   };
 
