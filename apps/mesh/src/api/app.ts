@@ -45,6 +45,7 @@ import oauthProxyRoutes, {
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
 import publicConfigRoutes from "./routes/public-config";
+import filesRoutes from "./routes/files";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -1329,6 +1330,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Downstream token management routes
   app.route("/api", downstreamTokenRoutes);
+
+  // File serving from object storage (generated images, etc.)
+  app.route("/api/files", filesRoutes);
 
   // Deco.cx sites list (requires meshContext / auth)
   app.route("/api/deco-sites", decoSitesRoutes);

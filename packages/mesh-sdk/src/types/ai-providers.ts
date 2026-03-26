@@ -16,6 +16,7 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const MODEL_CAPABILITIES = [
   "text",
   "image",
+  "image-generation",
   "vision",
   "audio",
   "video",

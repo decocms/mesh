@@ -86,6 +86,7 @@ export interface StreamCoreInput {
   windowSize?: number;
   abortSignal?: AbortSignal;
   isResume?: boolean;
+  imageModel?: { id: string; aspectRatio?: string };
 }
 
 export interface StreamCoreDeps {
@@ -301,6 +302,8 @@ async function streamCoreInner(
       await saveMessagesToThread(requestMessage);
     }
 
+    await saveMessagesToThread(requestMessage);
+
     // Close MCP clients on abort
     registrySignal.addEventListener("abort", () => {
       closeClients?.();
@@ -377,6 +380,16 @@ async function streamCoreInner(
                 toolApprovalLevel: input.toolApprovalLevel,
                 toolOutputMap,
                 passthroughClient,
+                ...(input.imageModel && {
+                  imageConfig: {
+                    imageModelId: input.imageModel.id,
+                    defaultAspectRatio: input.imageModel.aspectRatio,
+                    organizationId: input.organizationId,
+                    agentId: input.agent.id,
+                    userId: input.userId,
+                    threadId: mem.thread.id,
+                  },
+                }),
               },
               ctx,
             );
@@ -446,12 +459,18 @@ async function streamCoreInner(
               "</plan-mode>"
             : null;
 
+        // Image generation hint when an image model is selected
+        const imagePrompt = input.imageModel
+          ? `<image-generation>\nThe user has selected an image generation model. When they describe something they want as an image, use the generate_image tool immediately without asking for confirmation.\n</image-generation>`
+          : null;
+
         const systemPrompts = [
           basePrompt,
           planModePrompt,
           toolCatalog,
           promptCatalog,
           agentPrompt,
+          imagePrompt,
         ].filter((s): s is string => Boolean(s?.trim()));
 
         const {
