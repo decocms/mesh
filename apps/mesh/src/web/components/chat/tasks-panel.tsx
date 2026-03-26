@@ -134,7 +134,7 @@ export function OwnerFilter() {
           disabled={isFilterChangePending}
         >
           <Icon
-            size={14}
+            size={16}
             className={isFilterChangePending ? "animate-spin" : ""}
           />
         </button>
@@ -533,12 +533,9 @@ function IncomingSection({
           title="Create automation"
         >
           {createMutation.isPending ? (
-            <Loading01
-              size={14}
-              className="animate-spin text-muted-foreground"
-            />
+            <Loading01 size={16} className="animate-spin" />
           ) : (
-            <Plus size={14} className="text-muted-foreground" />
+            <Plus size={16} />
           )}
         </button>
       </div>
@@ -591,15 +588,15 @@ function FilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
+          className={cn(
+            "relative flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+            hasFilters
+              ? "bg-accent text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
           title="Filter"
         >
-          <FilterLines
-            size={14}
-            className={cn(
-              hasFilters ? "text-foreground" : "text-muted-foreground/50",
-            )}
-          />
+          <FilterLines size={16} />
           {hasFilters && (
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-blue-500" />
           )}
@@ -694,6 +691,7 @@ export function TaskListContent({
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
   const [agentFilter, setAgentFilter] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -746,58 +744,83 @@ export function TaskListContent({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Tasks header + search/filter */}
-      <div className="px-2 py-1 flex items-center gap-1 min-h-[36px]">
-        <span className="text-xs font-medium text-muted-foreground px-2 shrink-0">
-          Tasks
-        </span>
-        <div className="flex-1 relative">
-          <SearchMd
-            size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 pointer-events-none"
-          />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search..."
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setSearchQuery("");
-            }}
-            className="w-full h-7 pl-7 pr-2 text-sm bg-transparent rounded-md border-0 outline-none placeholder:text-muted-foreground/30 focus:bg-accent transition-colors"
-          />
-        </div>
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="Clear search"
-          >
-            <X size={14} />
-          </button>
+      <div className="px-2 py-1 flex items-center gap-0.5 min-h-[36px]">
+        {searchOpen ? (
+          <>
+            <div className="flex-1 relative">
+              <SearchMd
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
+              />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tasks..."
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearchQuery("");
+                    setSearchOpen(false);
+                  }
+                }}
+                className="w-full h-7 pl-7 pr-2 text-sm bg-accent rounded-md border-0 outline-none placeholder:text-muted-foreground/40"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setSearchOpen(false);
+              }}
+              className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Close search"
+            >
+              <X size={16} />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+              Tasks
+            </span>
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                searchQuery
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+              title="Search tasks"
+            >
+              <SearchMd size={16} />
+            </button>
+            <FilterDropdown
+              statusFilter={statusFilter}
+              agentFilter={agentFilter}
+              availableAgents={availableAgents}
+              connectionMap={connectionMap}
+              defaultAgent={defaultAgent}
+              onStatusChange={(s) =>
+                setStatusFilter((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(s)) next.delete(s);
+                  else next.add(s);
+                  return next;
+                })
+              }
+              onAgentChange={(a) =>
+                setAgentFilter((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(a)) next.delete(a);
+                  else next.add(a);
+                  return next;
+                })
+              }
+            />
+          </>
         )}
-        <FilterDropdown
-          statusFilter={statusFilter}
-          agentFilter={agentFilter}
-          availableAgents={availableAgents}
-          connectionMap={connectionMap}
-          defaultAgent={defaultAgent}
-          onStatusChange={(s) =>
-            setStatusFilter((prev) => {
-              const next = new Set(prev);
-              if (next.has(s)) next.delete(s);
-              else next.add(s);
-              return next;
-            })
-          }
-          onAgentChange={(a) =>
-            setAgentFilter((prev) => {
-              const next = new Set(prev);
-              if (next.has(a)) next.delete(a);
-              else next.add(a);
-              return next;
-            })
-          }
-        />
       </div>
 
       {/* Grouped list */}
