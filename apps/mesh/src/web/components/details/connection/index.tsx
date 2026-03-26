@@ -754,11 +754,8 @@ function ConnectionInspectorViewContent() {
 
   const actions = useConnectionActions();
 
-  // Resolve appSlug → matching connections.
-  // The server-side filter handles both app_name and derived slug matching.
-  const siblings = useConnections({
-    filters: [{ column: "app_name", value: appSlug }],
-  });
+  // Resolve appSlug → matching connections (server-side slug filter, excludes VIRTUAL by default)
+  const siblings = useConnections({ slug: appSlug });
   const connection = siblings[0] ?? null;
   const connectionId = connection?.id ?? "";
 

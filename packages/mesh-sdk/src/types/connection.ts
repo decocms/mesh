@@ -102,6 +102,11 @@ export const ConnectionEntitySchema = z.object({
   icon: z.string().nullable().describe("Icon URL for the connection"),
   app_name: z.string().nullable().describe("Associated app name"),
   app_id: z.string().nullable().describe("Associated app ID"),
+  slug: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("URL-safe slug derived from app_name, connection_url, or title"),
 
   connection_type: z
     .enum(["HTTP", "SSE", "Websocket", "STDIO", "VIRTUAL"])

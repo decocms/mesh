@@ -51,7 +51,7 @@ import {
   OAuthAuthenticationState,
   ManualAuthRequiredState,
 } from "./connection/settings-tab";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   useConnection,

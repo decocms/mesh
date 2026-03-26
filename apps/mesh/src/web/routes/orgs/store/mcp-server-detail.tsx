@@ -36,7 +36,7 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
-import { slugify } from "@/web/utils/slugify";
+import { slugify } from "@/shared/utils/slugify";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
   inferRegistryListToolName,

@@ -121,10 +121,18 @@ async function getDecoStoreProjectLocator(
   organizationId: string,
 ): Promise<string | null> {
   // Find registry connection by URL within the organization
-  const connections = await ctx.storage.connections.list(organizationId);
-  const registryConn = connections.find((c) =>
-    c.connection_url?.startsWith(DECO_STORE_URL),
+  const { items: connections } = await ctx.storage.connections.list(
+    organizationId,
+    {
+      where: {
+        field: ["connection_url"],
+        operator: "like",
+        value: `${DECO_STORE_URL}%`,
+      },
+      limit: 1,
+    },
   );
+  const registryConn = connections[0];
 
   if (!registryConn?.configuration_state) {
     return null;

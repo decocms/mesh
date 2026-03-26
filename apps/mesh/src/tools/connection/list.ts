@@ -15,8 +15,6 @@ import { ASSISTANTS_BINDING } from "@decocms/bindings/assistant";
 import {
   CollectionListInputSchema,
   createCollectionListOutputSchema,
-  type OrderByExpression,
-  type WhereExpression,
 } from "@decocms/bindings/collections";
 import { LANGUAGE_MODEL_BINDING } from "@decocms/bindings/llm";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
@@ -68,204 +66,6 @@ const BUILTIN_BINDING_CHECKERS: Record<string, Binder> = {
 };
 
 /**
- * Convert SQL LIKE pattern to regex pattern by tokenizing
- * Handles % (any chars) and _ (single char) wildcards
- */
-function convertLikeToRegex(likePattern: string): string {
-  const result: string[] = [];
-  let i = 0;
-
-  while (i < likePattern.length) {
-    const char = likePattern[i] as string;
-    if (char === "%") {
-      result.push(".*");
-    } else if (char === "_") {
-      result.push(".");
-    } else if (/[.*+?^${}()|[\]\\]/.test(char)) {
-      // Escape regex special characters
-      result.push("\\" + char);
-    } else {
-      result.push(char);
-    }
-    i++;
-  }
-
-  return result.join("");
-}
-
-function isStringOrValue(value: unknown): value is string | number {
-  return typeof value === "string" || typeof value === "number";
-}
-
-/**
- * Evaluate a where expression against a connection entity
- */
-function evaluateWhereExpression(
-  connection: ConnectionEntity,
-  where: WhereExpression,
-): boolean {
-  if ("conditions" in where) {
-    // Logical operator
-    const { operator, conditions } = where;
-    switch (operator) {
-      case "and":
-        return conditions.every((c) => evaluateWhereExpression(connection, c));
-      case "or":
-        return conditions.some((c) => evaluateWhereExpression(connection, c));
-      case "not":
-        return !conditions.every((c) => evaluateWhereExpression(connection, c));
-      default:
-        return true;
-    }
-  }
-
-  // Comparison expression
-  const { field, operator, value } = where;
-  const fieldPath = field.join(".");
-  const fieldValue = getFieldValue(connection, fieldPath);
-
-  switch (operator) {
-    case "eq":
-      return fieldValue === value;
-    case "gt":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue > value
-      );
-    case "gte":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue >= value
-      );
-    case "lt":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue < value
-      );
-    case "lte":
-      return (
-        isStringOrValue(fieldValue) &&
-        isStringOrValue(value) &&
-        fieldValue <= value
-      );
-    case "in":
-      return Array.isArray(value) && value.includes(fieldValue);
-    case "like":
-      if (typeof fieldValue !== "string" || typeof value !== "string") {
-        return false;
-      }
-      // Limit pattern length to prevent ReDoS
-      if (value.length > 100) return false;
-      // Convert SQL LIKE pattern to regex by tokenizing and escaping
-      const pattern = convertLikeToRegex(value);
-      return new RegExp(`^${pattern}$`, "i").test(fieldValue);
-    case "contains":
-      if (typeof fieldValue !== "string" || typeof value !== "string") {
-        return false;
-      }
-      return fieldValue.toLowerCase().includes(value.toLowerCase());
-    default:
-      return true;
-  }
-}
-
-/**
- * Derive a URL-friendly slug from a connection's properties.
- * Mirrors the client-side getConnectionSlug() logic so that
- * server-side filtering by app_name also works for connections
- * where app_name is null (slug is derived from connection_url or title).
- */
-function deriveConnectionSlug(connection: ConnectionEntity): string {
-  if (connection.connection_url) {
-    try {
-      const parsed = new URL(connection.connection_url);
-      const host = parsed.port
-        ? `${parsed.hostname}-${parsed.port}`
-        : parsed.hostname;
-      const raw = (host + parsed.pathname).replace(/\/+$/, "");
-      return slugifyStr(raw);
-    } catch {
-      return slugifyStr(connection.connection_url);
-    }
-  }
-  if (connection.title) {
-    return slugifyStr(connection.title);
-  }
-  return connection.id;
-}
-
-function slugifyStr(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/\//g, "-")
-    .replace(/[^a-z0-9\s_-]+/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/**
- * Get a field value from a connection, handling nested paths.
- * For the "app_name" field, falls back to a derived slug when app_name is null,
- * so that URL-slug-based filters work for custom connections.
- */
-function getFieldValue(
-  connection: ConnectionEntity,
-  fieldPath: string,
-): unknown {
-  const parts = fieldPath.split(".");
-  let value: unknown = connection;
-  for (const part of parts) {
-    if (value == null || typeof value !== "object") return undefined;
-    value = (value as Record<string, unknown>)[part];
-  }
-  if (fieldPath === "app_name" && value == null) {
-    return deriveConnectionSlug(connection);
-  }
-  return value;
-}
-
-/**
- * Apply orderBy expressions to sort connections
- */
-function applyOrderBy(
-  connections: ConnectionEntity[],
-  orderBy: OrderByExpression[],
-): ConnectionEntity[] {
-  return [...connections].sort((a, b) => {
-    for (const order of orderBy) {
-      const fieldPath = order.field.join(".");
-      const aValue = getFieldValue(a, fieldPath);
-      const bValue = getFieldValue(b, fieldPath);
-
-      let comparison = 0;
-
-      // Handle nulls
-      if (aValue == null && bValue == null) continue;
-      if (aValue == null) {
-        comparison = order.nulls === "first" ? -1 : 1;
-      } else if (bValue == null) {
-        comparison = order.nulls === "first" ? 1 : -1;
-      } else if (typeof aValue === "string" && typeof bValue === "string") {
-        comparison = aValue.localeCompare(bValue);
-      } else if (typeof aValue === "number" && typeof bValue === "number") {
-        comparison = aValue - bValue;
-      } else {
-        comparison = String(aValue).localeCompare(String(bValue));
-      }
-
-      if (comparison !== 0) {
-        return order.direction === "desc" ? -comparison : comparison;
-      }
-    }
-    return 0;
-  });
-}
-
-/**
  * Extended input schema with optional binding and include_virtual parameters
  */
 const ConnectionListInputSchema = CollectionListInputSchema.extend({
@@ -281,6 +81,12 @@ const ConnectionListInputSchema = CollectionListInputSchema.extend({
     .optional()
     .describe(
       "Whether to include VIRTUAL connections in the results. Defaults to false.",
+    ),
+  slug: z
+    .string()
+    .optional()
+    .describe(
+      "Filter by connection slug. Matches against app_name, or a slug derived from connection_url or title.",
     ),
 });
 
@@ -329,10 +135,24 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       ? createBindingChecker(bindingDefinition)
       : undefined;
 
-    // By default, exclude VIRTUAL connections unless explicitly requested
-    const connections = await ctx.storage.connections.list(organization.id, {
-      includeVirtual: input.include_virtual ?? false,
-    });
+    // Always push where/orderBy to SQL to reduce the result set.
+    // Pagination can only go to SQL when there's no binding filter,
+    // since binding filtering happens in-memory and may remove rows.
+    const needsBindingFilter = !!bindingChecker;
+
+    const limit = input.limit ?? 100;
+    const offset = input.offset ?? 0;
+
+    const { items: connections, totalCount: sqlTotalCount } =
+      await ctx.storage.connections.list(organization.id, {
+        includeVirtual: input.include_virtual ?? false,
+        slug: input.slug,
+        where: input.where,
+        orderBy: input.orderBy,
+        // Only push pagination to SQL when no post-filtering is needed
+        limit: needsBindingFilter ? undefined : limit,
+        offset: needsBindingFilter ? undefined : offset,
+      });
 
     // Only fetch tools from MCP servers when we need them for binding filtering.
     // This avoids expensive live listTools() calls on every page load.
@@ -392,15 +212,17 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       }
     }
 
-    // Filter connections by binding if specified (tools are pre-populated at create/update time)
-    let filteredConnections = bindingChecker
-      ? await Promise.all(
+    // Binding filter: SQL already handled where/orderBy, we just need to
+    // post-filter by binding (requires live tool data) and paginate.
+    if (needsBindingFilter) {
+      const filteredConnections = (
+        await Promise.all(
           connections.map(async (connection) => {
             if (!connection.tools || connection.tools.length === 0) {
               return null;
             }
 
-            const isValid = bindingChecker.isImplementedBy(
+            const isValid = bindingChecker!.isImplementedBy(
               connection.tools.map((t) => ({
                 name: t.name,
                 inputSchema: t.inputSchema as Record<string, unknown>,
@@ -412,36 +234,29 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
 
             return isValid ? connection : null;
           }),
-        ).then((results) =>
-          results.filter((c): c is ConnectionEntity => c !== null),
         )
-      : connections;
+      ).filter((c): c is ConnectionEntity => c !== null);
 
-    // Apply where filter if specified
-    if (input.where) {
-      filteredConnections = filteredConnections.filter((conn) =>
-        evaluateWhereExpression(conn, input.where!),
+      const totalCount = filteredConnections.length;
+      const paginatedConnections = filteredConnections.slice(
+        offset,
+        offset + limit,
       );
+      const hasMore = offset + limit < totalCount;
+
+      return {
+        items: paginatedConnections,
+        totalCount,
+        hasMore,
+      };
     }
 
-    // Apply orderBy if specified
-    if (input.orderBy && input.orderBy.length > 0) {
-      filteredConnections = applyOrderBy(filteredConnections, input.orderBy);
-    }
-
-    // Calculate pagination
-    const totalCount = filteredConnections.length;
-    const offset = input.offset ?? 0;
-    const limit = input.limit ?? 100;
-    const paginatedConnections = filteredConnections.slice(
-      offset,
-      offset + limit,
-    );
-    const hasMore = offset + limit < totalCount;
+    // Non-binding path: SQL already handled where/orderBy/pagination
+    const hasMore = offset + limit < sqlTotalCount;
 
     return {
-      items: paginatedConnections,
-      totalCount,
+      items: connections,
+      totalCount: sqlTotalCount,
       hasMore,
     };
   },
