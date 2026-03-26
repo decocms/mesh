@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Chat } from "@/web/components/chat/index";
+import { Chat, useChat } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
@@ -33,6 +33,7 @@ import {
   Browser,
   ChevronLeft,
   ChevronRight,
+  Edit05,
   LayoutLeft,
   MessageTextCircle02,
 } from "@untitledui/icons";
@@ -75,14 +76,15 @@ function PersistentResizablePanel({
 
   const handleResize = (size: number) =>
     startTransition(() => {
-      if (size > 0) setChatPanelWidth(size);
+      if (size > 0 && !defaultFullWidth) setChatPanelWidth(size);
     });
 
+  const savedWidth = Math.min(chatPanelWidth, 35);
   const defaultSize = defaultCollapsed
     ? 0
     : defaultFullWidth
       ? 100
-      : chatPanelWidth;
+      : savedWidth;
 
   return (
     <ResizablePanel
@@ -229,6 +231,7 @@ function ShellLayoutInner({
   const [mainOpen, setMainOpen] = useDecoMainOpen();
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
+  const { createTask } = useChat();
 
   const showThreePanels = isSpaceRoute || isOrgHome;
 
@@ -334,6 +337,20 @@ function ShellLayoutInner({
                   title="Toggle tasks"
                 >
                   <LayoutLeft size={16} />
+                </button>
+              )}
+              {showThreePanels && !tasksOpen && (
+                <button
+                  type="button"
+                  onClick={createTask}
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                    "animate-in fade-in-0 zoom-in-75 duration-150",
+                    "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="New task"
+                >
+                  <Edit05 size={16} />
                 </button>
               )}
               <button
@@ -450,6 +467,7 @@ function ShellLayoutInner({
             <>
               <ResizableHandle className="bg-sidebar" />
               <PersistentResizablePanel
+                key={isOrgHome ? "chat-home" : "chat-default"}
                 panelRef={chatPanelRef}
                 defaultCollapsed={false}
                 defaultFullWidth={isOrgHome}
