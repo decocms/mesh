@@ -114,7 +114,14 @@ function loadConfig(): Config {
   };
 }
 
-export const config = loadConfig();
+let _config: Config | null = null;
+
+export function getConfig(): Config {
+  if (!_config) {
+    _config = loadConfig();
+  }
+  return _config;
+}
 
 /**
  * Get monitoring configuration with defaults
@@ -122,7 +129,7 @@ export const config = loadConfig();
 export function getMonitoringConfig(): MonitoringConfig {
   return {
     ...DEFAULT_MONITORING_CONFIG,
-    ...config.monitoring,
+    ...getConfig().monitoring,
   };
 }
 
@@ -130,5 +137,5 @@ export function getMonitoringConfig(): MonitoringConfig {
  * Get theme configuration
  */
 export function getThemeConfig(): ThemeConfig | undefined {
-  return config.theme;
+  return getConfig().theme;
 }

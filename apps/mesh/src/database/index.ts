@@ -68,11 +68,19 @@ const defaultPoolOptions = {
   allowExitOnIdle: true,
 };
 
+function getSsl(): boolean {
+  try {
+    return getSettings().databasePgSsl;
+  } catch {
+    return false; // Settings not yet initialized (e.g., during pipeline migrations)
+  }
+}
+
 function createPostgresDatabase(connectionString: string): MeshDatabase {
   const pool = new Pool({
     connectionString,
     max: 10,
-    ssl: getSettings().databasePgSsl,
+    ssl: getSsl(),
     ...defaultPoolOptions,
   });
 
@@ -100,7 +108,7 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     pool: new Pool({
       connectionString: url,
       max: 10,
-      ssl: getSettings().databasePgSsl,
+      ssl: getSsl(),
       ...defaultPoolOptions,
     }),
   });

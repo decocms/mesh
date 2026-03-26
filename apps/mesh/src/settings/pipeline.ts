@@ -31,10 +31,15 @@ export async function buildSettings(flags: CliFlags): Promise<Settings> {
   // 4. Run migrations (pass a database instance directly since settings
   //    aren't frozen yet — getDb()/getSettings() aren't available)
   if (!config.skipMigrations) {
+    // Better Auth migrations must run first (creates organization table etc.)
+    const { migrateBetterAuth } = await import("../auth/migrate");
+    await migrateBetterAuth(serviceOutputs.databaseUrl);
+
+    // Then Kysely migrations (reference Better Auth tables)
     const { createDatabase } = await import("../database/index");
     const { migrateToLatest } = await import("../database/migrate");
     const database = createDatabase(serviceOutputs.databaseUrl);
-    await migrateToLatest({ keepOpen: true, database });
+    await migrateToLatest({ keepOpen: true, database, skipBetterAuth: true });
   }
 
   // 5. Assemble and freeze
