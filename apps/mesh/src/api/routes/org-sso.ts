@@ -10,7 +10,7 @@
 import { Hono } from "hono";
 import { setCookie, getCookie } from "hono/cookie";
 import * as jose from "jose";
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 import type { MeshContext } from "../../core/mesh-context";
 import { ADMIN_ROLES } from "../../auth/roles";
 
@@ -472,7 +472,7 @@ function validateOIDCUrl(url: string): void {
   }
 
   // Enforce HTTPS in production (allow HTTP for local dev)
-  const allowHttp = env.NODE_ENV !== "production";
+  const allowHttp = getSettings().nodeEnv !== "production";
   if (
     parsed.protocol !== "https:" &&
     !(allowHttp && parsed.protocol === "http:")

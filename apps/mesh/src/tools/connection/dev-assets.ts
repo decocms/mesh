@@ -6,7 +6,7 @@
  * functionality without requiring an external S3 bucket.
  */
 
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 import { OBJECT_STORAGE_BINDING } from "@decocms/bindings/object-storage";
 import {
   getWellKnownDevAssetsConnection,
@@ -36,7 +36,7 @@ const DEV_ASSETS_TOOLS: ToolDefinition[] = OBJECT_STORAGE_BINDING.map(
  * Check if we're running in dev mode
  */
 export function isDevMode(): boolean {
-  return env.NODE_ENV !== "production";
+  return getSettings().nodeEnv !== "production";
 }
 
 /**

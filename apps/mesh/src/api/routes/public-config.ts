@@ -9,7 +9,7 @@ import { Hono } from "hono";
 import { getThemeConfig, type ThemeConfig } from "@/core/config";
 import { isLocalMode } from "@/auth/local-mode";
 import { getInternalUrl } from "@/core/server-constants";
-import { env } from "@/env";
+import { getSettings } from "@/settings";
 
 const app = new Hono();
 
@@ -48,7 +48,7 @@ app.get("/", (c) => {
     theme: getThemeConfig(),
     // Only expose internalUrl in local mode — production uses the public URL directly
     ...(isLocalMode() && { internalUrl: getInternalUrl() }),
-    ...(env.ENABLE_DECO_IMPORT && { enableDecoImport: true }),
+    ...(getSettings().enableDecoImport && { enableDecoImport: true }),
   };
 
   return c.json({ success: true, config });

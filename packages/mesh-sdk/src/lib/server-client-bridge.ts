@@ -90,9 +90,18 @@ export function createServerFromClient(
   // Set up request handlers that delegate to client methods
 
   // Tools handlers
-  server.server.setRequestHandler(ListToolsRequestSchema, () =>
-    client.listTools(),
-  );
+  // Strip outputSchema from tools so downstream clients (e.g. the browser's
+  // MCP Client) don't cache validators and reject structuredContent that
+  // doesn't perfectly match the downstream server's declared schema.
+  // A proxy should pass through responses as-is — validation is the
+  // responsibility of the originating server, not intermediaries.
+  server.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const result = await client.listTools();
+    return {
+      ...result,
+      tools: result.tools.map(({ outputSchema: _, ...tool }) => tool),
+    };
+  });
 
   server.server.setRequestHandler(CallToolRequestSchema, (request) =>
     client.callTool(

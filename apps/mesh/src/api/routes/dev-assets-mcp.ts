@@ -10,7 +10,7 @@
  * Only available when NODE_ENV !== "production"
  */
 
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 import {
   type DeleteObjectInput,
   type DeleteObjectOutput,
@@ -110,7 +110,7 @@ function generateSignature(
   expires: number,
   method: "GET" | "PUT",
 ): string {
-  const secret = env.ENCRYPTION_KEY || "dev-secret";
+  const secret = getSettings().encryptionKey || "dev-secret";
   const data = `${orgId}:${key}:${expires}:${method}`;
   return createHmac("sha256", secret).update(data).digest("hex");
 }

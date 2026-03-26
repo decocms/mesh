@@ -1,0 +1,75 @@
+---
+title: Overview
+description: Open-source control plane for your AI agents
+icon: Info
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+![deco](https://assets.decocache.com/mcp/9a3facd8-1199-4635-becc-bdc3f5ee7ab1/deco-banner-capy.png)
+
+## Open-source control plane for your AI agents.
+
+deco Studio is where you hire agents, connect tools, organize them into projects, and track every token and dollar. Self-host or use the cloud. Built on the [Model Context Protocol](https://modelcontextprotocol.io).
+
+### Agents
+
+Browse and hire AI agents from the built-in store. Each agent comes with specific tool skills and tested prompts. Agents compose — they can call each other. Every action is tracked with cost attribution.
+
+### Connections
+
+Set up MCP connections through the web UI with one-click OAuth. Monitor latency, errors, and costs per connection. Share tools across your team without sharing credentials.
+
+
+### Projects
+
+Projects bring agents and connections together around a goal. The project's UI adapts to what's inside — add a content agent and a CMS connection, the sidebar shows content management; add an analytics agent and a database, it shows dashboards and queries.
+
+### Observability
+
+Token spend per connection. Latency, errors, bottlenecks. Every tool invocation logged with caller identity, inputs, outputs, and timing. One dashboard.
+
+---
+
+### Core Capabilities
+
+| Capability | Description |
+|---|---|
+| **Agents** | Browse, hire, and compose AI agents with cost attribution |
+| **Connections** | Route MCP traffic through one governed endpoint with auth, proxy, and token vault |
+| **Projects** | Organize agents and connections around goals with an adaptive UI |
+| **Virtual MCPs** | Compose and expose governed toolsets as MCP endpoints |
+| **Observability** | Traces, costs, errors, and latency per connection |
+| **Access Control** | RBAC — OAuth 2.1 + API keys per workspace/project |
+| **Multi-tenancy** | Workspace/project isolation for config, credentials, policies, and audit logs |
+| **Event Bus** | Pub/sub between connections with scheduled/cron delivery and at-least-once guarantees |
+
+### Deployment Options
+
+| | |
+|---|---|
+| **Local** | `bunx decocms` — embedded PostgreSQL, fully private |
+| **Cloud** | [studio.decocms.com](https://studio.decocms.com) — control projects from any browser |
+| **Team** | Shared connections, roles, cost attribution |
+| **Enterprise** | Self-hosted on your infrastructure |
+
+---
+
+## Getting Started
+
+**[Quickstart](./quickstart)** — Get running in 5 minutes (cloud or local)
+
+**[Concepts](./concepts)** — Connections, Virtual MCPs, projects, and agents
+
+**[Self-Hosting](./self-hosting/quickstart)** — Docker Compose or Kubernetes
+
+## Links
+
+- **Website**: [decocms.com](https://www.decocms.com/)
+- **Studio**: [studio.decocms.com](https://studio.decocms.com)
+- **GitHub**: [github.com/decocms/studio](https://github.com/decocms/studio)
+- **Discord**: [decocms.com/discord](https://decocms.com/discord)
+
+<Callout type="info">
+  Looking for docs on **deco.chat** (our legacy admin platform)? Select **deco.chat - legacy admin** from the version dropdown in the sidebar.
+</Callout>

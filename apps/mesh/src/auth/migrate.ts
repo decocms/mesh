@@ -4,43 +4,61 @@
  * Runs Better Auth migrations programmatically without requiring the CLI.
  * This gets bundled with the application, avoiding the need for node_modules.
  *
- * IMPORTANT: This file creates a minimal auth configuration to avoid bundling
- * the entire application (tools registry, plugins, etc.) which would cause OOM.
+ * IMPORTANT: Does NOT import auth/index.ts to avoid triggering the full
+ * Better Auth initialization (which requires Settings to be initialized).
+ * Instead, constructs minimal options needed for migration discovery.
  */
 
 import { getMigrations } from "better-auth/db";
-import { auth } from "./index";
+import { sso } from "@better-auth/sso";
+import { organization } from "@decocms/better-auth/plugins";
+import {
+  admin as adminPlugin,
+  apiKey,
+  jwt,
+  magicLink,
+  mcp,
+  openAPI,
+} from "better-auth/plugins";
+import { emailOTP } from "better-auth/plugins/email-otp";
+import { getDatabaseUrl, getDbDialect } from "../database";
 
 /**
- * Create a minimal auth configuration for migrations only.
- * This avoids loading the tools registry and other heavy dependencies.
+ * Run Better Auth migrations programmatically.
  *
- * Note: We use minimal plugin configuration here. The schema will be
- * the same, but the roles/permissions are simplified for migration purposes.
+ * Constructs minimal Better Auth options with just the plugins needed
+ * to discover migration tables, without importing the full auth module
+ * (which would trigger getSettings() at module load time).
  */
+export async function migrateBetterAuth(databaseUrl?: string): Promise<string> {
+  const freshDatabase = getDbDialect(databaseUrl || getDatabaseUrl());
 
-/**
- * Run Better Auth migrations programmatically
- */
-export async function migrateBetterAuth(): Promise<string> {
-  try {
-    const { toBeAdded, toBeCreated, runMigrations } = await getMigrations(
-      auth.options,
-    );
+  // Minimal options — only needs plugins to discover which tables to create.
+  // Does not need auth config, rate limiting, hooks, etc.
+  const options = {
+    database: freshDatabase,
+    plugins: [
+      organization(),
+      adminPlugin(),
+      apiKey(),
+      jwt(),
+      openAPI(),
+      mcp({ loginPage: "/login" }),
+      sso(),
+      magicLink({ sendMagicLink: async () => {} }),
+      emailOTP({ sendVerificationOTP: async () => {} }),
+    ],
+  };
 
-    if (!toBeAdded.length && !toBeCreated.length) {
-      return "up to date";
-    }
+  const { toBeAdded, toBeCreated, runMigrations } =
+    await getMigrations(options);
 
-    await runMigrations();
-
-    const count = toBeCreated.length + toBeAdded.length;
-    return `${count} table(s) migrated`;
-  } catch (error) {
-    console.warn(
-      "Better Auth migration failed (tables may be created on first use):",
-      error,
-    );
-    return "failed (will retry on first use)";
+  if (!toBeAdded.length && !toBeCreated.length) {
+    return "up to date";
   }
+
+  await runMigrations();
+
+  const count = toBeCreated.length + toBeAdded.length;
+  return `${count} table(s) migrated`;
 }
