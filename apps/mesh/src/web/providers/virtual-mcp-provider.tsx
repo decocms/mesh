@@ -10,11 +10,10 @@
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
 import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
-import { SplashScreen } from "@/web/components/splash-screen";
 import { EmptyState } from "@/web/components/empty-state";
 import { AlertCircle } from "@untitledui/icons";
 import {
@@ -80,7 +79,6 @@ function VirtualMCPProviderContent({
   const search = useSearch({ from: "/shell/$org/$virtualMcpId/" }) as {
     main?: string;
     id?: string;
-    automationId?: string;
     toolName?: string;
     taskId?: string;
   };
@@ -90,7 +88,7 @@ function VirtualMCPProviderContent({
   if (search.main === "settings") {
     mainView = { type: "settings" };
   } else if (search.main === "automation") {
-    const id = search.automationId ?? search.id ?? "";
+    const id = search.id ?? "";
     mainView = id ? { type: "automation", id } : { type: "settings" };
   } else if (search.main === "ext-apps") {
     const id = search.id ?? "";
@@ -126,9 +124,6 @@ function VirtualMCPProviderContent({
     const searchParams: Record<string, string | undefined> = { main };
     if (opts?.id) searchParams.id = opts.id;
     if (opts?.toolName) searchParams.toolName = opts.toolName;
-    if (main === "automation" && opts?.id) {
-      searchParams.automationId = opts.id;
-    }
 
     navigate({
       to: routeBase,
@@ -160,10 +155,8 @@ export function VirtualMCPProvider({
   children: ReactNode;
 }) {
   return (
-    <Suspense fallback={<SplashScreen />}>
-      <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
-        {children}
-      </VirtualMCPProviderContent>
-    </Suspense>
+    <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
+      {children}
+    </VirtualMCPProviderContent>
   );
 }

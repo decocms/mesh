@@ -6,13 +6,7 @@
  */
 
 import { Outlet } from "@tanstack/react-router";
-import { Suspense } from "react";
-import { SplashScreen } from "@/web/components/splash-screen";
 
 export default function OrgLayout() {
-  return (
-    <Suspense fallback={<SplashScreen />}>
-      <Outlet />
-    </Suspense>
-  );
+  return <Outlet />;
 }

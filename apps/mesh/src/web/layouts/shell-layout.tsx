@@ -6,7 +6,6 @@ import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dia
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
 import { SettingsSidebar } from "@/web/layouts/settings-layout";
-import { SplashScreen } from "@/web/components/splash-screen";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import { PanelContextProvider } from "@/web/contexts/panel-context";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
@@ -32,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutLeft,
+  Loading01,
   Menu01,
   MessageTextCircle02,
 } from "@untitledui/icons";
@@ -189,8 +189,13 @@ function ShellProjectProvider({
   );
 }
 
-function PersistentSidebarProvider({ children }: PropsWithChildren) {
-  return <SidebarProvider>{children}</SidebarProvider>;
+function PersistentSidebarProvider({
+  children,
+  defaultOpen,
+}: PropsWithChildren<{ defaultOpen?: boolean }>) {
+  return (
+    <SidebarProvider defaultOpen={defaultOpen}>{children}</SidebarProvider>
+  );
 }
 
 function OptionalAgentProvider({
@@ -496,85 +501,109 @@ function ShellLayoutInner({
             )}
           </div>
 
-          <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
-            <Chat.Provider
-              key={chatVirtualMcpId}
-              virtualMcpId={chatVirtualMcpId}
-            >
-              <ResizablePanelGroup
-                direction="horizontal"
-                className="flex-1 min-h-0"
-                style={{ overflow: "visible" }}
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+              <Chat.Provider
+                key={chatVirtualMcpId}
+                virtualMcpId={chatVirtualMcpId}
               >
-                {showThreePanels && (
-                  <>
-                    <PersistentTasksResizablePanel
-                      panelRef={tasksPanelRef}
-                      defaultCollapsed={!isAgentRoute}
-                      onCollapse={() => setTasksOpen(false)}
-                      onExpand={() => setTasksOpen(true)}
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  className="flex-1 min-h-0"
+                  style={{ overflow: "visible" }}
+                >
+                  {showThreePanels && (
+                    <>
+                      <PersistentTasksResizablePanel
+                        panelRef={tasksPanelRef}
+                        defaultCollapsed={!isAgentRoute}
+                        onCollapse={() => setTasksOpen(false)}
+                        onExpand={() => setTasksOpen(true)}
+                      >
+                        <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                            <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                          </div>
+                        </div>
+                      </PersistentTasksResizablePanel>
+                      <ResizableHandle className="bg-sidebar" />
+                    </>
+                  )}
+
+                  {!isOrgHome && (
+                    <ResizablePanel
+                      ref={mainPanelRef}
+                      className="min-w-0 flex flex-col"
+                      order={2}
+                      style={{ overflow: "visible" }}
+                      collapsible={isAgentRoute}
+                      collapsedSize={0}
+                      minSize={isAgentRoute ? 20 : undefined}
+                      onCollapse={() => setMainOpen(false)}
+                      onExpand={() => setMainOpen(true)}
                     >
                       <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
-                        <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                          <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                        <div
+                          className={cn(
+                            "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                            "border border-sidebar-border shadow-sm",
+                            "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                            "rounded-[0.75rem]",
+                          )}
+                        >
+                          <Suspense
+                            fallback={
+                              <div className="flex-1 flex items-center justify-center">
+                                <Loading01
+                                  size={20}
+                                  className="animate-spin text-muted-foreground"
+                                />
+                              </div>
+                            }
+                          >
+                            <div className="flex-1 overflow-hidden">
+                              <Outlet />
+                            </div>
+                          </Suspense>
                         </div>
                       </div>
-                    </PersistentTasksResizablePanel>
-                    <ResizableHandle className="bg-sidebar" />
-                  </>
-                )}
+                    </ResizablePanel>
+                  )}
 
-                {!isOrgHome && (
-                  <ResizablePanel
-                    ref={mainPanelRef}
-                    className="min-w-0 flex flex-col"
-                    order={2}
-                    style={{ overflow: "visible" }}
-                    collapsible={isAgentRoute}
-                    collapsedSize={0}
-                    minSize={isAgentRoute ? 20 : undefined}
-                    onCollapse={() => setMainOpen(false)}
-                    onExpand={() => setMainOpen(true)}
-                  >
-                    <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
-                      <div
-                        className={cn(
-                          "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                          "border border-sidebar-border shadow-sm",
-                          "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                          "rounded-[0.75rem]",
-                        )}
+                  {showThreePanels && (
+                    <>
+                      <ResizableHandle className="bg-sidebar" />
+                      <PersistentResizablePanel
+                        key={isOrgHome ? "chat-home" : "chat-default"}
+                        panelRef={chatPanelRef}
+                        defaultCollapsed={false}
+                        defaultFullWidth={isOrgHome}
+                        onCollapse={() => setChatOpen(false)}
+                        onExpand={() => setChatOpen(true)}
                       >
-                        <div className="flex-1 overflow-hidden">
-                          <Outlet />
+                        <div className="h-full pr-1.5 pb-1.5">
+                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                            <ChatPanel
+                              variant={isOrgHome ? "home" : undefined}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </ResizablePanel>
-                )}
-
-                {showThreePanels && (
-                  <>
-                    <ResizableHandle className="bg-sidebar" />
-                    <PersistentResizablePanel
-                      key={isOrgHome ? "chat-home" : "chat-default"}
-                      panelRef={chatPanelRef}
-                      defaultCollapsed={false}
-                      defaultFullWidth={isOrgHome}
-                      onCollapse={() => setChatOpen(false)}
-                      onExpand={() => setChatOpen(true)}
-                    >
-                      <div className="h-full pr-1.5 pb-1.5">
-                        <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                          <ChatPanel variant={isOrgHome ? "home" : undefined} />
-                        </div>
-                      </div>
-                    </PersistentResizablePanel>
-                  </>
-                )}
-              </ResizablePanelGroup>
-            </Chat.Provider>
-          </OptionalAgentProvider>
+                      </PersistentResizablePanel>
+                    </>
+                  )}
+                </ResizablePanelGroup>
+              </Chat.Provider>
+            </OptionalAgentProvider>
+          </Suspense>
         </SidebarInset>
       </SidebarLayout>
     </PanelContextProvider>
@@ -669,7 +698,7 @@ function ShellLayoutContent() {
 
   return (
     <ShellProjectProvider org={activeOrg}>
-      <PersistentSidebarProvider>
+      <PersistentSidebarProvider defaultOpen={isSettingsRoute}>
         <div className="flex flex-col h-dvh overflow-hidden">
           <ShellLayoutInner
             isAgentRoute={isAgentRoute}
@@ -691,9 +720,7 @@ function ShellLayoutContent() {
 export default function ShellLayout() {
   return (
     <RequiredAuthLayout>
-      <Suspense fallback={<SplashScreen />}>
-        <ShellLayoutContent />
-      </Suspense>
+      <ShellLayoutContent />
     </RequiredAuthLayout>
   );
 }

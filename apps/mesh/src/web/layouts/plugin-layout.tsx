@@ -29,7 +29,7 @@ import {
 import { authClient } from "@/web/lib/auth-client";
 import { Outlet, useParams, Link } from "@tanstack/react-router";
 import { Loading01, Settings01 } from "@untitledui/icons";
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -254,19 +254,7 @@ export function PluginLayout({
     <PluginContextProvider value={pluginContext}>
       <Page>
         <Page.Content>
-          <Suspense
-            fallback={
-              <div className="flex flex-col items-center justify-center h-full">
-                <Loading01
-                  size={32}
-                  className="animate-spin text-muted-foreground mb-4"
-                />
-                <p className="text-sm text-muted-foreground">Loading...</p>
-              </div>
-            }
-          >
-            <Outlet />
-          </Suspense>
+          <Outlet />
         </Page.Content>
       </Page>
     </PluginContextProvider>

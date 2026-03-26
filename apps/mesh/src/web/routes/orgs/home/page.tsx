@@ -43,7 +43,7 @@ function AutomationDetailContent({ automationId }: { automationId: string }) {
       automationId={automationId}
       onBack={() =>
         navigate({
-          search: { main: undefined, automationId: undefined } as never,
+          search: { main: undefined, id: undefined } as never,
           replace: true,
         })
       }
@@ -52,20 +52,13 @@ function AutomationDetailContent({ automationId }: { automationId: string }) {
 }
 
 export default function OrgHomePage() {
-  const { view, main, automationId } = useSearch({ from: "/shell/$org/" }) as {
+  const { view, main, id } = useSearch({ from: "/shell/$org/" }) as {
     view?: string;
     main?: string;
-    automationId?: string;
+    id?: string;
   };
 
-  console.log("[OrgHomePage]", {
-    view,
-    main,
-    automationId,
-    currentUrl: window.location.href,
-  });
-
-  if (main === "automation" && automationId) {
+  if (main === "automation" && id) {
     return (
       <ErrorBoundary>
         <Suspense
@@ -78,7 +71,7 @@ export default function OrgHomePage() {
             </div>
           }
         >
-          <AutomationDetailContent automationId={automationId} />
+          <AutomationDetailContent automationId={id} />
         </Suspense>
       </ErrorBoundary>
     );

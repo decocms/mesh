@@ -24,6 +24,7 @@ import { ErrorBoundary } from "../error-boundary";
 import { Chat, useChat } from "./index";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useOptionalAgentContext } from "@/web/contexts/agent-context";
 
@@ -285,19 +286,47 @@ function TasksPanelContent({
   );
 }
 
+function TasksPanelSkeleton() {
+  return (
+    <div className="flex flex-col h-full animate-pulse">
+      {/* Header skeleton */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+        <Skeleton className="size-8 rounded-lg shrink-0" />
+        <div className="flex flex-col flex-1 min-w-0 gap-1.5">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-36" />
+        </div>
+      </div>
+
+      {/* Nav items skeleton */}
+      <div className="py-2 flex flex-col gap-0.5 mx-2">
+        <div className="flex items-center gap-2.5 px-3 py-2">
+          <Skeleton className="size-3.5 rounded shrink-0" />
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+        <div className="flex items-center gap-2.5 px-3 py-2">
+          <Skeleton className="size-3.5 rounded shrink-0" />
+          <Skeleton className="h-3.5 w-14" />
+        </div>
+      </div>
+
+      {/* Task rows skeleton */}
+      <div className="flex flex-col gap-1 px-4 pt-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex flex-col gap-1.5 py-2">
+            <Skeleton className="h-3.5 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TasksSidePanel({ virtualMcpId }: { virtualMcpId?: string }) {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center">
-            <Loading01
-              size={16}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
+      <Suspense fallback={<TasksPanelSkeleton />}>
         <TasksPanelContent virtualMcpId={virtualMcpId} />
       </Suspense>
     </ErrorBoundary>

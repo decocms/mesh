@@ -1,8 +1,7 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { Loading01 } from "@untitledui/icons";
-import { Suspense, lazy } from "react";
+import { lazy } from "react";
 import {
   useAgentContext,
   type MainView,
@@ -60,21 +59,10 @@ function AgentHomeContent() {
 
   if (resolved.type === "ext-apps") {
     return (
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">Loading app...</span>
-            </div>
-          </div>
-        }
-      >
-        <ProjectAppViewContent
-          connectionId={resolved.id}
-          toolName={resolved.toolName ?? ""}
-        />
-      </Suspense>
+      <ProjectAppViewContent
+        connectionId={resolved.id}
+        toolName={resolved.toolName ?? ""}
+      />
     );
   }
 
@@ -87,18 +75,7 @@ function AgentHomeContent() {
 export default function AgentHomePage() {
   return (
     <ErrorBoundary>
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center bg-background">
-            <Loading01
-              size={32}
-              className="animate-spin text-muted-foreground"
-            />
-          </div>
-        }
-      >
-        <AgentHomeContent />
-      </Suspense>
+      <AgentHomeContent />
     </ErrorBoundary>
   );
 }

@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 
+const SIDEBAR_WIDTH = "15rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "4.5rem";
 
@@ -49,7 +50,13 @@ function useSidebar() {
   return context;
 }
 
-function SidebarProvider({ children }: { children: React.ReactNode }) {
+function SidebarProvider({
+  children,
+  defaultOpen = false,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
@@ -59,15 +66,15 @@ function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
-      state: "collapsed" as const,
-      open: false,
+      state: defaultOpen ? ("expanded" as const) : ("collapsed" as const),
+      open: defaultOpen,
       setOpen: () => {},
       isMobile,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [defaultOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
   );
 
   return (
@@ -88,6 +95,7 @@ function SidebarLayout({
       data-slot="sidebar-wrapper"
       style={
         {
+          "--sidebar-width": SIDEBAR_WIDTH,
           "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
           ...style,
         } as React.CSSProperties
@@ -113,7 +121,7 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
 }) {
-  const { isMobile, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (isMobile) {
     return (
@@ -140,14 +148,16 @@ function Sidebar({
     );
   }
 
+  const isExpanded = state === "expanded";
+
   return (
     <div
       className={cn(
-        "group peer text-sidebar-foreground hidden md:flex flex-col shrink-0 overflow-hidden",
-        "w-(--sidebar-width-icon)",
+        "group/sidebar peer text-sidebar-foreground hidden md:flex flex-col shrink-0 overflow-hidden",
+        isExpanded ? "w-(--sidebar-width)" : "w-(--sidebar-width-icon)",
       )}
-      data-state="collapsed"
-      data-collapsible="icon"
+      data-state={state}
+      data-collapsible={isExpanded ? undefined : "icon"}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
@@ -155,7 +165,8 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "flex flex-col h-full w-(--sidebar-width-icon)",
+          "flex flex-col h-full",
+          isExpanded ? "w-(--sidebar-width)" : "w-(--sidebar-width-icon)",
           className,
         )}
         {...props}
@@ -358,7 +369,7 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
       data-slot="sidebar-menu"
       data-sidebar="menu"
       className={cn(
-        "flex w-full min-w-0 flex-col gap-1 items-center",
+        "flex w-full min-w-0 flex-col gap-1 group-data-[state=collapsed]/sidebar:items-center",
         className,
       )}
       {...props}
@@ -387,7 +398,8 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
-        default: "w-full! aspect-square! h-auto! p-0! justify-center text-sm",
+        default:
+          "group-data-[state=expanded]/sidebar:h-8 group-data-[state=expanded]/sidebar:px-2 group-data-[state=collapsed]/sidebar:w-full! group-data-[state=collapsed]/sidebar:aspect-square! group-data-[state=collapsed]/sidebar:h-auto! group-data-[state=collapsed]/sidebar:p-0! group-data-[state=collapsed]/sidebar:justify-center text-sm",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm p-0!",
       },

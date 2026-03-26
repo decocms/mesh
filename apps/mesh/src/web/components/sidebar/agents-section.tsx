@@ -92,95 +92,98 @@ function AgentListItem({
 
   return (
     <ContextMenu>
-    <SidebarMenuItem className={cn(buttonRect && "z-[55]")}>
-      <ContextMenuTrigger asChild>
-      <SidebarMenuButton
-        tooltip={buttonRect ? undefined : agent.title}
-        isActive={isActive}
-        onClick={() => {
-          onMarkSeen?.();
-          navigateToNewTask(agent.id);
-        }}
-        onMouseEnter={handleIconMouseEnter}
-        onMouseLeave={handleIconMouseLeave}
-      >
-        <AgentAvatar
-          icon={agent.icon}
-          name={agent.title}
-          size="xs"
-          className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
-        />
-        {hasBadge && !isActive && (
-          <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
-        )}
-      </SidebarMenuButton>
-      </ContextMenuTrigger>
-
-      <ContextMenuContent>
-        <ContextMenuItem
-          onClick={() => {
-            onMarkSeen?.();
-            navigate({
-              to: "/$org/$virtualMcpId",
-              params: { org, virtualMcpId: agent.id },
-            });
-          }}
-        >
-          <Settings01 size={14} />
-          Settings
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => {
-            actions.update.mutate({ id: agent.id, data: { pinned: false } });
-            if (isActive) {
-              navigate({ to: "/$org", params: { org } });
-            }
-          }}
-          className=""
-        >
-          <X size={14} />
-          Unpin
-        </ContextMenuItem>
-      </ContextMenuContent>
-
-      {buttonRect &&
-        createPortal(
-          <button
-            ref={xRef}
-            type="button"
-            onMouseLeave={() => setButtonRect(null)}
-            onClick={(e) => {
-              e.stopPropagation();
-              setButtonRect(null);
-              actions.update.mutate({ id: agent.id, data: { pinned: false } });
-              navigate({ to: "/$org", params: { org } });
+      <SidebarMenuItem className={cn(buttonRect && "z-[55]")}>
+        <ContextMenuTrigger asChild>
+          <SidebarMenuButton
+            tooltip={buttonRect ? undefined : agent.title}
+            isActive={isActive}
+            onClick={() => {
+              onMarkSeen?.();
+              navigateToNewTask(agent.id);
             }}
-            className={cn(
-              "flex items-center justify-center",
-              "bg-sidebar-accent text-muted-foreground",
-              "rounded-xl cursor-pointer",
-              "animate-in fade-in-0 slide-in-from-right-2",
-              "duration-150 [animation-timing-function:cubic-bezier(0.165,0.84,0.44,1)]",
-              "hover:text-foreground transition-colors",
+            onMouseEnter={handleIconMouseEnter}
+            onMouseLeave={handleIconMouseLeave}
+          >
+            <AgentAvatar
+              icon={agent.icon}
+              name={agent.title}
+              size="xs"
+              className="w-full h-full [&_svg]:w-1/2 [&_svg]:h-1/2"
+            />
+            {hasBadge && !isActive && (
+              <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-sidebar pointer-events-none" />
             )}
-            style={{
-              position: "fixed",
-              top: buttonRect.top,
-              left: buttonRect.left,
-              height: buttonRect.height,
-              width: xTotalWidth,
-              paddingLeft: buttonRect.width,
-              zIndex: 50,
-              boxShadow:
-                "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+          </SidebarMenuButton>
+        </ContextMenuTrigger>
+
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={() => {
+              onMarkSeen?.();
+              navigate({
+                to: "/$org/$virtualMcpId",
+                params: { org, virtualMcpId: agent.id },
+              });
             }}
           >
+            <Settings01 size={14} />
+            Settings
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => {
+              actions.update.mutate({ id: agent.id, data: { pinned: false } });
+              if (isActive) {
+                navigate({ to: "/$org", params: { org } });
+              }
+            }}
+            className=""
+          >
             <X size={14} />
-          </button>,
-          document.body,
-        )}
-    </SidebarMenuItem>
+            Unpin
+          </ContextMenuItem>
+        </ContextMenuContent>
+
+        {buttonRect &&
+          createPortal(
+            <button
+              ref={xRef}
+              type="button"
+              onMouseLeave={() => setButtonRect(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setButtonRect(null);
+                actions.update.mutate({
+                  id: agent.id,
+                  data: { pinned: false },
+                });
+                navigate({ to: "/$org", params: { org } });
+              }}
+              className={cn(
+                "flex items-center justify-center",
+                "bg-sidebar-accent text-muted-foreground",
+                "rounded-xl cursor-pointer",
+                "animate-in fade-in-0 slide-in-from-right-2",
+                "duration-150 [animation-timing-function:cubic-bezier(0.165,0.84,0.44,1)]",
+                "hover:text-foreground transition-colors",
+              )}
+              style={{
+                position: "fixed",
+                top: buttonRect.top,
+                left: buttonRect.left,
+                height: buttonRect.height,
+                width: xTotalWidth,
+                paddingLeft: buttonRect.width,
+                zIndex: 50,
+                boxShadow:
+                  "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
+              }}
+            >
+              <X size={14} />
+            </button>,
+            document.body,
+          )}
+      </SidebarMenuItem>
     </ContextMenu>
   );
 }

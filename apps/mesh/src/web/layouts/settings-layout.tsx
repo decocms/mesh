@@ -4,8 +4,6 @@ import {
   useRouterState,
   useParams,
 } from "@tanstack/react-router";
-import { Suspense } from "react";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
   Sidebar,
   SidebarContent,
@@ -27,19 +25,6 @@ import {
   Users03,
   Zap,
 } from "@untitledui/icons";
-
-function ContentSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 pt-2">
-      <Skeleton className="h-6 w-48" />
-      <Skeleton className="h-4 w-80" />
-      <div className="mt-4 flex flex-col gap-3">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </div>
-    </div>
-  );
-}
 
 interface SettingsNavItem {
   key: string;
@@ -127,7 +112,7 @@ export function SettingsSidebar() {
     <Sidebar variant="sidebar">
       <SidebarContent className="flex flex-col flex-1 overflow-x-hidden mt-2 px-2 pb-2 gap-0">
         {/* Back to org */}
-        <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
+        <SidebarGroup className="pt-0 pr-0 pb-3 md:pb-3 pl-0">
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
               <SidebarMenuItem>
@@ -189,15 +174,7 @@ export default function SettingsLayout() {
   return (
     <PageContentClassNameProvider value="p-0">
       <div className="flex-1 min-w-0 overflow-hidden h-full">
-        <Suspense
-          fallback={
-            <div className="p-0">
-              <ContentSkeleton />
-            </div>
-          }
-        >
-          <Outlet />
-        </Suspense>
+        <Outlet />
       </div>
     </PageContentClassNameProvider>
   );

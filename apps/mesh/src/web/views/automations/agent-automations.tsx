@@ -20,7 +20,7 @@ function AgentAutomationsContent() {
   const search = useSearch({
     from: "/shell/$org/$virtualMcpId/automations",
   }) as {
-    automationId?: string;
+    id?: string;
   };
   return (
     <Page>
@@ -38,7 +38,7 @@ function AgentAutomationsContent() {
       <Page.Content>
         <AutomationsTabContent
           virtualMcpId={virtualMcpId}
-          selectedAutomationId={search.automationId}
+          selectedAutomationId={search.id}
         />
       </Page.Content>
     </Page>

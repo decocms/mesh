@@ -383,7 +383,6 @@ const agentHomeRoute = createRoute({
       .transform((v) => v ?? crypto.randomUUID()),
     main: z.string().optional(),
     id: z.string().optional(),
-    automationId: z.string().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });
@@ -406,7 +405,7 @@ const agentWorkflowsRoute = createRoute({
 const agentAutomationsRoute = createRoute({
   getParentRoute: () => agentsLayout,
   path: "/automations",
-  validateSearch: z.object({ automationId: z.string().optional() }),
+  validateSearch: z.object({ id: z.string().optional() }),
   component: lazyRouteComponent(
     () => import("./views/automations/agent-automations.tsx"),
   ),

@@ -111,9 +111,9 @@ export function AutomationsTabContent({
     (a) => a.agent?.id === virtualMcpId,
   );
 
-  const selectAutomation = (automationId: string | undefined) => {
+  const selectAutomation = (id: string | undefined) => {
     navigate({
-      search: { automationId } as never,
+      search: { id } as never,
       replace: true,
     });
   };
