@@ -193,85 +193,100 @@ export const prometheusExporter = new PrometheusExporter({
 const headSampler = new DebugSampler(new RatioSampler(HEAD_SAMPLER_RATIO));
 
 /**
- * Select trace exporter based on environment.
+ * Observability state — initialized lazily via initObservability().
  *
- * When CLICKHOUSE_URL is set, spans are also sent to an OTel Collector
- * via OTLP (which forwards to ClickHouse).
+ * The tracer/meter/logger are available immediately (they use OTel API
+ * no-ops until the SDK is started), but the NDJSON exporters and SDK
+ * require Settings and must wait until after buildSettings() completes.
  */
-const _settings = getSettings();
-
-const traceExporter = _settings.clickhouseUrl
-  ? new OTLPTraceExporter()
-  : undefined;
-
-// Always create local NDJSON exporters (skip only in tests — they create
-// timers and write to disk, neither of which is needed when running `bun test`).
-const monitoringLogExporter =
-  _settings.nodeEnv === "test"
-    ? null
-    : new NDJSONLogExporter({ basePath: getLogsDir() });
-
-const monitoringTraceExporter =
-  _settings.nodeEnv === "test"
-    ? null
-    : new NDJSONTraceExporter({ basePath: getTracesDir() });
-
-const monitoringMetricExporter =
-  _settings.nodeEnv === "test"
-    ? null
-    : new NDJSONMetricExporter({ basePath: getMetricsDir() });
-
-const monitoringMetricReader = monitoringMetricExporter
-  ? new PeriodicExportingMetricReader({
-      exporter: monitoringMetricExporter,
-      exportIntervalMillis: 60_000,
-    })
-  : null;
+let monitoringLogExporter: NDJSONLogExporter | null = null;
+let monitoringTraceExporter: NDJSONTraceExporter | null = null;
+let monitoringMetricExporter: NDJSONMetricExporter | null = null;
+let monitoringMetricReader: PeriodicExportingMetricReader | null = null;
+let _initialized = false;
 
 /**
- * Initialize OpenTelemetry SDK
+ * Initialize the OpenTelemetry SDK with settings-dependent configuration.
+ *
+ * Must be called after buildSettings() completes. Safe to call multiple
+ * times — subsequent calls are no-ops.
  */
-const sdk = new NodeSDK({
-  serviceName: _settings.otelServiceName,
-  traceExporter,
-  metricReaders: [
-    prometheusExporter,
-    ...(monitoringMetricReader ? [monitoringMetricReader] : []),
-  ],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sampler: headSampler,
-  spanProcessors: [
-    ...(monitoringTraceExporter
-      ? [
-          new BatchSpanProcessor(monitoringTraceExporter, {
-            scheduledDelayMillis: 60_000,
-            maxExportBatchSize: 1000,
-          }),
-        ]
-      : []),
-  ],
-  logRecordProcessors: [
-    ...(_settings.clickhouseUrl
-      ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
-      : []),
-    ...(monitoringLogExporter
-      ? [
-          new BatchLogRecordProcessor(monitoringLogExporter, {
-            scheduledDelayMillis: 60_000,
-            maxExportBatchSize: 1000,
-          }),
-        ]
-      : []),
-  ],
-  instrumentations: [new RuntimeNodeInstrumentation()],
-});
+export function initObservability(): void {
+  if (_initialized) return;
+  _initialized = true;
 
-// Start SDK to enable metric collection and tracing
-sdk.start();
+  const _settings = getSettings();
 
-// Enable custom Bun fetch instrumentation (must be after SDK start)
-// This wraps global fetch with tracing since Bun's fetch doesn't use undici
-enableFetchInstrumentation();
+  const traceExporter = _settings.clickhouseUrl
+    ? new OTLPTraceExporter()
+    : undefined;
+
+  // Always create local NDJSON exporters (skip only in tests — they create
+  // timers and write to disk, neither of which is needed when running `bun test`).
+  monitoringLogExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONLogExporter({ basePath: getLogsDir() });
+
+  monitoringTraceExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONTraceExporter({ basePath: getTracesDir() });
+
+  monitoringMetricExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONMetricExporter({ basePath: getMetricsDir() });
+
+  monitoringMetricReader = monitoringMetricExporter
+    ? new PeriodicExportingMetricReader({
+        exporter: monitoringMetricExporter,
+        exportIntervalMillis: 60_000,
+      })
+    : null;
+
+  const sdk = new NodeSDK({
+    serviceName: _settings.otelServiceName,
+    traceExporter,
+    metricReaders: [
+      prometheusExporter,
+      ...(monitoringMetricReader ? [monitoringMetricReader] : []),
+    ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sampler: headSampler,
+    spanProcessors: [
+      ...(monitoringTraceExporter
+        ? [
+            new BatchSpanProcessor(monitoringTraceExporter, {
+              scheduledDelayMillis: 60_000,
+              maxExportBatchSize: 1000,
+            }),
+          ]
+        : []),
+    ],
+    logRecordProcessors: [
+      ...(_settings.clickhouseUrl
+        ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
+        : []),
+      ...(monitoringLogExporter
+        ? [
+            new BatchLogRecordProcessor(monitoringLogExporter, {
+              scheduledDelayMillis: 60_000,
+              maxExportBatchSize: 1000,
+            }),
+          ]
+        : []),
+    ],
+    instrumentations: [new RuntimeNodeInstrumentation()],
+  });
+
+  // Start SDK to enable metric collection and tracing
+  sdk.start();
+
+  // Enable custom Bun fetch instrumentation (must be after SDK start)
+  // This wraps global fetch with tracing since Bun's fetch doesn't use undici
+  enableFetchInstrumentation();
+}
 
 /**
  * Get tracer instance

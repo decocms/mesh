@@ -6,8 +6,9 @@
  * Or: bun run src/index.ts
  */
 
-// Import observability module early to initialize OpenTelemetry SDK
-import "./observability";
+// Initialize OpenTelemetry SDK (must be called after buildSettings())
+import { initObservability } from "./observability";
+initObservability();
 
 import {
   createAssetHandler,
