@@ -14,7 +14,6 @@ import {
   LayoutLeft,
   Loading01,
   MessageTextCircle02,
-  RefreshCcw01,
   Settings01,
 } from "@untitledui/icons";
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -234,7 +233,6 @@ function TasksPanelContent({
     (spacesMatch ?? projectsMatch)?.params.virtualMcpId ??
     null;
 
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const allSpaces = useVirtualMCPs();
   const project = virtualMcpId
     ? (allSpaces.find((s) => s.id === virtualMcpId) ?? null)
@@ -274,24 +272,6 @@ function TasksPanelContent({
           isPending={isPending}
           label="New task"
         />
-        {project && (
-          <button
-            type="button"
-            onClick={() =>
-              navigate({
-                to: "/$org/projects/$virtualMcpId/automations",
-                params: { org: org.slug, virtualMcpId: project.id },
-              })
-            }
-            className={cn(
-              navItemClass,
-              pathname.includes("/automations") && "bg-accent text-foreground",
-            )}
-          >
-            <RefreshCcw01 size={14} className="shrink-0" />
-            Automations
-          </button>
-        )}
         {project && (
           <button
             type="button"

@@ -138,11 +138,7 @@ app.get("/", async (c) => {
   const { supabaseUrl, serviceKey } = config;
 
   try {
-    const profileId = await resolveProfileId(
-      supabaseUrl,
-      serviceKey,
-      email,
-    );
+    const profileId = await resolveProfileId(supabaseUrl, serviceKey, email);
     if (!profileId) {
       return c.json({ sites: [] });
     }

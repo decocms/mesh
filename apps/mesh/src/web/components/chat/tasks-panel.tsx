@@ -488,12 +488,14 @@ function IncomingSection({
 
   const navigateToAutomation = (automationId?: string) => {
     const routeBase = spacesMatch
-      ? "/shell/$org/spaces/$virtualMcpId/automations"
-      : "/shell/$org/projects/$virtualMcpId/automations";
+      ? "/shell/$org/spaces/$virtualMcpId/"
+      : "/shell/$org/projects/$virtualMcpId/";
     navigate({
       to: routeBase,
       params: { org: org.slug, virtualMcpId },
-      search: automationId ? { automationId } : {},
+      search: automationId
+        ? { main: "automation", automationId }
+        : ({} as never),
     });
   };
 

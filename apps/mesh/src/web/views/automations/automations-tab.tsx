@@ -47,7 +47,7 @@ import { toast } from "sonner";
 // Inline Detail Wrapper
 // ============================================================================
 
-function AutomationInlineDetail({
+export function AutomationInlineDetail({
   automationId,
   onBack,
 }: {

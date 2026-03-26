@@ -1,7 +1,8 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
+import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { Loading01 } from "@untitledui/icons";
-import { useMatch } from "@tanstack/react-router";
+import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
 import { Suspense } from "react";
 
 function SpaceHomeContent() {
@@ -15,6 +16,26 @@ function SpaceHomeContent() {
   });
   const virtualMcpId =
     (spacesMatch ?? projectsMatch)?.params.virtualMcpId ?? "";
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as {
+    main?: string;
+    automationId?: string;
+  };
+
+  if (search.main === "automation" && search.automationId) {
+    return (
+      <AutomationInlineDetail
+        automationId={search.automationId}
+        onBack={() =>
+          navigate({
+            search: { main: undefined, automationId: undefined } as never,
+            replace: true,
+          })
+        }
+      />
+    );
+  }
+
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
   );

@@ -425,6 +425,10 @@ const spacesLayout = createRoute({
 const spaceHomeRoute = createRoute({
   getParentRoute: () => spacesLayout,
   path: "/",
+  validateSearch: z.object({
+    main: z.string().optional(),
+    automationId: z.string().optional(),
+  }),
   component: lazyRouteComponent(() => import("./routes/space-home.tsx")),
 });
 
@@ -446,6 +450,8 @@ const projectHomeRoute = createRoute({
   path: "/",
   validateSearch: z.object({
     view: z.enum(["settings"]).optional(),
+    main: z.string().optional(),
+    automationId: z.string().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });

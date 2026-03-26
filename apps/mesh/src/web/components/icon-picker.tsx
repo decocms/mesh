@@ -112,7 +112,11 @@ export function IconPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={cn("relative group cursor-pointer overflow-hidden", sizeRadius[size], className)}
+          className={cn(
+            "relative group cursor-pointer overflow-hidden",
+            sizeRadius[size],
+            className,
+          )}
         >
           <AgentAvatar icon={value} name={name} size={size} />
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
