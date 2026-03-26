@@ -163,6 +163,7 @@ export interface MCPConnectionTable {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
+  slug: string | null;
 
   // Connection details
   connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";

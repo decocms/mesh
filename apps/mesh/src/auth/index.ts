@@ -341,12 +341,16 @@ function getTrustedOrigins(): string[] {
       origins.push(baseUrl.replace("127.0.0.1", "localhost"));
     }
   } catch {
-    // baseUrl may be invalid during test module loading; fall back to base only
+    // baseUrl may be invalid during tests when PORT is not set
   }
   return origins;
 }
 
+const settings = getSettings();
+
 export const auth = betterAuth({
+  secret: settings.betterAuthSecret || "deco-default-secret-k7x9m2p4q8w3n5v6",
+
   // Base URL for OAuth - will be overridden by request context
   baseURL: baseUrl,
 
@@ -381,7 +385,7 @@ export const auth = betterAuth({
   // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)
   // Must be AFTER authConfig spread to ensure it takes precedence
   rateLimit: {
-    enabled: !getSettings().disableRateLimit,
+    enabled: !settings.disableRateLimit,
     window: 60,
     max: 10000, // Very high limit as fallback
   },

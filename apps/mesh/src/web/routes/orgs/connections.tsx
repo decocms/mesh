@@ -21,8 +21,8 @@ import {
   type RegistrySource,
 } from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
-import { slugify } from "@/web/utils/slugify";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
+import { slugify } from "@/shared/utils/slugify";
 import {
   AlertDialog,
   AlertDialogAction,

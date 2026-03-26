@@ -5,6 +5,10 @@
  * Following the Ports & Adapters (Hexagonal Architecture) pattern.
  */
 
+import type {
+  OrderByExpression,
+  WhereExpression,
+} from "@decocms/bindings/collections";
 import type { ConnectionEntity } from "../tools/connection/schema";
 import type {
   VirtualMCPEntity,
@@ -96,8 +100,15 @@ export interface ConnectionStoragePort {
   findById(id: string): Promise<ConnectionEntity | null>;
   list(
     organizationId: string,
-    options?: { includeVirtual?: boolean },
-  ): Promise<ConnectionEntity[]>;
+    options?: {
+      includeVirtual?: boolean;
+      slug?: string;
+      where?: WhereExpression;
+      orderBy?: OrderByExpression[];
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ items: ConnectionEntity[]; totalCount: number }>;
   update(
     id: string,
     data: Partial<ConnectionEntity>,

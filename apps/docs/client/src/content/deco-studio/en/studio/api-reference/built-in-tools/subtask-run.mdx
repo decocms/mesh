@@ -1,5 +1,5 @@
 ---
-title: subtask_run
+title: subtask
 description: Spawn a subtask with isolated context
 icon: GitBranch
 ---
@@ -22,7 +22,7 @@ Spawns a subtask with isolated context. Optionally specify an agent to use for t
 ## Signature
 
 ```typescript
-subtask_run(prompt: string, agent_id?: string)
+subtask(prompt: string, agent_id?: string)
 ```
 
 ## Parameters
@@ -49,17 +49,17 @@ Subtask results and completion status.
 
 ```typescript
 // Spawn subtask with current scope
-subtask_run("Analyze the error logs and identify the root cause")
+subtask("Analyze the error logs and identify the root cause")
 
 // Spawn subtask with specific agent
-subtask_run(
+subtask(
   "Review the pull request for code quality issues",
   "code-review-agent"
 )
 
 // Parallel subtasks for independent work
-subtask_run("Deploy to staging environment")
-subtask_run("Run integration tests")
+subtask("Deploy to staging environment")
+subtask("Run integration tests")
 ```
 
 ## Use Cases
@@ -69,9 +69,9 @@ subtask_run("Run integration tests")
 Spawn multiple subtasks for independent work that can run in parallel:
 
 ```typescript
-subtask_run("Analyze inventory levels across all warehouses")
-subtask_run("Fetch pending customer orders from Shopify")
-subtask_run("Check shipping carrier delivery status")
+subtask("Analyze inventory levels across all warehouses")
+subtask("Fetch pending customer orders from Shopify")
+subtask("Check shipping carrier delivery status")
 ```
 
 ### Specialized Execution
@@ -83,7 +83,7 @@ Delegate work to specialized agents:
 const agents = agent_search("code review")
 
 // Spawn subtask with specialist
-subtask_run("Review this pull request", agents[0].agent_id)
+subtask("Review this pull request", agents[0].agent_id)
 ```
 
 ### Isolated Context
@@ -91,7 +91,7 @@ subtask_run("Review this pull request", agents[0].agent_id)
 Create isolated context for focused work without cluttering main task:
 
 ```typescript
-subtask_run("Generate a detailed technical report on the performance bottlenecks")
+subtask("Generate a detailed technical report on the performance bottlenecks")
 ```
 
 ## Related

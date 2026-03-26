@@ -50,9 +50,7 @@ function ToolDetailsContent() {
 
   const itemId = decodeURIComponent(params.itemId);
 
-  const siblings = useConnections({
-    filters: [{ column: "app_name", value: params.appSlug }],
-  });
+  const siblings = useConnections({ slug: params.appSlug });
 
   const handleBack = () => {
     router.history.back();
@@ -100,9 +98,7 @@ function CollectionDetailsContent() {
   };
 
   const { org } = useProjectContext();
-  const slugConnections = useConnections({
-    filters: [{ column: "app_name", value: params.appSlug }],
-  });
+  const slugConnections = useConnections({ slug: params.appSlug });
   const connection = slugConnections[0] ?? null;
   const connectionId = connection?.id ?? "";
   const scopeKey = connectionId || "no-connection";

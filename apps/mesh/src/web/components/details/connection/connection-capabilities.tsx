@@ -5,7 +5,7 @@ import {
   TabsTrigger,
 } from "@deco/ui/components/tabs.tsx";
 import { useConnection } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { BookOpen01, Columns01, ChevronRight, Tool01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
