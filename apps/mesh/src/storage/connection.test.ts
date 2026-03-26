@@ -151,6 +151,193 @@ describe("ConnectionStorage", () => {
     });
   });
 
+  describe("list filtering", () => {
+    beforeAll(async () => {
+      await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Alpha",
+        app_name: "alpha-app",
+        connection_type: "HTTP",
+        connection_url: "https://alpha.com/mcp",
+      });
+      await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Beta",
+        app_name: null,
+        connection_type: "HTTP",
+        connection_url: "https://beta.io/api",
+      });
+      await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Gamma",
+        app_name: null,
+        connection_type: "SSE",
+        connection_url: "https://gamma.example.com",
+      });
+    });
+
+    it("should filter by slug (app_name present)", async () => {
+      const { items } = await storage.list("org_123", { slug: "alpha-app" });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.title).toBe("Alpha");
+    });
+
+    it("should filter by slug (derived from connection_url)", async () => {
+      const { items: all } = await storage.list("org_123");
+      const beta = all.find((c) => c.title === "Beta")!;
+      expect(beta.slug).toBeTruthy();
+
+      const { items } = await storage.list("org_123", { slug: beta.slug! });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.title).toBe("Beta");
+    });
+
+    it("should filter by slug (derived from connection_url when no app_name)", async () => {
+      const { items: all } = await storage.list("org_123");
+      const gamma = all.find((c) => c.title === "Gamma")!;
+      expect(gamma.slug).toBeTruthy();
+
+      const { items } = await storage.list("org_123", { slug: gamma.slug! });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.title).toBe("Gamma");
+    });
+
+    it("should filter with where eq expression", async () => {
+      const { items } = await storage.list("org_123", {
+        where: { field: ["connection_type"], operator: "eq", value: "SSE" },
+      });
+      expect(items.every((c) => c.connection_type === "SSE")).toBe(true);
+      expect(items.some((c) => c.title === "Gamma")).toBe(true);
+    });
+
+    it("should filter with where like expression", async () => {
+      const { items } = await storage.list("org_123", {
+        where: {
+          field: ["connection_url"],
+          operator: "like",
+          value: "https://alpha%",
+        },
+      });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.title).toBe("Alpha");
+    });
+
+    it("should filter with where contains expression", async () => {
+      const { items } = await storage.list("org_123", {
+        where: {
+          field: ["title"],
+          operator: "contains",
+          value: "bet",
+        },
+      });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.title).toBe("Beta");
+    });
+
+    it("should filter with where in expression", async () => {
+      const { items } = await storage.list("org_123", {
+        where: {
+          field: ["connection_type"],
+          operator: "in",
+          value: ["SSE", "Websocket"],
+        },
+      });
+      expect(items.every((c) => c.connection_type === "SSE")).toBe(true);
+    });
+
+    it("should filter with compound AND/OR conditions", async () => {
+      const { items } = await storage.list("org_123", {
+        where: {
+          operator: "or",
+          conditions: [
+            { field: ["title"], operator: "eq", value: "Alpha" },
+            { field: ["title"], operator: "eq", value: "Gamma" },
+          ],
+        },
+      });
+      expect(items).toHaveLength(2);
+      const titles = items.map((c) => c.title).sort();
+      expect(titles).toEqual(["Alpha", "Gamma"]);
+    });
+
+    it("should apply orderBy", async () => {
+      const { items } = await storage.list("org_123", {
+        orderBy: [{ field: ["title"], direction: "desc", nulls: "last" }],
+      });
+      const titles = items.map((c) => c.title);
+      expect(titles).toEqual([...titles].sort().reverse());
+    });
+
+    it("should apply pagination", async () => {
+      const { totalCount } = await storage.list("org_123");
+      expect(totalCount).toBeGreaterThanOrEqual(3);
+
+      const page1 = await storage.list("org_123", { limit: 2, offset: 0 });
+      expect(page1.items).toHaveLength(2);
+      expect(page1.totalCount).toBe(totalCount);
+
+      const page2 = await storage.list("org_123", { limit: 2, offset: 2 });
+      expect(page2.items.length).toBeGreaterThanOrEqual(1);
+      expect(page2.totalCount).toBe(totalCount);
+
+      // No overlap between pages
+      const page1Ids = new Set(page1.items.map((c) => c.id));
+      expect(page2.items.every((c) => !page1Ids.has(c.id))).toBe(true);
+    });
+
+    it("should return correct totalCount with filters", async () => {
+      const { totalCount } = await storage.list("org_123", {
+        where: { field: ["connection_type"], operator: "eq", value: "HTTP" },
+      });
+      // At least Alpha and Beta are HTTP
+      expect(totalCount).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("slug computation", () => {
+    it("should compute slug from app_name on create", async () => {
+      const conn = await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Slug Test App Name",
+        app_name: "my-cool-app",
+        connection_type: "HTTP",
+        connection_url: "https://test.com",
+      });
+      expect(conn.slug).toBe("my-cool-app");
+    });
+
+    it("should compute slug from connection_url when no app_name", async () => {
+      const conn = await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Slug Test URL",
+        connection_type: "HTTP",
+        connection_url: "https://example.com:8080/my-service",
+      });
+      // Dots are stripped by slugify, so "example.com" becomes "examplecom"
+      expect(conn.slug).toBe("examplecom-8080-my-service");
+    });
+
+    it("should recompute slug on update when app_name changes", async () => {
+      const conn = await storage.create({
+        organization_id: "org_123",
+        created_by: "user_123",
+        title: "Slug Update Test",
+        connection_type: "HTTP",
+        connection_url: "https://test.com",
+      });
+
+      const updated = await storage.update(conn.id, {
+        app_name: "new-app-name",
+      });
+      expect(updated.slug).toBe("new-app-name");
+    });
+  });
+
   describe("update", () => {
     it("should update connection title", async () => {
       const created = await storage.create({
