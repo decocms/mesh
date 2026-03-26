@@ -290,11 +290,21 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       ? createBindingChecker(bindingDefinition)
       : undefined;
 
-    // By default, exclude VIRTUAL connections unless explicitly requested
-    const connections = await ctx.storage.connections.list(organization.id, {
-      includeVirtual: input.include_virtual ?? false,
-      slug: input.slug,
-    });
+    // When binding filtering is needed, we must fetch all connections first
+    // (binding checks require live tool data that can't be done in SQL).
+    // Otherwise, push where/orderBy/pagination to the database.
+    const needsBindingFilter = !!bindingChecker;
+
+    const { items: connections, totalCount: sqlTotalCount } =
+      await ctx.storage.connections.list(organization.id, {
+        includeVirtual: input.include_virtual ?? false,
+        slug: input.slug,
+        // Only push to SQL when we don't need to post-filter by binding
+        where: needsBindingFilter ? undefined : input.where,
+        orderBy: needsBindingFilter ? undefined : input.orderBy,
+        limit: needsBindingFilter ? undefined : input.limit,
+        offset: needsBindingFilter ? undefined : input.offset,
+      });
 
     // Only fetch tools from MCP servers when we need them for binding filtering.
     // This avoids expensive live listTools() calls on every page load.
@@ -354,56 +364,65 @@ export const COLLECTION_CONNECTIONS_LIST = defineTool({
       }
     }
 
-    // Filter connections by binding if specified (tools are pre-populated at create/update time)
-    let filteredConnections = bindingChecker
-      ? await Promise.all(
-          connections.map(async (connection) => {
-            if (!connection.tools || connection.tools.length === 0) {
-              return null;
-            }
+    // When binding filtering is active, all filtering must happen in-memory
+    // since we need to check tools from live MCP connections.
+    if (needsBindingFilter) {
+      let filteredConnections = await Promise.all(
+        connections.map(async (connection) => {
+          if (!connection.tools || connection.tools.length === 0) {
+            return null;
+          }
 
-            const isValid = bindingChecker.isImplementedBy(
-              connection.tools.map((t) => ({
-                name: t.name,
-                inputSchema: t.inputSchema as Record<string, unknown>,
-                outputSchema: t.outputSchema as
-                  | Record<string, unknown>
-                  | undefined,
-              })),
-            );
+          const isValid = bindingChecker!.isImplementedBy(
+            connection.tools.map((t) => ({
+              name: t.name,
+              inputSchema: t.inputSchema as Record<string, unknown>,
+              outputSchema: t.outputSchema as
+                | Record<string, unknown>
+                | undefined,
+            })),
+          );
 
-            return isValid ? connection : null;
-          }),
-        ).then((results) =>
-          results.filter((c): c is ConnectionEntity => c !== null),
-        )
-      : connections;
-
-    // Apply where filter if specified
-    if (input.where) {
-      filteredConnections = filteredConnections.filter((conn) =>
-        evaluateWhereExpression(conn, input.where!),
+          return isValid ? connection : null;
+        }),
+      ).then((results) =>
+        results.filter((c): c is ConnectionEntity => c !== null),
       );
+
+      // Apply where/orderBy/pagination in-memory (binding path only)
+      if (input.where) {
+        filteredConnections = filteredConnections.filter((conn) =>
+          evaluateWhereExpression(conn, input.where!),
+        );
+      }
+      if (input.orderBy && input.orderBy.length > 0) {
+        filteredConnections = applyOrderBy(filteredConnections, input.orderBy);
+      }
+
+      const totalCount = filteredConnections.length;
+      const offset = input.offset ?? 0;
+      const limit = input.limit ?? 100;
+      const paginatedConnections = filteredConnections.slice(
+        offset,
+        offset + limit,
+      );
+      const hasMore = offset + limit < totalCount;
+
+      return {
+        items: paginatedConnections,
+        totalCount,
+        hasMore,
+      };
     }
 
-    // Apply orderBy if specified
-    if (input.orderBy && input.orderBy.length > 0) {
-      filteredConnections = applyOrderBy(filteredConnections, input.orderBy);
-    }
-
-    // Calculate pagination
-    const totalCount = filteredConnections.length;
+    // Non-binding path: SQL already handled where/orderBy/pagination
     const offset = input.offset ?? 0;
     const limit = input.limit ?? 100;
-    const paginatedConnections = filteredConnections.slice(
-      offset,
-      offset + limit,
-    );
-    const hasMore = offset + limit < totalCount;
+    const hasMore = offset + limit < sqlTotalCount;
 
     return {
-      items: paginatedConnections,
-      totalCount,
+      items: connections,
+      totalCount: sqlTotalCount,
       hasMore,
     };
   },

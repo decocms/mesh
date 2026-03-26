@@ -125,7 +125,7 @@ describe("ConnectionStorage", () => {
         connection_url: "https://gmail.com",
       });
 
-      const connections = await storage.list("org_123");
+      const { items: connections } = await storage.list("org_123");
       expect(connections.length).toBeGreaterThanOrEqual(2);
       expect(connections.every((c) => c.organization_id === "org_123")).toBe(
         true,
@@ -141,7 +141,7 @@ describe("ConnectionStorage", () => {
         connection_url: "https://other.com",
       });
 
-      const connections = await storage.list("org_123");
+      const { items: connections } = await storage.list("org_123");
       expect(connections.every((c) => c.organization_id === "org_123")).toBe(
         true,
       );
