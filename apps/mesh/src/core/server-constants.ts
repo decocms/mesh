@@ -19,7 +19,7 @@ export function getBaseUrl(): string {
   if (settings.baseUrl) {
     return settings.baseUrl;
   }
-  return `http://localhost:${settings.port}`;
+  return `http://localhost:${settings.port ?? 3000}`;
 }
 
 /**
@@ -28,5 +28,5 @@ export function getBaseUrl(): string {
  * even when BASE_URL is a proxy hostname (e.g. tokyo.localhost).
  */
 export function getInternalUrl(): string {
-  return `http://localhost:${getSettings().port}`;
+  return `http://localhost:${getSettings().port ?? 3000}`;
 }
