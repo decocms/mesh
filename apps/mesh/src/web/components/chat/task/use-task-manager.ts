@@ -313,6 +313,7 @@ export function useTaskManager(virtualMcpId: string) {
       const newStatus = event.data.status;
       const updatedAt = event.time;
 
+      let foundInCache = false;
       for (const filter of ["me", "everyone"] as const) {
         const filterUserId = filter === "me" ? userId : undefined;
         const cached = queryClient.getQueryData<TasksInfiniteQueryData>(
@@ -323,6 +324,7 @@ export function useTaskManager(virtualMcpId: string) {
           false;
 
         if (inCache) {
+          foundInCache = true;
           updateTaskInCache(
             queryClient,
             locator,
@@ -333,6 +335,11 @@ export function useTaskManager(virtualMcpId: string) {
             virtualMcpId,
           );
         }
+      }
+
+      // Task not in cache — refetch so new tasks appear in the list
+      if (!foundInCache) {
+        queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
       }
     },
   });

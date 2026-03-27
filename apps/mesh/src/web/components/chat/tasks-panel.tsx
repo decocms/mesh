@@ -153,6 +153,16 @@ export function OwnerFilter() {
 // ────────────────────────────────────────
 
 // ────────────────────────────────────────
+// Section empty state
+// ────────────────────────────────────────
+
+function SectionEmptyState() {
+  return (
+    <div className="px-4 py-3 text-xs text-muted-foreground/60">No items</div>
+  );
+}
+
+// ────────────────────────────────────────
 // Group header
 // ────────────────────────────────────────
 
@@ -451,15 +461,19 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
         </span>
       </button>
       {isOpen &&
-        automations.map((automation) => (
-          <AutomationRow
-            key={automation.id}
-            automation={automation}
-            onClick={() => navigateToAutomation(automation.id)}
-            onDelete={() =>
-              setDeleteTarget({ id: automation.id, name: automation.name })
-            }
-          />
+        (automations.length > 0 ? (
+          automations.map((automation) => (
+            <AutomationRow
+              key={automation.id}
+              automation={automation}
+              onClick={() => navigateToAutomation(automation.id)}
+              onDelete={() =>
+                setDeleteTarget({ id: automation.id, name: automation.name })
+              }
+            />
+          ))
+        ) : (
+          <SectionEmptyState />
         ))}
 
       <AlertDialog
@@ -682,13 +696,17 @@ export function TaskListContent({
                   onToggle={() => toggleGroup(group.key)}
                 />
                 {isGroupOpen &&
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === taskId}
-                      onClick={() => handleSelect(task)}
-                    />
+                  (group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === taskId}
+                        onClick={() => handleSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
                   ))}
               </div>
             );
@@ -709,13 +727,17 @@ export function TaskListContent({
                   onToggle={() => toggleGroup(group.key)}
                 />
                 {isGroupOpen &&
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === taskId}
-                      onClick={() => handleSelect(task)}
-                    />
+                  (group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === taskId}
+                        onClick={() => handleSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
                   ))}
               </div>
             );
