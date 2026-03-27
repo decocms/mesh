@@ -43,7 +43,7 @@ export const codexAdapter: ProviderAdapter = {
     id: "codex",
     name: "Codex",
     description: "Autonomous coding agent via OpenAI Codex CLI",
-    logo: "https://assets.decocache.com/decocms/openai-logo.svg",
+    logo: "https://assets.decocache.com/decocms/6ac44f1c-c0cf-4480-84b5-2ae6fe742d0b/codex-app.png.png",
   },
   supportedMethods: ["cli-activate"],
   create(_apiKey): MeshProvider {
