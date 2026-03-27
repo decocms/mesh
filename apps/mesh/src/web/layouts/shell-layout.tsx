@@ -51,6 +51,7 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
@@ -72,12 +73,14 @@ function PersistentResizablePanel({
   panelRef,
   defaultCollapsed,
   defaultFullWidth,
+  defaultSizeOverride,
   onCollapse,
   onExpand,
 }: PropsWithChildren<{
   panelRef: React.RefObject<ImperativePanelHandle | null>;
   defaultCollapsed: boolean;
   defaultFullWidth?: boolean;
+  defaultSizeOverride?: number;
   onCollapse: () => void;
   onExpand: () => void;
 }>) {
@@ -93,11 +96,9 @@ function PersistentResizablePanel({
     });
 
   const savedWidth = Math.min(chatPanelWidth, 35);
-  const defaultSize = defaultCollapsed
-    ? 0
-    : defaultFullWidth
-      ? 100
-      : savedWidth;
+  const defaultSize =
+    defaultSizeOverride ??
+    (defaultCollapsed ? 0 : defaultFullWidth ? 100 : savedWidth);
 
   return (
     <ResizablePanel
@@ -313,6 +314,154 @@ function NewTaskBridge({
     };
   });
   return null;
+}
+
+/**
+ * Resolves whether the main panel should render based on ?main param and entity's defaultMainView.
+ * Keyed by virtualMcpId so the entire panel group remounts per agent with correct layout.
+ */
+function AgentPanelGroup({
+  agentVirtualMcpId,
+  isAgentRoute,
+  isOrgHome,
+  showThreePanels,
+  tasksVirtualMcpId,
+  tasksPanelRef,
+  mainPanelRef,
+  chatPanelRef,
+  setTasksOpen,
+  setMainOpen,
+  setChatOpen,
+}: {
+  agentVirtualMcpId: string | undefined;
+  isAgentRoute: boolean;
+  isOrgHome: boolean;
+  showThreePanels: boolean;
+  tasksVirtualMcpId: string | undefined;
+  tasksPanelRef: React.RefObject<ImperativePanelHandle | null>;
+  mainPanelRef: React.RefObject<ImperativePanelHandle | null>;
+  chatPanelRef: React.RefObject<ImperativePanelHandle | null>;
+  setTasksOpen: (open: boolean) => void;
+  setMainOpen: (open: boolean) => void;
+  setChatOpen: (open: boolean) => void;
+}) {
+  const entity = useVirtualMCP(agentVirtualMcpId);
+
+  // Resolve mainDisabled: no ?main AND no defaultMainView on entity
+  const agentHomeMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId/",
+    shouldThrow: false,
+  });
+  const hasMainParam = !!agentHomeMatch?.search.main;
+  const hasDefaultMainView =
+    !!(entity?.metadata?.ui as Record<string, unknown> | null | undefined)
+      ?.layout &&
+    !!(
+      (entity?.metadata?.ui as Record<string, unknown>)?.layout as {
+        defaultMainView?: unknown;
+      }
+    )?.defaultMainView;
+  const mainHidden =
+    isAgentRoute && !!agentHomeMatch && !hasMainParam && !hasDefaultMainView;
+
+  return (
+    <ResizablePanelGroup
+      key={`${agentVirtualMcpId ?? "none"}-${mainHidden}`}
+      direction="horizontal"
+      className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
+      style={{ overflow: "visible" }}
+    >
+      {showThreePanels && (
+        <>
+          <TasksResizablePanel
+            panelRef={tasksPanelRef}
+            defaultCollapsed={!isAgentRoute}
+            onCollapse={() => setTasksOpen(false)}
+            onExpand={() => setTasksOpen(true)}
+          >
+            <div className="h-full p-0.5 overflow-hidden">
+              <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                <TasksSidePanel
+                  virtualMcpId={tasksVirtualMcpId}
+                  hideProjectHeader={isOrgHome}
+                />
+              </div>
+            </div>
+          </TasksResizablePanel>
+          <ResizableHandle className="bg-sidebar" />
+        </>
+      )}
+
+      {!isOrgHome && !mainHidden && (
+        <ResizablePanel
+          ref={mainPanelRef}
+          className="min-w-0 flex flex-col"
+          order={2}
+          style={{ overflow: "visible" }}
+          collapsible={isAgentRoute}
+          collapsedSize={0}
+          minSize={isAgentRoute ? 20 : undefined}
+          onCollapse={() => setMainOpen(false)}
+          onExpand={() => setMainOpen(true)}
+        >
+          <div className="h-full p-0.5 overflow-hidden">
+            <div
+              className={cn(
+                "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                "border border-sidebar-border shadow-sm",
+                "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                "rounded-[0.75rem]",
+              )}
+            >
+              <Suspense
+                fallback={
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loading01
+                      size={20}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                <div className="flex-1 overflow-hidden rounded-[inherit]">
+                  <Outlet />
+                </div>
+              </Suspense>
+            </div>
+          </div>
+        </ResizablePanel>
+      )}
+
+      {showThreePanels && (
+        <>
+          {!isOrgHome && !mainHidden && (
+            <ResizableHandle className="bg-sidebar" />
+          )}
+          <PersistentResizablePanel
+            key={
+              isOrgHome
+                ? "chat-home"
+                : mainHidden
+                  ? "chat-no-main"
+                  : "chat-default"
+            }
+            panelRef={chatPanelRef}
+            defaultCollapsed={false}
+            defaultFullWidth={isOrgHome}
+            defaultSizeOverride={mainHidden ? 78 : undefined}
+            onCollapse={() => setChatOpen(false)}
+            onExpand={() => setChatOpen(true)}
+          >
+            <div className="h-full p-0.5">
+              <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                <ActiveTaskBoundary variant={isOrgHome ? "home" : undefined} />
+              </div>
+            </div>
+          </PersistentResizablePanel>
+        </>
+      )}
+    </ResizablePanelGroup>
+  );
 }
 
 function ShellLayoutInner({
