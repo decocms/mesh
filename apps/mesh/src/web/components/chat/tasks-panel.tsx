@@ -163,7 +163,9 @@ export function OwnerFilter() {
 
 function SectionEmptyState() {
   return (
-    <div className="px-4 py-3 text-xs text-muted-foreground/60">No items</div>
+    <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+      No items
+    </div>
   );
 }
 
@@ -190,13 +192,15 @@ function GroupHeader({
     <button
       type="button"
       onClick={onToggle}
-      className="group flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+      className="group flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
     >
-      <Icon size={14} className={iconClassName} />
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      <span className="text-xs text-muted-foreground/60 tabular-nums">
-        {count}
-      </span>
+      <Icon size={16} className={iconClassName} />
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      {!isOpen && (
+        <span className="text-xs text-muted-foreground/60 tabular-nums">
+          {count}
+        </span>
+      )}
       <ChevronRight
         size={12}
         className={cn(
@@ -231,7 +235,7 @@ function TaskRow({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors",
+            "group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
             isActive ? "bg-accent" : "hover:bg-accent/50",
           )}
           onClick={onClick}
@@ -242,7 +246,7 @@ function TaskRow({
             <div className="flex items-center gap-1.5">
               <TruncatedText
                 text={task.title || "Untitled"}
-                className="text-sm text-foreground flex-1 min-w-0"
+                className="text-sm text-muted-foreground flex-1 min-w-0"
               />
               <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
                 {task.updated_at
@@ -330,7 +334,7 @@ function AutomationRow({
 
   return (
     <div
-      className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
+      className="group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors hover:bg-accent/50"
       onClick={onClick}
     >
       <span
@@ -433,16 +437,18 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="group/incoming flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+        className="group/incoming flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
       >
         <RefreshCcw01 size={14} className="text-purple-500" />
         <span className="text-sm font-medium text-muted-foreground">
           Automations
         </span>
-        <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {automations.filter((a) => a.active && a.trigger_count > 0).length}/
-          {automations.length}
-        </span>
+        {!isOpen && (
+          <span className="text-xs text-muted-foreground/60 tabular-nums">
+            {automations.filter((a) => a.active && a.trigger_count > 0).length}/
+            {automations.length}
+          </span>
+        )}
         <ChevronRight
           size={12}
           className={cn(
@@ -608,10 +614,10 @@ function GroupedTaskList({
     <div className="flex-1 overflow-y-auto">
       {groups
         .filter((g) => g.key !== "done")
-        .map((group) => {
+        .map((group, index) => {
           const isOpen = !!expanded[group.key];
           return (
-            <div key={group.key}>
+            <div key={group.key} className={index > 0 ? "mt-3" : ""}>
               <GroupHeader
                 label={group.label}
                 icon={group.icon}
@@ -620,29 +626,36 @@ function GroupedTaskList({
                 isOpen={isOpen}
                 onToggle={() => toggleGroup(group.key)}
               />
-              {isOpen &&
-                (group.tasks.length > 0 ? (
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === activeTaskId}
-                      onClick={() => onTaskSelect(task)}
-                    />
-                  ))
-                ) : (
-                  <SectionEmptyState />
-                ))}
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === activeTaskId}
+                        onClick={() => onTaskSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
-      {virtualMcpId && <IncomingSection virtualMcpId={virtualMcpId} />}
+      {virtualMcpId && (
+        <div className="mt-3">
+          <IncomingSection virtualMcpId={virtualMcpId} />
+        </div>
+      )}
       {groups
         .filter((g) => g.key === "done")
         .map((group) => {
           const isOpen = !!expanded[group.key];
           return (
-            <div key={group.key}>
+            <div key={group.key} className="mt-3">
               <GroupHeader
                 label={group.label}
                 icon={group.icon}
@@ -651,19 +664,22 @@ function GroupedTaskList({
                 isOpen={isOpen}
                 onToggle={() => toggleGroup(group.key)}
               />
-              {isOpen &&
-                (group.tasks.length > 0 ? (
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === activeTaskId}
-                      onClick={() => onTaskSelect(task)}
-                    />
-                  ))
-                ) : (
-                  <SectionEmptyState />
-                ))}
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === activeTaskId}
+                        onClick={() => onTaskSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
