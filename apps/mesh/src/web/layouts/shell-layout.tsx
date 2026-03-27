@@ -132,10 +132,6 @@ function TasksResizablePanel({
   onCollapse?: () => void;
   onExpand?: () => void;
 }>) {
-  console.log("[TasksResizablePanel] render", {
-    defaultCollapsed,
-    defaultSize: defaultCollapsed ? 0 : 22,
-  });
   return (
     <ResizablePanel
       ref={panelRef}
@@ -306,13 +302,11 @@ function NewTaskBridge({
   onNewTaskRef: React.MutableRefObject<(() => void) | null>;
 }) {
   const { createTask } = useChatTask();
-  const [, setChatOpen] = useChatPanel();
+  const [chatOpen, setChatOpen] = useChatPanel();
   useLayoutEffect(() => {
     onNewTaskRef.current = () => {
-      console.log("[NewTaskBridge] onNewTask triggered");
       createTask();
-      console.log("[NewTaskBridge] createTask done, calling setChatOpen(true)");
-      setChatOpen(true);
+      if (!chatOpen) setChatOpen(true);
     };
     return () => {
       onNewTaskRef.current = null;
@@ -372,10 +366,6 @@ function ShellLayoutInner({
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const toggleTasks = () => {
-    console.log("[ShellLayout] toggleTasks called", {
-      tasksOpen,
-      expandedCount,
-    });
     if (tasksOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (tasksOpen) {
@@ -665,17 +655,8 @@ function ShellLayoutInner({
                       <TasksResizablePanel
                         panelRef={tasksPanelRef}
                         defaultCollapsed={!isAgentRoute}
-                        onCollapse={() => {
-                          console.log("[TasksResizablePanel] onCollapse fired");
-                          setTasksOpen(false);
-                        }}
-                        onExpand={() => {
-                          console.log(
-                            "[TasksResizablePanel] onExpand fired",
-                            new Error().stack,
-                          );
-                          setTasksOpen(true);
-                        }}
+                        onCollapse={() => setTasksOpen(false)}
+                        onExpand={() => setTasksOpen(true)}
                       >
                         <div className="h-full p-1.5 pt-1 overflow-hidden">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
