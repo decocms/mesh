@@ -8,66 +8,18 @@
  */
 
 import { getDb } from "@/database";
-import { randomBytes } from "crypto";
 import { getSettings } from "../settings";
-import { mkdir, writeFile, chmod } from "fs/promises";
 import { userInfo } from "os";
-import { join } from "path";
 import { auth } from "./index";
 
 /**
- * Get the per-install local admin password from secrets.json.
+ * Get the local admin password.
  *
- * Reads from DECOCMS_HOME (set by CLI) or the default ~/deco directory.
- * Throws if no password is found — never falls back to a hardcoded credential.
+ * Uses betterAuthSecret as the local admin password — deterministic,
+ * no file I/O, no secrets.json, same value across restarts.
  */
-let _cachedPassword: string | null = null;
-
 export async function getLocalAdminPassword(): Promise<string> {
-  if (_cachedPassword) return _cachedPassword;
-
-  const decoHome = getSettings().dataDir;
-
-  const secretsPath = join(decoHome, "secrets.json");
-
-  // Try to read existing secrets
-  try {
-    const file = Bun.file(secretsPath);
-    if (await file.exists()) {
-      const secrets = await file.json();
-      if (secrets.LOCAL_ADMIN_PASSWORD) {
-        const pw: string = secrets.LOCAL_ADMIN_PASSWORD;
-        _cachedPassword = pw;
-        return pw;
-      }
-    }
-  } catch {
-    // File not readable or doesn't exist
-  }
-
-  // Auto-generate password when running dev:local (bypasses CLI)
-  const pw = randomBytes(24).toString("base64");
-  try {
-    await mkdir(decoHome, { recursive: true, mode: 0o700 });
-    let secrets: Record<string, string> = {};
-    try {
-      const file = Bun.file(secretsPath);
-      if (await file.exists()) {
-        secrets = await file.json();
-      }
-    } catch {
-      // Start fresh
-    }
-    secrets.LOCAL_ADMIN_PASSWORD = pw;
-    await writeFile(secretsPath, JSON.stringify(secrets, null, 2), {
-      mode: 0o600,
-    });
-    await chmod(secretsPath, 0o600);
-  } catch (err) {
-    console.warn("Warning: Could not save secrets file:", err);
-  }
-  _cachedPassword = pw;
-  return pw;
+  return getSettings().betterAuthSecret || "local";
 }
 
 function getLocalUserName(): string {
