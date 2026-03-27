@@ -11,12 +11,7 @@ import { MessagePair, useMessagePairs } from "./message/pair.tsx";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
 import { TaskHistoryPopover } from "./popover-tasks";
 import { DecoChatSkeleton } from "./skeleton";
-export {
-  useChatStream,
-  useChatTask,
-  useChatPrefs,
-  useChatBridge,
-} from "./context";
+export { useChatTask } from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export type { ChatMessage, ChatStatus } from "./types.ts";
 

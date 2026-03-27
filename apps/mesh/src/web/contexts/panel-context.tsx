@@ -46,7 +46,7 @@ export function useTasksPanel() {
   return [tasksOpen, setTasksOpen] as const;
 }
 
-export function useMainPanel() {
+function useMainPanel() {
   const { mainOpen, mainPanelRef } = usePanelContext();
   const setMainOpen = (open: boolean) => {
     if (open) mainPanelRef.current?.expand();
