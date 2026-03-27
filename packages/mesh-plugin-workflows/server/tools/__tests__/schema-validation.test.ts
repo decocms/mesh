@@ -229,6 +229,59 @@ describe("stripPatterns", () => {
     expect(props.pattern.type).toBe("string");
   });
 
+  it("preserves property definitions named 'patternProperties'", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        patternProperties: {
+          type: "object",
+          description: "Config for regex matching",
+        },
+      },
+    };
+    const result = stripPatterns(schema) as Record<string, unknown>;
+    const props = result.properties as Record<string, Record<string, unknown>>;
+    expect(props.patternProperties).toBeDefined();
+    expect(props.patternProperties.type).toBe("object");
+  });
+
+  it("still strips patternProperties keyword inside nested sub-schemas", () => {
+    // A property named "config" whose sub-schema has a real patternProperties keyword
+    const schema = {
+      type: "object",
+      properties: {
+        config: {
+          type: "object",
+          patternProperties: { "^x_": { type: "number" } },
+          properties: { name: { type: "string" } },
+        },
+      },
+    };
+    const result = stripPatterns(schema) as Record<string, unknown>;
+    const config = (
+      result.properties as Record<string, Record<string, unknown>>
+    ).config;
+    expect(config.patternProperties).toBeUndefined();
+    expect(config.properties).toBeDefined();
+  });
+
+  it("preserves property names in $defs", () => {
+    const schema = {
+      $defs: {
+        pattern: { type: "string", pattern: "^evil$" },
+        patternProperties: { type: "object" },
+      },
+    };
+    const result = stripPatterns(schema) as Record<string, unknown>;
+    const defs = result.$defs as Record<string, Record<string, unknown>>;
+    // Definition names are preserved
+    expect(defs.pattern).toBeDefined();
+    expect(defs.patternProperties).toBeDefined();
+    // But the regex keyword inside the definition is stripped
+    expect(defs.pattern.pattern).toBeUndefined();
+    expect(defs.pattern.type).toBe("string");
+  });
+
   it("preserves non-string pattern values", () => {
     // Unlikely but defensive: pattern key with a non-string value is not a JSON Schema regex
     const schema = { type: "object", pattern: 42 };

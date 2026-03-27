@@ -71,7 +71,19 @@ export function checkSchemaDepth(
 }
 
 /**
- * Recursively strip `pattern` and `patternProperties` keys from a JSON Schema object.
+ * Keys whose values are property-name-to-schema maps.
+ * Inside these maps, keys are user-defined field names — not JSON Schema keywords —
+ * so we must preserve all keys and only strip patterns from the sub-schema values.
+ */
+const PROPERTY_NAME_MAP_KEYS = new Set([
+  "properties",
+  "$defs",
+  "definitions",
+  "dependentSchemas",
+]);
+
+/**
+ * Recursively strip `pattern` and `patternProperties` keywords from a JSON Schema.
  * This is a ReDoS mitigation — user-supplied regex patterns could be crafted
  * to cause catastrophic backtracking when compiled into RegExp by Zod.
  */
@@ -81,8 +93,7 @@ export function stripPatterns(schema: unknown): unknown {
   const obj = schema as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
-    // Only strip JSON Schema keywords, not property definitions with those names.
-    // `pattern` is always a regex string; `patternProperties` is always an object map.
+    // Strip JSON Schema regex keywords at the schema-node level.
     if (key === "pattern" && typeof value === "string") continue;
     if (
       key === "patternProperties" &&
@@ -90,6 +101,23 @@ export function stripPatterns(schema: unknown): unknown {
       value !== null
     )
       continue;
+    // For property-name maps, preserve all keys (they're field names, not keywords)
+    // and only recurse into each value (which is a sub-schema).
+    if (
+      PROPERTY_NAME_MAP_KEYS.has(key) &&
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
+      const map: Record<string, unknown> = {};
+      for (const [name, subSchema] of Object.entries(
+        value as Record<string, unknown>,
+      )) {
+        map[name] = stripPatterns(subSchema);
+      }
+      result[key] = map;
+      continue;
+    }
     result[key] = stripPatterns(value);
   }
   return result;

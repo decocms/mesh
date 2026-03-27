@@ -266,10 +266,6 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
     };
     const storage = getPluginStorage();
 
-    if (data.input_schema !== undefined) {
-      validateInputSchema(data.input_schema);
-    }
-
     const updateData: Record<string, unknown> = {
       updated_by: meshCtx.auth.user?.id ?? null,
     };
@@ -284,6 +280,9 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
       updateData.input_schema = data.input_schema;
 
     try {
+      if (data.input_schema !== undefined) {
+        validateInputSchema(data.input_schema);
+      }
       await storage.collections.update(
         id,
         meshCtx.organization.id,
