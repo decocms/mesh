@@ -235,9 +235,7 @@ function TasksPanelContent({
     });
   };
 
-  const isSettingsActive =
-    virtualMcpCtx?.mainView?.type === "settings" ||
-    (virtualMcpCtx && virtualMcpCtx.mainView === null);
+  const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
 
   return (
     <div className="flex flex-col h-full">

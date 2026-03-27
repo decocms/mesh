@@ -612,7 +612,7 @@ function ShellLayoutInner({
                               </div>
                             }
                           >
-                            <div className="flex-1 overflow-hidden">
+                            <div className="flex-1 overflow-hidden rounded-[inherit]">
                               <Outlet />
                             </div>
                           </Suspense>
