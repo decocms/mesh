@@ -37,7 +37,7 @@ export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
     );
   } else {
     console.log(
-      "[settings] ENCRYPTION_KEY is not set (will be auto-generated)",
+      "[settings] ENCRYPTION_KEY is not set (using deterministic fallback, 32 chars) — set ENCRYPTION_KEY for production",
     );
   }
 
