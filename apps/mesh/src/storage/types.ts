@@ -925,6 +925,13 @@ export interface TriggerCallbackTokenTable {
   created_at: ColumnType<Date, Date | string, never>;
 }
 
+export interface KVTable {
+  organization_id: string;
+  key: string;
+  value: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -985,4 +992,7 @@ export interface Database {
   // Organization SSO tables
   org_sso_config: OrgSsoConfigTable;
   org_sso_sessions: OrgSsoSessionTable;
+
+  // Generic org-scoped KV store
+  kv: KVTable;
 }

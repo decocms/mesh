@@ -44,6 +44,7 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
 import selfRoutes from "./routes/self";
@@ -92,6 +93,7 @@ import {
 import { getPodId } from "../core/pod-identity";
 import { NatsPodHeartbeat } from "../nats/pod-heartbeat";
 import { createAutomationsStorage } from "../storage/automations";
+import { KyselyKVStorage } from "../storage/kv";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { createAutomationContextFactory } from "./routes/decopilot/automation-context";
 
@@ -1238,6 +1240,10 @@ export async function createApp(options: CreateAppOptions = {}) {
       eventTriggerEngine,
     }),
   );
+
+  // KV store (org-scoped, for external MCPs to persist state)
+  const kvStorage = new KyselyKVStorage(database.db);
+  app.route("/api", createKVRoutes({ kvStorage }));
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
