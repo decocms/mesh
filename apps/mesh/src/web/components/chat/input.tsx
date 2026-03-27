@@ -33,7 +33,7 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Metadata } from "./types.ts";
-import { useChat } from "./context";
+import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
@@ -369,29 +369,24 @@ export function ChatInput({
 }: {
   onOpenContextPanel?: () => void;
 }) {
+  const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
+    useChatStream();
+  const { taskId, tasks } = useChatTask();
   const {
-    activeTaskId,
-    tiptapDocRef,
-    virtualMcps,
+    selectedModel,
     selectedVirtualMcp,
+    virtualMcps,
     setVirtualMcpId,
-    model,
     isModelsLoading,
-    messages,
-    isStreaming,
-    isRunInProgress,
-    sendMessage,
-    stop,
-    cancelRun,
-    tasks,
-  } = useChat();
+    tiptapDocRef,
+  } = useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
 
-  const task = tasks.find((task) => task.id === activeTaskId);
+  const task = tasks.find((task) => task.id === taskId);
 
   // tiptapDoc lives here (not in context) so keystrokes don't re-render
   // the entire context tree. The ref on context lets IceBreakers read it.
@@ -404,14 +399,14 @@ export function ChatInput({
   };
 
   // Reset input when switching tasks (TiptapProvider also remounts via key)
-  const prevTaskRef = useRef(activeTaskId);
-  if (prevTaskRef.current !== activeTaskId) {
-    prevTaskRef.current = activeTaskId;
+  const prevTaskRef = useRef(taskId);
+  if (prevTaskRef.current !== taskId) {
+    prevTaskRef.current = taskId;
     setTiptapDocLocal(undefined);
     tiptapDocRef.current = undefined;
   }
 
-  const contextWindow = model?.limits?.contextWindow;
+  const contextWindow = selectedModel?.limits?.contextWindow;
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
@@ -447,7 +442,10 @@ export function ChatInput({
     (lastUsage?.totalTokens ?? 0) - (lastUsage?.reasoningTokens ?? 0);
 
   const canSubmit =
-    !isStreaming && !!model && !isModelsLoading && !isTiptapDocEmpty(tiptapDoc);
+    !isStreaming &&
+    !!selectedModel &&
+    !isModelsLoading &&
+    !isTiptapDocEmpty(tiptapDoc);
 
   const showStopOrCancel = isStreaming || isRunInProgress;
 
@@ -456,7 +454,7 @@ export function ChatInput({
     if (isStreaming) {
       stop();
     } else if (isRunInProgress) {
-      void cancelRun();
+      stop();
     } else if (canSubmit && tiptapDoc) {
       void sendMessage(tiptapDoc);
       setTiptapDoc(undefined);
@@ -572,10 +570,10 @@ export function ChatInput({
           )}
         >
           <TiptapProvider
-            key={activeTaskId}
+            key={taskId}
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
-            disabled={isStreaming || !model}
+            disabled={isStreaming || !selectedModel}
             enterToSubmit={true}
             onSubmit={handleSubmit}
           >
@@ -592,10 +590,10 @@ export function ChatInput({
                 {/* Input Area with Tiptap */}
                 <TiptapInput
                   ref={tiptapRef}
-                  disabled={isStreaming || !model}
+                  disabled={isStreaming || !selectedModel}
                   virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
                   showFileUploader={true}
-                  selectedModel={model}
+                  selectedModel={selectedModel}
                 />
                 {/* Focus hint — hidden when editor is focused */}
                 <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
@@ -623,7 +621,7 @@ export function ChatInput({
                     />
                   )}
                   <FileUploadButton
-                    selectedModel={model}
+                    selectedModel={selectedModel}
                     isStreaming={isStreaming}
                   />
                   <PlanModeToggle disabled={isStreaming} />
@@ -648,7 +646,7 @@ export function ChatInput({
                         e.preventDefault();
                         e.stopPropagation();
                         if (isStreaming) stop();
-                        else void cancelRun();
+                        else stop();
                       }
                     }}
                     variant={

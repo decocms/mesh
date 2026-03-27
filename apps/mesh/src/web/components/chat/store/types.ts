@@ -1,7 +1,7 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import type { McpUiUpdateModelContextRequest } from "@modelcontextprotocol/ext-apps";
-import type { AiProviderModel } from "../../../hooks/collections/use-llm";
+import type { AiProviderModel } from "../../../hooks/collections/use-ai-providers";
 import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { Task } from "../task/types";
 import type { TaskOwnerFilter } from "../task/use-task-manager";
@@ -40,7 +40,7 @@ export interface ChatStoreState {
   // All available agents and model connections
   virtualMcps: VirtualMCPInfo[];
   allModelsConnections: ReturnType<
-    typeof import("../../../hooks/collections/use-llm").useAiProviderKeyList
+    typeof import("../../../hooks/collections/use-ai-providers").useAiProviderKeys
   >;
 
   // Streaming

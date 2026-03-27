@@ -4,7 +4,7 @@
  * Combines:
  * 1. Entity fetch (useVirtualMCP) — Suspense-based
  * 2. ProjectContextProvider override (agent-scoped)
- * 3. AgentContext (URL-driven mainView, navigateToMain, navigateToTask)
+ * 3. AgentContext (URL-driven mainView, openMainView, openTask)
  *
  * Rendered conditionally in ShellLayoutInner — only on agent routes.
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
@@ -102,7 +102,7 @@ function VirtualMCPProviderContent({
   const routeBase = "/$org/$virtualMcpId/" as const;
   const params = { org: orgSlug, virtualMcpId };
 
-  const navigateToTask: AgentContextValue["navigateToTask"] = (taskId) => {
+  const openTask: AgentContextValue["openTask"] = (taskId) => {
     navigate({
       to: routeBase,
       params,
@@ -110,25 +110,31 @@ function VirtualMCPProviderContent({
     });
   };
 
-  const navigateToMain: AgentContextValue["navigateToMain"] = (main, opts) => {
+  const openMainView: AgentContextValue["openMainView"] = (main, opts) => {
     if (main === "default") {
       navigate({
         to: routeBase,
         params,
-        search: {} as never,
+        search: (prev: Record<string, unknown>) => {
+          // Preserve taskId when resetting main view
+          return prev.taskId ? { taskId: prev.taskId } : {};
+        },
         replace: true,
       });
       return;
     }
 
-    const searchParams: Record<string, string | undefined> = { main };
-    if (opts?.id) searchParams.id = opts.id;
-    if (opts?.toolName) searchParams.toolName = opts.toolName;
-
     navigate({
       to: routeBase,
       params,
-      search: searchParams as never,
+      search: (prev: Record<string, unknown>) => {
+        const next: Record<string, unknown> = { main };
+        if (opts?.id) next.id = opts.id;
+        if (opts?.toolName) next.toolName = opts.toolName;
+        // Preserve taskId so switching main view doesn't reset the active thread
+        if (prev.taskId) next.taskId = prev.taskId;
+        return next;
+      },
       replace: true,
     });
   };
@@ -136,8 +142,8 @@ function VirtualMCPProviderContent({
   const agentValue: AgentContextValue = {
     virtualMcpId,
     mainView,
-    navigateToMain,
-    navigateToTask,
+    openMainView,
+    openTask,
   };
 
   return <AgentContext value={agentValue}>{children}</AgentContext>;

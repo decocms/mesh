@@ -25,7 +25,7 @@ import {
   useMCPToolCallQuery,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useAiProviderKeyList } from "@/web/hooks/collections/use-llm";
+import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 import { useNavigate } from "@tanstack/react-router";
 
 interface Invitation {
@@ -209,7 +209,7 @@ function CreditChip() {
 }
 
 function CreditChipConditional() {
-  const keys = useAiProviderKeyList();
+  const keys = useAiProviderKeys();
   const hasDecoKey = keys.some((k) => k.providerId === "deco");
 
   if (!hasDecoKey) return null;

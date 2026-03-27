@@ -11,7 +11,7 @@ import { Attachment01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { modelSupportsFiles } from "../../select-model";
 import { insertFile, type FileAttrs } from "./node.tsx";
-import { AiProviderModel } from "@/web/hooks/collections/use-llm.ts";
+import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
 interface FileUploaderProps {
   editor: Editor;

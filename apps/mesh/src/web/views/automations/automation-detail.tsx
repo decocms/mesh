@@ -14,7 +14,7 @@ import { SaveActions } from "@/web/components/save-actions";
 import {
   useAiProviderModels,
   type AiProviderModel,
-} from "@/web/hooks/collections/use-llm.ts";
+} from "@/web/hooks/collections/use-ai-providers.ts";
 import { ModelSelector } from "@/web/components/chat/select-model.tsx";
 import { User } from "@/web/components/user/user.tsx";
 import {
@@ -23,7 +23,7 @@ import {
   useAutomationDelete,
   useAutomationTriggerAdd,
 } from "@/web/hooks/use-automations";
-import { useChat } from "@/web/components/chat/index";
+import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
 import { useChatPanel } from "@/web/contexts/panel-context";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import {
@@ -75,7 +75,6 @@ import {
   derivePartsFromTiptapDoc,
   tiptapDocToMessages,
 } from "@/web/components/chat/derive-parts.ts";
-import { useSendToChat } from "@/web/components/chat/hooks/use-send-to-chat";
 
 // ============================================================================
 // Types
@@ -118,18 +117,15 @@ export function SettingsTab({
   const updateMutation = useAutomationUpdate();
 
   // Chat hooks for running the automation
+  const { createTaskWithMessage } = useChatTask();
   const {
-    createTask,
     setVirtualMcpId,
-    setSelectedModel,
-    sendMessage,
+    setModel,
     credentialId: chatCredentialId,
-    model: chatModel,
-  } = useChat();
+    selectedModel: chatModel,
+  } = useChatPrefs();
   const [, setChatOpen] = useChatPanel();
   const [preferences, setPreferences] = usePreferences();
-  const sendToChat = useSendToChat();
-
   const initialTiptapDoc =
     (automation.messages?.[0] as { metadata?: Metadata } | undefined)?.metadata
       ?.tiptapDoc ?? undefined;
@@ -163,7 +159,7 @@ export function SettingsTab({
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
-    sendToChat({
+    createTaskWithMessage({
       virtualMcpId: getDecopilotId(org.id),
       message: {
         parts: [
@@ -273,16 +269,16 @@ export function SettingsTab({
 
     setVirtualMcpId((fixedAgentId ?? values.agent_id) || null);
     if (selectedModel && watchConnectionId) {
-      setSelectedModel({ ...selectedModel, keyId: watchConnectionId });
+      setModel({ ...selectedModel, keyId: watchConnectionId });
     }
 
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
-    createTask();
 
-    setTimeout(() => {
-      sendMessage(tiptapDoc);
-    }, 0);
+    const parts = derivePartsFromTiptapDoc(tiptapDoc);
+    createTaskWithMessage({
+      message: { tiptapDoc, parts },
+    });
   };
 
   return (

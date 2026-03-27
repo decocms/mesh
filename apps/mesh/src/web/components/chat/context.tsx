@@ -1,26 +1,22 @@
 /**
- * Chat Context — consumer hooks composing from 3 internal contexts.
+ * Chat Context — consumer hooks from split provider architecture.
  *
- * useChat() provides the full combined interface.
- * useChatStable() is deprecated — identical to useChat().
- *
- * For fine-grained subscriptions (avoid unnecessary re-renders), use:
- *   useChatStream() — messages, status, streaming state
- *   useChatTask() — tasks, navigation, virtualMcpId
- *   useChatPrefs() — model selection, app contexts, tiptap
+ * Use the specific hooks for fine-grained subscriptions:
+ *   useChatStream() — messages, status, streaming state (under ActiveTaskProvider)
+ *   useChatTask() — tasks, navigation, virtualMcpId (under TaskProvider)
+ *   useChatPrefs() — model selection, app contexts, tiptap (under TaskProvider)
+ *   useChatBridge() — bridge to active task's sendMessage (under TaskProvider)
  */
 
 export {
   ChatContextProvider,
-  useChatContext as useChat,
+  ActiveTaskProvider,
   useChatTask,
-  type ChatContextValue,
+  useChatStream,
+  useChatPrefs,
+  useChatBridge,
   type ChatStreamContextValue,
   type ChatTaskContextValue,
   type ChatPrefsContextValue,
+  type ChatBridgeValue,
 } from "./chat-context";
-
-/**
- * @deprecated Use useChat() instead. This is an identical re-export.
- */
-export { useChatContext as useChatStable } from "./chat-context";

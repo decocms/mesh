@@ -7,13 +7,13 @@ import {
 } from "@/web/views/settings/org-ai-providers";
 import {
   useAiProviders,
-  useAiProviderKeyList,
-} from "@/web/hooks/collections/use-llm";
+  useAiProviderKeys,
+} from "@/web/hooks/collections/use-ai-providers";
 import { cn } from "@deco/ui/lib/utils.ts";
 
 function ProviderList() {
   const aiProviders = useAiProviders();
-  const allKeys = useAiProviderKeyList();
+  const allKeys = useAiProviderKeys();
   const providers: AiProvider[] = aiProviders?.providers ?? [];
   const isEven = providers.length % 2 === 0;
 
@@ -36,15 +36,15 @@ function ProviderList() {
   );
 }
 
-interface NoLlmBindingEmptyStateProps {
+interface NoAiProviderEmptyStateProps {
   title?: string;
   description?: string;
 }
 
-export function NoLlmBindingEmptyState({
+export function NoAiProviderEmptyState({
   title = "Connect an AI provider",
   description = "Keys are stored encrypted in the vault.",
-}: NoLlmBindingEmptyStateProps = {}) {
+}: NoAiProviderEmptyStateProps = {}) {
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-2xl px-4">
       <div className="flex flex-col items-center gap-4 text-center">

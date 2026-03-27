@@ -1,10 +1,8 @@
 /**
- * useNavigateToNewTask — prefills task + messages caches, then navigates.
+ * useCreateTaskAndNavigate — for use *outside* ChatContextProvider (e.g., sidebar).
  *
- * Designed for use *outside* ChatContextProvider (e.g., sidebar).
- * Creates an optimistic task, seeds the React Query caches so that
- * ChatContextProvider mounts without triggering Suspense, then navigates
- * to the new virtual MCP with the taskId already in the URL.
+ * Creates an optimistic task via the shared createOptimisticTaskInCache utility,
+ * then navigates to the new agent route with the taskId in the URL.
  */
 
 import {
@@ -16,21 +14,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { authClient } from "../lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "../lib/localstorage-keys";
-import { addTaskToCache } from "../components/chat/task/cache-operations";
-import { buildOptimisticTask } from "../components/chat/task/helpers";
-import { useCollectionCachePrefill } from "./use-collection-cache-prefill";
-import { TASK_CONSTANTS } from "../components/chat/task/types";
+import { createOptimisticTaskInCache } from "../components/chat/task-operations";
 import type { TaskOwnerFilter } from "../components/chat/task/use-task-manager";
 
 /**
  * Returns a function that creates an optimistic task, prefills caches,
  * and navigates to `/$org/$virtualMcpId?taskId=<newId>`.
  */
-export function useNavigateToNewTask() {
+export function useCreateTaskAndNavigate() {
   const navigate = useNavigate();
   const { org, locator } = useProjectContext();
   const queryClient = useQueryClient();
-  const { prefillCollectionCache } = useCollectionCachePrefill();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const client = useMCPClient({
@@ -39,9 +33,6 @@ export function useNavigateToNewTask() {
   });
 
   return (virtualMcpId: string) => {
-    const newTaskId = crypto.randomUUID();
-    const optimisticTask = buildOptimisticTask(newTaskId, virtualMcpId);
-
     // Read the persisted owner filter so we seed the right cache key
     let ownerFilter: TaskOwnerFilter = "me";
     try {
@@ -55,23 +46,15 @@ export function useNavigateToNewTask() {
       // ignore
     }
 
-    // Seed the tasks cache for the target virtual MCP
-    addTaskToCache(
+    const newTaskId = createOptimisticTaskInCache({
       queryClient,
       locator,
-      optimisticTask,
-      ownerFilter,
-      ownerFilter === "me" ? userId : undefined,
       virtualMcpId,
-    );
-
-    // Seed the messages cache so useTaskMessages won't suspend
-    if (client) {
-      prefillCollectionCache(client, "THREAD_MESSAGES", org.id, {
-        filters: [{ column: "thread_id", value: newTaskId }],
-        pageSize: TASK_CONSTANTS.TASK_MESSAGES_PAGE_SIZE,
-      });
-    }
+      ownerFilter,
+      userId,
+      client,
+      orgId: org.id,
+    });
 
     // Navigate with taskId already in the URL
     navigate({

@@ -245,15 +245,6 @@ const collectionDetailRoute = createRoute({
   ),
 });
 
-// Operations: Automations
-const automationsRoute = createRoute({
-  getParentRoute: () => settingsLayout,
-  path: "/automations",
-  component: lazyRouteComponent(
-    () => import("./views/automations/automations-list.tsx"),
-  ),
-});
-
 const automationDetailRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/automations/$automationId",
@@ -476,7 +467,6 @@ const settingsWithChildren = settingsLayout.addChildren([
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
-  automationsRoute,
   automationDetailRoute,
   monitoringRoute,
   settingsGeneralRoute,

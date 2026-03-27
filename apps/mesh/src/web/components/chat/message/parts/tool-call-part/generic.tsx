@@ -3,7 +3,7 @@
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer as MCPAppIframeRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatStable } from "@/web/components/chat/context.tsx";
+import { useChatStream, useChatPrefs } from "@/web/components/chat/context.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -166,8 +166,8 @@ export function GenericToolCallPart({
         : part.type.replace("tool-", "") || "Tool";
   const friendlyName = getFriendlyToolName(toolName);
 
-  const { selectedVirtualMcp, sendMessage, setAppContext, clearAppContext } =
-    useChatStable();
+  const { sendMessage } = useChatStream();
+  const { selectedVirtualMcp, setAppContext, clearAppContext } = useChatPrefs();
   const { org } = useProjectContext();
   const [, setChatOpen] = useChatPanel();
 

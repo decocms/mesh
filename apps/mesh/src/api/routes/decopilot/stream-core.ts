@@ -187,6 +187,7 @@ async function streamCoreInner(
         userId: input.userId,
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
+        virtualMcpId: input.agent.id,
       }),
     ]);
 
@@ -468,16 +469,37 @@ async function streamCoreInner(
 
         const shouldGenerateTitle =
           mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
+        console.log(
+          "[decopilot:title-debug] shouldGenerateTitle=%s threadTitle=%j isClaudeCode=%s threadId=%s",
+          shouldGenerateTitle,
+          mem.thread.title,
+          isClaudeCode,
+          mem.thread.id,
+        );
         if (shouldGenerateTitle) {
+          const titleInput = JSON.stringify(processedMessages[0]?.content);
+          console.log(
+            "[decopilot:title-debug] genTitle input (first 200 chars): %s",
+            titleInput?.slice(0, 200),
+          );
+          const titleStartTime = Date.now();
           const titleOp = genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
               provider!,
               input.models.fast ?? input.models.thinking,
             ),
-            userMessage: JSON.stringify(processedMessages[0]?.content),
+            userMessage: titleInput,
           })
             .then(async (title) => {
+              const elapsed = Date.now() - titleStartTime;
+              console.log(
+                "[decopilot:title-debug] genTitle result=%j elapsed=%dms streamFinished=%s threadId=%s",
+                title,
+                elapsed,
+                streamFinished,
+                mem.thread.id,
+              );
               if (!title) return;
 
               await ctx.storage.threads
@@ -495,6 +517,16 @@ async function streamCoreInner(
                   data: { title },
                   transient: true,
                 });
+                console.log(
+                  "[decopilot:title-debug] SSE title event sent threadId=%s",
+                  mem.thread.id,
+                );
+              } else {
+                console.warn(
+                  "[decopilot:title-debug] Stream already finished, title SSE NOT sent threadId=%s title=%j",
+                  mem.thread.id,
+                  title,
+                );
               }
             })
             .catch((error) => {
@@ -815,6 +847,11 @@ async function streamCoreInner(
         }
       },
       onFinish: async ({ responseMessage, finishReason }) => {
+        console.log(
+          "[decopilot:title-debug] onFinish called, setting streamFinished=true threadId=%s pendingOps=%d",
+          mem.thread.id,
+          pendingOps.length,
+        );
         streamFinished = true;
         closeClients?.();
 

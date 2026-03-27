@@ -1,6 +1,5 @@
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useSendToChat } from "@/web/components/chat/hooks/use-send-to-chat";
 import { useChatTask } from "@/web/components/chat/context";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -762,8 +761,7 @@ function VirtualMcpDetailViewWithData({
   // Chat hooks
   const [, setChatOpen] = useChatPanel();
   const [preferences, setPreferences] = usePreferences();
-  const sendToChat = useSendToChat();
-  const { createTask } = useChatTask();
+  const { createTask, createTaskWithMessage } = useChatTask();
 
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");
@@ -772,7 +770,7 @@ function VirtualMcpDetailViewWithData({
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
-    sendToChat({
+    createTaskWithMessage({
       virtualMcpId: getDecopilotId(org.id),
       message: {
         parts: [

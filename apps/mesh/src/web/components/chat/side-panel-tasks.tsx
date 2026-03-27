@@ -17,11 +17,17 @@ import {
   Settings01,
 } from "@untitledui/icons";
 import { useMatch } from "@tanstack/react-router";
-import { useVirtualMCPActions, useVirtualMCPs } from "@decocms/mesh-sdk";
+import {
+  getWellKnownDecopilotVirtualMCP,
+  useProjectContext,
+  useVirtualMCPActions,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
-import { Chat, useChat } from "./index";
+import { Chat } from "./index";
+import { useChatTask } from "./context";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
@@ -96,7 +102,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           key={`${view.connectionId}-${view.toolName}`}
           type="button"
           onClick={() =>
-            agentCtx?.navigateToMain("ext-apps", {
+            agentCtx?.openMainView("ext-apps", {
               id: view.connectionId,
               toolName: view.toolName,
             })
@@ -204,7 +210,7 @@ function TasksPanelContent({
   virtualMcpId?: string;
 }) {
   const [, setChatOpen] = useChatPanel();
-  const { createTask, switchToTask, setVirtualMcpId } = useChat();
+  const { createTask, openTask } = useChatTask();
   const agentCtx = useOptionalAgentContext();
   const [isPending, startTransition] = useTransition();
 
@@ -215,16 +221,19 @@ function TasksPanelContent({
   const virtualMcpId =
     virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
 
+  const { org } = useProjectContext();
   const allAgents = useVirtualMCPs();
   const project = virtualMcpId
     ? (allAgents.find((s) => s.id === virtualMcpId) ?? null)
     : null;
 
+  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
+  const agent = project
+    ? { icon: project.icon, title: project.title }
+    : { icon: defaultAgent.icon, title: defaultAgent.title };
+
   const handleNewTask = () => {
     startTransition(() => {
-      if (project) {
-        setVirtualMcpId(project.id);
-      }
       createTask();
       setChatOpen(true);
     });
@@ -261,7 +270,7 @@ function TasksPanelContent({
         {project && (
           <button
             type="button"
-            onClick={() => agentCtx?.navigateToMain("settings")}
+            onClick={() => agentCtx?.openMainView("settings")}
             className={cn(
               navItemClass,
               isSettingsActive && "bg-accent text-foreground",
@@ -277,8 +286,9 @@ function TasksPanelContent({
       {/* Task list */}
       <TaskListContent
         virtualMcpId={virtualMcpId}
+        agent={agent}
         onTaskSelect={(taskId) => {
-          switchToTask(taskId);
+          openTask(taskId);
           setChatOpen(true);
         }}
       />

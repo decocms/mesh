@@ -31,7 +31,7 @@ import {
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { useNavigateToNewTask } from "@/web/hooks/use-navigate-to-new-task";
+import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
@@ -57,7 +57,7 @@ function AgentListItem({
   onMarkSeen?: () => void;
 }) {
   const navigate = useNavigate();
-  const navigateToNewTask = useNavigateToNewTask();
+  const navigateToNewTask = useCreateTaskAndNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
   const actions = useVirtualMCPActions();
@@ -227,7 +227,7 @@ function PinAgentPopoverContent({
   const { org } = useProjectContext();
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
 
-  const navigateToNewTask = useNavigateToNewTask();
+  const navigateToNewTask = useCreateTaskAndNavigate();
 
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents

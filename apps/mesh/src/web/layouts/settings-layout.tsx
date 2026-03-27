@@ -21,7 +21,6 @@ import {
   Container,
   CpuChip01,
   Lock01,
-  RefreshCcw01,
   Users03,
   Zap,
 } from "@untitledui/icons";
@@ -54,12 +53,6 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Connections",
           icon: <Container size={14} />,
           to: "/$org/settings/connections",
-        },
-        {
-          key: "automations",
-          label: "Automations",
-          icon: <RefreshCcw01 size={14} />,
-          to: "/$org/settings/automations",
         },
         {
           key: "ai-providers",

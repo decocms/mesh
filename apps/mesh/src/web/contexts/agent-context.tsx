@@ -27,11 +27,11 @@ export type MainView =
 export interface AgentContextValue {
   virtualMcpId: string;
   mainView: MainView;
-  navigateToMain: (
+  openMainView: (
     main: "default" | MainViewType,
     opts?: { id?: string; toolName?: string; [key: string]: unknown },
   ) => void;
-  navigateToTask: (taskId: string) => void;
+  openTask: (taskId: string) => void;
 }
 
 // ---------------------------------------------------------------------------

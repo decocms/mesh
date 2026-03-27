@@ -34,6 +34,10 @@ export async function genTitle(config: {
   }, TITLE_TIMEOUT_MS);
 
   try {
+    console.log(
+      "[decopilot:title-debug] Calling generateText for title, userMessage length=%d",
+      userMessage.length,
+    );
     const result = await generateText({
       model,
       system: TITLE_GENERATOR_PROMPT,
@@ -45,6 +49,7 @@ export async function genTitle(config: {
 
     // Try JSON parse first (preferred format), fall back to raw text
     const rawTitle = result.text.trim();
+    console.log("[decopilot:title-debug] Raw LLM response: %j", rawTitle);
     let title: string;
 
     try {
@@ -63,6 +68,7 @@ export async function genTitle(config: {
       .slice(0, 60) // Max 60 chars
       .trim();
 
+    console.log("[decopilot:title-debug] Final cleaned title: %j", title);
     return title;
   } catch (error) {
     const err = error as Error;

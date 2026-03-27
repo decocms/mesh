@@ -1,4 +1,4 @@
-import type { AiProviderModel } from "../hooks/collections/use-llm";
+import type { AiProviderModel } from "../hooks/collections/use-ai-providers";
 import type { MetadataModelInfo } from "../components/chat/types";
 
 export function toMetadataModelInfo(model: AiProviderModel): MetadataModelInfo {

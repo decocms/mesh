@@ -149,7 +149,7 @@ export function buildDisplayGroups(tasks: Task[]): DisplayGroup[] {
   for (const group of Object.values(buckets)) {
     group.sort(
       (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
     );
   }
 

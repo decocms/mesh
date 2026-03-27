@@ -5,11 +5,9 @@
  * Dense, scannable rows. Collapsible groups with counts.
  */
 
-import { useChat } from "@/web/components/chat/index";
+import { useChatTask } from "@/web/components/chat/context";
 import { CollectionSearch } from "@/web/components/collections/collection-search";
-import { useChatStable } from "@/web/components/chat/context";
 import { useOptionalAgentContext } from "@/web/contexts/agent-context";
-import { AgentAvatar } from "@/web/components/agent-icon";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   buildDisplayGroups,
@@ -24,11 +22,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  getWellKnownDecopilotVirtualMCP,
-  useConnections,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
 import {
   CheckDone01,
   ChevronRight,
@@ -48,7 +41,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.js";
 import {
@@ -105,8 +97,7 @@ function TruncatedText({
 }
 
 export function OwnerFilter() {
-  const { ownerFilter, setOwnerFilter, isFilterChangePending } =
-    useChatStable();
+  const { ownerFilter, setOwnerFilter, isFilterChangePending } = useChatTask();
 
   const isFiltered = ownerFilter === "me";
   const Icon = isFilterChangePending
@@ -199,31 +190,17 @@ function GroupHeader({
 function TaskRow({
   task,
   isActive,
-  connectionMap,
-  defaultAgent,
+  agent,
   onClick,
 }: {
   task: Task;
   isActive: boolean;
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
+  agent: { icon: string | null | undefined; title: string };
   onClick: () => void;
 }) {
-  const { setTaskStatus, hideTask } = useChatStable();
+  const { setTaskStatus, hideTask } = useChatTask();
   const status = task.status;
   const taskVerb = getTaskVerb(task, undefined);
-
-  const firstAgentId = task.virtual_mcp_id;
-  const primaryAgent =
-    firstAgentId !== undefined
-      ? (() => {
-          const conn = connectionMap.get(firstAgentId);
-          return conn ? { icon: conn.icon, title: conn.title } : defaultAgent;
-        })()
-      : defaultAgent;
 
   return (
     <ContextMenu>
@@ -251,7 +228,7 @@ function TaskRow({
             </div>
             {/* Line 2: agent name · status verb (only when actionable) */}
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span className="truncate">{primaryAgent.title}</span>
+              <span className="truncate">{agent.title}</span>
               {taskVerb && (
                 <>
                   <span>·</span>
@@ -384,9 +361,9 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
   const navigateToAutomation = (automationId?: string) => {
     if (automationId) {
-      agentCtx?.navigateToMain("automation", { id: automationId });
+      agentCtx?.openMainView("automation", { id: automationId });
     } else {
-      agentCtx?.navigateToMain("default");
+      agentCtx?.openMainView("default");
     }
   };
 
@@ -464,26 +441,12 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
 function FilterDropdown({
   statusFilter,
-  agentFilter,
-  availableAgents,
-  connectionMap,
-  defaultAgent,
   onStatusChange,
-  onAgentChange,
 }: {
   statusFilter: Set<StatusKey>;
-  agentFilter: Set<string>;
-  availableAgents: string[];
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
   onStatusChange: (status: StatusKey) => void;
-  onAgentChange: (agentId: string) => void;
 }) {
-  const hasFilters = statusFilter.size > 0 || agentFilter.size > 0;
-  const showAgents = availableAgents.length > 1;
+  const hasFilters = statusFilter.size > 0;
 
   return (
     <DropdownMenu>
@@ -521,28 +484,6 @@ function FilterDropdown({
             </DropdownMenuCheckboxItem>
           );
         })}
-        {showAgents && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Agent
-            </DropdownMenuLabel>
-            {availableAgents.map((agentId) => {
-              const conn = connectionMap.get(agentId);
-              const agent = conn ?? defaultAgent;
-              return (
-                <DropdownMenuCheckboxItem
-                  key={agentId}
-                  checked={agentFilter.has(agentId)}
-                  onCheckedChange={() => onAgentChange(agentId)}
-                >
-                  <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
-                  <span className="truncate">{agent.title}</span>
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -555,49 +496,19 @@ function FilterDropdown({
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
   virtualMcpId?: string | null;
+  agent: { icon: string | null | undefined; title: string };
 }
 
 export function TaskListContent({
   onTaskSelect,
   virtualMcpId,
+  agent,
 }: TaskListContentProps) {
-  const { activeTaskId, switchToTask } = useChat();
-  const { tasks, virtualMcps } = useChatStable();
-  const { org } = useProjectContext();
-
-  // Compute needed agent IDs from tasks
-  const agentIds = [
-    ...new Set(
-      tasks
-        .filter((t) => !t.hidden && t.virtual_mcp_id)
-        .map((t) => t.virtual_mcp_id!),
-    ),
-  ];
-
-  const connections = useConnections({
-    additionalToolArgs:
-      agentIds.length > 0
-        ? { where: { field: ["id"], operator: "in", value: agentIds } }
-        : undefined,
-  });
-  // Build a unified agent lookup: connections + virtual MCPs
-  const connectionMap = new Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >();
-  for (const c of connections) {
-    connectionMap.set(c.id, { icon: c.icon, title: c.title });
-  }
-  for (const v of virtualMcps) {
-    if (v.id) connectionMap.set(v.id, { icon: v.icon, title: v.title });
-  }
-
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
+  const { taskId, openTask, tasks } = useChatTask();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
-  const [agentFilter, setAgentFilter] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const visible = tasks.filter((t) => !t.hidden);
@@ -607,20 +518,6 @@ export function TaskListContent({
   const spaceFiltered = spaceId
     ? visible.filter((t) => t.virtual_mcp_id === spaceId)
     : visible;
-
-  const availableAgents = [
-    ...new Set(
-      spaceFiltered
-        .filter((t) => t.virtual_mcp_id)
-        .map((t) => t.virtual_mcp_id!),
-    ),
-  ];
-
-  // Intersect agentFilter with available agents to avoid stale filters hiding all tasks
-  const availableSet = new Set(availableAgents);
-  const effectiveAgentFilter = new Set(
-    [...agentFilter].filter((id) => availableSet.has(id)),
-  );
 
   const searched = searchQuery.trim()
     ? spaceFiltered.filter((t) =>
@@ -634,10 +531,6 @@ export function TaskListContent({
       !statusFilter.has((task.status ?? "completed") as StatusKey)
     )
       return false;
-    if (effectiveAgentFilter.size > 0) {
-      if (task.virtual_mcp_id && !effectiveAgentFilter.has(task.virtual_mcp_id))
-        return false;
-    }
     return true;
   });
 
@@ -647,11 +540,11 @@ export function TaskListContent({
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSelect = async (task: Task) => {
+  const handleSelect = (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
     } else {
-      await switchToTask(task.id);
+      openTask(task.id);
     }
   };
 
@@ -705,23 +598,11 @@ export function TaskListContent({
           </button>
           <FilterDropdown
             statusFilter={statusFilter}
-            agentFilter={agentFilter}
-            availableAgents={availableAgents}
-            connectionMap={connectionMap}
-            defaultAgent={defaultAgent}
             onStatusChange={(s) =>
               setStatusFilter((prev) => {
                 const next = new Set(prev);
                 if (next.has(s)) next.delete(s);
                 else next.add(s);
-                return next;
-              })
-            }
-            onAgentChange={(a) =>
-              setAgentFilter((prev) => {
-                const next = new Set(prev);
-                if (next.has(a)) next.delete(a);
-                else next.add(a);
                 return next;
               })
             }
@@ -750,9 +631,8 @@ export function TaskListContent({
                     <TaskRow
                       key={task.id}
                       task={task}
-                      isActive={task.id === activeTaskId}
-                      connectionMap={connectionMap}
-                      defaultAgent={defaultAgent}
+                      isActive={task.id === taskId}
+                      agent={agent}
                       onClick={() => handleSelect(task)}
                     />
                   ))}
@@ -779,9 +659,8 @@ export function TaskListContent({
                     <TaskRow
                       key={task.id}
                       task={task}
-                      isActive={task.id === activeTaskId}
-                      connectionMap={connectionMap}
-                      defaultAgent={defaultAgent}
+                      isActive={task.id === taskId}
+                      agent={agent}
                       onClick={() => handleSelect(task)}
                     />
                   ))}

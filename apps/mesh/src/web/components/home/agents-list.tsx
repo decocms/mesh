@@ -5,7 +5,7 @@
  * Only shows when the organization has agents.
  */
 
-import { useChatStable } from "@/web/components/chat/context";
+import { useChatPrefs } from "@/web/components/chat/context";
 import {
   VirtualMCPPopoverContent,
   type VirtualMCPInfo,
@@ -205,7 +205,7 @@ function CreateAgentButton() {
 
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
-  const { selectedVirtualMcp, setVirtualMcpId } = useChatStable();
+  const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
 

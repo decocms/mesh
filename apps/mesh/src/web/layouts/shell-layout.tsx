@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Chat } from "@/web/components/chat/index";
+import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
+import { ErrorBoundary } from "@/web/components/error-boundary";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
@@ -251,6 +252,35 @@ function ToolbarBreadcrumb() {
   return null;
 }
 
+/**
+ * Reads taskId from ChatTaskContext and wraps children in ActiveTaskProvider
+ * inside a Suspense + ErrorBoundary boundary.
+ */
+function ActiveTaskBoundary({
+  children,
+  variant,
+}: {
+  children?: React.ReactNode;
+  variant?: "home" | "default";
+}) {
+  const { taskId } = useChatTask();
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          Something went wrong loading the chat. Try refreshing.
+        </div>
+      }
+    >
+      <Suspense fallback={<Chat.Skeleton />}>
+        <Chat.ActiveTaskProvider taskId={taskId}>
+          {children ?? <ChatPanel variant={variant} />}
+        </Chat.ActiveTaskProvider>
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
 function ShellLayoutInner({
   isAgentRoute,
   isOrgHome,
@@ -350,7 +380,9 @@ function ShellLayoutInner({
                   onOpenSidebar={() => setMobileSidebarOpen(true)}
                 />
                 <div className="flex-1 min-h-0 overflow-hidden">
-                  <ChatPanel variant={isOrgHome ? "home" : undefined} />
+                  <ActiveTaskBoundary
+                    variant={isOrgHome ? "home" : undefined}
+                  />
                 </div>
                 {/* Mobile sidebar: icon rail + tasks panel */}
                 <Sheet
@@ -592,7 +624,7 @@ function ShellLayoutInner({
                       >
                         <div className="h-full pr-1.5 pb-1.5">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                            <ChatPanel
+                            <ActiveTaskBoundary
                               variant={isOrgHome ? "home" : undefined}
                             />
                           </div>

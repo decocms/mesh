@@ -9,7 +9,7 @@ import {
 } from "@untitledui/icons";
 import { calculateUsageStats } from "@/web/lib/usage-utils";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { useChat } from "./context";
+import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import type { ChatMessage, SubtaskToolPart } from "./types";
 import { useState } from "react";
 
@@ -156,16 +156,11 @@ export function ChatContextPanel({
     null,
   );
 
-  const {
-    messages,
-    tasks,
-    activeTaskId,
-    model,
-    selectedVirtualMcp,
-    virtualMcps,
-  } = useChat();
+  const { messages } = useChatStream();
+  const { tasks, taskId } = useChatTask();
+  const { selectedModel, selectedVirtualMcp, virtualMcps } = useChatPrefs();
 
-  const activeTask = tasks.find((t) => t.id === activeTaskId);
+  const activeTask = tasks.find((t) => t.id === taskId);
 
   const stats = calculateUsageStats(
     messages as Array<{
@@ -180,7 +175,7 @@ export function ChatContextPanel({
     }>,
   );
 
-  const contextWindow = model?.limits?.contextWindow ?? null;
+  const contextWindow = selectedModel?.limits?.contextWindow ?? null;
 
   const usagePct =
     contextWindow && contextWindow > 0
@@ -260,7 +255,9 @@ export function ChatContextPanel({
       }),
   );
 
-  const modelLabel = model?.modelId ? formatModelId(model.modelId) : "—";
+  const modelLabel = selectedModel?.modelId
+    ? formatModelId(selectedModel.modelId)
+    : "—";
 
   const agentTitle = selectedVirtualMcp?.title ?? "Decopilot";
 

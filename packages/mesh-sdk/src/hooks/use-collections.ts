@@ -146,7 +146,7 @@ export function buildOrderByExpression<T extends CollectionEntity>(
   defaultSortKey: keyof T,
 ): OrderByExpression[] | undefined {
   const key = sortKey ?? defaultSortKey;
-  const direction = sortDirection ?? "asc";
+  const direction = sortDirection ?? "desc";
 
   return [
     {

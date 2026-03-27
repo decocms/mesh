@@ -63,7 +63,7 @@ import {
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolAnnotationBadges } from "@/web/components/tools/tools-list.tsx";
-import { useChatStable } from "@/web/components/chat/context.tsx";
+import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
 import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
@@ -199,7 +199,8 @@ function ToolDetailsAuthenticated({
 
   const { org } = useProjectContext();
   const connection = useConnection(connectionId);
-  const { sendMessage, setAppContext, clearAppContext } = useChatStable();
+  const { sendMessage } = useChatBridge();
+  const { setAppContext, clearAppContext } = useChatPrefs();
   const [, setChatOpen] = useChatPanel();
   const sourceId = `${connectionId}:${toolName}`;
 
@@ -218,7 +219,7 @@ function ToolDetailsAuthenticated({
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
       setChatOpen(true);
-      sendMessage(doc);
+      sendMessage({ tiptapDoc: doc });
     }
   };
 

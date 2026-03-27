@@ -335,43 +335,32 @@ function PreferencesPanel() {
             onValueChange={(value) =>
               setPreferences((prev) => ({
                 ...prev,
-                toolApprovalLevel: value as "auto" | "readonly" | "plan",
+                toolApprovalLevel: value as "auto" | "readonly",
               }))
             }
           >
-            <SelectTrigger className="w-28 h-7 text-xs">
+            <SelectTrigger className="w-36 h-7 text-xs">
               <span>
-                {
-                  {
-                    readonly: "Skip read-only",
-                    auto: "Auto-approve",
-                    plan: "Plan mode",
-                  }[preferences.toolApprovalLevel]
-                }
+                {{
+                  readonly: "Ask before edit",
+                  auto: "Auto approve",
+                }[preferences.toolApprovalLevel] ?? "Ask before edit"}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="readonly" textValue="Skip read-only">
+              <SelectItem value="readonly" textValue="Ask before edit">
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Skip read-only</span>
+                  <span className="font-medium">Ask before edit</span>
                   <span className="text-xs text-muted-foreground">
                     Auto-approve read-only tools
                   </span>
                 </div>
               </SelectItem>
-              <SelectItem value="auto" textValue="Auto-approve all">
+              <SelectItem value="auto" textValue="Auto approve">
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Auto-approve all</span>
+                  <span className="font-medium">Auto approve</span>
                   <span className="text-xs text-muted-foreground">
                     Execute all without approval
-                  </span>
-                </div>
-              </SelectItem>
-              <SelectItem value="plan" textValue="Plan mode">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Plan mode</span>
-                  <span className="text-xs text-muted-foreground">
-                    Read-only, then propose a plan
                   </span>
                 </div>
               </SelectItem>

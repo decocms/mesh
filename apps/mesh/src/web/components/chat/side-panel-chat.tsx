@@ -14,10 +14,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { ErrorBoundary } from "../error-boundary";
 
-import { Chat, useChat } from "./index";
+import { Chat } from "./index";
+import { useChatStream, useChatPrefs } from "./context";
 import { ChatContextPanel } from "./context-panel";
 
-import { useAiProviders } from "@/web/hooks/collections/use-llm";
+import {
+  useAiProviders,
+  useAiProviderKeys,
+} from "@/web/hooks/collections/use-ai-providers";
 
 // ---------- Import deco.cx Banner ----------
 
@@ -93,7 +97,7 @@ function HomeEmptyState({
 }) {
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
-  const { selectedVirtualMcp } = useChat();
+  const { selectedVirtualMcp } = useChatPrefs();
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
 
@@ -146,7 +150,7 @@ function HomeEmptyState({
 
 function SidebarEmptyState() {
   const { org } = useProjectContext();
-  const { selectedVirtualMcp } = useChat();
+  const { selectedVirtualMcp } = useChatPrefs();
 
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
@@ -180,10 +184,18 @@ function SidebarEmptyState() {
 
 function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
   const aiProviders = useAiProviders();
-  const { isChatEmpty } = useChat();
+  const allKeys = useAiProviderKeys();
+  const { isChatEmpty } = useChatStream();
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
 
-  if (aiProviders?.providers?.length === 0) {
+  console.log(
+    "[ChatPanelContent] providers count:",
+    aiProviders?.providers?.length,
+    "keys count:",
+    allKeys.length,
+  );
+
+  if (allKeys.length === 0) {
     const title = "No model provider connected";
     const description =
       "Connect to a model provider to unlock AI-powered features.";
@@ -192,7 +204,7 @@ function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
       <Chat className="animate-in fade-in-0 duration-200">
         <Chat.Main className="flex flex-col items-center">
           <Chat.EmptyState>
-            <Chat.NoLlmBindingEmptyState
+            <Chat.NoAiProviderEmptyState
               title={title}
               description={description}
             />

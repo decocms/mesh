@@ -52,7 +52,7 @@ export function useAiProviders() {
   return data;
 }
 
-export function useAiProviderKeyList() {
+export function useAiProviderKeys() {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,

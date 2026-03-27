@@ -15,9 +15,9 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import {
   AiProviderKey,
-  useAiProviderKeyList,
+  useAiProviderKeys,
   useSuspenseAiProviderModels,
-} from "@/web/hooks/collections/use-llm";
+} from "@/web/hooks/collections/use-ai-providers";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -585,7 +585,7 @@ function ModelsPermissionsTab({
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const allModelsConnections = useAiProviderKeyList();
+  const allModelsConnections = useAiProviderKeys();
 
   // Toggle a single model for a connection
   const toggleModel = (connectionId: string, modelId: string) => {

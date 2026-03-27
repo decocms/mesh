@@ -1,5 +1,8 @@
 import { Suspense, useState, useEffect } from "react";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -27,15 +30,28 @@ import {
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@deco/ui/components/dialog.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import {
   useAiProviders,
-  useAiProviderKeyList,
+  useAiProviderKeys,
   type AiProviderKey,
-} from "@/web/hooks/collections/use-llm";
+} from "@/web/hooks/collections/use-ai-providers";
 import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
@@ -65,6 +81,9 @@ function KeyList({
   onDelete: (keyId: string) => void;
   isDeleting: boolean;
 }) {
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const targetKey = keys.find((k) => k.id === deleteTarget);
+
   return (
     <div className="flex flex-col gap-2 mt-4">
       {keys.map((key) => (
@@ -81,39 +100,60 @@ function KeyList({
           </div>
           {/* Stop propagation so trash click doesn't trigger card's onClick */}
           <div onClick={(e) => e.stopPropagation()}>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  disabled={isDeleting}
-                >
-                  <Trash01 size={14} />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-2" align="end">
-                <div className="flex flex-col gap-2">
-                  <p className="text-xs font-medium">Delete this key?</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      size="xs"
-                      onClick={() => onDelete(key.id)}
-                      disabled={isDeleting}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              disabled={isDeleting}
+              onClick={() => setDeleteTarget(key.id)}
+            >
+              <Trash01 size={14} />
+            </Button>
           </div>
         </div>
       ))}
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {targetKey?.label}
+              </span>
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) {
+                  onDelete(deleteTarget);
+                  setDeleteTarget(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
+const apiKeyFormSchema = z.object({
+  label: z.string().optional(),
+  apiKey: z.string().min(1, "API key is required"),
+});
+
+type ApiKeyFormData = z.infer<typeof apiKeyFormSchema>;
 
 function ConnectApiKeyForm({
   providerId,
@@ -130,23 +170,29 @@ function ConnectApiKeyForm({
     orgId: org.id,
   });
   const queryClient = useQueryClient();
-
-  const [label, setLabel] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ApiKeyFormData>({
+    resolver: zodResolver(apiKeyFormSchema),
+    defaultValues: { label: "", apiKey: "" },
+  });
 
   const {
     mutate: createKey,
     isPending,
     error,
   } = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: ApiKeyFormData) => {
       await client.callTool({
         name: "AI_PROVIDER_KEY_CREATE",
         arguments: {
           providerId,
-          label: label || "Personal key",
-          apiKey,
+          label: data.label || "Personal key",
+          apiKey: data.apiKey,
         },
       });
     },
@@ -162,15 +208,17 @@ function ConnectApiKeyForm({
   });
 
   return (
-    <div className="space-y-3">
+    <form
+      onSubmit={handleSubmit((data) => createKey(data))}
+      className="space-y-3"
+    >
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">
           Label
         </label>
         <Input
           placeholder="e.g. Personal key"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
+          {...register("label")}
           className="h-8 text-sm"
         />
       </div>
@@ -182,8 +230,7 @@ function ConnectApiKeyForm({
           <Input
             type={showKey ? "text" : "password"}
             placeholder="sk-..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            {...register("apiKey")}
             className="h-8 text-sm pr-8"
           />
           <button
@@ -194,12 +241,16 @@ function ConnectApiKeyForm({
             {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         </div>
+        {errors.apiKey && (
+          <p className="text-xs text-destructive">{errors.apiKey.message}</p>
+        )}
       </div>
 
       {error && <p className="text-xs text-destructive">{error.message}</p>}
 
-      <div className="flex justify-end gap-2 pt-1">
+      <DialogFooter>
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={onCancel}
@@ -207,15 +258,11 @@ function ConnectApiKeyForm({
         >
           Cancel
         </Button>
-        <Button
-          size="sm"
-          onClick={() => createKey()}
-          disabled={!apiKey || isPending}
-        >
+        <Button type="submit" size="sm" disabled={isPending}>
           {isPending ? "Saving..." : "Save Key"}
         </Button>
-      </div>
-    </div>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -580,138 +627,141 @@ export function ProviderCard({
   };
 
   return (
-    <Popover
-      open={isConnectFormOpen}
-      onOpenChange={(open) => {
-        if (!open) setIsConnectFormOpen(false);
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Card
-          className={cn(
-            "p-4 flex flex-col gap-3 transition-colors relative",
-            isActive && "border-primary/20",
-            !isOAuthPending &&
-              !isActivating &&
-              "cursor-pointer hover:bg-muted/30",
-            (isOAuthPending || isActivating) && "cursor-wait",
-          )}
-          onClick={handleCardClick}
-        >
-          {isActive && (
-            <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-green-500" />
-          )}
+    <>
+      <Card
+        className={cn(
+          "p-4 flex flex-col gap-3 transition-colors relative",
+          isActive && "border-primary/20",
+          !isOAuthPending &&
+            !isActivating &&
+            "cursor-pointer hover:bg-muted/30",
+          (isOAuthPending || isActivating) && "cursor-wait",
+        )}
+        onClick={handleCardClick}
+      >
+        {isActive && (
+          <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-green-500" />
+        )}
 
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              {provider.logo ? (
-                <img
-                  src={provider.logo}
-                  alt={provider.name}
-                  className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
-                />
-              ) : (
-                <Avatar
-                  fallback={provider.name.charAt(0)}
-                  className="size-8 bg-primary/10 text-primary"
-                />
-              )}
-              <div>
-                <h3 className="font-medium text-base">{provider.name}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-1">
-                  {isActivating
-                    ? "Checking CLI..."
-                    : isOAuthPending
-                      ? "Authorizing..."
-                      : provider.description}
-                </p>
-              </div>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            {provider.logo ? (
+              <img
+                src={provider.logo}
+                alt={provider.name}
+                className="size-8 rounded-md object-contain dark:bg-white dark:rounded-md dark:p-0.5"
+              />
+            ) : (
+              <Avatar
+                fallback={provider.name.charAt(0)}
+                className="size-8 bg-primary/10 text-primary"
+              />
+            )}
+            <div>
+              <h3 className="font-medium text-base">{provider.name}</h3>
+              <p className="text-sm text-muted-foreground line-clamp-1">
+                {isActivating
+                  ? "Checking CLI..."
+                  : isOAuthPending
+                    ? "Authorizing..."
+                    : provider.description}
+              </p>
             </div>
           </div>
+        </div>
 
-          {isActive && (
-            <div className="mt-1">
-              {isCliActivate ? (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    Authenticated via Claude CLI
-                  </p>
-                  <KeyList
-                    keys={keys}
-                    onDelete={deleteKey}
-                    isDeleting={isDeleting}
-                  />
-                </>
-              ) : (
-                <>
-                  {provider.supportsCredits && (
-                    <div className="mb-2">
-                      <CreditsBalance providerId={provider.id} />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {keys.length} key{keys.length !== 1 ? "s" : ""} configured
-                    </p>
-                    {provider.supportsTopUp && (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                          onClick={() =>
-                            setTopUpKeyId(
-                              topUpKeyId ? null : (keys[0]?.id ?? null),
-                            )
-                          }
-                        >
-                          <CreditCard01 size={12} />
-                          Add credits
-                        </Button>
-                      </div>
-                    )}
+        {isActive && (
+          <div className="mt-1">
+            {isCliActivate ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Authenticated via Claude CLI
+                </p>
+                <KeyList
+                  keys={keys}
+                  onDelete={deleteKey}
+                  isDeleting={isDeleting}
+                />
+              </>
+            ) : (
+              <>
+                {provider.supportsCredits && (
+                  <div className="mb-2">
+                    <CreditsBalance providerId={provider.id} />
                   </div>
-                  {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
-                    <div
-                      className="mt-2 p-3 rounded-md border bg-muted/30"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <TopUpForm
-                        keyId={topUpKeyId}
-                        providerId={provider.id}
-                        onCancel={() => setTopUpKeyId(null)}
-                      />
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {keys.length} key{keys.length !== 1 ? "s" : ""} configured
+                  </p>
+                  {provider.supportsTopUp && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="h-6 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          setTopUpKeyId(
+                            topUpKeyId ? null : (keys[0]?.id ?? null),
+                          )
+                        }
+                      >
+                        <CreditCard01 size={12} />
+                        Add credits
+                      </Button>
                     </div>
                   )}
-                  <KeyList
-                    keys={keys}
-                    onDelete={deleteKey}
-                    isDeleting={isDeleting}
-                  />
-                </>
-              )}
-            </div>
-          )}
-        </Card>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-72 p-4"
-        align="start"
-        onInteractOutside={() => setIsConnectFormOpen(false)}
+                </div>
+                {topUpKeyId && keys.some((k) => k.id === topUpKeyId) && (
+                  <div
+                    className="mt-2 p-3 rounded-md border bg-muted/30"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <TopUpForm
+                      keyId={topUpKeyId}
+                      providerId={provider.id}
+                      onCancel={() => setTopUpKeyId(null)}
+                    />
+                  </div>
+                )}
+                <KeyList
+                  keys={keys}
+                  onDelete={deleteKey}
+                  isDeleting={isDeleting}
+                />
+              </>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Dialog
+        open={isConnectFormOpen}
+        onOpenChange={(open) => {
+          if (!open) setIsConnectFormOpen(false);
+        }}
       >
-        <ConnectApiKeyForm
-          providerId={provider.id}
-          onCancel={() => setIsConnectFormOpen(false)}
-          onSuccess={() => setIsConnectFormOpen(false)}
-        />
-      </PopoverContent>
-    </Popover>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect {provider.name}</DialogTitle>
+            <DialogDescription>
+              Add an API key to connect your {provider.name} account.
+            </DialogDescription>
+          </DialogHeader>
+          <ConnectApiKeyForm
+            providerId={provider.id}
+            onCancel={() => setIsConnectFormOpen(false)}
+            onSuccess={() => setIsConnectFormOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 function OrgAiProvidersContent() {
   const aiProviders = useAiProviders();
-  const allKeys = useAiProviderKeyList();
+  const allKeys = useAiProviderKeys();
   const providers = aiProviders?.providers ?? [];
   const isEven = providers.length % 2 === 0;
 

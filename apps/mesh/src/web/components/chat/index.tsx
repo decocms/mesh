@@ -1,13 +1,22 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { PropsWithChildren } from "react";
-import { ChatContextProvider, useChat } from "./context";
+import {
+  ChatContextProvider,
+  ActiveTaskProvider,
+  useChatStream,
+} from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessagePair, useMessagePairs } from "./message/pair.tsx";
-import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
+import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
 import { TaskHistoryPopover } from "./popover-tasks";
 import { DecoChatSkeleton } from "./skeleton";
-export { useChat } from "./context";
+export {
+  useChatStream,
+  useChatTask,
+  useChatPrefs,
+  useChatBridge,
+} from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export type { ChatMessage, ChatStatus } from "./types.ts";
 
@@ -47,7 +56,7 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 }
 
 function ChatMessages() {
-  const { messages, status } = useChat();
+  const { messages, status } = useChatStream();
   const messagePairs = useMessagePairs(messages);
   const lastMessagePair = messagePairs.at(-1);
 
@@ -121,8 +130,9 @@ export const Chat = Object.assign(ChatRoot, {
   Footer: ChatFooter,
   Input: ChatInput,
   Provider: ChatContextProvider,
+  ActiveTaskProvider: ActiveTaskProvider,
   Skeleton: DecoChatSkeleton,
   IceBreakers: IceBreakers,
-  NoLlmBindingEmptyState: NoLlmBindingEmptyState,
+  NoAiProviderEmptyState: NoAiProviderEmptyState,
   TaskHistoryPopover: TaskHistoryPopover,
 });

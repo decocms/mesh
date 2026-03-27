@@ -2,8 +2,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { AlertCircle, AlertTriangle, X } from "@untitledui/icons";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
-import { useChat, useChatTask } from "../context";
-import { useSendToChat } from "../hooks/use-send-to-chat";
+import { useChatStream, useChatTask } from "../context";
 import { ApprovalHighlight, extractPendingApprovals } from "./approval";
 import { ProposePlanHighlight, extractPendingPlans } from "./propose-plan";
 import { UserAskQuestionHighlight } from "./user-ask-question";
@@ -132,10 +131,9 @@ export function ChatHighlight() {
     addToolOutput,
     addToolApprovalResponse,
     sendMessage,
-  } = useChat();
+  } = useChatStream();
   const [preferences, setPreferences] = usePreferences();
-  const { virtualMcpId } = useChatTask();
-  const sendToChat = useSendToChat();
+  const { virtualMcpId, createTaskWithMessage } = useChatTask();
 
   const lastMessage = messages.at(-1);
 
@@ -206,7 +204,7 @@ export function ChatHighlight() {
     setPreferences({ ...preferences, toolApprovalLevel: "auto" });
 
     // Send plan to a new thread via sendToChat
-    sendToChat({
+    createTaskWithMessage({
       virtualMcpId,
       message: {
         parts: [{ type: "text", text: `Implement this plan:\n\n${planText}` }],

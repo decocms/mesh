@@ -13,7 +13,7 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Check, Clock, Edit01, SearchMd, Trash01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
-import { useChatStable } from "./context";
+import { useChatTask } from "./context";
 import type { Task } from "./task/types.ts";
 
 type TaskSection = {
@@ -111,15 +111,15 @@ export function TaskHistoryPopover({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const {
-    activeTaskId,
-    switchToTask,
+    taskId,
+    openTask,
     tasks,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
     hideTask,
     renameTask,
-  } = useChatStable();
+  } = useChatTask();
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Set up intersection observer for infinite scroll
@@ -249,7 +249,7 @@ export function TaskHistoryPopover({
                         </span>
                       </div>
                       {section.tasks.map((task) => {
-                        const isActive = task.id === activeTaskId;
+                        const isActive = task.id === taskId;
                         const isEditing = editingTaskId === task.id;
                         return (
                           <div
@@ -258,7 +258,7 @@ export function TaskHistoryPopover({
                               "flex items-center gap-2 px-3 py-2 hover:bg-accent cursor-pointer group",
                               isActive && "bg-accent/50",
                             )}
-                            onClick={() => !isEditing && switchToTask(task.id)}
+                            onClick={() => !isEditing && openTask(task.id)}
                           >
                             <div className="flex-1 min-w-0">
                               {isEditing ? (
