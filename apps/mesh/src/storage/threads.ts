@@ -292,8 +292,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       query = query.where("status", "=", options.status as ThreadStatus);
     }
     if (options?.agentId) {
-      // agent_ids is stored as a JSON text array — match the quoted ID inside it
-      query = query.where("agent_ids", "like", `%"${options.agentId}"%`);
+      query = query.where("virtual_mcp_id", "=", options.agentId);
     }
 
     let countQuery = this.db
@@ -337,11 +336,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       );
     }
     if (options?.agentId) {
-      countQuery = countQuery.where(
-        "agent_ids",
-        "like",
-        `%"${options.agentId}"%`,
-      );
+      countQuery = countQuery.where("virtual_mcp_id", "=", options.agentId);
     }
 
     if (options?.limit) {
