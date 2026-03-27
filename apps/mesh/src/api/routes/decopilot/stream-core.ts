@@ -330,19 +330,19 @@ async function streamCoreInner(
       windowSize,
     );
 
-    // Find the last CLI agent sessionId for session resume
+    // Find the last Claude Code sessionId for session resume.
+    // Codex does not support session resume (each request spawns a new process).
     let resumeSessionId: string | undefined;
-    if (isCliAgent) {
-      const sessionKey = isClaudeCode ? "claudeCodeSessionId" : "codexThreadId";
+    if (isClaudeCode) {
       for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
         if (
           msg?.role === "assistant" &&
-          (msg.metadata as Record<string, string | undefined>)?.[sessionKey]
+          (msg.metadata as { claudeCodeSessionId?: string })
+            ?.claudeCodeSessionId
         ) {
-          resumeSessionId = (msg.metadata as Record<string, string>)[
-            sessionKey
-          ];
+          resumeSessionId = (msg.metadata as { claudeCodeSessionId: string })
+            .claudeCodeSessionId;
           break;
         }
       }
@@ -629,16 +629,9 @@ async function streamCoreInner(
             ],
             messages: processedMessages,
             tools,
-            ...(isCodex && resumeSessionId
-              ? {
-                  providerOptions: {
-                    "codex-app-server": {
-                      threadId: resumeSessionId,
-                      threadMode: "persistent" as const,
-                    },
-                  },
-                }
-              : {}),
+            // Note: Codex thread resume is not supported because each request
+            // spawns a new codexAppServer process. Thread IDs are local to a
+            // process and cannot be resumed by a different one.
             ...(isCliAgent
               ? {}
               : {
