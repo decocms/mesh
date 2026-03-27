@@ -63,8 +63,8 @@ export function resolveConfig(
     databasePgSsl: toBool(envVars.DATABASE_PG_SSL),
 
     // Auth & Secrets
-    betterAuthSecret: envVars.BETTER_AUTH_SECRET ?? "",
-    encryptionKey: envVars.ENCRYPTION_KEY ?? "",
+    betterAuthSecret: envVars.BETTER_AUTH_SECRET || "",
+    encryptionKey: envVars.ENCRYPTION_KEY || "",
     meshJwtSecret: envVars.MESH_JWT_SECRET,
     localMode,
     allowLocalProd: localMode || toBool(envVars.DECOCMS_ALLOW_LOCAL_PROD),

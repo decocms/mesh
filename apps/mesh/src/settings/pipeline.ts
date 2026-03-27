@@ -27,20 +27,6 @@ export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
   // 2. Merge CLI flags + env vars + defaults
   const config = resolveConfig(flags, envVars);
 
-  // Log encryption key status on startup
-  const ek = config.settings.encryptionKey;
-  if (ek) {
-    const masked =
-      ek.length <= 8 ? "***" : `${ek.slice(0, 4)}..${ek.slice(-4)}`;
-    console.log(
-      `[settings] ENCRYPTION_KEY is set (${masked}, ${ek.length} chars)`,
-    );
-  } else {
-    console.log(
-      "[settings] ENCRYPTION_KEY is not set (will be auto-generated)",
-    );
-  }
-
   // 3. Start services if needed
   const { ensureServices } = await import("../services/ensure-services");
   const { outputs: serviceOutputs, services } = await ensureServices({

@@ -31,7 +31,7 @@ describe("Downstream Token Routes", () => {
       ON CONFLICT (id) DO NOTHING
     `.execute(database.db);
 
-    const vault = new CredentialVault(CredentialVault.generateKey());
+    const vault = new CredentialVault("test-key");
 
     const ctx = {
       db: database.db,
