@@ -85,9 +85,9 @@ function mainViewKey(view: MainView): string {
 }
 
 export default function AgentHomePage() {
-  const { mainView } = useVirtualMCPContext();
+  const { virtualMcpId, mainView } = useVirtualMCPContext();
   return (
-    <ErrorBoundary key={mainViewKey(mainView)}>
+    <ErrorBoundary key={`${virtualMcpId}:${mainViewKey(mainView)}`}>
       <AgentHomeContent />
     </ErrorBoundary>
   );

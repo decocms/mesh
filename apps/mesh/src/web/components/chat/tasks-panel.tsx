@@ -76,6 +76,7 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Trash01 } from "@untitledui/icons";
+import { usePlayStatusSound } from "@/web/hooks/use-status-sounds";
 
 // ────────────────────────────────────────
 
@@ -221,6 +222,7 @@ function TaskRow({
   onClick: () => void;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
+  const playStatusSound = usePlayStatusSound();
   const status = task.status;
   const taskVerb = getTaskVerb(task, undefined);
 
@@ -265,6 +267,7 @@ function TaskRow({
               className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();
+                playStatusSound("completed");
                 void setTaskStatus(task.id, "completed");
               }}
               title="Mark as done"
@@ -380,10 +383,12 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     name: string;
   } | null>(null);
 
-  const automations = (allAutomations ?? []).sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
+  const automations = (allAutomations ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   const navigateToAutomation = (automationId?: string) => {
     if (automationId) {

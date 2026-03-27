@@ -48,6 +48,7 @@ import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
+import { useStatusSounds } from "../hooks/use-status-sounds";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
 import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
 
@@ -295,6 +296,9 @@ function ShellLayoutInner({
   const [mainOpen, setMainOpen] = useState(true);
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
+
+  // Org-wide SSE sound notifications
+  useStatusSounds(org.id);
 
   // Extract virtualMcpId from route for agent context
   const agentsMatch = useMatch({

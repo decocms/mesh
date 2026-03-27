@@ -469,20 +469,8 @@ async function streamCoreInner(
 
         const shouldGenerateTitle =
           mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
-        console.log(
-          "[decopilot:title-debug] shouldGenerateTitle=%s threadTitle=%j isClaudeCode=%s threadId=%s",
-          shouldGenerateTitle,
-          mem.thread.title,
-          isClaudeCode,
-          mem.thread.id,
-        );
         if (shouldGenerateTitle) {
           const titleInput = JSON.stringify(processedMessages[0]?.content);
-          console.log(
-            "[decopilot:title-debug] genTitle input (first 200 chars): %s",
-            titleInput?.slice(0, 200),
-          );
-          const titleStartTime = Date.now();
           const titleOp = genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
@@ -492,14 +480,6 @@ async function streamCoreInner(
             userMessage: titleInput,
           })
             .then(async (title) => {
-              const elapsed = Date.now() - titleStartTime;
-              console.log(
-                "[decopilot:title-debug] genTitle result=%j elapsed=%dms streamFinished=%s threadId=%s",
-                title,
-                elapsed,
-                streamFinished,
-                mem.thread.id,
-              );
               if (!title) return;
 
               await ctx.storage.threads

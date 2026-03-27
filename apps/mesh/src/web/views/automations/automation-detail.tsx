@@ -156,6 +156,7 @@ export function SettingsTab({
       .join("\n");
     if (!instructionsText.trim()) return;
 
+    const prevLevel = preferences.toolApprovalLevel;
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
@@ -170,6 +171,8 @@ export function SettingsTab({
         ],
       },
     });
+
+    setPreferences((prev) => ({ ...prev, toolApprovalLevel: prevLevel }));
   };
 
   const defaultCredentialId =

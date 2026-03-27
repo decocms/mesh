@@ -63,8 +63,16 @@ export function useChatNavigation(): ChatNavigation {
       });
     } else {
       navigate({
-        search: { taskId } as never,
-      });
+        search: (prev: Record<string, unknown>) => {
+          const next: Record<string, unknown> = { ...prev, taskId };
+          if (opts?.virtualMcpOverride) {
+            next.virtualMcpOverride = opts.virtualMcpOverride;
+          } else {
+            delete next.virtualMcpOverride;
+          }
+          return next;
+        },
+      } as never);
     }
   };
 

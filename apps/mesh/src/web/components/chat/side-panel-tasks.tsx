@@ -126,13 +126,18 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
 
 function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   const actions = useVirtualMCPActions();
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const descriptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const debouncedUpdate = (
+    field: "title" | "description",
     data: Parameters<typeof actions.update.mutate>[0]["data"],
   ) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
+    const timerRef = field === "title" ? titleTimerRef : descriptionTimerRef;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
       actions.update.mutate({ id: project.id, data });
     }, 1000);
   };
@@ -140,14 +145,14 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.trim();
     if (value && value !== project.title) {
-      debouncedUpdate({ title: value });
+      debouncedUpdate("title", { title: value });
     }
   };
 
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value !== (project.description ?? "")) {
-      debouncedUpdate({ description: value });
+      debouncedUpdate("description", { description: value });
     }
   };
 
@@ -237,7 +242,9 @@ function TasksPanelContent({
   return (
     <div className="flex flex-col h-full">
       {/* Space identity */}
-      {virtualMcp && <SpaceIdentityHeader project={virtualMcp} />}
+      {virtualMcp && (
+        <SpaceIdentityHeader key={virtualMcp.id} project={virtualMcp} />
+      )}
 
       {/* Header */}
       {!virtualMcp && (

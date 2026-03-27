@@ -39,12 +39,17 @@ import {
   Shield01,
   Sun,
   Users03,
+  VolumeMax,
 } from "@untitledui/icons";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
-import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
+import {
+  usePreferences,
+  type ThemeMode,
+  type ToolApprovalLevel,
+} from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 
 type PanelView = "organizations" | "preferences";
@@ -327,6 +332,24 @@ function PreferencesPanel() {
         }
       />
       <PreferenceRow
+        icon={<VolumeMax size={14} />}
+        label="Sounds"
+        onClick={() =>
+          setPreferences((prev) => ({
+            ...prev,
+            enableSounds: !prev.enableSounds,
+          }))
+        }
+        control={
+          <Switch
+            checked={preferences.enableSounds}
+            onCheckedChange={(checked) =>
+              setPreferences((prev) => ({ ...prev, enableSounds: checked }))
+            }
+          />
+        }
+      />
+      <PreferenceRow
         icon={<Shield01 size={14} />}
         label="Tool Approval"
         control={
@@ -335,7 +358,7 @@ function PreferencesPanel() {
             onValueChange={(value) =>
               setPreferences((prev) => ({
                 ...prev,
-                toolApprovalLevel: value as "auto" | "readonly",
+                toolApprovalLevel: value as ToolApprovalLevel,
               }))
             }
           >

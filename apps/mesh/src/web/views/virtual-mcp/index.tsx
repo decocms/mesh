@@ -553,10 +553,17 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
       (v) => v.connectionId === connectionId && v.toolName === toolName,
     );
     let nextPinned: PinnedView[];
+    let nextDefault = defaultMainView;
     if (pinned) {
       nextPinned = pinnedViews.filter(
         (v) => !(v.connectionId === connectionId && v.toolName === toolName),
       );
+      // If the unpinned view was the default, reset to settings
+      const unpinnedKey = `ext-apps:${connectionId}:${toolName}`;
+      if (defaultMainView === unpinnedKey) {
+        nextDefault = "settings";
+        setDefaultMainView(nextDefault);
+      }
     } else {
       nextPinned = [
         ...pinnedViews,
@@ -564,7 +571,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
       ];
     }
     setPinnedViews(nextPinned);
-    saveLayout(nextPinned, defaultMainView);
+    saveLayout(nextPinned, nextDefault);
   };
 
   const handleLabelChange = (
@@ -784,6 +791,7 @@ function VirtualMcpDetailViewWithData({
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
+    const prevLevel = preferences.toolApprovalLevel;
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
@@ -798,6 +806,8 @@ function VirtualMcpDetailViewWithData({
         ],
       },
     });
+
+    setPreferences((prev) => ({ ...prev, toolApprovalLevel: prevLevel }));
   };
 
   const handleTestAgent = () => {
@@ -826,9 +836,13 @@ function VirtualMcpDetailViewWithData({
     }, 1000);
   };
 
-  form.watch(() => {
-    debouncedSave();
-  });
+  const watchSubscribedRef = useRef(false);
+  if (!watchSubscribedRef.current) {
+    watchSubscribedRef.current = true;
+    form.watch(() => {
+      debouncedSave();
+    });
+  }
 
   const handleOpenAddDialog = () => {
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });

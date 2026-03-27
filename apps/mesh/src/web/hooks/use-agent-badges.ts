@@ -63,8 +63,8 @@ export function useAgentBadges(agentIds: string[]): {
   const badges = computeAgentBadges(agentIds, agentUpdatedMap, lastSeenMap);
 
   const markSeen = (agentId: string) => {
-    const now = new Date().toISOString();
-    setLastSeenMap((prev) => ({ ...prev, [agentId]: now }));
+    const timestamp = agentUpdatedMap[agentId] ?? new Date().toISOString();
+    setLastSeenMap((prev) => ({ ...prev, [agentId]: timestamp }));
   };
 
   return { badges, markSeen };

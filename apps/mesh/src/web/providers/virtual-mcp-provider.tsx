@@ -10,7 +10,7 @@
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
  */
 
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -164,8 +164,10 @@ export function VirtualMCPProvider({
   children: ReactNode;
 }) {
   return (
-    <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
-      {children}
-    </VirtualMCPProviderContent>
+    <Suspense>
+      <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
+        {children}
+      </VirtualMCPProviderContent>
+    </Suspense>
   );
 }

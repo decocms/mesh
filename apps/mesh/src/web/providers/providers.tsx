@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthConfigProvider } from "@/web/providers/auth-config-provider";
 import { BetterAuthUIProvider } from "@/web/providers/better-auth-ui-provider";
+import { SplashScreen } from "@/web/components/splash-screen";
 import { ThemeProvider } from "@/web/providers/theme-provider";
 import { Toaster } from "sonner";
 
@@ -26,11 +28,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster />
-      <ThemeProvider>
-        <AuthConfigProvider>
-          <BetterAuthUIProvider>{children}</BetterAuthUIProvider>
-        </AuthConfigProvider>
-      </ThemeProvider>
+      <Suspense fallback={<SplashScreen />}>
+        <ThemeProvider>
+          <AuthConfigProvider>
+            <BetterAuthUIProvider>{children}</BetterAuthUIProvider>
+          </AuthConfigProvider>
+        </ThemeProvider>
+      </Suspense>
     </QueryClientProvider>
   );
 }

@@ -41,7 +41,6 @@ import {
   type AiProviderModel,
 } from "../../hooks/collections/use-ai-providers";
 import { useContext as useContextHook } from "../../hooks/use-context";
-import { useNotification } from "../../hooks/use-notification";
 import {
   usePreferences,
   type ToolApprovalLevel,
@@ -164,11 +163,7 @@ interface TaskProviderInternals {
   contextPrompt: string;
   preferences: {
     toolApprovalLevel?: ToolApprovalLevel;
-    enableNotifications?: boolean;
   };
-  showNotification:
-    | ((opts: { tag: string; title: string; body: string }) => void)
-    | null;
   taskManager: {
     updateMessagesCache: (taskId: string, messages: ChatMessage[]) => void;
     updateTask: (taskId: string, updates: Partial<Task>) => void;
@@ -211,7 +206,6 @@ export function ChatContextProvider({
 
   // Preferences
   const [preferences] = usePreferences();
-  const { showNotification } = useNotification();
   const { markTaskRead } = useTaskReadState();
 
   // Model selection (localStorage-backed)
@@ -301,6 +295,8 @@ export function ChatContextProvider({
 
   // Tiptap doc (transient UI state)
   const [tiptapDoc, setTiptapDoc] = useState<Metadata["tiptapDoc"]>(undefined);
+  const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(tiptapDoc);
+  tiptapDocRef.current = tiptapDoc;
 
   // Refs for transport closure (avoid stale captures)
   const prefsRef = useRef({
@@ -440,7 +436,10 @@ export function ChatContextProvider({
 
   const prefsValue: ChatPrefsContextValue = {
     selectedModel,
-    setModel: setStoredModel,
+    setModel: (model: AiProviderModel) => {
+      setStoredModel(model);
+      if (model.keyId) setStoredCredentialId(model.keyId);
+    },
     credentialId: effectiveKeyId,
     setCredentialId: setStoredCredentialId,
     allModelsConnections: keys,
@@ -451,7 +450,7 @@ export function ChatContextProvider({
     clearAppContext,
     tiptapDoc,
     setTiptapDoc,
-    tiptapDocRef: { current: tiptapDoc },
+    tiptapDocRef,
     setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
   };
@@ -462,7 +461,6 @@ export function ChatContextProvider({
     user,
     contextPrompt,
     preferences,
-    showNotification: showNotification ?? null,
     taskManager: {
       updateMessagesCache: taskManager.updateMessagesCache,
       updateTask: taskManager.updateTask,
@@ -508,7 +506,6 @@ export function ActiveTaskProvider({
     user,
     contextPrompt,
     preferences,
-    showNotification,
     taskManager,
     rawNavigateToTask,
     bridgeRef,
@@ -557,15 +554,6 @@ export function ActiveTaskProvider({
           "[chat] onFinish: no thread_id in server metadata, messages not persisted",
         );
       }
-
-      if (preferences.enableNotifications && showNotification) {
-        const thread = tasks.find((t) => t.id === (serverThreadId ?? taskId));
-        showNotification({
-          tag: `chat-${serverThreadId ?? taskId}`,
-          title: "Decopilot is waiting for your input at",
-          body: thread?.title ?? "New chat",
-        });
-      }
     },
     onToolCall: onToolCall as never,
     onError: (error: Error) => {
@@ -575,11 +563,6 @@ export function ActiveTaskProvider({
     onData: ({ data, type }) => {
       if (type === "data-thread-title") {
         const { title } = data;
-        console.log(
-          "[chat:title-debug] Received data-thread-title event: title=%j taskId=%s",
-          title,
-          taskId,
-        );
         if (!title) return;
         taskManager.updateTask(taskId, {
           title,
@@ -731,7 +714,7 @@ export function ActiveTaskProvider({
       });
     } else {
       // Stale — silently discard
-      clearPendingMessage();
+      queueMicrotask(() => clearPendingMessage());
     }
   }
 

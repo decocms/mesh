@@ -24,6 +24,11 @@ export function useStreamManager(
 
   const hasResumedRef = useRef<string | null>(null);
   const resumeFailCountRef = useRef(0);
+  const prevThreadIdRef = useRef(threadId);
+  if (prevThreadIdRef.current !== threadId) {
+    prevThreadIdRef.current = threadId;
+    resumeFailCountRef.current = 0;
+  }
 
   const invalidateThreadList = () => {
     queryClient.invalidateQueries({ queryKey: KEYS.tasks(locator) });
