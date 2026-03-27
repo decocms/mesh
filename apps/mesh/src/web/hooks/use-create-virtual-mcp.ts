@@ -60,6 +60,7 @@ export function useCreateVirtualMCP(
           org: org.slug,
           virtualMcpId: virtualMcp.id,
         },
+        search: { main: "settings" },
       });
     }
 

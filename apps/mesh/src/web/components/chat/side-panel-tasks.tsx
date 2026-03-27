@@ -244,10 +244,12 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
 
 function TasksPanelContent({
   virtualMcpId: virtualMcpIdProp,
+  hideProjectHeader,
 }: {
   virtualMcpId?: string;
+  hideProjectHeader?: boolean;
 }) {
-  const [, setChatOpen] = useChatPanel();
+  const [chatOpen, setChatOpen] = useChatPanel();
   const { createTask, openTask } = useChatTask();
   const virtualMcpCtx = useVirtualMCPURLContext();
   const [isPending, startTransition] = useTransition();
@@ -259,7 +261,7 @@ function TasksPanelContent({
   const handleNewTask = () => {
     startTransition(() => {
       createTask();
-      setChatOpen(true);
+      if (!chatOpen) setChatOpen(true);
     });
   };
 
@@ -268,7 +270,7 @@ function TasksPanelContent({
   return (
     <div className="flex flex-col h-full">
       {/* Space identity */}
-      {virtualMcp && (
+      {virtualMcp && !hideProjectHeader && (
         <SpaceIdentityHeader key={virtualMcp.id} project={virtualMcp} />
       )}
 
@@ -291,13 +293,13 @@ function TasksPanelContent({
           isPending={isPending}
           label="New task"
         />
-        {virtualMcp && (
+        {virtualMcp && virtualMcpCtx && !hideProjectHeader && (
           <button
             type="button"
             onClick={() =>
               isSettingsActive
-                ? virtualMcpCtx?.openMainView("default")
-                : virtualMcpCtx?.openMainView("settings")
+                ? virtualMcpCtx.openMainView("default")
+                : virtualMcpCtx.openMainView("settings")
             }
             className={cn(
               navItemClass,
@@ -308,7 +310,9 @@ function TasksPanelContent({
             <span className="text-foreground">Settings</span>
           </button>
         )}
-        {virtualMcp && <ProjectViewsSection project={virtualMcp} />}
+        {virtualMcp && !hideProjectHeader && (
+          <ProjectViewsSection project={virtualMcp} />
+        )}
       </div>
 
       {/* Task list */}
@@ -360,11 +364,20 @@ function TasksPanelSkeleton() {
   );
 }
 
-export function TasksSidePanel({ virtualMcpId }: { virtualMcpId?: string }) {
+export function TasksSidePanel({
+  virtualMcpId,
+  hideProjectHeader,
+}: {
+  virtualMcpId?: string;
+  hideProjectHeader?: boolean;
+}) {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
       <Suspense fallback={<TasksPanelSkeleton />}>
-        <TasksPanelContent virtualMcpId={virtualMcpId} />
+        <TasksPanelContent
+          virtualMcpId={virtualMcpId}
+          hideProjectHeader={hideProjectHeader}
+        />
       </Suspense>
     </ErrorBoundary>
   );

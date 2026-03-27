@@ -340,6 +340,14 @@ function ShellLayoutInner({
   });
   const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
 
+  // Check if we're on the agent home route with no ?main param
+  const agentHomeMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId/",
+    shouldThrow: false,
+  });
+  const mainDisabled =
+    isAgentRoute && !!agentHomeMatch && !agentHomeMatch.search.main;
+
   const showThreePanels = isAgentRoute || isOrgHome;
 
   // Compute virtualMcpId for the tasks panel:
@@ -363,7 +371,9 @@ function ShellLayoutInner({
   // The onCollapse/onExpand callbacks on each panel sync the open state back.
 
   const playSwitchSound = useSound(switch005Sound);
-  const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
+  const expandedCount = [tasksOpen, !mainDisabled && mainOpen, chatOpen].filter(
+    Boolean,
+  ).length;
 
   const toggleTasks = () => {
     if (tasksOpen && expandedCount <= 1) return;
@@ -375,6 +385,7 @@ function ShellLayoutInner({
     }
   };
   const toggleMain = () => {
+    if (mainDisabled) return;
     if (mainOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (mainOpen) {
@@ -392,6 +403,15 @@ function ShellLayoutInner({
       chatPanelRef.current?.resize(Math.min(chatPanelWidth, 35));
     }
   };
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs URL-driven mainDisabled with imperative panel API
+  useLayoutEffect(() => {
+    if (mainDisabled) {
+      mainPanelRef.current?.collapse();
+    } else if (agentHomeMatch) {
+      mainPanelRef.current?.expand();
+    }
+  }, [mainDisabled]);
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -425,7 +445,8 @@ function ShellLayoutInner({
     agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
   // On org home, provide the decopilot ID so VirtualMCPProvider is available
-  const providerVirtualMcpId = agentVirtualMcpId ?? (isOrgHome ? chatVirtualMcpId : undefined);
+  const providerVirtualMcpId =
+    agentVirtualMcpId ?? (isOrgHome ? chatVirtualMcpId : undefined);
 
   // --- Mobile layout: full-screen chat with hamburger toolbar ---
   if (isMobile) {
@@ -466,7 +487,10 @@ function ShellLayoutInner({
                       </div>
                       {/* Tasks / agent panel */}
                       <div className="flex-1 min-w-0 overflow-hidden">
-                        <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                        <TasksSidePanel
+                          virtualMcpId={tasksVirtualMcpId}
+                          hideProjectHeader={isOrgHome}
+                        />
                       </div>
                     </div>
                   </SheetContent>
@@ -599,10 +623,10 @@ function ShellLayoutInner({
                   type="button"
                   onClick={toggleMain}
                   aria-pressed={mainOpen}
-                  disabled={isOrgHome}
+                  disabled={isOrgHome || mainDisabled}
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome
+                    isOrgHome || mainDisabled
                       ? "text-sidebar-foreground/30 cursor-not-allowed"
                       : mainOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
@@ -661,7 +685,10 @@ function ShellLayoutInner({
                       >
                         <div className="h-full p-0.5 overflow-hidden">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                            <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                            <TasksSidePanel
+                              virtualMcpId={tasksVirtualMcpId}
+                              hideProjectHeader={isOrgHome}
+                            />
                           </div>
                         </div>
                       </TasksResizablePanel>

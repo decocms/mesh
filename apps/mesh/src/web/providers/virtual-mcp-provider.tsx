@@ -11,11 +11,7 @@
  */
 
 import { Suspense, type ReactNode } from "react";
-import {
-  useNavigate,
-  useMatch,
-  useRouterState,
-} from "@tanstack/react-router";
+import { useNavigate, useMatch, useRouterState } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
