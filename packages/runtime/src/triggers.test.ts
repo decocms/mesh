@@ -1,6 +1,6 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import { z } from "zod";
-import { createTriggers } from "./triggers.ts";
+import { createTriggers, type TriggerStorage } from "./triggers.ts";
 
 // biome-ignore lint: test mocks don't need full type compliance
 const mockCtx = (connectionId?: string) =>
@@ -211,9 +211,10 @@ describe("createTriggers", () => {
     consoleSpy.mockRestore();
   });
 
-  it("notify is a no-op when no credentials exist", () => {
+  it("notify is a no-op when no credentials exist", async () => {
     const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
     triggers.notify("unknown-conn", "github.push", {});
+    await new Promise((r) => setTimeout(r, 50));
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("No callback credentials"),
     );
@@ -262,5 +263,115 @@ describe("createTriggers", () => {
         runtimeContext: mockCtx(),
       }),
     ).rejects.toThrow("Connection ID not available");
+  });
+});
+
+describe("createTriggers with storage", () => {
+  function createMockStorage(): TriggerStorage & {
+    data: Map<string, unknown>;
+  } {
+    const data = new Map<string, unknown>();
+    return {
+      data,
+      get: async (id) => (data.get(id) as any) ?? null,
+      set: async (id, state) => {
+        data.set(id, state);
+      },
+      delete: async (id) => {
+        data.delete(id);
+      },
+    };
+  }
+
+  const defs = [
+    {
+      type: "github.push" as const,
+      description: "Push",
+      params: z.object({
+        repo: z.string().describe("Repo"),
+      }),
+    },
+  ];
+
+  it("persists trigger state to storage on configure", async () => {
+    const storage = createMockStorage();
+    const t = createTriggers({ definitions: defs, storage });
+    const configureTool = t.tools()[1];
+
+    await configureTool.execute({
+      context: {
+        type: "github.push",
+        params: {},
+        enabled: true,
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "persisted-token",
+      },
+      runtimeContext: mockCtx("conn-persist"),
+    });
+
+    expect(storage.data.has("conn-persist")).toBe(true);
+    const stored = storage.data.get("conn-persist") as any;
+    expect(stored.credentials.callbackToken).toBe("persisted-token");
+    expect(stored.activeTriggerTypes).toEqual(["github.push"]);
+  });
+
+  it("deletes from storage when last trigger is disabled", async () => {
+    const storage = createMockStorage();
+    const t = createTriggers({ definitions: defs, storage });
+    const configureTool = t.tools()[1];
+
+    await configureTool.execute({
+      context: {
+        type: "github.push",
+        params: {},
+        enabled: true,
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "to-delete",
+      },
+      runtimeContext: mockCtx("conn-del"),
+    });
+
+    expect(storage.data.has("conn-del")).toBe(true);
+
+    await configureTool.execute({
+      context: { type: "github.push", params: {}, enabled: false },
+      runtimeContext: mockCtx("conn-del"),
+    });
+
+    expect(storage.data.has("conn-del")).toBe(false);
+  });
+
+  it("restores credentials from storage on notify after restart", async () => {
+    const storage = createMockStorage();
+
+    // Simulate prior session: write state directly to storage
+    storage.data.set("conn-restart", {
+      credentials: {
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "restored-token",
+      },
+      activeTriggerTypes: ["github.push"],
+    });
+
+    // New instance (simulates restart) — in-memory cache is empty
+    const t = createTriggers({ definitions: defs, storage });
+
+    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("ok", { status: 202 }),
+    );
+
+    t.notify("conn-restart", "github.push", { test: true });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://mesh.example.com/api/trigger-callback",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer restored-token",
+        }),
+      }),
+    );
+
+    fetchSpy.mockRestore();
   });
 });
