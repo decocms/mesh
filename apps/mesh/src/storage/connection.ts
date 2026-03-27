@@ -481,7 +481,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
       try {
         decryptedToken = await this.vault.decrypt(row.connection_token);
       } catch (error) {
-        console.error("Failed to decrypt connection token:", error);
+        console.error(
+          `Failed to decrypt connection token for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
@@ -492,7 +495,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
         const decryptedJson = await this.vault.decrypt(row.configuration_state);
         decryptedConfigState = JSON.parse(decryptedJson);
       } catch (error) {
-        console.error("Failed to decrypt configuration state:", error);
+        console.error(
+          `Failed to decrypt configuration state for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
@@ -522,7 +528,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
           connectionParameters = parsed;
         }
       } catch (error) {
-        console.error("Failed to parse connection_headers:", error);
+        console.error(
+          `Failed to parse connection_headers for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
