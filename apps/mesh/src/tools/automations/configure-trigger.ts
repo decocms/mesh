@@ -79,18 +79,27 @@ export async function configureTriggerOnMcp(
       return { success: false, error: String(err) };
     }
 
-    // MCP confirmed — persist token or clean up
-    if (enabled && tokenStorage && organizationId && tokenHash) {
-      await tokenStorage.persistTokenHash(
-        organizationId,
-        trigger.connection_id,
-        tokenHash,
-      );
-    }
-    if (!enabled && tokenStorage && organizationId) {
-      await tokenStorage.deleteByConnection(
-        trigger.connection_id,
-        organizationId,
+    // MCP confirmed — persist token or clean up.
+    // If DB write fails, log but still return success so the caller
+    // creates the trigger record (the MCP is already listening).
+    try {
+      if (enabled && tokenStorage && organizationId && tokenHash) {
+        await tokenStorage.persistTokenHash(
+          organizationId,
+          trigger.connection_id,
+          tokenHash,
+        );
+      }
+      if (!enabled && tokenStorage && organizationId) {
+        await tokenStorage.deleteByConnection(
+          trigger.connection_id,
+          organizationId,
+        );
+      }
+    } catch (dbErr) {
+      console.error(
+        `[configureTriggerOnMcp] Token persistence failed after successful TRIGGER_CONFIGURE:`,
+        dbErr,
       );
     }
 
