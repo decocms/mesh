@@ -40,12 +40,14 @@ interface CollectionTabProps {
   connectionId: string;
   org: string;
   activeCollection: ValidatedCollection;
+  onItemClick?: (item: BaseCollectionEntity) => void;
 }
 
 export function CollectionTab({
   connectionId,
   org,
   activeCollection,
+  onItemClick,
 }: CollectionTabProps) {
   const collectionName = activeCollection.name;
   const schema = activeCollection.schema ?? BaseCollectionJsonSchema;
@@ -103,6 +105,10 @@ export function CollectionTab({
 
   // Create action handlers
   const handleEdit = (item: BaseCollectionEntity) => {
+    if (onItemClick) {
+      onItemClick(item);
+      return;
+    }
     navigate({
       to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
       params: {

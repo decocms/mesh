@@ -6,7 +6,6 @@ import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
 import { usePreferences, type SoundEventKey } from "./use-preferences";
 
-// in_progress is intentionally omitted — it should not play a sound.
 export const SOUND_MAP: Partial<Record<SoundEventKey, { dataUri: string }>> = {
   completed: successChimeSound,
   failed: error005Sound,

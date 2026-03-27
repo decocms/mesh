@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useProjectContext,
@@ -6,12 +6,11 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import { toast } from "sonner";
 import { Container } from "@untitledui/icons";
 import { sourcePlugins } from "@/web/plugins";
-import { pluginSidebarGroups } from "@/web/index";
+import { pluginSidebarGroups, pluginSettingsSidebarItems } from "@/web/index";
 import type { AnyClientPlugin } from "@decocms/bindings/plugins";
 
 type ToolTextResponse = { type?: string; text?: string };
@@ -113,50 +112,7 @@ export function ProjectPluginsForm() {
     orgId: org.id,
   });
 
-  // Track only pending changes (pluginId -> intended state)
-  const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [isSaving, setIsSaving] = useState(false);
-
   const serverPlugins = project.enabledPlugins ?? [];
-
-  // Derive whether a plugin is enabled: pending changes override server state
-  const isPluginEnabled = (pluginId: string): boolean => {
-    const pending = pendingChanges[pluginId];
-    if (pending !== undefined) {
-      return pending;
-    }
-    return serverPlugins.includes(pluginId);
-  };
-
-  // Compute the full list of enabled plugins for saving
-  const getEnabledPluginsList = (): string[] => {
-    const result = new Set(serverPlugins);
-    for (const [pluginId, enabled] of Object.entries(pendingChanges)) {
-      if (enabled) {
-        result.add(pluginId);
-      } else {
-        result.delete(pluginId);
-      }
-    }
-    return Array.from(result);
-  };
-
-  const hasChanges = Object.keys(pendingChanges).length > 0;
-
-  const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
-    const serverEnabled = serverPlugins.includes(pluginId);
-
-    if (enabled === serverEnabled) {
-      setPendingChanges((prev) => {
-        const { [pluginId]: _, ...rest } = prev;
-        return rest;
-      });
-    } else {
-      setPendingChanges((prev) => ({ ...prev, [pluginId]: enabled }));
-    }
-  };
 
   const mutation = useMutation({
     mutationFn: async (input: { enabledPlugins: string[] }) => {
@@ -187,35 +143,35 @@ export function ProjectPluginsForm() {
       queryClient.invalidateQueries({
         queryKey: KEYS.organizationSettings(org.id),
       });
-
-      setPendingChanges({});
-      toast.success("Plugins updated successfully");
     },
     onError: (error) => {
       toast.error(
-        "Failed to update plugins: " +
+        "Failed to update plugin: " +
           (error instanceof Error ? error.message : "Unknown error"),
       );
     },
-    onSettled: () => {
-      setIsSaving(false);
-    },
   });
 
-  const handleSave = () => {
-    setIsSaving(true);
-    mutation.mutate({ enabledPlugins: getEnabledPluginsList() });
+  const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
+    const current = new Set(serverPlugins);
+    if (enabled) {
+      current.add(pluginId);
+    } else {
+      current.delete(pluginId);
+    }
+    mutation.mutate({ enabledPlugins: Array.from(current) });
   };
 
-  const handleCancel = () => {
-    setPendingChanges({});
-  };
-
-  // Get plugin metadata from sidebar groups
+  // Get plugin metadata from sidebar groups or settings sidebar items
   const getPluginMeta = (pluginId: string) => {
     const group = pluginSidebarGroups.find((g) => g.pluginId === pluginId);
-    if (!group) return null;
-    return { label: group.label, icon: group.items[0]?.icon };
+    if (group) return { label: group.label, icon: group.items[0]?.icon };
+    const settingsItem = pluginSettingsSidebarItems.find(
+      (i) => i.pluginId === pluginId,
+    );
+    if (settingsItem)
+      return { label: settingsItem.label, icon: settingsItem.icon };
+    return null;
   };
 
   // Get plugin description from the source plugin
@@ -231,44 +187,25 @@ export function ProjectPluginsForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col">
-        {sourcePlugins.map((plugin) => {
-          const meta = getPluginMeta(plugin.id);
-          const description = getPluginDescription(plugin.id);
-          const isEnabled = isPluginEnabled(plugin.id);
+    <div className="flex flex-col">
+      {sourcePlugins.map((plugin) => {
+        const meta = getPluginMeta(plugin.id);
+        const description = getPluginDescription(plugin.id);
+        const isEnabled = serverPlugins.includes(plugin.id);
 
-          return (
-            <PluginRow
-              key={plugin.id}
-              plugin={plugin}
-              isEnabled={isEnabled}
-              isSaving={isSaving}
-              description={description}
-              label={meta?.label ?? plugin.id}
-              icon={meta?.icon ?? <Container size={14} />}
-              onToggle={handleTogglePlugin}
-            />
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-3 pt-4">
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={!hasChanges || isSaving}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className="min-w-24"
-        >
-          {isSaving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+        return (
+          <PluginRow
+            key={plugin.id}
+            plugin={plugin}
+            isEnabled={isEnabled}
+            isSaving={mutation.isPending}
+            description={description}
+            label={meta?.label ?? plugin.id}
+            icon={meta?.icon ?? <Container size={14} />}
+            onToggle={handleTogglePlugin}
+          />
+        );
+      })}
     </div>
   );
 }

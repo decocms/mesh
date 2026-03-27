@@ -4,6 +4,7 @@ import { PluginNotEnabledEmptyState } from "@/web/components/plugin-not-enabled-
 import { Page } from "@/web/components/page";
 import { Dataflow03 } from "@untitledui/icons";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
+import { useNavigate } from "@tanstack/react-router";
 
 const WORKFLOW_COLLECTION = {
   name: "WORKFLOW",
@@ -39,6 +40,8 @@ export default function WorkflowPage() {
     );
   }
 
+  const navigate = useNavigate();
+
   return (
     <Page>
       <Page.Content>
@@ -46,6 +49,12 @@ export default function WorkflowPage() {
           connectionId={SELF_MCP_ALIAS_ID}
           org={org.slug}
           activeCollection={WORKFLOW_COLLECTION}
+          onItemClick={(item) =>
+            navigate({
+              to: "/$org/settings/workflows/$itemId",
+              params: { org: org.slug, itemId: item.id },
+            })
+          }
         />
       </Page.Content>
     </Page>

@@ -25,6 +25,8 @@ import {
   Users03,
   Zap,
 } from "@untitledui/icons";
+import { useProjectContext } from "@decocms/mesh-sdk";
+import { pluginSettingsSidebarItems } from "@/web/index";
 
 interface SettingsNavItem {
   key: string;
@@ -39,27 +41,23 @@ interface SettingsNavGroup {
 }
 
 function useSettingsSidebarGroups(): SettingsNavGroup[] {
-  return [
+  const currentProject = useProjectContext().project;
+  const enabledPlugins = currentProject.enabledPlugins ?? [];
+
+  const enabledSettingsItems = pluginSettingsSidebarItems
+    .filter((item) => enabledPlugins.includes(item.pluginId))
+    .map(({ key, label, icon, to }) => ({ key, label, icon, to }));
+
+  const groups: SettingsNavGroup[] = [
     {
       label: "",
       items: [
-        {
-          key: "profile",
-          label: "Profile & Preferences",
-          icon: <User01 size={14} />,
-          to: "/$org/settings/profile",
-        },
         {
           key: "general",
           label: "General",
           icon: <Building02 size={14} />,
           to: "/$org/settings/general",
         },
-      ],
-    },
-    {
-      label: "",
-      items: [
         {
           key: "connections",
           label: "Connections",
@@ -79,12 +77,6 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           to: "/$org/settings/monitor",
         },
         {
-          key: "features",
-          label: "Features",
-          icon: <Zap size={14} />,
-          to: "/$org/settings/features",
-        },
-        {
           key: "members",
           label: "Members",
           icon: <Users03 size={14} />,
@@ -98,7 +90,33 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         },
       ],
     },
+    {
+      label: "",
+      items: [
+        {
+          key: "features",
+          label: "Plugins",
+          icon: <Zap size={14} />,
+          to: "/$org/settings/features",
+        },
+        ...enabledSettingsItems,
+      ],
+    },
   ];
+
+  groups.push({
+    label: "",
+    items: [
+      {
+        key: "profile",
+        label: "Profile & Preferences",
+        icon: <User01 size={14} />,
+        to: "/$org/settings/profile",
+      },
+    ],
+  });
+
+  return groups;
 }
 
 export function SettingsSidebar() {
@@ -141,7 +159,7 @@ export function SettingsSidebar() {
             key={`${group.label}-${i}`}
             className="pt-0 pr-0 pb-0 pl-0"
           >
-            {i > 0 && <div className="mx-2 mb-2 border-t border-border/50" />}
+            {i > 0 && <div className="mx-2 my-2 border-t border-border/50" />}
             {group.label && (
               <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground/60">
                 {group.label}

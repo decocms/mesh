@@ -340,6 +340,28 @@ const settingsProfileRoute = createRoute({
   ),
 });
 
+const settingsRegistryRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/registry",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/registry.tsx"),
+  ),
+});
+
+const settingsWorkflowsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
+const settingsWorkflowDetailRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/workflows/$itemId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/workflow-detail.tsx"),
+  ),
+});
+
 // Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -451,6 +473,14 @@ export const pluginSidebarGroups: {
   defaultExpanded?: boolean;
 }[] = [];
 
+export const pluginSettingsSidebarItems: {
+  pluginId: string;
+  key: string;
+  icon: ReactNode;
+  label: string;
+  to: string;
+}[] = [];
+
 const pluginRoutes: AnyRoute[] = [];
 
 sourcePlugins.forEach((plugin: AnyClientPlugin) => {
@@ -467,6 +497,8 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
       pluginRootSidebarItems.push({ pluginId: plugin.id, ...item }),
     registerSidebarGroup: (group) =>
       pluginSidebarGroups.push({ pluginId: plugin.id, ...group }),
+    registerSettingsSidebarItem: (item) =>
+      pluginSettingsSidebarItems.push({ pluginId: plugin.id, ...item }),
     registerPluginRoutes: (routes) => {
       pluginRoutes.push(...routes);
     },
@@ -496,6 +528,9 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsMembersRoute,
   settingsSsoRoute,
   settingsProfileRoute,
+  settingsRegistryRoute,
+  settingsWorkflowsRoute,
+  settingsWorkflowDetailRoute,
 ]);
 
 const agentsWithChildren = agentsLayout.addChildren([
