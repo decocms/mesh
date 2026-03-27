@@ -518,7 +518,7 @@ export function ProviderCard({
     mutationFn: async () => {
       const result = (await client.callTool({
         name: "AI_PROVIDER_CLI_ACTIVATE",
-        arguments: {},
+        arguments: { providerId: provider.id },
       })) as {
         structuredContent?: { activated: boolean; error?: string };
         isError?: boolean;
@@ -675,7 +675,7 @@ export function ProviderCard({
             {isCliActivate ? (
               <>
                 <p className="text-xs text-muted-foreground">
-                  Authenticated via Claude CLI
+                  Authenticated via {provider.name} CLI
                 </p>
                 <KeyList
                   keys={keys}
