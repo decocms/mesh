@@ -195,7 +195,7 @@ export function ImportFromDecoDialog({
         item: payload.item,
       };
     },
-    onSuccess: ({ slug, virtualMcpId, connId, item }) => {
+    onSuccess: ({ slug, virtualMcpId, item }) => {
       // Seed the individual item cache so useVirtualMCP resolves instantly on
       // the redirected page without waiting for a network round-trip.
       queryClient.setQueryData(
