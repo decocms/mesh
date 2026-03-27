@@ -225,7 +225,7 @@ function StoreMCPServerDetailContent() {
   const navigate = useNavigate();
   // Get serverSlug from the child route
   const { appName: serverSlug } = useParams({
-    from: "/shell/$org/store/$appName",
+    from: "/shell/$org/settings/connections/store/$appName",
   });
   const {
     registryId: registryIdParam,

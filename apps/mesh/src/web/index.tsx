@@ -350,8 +350,8 @@ const settingsRegistryRoute = createRoute({
 
 // Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store/$appName",
+  getParentRoute: () => settingsLayout,
+  path: "/connections/store/$appName",
   component: lazyRouteComponent(
     () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
@@ -515,6 +515,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsSsoRoute,
   settingsProfileRoute,
   settingsRegistryRoute,
+  storeDetailRoute,
 ]);
 
 const agentsWithChildren = agentsLayout.addChildren([
@@ -530,7 +531,6 @@ const orgRoutes = [
   agentsListRoute,
   agentsWithChildren,
   settingsWithChildren,
-  storeDetailRoute,
   orgPluginRoute,
 ];
 
