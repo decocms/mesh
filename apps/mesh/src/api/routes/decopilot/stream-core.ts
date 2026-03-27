@@ -359,6 +359,10 @@ async function streamCoreInner(
           { listTimeoutMs: 1_000 },
         );
 
+        // Declared here (before closeClients) to avoid Temporal Dead Zone
+        // if the abort signal fires before the codex branch is reached.
+        let codexProvider: { close(): Promise<void> } | undefined;
+
         closeClients = () => {
           passthroughClient.close().catch(() => {});
           codexProvider?.close().catch(() => {});
@@ -531,7 +535,6 @@ async function streamCoreInner(
 
         // Build language model based on provider type
         let languageModel;
-        let codexProvider: { close(): Promise<void> } | undefined;
 
         if (isClaudeCode) {
           // Mint a short-lived API key for Claude Code to auth with the MCP endpoint
