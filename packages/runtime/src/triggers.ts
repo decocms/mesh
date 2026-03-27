@@ -71,6 +71,8 @@ export function createTriggers<const TDefs extends TriggerDef[]>(
   definitions: TDefs,
 ): Triggers<TDefs> {
   const callbackCredentials = new Map<string, CallbackCredentials>();
+  // Track active trigger types per connection to know when to clean up credentials
+  const activeTriggers = new Map<string, Set<string>>();
 
   const triggerDefinitions: TriggerDefinition[] = definitions.map((def) => {
     const shape = def.params.shape;
@@ -133,6 +135,22 @@ export function createTriggers<const TDefs extends TriggerDef[]>(
           callbackUrl: context.callbackUrl,
           callbackToken: context.callbackToken,
         });
+      }
+
+      // Track active triggers per connection
+      if (context.enabled) {
+        const types = activeTriggers.get(connectionId) ?? new Set();
+        types.add(context.type);
+        activeTriggers.set(connectionId, types);
+      } else {
+        const types = activeTriggers.get(connectionId);
+        if (types) {
+          types.delete(context.type);
+          if (types.size === 0) {
+            activeTriggers.delete(connectionId);
+            callbackCredentials.delete(connectionId);
+          }
+        }
       }
 
       return { success: true };

@@ -126,42 +126,89 @@ describe("createTriggers", () => {
     fetchSpy.mockRestore();
   });
 
-  it("TRIGGER_CONFIGURE with enabled=false keeps credentials (Mesh manages lifecycle)", async () => {
+  it("disabling one trigger keeps credentials when another is still active", async () => {
     const configureTool = triggers.tools()[1];
 
     const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("ok", { status: 202 }),
     );
 
-    // Enable with credentials
+    // Enable two trigger types
     await configureTool.execute({
       context: {
         type: "github.push",
         params: {},
         enabled: true,
         callbackUrl: "https://mesh.example.com/api/trigger-callback",
-        callbackToken: "token-abc",
+        callbackToken: "token-multi",
       },
-      runtimeContext: mockCtx("conn-2"),
+      runtimeContext: mockCtx("conn-multi"),
+    });
+    await configureTool.execute({
+      context: {
+        type: "github.pull_request.opened",
+        params: {},
+        enabled: true,
+      },
+      runtimeContext: mockCtx("conn-multi"),
     });
 
-    // Disable a trigger type — credentials should persist for other trigger types
+    // Disable one — credentials should stay for the other
     await configureTool.execute({
       context: {
         type: "github.push",
         params: {},
         enabled: false,
       },
-      runtimeContext: mockCtx("conn-2"),
+      runtimeContext: mockCtx("conn-multi"),
     });
 
-    // Notify should still deliver because credentials are connection-level
-    triggers.notify("conn-2", "github.push", { foo: "bar" });
+    triggers.notify("conn-multi", "github.pull_request.opened", {});
     await new Promise((r) => setTimeout(r, 50));
-
     expect(fetchSpy).toHaveBeenCalled();
 
     fetchSpy.mockRestore();
+  });
+
+  it("disabling the last trigger clears credentials", async () => {
+    const configureTool = triggers.tools()[1];
+
+    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("ok", { status: 202 }),
+    );
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    // Enable a trigger
+    await configureTool.execute({
+      context: {
+        type: "github.push",
+        params: {},
+        enabled: true,
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "token-cleanup",
+      },
+      runtimeContext: mockCtx("conn-cleanup"),
+    });
+
+    // Disable it — last trigger, credentials should be cleared
+    await configureTool.execute({
+      context: {
+        type: "github.push",
+        params: {},
+        enabled: false,
+      },
+      runtimeContext: mockCtx("conn-cleanup"),
+    });
+
+    triggers.notify("conn-cleanup", "github.push", {});
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No callback credentials"),
+    );
+
+    fetchSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 
   it("notify is a no-op when no credentials exist", () => {
