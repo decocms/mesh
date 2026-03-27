@@ -6,6 +6,7 @@
  * virtualMcpOverride is an optional search param for ephemeral per-task agent switching.
  */
 
+import { useRef } from "react";
 import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
 import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
@@ -81,12 +82,11 @@ export function useChatNavigation(): ChatNavigation {
     } as never);
   };
 
-  const taskId = search.taskId;
-  if (!taskId) {
-    throw new Error(
-      "taskId must be present in URL search params. The router's validateSearch should seed it automatically.",
-    );
-  }
+  // On agent routes the router's validateSearch seeds taskId automatically.
+  // On other routes (e.g. settings) Chat.Provider still mounts but taskId is
+  // absent — fall back to a stable generated ID so the provider works everywhere.
+  const fallbackRef = useRef(crypto.randomUUID());
+  const taskId = search.taskId ?? fallbackRef.current;
 
   return {
     virtualMcpId,
