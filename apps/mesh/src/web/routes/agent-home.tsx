@@ -3,10 +3,10 @@ import { AutomationInlineDetail } from "@/web/views/automations/automations-tab"
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { lazy } from "react";
 import {
-  useAgentContext,
+  useVirtualMCPContext,
   type MainView,
   type MainViewType,
-} from "@/web/contexts/agent-context";
+} from "@/web/contexts/virtual-mcp-context";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 
 const ProjectAppViewContent = lazy(() =>
@@ -20,7 +20,7 @@ const ProjectAppViewContent = lazy(() =>
  * otherwise fall back to the entity's layout config, then to settings.
  */
 function useResolvedMainView(): MainView & {} {
-  const { virtualMcpId, mainView } = useAgentContext();
+  const { virtualMcpId, mainView } = useVirtualMCPContext();
   const entity = useVirtualMCP(virtualMcpId);
 
   // URL specified an explicit view — use it
@@ -50,7 +50,7 @@ function useResolvedMainView(): MainView & {} {
 }
 
 function AgentHomeContent() {
-  const { virtualMcpId } = useAgentContext();
+  const { virtualMcpId } = useVirtualMCPContext();
   const resolved = useResolvedMainView();
 
   if (resolved.type === "automation") {
@@ -72,9 +72,22 @@ function AgentHomeContent() {
   );
 }
 
+function mainViewKey(view: MainView): string {
+  if (!view) return "default";
+  switch (view.type) {
+    case "settings":
+      return "settings";
+    case "automation":
+      return `automation:${view.id}`;
+    case "ext-apps":
+      return `ext-apps:${view.id}:${view.toolName ?? ""}`;
+  }
+}
+
 export default function AgentHomePage() {
+  const { mainView } = useVirtualMCPContext();
   return (
-    <ErrorBoundary>
+    <ErrorBoundary key={mainViewKey(mainView)}>
       <AgentHomeContent />
     </ErrorBoundary>
   );

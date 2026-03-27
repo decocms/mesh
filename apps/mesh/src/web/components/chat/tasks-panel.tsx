@@ -7,7 +7,7 @@
 
 import { useChatTask } from "@/web/components/chat/context";
 import { CollectionSearch } from "@/web/components/collections/collection-search";
-import { useOptionalAgentContext } from "@/web/contexts/agent-context";
+import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   buildDisplayGroups,
@@ -347,23 +347,21 @@ function AutomationRow({
 // ────────────────────────────────────────
 
 function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
-  const agentCtx = useOptionalAgentContext();
-  const { data: allAutomations } = useAutomationsList();
+  const virtualMcpCtx = useVirtualMCPURLContext();
+  const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const [isOpen, setIsOpen] = useState(false);
 
-  const automations = (allAutomations ?? [])
-    .filter((a) => a.agent?.id === virtualMcpId)
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
+  const automations = (allAutomations ?? []).sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 
   const navigateToAutomation = (automationId?: string) => {
     if (automationId) {
-      agentCtx?.openMainView("automation", { id: automationId });
+      virtualMcpCtx?.openMainView("automation", { id: automationId });
     } else {
-      agentCtx?.openMainView("default");
+      virtualMcpCtx?.openMainView("default");
     }
   };
 

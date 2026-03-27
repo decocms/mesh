@@ -18,12 +18,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk";
-import {
-  Check,
-  Copy01,
-  Key01,
-  Loading01,
-} from "@untitledui/icons";
+import { Check, Copy01, Key01, Loading01 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";

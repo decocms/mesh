@@ -32,7 +32,7 @@ import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useOptionalAgentContext } from "@/web/contexts/agent-context";
+import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -75,7 +75,7 @@ function NewTaskButton({
 // ────────────────────────────────────────
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const agentCtx = useOptionalAgentContext();
+  const virtualMcpCtx = useVirtualMCPURLContext();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -89,7 +89,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
   if (pinnedViews.length === 0) return null;
 
   // Determine which pinned view is currently active
-  const currentMain = agentCtx?.mainView;
+  const currentMain = virtualMcpCtx?.mainView;
   const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
     currentMain?.type === "ext-apps" &&
     currentMain.id === view.connectionId &&
@@ -102,7 +102,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           key={`${view.connectionId}-${view.toolName}`}
           type="button"
           onClick={() =>
-            agentCtx?.openMainView("ext-apps", {
+            virtualMcpCtx?.openMainView("ext-apps", {
               id: view.connectionId,
               toolName: view.toolName,
             })
@@ -211,7 +211,7 @@ function TasksPanelContent({
 }) {
   const [, setChatOpen] = useChatPanel();
   const { createTask, openTask } = useChatTask();
-  const agentCtx = useOptionalAgentContext();
+  const virtualMcpCtx = useVirtualMCPURLContext();
   const [isPending, startTransition] = useTransition();
 
   const agentsMatch = useMatch({
@@ -222,15 +222,15 @@ function TasksPanelContent({
     virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
 
   const { org } = useProjectContext();
-  const allAgents = useVirtualMCPs();
-  const project = virtualMcpId
-    ? (allAgents.find((s) => s.id === virtualMcpId) ?? null)
+  const virtualMcps = useVirtualMCPs();
+  const virtualMcp = virtualMcpId
+    ? (virtualMcps.find((s) => s.id === virtualMcpId) ?? null)
     : null;
 
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
-  const agent = project
-    ? { icon: project.icon, title: project.title }
-    : { icon: defaultAgent.icon, title: defaultAgent.title };
+  const defaultVirtualMcp = getWellKnownDecopilotVirtualMCP(org.id);
+  const currentVirtualMcp = virtualMcp
+    ? { icon: virtualMcp.icon, title: virtualMcp.title }
+    : { icon: defaultVirtualMcp.icon, title: defaultVirtualMcp.title };
 
   const handleNewTask = () => {
     startTransition(() => {
@@ -240,16 +240,16 @@ function TasksPanelContent({
   };
 
   const isSettingsActive =
-    agentCtx?.mainView?.type === "settings" ||
-    (agentCtx && agentCtx.mainView === null);
+    virtualMcpCtx?.mainView?.type === "settings" ||
+    (virtualMcpCtx && virtualMcpCtx.mainView === null);
 
   return (
     <div className="flex flex-col h-full">
       {/* Space identity */}
-      {project && <SpaceIdentityHeader project={project} />}
+      {virtualMcp && <SpaceIdentityHeader project={virtualMcp} />}
 
       {/* Header */}
-      {!project && (
+      {!virtualMcp && (
         <Page.Header className="flex-none" hideSidebarTrigger>
           <Page.Header.Left className="gap-2">
             <span className="text-sm font-medium text-foreground">Tasks</span>
@@ -267,10 +267,10 @@ function TasksPanelContent({
           isPending={isPending}
           label="New task"
         />
-        {project && (
+        {virtualMcp && (
           <button
             type="button"
-            onClick={() => agentCtx?.openMainView("settings")}
+            onClick={() => virtualMcpCtx?.openMainView("settings")}
             className={cn(
               navItemClass,
               isSettingsActive && "bg-accent text-foreground",
@@ -280,13 +280,13 @@ function TasksPanelContent({
             Settings
           </button>
         )}
-        {project && <ProjectViewsSection project={project} />}
+        {virtualMcp && <ProjectViewsSection project={virtualMcp} />}
       </div>
 
       {/* Task list */}
       <TaskListContent
         virtualMcpId={virtualMcpId}
-        agent={agent}
+        agent={currentVirtualMcp}
         onTaskSelect={(taskId) => {
           openTask(taskId);
           setChatOpen(true);

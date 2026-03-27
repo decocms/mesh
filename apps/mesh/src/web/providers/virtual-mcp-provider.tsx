@@ -4,7 +4,7 @@
  * Combines:
  * 1. Entity fetch (useVirtualMCP) — Suspense-based
  * 2. ProjectContextProvider override (agent-scoped)
- * 3. AgentContext (URL-driven mainView, openMainView, openTask)
+ * 3. VirtualMCPContext (URL-driven mainView, openMainView, openTask)
  *
  * Rendered conditionally in ShellLayoutInner — only on agent routes.
  * Chat.Provider sits ABOVE this provider and receives virtualMcpId directly.
@@ -12,15 +12,15 @@
 
 import type { ReactNode } from "react";
 import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
-import { useProjectContext, useVirtualMCP } from "@decocms/mesh-sdk";
+import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import { AlertCircle } from "@untitledui/icons";
 import {
-  AgentContext,
+  VirtualMCPContext,
   type MainView,
-  type AgentContextValue,
-} from "@/web/contexts/agent-context";
+  type VirtualMCPContextValue,
+} from "@/web/contexts/virtual-mcp-context";
 
 // ---------------------------------------------------------------------------
 // Inner content (uses Suspense-based useVirtualMCP)
@@ -33,7 +33,6 @@ function VirtualMCPProviderContent({
   virtualMcpId: string;
   children: ReactNode;
 }) {
-  const { org } = useProjectContext();
   const navigate = useNavigate();
 
   const agentsMatch = useMatch({
@@ -74,7 +73,7 @@ function VirtualMCPProviderContent({
     );
   }
 
-  // --- AgentContext: URL-driven state ---
+  // --- VirtualMCPContext: URL-driven state ---
 
   const search = useSearch({ from: "/shell/$org/$virtualMcpId/" }) as {
     main?: string;
@@ -102,7 +101,7 @@ function VirtualMCPProviderContent({
   const routeBase = "/$org/$virtualMcpId/" as const;
   const params = { org: orgSlug, virtualMcpId };
 
-  const openTask: AgentContextValue["openTask"] = (taskId) => {
+  const openTask: VirtualMCPContextValue["openTask"] = (taskId) => {
     navigate({
       to: routeBase,
       params,
@@ -110,7 +109,7 @@ function VirtualMCPProviderContent({
     });
   };
 
-  const openMainView: AgentContextValue["openMainView"] = (main, opts) => {
+  const openMainView: VirtualMCPContextValue["openMainView"] = (main, opts) => {
     if (main === "default") {
       navigate({
         to: routeBase,
@@ -139,14 +138,18 @@ function VirtualMCPProviderContent({
     });
   };
 
-  const agentValue: AgentContextValue = {
+  const virtualMcpContextValue: VirtualMCPContextValue = {
     virtualMcpId,
     mainView,
     openMainView,
     openTask,
   };
 
-  return <AgentContext value={agentValue}>{children}</AgentContext>;
+  return (
+    <VirtualMCPContext value={virtualMcpContextValue}>
+      {children}
+    </VirtualMCPContext>
+  );
 }
 
 // ---------------------------------------------------------------------------

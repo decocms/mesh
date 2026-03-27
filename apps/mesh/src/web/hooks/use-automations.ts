@@ -128,6 +128,7 @@ export function buildDefaultAutomationInput(virtualMcpId: string) {
     models: { credentialId: "", thinking: { id: "" } },
     temperature: 0.5,
     active: true,
+    virtual_mcp_id: virtualMcpId,
   };
 }
 
@@ -155,7 +156,9 @@ export function useAutomationCreate() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: ["automations", org.id],
+      });
     },
   });
 }
@@ -178,12 +181,8 @@ export function useAutomationUpdate() {
       return parsed;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate all automation lists regardless of virtualMcpId filter
       queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "automations" &&
-          query.queryKey[1] === org.id,
+        queryKey: ["automations", org.id],
       });
       if (typeof variables.id === "string") {
         queryClient.invalidateQueries({
@@ -211,7 +210,9 @@ export function useAutomationDelete() {
       return (result.structuredContent ?? result) as { success: boolean };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: ["automations", org.id],
+      });
     },
   });
 }
@@ -233,7 +234,9 @@ export function useAutomationTriggerAdd() {
       return (result.structuredContent ?? result) as { id: string };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: ["automations", org.id],
+      });
       if (typeof variables.automation_id === "string") {
         queryClient.invalidateQueries({
           queryKey: KEYS.automation(org.id, variables.automation_id),
@@ -263,7 +266,9 @@ export function useAutomationTriggerRemove() {
       return (result.structuredContent ?? result) as { success: boolean };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: ["automations", org.id],
+      });
       queryClient.invalidateQueries({
         queryKey: KEYS.automation(org.id, variables.automation_id),
       });

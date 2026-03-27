@@ -1,5 +1,5 @@
 /**
- * Agent Context — Types, context object, and hooks for URL-driven agent state.
+ * Virtual MCP Context — Types, context object, and hooks for URL-driven virtual MCP state.
  *
  * The actual provider logic lives in VirtualMCPProvider.
  * This file exports the context, hooks, and types consumed by components.
@@ -24,7 +24,7 @@ export type MainView =
     }
   | null; // null = no explicit `main` param — consumer resolves default
 
-export interface AgentContextValue {
+export interface VirtualMCPContextValue {
   virtualMcpId: string;
   mainView: MainView;
   openMainView: (
@@ -38,21 +38,25 @@ export interface AgentContextValue {
 // Context
 // ---------------------------------------------------------------------------
 
-export const AgentContext = createContext<AgentContextValue | null>(null);
+export const VirtualMCPContext = createContext<VirtualMCPContextValue | null>(
+  null,
+);
 
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
-export function useAgentContext(): AgentContextValue {
-  const ctx = use(AgentContext);
+export function useVirtualMCPContext(): VirtualMCPContextValue {
+  const ctx = use(VirtualMCPContext);
   if (!ctx) {
-    throw new Error("useAgentContext must be used within a VirtualMCPProvider");
+    throw new Error(
+      "useVirtualMCPContext must be used within a VirtualMCPProvider",
+    );
   }
   return ctx;
 }
 
-/** Returns null when not inside an agent route — safe for components used in both contexts. */
-export function useOptionalAgentContext(): AgentContextValue | null {
-  return use(AgentContext);
+/** Returns null when not inside a virtual MCP route — safe for components used in both contexts. */
+export function useVirtualMCPURLContext(): VirtualMCPContextValue | null {
+  return use(VirtualMCPContext);
 }

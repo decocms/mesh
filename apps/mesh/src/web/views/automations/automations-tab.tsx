@@ -98,7 +98,7 @@ export function AutomationsTabContent({
   virtualMcpId: string;
   selectedAutomationId?: string;
 }) {
-  const { data: allAutomations, isLoading } = useAutomationsList();
+  const { data: allAutomations, isLoading } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
   const navigate = useNavigate();
@@ -107,9 +107,7 @@ export function AutomationsTabContent({
     name: string;
   } | null>(null);
 
-  const automations = (allAutomations ?? []).filter(
-    (a) => a.agent?.id === virtualMcpId,
-  );
+  const automations = allAutomations ?? [];
 
   const selectAutomation = (id: string | undefined) => {
     navigate({
