@@ -332,14 +332,22 @@ async function streamCoreInner(
 
     // Find the last coding agent session ID for session resume.
     // Currently only Claude Code supports resume (Codex spawns a new process per request).
+    // We filter by codingAgentProvider to avoid using a Codex thread ID as a
+    // Claude Code resume session (possible when the user switches providers mid-thread).
     let resumeSessionId: string | undefined;
     if (isClaudeCode) {
       for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
-        const sessionId = (msg?.metadata as { codingAgentSessionId?: string })
-          ?.codingAgentSessionId;
-        if (msg?.role === "assistant" && sessionId) {
-          resumeSessionId = sessionId;
+        const meta = msg?.metadata as {
+          codingAgentSessionId?: string;
+          codingAgentProvider?: string;
+        };
+        if (
+          msg?.role === "assistant" &&
+          meta?.codingAgentSessionId &&
+          meta?.codingAgentProvider === "claude-code"
+        ) {
+          resumeSessionId = meta.codingAgentSessionId;
           break;
         }
       }
@@ -531,6 +539,7 @@ async function streamCoreInner(
         let reasoningStartAt: Date | null = null;
         let lastProviderMetadata: Record<string, unknown> | undefined;
         let codingAgentSessionId: string | undefined;
+        let codingAgentProvider: string | undefined;
         llmCallStartTime = Date.now();
 
         // Build language model based on provider type
@@ -823,6 +832,7 @@ async function streamCoreInner(
                     sessionId?: string;
                   }
                 ).sessionId;
+                codingAgentProvider = "claude-code";
               }
               if (isCodex && part.providerMetadata?.["codex-app-server"]) {
                 codingAgentSessionId = (
@@ -830,6 +840,7 @@ async function streamCoreInner(
                     threadId?: string;
                   }
                 ).threadId;
+                codingAgentProvider = "codex";
               }
               return;
             }
@@ -864,6 +875,7 @@ async function streamCoreInner(
               return {
                 ...(usage && { usage }),
                 ...(codingAgentSessionId && { codingAgentSessionId }),
+                ...(codingAgentProvider && { codingAgentProvider }),
               };
             }
 
