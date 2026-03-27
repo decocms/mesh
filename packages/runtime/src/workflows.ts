@@ -24,6 +24,12 @@ export interface WorkflowDefinition {
    * Defaults to START_WORKFLOW_<TITLE_SLUG> (e.g. START_WORKFLOW_FETCH_USERS).
    */
   toolId?: string;
+  /**
+   * JSON Schema describing the expected input for this workflow.
+   * When set, the mesh validates execution input against this schema
+   * before creating an execution.
+   */
+  inputSchema?: Record<string, unknown> | null;
 }
 
 interface WorkflowCollectionItem {
@@ -67,6 +73,7 @@ interface MeshWorkflowClient {
       description?: string;
       virtual_mcp_id?: string;
       steps: Step[];
+      input_schema?: Record<string, unknown> | null;
     };
   }) => Promise<{ item: WorkflowCollectionItem }>;
   COLLECTION_WORKFLOW_UPDATE: (input: {
@@ -76,6 +83,7 @@ interface MeshWorkflowClient {
       description?: string;
       virtual_mcp_id?: string;
       steps?: Step[];
+      input_schema?: Record<string, unknown> | null;
     };
   }) => Promise<{ success: boolean; error?: string }>;
   COLLECTION_WORKFLOW_DELETE: (input: {
@@ -254,10 +262,11 @@ function fingerprintWorkflows(declared: WorkflowDefinition[]): string {
   return JSON.stringify(
     declared.map((w) => ({
       title: w.title,
-      description: w.description ?? null,
-      virtual_mcp_id: w.virtual_mcp_id ?? null,
+      description: w.description ?? undefined,
+      virtual_mcp_id: w.virtual_mcp_id ?? undefined,
       steps: w.steps,
-      toolId: w.toolId ?? null,
+      toolId: w.toolId ?? undefined,
+      inputSchema: w.inputSchema ?? undefined,
     })),
   );
 }
@@ -383,6 +392,7 @@ async function doSyncWorkflows(
                 virtual_mcp_id: resolvedVmcpId,
               }),
               steps: wf.steps,
+              input_schema: wf.inputSchema ?? undefined,
             },
           });
           if (!result.success) {
@@ -402,6 +412,7 @@ async function doSyncWorkflows(
               description: wf.description,
               virtual_mcp_id: resolvedVmcpId,
               steps: wf.steps,
+              input_schema: wf.inputSchema ?? null,
             },
           });
           console.log(`${tag} CREATE "${wf.title}" OK`);
@@ -596,8 +607,30 @@ type InputForTool<
     : StepInput<TSteps>
   : StepInput<TSteps>;
 
-type BaseStepFields = Omit<Step, "name" | "input" | "action">;
-type BaseForEachFields = Omit<Step, "name" | "forEach" | "input" | "action">;
+/**
+ * Typed bail condition with @ref autocomplete.
+ * Self-references (e.g. `@thisStep.field` on step "thisStep") are valid for
+ * bail — the condition is evaluated after the step completes — but the current
+ * step name isn't in TSteps yet. Use the `(string & {})` escape hatch.
+ */
+type TypedBail<TSteps extends string> =
+  | true
+  | {
+      ref: KnownRefs<TSteps>;
+      eq?: unknown;
+      neq?: unknown;
+      gt?: number;
+      lt?: number;
+    };
+
+type BaseStepFields<TSteps extends string> = Omit<
+  Step,
+  "name" | "input" | "action" | "bail"
+> & { bail?: TypedBail<TSteps> };
+type BaseForEachFields<TSteps extends string> = Omit<
+  Step,
+  "name" | "forEach" | "input" | "action" | "bail"
+> & { bail?: TypedBail<TSteps> };
 
 /**
  * Tool-call variants of StepOpts — one discriminated member per tool ID so
@@ -608,12 +641,12 @@ type ToolCallStepOpts<
   TSteps extends string,
   TTools extends readonly ToolLike[],
 > = [TTools[number]] extends [never]
-  ? BaseStepFields & {
+  ? BaseStepFields<TSteps> & {
       action: { toolName: string & {}; transformCode?: string };
       input?: StepInput<TSteps>;
     }
   : {
-      [TId in TTools[number]["id"]]: BaseStepFields & {
+      [TId in TTools[number]["id"]]: BaseStepFields<TSteps> & {
         action: { toolName: TId; transformCode?: string };
         input?: InputForTool<TTools, TId, TSteps>;
       };
@@ -621,19 +654,22 @@ type ToolCallStepOpts<
 
 type StepOpts<TSteps extends string, TTools extends readonly ToolLike[]> =
   | ToolCallStepOpts<TSteps, TTools>
-  | (BaseStepFields & { action: { code: string }; input?: StepInput<TSteps> });
+  | (BaseStepFields<TSteps> & {
+      action: { code: string };
+      input?: StepInput<TSteps>;
+    });
 
 type ToolCallForEachOpts<
   TSteps extends string,
   TTools extends readonly ToolLike[],
 > = [TTools[number]] extends [never]
-  ? BaseForEachFields & {
+  ? BaseForEachFields<TSteps> & {
       action: { toolName: string & {}; transformCode?: string };
       input?: StepInput<TSteps>;
       concurrency?: number;
     }
   : {
-      [TId in TTools[number]["id"]]: BaseForEachFields & {
+      [TId in TTools[number]["id"]]: BaseForEachFields<TSteps> & {
         action: { toolName: TId; transformCode?: string };
         input?: InputForTool<TTools, TId, TSteps>;
         concurrency?: number;
@@ -645,7 +681,7 @@ type ForEachItemOpts<
   TTools extends readonly ToolLike[],
 > =
   | ToolCallForEachOpts<TSteps, TTools>
-  | (BaseForEachFields & {
+  | (BaseForEachFields<TSteps> & {
       action: { code: string };
       input?: StepInput<TSteps>;
       concurrency?: number;

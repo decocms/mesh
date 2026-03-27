@@ -215,13 +215,13 @@ export interface ResolveResult {
  *   @step.matrix[0][1]     (consecutive brackets)
  */
 const AT_REF_PATTERN =
-  /@([a-zA-Z_][a-zA-Z0-9_]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\.[0-9]+|\[[0-9]+\]))*)/g;
+  /@([a-zA-Z_][a-zA-Z0-9_-]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_-]*|\.[0-9]+|\[[0-9]+\]))*)/g;
 
 /**
  * Regex to match a COMPLETE @ref (entire string is one reference)
  */
 const SINGLE_AT_REF_PATTERN =
-  /^@([a-zA-Z_][a-zA-Z0-9_]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\.[0-9]+|\[[0-9]+\]))*)$/;
+  /^@([a-zA-Z_][a-zA-Z0-9_-]*(?:(?:\.[a-zA-Z_][a-zA-Z0-9_-]*|\.[0-9]+|\[[0-9]+\]))*)$/;
 
 /**
  * Check if a value is a COMPLETE @ref string (the entire value is one reference)

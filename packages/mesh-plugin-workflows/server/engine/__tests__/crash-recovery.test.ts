@@ -426,4 +426,78 @@ describe("Crash Recovery (recoverStuckExecutions)", () => {
       expect(recovered).toHaveLength(0);
     });
   });
+
+  describe("recovery with pending retry", () => {
+    it("re-dispatches pending retry step instead of deleting it", async () => {
+      const ctx = createMockOrchestratorContext(storage);
+
+      const executionId = await startWorkflow([
+        makeCodeStep(
+          "retryable",
+          "export default function(input) { return { ok: true }; }",
+          {},
+        ),
+      ]);
+
+      // Simulate: execution claimed, step has been reset for retry (attempt 2)
+      // but the process crashed before the delayed event was delivered
+      await storage.claimExecution(executionId);
+      await storage.createStepResult({
+        execution_id: executionId,
+        step_id: "retryable",
+      });
+      // Reset for retry: clear fields, bump attempt_number, null out started_at
+      await storage.resetStepResultForRetry(executionId, "retryable", 2);
+
+      // Verify the step is in the expected pending-retry state
+      const beforeRecovery = await storage.getStepResult(
+        executionId,
+        "retryable",
+      );
+      expect(beforeRecovery).not.toBeNull();
+      expect(beforeRecovery!.attempt_number).toBe(2);
+      expect(beforeRecovery!.started_at_epoch_ms).toBeNull();
+
+      // Recover and re-publish
+      await storage.recoverStuckExecutions();
+      await ctx.publish("workflow.execution.created", executionId);
+      await ctx.drainEvents();
+
+      // The step result should NOT have been deleted (it was re-dispatched, not removed)
+      const afterRecovery = await storage.getStepResult(
+        executionId,
+        "retryable",
+      );
+      expect(afterRecovery).not.toBeNull();
+      expect(afterRecovery!.attempt_number).toBe(2);
+
+      // Recovery publishes the retry with a backoff delay, so it goes to scheduledEvents
+      const retryEvent = ctx.scheduledEvents.find(
+        (e) =>
+          e.type === "workflow.step.execute" &&
+          (e.data as Record<string, unknown>)?.stepName === "retryable",
+      );
+      expect(retryEvent).toBeDefined();
+      expect(retryEvent!.options?.deliverAt).toBeDefined();
+
+      // Simulate the scheduled event being delivered (move to immediate queue)
+      for (const evt of ctx.scheduledEvents) {
+        ctx.capturedEvents.push({ ...evt, options: undefined });
+      }
+      ctx.scheduledEvents.length = 0;
+      await ctx.drainEvents();
+
+      // After the retry executes, the step should complete successfully
+      const finalResult = await storage.getStepResult(executionId, "retryable");
+      expect(finalResult).not.toBeNull();
+      expect(finalResult!.completed_at_epoch_ms).not.toBeNull();
+      expect(finalResult!.error).toBeNull();
+
+      const finalExecution = await storage.getExecution(
+        executionId,
+        TEST_ORG_ID,
+      );
+      expect(finalExecution!.status).toBe("success");
+    });
+  });
 });

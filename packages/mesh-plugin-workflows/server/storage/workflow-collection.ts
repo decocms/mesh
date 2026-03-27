@@ -13,14 +13,17 @@ import type {
 import { parseJson } from "../types";
 
 export interface ParsedWorkflowCollection
-  extends Omit<WorkflowCollectionRow, "steps"> {
+  extends Omit<WorkflowCollectionRow, "steps" | "input_schema"> {
   steps: unknown[];
+  input_schema: Record<string, unknown> | null;
 }
 
 function parseCollection(row: WorkflowCollectionRow): ParsedWorkflowCollection {
   return {
     ...row,
     steps: (parseJson(row.steps) as unknown[]) ?? [],
+    input_schema:
+      (parseJson(row.input_schema) as Record<string, unknown>) ?? null,
   };
 }
 
@@ -65,10 +68,19 @@ export class WorkflowCollectionStorage {
     return row ? parseCollection(row) : null;
   }
 
-  async create(data: NewWorkflowCollection): Promise<ParsedWorkflowCollection> {
+  async create(
+    data: Omit<NewWorkflowCollection, "input_schema"> & {
+      input_schema?: Record<string, unknown> | null;
+    },
+  ): Promise<ParsedWorkflowCollection> {
+    const { input_schema, ...rest } = data;
     const row = await this.db
       .insertInto("workflow_collection")
-      .values(data)
+      .values({
+        ...rest,
+        input_schema:
+          input_schema != null ? JSON.stringify(input_schema) : null,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
 
@@ -83,15 +95,23 @@ export class WorkflowCollectionStorage {
       description?: string | null;
       virtual_mcp_id?: string;
       steps?: string;
+      input_schema?: Record<string, unknown> | null;
       updated_by?: string | null;
     },
   ): Promise<WorkflowCollectionRow> {
+    const { input_schema, ...rest } = data;
+    const setValues: Record<string, unknown> = {
+      ...rest,
+      updated_at: new Date().toISOString(),
+    };
+    if (input_schema !== undefined)
+      setValues.input_schema = input_schema
+        ? JSON.stringify(input_schema)
+        : null;
+
     return await this.db
       .updateTable("workflow_collection")
-      .set({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .set(setValues)
       .where("id", "=", id)
       .where("organization_id", "=", organizationId)
       .returningAll()

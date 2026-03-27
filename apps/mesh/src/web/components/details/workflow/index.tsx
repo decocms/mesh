@@ -4,6 +4,7 @@ import {
   WorkflowExecution,
 } from "@decocms/bindings/workflow";
 import {
+  useIsInputSchemaSelected,
   useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
@@ -46,6 +47,7 @@ import {
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 import { usePollingWorkflowExecution } from "./hooks";
 import { useWorkflowSSE } from "./hooks/use-workflow-sse";
+import { InputSchemaPanel } from "./components/input-schema-panel";
 import { useRef, useState, useSyncExternalStore } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,6 +120,7 @@ function WorkflowCode({
   const wf = {
     title: workflow.title,
     description: workflow.description,
+    input_schema: workflow.input_schema,
     steps: workflow.steps,
   };
   return (
@@ -328,6 +331,7 @@ function WorkflowStudio({
   const trackingExecutionId = useTrackingExecutionId();
   const { viewMode, showExecutionsList } = useViewModeStore();
   const currentStep = useCurrentStep();
+  const isInputSchemaSelected = useIsInputSchemaSelected();
 
   const handleSave = async () => {
     await onUpdate(workflow);
@@ -338,8 +342,10 @@ function WorkflowStudio({
     ? (currentStep.action as ToolCallAction).toolName
     : null;
   const showToolSidebar = isToolStep && !toolName && !trackingExecutionId;
+  const showInputSchema = isInputSchemaSelected && !trackingExecutionId;
   const showStepDetail =
     !showToolSidebar &&
+    !showInputSchema &&
     (currentStep || trackingExecutionId || !showExecutionsList);
 
   return (
@@ -375,6 +381,9 @@ function WorkflowStudio({
               <ResizablePanel defaultSize={50} minSize={25}>
                 {showToolSidebar && (
                   <ToolSidebar className="border-l border-border" />
+                )}
+                {showInputSchema && (
+                  <InputSchemaPanel className="border-l border-border" />
                 )}
                 {showExecutionsList && <ExecutionsList />}
                 {showStepDetail && (

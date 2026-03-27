@@ -11,7 +11,7 @@ The engine is a **pure DAG** (Directed Acyclic Graph). Steps run once, data flow
 ### Step Types
 
 - **Tool call** (`{ toolName }`) — Invoke an MCP tool via proxy. Optional `transformCode` for post-processing. Default timeout 60s.
-- **Code** (`{ code }`) — Run TypeScript in QuickJS sandbox. Format: `export default function(input) { ... }`. Default timeout 10s, 64MB memory limit.
+- **Code** (`{ code }`) — Run TypeScript in QuickJS sandbox. Format: `export default function(stepInput) { ... }`. Default timeout 10s, 64MB memory limit.
 
 ### Data Flow
 

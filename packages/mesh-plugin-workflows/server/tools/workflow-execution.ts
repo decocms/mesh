@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { StepSchema } from "@decocms/bindings/workflow";
+import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { requireWorkflowContext, getPluginStorage, parseJson } from "../types";
 import { getDecopilotId } from "@decocms/mesh-sdk";
@@ -18,6 +19,57 @@ function toNumberOrNull(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   const num = typeof value === "string" ? parseInt(value, 10) : Number(value);
   return Number.isNaN(num) ? null : num;
+}
+
+/**
+ * Check that a JSON Schema does not exceed a maximum nesting depth.
+ * Prevents overly complex schemas from causing stack overflows during conversion.
+ */
+function checkSchemaDepth(
+  schema: unknown,
+  maxDepth: number,
+  current = 0,
+): void {
+  if (current > maxDepth) {
+    throw new Error("Input schema exceeds maximum nesting depth");
+  }
+  if (schema == null || typeof schema !== "object" || Array.isArray(schema)) {
+    return;
+  }
+  const obj = schema as Record<string, unknown>;
+  if (obj.properties && typeof obj.properties === "object") {
+    for (const val of Object.values(
+      obj.properties as Record<string, unknown>,
+    )) {
+      checkSchemaDepth(val, maxDepth, current + 1);
+    }
+  }
+  if (obj.items) {
+    checkSchemaDepth(obj.items, maxDepth, current + 1);
+  }
+  if (
+    obj.additionalProperties &&
+    typeof obj.additionalProperties === "object"
+  ) {
+    checkSchemaDepth(obj.additionalProperties, maxDepth, current + 1);
+  }
+}
+
+/**
+ * Recursively strip `pattern` keys from a JSON Schema object.
+ * This is a ReDoS mitigation — user-supplied regex patterns could be crafted
+ * to cause catastrophic backtracking when compiled into RegExp by Zod.
+ */
+function stripPatterns(schema: unknown): unknown {
+  if (schema == null || typeof schema !== "object") return schema;
+  if (Array.isArray(schema)) return schema.map(stripPatterns);
+  const obj = schema as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === "pattern") continue;
+    result[key] = stripPatterns(value);
+  }
+  return result;
 }
 
 function epochMsToIsoString(epochMs: unknown): string {
@@ -152,7 +204,7 @@ export const WORKFLOW_EXECUTION_GET: ServerPluginToolDefinition = {
 export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
   name: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
   description:
-    "Create a workflow execution from a workflow template and return the execution ID.",
+    "Create a workflow execution from a workflow template and return the execution ID. The workflow may define an input_schema (JSON Schema) — if so, the input must conform to it.",
   inputSchema: z.object({
     workflow_collection_id: z
       .string()
@@ -167,7 +219,7 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        "Input to the workflow execution. Required only if the workflow has steps that reference @input.field.",
+        "Input to the workflow execution. Must conform to the workflow's input_schema if one is defined. Use COLLECTION_WORKFLOW_GET to inspect the schema.",
       ),
     start_at_epoch_ms: z
       .number()
@@ -190,7 +242,6 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
     };
     const storage = getPluginStorage();
 
-    // Fetch the workflow template to get steps
     const workflowCollection = await storage.collections.getById(
       typedInput.workflow_collection_id,
       meshCtx.organization.id,
@@ -199,6 +250,34 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       throw new Error(
         `Workflow template not found: ${typedInput.workflow_collection_id}`,
       );
+    }
+
+    if (workflowCollection.input_schema) {
+      const schemaStr = JSON.stringify(workflowCollection.input_schema);
+      if (schemaStr.length > 100_000) {
+        throw new Error("Input schema exceeds size limit");
+      }
+      checkSchemaDepth(workflowCollection.input_schema, 10);
+      try {
+        const sanitized = stripPatterns(
+          workflowCollection.input_schema,
+        ) as Record<string, unknown>;
+        const zodSchema = convertJsonSchemaToZod(sanitized);
+        const result = zodSchema.safeParse(typedInput.input);
+        if (!result.success) {
+          throw new Error(`Input validation failed: ${result.error.message}`);
+        }
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.message.startsWith("Input validation failed:")
+        ) {
+          throw err;
+        }
+        throw new Error(
+          `Input schema conversion failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
 
     const virtualMcpId =
@@ -214,8 +293,6 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       workflowCollectionId: typedInput.workflow_collection_id,
       createdBy: meshCtx.auth.user?.id,
     });
-
-    // Publish event to start the execution via the event bus (durable, background)
     await meshCtx.eventBus.publish(
       meshCtx.organization.id,
       meshCtx.connectionId ?? "",

@@ -8,13 +8,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { ScrollArea, ScrollBar } from "@deco/ui/components/scroll-area.tsx";
 import { toast } from "@deco/ui/components/sonner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  Check,
-  CornerDownRight,
-  Plus,
-  Repeat03,
-  XClose,
-} from "@untitledui/icons";
+import { Check, CornerDownRight, Repeat03, XClose } from "@untitledui/icons";
 import {
   Box,
   Braces,
@@ -28,15 +22,21 @@ import {
 } from "lucide-react";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
+  replaceInputInterface,
   useCurrentStep,
   useSelectedVirtualMcpId,
   useTrackingExecutionId,
+  useWorkflow,
   useWorkflowActions,
 } from "../stores/workflow";
 import { ToolInput } from "./tool-selection/components/tool-input";
 import type { JsonSchema } from "@/web/utils/constants";
 import { MonacoCodeEditor } from "./monaco-editor";
-import type { Step, ToolCallAction } from "@decocms/bindings/workflow";
+import type {
+  CodeAction,
+  Step,
+  ToolCallAction,
+} from "@decocms/bindings/workflow";
 import {
   getDecopilotId,
   useMCPClient,
@@ -47,6 +47,8 @@ import {
   useExecutionCompletedStep,
   usePollingWorkflowExecution,
 } from "../hooks";
+import { useStepMentions } from "../hooks/derived/use-step-mentions";
+import { jsonSchemaToTypeScript } from "../typescript-to-json-schema";
 import { useState } from "react";
 
 interface StepDetailPanelProps {
@@ -78,7 +80,7 @@ function useSyncOutputSchema(step: Step | undefined) {
     // Use queueMicrotask to avoid updating state during render
     queueMicrotask(() => {
       updateStep(step.name, {
-        outputSchema: tool.outputSchema,
+        outputSchema: tool.outputSchema as JsonSchema | undefined,
       });
     });
   }
@@ -86,7 +88,6 @@ function useSyncOutputSchema(step: Step | undefined) {
 
 export function StepDetailPanel({ className }: StepDetailPanelProps) {
   const currentStep = useCurrentStep();
-  const { appendStep } = useWorkflowActions();
   // Sync outputSchema from tool if step has tool but no outputSchema
   useSyncOutputSchema(currentStep);
   const trackingExecutionId = useTrackingExecutionId();
@@ -98,16 +99,6 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
       <div className={cn("flex flex-col h-full bg-sidebar", className)}>
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground gap-2 flex-col">
           Select or create a step to configure
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={() => {
-              appendStep({ type: "tool" });
-            }}
-          >
-            <Plus size={14} />
-          </Button>
         </div>
       </div>
     );
@@ -144,19 +135,21 @@ export function StepDetailPanel({ className }: StepDetailPanelProps) {
     >
       <StepHeader step={currentStep} />
       <InputSection step={currentStep} />
-      <OutputSection
-        key={`${currentStepName}-${isCompleted ? "open" : "closed"}`}
-        step={currentStep}
-        defaultOpen={isCompleted}
-        isStepErrored={isStepErrored}
-        executionError={
-          isStepErrored && executionItem?.error != null
-            ? typeof executionItem.error === "string"
-              ? executionItem.error
-              : JSON.stringify(executionItem.error)
-            : undefined
-        }
-      />
+      {trackingExecutionId && (
+        <OutputSection
+          key={`${currentStepName}-${isCompleted ? "open" : "closed"}`}
+          step={currentStep}
+          defaultOpen={isCompleted}
+          isStepErrored={isStepErrored}
+          executionError={
+            isStepErrored && executionItem?.error != null
+              ? typeof executionItem.error === "string"
+                ? executionItem.error
+                : JSON.stringify(executionItem.error)
+              : undefined
+          }
+        />
+      )}
       {!trackingExecutionId && <TransformCodeSection step={currentStep} />}
       {!trackingExecutionId && <StepCodeSection step={currentStep} />}
     </div>
@@ -267,8 +260,18 @@ function InputSection({ step }: { step: Step }) {
     isToolStep && "toolName" in step.action ? step.action.toolName : null;
   const trackingExecutionId = useTrackingExecutionId();
   const { tool } = useVirtualMCPTool(toolName ?? "");
+  const mentions = useStepMentions(step.name);
 
-  if (!tool || !tool.inputSchema) {
+  // Prefer tool's inputSchema; fall back to a schema derived from step's input keys
+  const stepInput = step.input as Record<string, unknown> | undefined;
+  const toolSchema = tool?.inputSchema ?? null;
+  const fallbackSchema =
+    !toolSchema && stepInput && Object.keys(stepInput).length > 0
+      ? buildSchemaFromInput(stepInput)
+      : null;
+  const baseSchema = toolSchema ?? fallbackSchema;
+
+  if (!baseSchema) {
     return null;
   }
 
@@ -280,10 +283,10 @@ function InputSection({ step }: { step: Step }) {
 
   const usedSchema = trackingExecutionId
     ? filterSchemaByExecutionInput(
-        tool.inputSchema,
+        baseSchema,
         step.input as Record<string, unknown>,
       )
-    : tool.inputSchema;
+    : baseSchema;
   return (
     <Accordion
       type="single"
@@ -304,12 +307,29 @@ function InputSection({ step }: { step: Step }) {
             inputSchema={usedSchema as JsonSchema}
             inputParams={step.input as Record<string, unknown>}
             setInputParams={handleInputChange}
-            mentions={[]}
+            mentions={mentions}
           />
         </AccordionContent>
       </AccordionItem>
     </Accordion>
   );
+}
+
+/**
+ * Build a minimal JSON Schema from a step's existing input keys.
+ * All fields are treated as strings since we don't have type info.
+ */
+function buildSchemaFromInput(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const key of Object.keys(input)) {
+    properties[key] = { type: "string" };
+  }
+  return {
+    type: "object",
+    properties,
+  };
 }
 
 function filterSchemaByExecutionInput(
@@ -676,10 +696,10 @@ interface Output {
   result: unknown;
 }
 
-export default async function(input: Input): Promise<Output> {
+export default async function(stepInput: Input): Promise<Output> {
   // Transform the tool output
   return {
-    result: input,
+    result: stepInput,
   };
 }`;
 
@@ -753,9 +773,15 @@ export default async function(input: Input): Promise<Output> {
 function StepCodeSection({ step }: { step: Step }) {
   const [isOpen, setIsOpen] = useState(false);
   const { updateStep } = useWorkflowActions();
+  const workflow = useWorkflow();
   const code =
     "code" in step.action && step.action.code ? step.action.code : null;
   const trackingExecutionId = useTrackingExecutionId();
+
+  if (!code) {
+    return null;
+  }
+
   const handleCodeSave = (
     code: string,
     outputSchema: Record<string, unknown> | null,
@@ -768,9 +794,85 @@ function StepCodeSection({ step }: { step: Step }) {
       ...(outputSchema ? { outputSchema } : {}),
     });
   };
-  if (!code) {
-    return null;
+
+  // Collect available variables: workflow input + all preceding steps
+  const availableVars: {
+    name: string;
+    label: string;
+    schema: Record<string, unknown> | undefined;
+  }[] = [];
+
+  const inputSchema = workflow.input_schema as JsonSchema | undefined;
+  if (inputSchema) {
+    availableVars.push({
+      name: "input",
+      label: "Workflow Input",
+      schema: inputSchema as Record<string, unknown>,
+    });
   }
+
+  for (const s of workflow.steps) {
+    if (s.name === step.name) break;
+    availableVars.push({
+      name: s.name,
+      label: s.name,
+      schema: s.outputSchema as Record<string, unknown> | undefined,
+    });
+  }
+
+  // Current step input refs (e.g. { Step_1: "@Step_1", input: "@input" })
+  const currentInput = (step.input ?? {}) as Record<string, string>;
+  const selectedVars = new Set(
+    Object.entries(currentInput)
+      .filter(([, v]) => typeof v === "string" && v.startsWith("@"))
+      .map(([, v]) => v.slice(1)), // strip leading @
+  );
+
+  const toggleVar = (varName: string) => {
+    const newInput = { ...currentInput };
+    if (selectedVars.has(varName)) {
+      // Remove this reference
+      const keyToRemove = Object.entries(newInput).find(
+        ([, v]) => v === `@${varName}`,
+      )?.[0];
+      if (keyToRemove) delete newInput[keyToRemove];
+    } else {
+      newInput[varName] = `@${varName}`;
+    }
+
+    // Rebuild Input interface from selected variables' schemas
+    const combinedProperties: Record<string, unknown> = {};
+    for (const [key, ref] of Object.entries(newInput)) {
+      if (typeof ref !== "string" || !ref.startsWith("@")) continue;
+      const refName = ref.slice(1);
+      const varDef = availableVars.find((v) => v.name === refName);
+      if (varDef?.schema) {
+        combinedProperties[key] = varDef.schema;
+      }
+    }
+
+    const combinedSchema =
+      Object.keys(combinedProperties).length > 0
+        ? {
+            type: "object",
+            properties: combinedProperties,
+            required: Object.keys(combinedProperties),
+          }
+        : null;
+
+    const inputInterface = combinedSchema
+      ? jsonSchemaToTypeScript(combinedSchema, "Input")
+      : "interface Input {}";
+
+    const codeAction = step.action as CodeAction;
+    const updatedCode = replaceInputInterface(codeAction.code, inputInterface);
+
+    updateStep(step.name, {
+      input: newInput,
+      action: { ...step.action, code: updatedCode },
+    });
+  };
+
   return (
     <div
       className={cn(
@@ -794,16 +896,55 @@ function StepCodeSection({ step }: { step: Step }) {
         </div>
       </div>
       {isOpen && (
-        <div className="flex-1 min-h-0">
-          <MonacoCodeEditor
-            onSave={(code, outputSchema) => handleCodeSave(code, outputSchema)}
-            key={`step-code-${step.name}-${trackingExecutionId}`}
-            code={code}
-            language="typescript"
-            height="100%"
-            readOnly={trackingExecutionId !== undefined}
-          />
-        </div>
+        <>
+          {/* Variable picker */}
+          {!trackingExecutionId && availableVars.length > 0 && (
+            <div className="px-5 pb-3 shrink-0 border-b border-border/50">
+              <p className="text-xs text-muted-foreground mb-2">
+                Select variables available to your code as{" "}
+                <code className="text-[11px] bg-accent px-1 py-0.5 rounded">
+                  input
+                </code>
+                :
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {availableVars.map((v) => {
+                  const isSelected = selectedVars.has(v.name);
+                  return (
+                    <button
+                      key={v.name}
+                      type="button"
+                      className={cn(
+                        "h-7 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5",
+                        isSelected
+                          ? "bg-accent border-border text-foreground"
+                          : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                      )}
+                      onClick={() => toggleVar(v.name)}
+                    >
+                      {isSelected && (
+                        <Check size={12} className="text-success" />
+                      )}
+                      <span className="font-mono">@{v.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="flex-1 min-h-0">
+            <MonacoCodeEditor
+              onSave={(code, outputSchema) =>
+                handleCodeSave(code, outputSchema)
+              }
+              key={`step-code-${step.name}-${trackingExecutionId}`}
+              code={code}
+              language="typescript"
+              height="100%"
+              readOnly={trackingExecutionId !== undefined}
+            />
+          </div>
+        </>
       )}
     </div>
   );
