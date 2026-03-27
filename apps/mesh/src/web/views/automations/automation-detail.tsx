@@ -70,7 +70,7 @@ import {
   XClose,
   Zap,
 } from "@untitledui/icons";
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
@@ -165,16 +165,29 @@ function EventTriggerForm({
       </div>
 
       {/* Step 1: Connection */}
-      <Select value={connectionId ?? ""} onValueChange={setConnectionId}>
+      <Select
+        value={connectionId ?? ""}
+        onValueChange={(val) => {
+          setConnectionId(val);
+          setEventType(undefined);
+          setParams({});
+        }}
+      >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select connection..." />
         </SelectTrigger>
         <SelectContent>
-          {triggerConnections.map((conn) => (
-            <SelectItem key={conn.id} value={conn.id}>
-              {conn.title}
-            </SelectItem>
-          ))}
+          {triggerConnections.length === 0 ? (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+              No connections with trigger support
+            </div>
+          ) : (
+            triggerConnections.map((conn) => (
+              <SelectItem key={conn.id} value={conn.id}>
+                {conn.title}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
 
@@ -186,12 +199,18 @@ function EventTriggerForm({
             setEventType(val);
             setParams({});
           }}
-          disabled={isLoadingTriggers}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select event type...">
-              {eventType ?? "Select event type..."}
-            </SelectValue>
+            {isLoadingTriggers ? (
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Loading01 size={13} className="animate-spin" />
+                Loading events...
+              </span>
+            ) : (
+              <SelectValue placeholder="Select event type...">
+                {eventType ?? "Select event type..."}
+              </SelectValue>
+            )}
           </SelectTrigger>
           <SelectContent>
             {triggerDefs?.map((t: TriggerDefinition) => (
@@ -294,6 +313,8 @@ export function SettingsTab({
 }) {
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
+  const allConnections = useConnections();
+  const connectionNameMap = new Map(allConnections.map((c) => [c.id, c.title]));
 
   // Chat hooks for running the automation
   const { createTaskWithMessage } = useChatTask();
@@ -579,6 +600,11 @@ export function SettingsTab({
                   key={trigger.id}
                   trigger={trigger}
                   automationId={automationId}
+                  connectionName={
+                    trigger.connection_id
+                      ? connectionNameMap.get(trigger.connection_id)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -646,10 +672,24 @@ export function SettingsTab({
           )}
 
           {showEventForm && (
-            <EventTriggerForm
-              automationId={automationId}
-              onDone={() => setShowEventForm(false)}
-            />
+            <Suspense
+              fallback={
+                <div className="flex items-center gap-2 px-3 py-3 rounded-lg border border-border bg-background">
+                  <Loading01
+                    size={13}
+                    className="animate-spin text-muted-foreground"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Loading connections...
+                  </span>
+                </div>
+              }
+            >
+              <EventTriggerForm
+                automationId={automationId}
+                onDone={() => setShowEventForm(false)}
+              />
+            </Suspense>
           )}
         </div>
 

@@ -26,7 +26,6 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { useConnections } from "@decocms/mesh-sdk";
 import { Clock, Edit01, Loading01, XClose, Zap } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -34,9 +33,11 @@ import { toast } from "sonner";
 export function TriggerCard({
   trigger,
   automationId,
+  connectionName,
 }: {
   trigger: AutomationTrigger;
   automationId: string;
+  connectionName?: string;
 }) {
   const removeTrigger = useAutomationTriggerRemove();
   const addTrigger = useAutomationTriggerAdd();
@@ -48,11 +49,6 @@ export function TriggerCard({
   const [count, setCount] = useState(interval?.count ?? 1);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(trigger.cron_expression ?? "");
-
-  const connections = useConnections();
-  const triggerConnection = connections?.find(
-    (c) => c.id === trigger.connection_id,
-  );
 
   const isSaving = removeTrigger.isPending || addTrigger.isPending;
   const isCron = trigger.type === "cron";
@@ -171,7 +167,7 @@ export function TriggerCard({
             <span className="text-sm font-mono text-xs text-muted-foreground truncate">
               {isCron
                 ? humanReadableCron(trigger.cron_expression ?? "")
-                : `${trigger.event_type}${triggerConnection ? ` · ${triggerConnection.title}` : ""}`}
+                : `${trigger.event_type}${connectionName ? ` · ${connectionName}` : ""}`}
             </span>
             {!isCron &&
               trigger.params &&
