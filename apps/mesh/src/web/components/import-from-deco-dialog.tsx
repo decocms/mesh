@@ -118,15 +118,18 @@ export function ImportFromDecoDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ siteName, connId, orgId: org.id }),
       });
+      const connBody = (await connRes.json().catch(() => ({}))) as {
+        connId?: string;
+        icon?: string | null;
+        error?: string;
+      };
       if (!connRes.ok) {
-        const body = (await connRes.json().catch(() => ({}))) as {
-          error?: string;
-        };
         throw new Error(
-          body.error ?? `Failed to create connection (${connRes.status})`,
+          connBody.error ?? `Failed to create connection (${connRes.status})`,
         );
       }
 
+      const projectIcon = connBody.icon ?? null;
       const slug = generateSlug(siteName);
 
       // 2. Create a space (virtual MCP) with the connection already linked
@@ -137,13 +140,15 @@ export function ImportFromDecoDialog({
             title: siteName,
             description: "Imported from deco.cx",
             pinned: true,
+            icon: projectIcon,
+            subtype: "project",
             metadata: {
               instructions: null,
               enabled_plugins: [],
               ui: {
                 banner: null,
                 bannerColor: "#22C55E",
-                icon: null,
+                icon: projectIcon,
                 themeColor: "#22C55E",
                 slug,
                 pinnedViews: [
@@ -176,11 +181,24 @@ export function ImportFromDecoDialog({
       const payload = (result.structuredContent ??
         result) as VirtualMCPCreateOutput;
 
-      return { slug, virtualMcpId: payload.item.id, connId };
+      return {
+        slug,
+        virtualMcpId: payload.item.id,
+        connId,
+        item: payload.item,
+      };
     },
-    onSuccess: ({ slug, virtualMcpId, connId }) => {
-      // Invalidate the virtual MCPs collection list (used by sidebar + task panel).
-      // The collection list key is [client, orgId, scopeKey, "collection", collectionName, ...].
+    onSuccess: ({ slug, virtualMcpId, connId, item }) => {
+      // Seed the individual item cache so useVirtualMCP resolves instantly on
+      // the redirected page without waiting for a network round-trip.
+      queryClient.setQueryData(
+        KEYS.collectionItem(client, org.id, "", "VIRTUAL_MCP", virtualMcpId),
+        { item },
+      );
+
+      // Invalidate the projects list using a predicate — the collection list
+      // key starts with the client instance, so a plain queryKey prefix never
+      // matches it.
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey;
