@@ -3,15 +3,14 @@ import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { error005Sound } from "@deco/ui/lib/error-005.ts";
 import { successChimeSound } from "@deco/ui/lib/success-chime.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
-import { clickSoftSound } from "@deco/ui/lib/click-soft.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
 import { usePreferences, type SoundEventKey } from "./use-preferences";
 
+// in_progress is intentionally omitted — it should not play a sound.
 export const SOUND_MAP: Partial<Record<SoundEventKey, { dataUri: string }>> = {
   completed: successChimeSound,
   failed: error005Sound,
   requires_action: question004Sound,
-  in_progress: clickSoftSound,
 };
 
 function playSoundForStatus(
