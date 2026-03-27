@@ -8,8 +8,8 @@ const CODEX_LOGO =
 export const CODEX_MODELS: ModelInfo[] = [
   {
     providerId: "codex",
-    modelId: "codex:gpt-5.2-codex-mini",
-    title: "Codex Mini",
+    modelId: "codex:gpt-5.3-codex-spark",
+    title: "Codex Spark",
     description: "Fast and lightweight",
     capabilities: ["text"],
     logo: CODEX_LOGO,
@@ -20,6 +20,16 @@ export const CODEX_MODELS: ModelInfo[] = [
     providerId: "codex",
     modelId: "codex:gpt-5.3-codex",
     title: "Codex",
+    description: "Balanced performance",
+    capabilities: ["text", "reasoning"],
+    logo: CODEX_LOGO,
+    limits: null,
+    costs: null,
+  },
+  {
+    providerId: "codex",
+    modelId: "codex:gpt-5.4",
+    title: "GPT-5.4",
     description: "Most capable",
     capabilities: ["text", "reasoning"],
     logo: CODEX_LOGO,
@@ -30,8 +40,9 @@ export const CODEX_MODELS: ModelInfo[] = [
 
 /** Map composite model IDs (e.g. "codex:gpt-5.3-codex") to SDK model names. */
 const CODEX_SDK_MODELS: Record<string, string> = {
-  "codex:gpt-5.2-codex-mini": "gpt-5.2-codex-mini",
+  "codex:gpt-5.3-codex-spark": "gpt-5.3-codex-spark",
   "codex:gpt-5.3-codex": "gpt-5.3-codex",
+  "codex:gpt-5.4": "gpt-5.4",
 };
 
 /** Resolve a composite codex model ID to the SDK model name. */
