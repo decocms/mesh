@@ -38,12 +38,40 @@ async function supabaseGet<T>(
     },
   });
   if (!res.ok) {
-    // Log full details server-side only; never forward raw Supabase errors to clients.
     const text = await res.text().catch(() => res.statusText);
     console.error(`[deco-sites] Supabase error (${res.status}): ${text}`);
     throw new Error(`External service error (${res.status})`);
   }
   return res.json() as Promise<T[]>;
+}
+
+async function supabasePost<T>(
+  supabaseUrl: string,
+  serviceKey: string,
+  table: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    console.error(`[deco-sites] Supabase POST error (${res.status}): ${text}`);
+    throw new Error(`External service error (${res.status})`);
+  }
+  const rows = (await res.json()) as T[];
+  if (!rows[0]) {
+    throw new Error("Supabase POST returned no rows");
+  }
+  return rows[0];
 }
 
 import { getSettings } from "../../settings";
@@ -72,17 +100,27 @@ async function resolveProfileId(
   return profiles[0]?.user_id ?? null;
 }
 
-async function fetchDecoApiKey(
+async function getOrCreateDecoApiKey(
   supabaseUrl: string,
   serviceKey: string,
   profileId: string,
-): Promise<string | null> {
-  const apiKeys = await supabaseGet<{ id: string }>(
+): Promise<string> {
+  const existing = await supabaseGet<{ id: string }>(
     supabaseUrl,
     serviceKey,
     `api_key?user_id=eq.${encodeURIComponent(profileId)}&select=id&limit=1`,
   );
-  return apiKeys[0]?.id ?? null;
+  if (existing[0]?.id) {
+    return existing[0].id;
+  }
+
+  const created = await supabasePost<{ id: string }>(
+    supabaseUrl,
+    serviceKey,
+    "api_key",
+    { user_id: profileId },
+  );
+  return created.id;
 }
 
 // Require an authenticated user on every handler in this router.
@@ -216,34 +254,32 @@ app.post("/connection", async (c) => {
   }
 
   const config = getSupabaseConfig();
-
-  // Local dev fallback: create a stub connection without an API key so the
-  // full import flow can be tested without Supabase credentials.
-  const apiKey = config
-    ? await (async () => {
-        const { supabaseUrl, serviceKey } = config;
-        const profileId = await resolveProfileId(
-          supabaseUrl,
-          serviceKey,
-          email,
-        );
-        if (!profileId) return null;
-        return fetchDecoApiKey(supabaseUrl, serviceKey, profileId);
-      })().catch(() => null)
-    : null;
+  if (!config) {
+    return c.json({ error: "Deco integration is not configured" }, 503);
+  }
+  const { supabaseUrl, serviceKey } = config;
 
   try {
+    const profileId = await resolveProfileId(supabaseUrl, serviceKey, email);
+    if (!profileId) {
+      return c.json({ error: "No deco.cx account found for this user" }, 404);
+    }
+
+    const apiKey = await getOrCreateDecoApiKey(
+      supabaseUrl,
+      serviceKey,
+      profileId,
+    );
+
     // Fetch tools and scopes from the MCP server before storing, mirroring
     // what COLLECTION_CONNECTIONS_CREATE does so the tools list isn't empty.
-    const fetchResult = apiKey
-      ? await fetchToolsFromMCP({
-          id: `pending-${connId}`,
-          title: `deco.cx — ${siteName}`,
-          connection_type: "HTTP",
-          connection_url: ADMIN_MCP,
-          connection_token: apiKey,
-        }).catch(() => null)
-      : null;
+    const fetchResult = await fetchToolsFromMCP({
+      id: `pending-${connId}`,
+      title: `deco.cx — ${siteName}`,
+      connection_type: "HTTP",
+      connection_url: ADMIN_MCP,
+      connection_token: apiKey,
+    }).catch(() => null);
     const tools = fetchResult?.tools?.length ? fetchResult.tools : null;
     const configuration_scopes = fetchResult?.scopes?.length
       ? fetchResult.scopes
@@ -259,7 +295,7 @@ app.post("/connection", async (c) => {
       description: `Admin MCP for deco.cx site: ${siteName}`,
       connection_type: "HTTP",
       connection_url: ADMIN_MCP,
-      connection_token: apiKey ?? null,
+      connection_token: apiKey,
       connection_headers: null,
       oauth_config: null,
       configuration_state: {
