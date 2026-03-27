@@ -9,7 +9,7 @@ test.describe("Connection creation flow", () => {
     await signUp(page);
 
     // 2. Wait for the auto-redirect to the org page and extract slug from URL
-    await page.waitForURL(/\/[a-z0-9-]+\/?\??/, { timeout: 15_000 });
+    await page.waitForURL(/\/[a-z0-9-]+\/?(\?.*)?$/, { timeout: 15_000 });
     const orgSlug = new URL(page.url()).pathname.split("/")[1];
 
     // 3. Navigate directly to the connections page
