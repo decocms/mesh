@@ -28,16 +28,22 @@ export interface ParsedStepResult {
   output: unknown;
   error: unknown;
   raw_tool_output: unknown;
+  attempt_number: number;
 }
 
 /**
  * Slim step result for orchestration — only the fields consumed by the
- * orchestrator hot path. Excludes raw_tool_output and started_at_epoch_ms
- * to avoid transferring and parsing potentially large tool response payloads.
+ * orchestrator hot path. Excludes raw_tool_output to avoid transferring
+ * and parsing potentially large tool response payloads.
  */
 export type ContextStepResult = Pick<
   ParsedStepResult,
-  "step_id" | "completed_at_epoch_ms" | "output" | "error"
+  | "step_id"
+  | "started_at_epoch_ms"
+  | "completed_at_epoch_ms"
+  | "output"
+  | "error"
+  | "attempt_number"
 >;
 
 export interface ExecutionContext {
@@ -243,7 +249,14 @@ export class WorkflowExecutionStorage {
         .executeTakeFirst(),
       this.db
         .selectFrom("workflow_execution_step_result")
-        .select(["step_id", "completed_at_epoch_ms", "output", "error"])
+        .select([
+          "step_id",
+          "started_at_epoch_ms",
+          "completed_at_epoch_ms",
+          "output",
+          "error",
+          "attempt_number",
+        ])
         .where("execution_id", "=", executionId)
         .execute(),
     ]);
@@ -264,9 +277,11 @@ export class WorkflowExecutionStorage {
       },
       stepResults: stepResultRows.map((row) => ({
         step_id: row.step_id,
+        started_at_epoch_ms: row.started_at_epoch_ms,
         completed_at_epoch_ms: row.completed_at_epoch_ms,
         output: parseJson(row.output),
         error: parseJson(row.error),
+        attempt_number: row.attempt_number,
       })),
     };
   }
@@ -544,6 +559,7 @@ export class WorkflowExecutionStorage {
         completed_at_epoch_ms: data.completed_at_epoch_ms ?? null,
         output: data.output !== undefined ? JSON.stringify(data.output) : null,
         error: data.error !== undefined ? JSON.stringify(data.error) : null,
+        attempt_number: 1,
       })
       .onConflict((oc) => oc.columns(["execution_id", "step_id"]).doNothing())
       .returningAll()
@@ -557,20 +573,31 @@ export class WorkflowExecutionStorage {
     stepId: string,
     data: {
       output?: unknown;
-      error?: string;
-      started_at_epoch_ms?: number;
-      completed_at_epoch_ms?: number;
+      error?: string | null;
+      started_at_epoch_ms?: number | null;
+      completed_at_epoch_ms?: number | null;
+      attempt_number?: number;
+      raw_tool_output?: unknown;
     },
   ): Promise<ParsedStepResult | null> {
     const setValues: Record<string, unknown> = {};
 
     if (data.output !== undefined)
-      setValues.output = JSON.stringify(data.output);
-    if (data.error !== undefined) setValues.error = JSON.stringify(data.error);
+      setValues.output =
+        data.output === null ? null : JSON.stringify(data.output);
+    if (data.error !== undefined)
+      setValues.error = data.error === null ? null : JSON.stringify(data.error);
     if (data.started_at_epoch_ms !== undefined)
       setValues.started_at_epoch_ms = data.started_at_epoch_ms;
     if (data.completed_at_epoch_ms !== undefined)
       setValues.completed_at_epoch_ms = data.completed_at_epoch_ms;
+    if (data.attempt_number !== undefined)
+      setValues.attempt_number = data.attempt_number;
+    if (data.raw_tool_output !== undefined)
+      setValues.raw_tool_output =
+        data.raw_tool_output === null
+          ? null
+          : JSON.stringify(data.raw_tool_output);
 
     if (Object.keys(setValues).length === 0) return null;
 
@@ -583,6 +610,44 @@ export class WorkflowExecutionStorage {
       .executeTakeFirst();
 
     return row ? parseStepResult(row) : null;
+  }
+
+  /**
+   * Atomic retry claim gate. Only one worker can claim a given retry attempt.
+   * The conditional WHERE ensures idempotency: if two retry events arrive
+   * for the same attempt, only one wins.
+   */
+  async claimStepForRetry(
+    executionId: string,
+    stepId: string,
+    expectedAttempt: number,
+  ): Promise<ParsedStepResult | null> {
+    const row = await this.db
+      .updateTable("workflow_execution_step_result")
+      .set({ started_at_epoch_ms: Date.now() })
+      .where("execution_id", "=", executionId)
+      .where("step_id", "=", stepId)
+      .where("attempt_number", "=", expectedAttempt)
+      .where("started_at_epoch_ms", "is", null)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row ? parseStepResult(row) : null;
+  }
+
+  async resetStepResultForRetry(
+    executionId: string,
+    stepId: string,
+    nextAttempt: number,
+  ): Promise<void> {
+    await this.updateStepResult(executionId, stepId, {
+      completed_at_epoch_ms: null,
+      output: null,
+      error: null,
+      started_at_epoch_ms: null,
+      attempt_number: nextAttempt,
+      raw_tool_output: null,
+    });
   }
 
   /**
@@ -683,11 +748,16 @@ export class WorkflowExecutionStorage {
     executionId: string,
     prefix: string,
   ): Promise<ParsedStepResult[]> {
+    // Escape LIKE metacharacters in the prefix to prevent unintended matches
+    const escapedPrefix = prefix
+      .replaceAll("\\", "\\\\")
+      .replaceAll("%", "\\%")
+      .replaceAll("_", "\\_");
     const rows = await this.db
       .selectFrom("workflow_execution_step_result")
       .selectAll()
       .where("execution_id", "=", executionId)
-      .where("step_id", "like", `${prefix}%`)
+      .where("step_id", "like", `${escapedPrefix}%`)
       .orderBy("step_id")
       .execute();
 

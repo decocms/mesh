@@ -1,10 +1,19 @@
-import { validateNoCycles, type Step } from "@decocms/bindings/workflow";
+import {
+  validateNoCycles,
+  type Step,
+  type StepCondition,
+} from "@decocms/bindings/workflow";
 import type {
   WorkflowExecutionStorage,
   ParsedStepResult,
   ContextStepResult,
 } from "../storage/workflow-execution";
-import { extractRefs, parseAtRef, resolveAllRefs } from "./ref-resolver";
+import {
+  extractRefs,
+  parseAtRef,
+  resolveAllRefs,
+  resolveRef,
+} from "./ref-resolver";
 import { executeCode } from "./code-step";
 import { executeToolStep, type ToolStepContext } from "./tool-step";
 
@@ -35,6 +44,19 @@ function log(eid: string, msg: string) {
   console.log(`[WF:orch] ${eid} ${msg}`);
 }
 
+const MAX_RETRY_BACKOFF_MS = 300_000; // 5 minutes
+
+function computeRetryBackoffMs(
+  backoffMs: number,
+  attemptNumber: number,
+): number {
+  const jitter = Math.random() * 1000;
+  return Math.min(
+    backoffMs * Math.pow(2, attemptNumber - 1) + jitter,
+    MAX_RETRY_BACKOFF_MS,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Dependency resolution
 // ---------------------------------------------------------------------------
@@ -46,11 +68,20 @@ function getStepDependencies(step: Step): string[] {
     refs.push(step.forEach.ref);
   }
 
+  // Include bail condition ref as a dependency
+  if (step.bail && step.bail !== true) {
+    refs.push(step.bail.ref);
+  }
+
   const deps = new Set<string>();
   for (const ref of refs) {
     if (ref.startsWith("@")) {
       const parsed = parseAtRef(ref as `@${string}`);
-      if (parsed.type === "step" && parsed.stepName) {
+      if (
+        parsed.type === "step" &&
+        parsed.stepName &&
+        parsed.stepName !== step.name
+      ) {
         deps.add(parsed.stepName);
       }
     }
@@ -120,6 +151,52 @@ function getReadySteps(
     const deps = getStepDependencies(step);
     return deps.every((dep) => completedStepNames.has(dep));
   });
+}
+
+// ---------------------------------------------------------------------------
+// Condition evaluation (shared by `when` and `bail`)
+// ---------------------------------------------------------------------------
+
+function evaluateCondition(
+  condition: true | StepCondition,
+  stepOutputs: Map<string, unknown>,
+  workflowInput: Record<string, unknown>,
+  executionId: string,
+): boolean {
+  if (condition === true) return true;
+
+  const ref = condition.ref;
+  if (!ref.startsWith("@")) return false;
+
+  const { value } = resolveRef(ref as `@${string}`, {
+    stepOutputs,
+    workflowInput,
+    executionId,
+  });
+
+  const hasOperator =
+    condition.eq !== undefined ||
+    condition.neq !== undefined ||
+    condition.gt !== undefined ||
+    condition.lt !== undefined;
+
+  // No operator → truthy check
+  if (!hasOperator) return !!value;
+
+  if (condition.eq !== undefined && value !== condition.eq) return false;
+  if (condition.neq !== undefined && value === condition.neq) return false;
+  if (
+    condition.gt !== undefined &&
+    (typeof value !== "number" || value <= condition.gt)
+  )
+    return false;
+  if (
+    condition.lt !== undefined &&
+    (typeof value !== "number" || value >= condition.lt)
+  )
+    return false;
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,30 +346,67 @@ async function resolveIncompleteStepResults(
   for (const result of existingResults) {
     if (result.completed_at_epoch_ms) continue;
 
-    // Extract base step name (strip [N] suffix for iterations)
     const baseName = result.step_id.replace(/\[\d+\]$/, "");
     const step = stepsByName.get(baseName);
 
-    if (result.started_at_epoch_ms === null) {
-      // Never started — safe to retry for any step type
-      log(eid, `recovery: deleting never-started step ${result.step_id}`);
-      await ctx.storage.deleteStepResult(executionId, result.step_id);
-    } else if (step && getStepType(step) === "code") {
-      // Code step was executing — pure, safe to retry
-      log(eid, `recovery: deleting interrupted code step ${result.step_id}`);
-      await ctx.storage.deleteStepResult(executionId, result.step_id);
-    } else {
-      // Tool step was executing — may have had side effects, mark as error
-      log(
-        eid,
-        `recovery: marking interrupted tool step ${result.step_id} as error`,
-      );
-      await ctx.storage.updateStepResult(executionId, result.step_id, {
-        error: "Step interrupted by process restart",
-        completed_at_epoch_ms: Date.now(),
-      });
-    }
+    await resolveOneIncompleteResult(
+      ctx,
+      executionId,
+      eid,
+      result,
+      baseName,
+      step,
+    );
   }
+}
+
+async function resolveOneIncompleteResult(
+  ctx: OrchestratorContext,
+  executionId: string,
+  eid: string,
+  result: ParsedStepResult,
+  baseName: string,
+  step: Step | undefined,
+): Promise<void> {
+  const neverStarted = result.started_at_epoch_ms === null;
+  const isPendingRetry = neverStarted && (result.attempt_number ?? 1) > 1;
+
+  if (isPendingRetry) {
+    const iterMatch = result.step_id.match(/\[(\d+)\]$/);
+    const backoffMs = step?.config?.backoffMs ?? 1_000;
+    const delay = computeRetryBackoffMs(backoffMs, result.attempt_number ?? 1);
+    await ctx.publish(
+      "workflow.step.execute",
+      executionId,
+      {
+        stepName: baseName,
+        iterationIndex: iterMatch ? Number(iterMatch[1]) : undefined,
+      },
+      { deliverAt: new Date(Date.now() + delay).toISOString() },
+    );
+    return;
+  }
+
+  if (neverStarted) {
+    await ctx.storage.deleteStepResult(executionId, result.step_id);
+    return;
+  }
+
+  const isCodeStep = step && getStepType(step) === "code";
+  if (isCodeStep) {
+    log(eid, `recovery: deleting interrupted code step ${result.step_id}`);
+    await ctx.storage.deleteStepResult(executionId, result.step_id);
+    return;
+  }
+
+  log(
+    eid,
+    `recovery: marking interrupted tool step ${result.step_id} as error`,
+  );
+  await ctx.storage.updateStepResult(executionId, result.step_id, {
+    error: "Step interrupted by process restart",
+    completed_at_epoch_ms: Date.now(),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +494,23 @@ export async function handleStepExecute(
     return;
   }
 
+  // Guard: if the workflow deadline has passed, fail the execution instead of
+  // executing the step. This catches retry events delivered after deadline.
+  const deadlineAtEpochMs = context.execution.deadline_at_epoch_ms;
+  if (deadlineAtEpochMs && Date.now() >= deadlineAtEpochMs) {
+    log(eid, `stepExecute ${stepId} — deadline exceeded, failing execution`);
+    await ctx.storage.updateExecution(
+      executionId,
+      {
+        status: "error",
+        error: "Workflow execution exceeded its deadline",
+        completed_at_epoch_ms: Date.now(),
+      },
+      { onlyIfStatus: "running" },
+    );
+    return;
+  }
+
   const steps = context.workflow.steps;
   const step = steps.find((s) => s.name === stepName);
   if (!step) {
@@ -387,10 +518,26 @@ export async function handleStepExecute(
     return;
   }
 
-  const claimed = await ctx.storage.createStepResult({
-    execution_id: executionId,
-    step_id: stepId,
-  });
+  // Check if this is a retry (row exists with attempt_number > 1, not yet started)
+  const existingResult = context.stepResults.find((r) => r.step_id === stepId);
+  const isRetry =
+    existingResult &&
+    (existingResult.attempt_number ?? 1) > 1 &&
+    !existingResult.started_at_epoch_ms;
+
+  let claimed: ParsedStepResult | null;
+  if (isRetry) {
+    claimed = await ctx.storage.claimStepForRetry(
+      executionId,
+      stepId,
+      existingResult.attempt_number,
+    );
+  } else {
+    claimed = await ctx.storage.createStepResult({
+      execution_id: executionId,
+      step_id: stepId,
+    });
+  }
   if (!claimed) {
     log(eid, `stepExecute ${stepId} — already claimed, skipping`);
     return;
@@ -463,13 +610,11 @@ export async function handleStepExecute(
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-
   await ctx.storage.updateStepResult(executionId, stepId, {
     output,
     error,
     completed_at_epoch_ms: Date.now(),
   });
-
   await ctx.publish("workflow.step.completed", executionId, {
     stepName,
     iterationIndex,
@@ -495,18 +640,28 @@ export async function handleStepCompleted(
   const context = await ctx.storage.getExecutionContext(executionId);
   if (!context) return;
 
+  const steps = context.workflow.steps;
+  const step = steps.find((s) => s.name === stepName);
   const stepResult = context.stepResults.find((r) => r.step_id === stepId);
   const error = stepResult?.error ? String(stepResult.error) : undefined;
+  const isWorkflowRunning = context.execution.status === "running";
+  const workflowInput = context.workflow.input ?? {};
 
   log(eid, `stepCompleted ${stepId}${error ? " (error)" : ""}`);
 
-  const isWorkflowRunning = context.execution.status === "running";
-  const steps = context.workflow.steps;
-  const workflowInput = context.workflow.input ?? {};
-
   if (error && isWorkflowRunning) {
-    const step = steps.find((s) => s.name === stepName);
-    // forEach iterations default to "continue"; regular steps default to "fail"
+    const retried = await tryRetryStep(
+      ctx,
+      executionId,
+      stepId,
+      stepName,
+      step,
+      stepResult?.attempt_number ?? 1,
+      context.execution.deadline_at_epoch_ms,
+      iterationIndex,
+    );
+    if (retried) return;
+
     const onError: OnError =
       step?.config?.onError ?? (isIteration ? "continue" : "fail");
     const shouldContinue = await handleStepError(
@@ -521,9 +676,7 @@ export async function handleStepCompleted(
   }
 
   if (isIteration) {
-    const step = steps.find((s) => s.name === stepName);
     if (!step?.forEach) return;
-
     await handleForEachIterationCompletion(
       ctx,
       executionId,
@@ -538,12 +691,100 @@ export async function handleStepCompleted(
 
   if (!isWorkflowRunning) return;
 
+  if (!error && step) {
+    const stepOutputs = buildStepOutputsMap(context.stepResults);
+    const bailed = await tryBail(
+      ctx,
+      executionId,
+      step,
+      stepName,
+      stepOutputs,
+      workflowInput,
+    );
+    if (bailed) return;
+  }
+
   await advanceExecution(ctx, executionId, context);
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Attempt to schedule a retry for a failed step.
+ * Returns true if a retry was scheduled, false if we should fall through to error handling.
+ */
+async function tryRetryStep(
+  ctx: OrchestratorContext,
+  executionId: string,
+  stepId: string,
+  stepName: string,
+  step: Step | undefined,
+  attemptNumber: number,
+  deadlineEpochMs: number | null,
+  iterationIndex?: number,
+): Promise<boolean> {
+  const maxAttempts = step?.config?.maxAttempts ?? 1;
+  if (maxAttempts <= 1 || attemptNumber >= maxAttempts) return false;
+
+  const backoffMs = step?.config?.backoffMs ?? 1_000;
+  const retryDelay = computeRetryBackoffMs(backoffMs, attemptNumber);
+
+  if (deadlineEpochMs && Date.now() + retryDelay > deadlineEpochMs) {
+    return false;
+  }
+
+  await ctx.storage.resetStepResultForRetry(
+    executionId,
+    stepId,
+    attemptNumber + 1,
+  );
+  await ctx.publish(
+    "workflow.step.execute",
+    executionId,
+    { stepName, iterationIndex },
+    { deliverAt: new Date(Date.now() + retryDelay).toISOString() },
+  );
+  return true;
+}
+
+/**
+ * Evaluate bail condition and complete the workflow early if triggered.
+ * Returns true if the workflow was bailed, false otherwise.
+ */
+async function tryBail(
+  ctx: OrchestratorContext,
+  executionId: string,
+  step: Step,
+  stepName: string,
+  stepOutputs: Map<string, unknown>,
+  workflowInput: Record<string, unknown>,
+): Promise<boolean> {
+  if (!step.bail) return false;
+
+  const eid = executionId.slice(0, 8);
+  const shouldBail = evaluateCondition(
+    step.bail,
+    stepOutputs,
+    workflowInput,
+    executionId,
+  );
+  if (!shouldBail) return false;
+
+  const output = stepOutputs.get(stepName);
+  log(eid, `bail triggered by step "${stepName}", exiting early`);
+  await ctx.storage.updateExecution(
+    executionId,
+    {
+      status: "success",
+      output,
+      completed_at_epoch_ms: Date.now(),
+    },
+    { onlyIfStatus: "running" },
+  );
+  return true;
+}
 
 async function handleStepError(
   ctx: OrchestratorContext,
@@ -625,6 +866,19 @@ async function handleForEachIterationCompletion(
     });
 
     if (isWorkflowRunning) {
+      if (!parentError) {
+        const updatedOutputs = new Map(stepOutputs);
+        updatedOutputs.set(stepName, output);
+        const bailed = await tryBail(
+          ctx,
+          executionId,
+          step,
+          stepName,
+          updatedOutputs,
+          workflowInput,
+        );
+        if (bailed) return;
+      }
       await advanceExecution(ctx, executionId);
     }
     return;

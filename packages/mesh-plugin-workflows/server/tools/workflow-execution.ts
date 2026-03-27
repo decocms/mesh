@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { StepSchema } from "@decocms/bindings/workflow";
+import { convertJsonSchemaToZod } from "zod-from-json-schema";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { requireWorkflowContext, getPluginStorage, parseJson } from "../types";
 import { getDecopilotId } from "@decocms/mesh-sdk";
@@ -19,6 +20,8 @@ function toNumberOrNull(value: unknown): number | null {
   const num = typeof value === "string" ? parseInt(value, 10) : Number(value);
   return Number.isNaN(num) ? null : num;
 }
+
+import { checkSchemaDepth, stripPatterns } from "./schema-validation";
 
 function epochMsToIsoString(epochMs: unknown): string {
   if (epochMs === null || epochMs === undefined)
@@ -152,7 +155,7 @@ export const WORKFLOW_EXECUTION_GET: ServerPluginToolDefinition = {
 export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
   name: "COLLECTION_WORKFLOW_EXECUTION_CREATE",
   description:
-    "Create a workflow execution from a workflow template and return the execution ID.",
+    "Create a workflow execution from a workflow template and return the execution ID. The workflow may define an input_schema (JSON Schema) — if so, the input must conform to it.",
   inputSchema: z.object({
     workflow_collection_id: z
       .string()
@@ -167,7 +170,7 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        "Input to the workflow execution. Required only if the workflow has steps that reference @input.field.",
+        "Input to the workflow execution. Must conform to the workflow's input_schema if one is defined. Use COLLECTION_WORKFLOW_GET to inspect the schema.",
       ),
     start_at_epoch_ms: z
       .number()
@@ -190,7 +193,6 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
     };
     const storage = getPluginStorage();
 
-    // Fetch the workflow template to get steps
     const workflowCollection = await storage.collections.getById(
       typedInput.workflow_collection_id,
       meshCtx.organization.id,
@@ -199,6 +201,34 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       throw new Error(
         `Workflow template not found: ${typedInput.workflow_collection_id}`,
       );
+    }
+
+    if (workflowCollection.input_schema) {
+      const schemaStr = JSON.stringify(workflowCollection.input_schema);
+      if (schemaStr.length > 100_000) {
+        throw new Error("Input schema exceeds size limit");
+      }
+      checkSchemaDepth(workflowCollection.input_schema, 10);
+      try {
+        const sanitized = stripPatterns(
+          workflowCollection.input_schema,
+        ) as Record<string, unknown>;
+        const zodSchema = convertJsonSchemaToZod(sanitized);
+        const result = zodSchema.safeParse(typedInput.input);
+        if (!result.success) {
+          throw new Error(`Input validation failed: ${result.error.message}`);
+        }
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.message.startsWith("Input validation failed:")
+        ) {
+          throw err;
+        }
+        throw new Error(
+          `Input schema conversion failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
 
     const virtualMcpId =
@@ -214,8 +244,6 @@ export const WORKFLOW_EXECUTION_CREATE: ServerPluginToolDefinition = {
       workflowCollectionId: typedInput.workflow_collection_id,
       createdBy: meshCtx.auth.user?.id,
     });
-
-    // Publish event to start the execution via the event bus (durable, background)
     await meshCtx.eventBus.publish(
       meshCtx.organization.id,
       meshCtx.connectionId ?? "",

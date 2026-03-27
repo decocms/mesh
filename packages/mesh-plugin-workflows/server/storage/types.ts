@@ -25,6 +25,8 @@ export interface WorkflowCollectionTable {
   virtual_mcp_id: string;
   /** JSON-serialized Step[] */
   steps: string;
+  /** JSON-serialized input schema, or null */
+  input_schema: string | null;
   created_at: Generated<string>;
   updated_at: Generated<string>;
   created_by: string | null;
@@ -99,6 +101,7 @@ export interface WorkflowExecutionStepResultTable {
   error: string | null;
   /** JSON-serialized raw tool output (before transform code) */
   raw_tool_output: string | null;
+  attempt_number: Generated<number>;
 }
 
 export type StepResultRow = Selectable<WorkflowExecutionStepResultTable>;

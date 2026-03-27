@@ -711,14 +711,21 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
     ...(workflows?.length
       ? workflows.map((wf) => {
           const id = wf.toolId ?? workflowToolId(wf.title);
+          const baseDescription = [
+            wf.description
+              ? `Run workflow: ${wf.description}`
+              : `Start the "${wf.title}" workflow.`,
+            "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
+          ].join(" ");
           return createTool({
             id,
-            description: [
-              wf.description
-                ? `Run workflow: ${wf.description}`
-                : `Start the "${wf.title}" workflow.`,
-              "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
-            ].join(" "),
+            description: (() => {
+              if (!wf.inputSchema) return baseDescription;
+              const schemaStr = JSON.stringify(wf.inputSchema, null, 2);
+              return schemaStr.length <= 2048
+                ? `${baseDescription}\n\nInput schema:\n${schemaStr}`
+                : `${baseDescription}\n\nThis workflow expects structured input. Use COLLECTION_WORKFLOW_GET to inspect the full input schema.`;
+            })(),
             inputSchema: z.object({
               input: z
                 .record(z.string(), z.unknown())

@@ -1,5 +1,6 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
+import type { JsonSchema } from "@/web/utils/constants";
 import { usePrioritizedList } from "../hooks";
 import {
   useCurrentStep,
@@ -80,7 +81,7 @@ function ToolSelector({ className }: { className?: string }) {
         toolName: tool.name,
       },
       // Set the step's outputSchema to the tool's outputSchema
-      outputSchema: tool.outputSchema ?? {},
+      outputSchema: (tool.outputSchema ?? {}) as JsonSchema,
     });
   };
 

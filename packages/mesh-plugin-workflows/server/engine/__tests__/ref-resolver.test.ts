@@ -616,4 +616,64 @@ describe("extractRefs", () => {
     expect(refs).toContain("@input.last");
     expect(refs).toHaveLength(2);
   });
+
+  it("extracts @refs with hyphenated step names", () => {
+    const refs = extractRefs({ data: "@load-thread.thread.messages" });
+    expect(refs).toContain("@load-thread.thread.messages");
+  });
+
+  it("extracts hyphenated @refs from interpolated strings", () => {
+    const refs = extractRefs({
+      msg: "Thread: @load-thread.thread.id, User: @get-user.name",
+    });
+    expect(refs).toContain("@load-thread.thread.id");
+    expect(refs).toContain("@get-user.name");
+    expect(refs).toHaveLength(2);
+  });
+});
+
+// ============================================================================
+// Hyphenated step names
+// ============================================================================
+
+describe("hyphenated step names", () => {
+  it("isSingleAtRef recognizes hyphenated step refs", () => {
+    expect(isAtRef("@load-thread.thread.messages")).toBe(true);
+    const refs = extractRefs({ data: "@load-thread.thread.messages" });
+    expect(refs).toEqual(["@load-thread.thread.messages"]);
+  });
+
+  it("resolveAllRefs resolves hyphenated step names as direct refs", () => {
+    const stepOutputs = new Map<string, unknown>();
+    stepOutputs.set("load-thread", {
+      thread: { messages: ["hello"], shouldBail: false },
+    });
+    const ctx = makeCtx({ stepOutputs });
+
+    const { resolved, errors } = resolveAllRefs(
+      { question: "@load-thread.thread.messages" },
+      ctx,
+    );
+    expect(resolved).toEqual({ question: ["hello"] });
+    expect(errors).toBeUndefined();
+  });
+
+  it("resolveAllRefs interpolates hyphenated step names in strings", () => {
+    const stepOutputs = new Map<string, unknown>();
+    stepOutputs.set("my-step", { count: 42 });
+    const ctx = makeCtx({ stepOutputs });
+
+    const { resolved } = resolveAllRefs(
+      { msg: "Count is @my-step.count items" },
+      ctx,
+    );
+    expect(resolved).toEqual({ msg: "Count is 42 items" });
+  });
+
+  it("parseAtRef handles hyphenated step names", () => {
+    const result = parseAtRef("@load-thread.thread.shouldBail");
+    expect(result.type).toBe("step");
+    expect(result.stepName).toBe("load-thread");
+    expect(result.path).toBe("thread.shouldBail");
+  });
 });
