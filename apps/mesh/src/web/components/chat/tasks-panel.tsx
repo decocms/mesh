@@ -6,7 +6,6 @@
  */
 
 import { useChatTask } from "@/web/components/chat/context";
-import { CollectionSearch } from "@/web/components/collections/collection-search";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
@@ -14,7 +13,6 @@ import {
   getTaskVerb,
   STATUS_CONFIG,
   toDisplayGroupKey,
-  type StatusKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
 import { useTasks } from "./task";
@@ -29,20 +27,15 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   CheckDone01,
   ChevronRight,
-  FilterLines,
   Loading01,
   Plus,
   RefreshCcw01,
-  SearchMd,
-  X,
 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -163,7 +156,9 @@ export function OwnerFilter() {
 
 function SectionEmptyState() {
   return (
-    <div className="px-4 py-3 text-xs text-muted-foreground/60">No items</div>
+    <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+      No items
+    </div>
   );
 }
 
@@ -190,13 +185,15 @@ function GroupHeader({
     <button
       type="button"
       onClick={onToggle}
-      className="group flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+      className="group flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
     >
-      <Icon size={14} className={iconClassName} />
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      <span className="text-xs text-muted-foreground/60 tabular-nums">
-        {count}
-      </span>
+      <Icon size={16} className={iconClassName} />
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      {!isOpen && (
+        <span className="text-xs text-muted-foreground/60 tabular-nums">
+          {count}
+        </span>
+      )}
       <ChevronRight
         size={12}
         className={cn(
@@ -231,7 +228,7 @@ function TaskRow({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors",
+            "group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
             isActive ? "bg-accent" : "hover:bg-accent/50",
           )}
           onClick={onClick}
@@ -242,7 +239,7 @@ function TaskRow({
             <div className="flex items-center gap-1.5">
               <TruncatedText
                 text={task.title || "Untitled"}
-                className="text-sm text-foreground flex-1 min-w-0"
+                className="text-sm text-muted-foreground flex-1 min-w-0"
               />
               <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
                 {task.updated_at
@@ -330,7 +327,7 @@ function AutomationRow({
 
   return (
     <div
-      className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
+      className="group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors hover:bg-accent/50"
       onClick={onClick}
     >
       <span
@@ -433,16 +430,18 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="group/incoming flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+        className="group/incoming flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
       >
         <RefreshCcw01 size={14} className="text-purple-500" />
         <span className="text-sm font-medium text-muted-foreground">
           Automations
         </span>
-        <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {automations.filter((a) => a.active && a.trigger_count > 0).length}/
-          {automations.length}
-        </span>
+        {!isOpen && (
+          <span className="text-xs text-muted-foreground/60 tabular-nums">
+            {automations.filter((a) => a.active && a.trigger_count > 0).length}/
+            {automations.length}
+          </span>
+        )}
         <ChevronRight
           size={12}
           className={cn(
@@ -519,60 +518,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 }
 
 // ────────────────────────────────────────
-// Filter dropdown
-// ────────────────────────────────────────
-
-function FilterDropdown({
-  statusFilter,
-  onStatusChange,
-}: {
-  statusFilter: Set<StatusKey>;
-  onStatusChange: (status: StatusKey) => void;
-}) {
-  const hasFilters = statusFilter.size > 0;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "relative flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-            hasFilters
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-          title="Filter"
-        >
-          <FilterLines size={16} />
-          {hasFilters && (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-blue-500" />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Status
-        </DropdownMenuLabel>
-        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-          const Icon = cfg.icon;
-          return (
-            <DropdownMenuCheckboxItem
-              key={key}
-              checked={statusFilter.has(key as StatusKey)}
-              onCheckedChange={() => onStatusChange(key as StatusKey)}
-            >
-              <Icon size={12} className={cfg.iconClassName} />
-              {cfg.label}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ────────────────────────────────────────
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
@@ -608,10 +553,10 @@ function GroupedTaskList({
     <div className="flex-1 overflow-y-auto">
       {groups
         .filter((g) => g.key !== "done")
-        .map((group) => {
+        .map((group, index) => {
           const isOpen = !!expanded[group.key];
           return (
-            <div key={group.key}>
+            <div key={group.key} className={cn(index > 0 && "mt-3")}>
               <GroupHeader
                 label={group.label}
                 icon={group.icon}
@@ -620,29 +565,36 @@ function GroupedTaskList({
                 isOpen={isOpen}
                 onToggle={() => toggleGroup(group.key)}
               />
-              {isOpen &&
-                (group.tasks.length > 0 ? (
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === activeTaskId}
-                      onClick={() => onTaskSelect(task)}
-                    />
-                  ))
-                ) : (
-                  <SectionEmptyState />
-                ))}
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === activeTaskId}
+                        onClick={() => onTaskSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
-      {virtualMcpId && <IncomingSection virtualMcpId={virtualMcpId} />}
+      {virtualMcpId && (
+        <div className="mt-3">
+          <IncomingSection virtualMcpId={virtualMcpId} />
+        </div>
+      )}
       {groups
         .filter((g) => g.key === "done")
         .map((group) => {
           const isOpen = !!expanded[group.key];
           return (
-            <div key={group.key}>
+            <div key={group.key} className="mt-3">
               <GroupHeader
                 label={group.label}
                 icon={group.icon}
@@ -651,19 +603,22 @@ function GroupedTaskList({
                 isOpen={isOpen}
                 onToggle={() => toggleGroup(group.key)}
               />
-              {isOpen &&
-                (group.tasks.length > 0 ? (
-                  group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      isActive={task.id === activeTaskId}
-                      onClick={() => onTaskSelect(task)}
-                    />
-                  ))
-                ) : (
-                  <SectionEmptyState />
-                ))}
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === activeTaskId}
+                        onClick={() => onTaskSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -697,30 +652,11 @@ export function TaskListContent({
     virtualMcpId ?? "",
   );
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
   const visible = tasks.filter((t) => !t.hidden);
-
-  const searched = searchQuery.trim()
-    ? visible.filter((t) =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : visible;
-
-  const filtered = searched.filter((task) => {
-    if (
-      statusFilter.size > 0 &&
-      !statusFilter.has((task.status ?? "completed") as StatusKey)
-    )
-      return false;
-    return true;
-  });
-
-  const groups = buildDisplayGroups(filtered);
+  const groups = buildDisplayGroups(visible);
 
   // Find which group the active task belongs to so we can auto-open it
-  const activeTask = taskId ? filtered.find((t) => t.id === taskId) : null;
+  const activeTask = taskId ? visible.find((t) => t.id === taskId) : null;
   const activeGroupKey = activeTask
     ? toDisplayGroupKey(activeTask.status)
     : null;
@@ -735,65 +671,12 @@ export function TaskListContent({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Tasks header + search/filter */}
-      {searchOpen ? (
-        <div className="flex items-center">
-          <div className="flex-1 min-w-0">
-            <CollectionSearch
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search tasks..."
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearchQuery("");
-                  setSearchOpen(false);
-                }
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery("");
-              setSearchOpen(false);
-            }}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground mr-2"
-            title="Close search"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      ) : (
-        <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
-          <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-            Tasks
-          </span>
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-              searchQuery
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-            title="Search tasks"
-          >
-            <SearchMd size={16} />
-          </button>
-          <FilterDropdown
-            statusFilter={statusFilter}
-            onStatusChange={(s) =>
-              setStatusFilter((prev) => {
-                const next = new Set(prev);
-                if (next.has(s)) next.delete(s);
-                else next.add(s);
-                return next;
-              })
-            }
-          />
-        </div>
-      )}
+      {/* Tasks header */}
+      <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
+        <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+          Tasks
+        </span>
+      </div>
 
       {/* Grouped list — key resets expanded state when active task moves groups */}
       <GroupedTaskList

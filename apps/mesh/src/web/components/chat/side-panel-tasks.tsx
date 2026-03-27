@@ -10,22 +10,22 @@
 import { Page } from "@/web/components/page";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
-import {
-  Browser,
-  Loading01,
-  MessageTextCircle02,
-  Settings01,
-} from "@untitledui/icons";
-import { useMatch } from "@tanstack/react-router";
+import { Browser, Edit05, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { Suspense, useRef, useTransition } from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
+import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
 import { useChatTask } from "./context";
 import { OwnerFilter, TaskListContent } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 
@@ -34,7 +34,7 @@ import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 // ────────────────────────────────────────
 
 const navItemClass =
-  "flex items-center gap-2.5 mx-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-[calc(100%-1rem)]";
+  "flex items-center gap-2.5 mx-2 px-3 h-10 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors w-[calc(100%-1rem)]";
 
 function NewTaskButton({
   onClick,
@@ -46,22 +46,39 @@ function NewTaskButton({
   label?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isPending}
-      className={cn(
-        navItemClass,
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-      )}
-    >
-      {isPending ? (
-        <Loading01 size={14} className="shrink-0 animate-spin" />
-      ) : (
-        <MessageTextCircle02 size={14} className="shrink-0" />
-      )}
-      {label}
-    </button>
+    <Tooltip delayDuration={600}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={isPending}
+          className={cn(
+            navItemClass,
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+          )}
+        >
+          {isPending ? (
+            <Loading01 size={16} className="shrink-0 animate-spin" />
+          ) : (
+            <Edit05 size={16} className="shrink-0" />
+          )}
+          <span className="text-foreground">{label}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="flex items-center gap-1.5">
+        New task
+        <span className="flex items-center gap-0.5">
+          {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map((key) => (
+            <kbd
+              key={key}
+              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
+            >
+              {key}
+            </kbd>
+          ))}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -97,10 +114,12 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           key={`${view.connectionId}-${view.toolName}`}
           type="button"
           onClick={() =>
-            virtualMcpCtx?.openMainView("ext-apps", {
-              id: view.connectionId,
-              toolName: view.toolName,
-            })
+            isExtAppActive(view)
+              ? virtualMcpCtx?.openMainView("default")
+              : virtualMcpCtx?.openMainView("ext-apps", {
+                  id: view.connectionId,
+                  toolName: view.toolName,
+                })
           }
           className={cn(
             navItemClass,
@@ -111,9 +130,11 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
             <img src={view.icon} alt="" className="size-4 rounded shrink-0" />
           ) : (
             // Keep in sync with use-project-sidebar-items.tsx pinned view icon
-            <Browser size={15} className="shrink-0" />
+            <Browser size={16} className="shrink-0" />
           )}
-          <span className="truncate">{view.label || view.toolName}</span>
+          <span className="truncate text-foreground">
+            {view.label || view.toolName}
+          </span>
         </button>
       ))}
     </>
@@ -126,34 +147,45 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
 
 function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   const actions = useVirtualMCPActions();
-  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const descriptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const [title, setTitle] = useState(project.title);
+  const [description, setDescription] = useState(project.description ?? "");
+  const initialRenderRef = useRef(true);
 
-  const debouncedUpdate = (
-    field: "title" | "description",
-    data: Parameters<typeof actions.update.mutate>[0]["data"],
-  ) => {
-    const timerRef = field === "title" ? titleTimerRef : descriptionTimerRef;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      actions.update.mutate({ id: project.id, data });
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — debounced title sync
+  useEffect(() => {
+    if (initialRenderRef.current) return;
+    const trimmed = title.trim();
+    if (!trimmed || trimmed === project.title) return;
+    const timer = setTimeout(() => {
+      actions.update.mutate({ id: project.id, data: { title: trimmed } });
     }, 1000);
-  };
+    return () => clearTimeout(timer);
+  }, [title]);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — debounced description sync
+  useEffect(() => {
+    if (initialRenderRef.current) return;
+    if (description === (project.description ?? "")) return;
+    const timer = setTimeout(() => {
+      actions.update.mutate({
+        id: project.id,
+        data: { description },
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [description]);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — skip initial render for debounce effects
+  useEffect(() => {
+    initialRenderRef.current = false;
+  }, []);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.trim();
-    if (value && value !== project.title) {
-      debouncedUpdate("title", { title: value });
-    }
+    setTitle(e.target.value);
   };
 
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value !== (project.description ?? "")) {
-      debouncedUpdate("description", { description: value });
-    }
+    setDescription(e.target.value);
   };
 
   const handleIconChange = (icon: string | null) => {
@@ -176,26 +208,27 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+    <div className="flex items-center gap-3 pl-3 pr-4 pt-3 pb-3">
       <IconPicker
         value={project.icon}
         onChange={handleIconChange}
         onColorChange={handleColorChange}
         name={project.title || "Space"}
-        size="sm"
-        className="shrink-0 self-center"
+        size="sm+"
+        className="shrink-0 self-start"
+        avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
       />
       <div className="flex flex-col flex-1 min-w-0">
         <input
           type="text"
-          defaultValue={project.title}
+          value={title}
           onChange={handleTitleChange}
           placeholder="Space Name"
           className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
         />
         <input
           type="text"
-          defaultValue={project.description ?? ""}
+          value={description}
           onChange={handleDescriptionChange}
           placeholder="Add a description..."
           className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
@@ -219,12 +252,7 @@ function TasksPanelContent({
   const virtualMcpCtx = useVirtualMCPURLContext();
   const [isPending, startTransition] = useTransition();
 
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const virtualMcpId =
-    virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
+  const virtualMcpId = virtualMcpIdProp ?? null;
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
 
@@ -266,14 +294,18 @@ function TasksPanelContent({
         {virtualMcp && (
           <button
             type="button"
-            onClick={() => virtualMcpCtx?.openMainView("settings")}
+            onClick={() =>
+              isSettingsActive
+                ? virtualMcpCtx?.openMainView("default")
+                : virtualMcpCtx?.openMainView("settings")
+            }
             className={cn(
               navItemClass,
               isSettingsActive && "bg-accent text-foreground",
             )}
           >
-            <Settings01 size={14} className="shrink-0" />
-            Settings
+            <Settings01 size={16} className="shrink-0" />
+            <span className="text-foreground">Settings</span>
           </button>
         )}
         {virtualMcp && <ProjectViewsSection project={virtualMcp} />}
@@ -295,8 +327,8 @@ function TasksPanelSkeleton() {
   return (
     <div className="flex flex-col h-full animate-pulse">
       {/* Header skeleton */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <Skeleton className="size-8 rounded-lg shrink-0" />
+      <div className="flex items-center gap-3 pl-3 pr-4 pt-3 pb-3">
+        <Skeleton className="size-10 rounded-xl shrink-0" />
         <div className="flex flex-col flex-1 min-w-0 gap-1.5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-3 w-36" />

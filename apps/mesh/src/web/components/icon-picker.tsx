@@ -41,6 +41,8 @@ interface IconPickerProps {
   name: string;
   size?: AgentAvatarSize;
   className?: string;
+  avatarClassName?: string;
+  showHoverOverlay?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +62,8 @@ export function IconPicker({
   name,
   size = "lg",
   className,
+  avatarClassName,
+  showHoverOverlay = true,
 }: IconPickerProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<PickerTab>("icons");
@@ -102,6 +106,7 @@ export function IconPicker({
   const sizeRadius: Record<string, string> = {
     xs: "rounded-md",
     sm: "rounded-lg",
+    "sm+": "rounded-xl",
     md: "rounded-xl",
     lg: "rounded-2xl",
     xl: "rounded-2xl",
@@ -118,10 +123,17 @@ export function IconPicker({
             className,
           )}
         >
-          <AgentAvatar icon={value} name={name} size={size} />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Edit05 size={16} className="text-white" />
-          </div>
+          <AgentAvatar
+            icon={value}
+            name={name}
+            size={size}
+            className={avatarClassName}
+          />
+          {showHoverOverlay && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Edit05 size={16} className="text-white" />
+            </div>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent

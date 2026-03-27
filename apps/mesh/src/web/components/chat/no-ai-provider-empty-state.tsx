@@ -18,20 +18,22 @@ function ProviderList() {
   const isEven = providers.length % 2 === 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-      {providers.map((provider, index) => (
-        <div
-          key={provider.id}
-          className={cn(
-            isEven && index === providers.length - 1 && "sm:col-span-2",
-          )}
-        >
-          <ProviderCard
-            provider={provider}
-            keys={allKeys.filter((k) => k.providerId === provider.id)}
-          />
-        </div>
-      ))}
+    <div className="@container w-full">
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4 w-full">
+        {providers.map((provider, index) => (
+          <div
+            key={provider.id}
+            className={cn(
+              isEven && index === providers.length - 1 && "@lg:col-span-2",
+            )}
+          >
+            <ProviderCard
+              provider={provider}
+              keys={allKeys.filter((k) => k.providerId === provider.id)}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -58,9 +60,11 @@ export function NoAiProviderEmptyState({
       </div>
       <Suspense
         fallback={
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-            <Skeleton className="h-32 w-full rounded-lg" />
-            <Skeleton className="h-32 w-full rounded-lg" />
+          <div className="@container w-full">
+            <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4 w-full">
+              <Skeleton className="h-32 w-full rounded-lg" />
+              <Skeleton className="h-32 w-full rounded-lg" />
+            </div>
           </div>
         }
       >
