@@ -15,7 +15,7 @@ describe("ConnectionStorage", () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    vault = new CredentialVault("test-key");
+    vault = new CredentialVault(CredentialVault.generateKey());
     storage = new ConnectionStorage(database.db, vault);
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);

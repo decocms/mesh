@@ -73,4 +73,11 @@ export class CredentialVault {
 
     return decrypted.toString("utf8");
   }
+
+  /**
+   * Generate a new random encryption key (base64-encoded 32 bytes)
+   */
+  static generateKey(): string {
+    return randomBytes(KEY_LENGTH).toString("base64");
+  }
 }

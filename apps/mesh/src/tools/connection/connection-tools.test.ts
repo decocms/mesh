@@ -49,7 +49,7 @@ describe("Connection Tools", () => {
     await createTestSchema(database.db);
     await seedCommonTestFixtures(database.db);
 
-    vault = new CredentialVault("test-key");
+    vault = new CredentialVault(CredentialVault.generateKey());
 
     // Create mock context
     ctx = {

@@ -31,7 +31,7 @@ describe("DownstreamTokenStorage", () => {
       `.execute(database.db);
     }
 
-    const vault = new CredentialVault("test-key");
+    const vault = new CredentialVault(CredentialVault.generateKey());
     storage = new DownstreamTokenStorage(database.db, vault);
   });
 

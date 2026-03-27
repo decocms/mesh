@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { CredentialVault } from "./credential-vault";
 
 describe("CredentialVault", () => {
-  const testKey = "test-encryption-key";
+  const testKey = CredentialVault.generateKey();
   const vault = new CredentialVault(testKey);
 
   describe("encrypt", () => {
@@ -101,8 +101,8 @@ describe("CredentialVault", () => {
 
   describe("different vaults", () => {
     it("should not decrypt with different key", async () => {
-      const vault1 = new CredentialVault("key-one");
-      const vault2 = new CredentialVault("key-two");
+      const vault1 = new CredentialVault(CredentialVault.generateKey());
+      const vault2 = new CredentialVault(CredentialVault.generateKey());
 
       const plaintext = "secret";
       const encrypted = await vault1.encrypt(plaintext);
@@ -112,7 +112,7 @@ describe("CredentialVault", () => {
     });
 
     it("should decrypt with same key", async () => {
-      const sharedKey = "shared-key";
+      const sharedKey = CredentialVault.generateKey();
       const vault1 = new CredentialVault(sharedKey);
       const vault2 = new CredentialVault(sharedKey);
 
@@ -124,10 +124,42 @@ describe("CredentialVault", () => {
     });
   });
 
+  describe("generateKey", () => {
+    it("should generate base64 key", () => {
+      const key = CredentialVault.generateKey();
+
+      expect(typeof key).toBe("string");
+      expect(() => Buffer.from(key, "base64")).not.toThrow();
+    });
+
+    it("should generate 32-byte key", () => {
+      const key = CredentialVault.generateKey();
+      const buffer = Buffer.from(key, "base64");
+
+      expect(buffer.length).toBe(32);
+    });
+
+    it("should generate different keys", () => {
+      const key1 = CredentialVault.generateKey();
+      const key2 = CredentialVault.generateKey();
+
+      expect(key1).not.toBe(key2);
+    });
+
+    it("should generate cryptographically secure keys", () => {
+      const keys = new Set();
+      for (let i = 0; i < 100; i++) {
+        keys.add(CredentialVault.generateKey());
+      }
+
+      // All keys should be unique
+      expect(keys.size).toBe(100);
+    });
+  });
+
   describe("key handling", () => {
     it("should accept base64-encoded 32-byte key", () => {
-      // A valid 32-byte base64 key
-      const key = Buffer.from("a".repeat(32)).toString("base64");
+      const key = CredentialVault.generateKey();
       const vault = new CredentialVault(key);
 
       expect(vault).toBeDefined();
