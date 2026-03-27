@@ -25,6 +25,8 @@ import {
   Users03,
   Zap,
 } from "@untitledui/icons";
+import { useProjectContext } from "@decocms/mesh-sdk";
+import { pluginSettingsSidebarItems } from "@/web/index";
 
 interface SettingsNavItem {
   key: string;
@@ -39,6 +41,13 @@ interface SettingsNavGroup {
 }
 
 function useSettingsSidebarGroups(): SettingsNavGroup[] {
+  const currentProject = useProjectContext().project;
+  const enabledPlugins = currentProject.enabledPlugins ?? [];
+
+  const enabledSettingsItems = pluginSettingsSidebarItems
+    .filter((item) => enabledPlugins.includes(item.pluginId))
+    .map(({ key, label, icon, to }) => ({ key, label, icon, to }));
+
   return [
     {
       label: "",
@@ -96,6 +105,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
         },
+        ...enabledSettingsItems,
       ],
     },
   ];

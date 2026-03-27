@@ -29,6 +29,13 @@ export interface RegisterEmptyStateParams {
   component: ReactNode;
 }
 
+export interface RegisterSettingsSidebarItemParams {
+  key: string;
+  icon: ReactNode;
+  label: string;
+  to: string;
+}
+
 export interface PluginSetupContext {
   parentRoute: AnyRoute;
   routing: {
@@ -37,6 +44,9 @@ export interface PluginSetupContext {
   };
   registerRootSidebarItem: (params: RegisterRootSidebarItemParams) => void;
   registerSidebarGroup: (params: RegisterSidebarGroupParams) => void;
+  registerSettingsSidebarItem: (
+    params: RegisterSettingsSidebarItemParams,
+  ) => void;
   registerPluginRoutes: (route: AnyRoute[]) => void;
 }
 

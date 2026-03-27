@@ -13,16 +13,11 @@ export const clientPlugin: ClientPlugin = {
   // No binding — this plugin runs on the self MCP, not an external connection.
   LayoutComponent: PrivateRegistryLayout,
   setup: (context) => {
-    context.registerSidebarGroup({
-      id: "private-registry",
-      label: "Private Registry",
-      items: [
-        {
-          icon: <Package size={16} />,
-          label: "Registry",
-        },
-      ],
-      defaultExpanded: true,
+    context.registerSettingsSidebarItem({
+      key: "private-registry",
+      icon: <Package size={14} />,
+      label: "Registry",
+      to: "/$org/settings/registry",
     });
   },
 };
