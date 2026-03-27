@@ -374,4 +374,38 @@ describe("createTriggers with storage", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("disable after restart clears persisted credentials from storage", async () => {
+    const storage = createMockStorage();
+
+    // Simulate prior session
+    storage.data.set("conn-disable-restart", {
+      credentials: {
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "stale-token",
+      },
+      activeTriggerTypes: ["github.push"],
+    });
+
+    // New instance (simulates restart)
+    const t = createTriggers({ definitions: defs, storage });
+    const configureTool = t.tools()[1];
+
+    // Disable the trigger — should load from storage, then clean up
+    await configureTool.execute({
+      context: { type: "github.push", params: {}, enabled: false },
+      runtimeContext: mockCtx("conn-disable-restart"),
+    });
+
+    expect(storage.data.has("conn-disable-restart")).toBe(false);
+
+    // notify should be a no-op
+    const consoleSpy = spyOn(console, "log").mockImplementation(() => {});
+    t.notify("conn-disable-restart", "github.push", {});
+    await new Promise((r) => setTimeout(r, 50));
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No callback credentials"),
+    );
+    consoleSpy.mockRestore();
+  });
 });

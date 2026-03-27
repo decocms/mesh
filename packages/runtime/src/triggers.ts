@@ -104,6 +104,8 @@ class TriggerStateManager {
   }
 
   async disable(connectionId: string, triggerType: string): Promise<void> {
+    // Ensure state is loaded (may be empty after restart)
+    await this.loadFromStorage(connectionId);
     const types = this.activeTriggers.get(connectionId);
     if (types) {
       types.delete(triggerType);
