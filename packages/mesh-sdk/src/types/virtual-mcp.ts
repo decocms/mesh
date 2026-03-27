@@ -66,6 +66,19 @@ const VirtualMcpUISchema = z.object({
   icon: z.string().nullable().optional(),
   themeColor: z.string().nullable().optional(),
   pinnedViews: z.array(VirtualMcpPinnedViewSchema).nullable().optional(),
+  layout: z
+    .object({
+      defaultMainView: z
+        .object({
+          type: z.string(),
+          id: z.string().optional(),
+          toolName: z.string().optional(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export type VirtualMcpUI = z.infer<typeof VirtualMcpUISchema>;

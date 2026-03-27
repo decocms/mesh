@@ -791,7 +791,6 @@ function VirtualMcpDetailViewWithData({
     const currentInstructions = form.getValues("metadata.instructions");
     if (!currentInstructions?.trim()) return;
 
-    const prevLevel = preferences.toolApprovalLevel;
     setChatOpen(true);
     setPreferences({ ...preferences, toolApprovalLevel: "plan" });
 
@@ -806,8 +805,6 @@ function VirtualMcpDetailViewWithData({
         ],
       },
     });
-
-    setPreferences((prev) => ({ ...prev, toolApprovalLevel: prevLevel }));
   };
 
   const handleTestAgent = () => {

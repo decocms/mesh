@@ -164,7 +164,7 @@ export function VirtualMCPProvider({
   children: ReactNode;
 }) {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="flex-1 min-h-0" />}>
       <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
         {children}
       </VirtualMCPProviderContent>
