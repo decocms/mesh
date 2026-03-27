@@ -3,11 +3,7 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys.ts";
 
 export type ToolApprovalLevel = "auto" | "readonly" | "plan";
 export type ThemeMode = "light" | "dark" | "system";
-export type SoundEventKey =
-  | "completed"
-  | "failed"
-  | "requires_action"
-  | "in_progress";
+export type SoundEventKey = "completed" | "failed" | "requires_action";
 
 interface Preferences {
   toolApprovalLevel: ToolApprovalLevel;
@@ -21,7 +17,6 @@ const DEFAULT_SOUND_TOGGLES: Record<SoundEventKey, boolean> = {
   completed: true,
   failed: true,
   requires_action: true,
-  in_progress: true,
 };
 
 const DEFAULT_PREFERENCES: Preferences = {
