@@ -725,6 +725,8 @@ export interface ThreadTable {
     Date | string | null,
     Date | string | null
   >;
+  /** JSON array of agent connection IDs used in this thread */
+  agent_ids: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
   created_at: ColumnType<Date, Date | string, never>;
@@ -749,6 +751,8 @@ export interface Thread {
   run_owner_pod: string | null;
   run_config: Record<string, unknown> | null;
   run_started_at: string | null;
+  /** JSON array of agent connection IDs used in this thread */
+  agent_ids: string | null;
   /** Virtual MCP (agent) this thread was initiated with */
   virtual_mcp_id: string;
 }
