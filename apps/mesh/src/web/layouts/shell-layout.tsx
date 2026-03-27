@@ -49,6 +49,8 @@ import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { useStatusSounds } from "../hooks/use-status-sounds";
+import { useSound } from "../hooks/use-sound";
+import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
 import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
 
@@ -326,10 +328,12 @@ function ShellLayoutInner({
   // Use imperative panel API to resize panels directly.
   // The onCollapse/onExpand callbacks on each panel sync the open state back.
 
+  const playSwitchSound = useSound(switch005Sound);
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const toggleTasks = () => {
     if (tasksOpen && expandedCount <= 1) return;
+    playSwitchSound();
     if (tasksOpen) {
       tasksPanelRef.current?.collapse();
     } else {
@@ -338,6 +342,7 @@ function ShellLayoutInner({
   };
   const toggleMain = () => {
     if (mainOpen && expandedCount <= 1) return;
+    playSwitchSound();
     if (mainOpen) {
       mainPanelRef.current?.collapse();
     } else {
@@ -346,6 +351,7 @@ function ShellLayoutInner({
   };
   const toggleChat = () => {
     if (chatOpen && expandedCount <= 1) return;
+    playSwitchSound();
     if (chatOpen) {
       chatPanelRef.current?.collapse();
     } else {
