@@ -176,8 +176,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
     isActive: isActiveRoute("workflows"),
     onClick: () =>
       navigate({
-        to: "/$org/$virtualMcpId/workflows",
-        params: { org, virtualMcpId: agentVirtualMcpId },
+        to: "/$org/settings/workflows",
+        params: { org },
       }),
   };
 
