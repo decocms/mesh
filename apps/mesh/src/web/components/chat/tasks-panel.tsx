@@ -764,7 +764,7 @@ export function TaskListContent({
           </button>
         </div>
       ) : (
-        <div className="px-2 py-1 flex items-center gap-0.5 min-h-[36px]">
+        <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
           <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
             Tasks
           </span>
