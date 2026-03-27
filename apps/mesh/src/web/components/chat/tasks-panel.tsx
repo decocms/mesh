@@ -329,7 +329,9 @@ function AutomationRow({
       <span
         className={cn(
           "text-sm truncate flex-1 min-w-0",
-          automation.active ? "text-foreground" : "text-muted-foreground",
+          automation.active && automation.trigger_count > 0
+            ? "text-foreground"
+            : "text-muted-foreground",
         )}
       >
         {automation.name || "Untitled"}
@@ -429,6 +431,7 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
           Incoming
         </span>
         <span className="text-xs text-muted-foreground/60 tabular-nums">
+          {automations.filter((a) => a.active && a.trigger_count > 0).length}/
           {automations.length}
         </span>
         <ChevronRight
