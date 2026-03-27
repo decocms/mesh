@@ -117,7 +117,6 @@ const TIER_PATTERNS: Array<{ tier: TierId; prefixes: string[] }> = [
       "anthropic/claude-4.5-haiku",
       "google/gemini-3-flash",
       "openai/gpt-5.1-codex-mini",
-      "codex:gpt-5.3-codex-spark",
       "codex:gpt-5.1-codex-mini",
       "x-ai/grok-code-fast",
       "x-ai/grok-3",
