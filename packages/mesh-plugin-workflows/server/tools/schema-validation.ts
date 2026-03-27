@@ -81,7 +81,15 @@ export function stripPatterns(schema: unknown): unknown {
   const obj = schema as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (key === "pattern" || key === "patternProperties") continue;
+    // Only strip JSON Schema keywords, not property definitions with those names.
+    // `pattern` is always a regex string; `patternProperties` is always an object map.
+    if (key === "pattern" && typeof value === "string") continue;
+    if (
+      key === "patternProperties" &&
+      typeof value === "object" &&
+      value !== null
+    )
+      continue;
     result[key] = stripPatterns(value);
   }
   return result;

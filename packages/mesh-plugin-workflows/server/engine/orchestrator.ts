@@ -494,6 +494,23 @@ export async function handleStepExecute(
     return;
   }
 
+  // Guard: if the workflow deadline has passed, fail the execution instead of
+  // executing the step. This catches retry events delivered after deadline.
+  const deadlineAtEpochMs = context.execution.deadline_at_epoch_ms;
+  if (deadlineAtEpochMs && Date.now() >= deadlineAtEpochMs) {
+    log(eid, `stepExecute ${stepId} — deadline exceeded, failing execution`);
+    await ctx.storage.updateExecution(
+      executionId,
+      {
+        status: "error",
+        error: "Workflow execution exceeded its deadline",
+        completed_at_epoch_ms: Date.now(),
+      },
+      { onlyIfStatus: "running" },
+    );
+    return;
+  }
+
   const steps = context.workflow.steps;
   const step = steps.find((s) => s.name === stepName);
   if (!step) {

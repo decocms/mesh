@@ -392,7 +392,10 @@ async function doSyncWorkflows(
                 virtual_mcp_id: resolvedVmcpId,
               }),
               steps: wf.steps,
-              input_schema: wf.inputSchema ?? undefined,
+              input_schema:
+                wf.inputSchema === undefined
+                  ? undefined
+                  : (wf.inputSchema ?? null),
             },
           });
           if (!result.success) {

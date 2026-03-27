@@ -215,6 +215,27 @@ describe("stripPatterns", () => {
     expect(inner.patternProperties).toBeUndefined();
   });
 
+  it("preserves property definitions named 'pattern'", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        pattern: { type: "string", description: "A regex pattern" },
+      },
+    };
+    const result = stripPatterns(schema) as Record<string, unknown>;
+    const props = result.properties as Record<string, Record<string, unknown>>;
+    // The property *named* "pattern" should be preserved (it's a field definition, not a regex)
+    expect(props.pattern).toBeDefined();
+    expect(props.pattern.type).toBe("string");
+  });
+
+  it("preserves non-string pattern values", () => {
+    // Unlikely but defensive: pattern key with a non-string value is not a JSON Schema regex
+    const schema = { type: "object", pattern: 42 };
+    const result = stripPatterns(schema) as Record<string, unknown>;
+    expect(result.pattern).toBe(42);
+  });
+
   it("handles arrays", () => {
     const schema = [{ type: "string", pattern: "^a$" }, { type: "number" }];
     const result = stripPatterns(schema) as Record<string, unknown>[];
