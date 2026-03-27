@@ -7,7 +7,7 @@ import { clickSoftSound } from "@deco/ui/lib/click-soft.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
 import { usePreferences, type SoundEventKey } from "./use-preferences";
 
-export const SOUND_MAP: Record<SoundEventKey, { dataUri: string }> = {
+export const SOUND_MAP: Partial<Record<SoundEventKey, { dataUri: string }>> = {
   completed: successChimeSound,
   failed: error005Sound,
   requires_action: question004Sound,

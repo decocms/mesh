@@ -262,9 +262,10 @@ function PreferencesSection() {
                 <button
                   type="button"
                   aria-label={`Preview ${label} sound`}
-                  onClick={() =>
-                    playSound(SOUND_MAP[key].dataUri).catch(() => {})
-                  }
+                  onClick={() => {
+                    const sound = SOUND_MAP[key];
+                    if (sound) playSound(sound.dataUri).catch(() => {});
+                  }}
                   className="size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
                 >
                   <Play size={11} />
