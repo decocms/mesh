@@ -21,56 +21,7 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isNaN(num) ? null : num;
 }
 
-/**
- * Check that a JSON Schema does not exceed a maximum nesting depth.
- * Prevents overly complex schemas from causing stack overflows during conversion.
- */
-function checkSchemaDepth(
-  schema: unknown,
-  maxDepth: number,
-  current = 0,
-): void {
-  if (current > maxDepth) {
-    throw new Error("Input schema exceeds maximum nesting depth");
-  }
-  if (schema == null || typeof schema !== "object" || Array.isArray(schema)) {
-    return;
-  }
-  const obj = schema as Record<string, unknown>;
-  if (obj.properties && typeof obj.properties === "object") {
-    for (const val of Object.values(
-      obj.properties as Record<string, unknown>,
-    )) {
-      checkSchemaDepth(val, maxDepth, current + 1);
-    }
-  }
-  if (obj.items) {
-    checkSchemaDepth(obj.items, maxDepth, current + 1);
-  }
-  if (
-    obj.additionalProperties &&
-    typeof obj.additionalProperties === "object"
-  ) {
-    checkSchemaDepth(obj.additionalProperties, maxDepth, current + 1);
-  }
-}
-
-/**
- * Recursively strip `pattern` keys from a JSON Schema object.
- * This is a ReDoS mitigation — user-supplied regex patterns could be crafted
- * to cause catastrophic backtracking when compiled into RegExp by Zod.
- */
-function stripPatterns(schema: unknown): unknown {
-  if (schema == null || typeof schema !== "object") return schema;
-  if (Array.isArray(schema)) return schema.map(stripPatterns);
-  const obj = schema as Record<string, unknown>;
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (key === "pattern") continue;
-    result[key] = stripPatterns(value);
-  }
-  return result;
-}
+import { checkSchemaDepth, stripPatterns } from "./schema-validation";
 
 function epochMsToIsoString(epochMs: unknown): string {
   if (epochMs === null || epochMs === undefined)

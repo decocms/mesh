@@ -175,24 +175,24 @@ function evaluateCondition(
   });
 
   const hasOperator =
-    "eq" in condition ||
-    "neq" in condition ||
-    "gt" in condition ||
-    "lt" in condition;
+    condition.eq !== undefined ||
+    condition.neq !== undefined ||
+    condition.gt !== undefined ||
+    condition.lt !== undefined;
 
   // No operator → truthy check
   if (!hasOperator) return !!value;
 
-  if ("eq" in condition && value !== condition.eq) return false;
-  if ("neq" in condition && value === condition.neq) return false;
+  if (condition.eq !== undefined && value !== condition.eq) return false;
+  if (condition.neq !== undefined && value === condition.neq) return false;
   if (
-    "gt" in condition &&
-    (typeof value !== "number" || value <= condition.gt!)
+    condition.gt !== undefined &&
+    (typeof value !== "number" || value <= condition.gt)
   )
     return false;
   if (
-    "lt" in condition &&
-    (typeof value !== "number" || value >= condition.lt!)
+    condition.lt !== undefined &&
+    (typeof value !== "number" || value >= condition.lt)
   )
     return false;
 

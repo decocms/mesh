@@ -748,11 +748,16 @@ export class WorkflowExecutionStorage {
     executionId: string,
     prefix: string,
   ): Promise<ParsedStepResult[]> {
+    // Escape LIKE metacharacters in the prefix to prevent unintended matches
+    const escapedPrefix = prefix
+      .replaceAll("\\", "\\\\")
+      .replaceAll("%", "\\%")
+      .replaceAll("_", "\\_");
     const rows = await this.db
       .selectFrom("workflow_execution_step_result")
       .selectAll()
       .where("execution_id", "=", executionId)
-      .where("step_id", "like", `${prefix}%`)
+      .where("step_id", "like", `${escapedPrefix}%`)
       .orderBy("step_id")
       .execute();
 

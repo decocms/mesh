@@ -546,7 +546,7 @@ export function getAllRefs(input: unknown): string[] {
 
   function traverse(value: unknown) {
     if (typeof value === "string") {
-      const matches = value.match(/@(\w+)/g);
+      const matches = value.match(/@([a-zA-Z_][a-zA-Z0-9_-]*)/g);
       if (matches) {
         refs.push(...matches.map((m) => m.substring(1))); // Remove @ prefix
       }
@@ -578,7 +578,7 @@ export function getStepDependencies(
   function traverse(value: unknown) {
     if (typeof value === "string") {
       // Match @stepName or @stepName.something patterns
-      const matches = value.match(/@(\w+)/g);
+      const matches = value.match(/@([a-zA-Z_][a-zA-Z0-9_-]*)/g);
       if (matches) {
         for (const match of matches) {
           const refName = match.substring(1); // Remove @

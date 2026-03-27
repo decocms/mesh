@@ -10,6 +10,7 @@ import { StepSchema, JsonSchemaSchema } from "@decocms/bindings/workflow";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { getDecopilotId } from "@decocms/mesh-sdk";
 import { requireWorkflowContext, getPluginStorage } from "../types";
+import { validateInputSchema } from "./schema-validation";
 
 function normalizeStepName(step: unknown): unknown {
   const s = step as Record<string, unknown>;
@@ -194,6 +195,8 @@ Example workflow with a step that references the output of another step:
     };
     const storage = getPluginStorage();
 
+    validateInputSchema(data.input_schema);
+
     const virtualMcpId =
       data.virtual_mcp_id ?? getDecopilotId(meshCtx.organization.id);
 
@@ -262,6 +265,10 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
       };
     };
     const storage = getPluginStorage();
+
+    if (data.input_schema !== undefined) {
+      validateInputSchema(data.input_schema);
+    }
 
     const updateData: Record<string, unknown> = {
       updated_by: meshCtx.auth.user?.id ?? null,
