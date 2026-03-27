@@ -2,6 +2,9 @@ import type { MeshProvider, ModelInfo, ProviderAdapter } from "../types";
 
 export { createCodexModel } from "../coding-agents/codex";
 
+const CODEX_LOGO =
+  "https://assets.decocache.com/decocms/6ac44f1c-c0cf-4480-84b5-2ae6fe742d0b/codex-app.png.png";
+
 export const CODEX_MODELS: ModelInfo[] = [
   {
     providerId: "codex",
@@ -9,6 +12,7 @@ export const CODEX_MODELS: ModelInfo[] = [
     title: "Codex Mini",
     description: "Fast and lightweight",
     capabilities: ["text"],
+    logo: CODEX_LOGO,
     limits: null,
     costs: null,
   },
@@ -18,6 +22,7 @@ export const CODEX_MODELS: ModelInfo[] = [
     title: "Codex",
     description: "Most capable",
     capabilities: ["text", "reasoning"],
+    logo: CODEX_LOGO,
     limits: null,
     costs: null,
   },
@@ -43,7 +48,7 @@ export const codexAdapter: ProviderAdapter = {
     id: "codex",
     name: "Codex",
     description: "Codex CLI agent",
-    logo: "https://assets.decocache.com/decocms/6ac44f1c-c0cf-4480-84b5-2ae6fe742d0b/codex-app.png.png",
+    logo: CODEX_LOGO,
   },
   supportedMethods: ["cli-activate"],
   create(_apiKey): MeshProvider {
