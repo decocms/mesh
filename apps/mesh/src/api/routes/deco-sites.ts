@@ -258,6 +258,11 @@ app.post("/connection", async (c) => {
     return c.json({ error: "siteName, connId, and orgId are required" }, 400);
   }
 
+  // Validate siteName is a safe DNS subdomain label to prevent SSRF.
+  if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(siteName)) {
+    return c.json({ error: "Invalid siteName" }, 400);
+  }
+
   const membership = await ctx.db
     .selectFrom("member")
     .select("member.id")
