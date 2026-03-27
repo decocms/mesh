@@ -520,7 +520,7 @@ function ShellLayoutInner({
           className="flex flex-col"
           style={{ background: "transparent", containerType: "inline-size" }}
         >
-          <div className="shrink-0 flex items-center justify-between pl-5 pr-2 h-10">
+          <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
               {showThreePanels && (
                 <>
