@@ -37,6 +37,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { slugify } from "@/shared/utils/slugify";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
   inferRegistryListToolName,
@@ -656,12 +657,13 @@ function StoreMCPServerDetailContent() {
         }
       }
 
+      const appSlug = getConnectionSlug(connectionData);
       navigate({
-        to: "/$org/settings/connections",
+        to: "/$org/settings/connections/$appSlug",
         params: {
           org: org.slug,
+          appSlug,
         },
-        search: { tab: "connected" },
       });
     } catch (error) {
       toast.error(
