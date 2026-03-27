@@ -18,6 +18,8 @@ import {
   useAutomationUpdate,
   useAutomationDelete,
   useAutomationTriggerAdd,
+  useTriggerList,
+  type TriggerDefinition,
 } from "@/web/hooks/use-automations";
 import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
 import { useChatPanel } from "@/web/contexts/panel-context";
@@ -40,7 +42,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  getDecopilotId,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -50,8 +56,9 @@ import {
   Stars01,
   Trash01,
   XClose,
+  Zap,
 } from "@untitledui/icons";
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 import type { Metadata } from "@/web/components/chat/types.ts";
@@ -83,9 +90,200 @@ interface SettingsFormData {
 import { isValidCron } from "@/web/lib/cron-utils.ts";
 import { AddStarterPopover } from "@/web/components/automations/add-starter-popover.tsx";
 import { TriggerCard } from "@/web/components/automations/trigger-card.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deco/ui/components/select.tsx";
 
 // ============================================================================
-// Agent Picker
+// Event Trigger Form
+// ============================================================================
+
+function EventTriggerForm({
+  automationId,
+  onDone,
+}: {
+  automationId: string;
+  onDone: () => void;
+}) {
+  const triggerConnections = useConnections({ binding: "TRIGGER" });
+  const [connectionId, setConnectionId] = useState<string | undefined>();
+  const [eventType, setEventType] = useState<string | undefined>();
+  const [params, setParams] = useState<Record<string, string>>({});
+  const addTrigger = useAutomationTriggerAdd();
+  const { data: triggerDefs, isLoading: isLoadingTriggers } =
+    useTriggerList(connectionId);
+
+  const selectedTrigger = triggerDefs?.find(
+    (t: TriggerDefinition) => t.type === eventType,
+  );
+
+  const handleSubmit = async () => {
+    if (!connectionId || !eventType) return;
+    try {
+      await addTrigger.mutateAsync({
+        automation_id: automationId,
+        type: "event",
+        event_type: eventType,
+        connection_id: connectionId,
+        params,
+      });
+      toast.success("Event trigger added");
+      onDone();
+    } catch {
+      toast.error("Failed to add event trigger");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3 rounded-lg border border-border bg-background">
+      <div className="flex items-center gap-2">
+        <Zap size={14} className="text-muted-foreground shrink-0" />
+        <span className="text-sm font-medium">Event trigger</span>
+        <button
+          type="button"
+          className="ml-auto shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground"
+          onClick={onDone}
+        >
+          <XClose size={13} />
+        </button>
+      </div>
+
+      {/* Step 1: Connection */}
+      <Select
+        value={connectionId ?? ""}
+        onValueChange={(val) => {
+          setConnectionId(val);
+          setEventType(undefined);
+          setParams({});
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select connection..." />
+        </SelectTrigger>
+        <SelectContent>
+          {triggerConnections.length === 0 ? (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+              No connections with trigger support
+            </div>
+          ) : (
+            triggerConnections.map((conn) => (
+              <SelectItem key={conn.id} value={conn.id}>
+                {conn.title}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+
+      {/* Step 2: Event type */}
+      {connectionId && (
+        <Select
+          value={eventType ?? ""}
+          onValueChange={(val) => {
+            setEventType(val);
+            setParams({});
+          }}
+        >
+          <SelectTrigger className="w-full">
+            {isLoadingTriggers ? (
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Loading01 size={13} className="animate-spin" />
+                Loading events...
+              </span>
+            ) : (
+              <SelectValue placeholder="Select event type...">
+                {eventType ?? "Select event type..."}
+              </SelectValue>
+            )}
+          </SelectTrigger>
+          <SelectContent>
+            {triggerDefs?.map((t: TriggerDefinition) => (
+              <SelectItem key={t.type} value={t.type}>
+                <div className="flex flex-col">
+                  <span>{t.type}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t.description}
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Step 3: Params */}
+      {selectedTrigger?.paramsSchema &&
+        Object.keys(selectedTrigger.paramsSchema).length > 0 && (
+          <div className="flex flex-col gap-2">
+            {Object.entries(selectedTrigger.paramsSchema).map(
+              ([key, schema]) => (
+                <div key={key} className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">
+                    {key}
+                    {schema.description && (
+                      <span className="text-muted-foreground/60">
+                        {" "}
+                        — {schema.description}
+                      </span>
+                    )}
+                  </label>
+                  {schema.enum ? (
+                    <Select
+                      value={params[key] ?? ""}
+                      onValueChange={(val) =>
+                        setParams((p) => ({ ...p, [key]: val }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={`Select ${key}...`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schema.enum.map((val) => (
+                          <SelectItem key={val} value={val}>
+                            {val}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={params[key] ?? ""}
+                      onChange={(e) =>
+                        setParams((p) => ({ ...p, [key]: e.target.value }))
+                      }
+                      placeholder={schema.description ?? key}
+                      className="text-sm border border-border rounded-md bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  )}
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+      {/* Submit */}
+      {connectionId && eventType && (
+        <Button
+          size="sm"
+          onClick={handleSubmit}
+          disabled={addTrigger.isPending}
+        >
+          {addTrigger.isPending ? (
+            <Loading01 size={13} className="animate-spin" />
+          ) : (
+            "Add trigger"
+          )}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // Settings Tab
 // ============================================================================
@@ -105,6 +303,8 @@ export function SettingsTab({
 }) {
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
+  const allConnections = useConnections();
+  const connectionNameMap = new Map(allConnections.map((c) => [c.id, c.title]));
 
   // Chat hooks for running the automation
   const { createTaskWithMessage } = useChatTask();
@@ -125,6 +325,7 @@ export function SettingsTab({
   const [starterOpen, setStarterOpen] = useState(false);
   const [showCustomCron, setShowCustomCron] = useState(false);
   const [cronInput, setCronInput] = useState("");
+  const [showEventForm, setShowEventForm] = useState(false);
   const addTrigger = useAutomationTriggerAdd();
   const editorInitializedRef = useRef(false);
 
@@ -366,7 +567,12 @@ export function SettingsTab({
               onOpenChange={setStarterOpen}
               onCustomSelect={() => {
                 setShowCustomCron(true);
+                setShowEventForm(false);
                 setCronInput("");
+              }}
+              onEventSelect={() => {
+                setShowEventForm(true);
+                setShowCustomCron(false);
               }}
             />
           </div>
@@ -392,6 +598,11 @@ export function SettingsTab({
                   key={trigger.id}
                   trigger={trigger}
                   automationId={automationId}
+                  connectionName={
+                    trigger.connection_id
+                      ? connectionNameMap.get(trigger.connection_id)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -456,6 +667,27 @@ export function SettingsTab({
                 <XClose size={13} />
               </button>
             </div>
+          )}
+
+          {showEventForm && (
+            <Suspense
+              fallback={
+                <div className="flex items-center gap-2 px-3 py-3 rounded-lg border border-border bg-background">
+                  <Loading01
+                    size={13}
+                    className="animate-spin text-muted-foreground"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Loading connections...
+                  </span>
+                </div>
+              }
+            >
+              <EventTriggerForm
+                automationId={automationId}
+                onDone={() => setShowEventForm(false)}
+              />
+            </Suspense>
           )}
         </div>
 

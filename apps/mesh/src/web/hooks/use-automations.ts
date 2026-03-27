@@ -13,6 +13,95 @@ import {
 import { KEYS } from "../lib/query-keys";
 
 // ============================================================================
+// Trigger List Hook
+// ============================================================================
+
+export interface TriggerParamSchema {
+  type: string;
+  enum?: string[];
+  description?: string;
+}
+
+export interface TriggerDefinition {
+  type: string;
+  description: string;
+  paramsSchema: Record<string, TriggerParamSchema>;
+}
+
+/**
+ * Raw trigger format from MCP servers (e.g. GitHub MCP uses `params` array)
+ */
+interface RawTriggerDefinition {
+  type: string;
+  description: string;
+  paramsSchema?: Record<string, TriggerParamSchema>;
+  params?:
+    | Array<{
+        name: string;
+        type: string;
+        description?: string;
+        enum?: string[];
+        required?: boolean;
+      }>
+    | Record<string, TriggerParamSchema>;
+}
+
+/**
+ * Normalize trigger definitions from different MCP server formats.
+ * Some servers return `paramsSchema` as a Record (per binding spec),
+ * others return `params` as an array (e.g. GitHub MCP).
+ */
+function normalizeTrigger(raw: RawTriggerDefinition): TriggerDefinition {
+  if (raw.paramsSchema && typeof raw.paramsSchema === "object") {
+    return raw as TriggerDefinition;
+  }
+
+  const paramsSchema: Record<string, TriggerParamSchema> = {};
+
+  if (Array.isArray(raw.params)) {
+    for (const p of raw.params) {
+      paramsSchema[p.name] = {
+        type: p.type,
+        description: p.description,
+        enum: p.enum,
+      };
+    }
+  } else if (raw.params && typeof raw.params === "object") {
+    Object.assign(paramsSchema, raw.params);
+  }
+
+  return {
+    type: raw.type,
+    description: raw.description,
+    paramsSchema,
+  };
+}
+
+export function useTriggerList(connectionId: string | undefined) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: connectionId ?? SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  return useQuery({
+    queryKey: KEYS.toolCall(connectionId ?? "", "TRIGGER_LIST", ""),
+    queryFn: async () => {
+      const result = (await client.callTool({
+        name: "TRIGGER_LIST",
+        arguments: {},
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ?? result) as {
+        triggers: RawTriggerDefinition[];
+      };
+      return payload.triggers.map(normalizeTrigger);
+    },
+    enabled: !!connectionId,
+    staleTime: 30_000,
+  });
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -230,18 +319,28 @@ export function useAutomationTriggerAdd() {
       const result = (await client.callTool({
         name: "AUTOMATION_TRIGGER_ADD",
         arguments: input,
-      })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as { id: string };
+      })) as {
+        structuredContent?: unknown;
+        isError?: boolean;
+        content?: Array<{ text?: string }>;
+      };
+      if (result.isError) {
+        const message = result.content?.[0]?.text ?? "Failed to add trigger";
+        throw new Error(message);
+      }
+      const data = (result.structuredContent ?? result) as {
+        id: string;
+        automation_id: string;
+      };
+      return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: KEYS.automationsAll(org.id),
       });
-      if (typeof variables.automation_id === "string") {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.automation(org.id, variables.automation_id),
-        });
-      }
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automation(org.id, data.automation_id),
+      });
     },
   });
 }

@@ -915,6 +915,24 @@ export interface AutomationTrigger {
 }
 
 /**
+ * Trigger callback token table - stores hashed tokens for external MCP callbacks
+ */
+export interface TriggerCallbackTokenTable {
+  id: string;
+  organization_id: string;
+  connection_id: string;
+  token_hash: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+export interface KVTable {
+  organization_id: string;
+  key: string;
+  value: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
  *
@@ -968,7 +986,13 @@ export interface Database {
   automations: AutomationTable;
   automation_triggers: AutomationTriggerTable;
 
+  // Trigger callback tokens (for external MCP → Mesh callbacks)
+  trigger_callback_tokens: TriggerCallbackTokenTable;
+
   // Organization SSO tables
   org_sso_config: OrgSsoConfigTable;
   org_sso_sessions: OrgSsoSessionTable;
+
+  // Generic org-scoped KV store
+  kv: KVTable;
 }

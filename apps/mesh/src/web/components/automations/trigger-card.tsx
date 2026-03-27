@@ -26,16 +26,18 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Clock, Edit01, Loading01, XClose } from "@untitledui/icons";
+import { Clock, Edit01, Loading01, XClose, Zap } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export function TriggerCard({
   trigger,
   automationId,
+  connectionName,
 }: {
   trigger: AutomationTrigger;
   automationId: string;
+  connectionName?: string;
 }) {
   const removeTrigger = useAutomationTriggerRemove();
   const addTrigger = useAutomationTriggerAdd();
@@ -113,7 +115,11 @@ export function TriggerCard({
   return (
     <>
       <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-background group">
-        <Clock size={14} className="text-muted-foreground shrink-0" />
+        {isCron ? (
+          <Clock size={14} className="text-muted-foreground shrink-0" />
+        ) : (
+          <Zap size={14} className="text-muted-foreground shrink-0" />
+        )}
 
         {interval && isCron ? (
           <>
@@ -157,11 +163,22 @@ export function TriggerCard({
             )}
           </>
         ) : (
-          <span className="text-sm flex-1 font-mono text-xs text-muted-foreground">
-            {isCron
-              ? humanReadableCron(trigger.cron_expression ?? "")
-              : `${trigger.event_type} event`}
-          </span>
+          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+            <span className="text-sm font-mono text-xs text-muted-foreground truncate">
+              {isCron
+                ? humanReadableCron(trigger.cron_expression ?? "")
+                : `${trigger.event_type}${connectionName ? ` · ${connectionName}` : ""}`}
+            </span>
+            {!isCron &&
+              trigger.params &&
+              Object.keys(trigger.params).length > 0 && (
+                <span className="text-xs text-muted-foreground/60 truncate">
+                  {Object.entries(trigger.params)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(", ")}
+                </span>
+              )}
+          </div>
         )}
 
         <div className="ml-auto flex items-center gap-1">

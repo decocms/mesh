@@ -103,7 +103,12 @@ export const AUTOMATION_TRIGGER_ADD = defineTool({
       };
 
       // Fail-atomic: if TRIGGER_CONFIGURE fails, do NOT insert trigger
-      const result = await configureTriggerOnMcp(ctx, tempTrigger, true);
+      const result = await configureTriggerOnMcp(
+        ctx,
+        tempTrigger,
+        true,
+        ctx.storage.triggerCallbackTokens,
+      );
       if (!result.success) {
         throw new Error(
           `Failed to configure trigger on connection: ${result.error}`,

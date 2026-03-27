@@ -198,6 +198,7 @@ const createMockContext = (
       automations: null as never,
       orgSsoConfig: null as never,
       orgSsoSessions: null as never,
+      triggerCallbackTokens: null as never,
     },
     vault: null as never,
     authInstance: authInstance as unknown as BetterAuthInstance,

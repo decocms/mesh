@@ -85,6 +85,7 @@ export function shouldSkipMeshContext(path: string): boolean {
   return (
     path === "/" ||
     path.startsWith(PATH_PREFIXES.API_AUTH) ||
+    path === "/api/trigger-callback" ||
     isSystemPath(path) ||
     isStaticFilePath(path)
   );

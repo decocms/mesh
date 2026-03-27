@@ -56,6 +56,8 @@ import * as migration054connectionslug from "./054-connection-slug.ts";
 import * as migration055spaces from "./055-spaces.ts";
 import * as migration056automationprojectscope from "./056-automation-project-scope.ts";
 import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
+import * as migration058triggercallbacktokens from "./058-trigger-callback-tokens.ts";
+import * as migration059kv from "./059-kv.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -126,6 +128,8 @@ const migrations: Record<string, Migration> = {
   "055-spaces": migration055spaces,
   "056-automation-project-scope": migration056automationprojectscope,
   "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
+  "058-trigger-callback-tokens": migration058triggercallbacktokens,
+  "059-kv": migration059kv,
 };
 
 export default migrations;

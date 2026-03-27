@@ -22,7 +22,9 @@
     "./bindings": "./src/bindings/index.ts",
     "./asset-server": "./src/asset-server/index.ts",
     "./tools": "./src/tools.ts",
-    "./decopilot": "./src/decopilot.ts"
+    "./decopilot": "./src/decopilot.ts",
+    "./triggers": "./src/triggers.ts",
+    "./trigger-storage": "./src/trigger-storage.ts"
   },
   "peerDependencies": {
     "ai": ">=6.0.0"

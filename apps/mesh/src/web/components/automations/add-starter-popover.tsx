@@ -15,7 +15,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
-import { Clock, Plus } from "@untitledui/icons";
+import { Clock, Plus, Zap } from "@untitledui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -24,11 +24,13 @@ export function AddStarterPopover({
   open,
   onOpenChange,
   onCustomSelect,
+  onEventSelect,
 }: {
   automationId: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onCustomSelect?: () => void;
+  onEventSelect?: () => void;
 }) {
   const addTrigger = useAutomationTriggerAdd();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -93,6 +95,17 @@ export function AddStarterPopover({
         >
           <Clock size={14} className="text-muted-foreground shrink-0" />
           Custom (cron)
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          className="gap-2.5"
+          onSelect={() => {
+            handleOpenChange(false);
+            onEventSelect?.();
+          }}
+        >
+          <Zap size={14} className="text-muted-foreground shrink-0" />
+          Event
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

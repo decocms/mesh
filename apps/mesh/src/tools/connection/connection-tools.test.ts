@@ -90,6 +90,7 @@ describe("Connection Tools", () => {
         automations: null as never,
         orgSsoConfig: null as never,
         orgSsoSessions: null as never,
+        triggerCallbackTokens: null as never,
       },
       vault,
       authInstance: null as never,

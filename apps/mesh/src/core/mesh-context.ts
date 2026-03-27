@@ -234,6 +234,7 @@ import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
 import type { VirtualMCPStorage } from "../storage/virtual";
 import type { AutomationsStorage } from "../storage/automations";
+import type { TriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -268,6 +269,7 @@ export interface MeshStorage {
   aiProviderKeys: AIProviderKeyStorage;
   oauthPkceStates: OAuthPkceStateStorage;
   automations: AutomationsStorage;
+  triggerCallbackTokens: TriggerCallbackTokenStorage;
   virtualMcpPluginConfigs: VirtualMcpPluginConfigStoragePort;
   orgSsoConfig: OrgSsoConfigStorage;
   orgSsoSessions: OrgSsoSessionStorage;
