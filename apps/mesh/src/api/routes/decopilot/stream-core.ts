@@ -45,6 +45,10 @@ import {
   createClaudeCodeModel,
   resolveClaudeCodeModelId,
 } from "@/ai-providers/adapters/claude-code";
+import {
+  createCodexModel,
+  resolveCodexModelId,
+} from "@/ai-providers/adapters/codex";
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
 import { getPodId } from "@/core/pod-identity";
@@ -149,10 +153,13 @@ async function streamCoreInner(
       .findById(input.models.credentialId, input.organizationId)
       .catch(() => null);
     const isClaudeCode = credentialKey?.providerId === "claude-code";
-    rootSpan.setAttribute("decopilot.isClaudeCode", isClaudeCode);
+    const isCodex = credentialKey?.providerId === "codex";
+    const isCliAgent = isClaudeCode || isCodex;
+    rootSpan.setAttribute("decopilot.isCliAgent", isCliAgent);
+    rootSpan.setAttribute("decopilot.isCodex", isCodex);
 
     // 1. Check model permissions (skip for Claude Code in local mode)
-    if (!isClaudeCode) {
+    if (!isCliAgent) {
       const allowedModels = await fetchModelPermissions(
         ctx.db,
         input.organizationId,
@@ -175,7 +182,7 @@ async function streamCoreInner(
     // 2. Load entities and create/load memory in parallel
     const [virtualMcp, provider, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(input.agent.id, input.organizationId),
-      isClaudeCode
+      isCliAgent
         ? Promise.resolve(null)
         : ctx.aiProviders.activate(
             input.models.credentialId,
@@ -323,18 +330,24 @@ async function streamCoreInner(
       windowSize,
     );
 
-    // Find the last Claude Code sessionId for session resume
+    // Find the last coding agent session ID for session resume.
+    // Currently only Claude Code supports resume (Codex spawns a new process per request).
+    // We filter by codingAgentProvider to avoid using a Codex thread ID as a
+    // Claude Code resume session (possible when the user switches providers mid-thread).
     let resumeSessionId: string | undefined;
     if (isClaudeCode) {
       for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
+        const meta = msg?.metadata as {
+          codingAgentSessionId?: string;
+          codingAgentProvider?: string;
+        };
         if (
           msg?.role === "assistant" &&
-          (msg.metadata as { claudeCodeSessionId?: string })
-            ?.claudeCodeSessionId
+          meta?.codingAgentSessionId &&
+          meta?.codingAgentProvider === "claude-code"
         ) {
-          resumeSessionId = (msg.metadata as { claudeCodeSessionId: string })
-            .claudeCodeSessionId;
+          resumeSessionId = meta.codingAgentSessionId;
           break;
         }
       }
@@ -354,11 +367,16 @@ async function streamCoreInner(
           { listTimeoutMs: 1_000 },
         );
 
+        // Declared here (before closeClients) to avoid Temporal Dead Zone
+        // if the abort signal fires before the codex branch is reached.
+        let codexProvider: { close(): Promise<void> } | undefined;
+
         closeClients = () => {
           passthroughClient.close().catch(() => {});
+          codexProvider?.close().catch(() => {});
         };
 
-        const passthroughTools = isClaudeCode
+        const passthroughTools = isCliAgent
           ? {}
           : await toolsFromMCP(
               passthroughClient,
@@ -367,7 +385,7 @@ async function streamCoreInner(
               input.toolApprovalLevel,
             );
 
-        const builtInTools = isClaudeCode
+        const builtInTools = isCliAgent
           ? {}
           : await getBuiltInTools(
               writer,
@@ -392,7 +410,7 @@ async function streamCoreInner(
 
         // Build tool annotations map for plan-mode gating in enable_tools
         const toolAnnotations = new Map<string, { readOnlyHint?: boolean }>();
-        if (input.toolApprovalLevel === "plan" && !isClaudeCode) {
+        if (input.toolApprovalLevel === "plan" && !isCliAgent) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
             toolAnnotations.set(t.name, {
@@ -401,7 +419,7 @@ async function streamCoreInner(
           }
         }
 
-        const tools = isClaudeCode
+        const tools = isCliAgent
           ? {}
           : {
               ...passthroughTools,
@@ -441,7 +459,7 @@ async function streamCoreInner(
               "`user_ask` — one good question beats three wrong assumptions.\n\n" +
               "Write the plan for a reader with no prior context. Include concrete details, " +
               "ordered steps, risks, trade-offs, and alternatives you considered.\n\n" +
-              (isClaudeCode
+              (isCliAgent
                 ? "When your plan is complete, provide it directly in chat as a comprehensive markdown plan.\n"
                 : "When your plan is complete, you MUST call `propose_plan`. This is the only way to submit a plan — do not describe it in chat.\n") +
               "</plan-mode>"
@@ -468,7 +486,7 @@ async function streamCoreInner(
         ensureModelCompatibility(input.models, originalMessages);
 
         const shouldGenerateTitle =
-          mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
+          mem.thread.title === DEFAULT_THREAD_TITLE && !isCliAgent;
         if (shouldGenerateTitle) {
           const titleInput = JSON.stringify(processedMessages[0]?.content);
           const titleOp = genTitle({
@@ -520,7 +538,8 @@ async function streamCoreInner(
 
         let reasoningStartAt: Date | null = null;
         let lastProviderMetadata: Record<string, unknown> | undefined;
-        let claudeCodeSessionId: string | undefined;
+        let codingAgentSessionId: string | undefined;
+        let codingAgentProvider: string | undefined;
         llmCallStartTime = Date.now();
 
         // Build language model based on provider type
@@ -558,6 +577,38 @@ async function streamCoreInner(
               resume: resumeSessionId,
             },
           );
+        } else if (isCodex) {
+          const apiKey = await ctx.boundAuth.apiKey.create({
+            name: "codex-session",
+            expiresIn: 3600,
+            metadata: {
+              organization: {
+                id: organization.id,
+                slug: organization.slug,
+                name: organization.name,
+              },
+            },
+          });
+
+          const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
+          const codexResult = createCodexModel(
+            resolveCodexModelId(input.models.thinking.id),
+            {
+              mcpServers: {
+                mesh: {
+                  transport: "http",
+                  url: mcpUrl,
+                  headers: {
+                    Authorization: `Bearer ${apiKey.key}`,
+                    "x-org-id": input.organizationId,
+                  },
+                },
+              },
+              toolApprovalLevel: input.toolApprovalLevel,
+            },
+          );
+          languageModel = codexResult.model;
+          codexProvider = codexResult.provider;
         } else {
           languageModel = createLanguageModel(provider!, input.models.thinking);
         }
@@ -568,7 +619,8 @@ async function streamCoreInner(
           attributes: {
             "decopilot.model.id": input.models.thinking.id,
             "decopilot.credential.id": input.models.credentialId,
-            "decopilot.isClaudeCode": isClaudeCode,
+            "decopilot.isCliAgent": isCliAgent,
+            "decopilot.isCodex": isCodex,
           },
         });
 
@@ -585,7 +637,10 @@ async function streamCoreInner(
             ],
             messages: processedMessages,
             tools,
-            ...(isClaudeCode
+            // Note: Codex thread resume is not supported because each request
+            // spawns a new codexAppServer process. Thread IDs are local to a
+            // process and cannot be resumed by a different one.
+            ...(isCliAgent
               ? {}
               : {
                   prepareStep: () => {
@@ -772,11 +827,20 @@ async function streamCoreInner(
             if (part.type === "finish-step") {
               lastProviderMetadata = part.providerMetadata;
               if (isClaudeCode && part.providerMetadata?.["claude-code"]) {
-                claudeCodeSessionId = (
+                codingAgentSessionId = (
                   part.providerMetadata["claude-code"] as {
                     sessionId?: string;
                   }
                 ).sessionId;
+                codingAgentProvider = "claude-code";
+              }
+              if (isCodex && part.providerMetadata?.["codex-app-server"]) {
+                codingAgentSessionId = (
+                  part.providerMetadata["codex-app-server"] as {
+                    threadId?: string;
+                  }
+                ).threadId;
+                codingAgentProvider = "codex";
               }
               return;
             }
@@ -810,7 +874,8 @@ async function streamCoreInner(
 
               return {
                 ...(usage && { usage }),
-                ...(claudeCodeSessionId && { claudeCodeSessionId }),
+                ...(codingAgentSessionId && { codingAgentSessionId }),
+                ...(codingAgentProvider && { codingAgentProvider }),
               };
             }
 

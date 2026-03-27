@@ -49,7 +49,7 @@ export const claudeCodeAdapter: ProviderAdapter = {
   info: {
     id: "claude-code",
     name: "Claude Code",
-    description: "Autonomous coding agent via Claude CLI",
+    description: "Claude Code CLI agent",
     logo: "https://assets.decocache.com/decocms/2b91e6f8-5151-4b4f-bdf9-037ee769e6ff/Claude_AI_symbol.svg.png",
   },
   supportedMethods: ["cli-activate"],
