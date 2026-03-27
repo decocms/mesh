@@ -11,7 +11,7 @@
  */
 
 import { Suspense, type ReactNode } from "react";
-import { useNavigate, useMatch, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useMatch, useSearch } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
@@ -81,8 +81,7 @@ function VirtualMCPProviderContent({
   // --- VirtualMCPContext: URL-driven state ---
   // Read search params from router state (route-agnostic)
 
-  const routerState = useRouterState();
-  const search = routerState.location.search as {
+  const search = useSearch({ strict: false }) as {
     main?: string;
     id?: string;
     toolName?: string;

@@ -4,9 +4,10 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Browser, Home01 } from "@untitledui/icons";
+import { Browser, Dataflow03, Home01 } from "@untitledui/icons";
 import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
+import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
 
 export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
@@ -18,6 +19,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
 
   // The virtual MCP ID for this project
   const virtualMcpId = currentProject.id;
+
+  const pathname = routerState.location.pathname;
 
   // All projects (including org-admin) use project-level enabledPlugins
   const enabledPlugins = currentProject.enabledPlugins ?? [];
@@ -43,9 +46,21 @@ export function useProjectSidebarItems(): SidebarSection[] {
     enabledPlugins.includes(item.pluginId),
   );
 
-  const pathname = routerState.location.pathname;
+  // Extract the virtualMcpId from the URL when inside an agent route.
+  // The sidebar is rendered outside VirtualMCPProvider, so useProjectContext
+  // always returns the org-level project. We parse the URL to detect agent context.
+  const orgPrefix = `/${org}/`;
+  const afterOrg = pathname.startsWith(orgPrefix)
+    ? pathname.slice(orgPrefix.length)
+    : "";
+  const urlSegments = afterOrg.split("/").filter(Boolean);
+  const knownOrgRoutes = new Set(["settings", "agents", "store", "plugins"]);
+  const firstSegment = urlSegments[0] ?? "";
+  const isInsideAgent =
+    firstSegment !== "" && !knownOrgRoutes.has(firstSegment);
+  const agentVirtualMcpId = isInsideAgent ? firstSegment : virtualMcpId;
 
-  const basePath = `/${org}/${virtualMcpId}`;
+  const basePath = `/${org}/${agentVirtualMcpId}`;
 
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
@@ -144,7 +159,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const homeItem: NavigationSidebarItem = {
     key: "home",
     label: "Home",
-    icon: <Home01 className="!size-4" />,
+    icon: <Home01 className="size-4!" />,
     isActive: pathname === `/${org}` || pathname === `/${org}/`,
     onClick: () => {
       setTasksOpen(false);
@@ -152,7 +167,26 @@ export function useProjectSidebarItems(): SidebarSection[] {
     },
   };
 
-  const sections: SidebarSection[] = [{ type: "items", items: [homeItem] }];
+  const isWorkflowsEnabled = enabledPlugins.includes(WORKFLOWS_PLUGIN_ID);
+
+  const workflowsItem: NavigationSidebarItem = {
+    key: "workflows",
+    label: "Workflows",
+    icon: <Dataflow03 className="size-4!" />,
+    isActive: isActiveRoute("workflows"),
+    onClick: () =>
+      navigate({
+        to: "/$org/$virtualMcpId/workflows",
+        params: { org, virtualMcpId: agentVirtualMcpId },
+      }),
+  };
+
+  const topItems: NavigationSidebarItem[] = [homeItem];
+  if (isInsideAgent && isWorkflowsEnabled) {
+    topItems.push(workflowsItem);
+  }
+
+  const sections: SidebarSection[] = [{ type: "items", items: topItems }];
 
   // Add flat plugin items if any
   if (pluginItems.length > 0) {

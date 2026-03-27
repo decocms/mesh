@@ -3,8 +3,7 @@ import { CollectionTab } from "@/web/components/details/connection/collection-ta
 import { PluginNotEnabledEmptyState } from "@/web/components/plugin-not-enabled-empty-state";
 import { Page } from "@/web/components/page";
 import { Dataflow03 } from "@untitledui/icons";
-
-const WORKFLOWS_PLUGIN_ID = "MCP Workflows";
+import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
 
 const WORKFLOW_COLLECTION = {
   name: "WORKFLOW",
