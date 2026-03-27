@@ -424,13 +424,16 @@ function ShellLayoutInner({
   const chatVirtualMcpId =
     agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
+  // On org home, provide the decopilot ID so VirtualMCPProvider is available
+  const providerVirtualMcpId = agentVirtualMcpId ?? (isOrgHome ? chatVirtualMcpId : undefined);
+
   // --- Mobile layout: full-screen chat with hamburger toolbar ---
   if (isMobile) {
     return (
       <PanelContextProvider value={panelControls}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           {showThreePanels ? (
-            <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+            <OptionalAgentProvider virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
@@ -538,40 +541,38 @@ function ShellLayoutInner({
                   >
                     <LayoutLeft size={16} />
                   </button>
-                  {!tasksOpen && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onNewTask.current?.();
-                          }}
-                          aria-label="New task"
-                          className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors animate-in fade-in-0 zoom-in-95 duration-150"
-                        >
-                          <Edit05 size={16} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="bottom"
-                        className="flex items-center gap-1.5"
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNewTask.current?.();
+                        }}
+                        aria-label="New task"
+                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                       >
-                        New task
-                        <span className="flex items-center gap-0.5">
-                          {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
-                            (key) => (
-                              <kbd
-                                key={key}
-                                className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-                              >
-                                {key}
-                              </kbd>
-                            ),
-                          )}
-                        </span>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
+                        <Edit05 size={16} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="flex items-center gap-1.5"
+                    >
+                      New task
+                      <span className="flex items-center gap-0.5">
+                        {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
+                          (key) => (
+                            <kbd
+                              key={key}
+                              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
+                            >
+                              {key}
+                            </kbd>
+                          ),
+                        )}
+                      </span>
+                    </TooltipContent>
+                  </Tooltip>
                 </>
               )}
               <button
@@ -639,7 +640,7 @@ function ShellLayoutInner({
               </div>
             }
           >
-            <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+            <OptionalAgentProvider virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
