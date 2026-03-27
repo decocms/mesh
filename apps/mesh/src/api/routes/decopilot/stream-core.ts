@@ -330,19 +330,16 @@ async function streamCoreInner(
       windowSize,
     );
 
-    // Find the last Claude Code sessionId for session resume.
-    // Codex does not support session resume (each request spawns a new process).
+    // Find the last coding agent session ID for session resume.
+    // Currently only Claude Code supports resume (Codex spawns a new process per request).
     let resumeSessionId: string | undefined;
     if (isClaudeCode) {
       for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
-        if (
-          msg?.role === "assistant" &&
-          (msg.metadata as { claudeCodeSessionId?: string })
-            ?.claudeCodeSessionId
-        ) {
-          resumeSessionId = (msg.metadata as { claudeCodeSessionId: string })
-            .claudeCodeSessionId;
+        const sessionId = (msg?.metadata as { codingAgentSessionId?: string })
+          ?.codingAgentSessionId;
+        if (msg?.role === "assistant" && sessionId) {
+          resumeSessionId = sessionId;
           break;
         }
       }
@@ -529,8 +526,7 @@ async function streamCoreInner(
 
         let reasoningStartAt: Date | null = null;
         let lastProviderMetadata: Record<string, unknown> | undefined;
-        let claudeCodeSessionId: string | undefined;
-        let codexThreadId: string | undefined;
+        let codingAgentSessionId: string | undefined;
         llmCallStartTime = Date.now();
 
         // Build language model based on provider type
@@ -819,14 +815,14 @@ async function streamCoreInner(
             if (part.type === "finish-step") {
               lastProviderMetadata = part.providerMetadata;
               if (isClaudeCode && part.providerMetadata?.["claude-code"]) {
-                claudeCodeSessionId = (
+                codingAgentSessionId = (
                   part.providerMetadata["claude-code"] as {
                     sessionId?: string;
                   }
                 ).sessionId;
               }
               if (isCodex && part.providerMetadata?.["codex-app-server"]) {
-                codexThreadId = (
+                codingAgentSessionId = (
                   part.providerMetadata["codex-app-server"] as {
                     threadId?: string;
                   }
@@ -864,8 +860,7 @@ async function streamCoreInner(
 
               return {
                 ...(usage && { usage }),
-                ...(claudeCodeSessionId && { claudeCodeSessionId }),
-                ...(codexThreadId && { codexThreadId }),
+                ...(codingAgentSessionId && { codingAgentSessionId }),
               };
             }
 
