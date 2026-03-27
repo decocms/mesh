@@ -647,7 +647,7 @@ function ShellLayoutInner({
                 <NewTaskBridge onNewTaskRef={onNewTask} />
                 <ResizablePanelGroup
                   direction="horizontal"
-                  className="flex-1 min-h-0"
+                  className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
                   style={{ overflow: "visible" }}
                 >
                   {showThreePanels && (
@@ -658,7 +658,7 @@ function ShellLayoutInner({
                         onCollapse={() => setTasksOpen(false)}
                         onExpand={() => setTasksOpen(true)}
                       >
-                        <div className="h-full p-1.5 pt-1 overflow-hidden">
+                        <div className="h-full p-0.5 overflow-hidden">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                             <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
                           </div>
@@ -680,7 +680,7 @@ function ShellLayoutInner({
                       onCollapse={() => setMainOpen(false)}
                       onExpand={() => setMainOpen(true)}
                     >
-                      <div className="h-full p-1.5 pt-1 overflow-hidden">
+                      <div className="h-full p-0.5 overflow-hidden">
                         <div
                           className={cn(
                             "flex flex-col h-full min-h-0 bg-card overflow-hidden",
@@ -719,7 +719,7 @@ function ShellLayoutInner({
                         onCollapse={() => setChatOpen(false)}
                         onExpand={() => setChatOpen(true)}
                       >
-                        <div className="h-full p-1.5 pt-1">
+                        <div className="h-full p-0.5">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                             <ActiveTaskBoundary
                               variant={isOrgHome ? "home" : undefined}
