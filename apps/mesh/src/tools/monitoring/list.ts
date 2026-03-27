@@ -149,7 +149,7 @@ export const MONITORING_LOGS_LIST = defineTool({
           typeof output === "object" &&
           "structuredContent" in output
         ) {
-          const { content, ...rest } = output as Record<string, unknown>;
+          const { content: _sc, ...rest } = output as Record<string, unknown>;
           cleanOutput = rest;
         } else if (
           output &&
@@ -157,7 +157,7 @@ export const MONITORING_LOGS_LIST = defineTool({
           "content" in output &&
           Array.isArray((output as Record<string, unknown>).content)
         ) {
-          const { content, ...rest } = output as Record<string, unknown>;
+          const { content: _c, ...rest } = output as Record<string, unknown>;
           cleanOutput = Object.keys(rest).length > 0 ? rest : output;
         }
         return {

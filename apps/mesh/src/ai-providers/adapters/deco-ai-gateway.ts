@@ -1,8 +1,10 @@
 import type { OAuthPkceResult, ProviderAdapter } from "../types";
 import { openrouterAdapter } from "./openrouter";
-import { env } from "../../env";
+import { getSettings } from "../../settings";
 
-const BASE = env.DECO_AI_GATEWAY_URL ?? "https://ai-site.decocache.com";
+function getBase(): string {
+  return getSettings().aiGatewayUrl ?? "https://ai-site.decocache.com";
+}
 
 export const decoAiGatewayAdapter: ProviderAdapter = {
   info: {
@@ -31,11 +33,11 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
       code_challenge_method: codeChallengeMethod,
       organization_id: organizationId,
     });
-    return `${BASE}/oauth/authorize?${params}`;
+    return `${getBase()}/oauth/authorize?${params}`;
   },
 
   async exchangeOAuthCode({ code, codeVerifier }): Promise<OAuthPkceResult> {
-    const res = await fetch(`${BASE}/oauth/token`, {
+    const res = await fetch(`${getBase()}/oauth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -57,7 +59,7 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
     amountCents: number,
     currency: "usd" | "brl" = "usd",
   ) {
-    const res = await fetch(`${BASE}/api/credits/topup`, {
+    const res = await fetch(`${getBase()}/api/credits/topup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,10 +76,13 @@ export const decoAiGatewayAdapter: ProviderAdapter = {
   },
 
   async getCreditsBalance(meshJwt: string, organizationId: string) {
-    const res = await fetch(`${BASE}/api/teams/${organizationId}/balance`, {
-      headers: { Authorization: `Bearer ${meshJwt}` },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const res = await fetch(
+      `${getBase()}/api/teams/${organizationId}/balance`,
+      {
+        headers: { Authorization: `Bearer ${meshJwt}` },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
     if (!res.ok) {
       throw new Error(`Failed to fetch credits balance: ${res.status}`);
     }

@@ -117,6 +117,7 @@ export function createLazyClient(
           return extractData(res);
         },
         cache,
+        (p) => ctx.pendingRevalidations.push(p),
       );
 
       return buildCachedResult(result ?? []);

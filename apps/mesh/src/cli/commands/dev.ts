@@ -1,12 +1,13 @@
 /**
  * Dev mode startup logic.
  *
- * Loads .env, starts services, runs migrations, and spawns dev servers.
- * Reports progress via the CLI store so the Ink UI can update live.
+ * Delegates environment resolution, service startup, and migrations to
+ * buildSettings(). Spawns dev servers and reports progress via the CLI
+ * store so the Ink UI can update live.
  */
-import { readFileSync } from "fs";
 import { join } from "path";
 import type { Subprocess } from "bun";
+import { buildSettings } from "../../settings/pipeline";
 import {
   addLogEntry,
   setEnv,
@@ -14,7 +15,7 @@ import {
   setServerUrl,
   updateService,
 } from "../cli-store";
-import type { ServiceStatus } from "../header";
+import { findAvailablePort } from "../find-available-port";
 
 export interface DevOptions {
   port: string;
@@ -22,38 +23,14 @@ export interface DevOptions {
   home: string;
   baseUrl?: string;
   skipMigrations: boolean;
-  envFile?: string;
   noTui?: boolean;
   localMode: boolean;
-}
-
-function loadDotEnv(path: string): Record<string, string> {
-  try {
-    const result: Record<string, string> = {};
-    for (const line of readFileSync(path, "utf8").split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const idx = trimmed.indexOf("=");
-      if (idx === -1) continue;
-      const key = trimmed.slice(0, idx).trim();
-      const val = trimmed
-        .slice(idx + 1)
-        .trim()
-        .replace(/^["']|["']$/g, "");
-      result[key] = val;
-    }
-    return result;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return {};
-    }
-    throw error;
-  }
 }
 
 // Strip ANSI escape codes from a string
 function stripAnsi(str: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI codes requires matching control chars
+  // oxlint-disable-next-line no-control-regex
   return str.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
@@ -113,71 +90,25 @@ function pipeToLogStore(stream: ReadableStream<Uint8Array>) {
 export async function startDevServer(
   options: DevOptions,
 ): Promise<{ port: number; process: Subprocess }> {
-  const {
-    port,
-    vitePort,
-    home,
-    baseUrl,
-    skipMigrations,
-    envFile,
-    noTui,
-    localMode,
-  } = options;
+  const { vitePort, baseUrl, noTui } = options;
 
-  // ── .env loading ────────────────────────────────────────────────────
-  if (envFile) {
-    const dotEnv = loadDotEnv(envFile);
-    for (const [key, value] of Object.entries(dotEnv)) {
-      if (!(key in process.env)) {
-        process.env[key] = value;
-      }
-    }
-  }
+  const port = await findAvailablePort(Number(options.port));
 
-  // ── Environment ─────────────────────────────────────────────────────
-  if (noTui) {
-    process.env.DECO_NO_TUI = "true";
-  }
-  process.env.DECOCMS_HOME = home;
-  process.env.DATA_DIR = home;
-  process.env.PORT = port;
-  process.env.VITE_PORT = vitePort;
-  process.env.NODE_ENV = "development";
-  process.env.DECO_CLI = "1";
-  process.env.DECOCMS_LOCAL_MODE = localMode ? "true" : "false";
-
-  if (baseUrl) {
-    process.env.BASE_URL = baseUrl;
-  }
-
-  // ── Services ──────────────────────────────────────────────────────
-  const { ensureServices } = await import("../../services/ensure-services");
-  const services = await ensureServices(home);
+  const { settings, services, managedServiceNames } = await buildSettings({
+    port: String(port),
+    home: options.home,
+    baseUrl: options.baseUrl,
+    localMode: options.localMode,
+    skipMigrations: options.skipMigrations,
+    noTui: options.noTui,
+    vitePort: options.vitePort,
+  });
 
   for (const s of services) {
-    const svc: ServiceStatus = {
-      name: s.name === "PostgreSQL" ? "Postgres" : s.name,
-      status: "ready",
-      port: s.port,
-    };
-    updateService(svc);
+    updateService({ name: s.name, status: "ready", port: s.port });
   }
-
-  // ── Migrations ────────────────────────────────────────────────────
-  if (!skipMigrations) {
-    try {
-      const { migrateToLatest } = await import("../../database/migrate");
-      await migrateToLatest({ keepOpen: true });
-    } catch (error) {
-      console.error("Failed to run migrations:", error);
-      process.exit(1);
-    }
-  }
+  setEnv(settings);
   setMigrationsDone();
-
-  // ── Env ───────────────────────────────────────────────────────────
-  const { env } = await import("../../env");
-  setEnv(env);
 
   // ── Spawn dev servers ─────────────────────────────────────────────
   // import.meta.dir = apps/mesh/src/cli/commands → go up 5 levels to repo root
@@ -188,7 +119,19 @@ export async function startDevServer(
   const useInherit = noTui === true;
   const child = Bun.spawn(["bun", "run", "--cwd=apps/mesh", "dev:servers"], {
     cwd: repoRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      PORT: String(settings.port),
+      VITE_PORT: String(vitePort),
+      DATABASE_URL: settings.databaseUrl,
+      NATS_URL: settings.natsUrls.join(","),
+      NODE_ENV: settings.nodeEnv,
+      DECOCMS_LOCAL_MODE: String(settings.localMode),
+      DECOCMS_HOME: settings.dataDir,
+      DATA_DIR: settings.dataDir,
+      DECO_CLI: "1",
+      ...(settings.baseUrl ? { BASE_URL: settings.baseUrl } : {}),
+    },
     stdio: [
       "inherit",
       useInherit ? "inherit" : "pipe",
@@ -201,12 +144,20 @@ export async function startDevServer(
     pipeToLogStore(child.stderr as ReadableStream<Uint8Array>);
   }
 
-  const serverUrl = baseUrl || `http://localhost:${port}`;
+  const serverUrl = baseUrl || `http://localhost:${settings.port}`;
   setServerUrl(serverUrl);
   updateService({ name: "Vite", status: "ready", port: Number(vitePort) });
 
-  process.on("SIGINT", () => child.kill("SIGINT"));
-  process.on("SIGTERM", () => child.kill("SIGTERM"));
+  const shutdown = async (signal: NodeJS.Signals) => {
+    child.kill(signal);
+    if (managedServiceNames.length > 0) {
+      const { stopServices } = await import("../../services/ensure-services");
+      await stopServices(settings.dataDir);
+    }
+  };
 
-  return { port: Number(port), process: child };
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+  return { port: Number(settings.port), process: child };
 }

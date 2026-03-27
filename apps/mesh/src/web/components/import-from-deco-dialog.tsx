@@ -82,7 +82,7 @@ export function ImportFromDecoDialog({
     isLoading,
     error: sitesError,
   } = useQuery({
-    queryKey: ["deco-sites", session?.user?.email],
+    queryKey: KEYS.decoSites(session?.user?.email),
     queryFn: loadDecoSites,
     enabled: open && Boolean(session?.user?.email),
     staleTime: 60_000,
@@ -118,24 +118,29 @@ export function ImportFromDecoDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ siteName, connId, orgId: org.id }),
       });
+      const connBody = (await connRes.json().catch(() => ({}))) as {
+        connId?: string;
+        icon?: string | null;
+        error?: string;
+      };
       if (!connRes.ok) {
-        const body = (await connRes.json().catch(() => ({}))) as {
-          error?: string;
-        };
         throw new Error(
-          body.error ?? `Failed to create connection (${connRes.status})`,
+          connBody.error ?? `Failed to create connection (${connRes.status})`,
         );
       }
 
+      const projectIcon = connBody.icon ?? null;
       const slug = generateSlug(siteName);
 
-      // 2. Create a project (virtual MCP with subtype "project") with the connection already linked
+      // 2. Create a space (virtual MCP) with the connection already linked
       const result = (await client.callTool({
         name: "COLLECTION_VIRTUAL_MCP_CREATE",
         arguments: {
           data: {
             title: siteName,
             description: "Imported from deco.cx",
+            pinned: true,
+            icon: projectIcon ?? "icon://Globe01?color=green",
             subtype: "project",
             metadata: {
               instructions: null,
@@ -143,7 +148,7 @@ export function ImportFromDecoDialog({
               ui: {
                 banner: null,
                 bannerColor: "#22C55E",
-                icon: null,
+                icon: projectIcon,
                 themeColor: "#22C55E",
                 slug,
                 pinnedViews: [
@@ -166,6 +171,13 @@ export function ImportFromDecoDialog({
                     icon: null,
                   },
                 ],
+                layout: {
+                  defaultMainView: {
+                    type: "ext-apps",
+                    id: connId,
+                    toolName: "file_explorer",
+                  },
+                },
               },
             },
             connections: [{ connection_id: connId }],
@@ -176,20 +188,44 @@ export function ImportFromDecoDialog({
       const payload = (result.structuredContent ??
         result) as VirtualMCPCreateOutput;
 
-      return { slug, virtualMcpId: payload.item.id, connId };
+      return {
+        slug,
+        virtualMcpId: payload.item.id,
+        connId,
+        item: payload.item,
+      };
     },
-    onSuccess: ({ slug, virtualMcpId, connId }) => {
+    onSuccess: ({ slug, virtualMcpId, item }) => {
+      // Seed the individual item cache so useVirtualMCP resolves instantly on
+      // the redirected page without waiting for a network round-trip.
+      queryClient.setQueryData(
+        KEYS.collectionItem(client, org.id, "", "VIRTUAL_MCP", virtualMcpId),
+        { item },
+      );
+
+      // Invalidate the projects list using a predicate — the collection list
+      // key starts with the client instance, so a plain queryKey prefix never
+      // matches it.
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return (
+            key[1] === org.id &&
+            key[3] === "collection" &&
+            key[4] === "VIRTUAL_MCP"
+          );
+        },
+      });
+      // Also invalidate the legacy projects key for any other consumers.
       queryClient.invalidateQueries({ queryKey: KEYS.projects(org.id) });
       toast.success(`Imported ${slug} from deco.cx`);
       handleClose(false);
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
       navigate({
-        to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/$virtualMcpId",
         params: {
           org: org.slug,
           virtualMcpId,
-          connectionId: connId,
-          toolName: "file_explorer",
         },
       });
     },

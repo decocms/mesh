@@ -5,11 +5,8 @@
  * Only shows when the organization has agents.
  */
 
-import { useChatStable } from "@/web/components/chat/context";
-import {
-  VirtualMCPPopoverContent,
-  type VirtualMCPInfo,
-} from "@/web/components/chat/select-virtual-mcp";
+import { useChatPrefs } from "@/web/components/chat/context";
+import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   Popover,
@@ -18,14 +15,27 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
-import { useAgents } from "@/web/hooks/use-agents";
-import { readRecentAgentIds } from "@/web/components/chat/store/local-storage";
+import {
+  isDecopilot,
+  useProjectContext,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+
+function readRecentAgentIds(locator: ProjectLocator): string[] {
+  try {
+    const raw = localStorage.getItem(`mesh:chat:recent-agents:${locator}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 
 /**
  * Individual agent preview component
@@ -41,13 +51,17 @@ function AgentPreview({
   };
   onSpecialClick?: () => void;
 }) {
-  const { setVirtualMcpId } = useChatStable();
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
 
   const handleClick = () => {
     if (onSpecialClick) {
       onSpecialClick();
     } else {
-      setVirtualMcpId(agent.id);
+      navigate({
+        to: "/$org/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: agent.id },
+      });
     }
   };
 
@@ -82,27 +96,15 @@ function AgentPreview({
  * See All button component
  */
 function SeeAllButton({
-  virtualMcps,
   selectedVirtualMcpId,
   onVirtualMcpChange,
 }: {
-  virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
-
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -136,9 +138,14 @@ function SeeAllButton({
         align="start"
         side="top"
         sideOffset={8}
+        onOpenAutoFocus={(e) => {
+          if (!isMobile) {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          }
+        }}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={virtualMcps}
           selectedVirtualMcpId={selectedVirtualMcpId}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}
@@ -191,8 +198,8 @@ function CreateAgentButton() {
 }
 
 function AgentsListContent() {
-  const virtualMcps = useAgents();
-  const { selectedVirtualMcp, setVirtualMcpId } = useChatStable();
+  const virtualMcps = useVirtualMCPs();
+  const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
 
@@ -220,14 +227,6 @@ function AgentsListContent() {
     })
     .slice(0, 5);
 
-  // Convert to VirtualMCPInfo format
-  const virtualMcpsInfo: VirtualMCPInfo[] = virtualMcps.map((agent) => ({
-    id: agent.id,
-    title: agent.title,
-    description: agent.description,
-    icon: agent.icon,
-  }));
-
   const hasAgents = agents.length > 0;
 
   return (
@@ -245,7 +244,6 @@ function AgentsListContent() {
           <CreateAgentButton />
           {hasAgents && (
             <SeeAllButton
-              virtualMcps={virtualMcpsInfo}
               selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
               onVirtualMcpChange={setVirtualMcpId}
             />

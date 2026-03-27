@@ -51,7 +51,12 @@ import * as migration049removeorgadminprojects from "./049-remove-org-admin-proj
 import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
 import * as migration052threadagentids from "./052-thread-agent-ids.ts";
-import * as migration053triggercallbacktokens from "./053-trigger-callback-tokens.ts";
+import * as migration053registryconfig from "./053-registry-config.ts";
+import * as migration054connectionslug from "./054-connection-slug.ts";
+import * as migration055spaces from "./055-spaces.ts";
+import * as migration056automationprojectscope from "./056-automation-project-scope.ts";
+import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
+import * as migration058triggercallbacktokens from "./058-trigger-callback-tokens.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -117,7 +122,12 @@ const migrations: Record<string, Migration> = {
   "050-durable-agent-runs": migration050durableagentruns,
   "051-org-sso": migration051orgsso,
   "052-thread-agent-ids": migration052threadagentids,
-  "053-trigger-callback-tokens": migration053triggercallbacktokens,
+  "053-registry-config": migration053registryconfig,
+  "054-connection-slug": migration054connectionslug,
+  "055-spaces": migration055spaces,
+  "056-automation-project-scope": migration056automationprojectscope,
+  "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
+  "058-trigger-callback-tokens": migration058triggercallbacktokens,
 };
 
 export default migrations;

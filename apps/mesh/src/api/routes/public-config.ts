@@ -6,10 +6,10 @@
  */
 
 import { Hono } from "hono";
-import { getThemeConfig, type ThemeConfig } from "@/core/config";
+import { getConfig, getThemeConfig, type ThemeConfig } from "@/core/config";
 import { isLocalMode } from "@/auth/local-mode";
 import { getInternalUrl } from "@/core/server-constants";
-import { env } from "@/env";
+import { getSettings } from "@/settings";
 
 const app = new Hono();
 
@@ -22,6 +22,11 @@ export type PublicConfig = {
    * Contains CSS variable overrides that will be injected into the document.
    */
   theme?: ThemeConfig;
+  /**
+   * Product logo shown in the sidebar.
+   * Can be a single URL or per-mode { light, dark } URLs.
+   */
+  logo?: string | { light: string; dark: string };
   /**
    * The server's internal URL (localhost:PORT).
    * Used as the OAuth redirect origin when the browser is behind a proxy
@@ -46,9 +51,10 @@ export type PublicConfig = {
 app.get("/", (c) => {
   const config: PublicConfig = {
     theme: getThemeConfig(),
+    ...(getConfig().logo && { logo: getConfig().logo }),
     // Only expose internalUrl in local mode — production uses the public URL directly
     ...(isLocalMode() && { internalUrl: getInternalUrl() }),
-    ...(env.ENABLE_DECO_IMPORT && { enableDecoImport: true }),
+    ...(getSettings().enableDecoImport && { enableDecoImport: true }),
   };
 
   return c.json({ success: true, config });

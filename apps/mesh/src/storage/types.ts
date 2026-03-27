@@ -126,10 +126,16 @@ export interface SidebarItem {
   icon: string;
 }
 
+export interface RegistryConfig {
+  registries: Record<string, { enabled: boolean }>;
+  blockedMcps: string[];
+}
+
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
   enabled_plugins: JsonArray<string[]> | null;
+  registry_config: JsonObject<RegistryConfig> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -138,6 +144,7 @@ export interface OrganizationSettings {
   organizationId: string;
   sidebar_items: SidebarItem[] | null;
   enabled_plugins: string[] | null;
+  registry_config: RegistryConfig | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -156,6 +163,7 @@ export interface MCPConnectionTable {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
+  slug: string | null;
 
   // Connection details
   connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
@@ -175,11 +183,7 @@ export interface MCPConnectionTable {
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
   status: "active" | "inactive" | "error";
-  subtype: ColumnType<
-    "agent" | "project" | null,
-    "agent" | "project" | null,
-    "agent" | "project" | null
-  >;
+  pinned: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -721,8 +725,8 @@ export interface ThreadTable {
     Date | string | null,
     Date | string | null
   >;
-  /** JSON-encoded array of connection IDs, ordered by first appearance */
-  agent_ids: string | null;
+  /** Virtual MCP (agent) this thread was initiated with */
+  virtual_mcp_id: string;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -745,8 +749,8 @@ export interface Thread {
   run_owner_pod: string | null;
   run_config: Record<string, unknown> | null;
   run_started_at: string | null;
-  /** Connection IDs that have been used in this thread, ordered by first appearance */
-  agent_ids: string[];
+  /** Virtual MCP (agent) this thread was initiated with */
+  virtual_mcp_id: string;
 }
 
 export interface ThreadMessageTable {
@@ -846,6 +850,7 @@ export interface AutomationTable {
   messages: string; // JSON string: UIMessage[]
   models: string; // JSON string: { connectionId, thinking, coding?, fast? }
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -863,6 +868,7 @@ export interface Automation {
   messages: string;
   models: string;
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: string;
   updated_at: string;
 }

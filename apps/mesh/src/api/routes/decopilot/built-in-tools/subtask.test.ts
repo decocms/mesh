@@ -6,24 +6,19 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { BuiltinToolParams } from "./index";
 import {
   buildSubagentSystemPrompt,
   createSubtaskTool,
   SubtaskInputSchema,
+  type SubtaskParams,
 } from "./subtask";
 
-const mockParams: BuiltinToolParams = {
+const mockParams: SubtaskParams = {
   provider: { thinkingModel: {} as never } as never,
   organization: { id: "org_test" } as never,
   models: {
     connectionId: "conn_test",
     thinking: { id: "model_test", limits: {} },
-  } as never,
-  toolOutputMap: new Map(),
-  passthroughClient: {
-    listTools: () => Promise.resolve({ tools: [] }),
-    callTool: () => Promise.resolve({ content: [] }),
   } as never,
 };
 

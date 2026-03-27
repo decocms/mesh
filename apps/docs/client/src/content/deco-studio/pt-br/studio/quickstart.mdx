@@ -1,0 +1,75 @@
+---
+title: Quickstart
+description: Comece a usar o deco Studio em 5 minutos
+icon: Rocket
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+## Comece em 5 Minutos
+
+Existem duas formas de começar com o deco Studio:
+
+### Opção A: Cloud Gerenciado
+
+A forma mais rápida. Cadastre-se em [studio.decocms.com](https://studio.decocms.com) e pronto.
+
+1. Crie sua conta (email, GitHub ou Google OAuth)
+2. Crie uma organização — seu limite de nível superior para conexões, agentes e membros da equipe
+3. Pronto. Comece a adicionar conexões e contratar agentes.
+
+### Opção B: Rodar Localmente
+
+```bash
+bunx decocms
+```
+
+Isso inicia uma instância local com PostgreSQL embutido. Totalmente privado — tudo fica na sua máquina. Ou clone e rode a partir do código-fonte:
+
+```bash
+git clone https://github.com/decocms/studio.git
+cd studio
+bun install
+bun run dev
+```
+
+---
+
+## Adicione Sua Primeira Conexão
+
+Conexões são ferramentas e serviços que você quer que seus agentes usem. O Studio vem com uma loja integrada de integrações populares.
+
+1. Navegue até **Connections** na barra lateral
+2. Clique em **Add from Store**
+3. Navegue pelas conexões disponíveis (Shopify, GitHub, Slack, Stripe, OpenRouter, e mais)
+4. Selecione uma conexão e clique em **Install**
+5. Forneça as credenciais necessárias:
+   - Para conexões OAuth: siga o fluxo OAuth para autorizar
+   - Para conexões com API key: cole sua API key
+
+Sua conexão agora está registrada e as credenciais estão criptografadas no vault do Studio.
+
+## Comece a Usar o Chat
+
+Uma vez que você conectou pelo menos uma ferramenta, pode usar a interface de chat integrada:
+
+1. Navegue até **Chat** na barra lateral
+2. Suas ferramentas conectadas estão automaticamente disponíveis para o assistente de IA
+3. Tente fazer perguntas ou solicitar ações:
+   - "Mostre os pedidos de hoje do Shopify"
+   - "Crie uma issue no GitHub para o bug do checkout"
+   - "Envie uma mensagem no Slack para o canal da equipe"
+   - "Gere um relatório de vendas dos últimos 30 dias"
+
+A IA invocará automaticamente as ferramentas corretas das suas conexões.
+
+<Callout type="success">
+  Tudo pronto! A partir daqui, você pode adicionar mais conexões, contratar agentes especializados, organizar trabalho em projetos, convidar membros da equipe e monitorar todas as invocações de ferramentas na aba **Monitoring**.
+</Callout>
+
+## Próximos Passos
+
+- **[Aprenda os conceitos principais](./concepts)** — Entenda conexões, MCPs Virtuais, projetos e agentes
+- **[Crie agentes](./agents)** — Use suas conexões com Claude Desktop, Cursor ou agentes de IA personalizados
+- **[Monitore invocações de ferramentas](./monitoring)** — Rastreie uso, depure problemas e audite atividades
+- **[Self-host](./self-hosting/quickstart)** — Faça deploy com Docker Compose ou Kubernetes

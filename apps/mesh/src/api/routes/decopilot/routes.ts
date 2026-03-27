@@ -35,7 +35,7 @@ import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
 import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
-import { POD_ID } from "@/core/pod-identity";
+import { getPodId } from "@/core/pod-identity";
 
 // ============================================================================
 // Request Validation
@@ -198,7 +198,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           toolApprovalLevel,
           organizationId: organization.id,
           userId,
-          threadId: resolvedThreadId,
+          taskId: resolvedThreadId,
           windowSize,
         },
         ctx,
@@ -291,7 +291,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           toolApprovalLevel,
           organizationId: organization.id,
           userId,
-          threadId: resolvedThreadId,
+          taskId: resolvedThreadId,
           windowSize,
         },
         ctx,
@@ -334,31 +334,31 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
   // ============================================================================
 
   app.post("/:org/decopilot/cancel/:threadId", async (c) => {
-    const { threadId, thread, organization } = await validateThreadOwnership(c);
+    const { taskId, thread, organization } = await validateThreadOwnership(c);
 
     // Try to cancel locally first
     const cancelTransitions = await runRegistry.execute({
       type: "CANCEL",
-      threadId,
+      taskId,
     });
     if (cancelTransitions.some((t) => t.event.type === "RUN_FAILED")) {
       return c.json({ cancelled: true });
     }
 
     // Not on this pod — broadcast to all pods
-    cancelBroadcast.broadcast(threadId);
+    cancelBroadcast.broadcast(taskId);
 
     // Ghost run: server restarted while a run was in progress. No pod has this
     // run in memory, so the broadcast will never resolve. Force-fail the thread
     // in the DB so the user can send new messages.
     if (thread.status === "in_progress") {
       console.warn("[decopilot:cancel] Ghost run detected, force-failing", {
-        threadId,
+        taskId,
       });
       runRegistry
         .execute({
           type: "FORCE_FAIL",
-          threadId,
+          taskId,
           reason: "ghost",
           orgId: organization.id,
         })
@@ -366,7 +366,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           console.error(
             "[decopilot:cancel] Failed to force-fail ghost thread",
             {
-              threadId,
+              taskId,
               err,
             },
           );
@@ -382,12 +382,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
   app.get("/:org/decopilot/attach/:threadId", async (c) => {
     try {
-      const { threadId, thread, organization } = await validateThreadAccess(c);
+      const { taskId, thread, organization } = await validateThreadAccess(c);
 
       // ── Fast path: run is active on this pod → replay buffer ──
-      if (runRegistry.isRunning(threadId)) {
-        const replayChunkStream =
-          await streamBuffer.createReplayStream(threadId);
+      if (runRegistry.isRunning(taskId)) {
+        const replayChunkStream = await streamBuffer.createReplayStream(taskId);
         if (!replayChunkStream) {
           return c.body(null, 204);
         }
@@ -429,14 +428,14 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
       // No persisted config → can't resume; force-fail so user can retry
       if (!thread.run_config) {
-        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        await threadStorage.forceFailIfInProgress(taskId, organization.id);
         return c.body(null, 204);
       }
 
       // Validate stored config (schema drift protection)
       const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
       if (!parsed.success) {
-        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        await threadStorage.forceFailIfInProgress(taskId, organization.id);
         return c.body(null, 204);
       }
       const config = parsed.data;
@@ -462,9 +461,9 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
       // Atomic CAS claim — succeeds for null or stale run_owner_pod
       const claimed = await threadStorage.claimOrphanedRun(
-        threadId,
+        taskId,
         organization.id,
-        POD_ID,
+        getPodId(),
       );
       if (!claimed) {
         return c.body(null, 204);
@@ -480,7 +479,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           toolApprovalLevel: config.toolApprovalLevel,
           organizationId: organization.id,
           userId,
-          threadId,
+          taskId,
           windowSize: config.windowSize,
           isResume: true,
         },

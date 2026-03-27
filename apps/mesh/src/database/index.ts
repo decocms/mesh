@@ -9,7 +9,7 @@
 import { type Dialect, Kysely, type LogEvent, PostgresDialect } from "kysely";
 import { Pool } from "pg";
 import type { Database as DatabaseSchema } from "../storage/types";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { meter } from "../observability";
 
 // ============================================================================
@@ -68,11 +68,19 @@ const defaultPoolOptions = {
   allowExitOnIdle: true,
 };
 
+function getSsl(): boolean {
+  try {
+    return getSettings().databasePgSsl;
+  } catch {
+    return false; // Settings not yet initialized (e.g., during pipeline migrations)
+  }
+}
+
 function createPostgresDatabase(connectionString: string): MeshDatabase {
   const pool = new Pool({
     connectionString,
     max: 10,
-    ssl: env.DATABASE_PG_SSL,
+    ssl: getSsl(),
     ...defaultPoolOptions,
   });
 
@@ -87,7 +95,7 @@ function createPostgresDatabase(connectionString: string): MeshDatabase {
 // ============================================================================
 
 export function getDatabaseUrl(): string {
-  return env.DATABASE_URL;
+  return getSettings().databaseUrl;
 }
 
 /**
@@ -100,7 +108,7 @@ export function getDbDialect(databaseUrl?: string): Dialect {
     pool: new Pool({
       connectionString: url,
       max: 10,
-      ssl: env.DATABASE_PG_SSL,
+      ssl: getSsl(),
       ...defaultPoolOptions,
     }),
   });

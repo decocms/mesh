@@ -6,8 +6,8 @@ import {
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
+import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import {
-  Settings01,
   LogOut01,
   LinkExternal01,
   Copy01,
@@ -20,7 +20,6 @@ import {
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { authClient } from "@/web/lib/auth-client";
 import { useState } from "react";
-import { useSettingsModal } from "@/web/hooks/use-settings-modal";
 import { toast } from "sonner";
 
 function MeshUserMenuBase({
@@ -30,7 +29,6 @@ function MeshUserMenuBase({
   user: { id: string; name?: string; email: string };
   userImage?: string;
 }) {
-  const { open: openSettings } = useSettingsModal();
   const [copied, setCopied] = useState(false);
 
   const handleCopyUserInfo = () => {
@@ -44,20 +42,18 @@ function MeshUserMenuBase({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex w-full h-8 items-center gap-2 rounded-md px-1 hover:bg-sidebar-accent transition-colors text-left min-w-0">
+        <SidebarMenuButton
+          tooltip={user.name || user.email}
+          className="rounded-full"
+        >
           <Avatar
             url={userImage}
             fallback={user.name || user.email || "U"}
             shape="circle"
             size="2xs"
-            className="shrink-0 size-5"
+            className="shrink-0 size-6"
           />
-          <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <div className="text-sm font-medium truncate text-sidebar-foreground leading-none">
-              {user.name || "User"}
-            </div>
-          </div>
-        </button>
+        </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="top"
@@ -96,15 +92,6 @@ function MeshUserMenuBase({
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
-
-        {/* Main actions */}
-        <DropdownMenuItem
-          className="gap-2.5"
-          onClick={() => openSettings("account.preferences")}
-        >
-          <Settings01 size={14} className="shrink-0 text-muted-foreground" />
-          <span>Settings</span>
-        </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
           <a

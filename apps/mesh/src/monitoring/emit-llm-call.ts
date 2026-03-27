@@ -35,7 +35,7 @@ export interface EmitLlmCallLogParams {
   modelId: string;
   modelTitle: string;
   credentialId: string;
-  threadId: string;
+  taskId: string;
   durationMs: number;
   isError: boolean;
   errorMessage?: string | null;
@@ -91,7 +91,7 @@ function emitLlmCallLog(params: EmitLlmCallLogParams): void {
         toolArguments: {
           model: params.modelId,
           credentialId: params.credentialId,
-          threadId: params.threadId,
+          threadId: params.taskId,
           ...(params.request?.body !== undefined
             ? { requestBody: params.request.body }
             : {}),
@@ -120,7 +120,7 @@ function emitLlmCallLog(params: EmitLlmCallLogParams): void {
         properties: {
           model_title: params.modelTitle,
           credential_id: params.credentialId,
-          thread_id: params.threadId,
+          thread_id: params.taskId,
           log_type: MONITORING_LOG_TYPE_LLM_CALL,
           ...(params.response ? { response_id: params.response.id } : {}),
         },

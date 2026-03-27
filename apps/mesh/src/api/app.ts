@@ -9,7 +9,7 @@
  */
 
 import { sql } from "kysely";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
@@ -76,11 +76,7 @@ import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
 import { SqlThreadStorage } from "../storage/threads";
 import type { Thread } from "../storage/types";
 import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
-import {
-  DEFAULT_LOGS_DIR,
-  DEFAULT_TRACES_DIR,
-  DEFAULT_METRICS_DIR,
-} from "../monitoring/schema";
+import { getLogsDir, getTracesDir, getMetricsDir } from "../monitoring/schema";
 import {
   AutomationCronWorker,
   AutomationJobStream,
@@ -93,7 +89,7 @@ import {
   PersistedRunConfigSchema,
   toModelsConfig,
 } from "./routes/decopilot/run-config";
-import { POD_ID } from "../core/pod-identity";
+import { getPodId } from "../core/pod-identity";
 import { NatsPodHeartbeat } from "../nats/pod-heartbeat";
 import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
@@ -127,10 +123,18 @@ async function getDecoStoreProjectLocator(
   organizationId: string,
 ): Promise<string | null> {
   // Find registry connection by URL within the organization
-  const connections = await ctx.storage.connections.list(organizationId);
-  const registryConn = connections.find((c) =>
-    c.connection_url?.startsWith(DECO_STORE_URL),
+  const { items: connections } = await ctx.storage.connections.list(
+    organizationId,
+    {
+      where: {
+        field: ["connection_url"],
+        operator: "like",
+        value: `${DECO_STORE_URL}%`,
+      },
+      limit: 1,
+    },
   );
+  const registryConn = connections[0];
 
   if (!registryConn?.configuration_state) {
     return null;
@@ -264,7 +268,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   } else {
     // Production/dev mode: connect to NATS (required)
     natsProvider = createNatsConnectionProvider();
-    natsProvider.init(env.NATS_URL);
+    natsProvider.init(getSettings().natsUrls);
 
     const tlc = new JetStreamKVMcpListCache({
       getJetStream: () => natsProvider!.getJetStream(),
@@ -323,11 +327,12 @@ export async function createApp(options: CreateAppOptions = {}) {
     sseHub,
   };
 
+  const POD_ID = getPodId();
   const runRegistry = new RunRegistry(cancelReactorDeps, POD_ID);
 
   cancelBroadcast
-    .start((threadId) => {
-      runRegistry.execute({ type: "CANCEL", threadId }).catch((err) => {
+    .start((taskId) => {
+      runRegistry.execute({ type: "CANCEL", taskId }).catch((err) => {
         console.error("[Decopilot] CancelBroadcast execute failed:", err);
       });
     })
@@ -400,7 +405,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     "*",
     timing({
       enabled: (c) =>
-        env.NODE_ENV !== "production" || getCookie(c, "debug") === "1",
+        getSettings().nodeEnv !== "production" || getCookie(c, "debug") === "1",
     }),
   );
 
@@ -434,7 +439,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
   });
 
-  if (process.env.DECO_NO_TUI !== "true") {
+  if (!getSettings().noTui) {
     app.use("*", devLogger());
   }
 
@@ -749,7 +754,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     db: database.db,
     auth,
     encryption: {
-      key: env.ENCRYPTION_KEY,
+      key: getSettings().encryptionKey,
     },
     observability: {
       tracer,
@@ -764,7 +769,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   // startup hooks (runPluginStartupHooks) need storage to be ready and they
   // run as soon as eventBus.start() resolves — which can happen during any
   // `await` between here and where initializePluginStorage used to live.
-  const vault = new CredentialVault(env.ENCRYPTION_KEY);
+  const vault = new CredentialVault(getSettings().encryptionKey);
   initializePluginStorage(database.db, vault);
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
@@ -986,7 +991,7 @@ export async function createApp(options: CreateAppOptions = {}) {
         toolApprovalLevel: config.toolApprovalLevel,
         organizationId: thread.organization_id,
         userId: thread.created_by,
-        threadId: thread.id,
+        taskId: thread.id,
         windowSize: config.windowSize,
         isResume: true,
       },
@@ -1017,11 +1022,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   }, 10_000); // 10s grace for rolling deploys
 
   // NDJSON monitoring retention cleanup (always — local files are always written)
-  const SIGNAL_DIRS = [
-    DEFAULT_LOGS_DIR,
-    DEFAULT_TRACES_DIR,
-    DEFAULT_METRICS_DIR,
-  ];
+  const SIGNAL_DIRS = [getLogsDir(), getTracesDir(), getMetricsDir()];
 
   for (const dir of SIGNAL_DIRS) {
     cleanupOldMonitoringFiles(dir)
@@ -1079,7 +1080,25 @@ export async function createApp(options: CreateAppOptions = {}) {
     meshCtx.automationRunner = automationRunner;
     c.set("meshContext", meshCtx);
 
-    return next();
+    try {
+      await next();
+    } finally {
+      // Fire-and-forget: await pending SWR revalidations with a timeout.
+      // Keeps ctx (and its client pool) alive via closure while revalidations complete.
+      // No pool disposal — pool was never disposed and SSE/streaming connections depend on it.
+      const revalidations = meshCtx.pendingRevalidations;
+      if (revalidations.length > 0) {
+        const REVALIDATION_TIMEOUT_MS = 30_000;
+        void Promise.race([
+          Promise.allSettled(revalidations),
+          new Promise((resolve) =>
+            setTimeout(resolve, REVALIDATION_TIMEOUT_MS),
+          ),
+        ]).catch((err) =>
+          console.error("[mesh] revalidation cleanup error:", err),
+        );
+      }
+    }
   });
 
   // ============================================================================
@@ -1171,7 +1190,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/self", mcpAuth);
 
   // Dev-only routes (local file storage MCP for testing object-storage plugin)
-  if (env.NODE_ENV !== "production") {
+  if (getSettings().nodeEnv !== "production") {
     // Using require() for synchronous loading to ensure routes are registered
     // before any requests come in. Static imports in dev-only.ts allow knip tracking.
     // eslint-disable-next-line @typescript-eslint/no-require-imports

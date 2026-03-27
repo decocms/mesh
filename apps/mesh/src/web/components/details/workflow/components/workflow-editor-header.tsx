@@ -211,11 +211,6 @@ function RunWorkflowButton() {
   const tooltipMessage = getTooltipMessage();
 
   const handleClick = async () => {
-    if (requiresInput && inputSchema && !isExecutionResumable) {
-      setShowInputDialog(true);
-      return;
-    }
-
     if (isExecutionResumable && trackingExecutionId) {
       await handleResumeWorkflow(trackingExecutionId);
       return;
@@ -223,6 +218,11 @@ function RunWorkflowButton() {
 
     if (isRunning && trackingExecutionId) {
       await handleCancelWorkflow(trackingExecutionId);
+      return;
+    }
+
+    if (requiresInput && inputSchema) {
+      setShowInputDialog(true);
       return;
     }
 

@@ -12,7 +12,7 @@ import { getDecopilotId } from "@decocms/mesh-sdk";
 export function buildStreamRequest(
   automation: Automation,
   triggerId: string | null,
-  threadId: string,
+  taskId: string,
 ): StreamCoreInput {
   const rawMessages = JSON.parse(automation.messages);
   // Generate fresh ids for each run so concurrent automation runs don't
@@ -36,7 +36,7 @@ export function buildStreamRequest(
     organizationId: automation.organization_id,
     userId: automation.created_by,
     triggerId: triggerId ?? undefined,
-    threadId,
+    taskId,
   };
 
   return request;

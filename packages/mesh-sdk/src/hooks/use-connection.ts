@@ -32,11 +32,15 @@ export interface UseConnectionsOptions
    * Can be a well-known binding name (e.g., "LLM", "ASSISTANTS", "OBJECT_STORAGE")
    * or a custom binding schema object.
    */
-  binding?: string | Record<string, unknown>;
+  binding?: string | Record<string, unknown> | Record<string, unknown>[];
   /**
    * Whether to include VIRTUAL connections in results. Defaults to false (server default).
    */
   includeVirtual?: boolean;
+  /**
+   * Filter by computed connection slug (matches app_name, or slug derived from connection_url/title).
+   */
+  slug?: string;
 }
 
 /**
@@ -46,7 +50,7 @@ export interface UseConnectionsOptions
  * @returns Suspense query result with connections as ConnectionEntity[]
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
-  const { binding, includeVirtual, ...collectionOptions } = options;
+  const { binding, includeVirtual, slug, ...collectionOptions } = options;
 
   // Build additional tool args for the COLLECTION_CONNECTIONS_LIST tool
   const additionalToolArgs: Record<string, unknown> = {
@@ -59,6 +63,10 @@ export function useConnections(options: UseConnectionsOptions = {}) {
 
   if (includeVirtual !== undefined) {
     additionalToolArgs.include_virtual = includeVirtual;
+  }
+
+  if (slug !== undefined) {
+    additionalToolArgs.slug = slug;
   }
 
   const finalOptions: UseCollectionListOptions<ConnectionEntity> = {

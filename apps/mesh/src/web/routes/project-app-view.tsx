@@ -11,9 +11,9 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri, MCP_APP_DISPLAY_MODES } from "@/mcp-apps/types.ts";
-import { useChatStable } from "@/web/components/chat/context.tsx";
+import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { Page } from "@/web/components/page/index.tsx";
 
 const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
@@ -34,8 +34,9 @@ function AppRenderer({
   };
   connectionId: string;
 }) {
-  const { sendMessage, setAppContext, clearAppContext } = useChatStable();
-  const [, setChatOpen] = useDecoChatOpen();
+  const { sendMessage } = useChatBridge();
+  const { setAppContext, clearAppContext } = useChatPrefs();
+  const [, setChatOpen] = useChatPanel();
   const sourceId = `${connectionId}:${tool.name}`;
   const { data: toolResult } = useMCPToolCall({
     client,
@@ -47,7 +48,7 @@ function AppRenderer({
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
       setChatOpen(true);
-      sendMessage(doc);
+      sendMessage({ tiptapDoc: doc });
     }
   };
 
@@ -69,7 +70,7 @@ function AppRenderer({
   );
 }
 
-function AppViewContent({
+export function AppViewContent({
   connectionId,
   toolName,
 }: {
@@ -118,12 +119,11 @@ function AppViewContent({
 
 export default function ProjectAppView() {
   const { connectionId, toolName } = useParams({
-    from: "/shell/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+    from: "/shell/$org/$virtualMcpId/apps/$connectionId/$toolName",
   });
 
   return (
     <Page>
-      <Page.Header />
       <Page.Content>
         <ErrorBoundary key={`${connectionId}:${toolName}`} fallback={undefined}>
           <Suspense

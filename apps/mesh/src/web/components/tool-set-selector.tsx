@@ -1,10 +1,20 @@
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
+import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
+import { KEYS } from "@/web/lib/query-keys";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { ArrowLeft } from "@untitledui/icons";
+import { ArrowLeft, Loading01 } from "@untitledui/icons";
 import { cn } from "@deco/ui/lib/utils.ts";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
+import {
+  type ConnectionEntity,
+  parseVirtualUrl,
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { memo, useDeferredValue, useRef, useState } from "react";
-import { useConnections, parseVirtualUrl } from "@decocms/mesh-sdk";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 
 export interface ToolSetSelectorProps {
@@ -137,10 +147,93 @@ export function ToolSetSelector({
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const initialOrder = useRef<Set<string>>(new Set(Object.keys(toolSet)));
 
-  const allConnections = useConnections({
-    searchTerm: deferredSearchQuery.trim() || undefined,
-    includeVirtual: !!excludeVirtualMcpId,
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
   });
+
+  const PAGE_SIZE = 100;
+  const trimmedSearch = deferredSearchQuery.trim();
+  const where = trimmedSearch
+    ? {
+        operator: "or" as const,
+        conditions: [
+          {
+            field: ["title"],
+            operator: "contains" as const,
+            value: trimmedSearch,
+          },
+          {
+            field: ["description"],
+            operator: "contains" as const,
+            value: trimmedSearch,
+          },
+        ],
+      }
+    : undefined;
+
+  const includeVirtual = !!excludeVirtualMcpId;
+  const toolArguments = {
+    ...(where && { where }),
+    orderBy: [{ field: ["updated_at"], direction: "asc" as const }],
+    limit: PAGE_SIZE,
+    offset: 0,
+    ...(includeVirtual && { include_virtual: true }),
+  };
+  const argsKey = JSON.stringify(toolArguments);
+
+  const {
+    data: connectionsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useSuspenseInfiniteQuery({
+    queryKey: KEYS.collectionListInfinite(
+      client,
+      org.id,
+      "",
+      "CONNECTIONS",
+      argsKey,
+    ),
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_LIST",
+        arguments: {
+          ...(where && { where }),
+          orderBy: [{ field: ["updated_at"], direction: "asc" }],
+          limit: PAGE_SIZE,
+          offset: pageParam,
+          ...(includeVirtual && { include_virtual: true }),
+        },
+      });
+      return result.structuredContent as CollectionListOutput<ConnectionEntity>;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: CollectionListOutput<ConnectionEntity>,
+      allPages: CollectionListOutput<ConnectionEntity>[],
+    ) => {
+      if (!lastPage?.hasMore) return undefined;
+      return allPages.reduce(
+        (sum: number, page: CollectionListOutput<ConnectionEntity>) =>
+          sum + (page?.items?.length ?? 0),
+        0,
+      );
+    },
+    staleTime: 30_000,
+  });
+
+  const allConnections =
+    connectionsData?.pages.flatMap(
+      (p: CollectionListOutput<ConnectionEntity>) => p?.items ?? [],
+    ) ?? [];
+
+  const scrollSentinelRef = useInfiniteScroll(
+    fetchNextPage,
+    hasNextPage ?? false,
+    isFetchingNextPage,
+  );
 
   // Filter out the specific VIRTUAL connection that would cause self-reference
   const connections = excludeVirtualMcpId
@@ -340,6 +433,16 @@ export function ToolSetSelector({
                   />
                 );
               })}
+              {/* Infinite scroll sentinel */}
+              <div ref={scrollSentinelRef} className="h-4" />
+              {isFetchingNextPage && (
+                <div className="flex justify-center py-3">
+                  <Loading01
+                    size={18}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

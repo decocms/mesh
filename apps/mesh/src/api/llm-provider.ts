@@ -99,6 +99,10 @@ type LLMBindingClient = ReturnType<
   (typeof LanguageModelBinding)["forConnection"]
 >;
 
+/**
+ * @deprecated Use native AI SDK provider adapters instead. The llm-binding
+ * abstraction produces v2 spec models; the AI SDK now expects v3.
+ */
 export interface LLMProvider extends ProviderV2 {
   listModels: LLMBindingClient["COLLECTION_LLM_LIST"];
 }
@@ -184,12 +188,25 @@ function convertCallOptionsForBinding(
   return result;
 }
 
+let _llmProviderDeprecationWarned = false;
+
 /**
  * Creates an AI SDK compatible provider for the given LLM binding
  * @param binding - The binding client to create the provider from
  * @returns The provider
+ *
+ * @deprecated Use native AI SDK provider adapters instead. This function
+ * produces v2 spec language models, which trigger AI SDK compatibility
+ * warnings. The decopilot stream path already uses native providers.
  */
 export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
+  if (!_llmProviderDeprecationWarned) {
+    _llmProviderDeprecationWarned = true;
+    console.warn(
+      "[llm-provider] DEPRECATED: createLLMProvider wraps MCP connections as AI SDK v2 language models. " +
+        "Migrate to native AI SDK provider adapters (v3). This function will be removed in a future release.",
+    );
+  }
   return {
     imageModel: () => {
       throw new Error("Image models are not supported by this provider");

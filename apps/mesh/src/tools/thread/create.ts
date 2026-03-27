@@ -56,10 +56,10 @@ export const COLLECTION_THREADS_CREATE = defineTool({
       throw new Error("User ID required to create thread");
     }
 
-    const threadId = input.data.id ?? generatePrefixedId("thrd");
+    const taskId = input.data.id ?? generatePrefixedId("thrd");
 
     const result = await ctx.storage.threads.create({
-      id: threadId,
+      id: taskId,
       organization_id: organization.id,
       title: input.data.title,
       description: input.data.description,

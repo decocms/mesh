@@ -20,7 +20,6 @@ import {
 } from "@deco/ui/components/breadcrumb.tsx";
 import {
   useConnection,
-  useConnections,
   useConnectionActions,
   useMCPClient,
   useMCPToolCall,
@@ -37,14 +36,15 @@ import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
 import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
-import { slugify } from "@/web/utils/slugify";
+import { slugify } from "@/shared/utils/slugify";
 import { getGitHubAvatarUrl, extractGitHubRepo } from "@/web/utils/github";
 import {
-  findListToolName,
-  findRegistryToolBySuffix,
+  inferRegistryListToolName,
+  inferRegistryToolBySuffix,
   getConnectionTypeLabel,
   extractSchemaVersion,
 } from "@/web/utils/registry-utils";
+import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
 import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
 import {
   Link,
@@ -267,7 +267,7 @@ function StoreMCPServerDetailContent() {
   const queryClient = useQueryClient();
   const actions = useConnectionActions();
   const { data: session } = authClient.useSession();
-  const registryConnections = useConnections({ binding: "REGISTRY" });
+  const registryConnections = useRegistryConnections();
 
   // Use passed registryId or default to first one
   const effectiveRegistryId =
@@ -275,16 +275,18 @@ function StoreMCPServerDetailContent() {
 
   const registryConnection = useConnection(effectiveRegistryId);
 
-  // Find the LIST tool from the registry connection
-  const listToolName = findListToolName(registryConnection?.tools);
+  // Infer tool names from connection ID convention (no tool enumeration needed)
+  const listToolName = inferRegistryListToolName(effectiveRegistryId, org.id);
 
-  const versionsToolName = findRegistryToolBySuffix(
-    registryConnection?.tools ?? null,
+  const versionsToolName = inferRegistryToolBySuffix(
+    effectiveRegistryId,
+    org.id,
     "_VERSIONS",
   );
 
-  const getToolName = findRegistryToolBySuffix(
-    registryConnection?.tools ?? null,
+  const getToolName = inferRegistryToolBySuffix(
+    effectiveRegistryId,
+    org.id,
     "_GET",
   );
 
@@ -655,7 +657,7 @@ function StoreMCPServerDetailContent() {
       }
 
       navigate({
-        to: "/$org/mcps",
+        to: "/$org/settings/connections",
         params: {
           org: org.slug,
         },
@@ -679,7 +681,7 @@ function StoreMCPServerDetailContent() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
     });
   };
@@ -703,7 +705,7 @@ function StoreMCPServerDetailContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link to="/$org/settings/connections" params={{ org: org.slug }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -810,7 +812,7 @@ export default function StoreMCPServerDetail() {
 
   const handleBackClick = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
     });
   };

@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { S3Service } from "./s3-service";
 
 let cached: S3Service | null | undefined;
@@ -7,11 +7,12 @@ let cached: S3Service | null | undefined;
  * Check if object storage is configured via environment variables.
  */
 function isObjectStorageConfigured(): boolean {
+  const settings = getSettings();
   return !!(
-    env.S3_ENDPOINT &&
-    env.S3_BUCKET &&
-    env.S3_ACCESS_KEY_ID &&
-    env.S3_SECRET_ACCESS_KEY
+    settings.s3Endpoint &&
+    settings.s3Bucket &&
+    settings.s3AccessKeyId &&
+    settings.s3SecretAccessKey
   );
 }
 
@@ -27,13 +28,14 @@ export function getObjectStorageS3Service(): S3Service | null {
     return null;
   }
 
+  const settings = getSettings();
   cached = new S3Service({
-    endpoint: env.S3_ENDPOINT!,
-    bucket: env.S3_BUCKET!,
-    region: env.S3_REGION,
-    accessKeyId: env.S3_ACCESS_KEY_ID!,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
-    forcePathStyle: env.S3_FORCE_PATH_STYLE,
+    endpoint: settings.s3Endpoint!,
+    bucket: settings.s3Bucket!,
+    region: settings.s3Region,
+    accessKeyId: settings.s3AccessKeyId!,
+    secretAccessKey: settings.s3SecretAccessKey!,
+    forcePathStyle: settings.s3ForcePathStyle,
   });
 
   return cached;

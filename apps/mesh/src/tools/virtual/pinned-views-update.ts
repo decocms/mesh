@@ -36,6 +36,18 @@ export const VIRTUAL_MCP_PINNED_VIEWS_UPDATE = defineTool({
     pinnedViews: z
       .array(pinnedViewSchema)
       .describe("Pinned views to set for the virtual MCP sidebar"),
+    layout: z
+      .object({
+        defaultMainView: z
+          .object({
+            type: z.string(),
+            id: z.string().optional(),
+            toolName: z.string().optional(),
+          })
+          .nullable()
+          .optional(),
+      })
+      .optional(),
   }),
 
   outputSchema: z.object({
@@ -47,7 +59,7 @@ export const VIRTUAL_MCP_PINNED_VIEWS_UPDATE = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const { virtualMcpId, pinnedViews } = input;
+    const { virtualMcpId, pinnedViews, layout } = input;
     const userId = getUserId(ctx);
 
     const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
@@ -58,16 +70,13 @@ export const VIRTUAL_MCP_PINNED_VIEWS_UPDATE = defineTool({
       throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
     }
 
-    const currentUI = virtualMcp.metadata?.ui ?? {
-      banner: null,
-      bannerColor: null,
-      icon: null,
-      themeColor: null,
-    };
+    const currentUI =
+      (virtualMcp.metadata?.ui as Record<string, unknown>) ?? {};
 
     const updatedUI = {
       ...currentUI,
       pinnedViews: pinnedViews.length > 0 ? pinnedViews : null,
+      layout: layout ?? currentUI.layout ?? null,
     };
 
     const updated = await ctx.storage.virtualMcps.update(

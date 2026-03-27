@@ -91,6 +91,7 @@ export const COLLECTION_CONNECTIONS_GET = defineTool({
         connection.id,
         fetchLive,
         getMcpListCache(),
+        (p) => ctx.pendingRevalidations.push(p),
       );
       if (tools !== null) {
         connection.tools = tools as Tool[];

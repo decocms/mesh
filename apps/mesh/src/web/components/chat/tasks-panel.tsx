@@ -5,19 +5,19 @@
  * Dense, scannable rows. Collapsible groups with counts.
  */
 
-import { useChat } from "@/web/components/chat/index";
-import { useChatStable } from "@/web/components/chat/context";
-import { AgentAvatar } from "@/web/components/agent-icon";
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
-import { formatTimeAgo } from "@/web/lib/format-time";
+import { useChatTask } from "@/web/components/chat/context";
+import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
+import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   buildDisplayGroups,
   getTaskVerb,
   STATUS_CONFIG,
-  type DisplayGroup,
-  type StatusKey,
+  toDisplayGroupKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
+import { useTasks } from "./task";
+import { authClient } from "../../lib/auth-client";
+import { useSearch } from "@tanstack/react-router";
 import {
   Tooltip,
   TooltipContent,
@@ -25,29 +25,19 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  getWellKnownDecopilotVirtualMCP,
-  useConnections,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
-import {
-  CheckDone02,
+  CheckDone01,
   ChevronRight,
-  FilterLines,
   Loading01,
-  Archive,
+  Plus,
+  RefreshCcw01,
 } from "@untitledui/icons";
-import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
-import { Button } from "@deco/ui/components/button.js";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.js";
 import {
@@ -61,7 +51,25 @@ import {
   ContextMenuTrigger,
 } from "@deco/ui/components/context-menu.tsx";
 import type { TaskOwnerFilter } from "./task";
-import { useChatStore } from "./store/selectors";
+import {
+  useAutomationsList,
+  useAutomationCreate,
+  useAutomationDelete,
+  buildDefaultAutomationInput,
+  type AutomationListItem,
+} from "@/web/hooks/use-automations";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
+import { Trash01 } from "@untitledui/icons";
+import { usePlayStatusSound } from "@/web/hooks/use-status-sounds";
 
 // ────────────────────────────────────────
 
@@ -99,8 +107,7 @@ function TruncatedText({
 }
 
 export function OwnerFilter() {
-  const { ownerFilter, setOwnerFilter, isFilterChangePending } =
-    useChatStable();
+  const { ownerFilter, setOwnerFilter, isFilterChangePending } = useChatTask();
 
   const isFiltered = ownerFilter === "me";
   const Icon = isFilterChangePending
@@ -112,23 +119,17 @@ export function OwnerFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="size-7"
+        <button
+          type="button"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground"
           title={isFiltered ? "My tasks" : "All tasks"}
           disabled={isFilterChangePending}
         >
           <Icon
-            size={14}
-            className={cn(
-              isFilterChangePending
-                ? "animate-spin text-muted-foreground"
-                : isFiltered
-                  ? "text-foreground"
-                  : "text-muted-foreground",
-            )}
+            size={16}
+            className={cn(isFilterChangePending && "animate-spin")}
           />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup
@@ -149,55 +150,14 @@ export function OwnerFilter() {
 // Multi-agent avatar stack
 // ────────────────────────────────────────
 
-function AgentAvatarStack({
-  agentIds,
-  connectionMap,
-  defaultAgent,
-}: {
-  agentIds: string[];
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
-}) {
-  const display =
-    agentIds.length > 0
-      ? agentIds.slice(0, 2).map((id) => {
-          const conn = connectionMap.get(id);
-          return conn ? { icon: conn.icon, title: conn.title } : defaultAgent;
-        })
-      : [defaultAgent];
+// ────────────────────────────────────────
+// Section empty state
+// ────────────────────────────────────────
 
-  const extra = Math.max(0, agentIds.length - 2);
-
-  const total = display.length + (extra > 0 ? 1 : 0);
-
+function SectionEmptyState() {
   return (
-    <div className="flex shrink-0">
-      {display.map((agent, i) => (
-        <div
-          key={i}
-          style={{ zIndex: total - i }}
-          className={cn(
-            "ring-1 ring-background rounded-md transition-all duration-150 ease-out",
-            i > 0 && "-ml-[20px] group-hover/row:-ml-1",
-          )}
-        >
-          <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
-        </div>
-      ))}
-      {extra > 0 && (
-        <div
-          style={{ zIndex: 0 }}
-          className={cn(
-            "flex items-center justify-center size-6 rounded-md bg-muted text-[9px] font-medium text-muted-foreground ring-1 ring-background transition-all duration-150 ease-out",
-            "-ml-[20px] group-hover/row:-ml-1",
-          )}
-        >
-          +{extra}
-        </div>
-      )}
+    <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+      No items
     </div>
   );
 }
@@ -207,29 +167,31 @@ function AgentAvatarStack({
 // ────────────────────────────────────────
 
 function GroupHeader({
-  group,
+  label,
+  icon: Icon,
+  iconClassName,
+  count,
   isOpen,
   onToggle,
 }: {
-  group: DisplayGroup;
+  label: string;
+  icon: typeof Loading01;
+  iconClassName: string;
+  count: number;
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const Icon = group.icon;
-
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="group flex items-center gap-1.5 px-4 py-3 w-full hover:bg-accent/30 transition-colors cursor-pointer"
+      className="group flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
     >
-      <Icon size={14} className={group.iconClassName} />
-      <span className="text-sm font-medium text-muted-foreground">
-        {group.label}
-      </span>
+      <Icon size={16} className={iconClassName} />
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {!isOpen && (
         <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {group.tasks.length}
+          {count}
         </span>
       )}
       <ChevronRight
@@ -250,60 +212,34 @@ function GroupHeader({
 function TaskRow({
   task,
   isActive,
-  connectionMap,
-  defaultAgent,
   onClick,
 }: {
   task: Task;
   isActive: boolean;
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
   onClick: () => void;
 }) {
-  const { setTaskStatus, hideTask } = useChatStable();
+  const { setTaskStatus, hideTask } = useChatTask();
+  const playStatusSound = usePlayStatusSound();
   const status = task.status;
-  const cachedMessages = useChatStore((s) => s.threadMessages[task.id]);
-  const taskVerb = getTaskVerb(task, cachedMessages);
-
-  const agentIds = task.agent_ids ?? [];
-  const firstAgentId = agentIds[0];
-  const primaryAgent =
-    firstAgentId !== undefined
-      ? (() => {
-          const conn = connectionMap.get(firstAgentId);
-          return conn ? { icon: conn.icon, title: conn.title } : defaultAgent;
-        })()
-      : defaultAgent;
+  const taskVerb = getTaskVerb(task, undefined);
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors",
+            "group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
             isActive ? "bg-accent" : "hover:bg-accent/50",
           )}
           onClick={onClick}
         >
-          {/* Agent avatar stack */}
-          <div className="shrink-0">
-            <AgentAvatarStack
-              agentIds={agentIds}
-              connectionMap={connectionMap}
-              defaultAgent={defaultAgent}
-            />
-          </div>
-
           {/* Content */}
           <div className="flex-1 min-w-0">
             {/* Line 1: Title + time */}
             <div className="flex items-center gap-1.5">
               <TruncatedText
                 text={task.title || "Untitled"}
-                className="text-sm text-foreground flex-1 min-w-0"
+                className="text-sm text-muted-foreground flex-1 min-w-0"
               />
               <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
                 {task.updated_at
@@ -311,32 +247,31 @@ function TaskRow({
                   : ""}
               </span>
             </div>
-            {/* Line 2: agent name · status verb (only when actionable) */}
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span className="truncate">{primaryAgent.title}</span>
-              {taskVerb && (
-                <>
-                  <span>·</span>
-                  <span className={cn("shrink-0", taskVerb.labelColor)}>
-                    {taskVerb.verb}
-                  </span>
-                </>
-              )}
-            </div>
+            {/* Line 2: status verb (only when actionable) */}
+            {taskVerb && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className={cn("shrink-0", taskVerb.labelColor)}>
+                  {taskVerb.verb}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Archive button — shown on hover */}
-          <button
-            type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              hideTask(task.id);
-            }}
-            title="Archive"
-          >
-            <Archive size={14} className="text-muted-foreground" />
-          </button>
+          {/* Mark done button — shown on hover for non-completed tasks */}
+          {status !== "completed" && (
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                playStatusSound("completed");
+                void setTaskStatus(task.id, "completed");
+              }}
+              title="Mark as done"
+            >
+              <CheckDone01 size={14} className="text-muted-foreground" />
+            </button>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
@@ -376,92 +311,209 @@ function TaskRow({
 }
 
 // ────────────────────────────────────────
-// Filter dropdown
+// Automation row
 // ────────────────────────────────────────
 
-function FilterDropdown({
-  statusFilter,
-  agentFilter,
-  availableAgents,
-  connectionMap,
-  defaultAgent,
-  onStatusChange,
-  onAgentChange,
+function AutomationRow({
+  automation,
+  onClick,
+  onDelete,
 }: {
-  statusFilter: Set<StatusKey>;
-  agentFilter: Set<string>;
-  availableAgents: string[];
-  connectionMap: Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >;
-  defaultAgent: { icon: string | null | undefined; title: string };
-  onStatusChange: (status: StatusKey) => void;
-  onAgentChange: (agentId: string) => void;
+  automation: AutomationListItem;
+  onClick: () => void;
+  onDelete: () => void;
 }) {
-  const hasFilters = statusFilter.size > 0 || agentFilter.size > 0;
-  const showAgents = availableAgents.length > 1;
+  const nextRun = automation.nearest_next_run_at;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="relative flex size-7 items-center justify-center rounded-md hover:bg-accent transition-colors shrink-0"
-          title="Filter"
-        >
-          <FilterLines
-            size={14}
-            className={cn(
-              hasFilters ? "text-foreground" : "text-muted-foreground/50",
-            )}
-          />
-          {hasFilters && (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-blue-500" />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Status
-        </DropdownMenuLabel>
-        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-          const Icon = cfg.icon;
-          return (
-            <DropdownMenuCheckboxItem
-              key={key}
-              checked={statusFilter.has(key as StatusKey)}
-              onCheckedChange={() => onStatusChange(key as StatusKey)}
-            >
-              <Icon size={12} className={cfg.iconClassName} />
-              {cfg.label}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
-        {showAgents && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Agent
-            </DropdownMenuLabel>
-            {availableAgents.map((agentId) => {
-              const conn = connectionMap.get(agentId);
-              const agent = conn ?? defaultAgent;
-              return (
-                <DropdownMenuCheckboxItem
-                  key={agentId}
-                  checked={agentFilter.has(agentId)}
-                  onCheckedChange={() => onAgentChange(agentId)}
-                >
-                  <AgentAvatar icon={agent.icon} name={agent.title} size="xs" />
-                  <span className="truncate">{agent.title}</span>
-                </DropdownMenuCheckboxItem>
-              );
-            })}
-          </>
+    <div
+      className="group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors hover:bg-accent/50"
+      onClick={onClick}
+    >
+      <span
+        className={cn(
+          "text-sm truncate flex-1 min-w-0",
+          automation.active && automation.trigger_count > 0
+            ? "text-foreground"
+            : "text-muted-foreground",
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      >
+        {automation.name || "Untitled"}
+      </span>
+      {/* Status / delete button — overlaid in same cell to avoid layout shift */}
+      <div className="shrink-0 grid [grid-template-areas:'slot'] items-center justify-items-end">
+        <span className="[grid-area:slot] text-xs text-muted-foreground tabular-nums whitespace-nowrap group-hover/row:invisible">
+          {nextRun ? formatTimeUntil(new Date(nextRun)) : "No starters"}
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="[grid-area:slot] invisible group-hover/row:visible flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash01 size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Delete automation</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+// Incoming section (automations)
+// ────────────────────────────────────────
+
+function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
+  const virtualMcpCtx = useVirtualMCPURLContext();
+  const { data: allAutomations } = useAutomationsList(virtualMcpId);
+  const createMutation = useAutomationCreate();
+  const deleteMutation = useAutomationDelete();
+  const [isOpen, setIsOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const automations = (allAutomations ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+  const navigateToAutomation = (automationId?: string) => {
+    if (automationId) {
+      virtualMcpCtx?.openMainView("automation", { id: automationId });
+    } else {
+      virtualMcpCtx?.openMainView("default");
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      const result = await createMutation.mutateAsync(
+        buildDefaultAutomationInput(virtualMcpId),
+      );
+      navigateToAutomation(result.id);
+    } catch {
+      // silently fail — the mutation hook handles cache invalidation
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      // If we're currently viewing the deleted automation, navigate away
+      const currentView = virtualMcpCtx?.mainView;
+      if (
+        currentView?.type === "automation" &&
+        currentView.id === deleteTarget.id
+      ) {
+        virtualMcpCtx?.openMainView("default");
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="group/incoming flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+      >
+        <RefreshCcw01 size={14} className="text-purple-500" />
+        <span className="text-sm font-medium text-muted-foreground">
+          Automations
+        </span>
+        {!isOpen && (
+          <span className="text-xs text-muted-foreground/60 tabular-nums">
+            {automations.filter((a) => a.active && a.trigger_count > 0).length}/
+            {automations.length}
+          </span>
+        )}
+        <ChevronRight
+          size={12}
+          className={cn(
+            "text-muted-foreground/40 opacity-0 group-hover/incoming:opacity-100 transition-all duration-150",
+            isOpen && "rotate-90",
+          )}
+        />
+        <span className="flex-1" />
+        <span
+          role="button"
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground",
+            createMutation.isPending
+              ? "opacity-100"
+              : "opacity-0 group-hover/incoming:opacity-100",
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCreate();
+          }}
+          title="Create automation"
+        >
+          {createMutation.isPending ? (
+            <Loading01 size={16} className="animate-spin" />
+          ) : (
+            <Plus size={16} />
+          )}
+        </span>
+      </button>
+      {isOpen &&
+        (automations.length > 0 ? (
+          automations.map((automation) => (
+            <AutomationRow
+              key={automation.id}
+              automation={automation}
+              onClick={() => navigateToAutomation(automation.id)}
+              onDelete={() =>
+                setDeleteTarget({ id: automation.id, name: automation.name })
+              }
+            />
+          ))
+        ) : (
+          <SectionEmptyState />
+        ))}
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Automation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.name || "Untitled"}
+              </span>
+              . All triggers will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
@@ -469,175 +521,172 @@ function FilterDropdown({
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
-interface TaskListContentProps {
-  onTaskSelect?: (taskId: string) => void;
-}
+// ────────────────────────────────────────
+// Grouped task list — keyed by activeGroupKey so expanded state resets
+// when the active task moves between groups
+// ────────────────────────────────────────
 
-export function TaskListContent({ onTaskSelect }: TaskListContentProps) {
-  const { activeTaskId, switchToTask } = useChat();
-  const { tasks, virtualMcps } = useChatStable();
-  const { org } = useProjectContext();
-
-  // Compute needed agent IDs from tasks
-  const agentIds = [
-    ...new Set(
-      tasks.filter((t) => !t.hidden).flatMap((t) => t.agent_ids ?? []),
-    ),
-  ];
-
-  const connections = useConnections({
-    additionalToolArgs:
-      agentIds.length > 0
-        ? { where: { field: ["id"], operator: "in", value: agentIds } }
-        : undefined,
+function GroupedTaskList({
+  groups,
+  activeGroupKey,
+  activeTaskId,
+  virtualMcpId,
+  onTaskSelect,
+}: {
+  groups: ReturnType<typeof buildDisplayGroups>;
+  activeGroupKey: string | null;
+  activeTaskId: string | null;
+  virtualMcpId?: string | null;
+  onTaskSelect: (task: Task) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    // Default: auto-open the group containing the active task
+    if (activeGroupKey) return { [activeGroupKey]: true };
+    return {};
   });
-  // Build a unified agent lookup: connections + virtual MCPs
-  const connectionMap = new Map<
-    string,
-    { icon: string | null | undefined; title: string }
-  >();
-  for (const c of connections) {
-    connectionMap.set(c.id, { icon: c.icon, title: c.title });
-  }
-  for (const v of virtualMcps) {
-    if (v.id) connectionMap.set(v.id, { icon: v.icon, title: v.title });
-  }
-
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
-  const [agentFilter, setAgentFilter] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-
-  const visible = tasks.filter((t) => !t.hidden);
-
-  const availableAgents = [
-    ...new Set(visible.flatMap((t) => t.agent_ids ?? [])),
-  ];
-
-  const searched = searchQuery.trim()
-    ? visible.filter((t) =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : visible;
-
-  const filtered = searched.filter((task) => {
-    if (
-      statusFilter.size > 0 &&
-      !statusFilter.has((task.status ?? "completed") as StatusKey)
-    )
-      return false;
-    if (agentFilter.size > 0) {
-      const taskAgents = task.agent_ids ?? [];
-      if (!taskAgents.some((id) => agentFilter.has(id))) return false;
-    }
-    return true;
-  });
-
-  const groups = buildDisplayGroups(filtered);
 
   const toggleGroup = (key: string) => {
-    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleSelect = async (task: Task) => {
-    if (onTaskSelect) {
-      onTaskSelect(task.id);
-    } else {
-      await switchToTask(task.id);
-    }
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Search + Filter */}
-      <div className="px-2 pt-1 pb-1 flex items-center gap-1">
-        <div className="flex-1">
-          <CollectionSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search tasks..."
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setSearchQuery("");
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-          />
-        </div>
-        <FilterDropdown
-          statusFilter={statusFilter}
-          agentFilter={agentFilter}
-          availableAgents={availableAgents}
-          connectionMap={connectionMap}
-          defaultAgent={defaultAgent}
-          onStatusChange={(s) =>
-            setStatusFilter((prev) => {
-              const next = new Set(prev);
-              if (next.has(s)) next.delete(s);
-              else next.add(s);
-              return next;
-            })
-          }
-          onAgentChange={(a) =>
-            setAgentFilter((prev) => {
-              const next = new Set(prev);
-              if (next.has(a)) next.delete(a);
-              else next.add(a);
-              return next;
-            })
-          }
-        />
-      </div>
-
-      {/* Grouped list */}
-      <div className="flex-1 overflow-y-auto">
-        {groups.length === 0 ? (
-          <EmptyState
-            image={
-              <CheckDone02 size={40} className="text-muted-foreground/40" />
-            }
-            title={
-              searchQuery || statusFilter.size > 0 || agentFilter.size > 0
-                ? "No matches"
-                : "No tasks yet"
-            }
-            description={
-              searchQuery || statusFilter.size > 0 || agentFilter.size > 0
-                ? "No tasks match the current filters"
-                : "Tasks appear here as agents work."
-            }
-            className="py-12"
-          />
-        ) : (
-          <div className="flex flex-col gap-1">
-            {groups.map((group) => {
-              const isGroupOpen = !collapsed[group.key];
-              return (
-                <div key={group.key}>
-                  <GroupHeader
-                    group={group}
-                    isOpen={isGroupOpen}
-                    onToggle={() => toggleGroup(group.key)}
-                  />
-                  {isGroupOpen &&
+    <div className="flex-1 overflow-y-auto">
+      {groups
+        .filter((g) => g.key !== "done")
+        .map((group, index) => {
+          const isOpen = !!expanded[group.key];
+          return (
+            <div key={group.key} className={cn(index > 0 && "mt-3")}>
+              <GroupHeader
+                label={group.label}
+                icon={group.icon}
+                iconClassName={group.iconClassName}
+                count={group.tasks.length}
+                isOpen={isOpen}
+                onToggle={() => toggleGroup(group.key)}
+              />
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
                     group.tasks.map((task) => (
                       <TaskRow
                         key={task.id}
                         task={task}
                         isActive={task.id === activeTaskId}
-                        connectionMap={connectionMap}
-                        defaultAgent={defaultAgent}
-                        onClick={() => handleSelect(task)}
+                        onClick={() => onTaskSelect(task)}
                       />
-                    ))}
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })}
+      {virtualMcpId && (
+        <div className="mt-3">
+          <IncomingSection virtualMcpId={virtualMcpId} />
+        </div>
+      )}
+      {groups
+        .filter((g) => g.key === "done")
+        .map((group) => {
+          const isOpen = !!expanded[group.key];
+          return (
+            <div key={group.key} className="mt-3">
+              <GroupHeader
+                label={group.label}
+                icon={group.icon}
+                iconClassName={group.iconClassName}
+                count={group.tasks.length}
+                isOpen={isOpen}
+                onToggle={() => toggleGroup(group.key)}
+              />
+              {isOpen && (
+                <div className="mt-1">
+                  {group.tasks.length > 0 ? (
+                    group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        isActive={task.id === activeTaskId}
+                        onClick={() => onTaskSelect(task)}
+                      />
+                    ))
+                  ) : (
+                    <SectionEmptyState />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+
+interface TaskListContentProps {
+  onTaskSelect?: (taskId: string) => void;
+  virtualMcpId?: string | null;
+}
+
+export function TaskListContent({
+  onTaskSelect,
+  virtualMcpId,
+}: TaskListContentProps) {
+  const { openTask, ownerFilter } = useChatTask();
+
+  // Read taskId directly from router (seeded by validateSearch)
+  const search = useSearch({ strict: false }) as { taskId?: string };
+  const taskId = search.taskId ?? null;
+
+  // Own task list fetch — shares TanStack Query cache with ChatContextProvider
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+  const { tasks } = useTasks(
+    ownerFilter,
+    ownerFilter === "me" ? userId : undefined,
+    virtualMcpId ?? "",
+  );
+
+  const visible = tasks.filter((t) => !t.hidden);
+  const groups = buildDisplayGroups(visible);
+
+  // Find which group the active task belongs to so we can auto-open it
+  const activeTask = taskId ? visible.find((t) => t.id === taskId) : null;
+  const activeGroupKey = activeTask
+    ? toDisplayGroupKey(activeTask.status)
+    : null;
+
+  const handleSelect = (task: Task) => {
+    if (onTaskSelect) {
+      onTaskSelect(task.id);
+    } else {
+      openTask(task.id);
+    }
+  };
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Tasks header */}
+      <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
+        <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+          Tasks
+        </span>
       </div>
+
+      {/* Grouped list — key resets expanded state when active task moves groups */}
+      <GroupedTaskList
+        key={activeGroupKey ?? "none"}
+        groups={groups}
+        activeGroupKey={activeGroupKey}
+        activeTaskId={taskId}
+        virtualMcpId={virtualMcpId}
+        onTaskSelect={handleSelect}
+      />
     </div>
   );
 }

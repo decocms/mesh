@@ -6,6 +6,7 @@ import {
   fetchModelPermissions,
 } from "@/api/routes/decopilot/model-permissions";
 import { CLAUDE_CODE_MODELS } from "@/ai-providers/adapters/claude-code";
+import { CODEX_MODELS } from "@/ai-providers/adapters/codex";
 
 export const AI_PROVIDERS_LIST_MODELS = defineTool({
   name: "AI_PROVIDERS_LIST_MODELS",
@@ -54,6 +55,10 @@ export const AI_PROVIDERS_LIST_MODELS = defineTool({
 
     if (keyInfo?.providerId === "claude-code") {
       return { models: CLAUDE_CODE_MODELS };
+    }
+
+    if (keyInfo?.providerId === "codex") {
+      return { models: CODEX_MODELS };
     }
 
     const allowedModels = await fetchModelPermissions(

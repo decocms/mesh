@@ -109,8 +109,6 @@ export class AutomationCronWorker {
    */
   private async recomputeStaleNextRunAt(): Promise<void> {
     const triggers = await this.storage.findAllCronTriggersForRecompute();
-    let updated = 0;
-
     for (const t of triggers) {
       if (!t.cron_expression) continue;
       const after = t.last_run_at
@@ -124,7 +122,6 @@ export class AutomationCronWorker {
         t.id,
         nextRun ? nextRun.toISOString() : null,
       );
-      updated++;
     }
   }
 

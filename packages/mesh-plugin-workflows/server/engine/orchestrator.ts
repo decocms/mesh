@@ -449,7 +449,12 @@ export async function handleStepExecute(
       output = result.output;
       error = result.error;
     } else if (stepType === "code" && "code" in step.action) {
-      const result = await executeCode(step.action.code, resolvedInput, stepId);
+      const result = await executeCode(
+        step.action.code,
+        resolvedInput,
+        stepId,
+        step.config?.timeoutMs ?? 10_000,
+      );
       output = result.output;
       error = result.error;
     } else {

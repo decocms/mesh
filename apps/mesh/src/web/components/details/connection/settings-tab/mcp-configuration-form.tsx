@@ -96,14 +96,22 @@ function BindingFieldWithDynamicSchema({
   onAddNew,
   className,
 }: BindingFieldWithDynamicSchemaProps) {
-  // Resolve binding to a server-side binding name string.
+  // Resolve binding to a server-side filter.
   // builtinBinding: "@deco/event-bus" → "EVENT_BUS"
   // string bindingSchema: well-known name like "LLMS" → passed through
-  // array/dynamic: handled by bindingType (app_name filter) in BindingSelector
+  // array/object bindingSchema: custom binding schema → passed as object for server-side filtering
   const builtinBinding = resolveBindingType(bindingType);
-  const resolvedBinding =
+  const resolvedBinding:
+    | string
+    | Record<string, unknown>
+    | Record<string, unknown>[]
+    | undefined =
     builtinBinding ??
-    (typeof bindingSchema === "string" ? bindingSchema : undefined);
+    (typeof bindingSchema === "string"
+      ? bindingSchema
+      : bindingSchema != null
+        ? (bindingSchema as Record<string, unknown> | Record<string, unknown>[])
+        : undefined);
 
   return (
     <BindingSelector
@@ -122,7 +130,7 @@ interface BindingSelectorProps {
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
-  binding?: string;
+  binding?: string | Record<string, unknown> | Record<string, unknown>[];
   bindingType?: string;
   onAddNew?: () => void;
   className?: string;
@@ -143,9 +151,11 @@ function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  // Server-side filtering: binding name → filter by binding,
+  // Server-side filtering: binding (string or schema object) → filter by binding,
   // bindingType (e.g. "@deco/database") → filter by app_name (stored without scope, e.g. "database")
-  const appName = bindingType?.replace(/^@[^/]+\//, "") || undefined;
+  const appName = !binding
+    ? bindingType?.replace(/^@[^/]+\//, "") || undefined
+    : undefined;
 
   const connections = useConnections(
     binding
@@ -398,7 +408,7 @@ export function McpConfigurationForm({
 
   const handleAddNew = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: { action: "create" },
     });

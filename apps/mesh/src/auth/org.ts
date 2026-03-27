@@ -14,7 +14,7 @@ import {
   ToolDefinition,
 } from "@/tools/connection/schema";
 import { z } from "zod";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { auth } from "./index";
 
 interface MCPCreationSpec {
@@ -86,7 +86,7 @@ function getDefaultOrgMcps(organizationId: string): MCPCreationSpec[] {
 export async function seedOrgDb(organizationId: string, createdBy: string) {
   try {
     const database = getDb();
-    const vault = new CredentialVault(env.ENCRYPTION_KEY);
+    const vault = new CredentialVault(getSettings().encryptionKey);
     const connectionStorage = new ConnectionStorage(database.db, vault);
     const defaultOrgMcps = getDefaultOrgMcps(organizationId);
 

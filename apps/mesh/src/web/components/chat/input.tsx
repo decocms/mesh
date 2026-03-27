@@ -33,7 +33,7 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import type { FormEvent } from "react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Metadata } from "./types.ts";
-import { useChat } from "./context";
+import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
@@ -51,6 +51,9 @@ import {
 import { isTiptapDocEmpty } from "./tiptap/utils";
 import { SessionStats } from "./usage-stats";
 import { authClient } from "@/web/lib/auth-client.ts";
+import { useSound } from "@/web/hooks/use-sound.ts";
+import { clickSoftSound } from "@deco/ui/lib/click-soft.ts";
+import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 
 // ============================================================================
 // DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
@@ -58,13 +61,11 @@ import { authClient } from "@/web/lib/auth-client.ts";
 
 interface DecopilotIconButtonProps {
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  virtualMcps: VirtualMCPInfo[];
   disabled?: boolean;
 }
 
 function DecopilotIconButton({
   onVirtualMcpChange,
-  virtualMcps,
   disabled = false,
 }: DecopilotIconButtonProps) {
   const [open, setOpen] = useState(false);
@@ -73,11 +74,6 @@ function DecopilotIconButton({
   const isMobile = useIsMobile();
 
   const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
-
-  // Filter out Decopilot from the list
-  const filteredVirtualMcps = virtualMcps.filter(
-    (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
-  );
 
   // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -156,7 +152,6 @@ function DecopilotIconButton({
         collisionPadding={16}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={filteredVirtualMcps}
           selectedVirtualMcpId={decopilot.id}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}
@@ -171,15 +166,13 @@ function DecopilotIconButton({
 // ============================================================================
 
 interface VirtualMCPBadgeProps {
-  virtualMcpId: string;
-  virtualMcps: VirtualMCPInfo[];
+  virtualMcp: VirtualMCPInfo | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
   disabled?: boolean;
 }
 
 function VirtualMCPBadge({
-  virtualMcpId,
-  virtualMcps,
+  virtualMcp,
   onVirtualMcpChange,
   disabled = false,
 }: VirtualMCPBadgeProps) {
@@ -188,8 +181,6 @@ function VirtualMCPBadge({
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const isMobile = useIsMobile();
-
-  const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
 
   // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -201,7 +192,7 @@ function VirtualMCPBadge({
     }
   }, [open, isMobile]);
 
-  if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
+  if (!virtualMcp?.id || isDecopilot(virtualMcp.id)) return null; // Don't show badge for Decopilot
 
   const themeColor = (
     virtualMcp as {
@@ -216,17 +207,19 @@ function VirtualMCPBadge({
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
-    onVirtualMcpChange(null);
+    const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+    onVirtualMcpChange(decopilotId);
   };
 
   const handleEdit = (e: MouseEvent) => {
     e.stopPropagation();
     navigate({
-      to: "/$org/agents/$agentId",
+      to: "/$org/$virtualMcpId",
       params: {
         org: org.slug,
-        agentId: virtualMcpId,
+        virtualMcpId: virtualMcp.id!,
       },
+      search: { main: "settings" },
     });
   };
 
@@ -266,8 +259,7 @@ function VirtualMCPBadge({
           sideOffset={8}
         >
           <VirtualMCPPopoverContent
-            virtualMcps={virtualMcps}
-            selectedVirtualMcpId={virtualMcpId}
+            selectedVirtualMcpId={virtualMcp.id}
             onVirtualMcpChange={handleVirtualMcpChange}
             searchInputRef={searchInputRef}
           />
@@ -316,8 +308,10 @@ function VirtualMCPBadge({
 function PlanModeToggle({ disabled }: { disabled?: boolean }) {
   const [preferences, setPreferences] = usePreferences();
   const isPlanMode = preferences.toolApprovalLevel === "plan";
+  const playSwitchSound = useSound(switch005Sound);
 
   const handleToggle = () => {
+    playSwitchSound();
     setPreferences({
       ...preferences,
       toolApprovalLevel: isPlanMode ? "auto" : "plan",
@@ -369,29 +363,23 @@ export function ChatInput({
 }: {
   onOpenContextPanel?: () => void;
 }) {
+  const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
+    useChatStream();
+  const { taskId, tasks } = useChatTask();
   const {
-    activeTaskId,
-    tiptapDocRef,
-    virtualMcps,
+    selectedModel,
     selectedVirtualMcp,
     setVirtualMcpId,
-    model,
     isModelsLoading,
-    messages,
-    isStreaming,
-    isRunInProgress,
-    sendMessage,
-    stop,
-    cancelRun,
-    tasks,
-  } = useChat();
+    tiptapDocRef,
+  } = useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
 
-  const task = tasks.find((task) => task.id === activeTaskId);
+  const task = tasks.find((task) => task.id === taskId);
 
   // tiptapDoc lives here (not in context) so keystrokes don't re-render
   // the entire context tree. The ref on context lets IceBreakers read it.
@@ -404,14 +392,14 @@ export function ChatInput({
   };
 
   // Reset input when switching tasks (TiptapProvider also remounts via key)
-  const prevTaskRef = useRef(activeTaskId);
-  if (prevTaskRef.current !== activeTaskId) {
-    prevTaskRef.current = activeTaskId;
+  const prevTaskRef = useRef(taskId);
+  if (prevTaskRef.current !== taskId) {
+    prevTaskRef.current = taskId;
     setTiptapDocLocal(undefined);
     tiptapDocRef.current = undefined;
   }
 
-  const contextWindow = model?.limits?.contextWindow;
+  const contextWindow = selectedModel?.limits?.contextWindow;
 
   const tiptapRef = useRef<TiptapInputHandle | null>(null);
 
@@ -446,8 +434,13 @@ export function ChatInput({
   const lastTotalTokens =
     (lastUsage?.totalTokens ?? 0) - (lastUsage?.reasoningTokens ?? 0);
 
+  const playClickSound = useSound(clickSoftSound);
+
   const canSubmit =
-    !isStreaming && !!model && !isModelsLoading && !isTiptapDocEmpty(tiptapDoc);
+    !isStreaming &&
+    !!selectedModel &&
+    !isModelsLoading &&
+    !isTiptapDocEmpty(tiptapDoc);
 
   const showStopOrCancel = isStreaming || isRunInProgress;
 
@@ -456,8 +449,9 @@ export function ChatInput({
     if (isStreaming) {
       stop();
     } else if (isRunInProgress) {
-      void cancelRun();
+      stop();
     } else if (canSubmit && tiptapDoc) {
+      playClickSound();
       void sendMessage(tiptapDoc);
       setTiptapDoc(undefined);
     }
@@ -486,8 +480,7 @@ export function ChatInput({
 
   // Keep last active agent + color for exit animation
   const lastAgentRef = useRef<{
-    id: string;
-    virtualMcps: VirtualMCPInfo[];
+    virtualMcp: VirtualMCPInfo;
     color: ReturnType<typeof getAgentWrapperColor> | null;
   } | null>(null);
 
@@ -505,15 +498,13 @@ export function ChatInput({
     : null;
 
   if (hasAgentBadge && selectedVirtualMcp?.id) {
-    lastAgentRef.current = { id: selectedVirtualMcp.id, virtualMcps, color };
+    lastAgentRef.current = { virtualMcp: selectedVirtualMcp, color };
   }
 
-  const badgeAgent = hasAgentBadge ? selectedVirtualMcp : null;
-  const badgeAgentId = badgeAgent?.id ?? lastAgentRef.current?.id;
-  const badgeVirtualMcps = badgeAgent
-    ? virtualMcps
-    : (lastAgentRef.current?.virtualMcps ?? []);
-  // Use current color when active, last color during exit animation
+  // Use current agent when active, last agent during exit animation
+  const badgeVirtualMcp = hasAgentBadge
+    ? selectedVirtualMcp
+    : (lastAgentRef.current?.virtualMcp ?? null);
   const wrapperBg = color?.bg ?? lastAgentRef.current?.color?.bg;
 
   if (userId && task?.created_by && task.created_by !== userId) {
@@ -553,11 +544,10 @@ export function ChatInput({
           onTransitionEnd={handleGridTransitionEnd}
         >
           <div className="overflow-hidden">
-            {badgeAgentId && (
+            {badgeVirtualMcp && (
               <VirtualMCPBadge
+                virtualMcp={badgeVirtualMcp}
                 onVirtualMcpChange={setVirtualMcpId}
-                virtualMcpId={badgeAgentId}
-                virtualMcps={badgeVirtualMcps}
                 disabled={isStreaming}
               />
             )}
@@ -572,33 +562,30 @@ export function ChatInput({
           )}
         >
           <TiptapProvider
-            key={activeTaskId}
+            key={taskId}
             tiptapDoc={tiptapDoc}
             setTiptapDoc={setTiptapDoc}
-            disabled={isStreaming || !model}
+            disabled={isStreaming || !selectedModel}
             enterToSubmit={true}
             onSubmit={handleSubmit}
           >
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background",
-                isPlanMode && "border border-dashed border-purple-500",
+                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted",
+                isPlanMode
+                  ? "border border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
+                  : "shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
               )}
-              style={{
-                boxShadow: isPlanMode
-                  ? "0px 2px 6px 0px #00000008, 0px 6px 30px 0px #0000000a"
-                  : "0px 10px 28px 0px rgba(0, 0, 0, 0.06), 0px 0px 0px 1px rgba(0, 0, 0, 0.05)",
-              }}
             >
               <div className="group/input relative flex flex-col gap-2 flex-1">
                 {/* Input Area with Tiptap */}
                 <TiptapInput
                   ref={tiptapRef}
-                  disabled={isStreaming || !model}
+                  disabled={isStreaming || !selectedModel}
                   virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
                   showFileUploader={true}
-                  selectedModel={model}
+                  selectedModel={selectedModel}
                 />
                 {/* Focus hint — hidden when editor is focused */}
                 <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
@@ -613,20 +600,19 @@ export function ChatInput({
                   {!selectedVirtualMcp || isDecopilot(selectedVirtualMcp.id) ? (
                     <DecopilotIconButton
                       onVirtualMcpChange={setVirtualMcpId}
-                      virtualMcps={virtualMcps}
                       disabled={isStreaming}
                     />
                   ) : (
                     <VirtualMCPSelector
                       selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
+                      selectedVirtualMcp={selectedVirtualMcp}
                       onVirtualMcpChange={setVirtualMcpId}
-                      virtualMcps={virtualMcps}
                       placeholder="Agent"
                       disabled={isStreaming}
                     />
                   )}
                   <FileUploadButton
-                    selectedModel={model}
+                    selectedModel={selectedModel}
                     isStreaming={isStreaming}
                   />
                   <PlanModeToggle disabled={isStreaming} />
@@ -651,7 +637,7 @@ export function ChatInput({
                         e.preventDefault();
                         e.stopPropagation();
                         if (isStreaming) stop();
-                        else void cancelRun();
+                        else stop();
                       }
                     }}
                     variant={

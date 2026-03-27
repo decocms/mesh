@@ -211,18 +211,18 @@ export async function validateThreadAccess(
     throw new HTTPException(401, { message: "Unauthorized" });
   }
   const organization = ensureOrganization(c);
-  const threadId = c.req.param("threadId");
-  if (!threadId) {
+  const taskId = c.req.param("threadId");
+  if (!taskId) {
     throw new HTTPException(400, { message: "Missing thread ID" });
   }
-  if (/[.*>\s]/.test(threadId)) {
+  if (/[.*>\s]/.test(taskId)) {
     throw new HTTPException(400, { message: "Invalid thread ID" });
   }
-  const thread = await ctx.storage.threads.get(threadId);
+  const thread = await ctx.storage.threads.get(taskId);
   if (!thread) {
     throw new HTTPException(404, { message: "Thread not found" });
   }
-  return { ctx, organization, thread, threadId, userId };
+  return { ctx, organization, thread, taskId, userId };
 }
 
 /**

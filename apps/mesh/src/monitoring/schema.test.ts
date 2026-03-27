@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test";
 import {
   MONITORING_SPAN_NAME,
-  DATA_DIR,
-  DEFAULT_LOGS_DIR,
-  DEFAULT_TRACES_DIR,
-  DEFAULT_METRICS_DIR,
+  getDataDir,
+  getLogsDir,
+  getTracesDir,
+  getMetricsDir,
   MONITORING_LOG_ATTR,
   MONITORING_LOG_TYPE_VALUE,
   MONITORING_LOG_TYPE_LLM_CALL,
@@ -13,14 +13,26 @@ import {
   hrTimeToISO,
   type LogRecordInput,
 } from "./schema";
+import { setGlobalSettings } from "../settings";
+import type { Settings } from "../settings";
+
+// Initialize settings for tests
+try {
+  setGlobalSettings({
+    dataDir: "/tmp/test-deco",
+    port: 3000,
+  } as Settings);
+} catch {
+  // Already initialized
+}
 
 describe("monitoring schema", () => {
   it("should define shared constants", () => {
     expect(MONITORING_SPAN_NAME).toBe("mcp.proxy.callTool");
-    expect(DATA_DIR).toContain("deco");
-    expect(DEFAULT_LOGS_DIR).toContain("logs");
-    expect(DEFAULT_TRACES_DIR).toContain("traces");
-    expect(DEFAULT_METRICS_DIR).toContain("metrics");
+    expect(getDataDir()).toContain("test-deco");
+    expect(getLogsDir()).toContain("logs");
+    expect(getTracesDir()).toContain("traces");
+    expect(getMetricsDir()).toContain("metrics");
   });
 });
 

@@ -15,10 +15,10 @@ export const KEYS = {
   threads: (locator: string) => ["threads", locator] as const,
   virtualMcpThreads: (locator: string, virtualMcpId: string) =>
     ["threads", locator, "virtual-mcp", virtualMcpId] as const,
-  thread: (locator: string, threadId: string) =>
-    ["thread", locator, threadId] as const,
-  threadMessages: (locator: string, threadId: string) =>
-    ["thread-messages", locator, threadId] as const,
+  thread: (locator: string, taskId: string) =>
+    ["thread", locator, taskId] as const,
+  threadMessages: (locator: string, taskId: string) =>
+    ["thread-messages", locator, taskId] as const,
   messages: (locator: string) => ["messages", locator] as const,
 
   // Organizations list

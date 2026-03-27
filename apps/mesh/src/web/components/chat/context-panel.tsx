@@ -7,9 +7,10 @@ import {
   XCircle,
   XClose,
 } from "@untitledui/icons";
+import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { calculateUsageStats } from "@/web/lib/usage-utils";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { useChat } from "./context";
+import { useChatStream, useChatTask, useChatPrefs } from "./context";
 import type { ChatMessage, SubtaskToolPart } from "./types";
 import { useState } from "react";
 
@@ -137,6 +138,62 @@ function ContextBreakdownBar({
 }
 
 // ============================================================================
+// SubtaskRow — resolves agent via single-item fetch
+// ============================================================================
+
+function SubtaskRow({ part }: { part: SubtaskToolPart }) {
+  const agentId = part.input?.agent_id;
+  const agent = useVirtualMCP(agentId);
+  const agentTitle = agent?.title ?? "Subtask";
+  const agentIcon = agent?.icon ?? null;
+  const isRunning =
+    part.state === "input-streaming" ||
+    part.state === "input-available" ||
+    (part.state === "output-available" &&
+      (part as { preliminary?: boolean }).preliminary === true);
+  const isError = part.state === "output-error";
+  const isApproval = part.state === "approval-requested";
+
+  return (
+    <div className="flex items-center gap-2 text-xs min-w-0">
+      <IntegrationIcon
+        icon={agentIcon}
+        name={agentTitle}
+        size="xs"
+        className="size-6 rounded-md shrink-0"
+      />
+      <span
+        className={cn(
+          "shrink-0 font-medium",
+          isError ? "text-destructive" : "text-foreground",
+        )}
+      >
+        {agentTitle}
+      </span>
+      {part.input?.prompt && (
+        <>
+          <span className="text-muted-foreground/50">·</span>
+          <span className="truncate text-muted-foreground">
+            {part.input.prompt}
+          </span>
+        </>
+      )}
+      <span className="ml-auto shrink-0">
+        {isRunning ? (
+          <Loading01 size={12} className="animate-spin text-muted-foreground" />
+        ) : isError ? (
+          <XCircle size={12} className="text-destructive" />
+        ) : isApproval ? (
+          <AlertCircle size={12} className="text-warning" />
+        ) : (
+          <CheckCircle size={12} className="text-emerald-500" />
+        )}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
 // ChatContextPanel
 // ============================================================================
 
@@ -156,16 +213,11 @@ export function ChatContextPanel({
     null,
   );
 
-  const {
-    messages,
-    tasks,
-    activeTaskId,
-    model,
-    selectedVirtualMcp,
-    virtualMcps,
-  } = useChat();
+  const { messages } = useChatStream();
+  const { tasks, taskId } = useChatTask();
+  const { selectedModel, selectedVirtualMcp } = useChatPrefs();
 
-  const activeTask = tasks.find((t) => t.id === activeTaskId);
+  const activeTask = tasks.find((t) => t.id === taskId);
 
   const stats = calculateUsageStats(
     messages as Array<{
@@ -180,7 +232,7 @@ export function ChatContextPanel({
     }>,
   );
 
-  const contextWindow = model?.limits?.contextWindow ?? null;
+  const contextWindow = selectedModel?.limits?.contextWindow ?? null;
 
   const usagePct =
     contextWindow && contextWindow > 0
@@ -226,41 +278,16 @@ export function ChatContextPanel({
   );
 
   // Subtask parts across all messages
-  interface SubtaskEntry {
-    part: SubtaskToolPart;
-    agentTitle: string;
-    agentIcon?: string | null;
-    isRunning: boolean;
-    isError: boolean;
-    isApproval: boolean;
-  }
-  const subtasks: SubtaskEntry[] = (messages as ChatMessage[]).flatMap((m) =>
-    (m.parts ?? [])
-      .filter((p): p is SubtaskToolPart => p.type === "tool-subtask")
-      .map((part) => {
-        const agentId = part.input?.agent_id;
-        const agent = agentId
-          ? virtualMcps.find((v) => v.id === agentId)
-          : null;
-        const isRunning =
-          part.state === "input-streaming" ||
-          part.state === "input-available" ||
-          (part.state === "output-available" &&
-            (part as { preliminary?: boolean }).preliminary === true);
-        const isError = part.state === "output-error";
-        const isApproval = part.state === "approval-requested";
-        return {
-          part,
-          agentTitle: agent?.title ?? "Subtask",
-          agentIcon: agent?.icon ?? null,
-          isRunning,
-          isError,
-          isApproval,
-        };
-      }),
+  const subtaskParts: SubtaskToolPart[] = (messages as ChatMessage[]).flatMap(
+    (m) =>
+      (m.parts ?? []).filter(
+        (p): p is SubtaskToolPart => p.type === "tool-subtask",
+      ),
   );
 
-  const modelLabel = model?.modelId ? formatModelId(model.modelId) : "—";
+  const modelLabel = selectedModel?.modelId
+    ? formatModelId(selectedModel.modelId)
+    : "—";
 
   const agentTitle = selectedVirtualMcp?.title ?? "Decopilot";
 
@@ -358,52 +385,12 @@ export function ChatContextPanel({
       {/* Body */}
       <div className="flex flex-col gap-8 p-6">
         {/* Subtasks / subagents */}
-        {subtasks.length > 0 && (
+        {subtaskParts.length > 0 && (
           <div className="flex flex-col gap-3">
             <span className="text-xs text-muted-foreground">Subtasks</span>
             <div className="flex flex-col gap-1">
-              {subtasks.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 text-xs min-w-0"
-                >
-                  <IntegrationIcon
-                    icon={s.agentIcon}
-                    name={s.agentTitle}
-                    size="xs"
-                    className="size-6 rounded-md shrink-0"
-                  />
-                  <span
-                    className={cn(
-                      "shrink-0 font-medium",
-                      s.isError ? "text-destructive" : "text-foreground",
-                    )}
-                  >
-                    {s.agentTitle}
-                  </span>
-                  {s.part.input?.prompt && (
-                    <>
-                      <span className="text-muted-foreground/50">·</span>
-                      <span className="truncate text-muted-foreground">
-                        {s.part.input.prompt}
-                      </span>
-                    </>
-                  )}
-                  <span className="ml-auto shrink-0">
-                    {s.isRunning ? (
-                      <Loading01
-                        size={12}
-                        className="animate-spin text-muted-foreground"
-                      />
-                    ) : s.isError ? (
-                      <XCircle size={12} className="text-destructive" />
-                    ) : s.isApproval ? (
-                      <AlertCircle size={12} className="text-warning" />
-                    ) : (
-                      <CheckCircle size={12} className="text-emerald-500" />
-                    )}
-                  </span>
-                </div>
+              {subtaskParts.map((part, i) => (
+                <SubtaskRow key={i} part={part} />
               ))}
             </div>
           </div>

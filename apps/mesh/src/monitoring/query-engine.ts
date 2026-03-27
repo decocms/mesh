@@ -7,7 +7,7 @@
  */
 
 import { resolve } from "node:path";
-import { DEFAULT_LOGS_DIR } from "./schema";
+import { getLogsDir } from "./schema";
 
 export interface QueryEngine {
   query(
@@ -157,7 +157,7 @@ export async function createMonitoringEngine(
     };
   }
 
-  const basePath = config.basePath ?? DEFAULT_LOGS_DIR;
+  const basePath = config.basePath ?? getLogsDir();
   const resolvedPath = resolve(basePath);
   if (/[';]/.test(resolvedPath)) {
     throw new Error(`Invalid monitoring data path: ${resolvedPath}`);

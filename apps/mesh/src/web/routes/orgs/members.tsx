@@ -467,7 +467,7 @@ function OrgMembersContent() {
   if (search) {
     const lowerSearch = search.toLowerCase();
     filteredMembers = filteredMembers.filter(
-      (member) =>
+      (member: (typeof filteredMembers)[number]) =>
         member.user?.name?.toLowerCase().includes(lowerSearch) ||
         member.user?.email?.toLowerCase().includes(lowerSearch) ||
         member.role?.toLowerCase().includes(lowerSearch),
@@ -793,10 +793,12 @@ function OrgMembersContent() {
 
   // Build unified rows for table
   const allRows: MemberRow[] = [
-    ...filteredAndSortedMembers.map((member) => ({
-      type: "member" as const,
-      data: member,
-    })),
+    ...filteredAndSortedMembers.map(
+      (member: (typeof filteredAndSortedMembers)[number]) => ({
+        type: "member" as const,
+        data: member,
+      }),
+    ),
     ...filteredInvitations
       .filter((inv) => inv.status === "pending")
       .map((inv) => ({ type: "invitation" as const, data: inv })),

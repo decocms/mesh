@@ -14,8 +14,6 @@ const child = Bun.spawn(
     "run",
     join(repoRoot, "apps/mesh/src/cli.ts"),
     "dev",
-    "--env-file",
-    join(repoRoot, "apps/mesh/.env"),
     ...process.argv.slice(2),
   ],
   { stdio: ["inherit", "inherit", "inherit"] },

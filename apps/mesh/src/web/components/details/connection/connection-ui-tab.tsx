@@ -9,7 +9,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -47,7 +47,7 @@ export function ConnectionUiTab({
 
   const handleToolClick = (tool: Tool) => {
     navigate({
-      to: "/$org/mcps/$appSlug/$collectionName/$itemId",
+      to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
       params: {
         org,
         appSlug,

@@ -140,7 +140,9 @@ const homeRoute = createRoute({
     // where an invalid slug → shell fails → back to "/" → same redirect → loop.
     const lastOrgSlug = localStorage.getItem(LOCALSTORAGE_KEYS.lastOrgSlug());
     if (lastOrgSlug) {
-      const slugIsValid = orgs.some((o) => o.slug === lastOrgSlug);
+      const slugIsValid = orgs.some(
+        (o: NonNullable<typeof orgs>[number]) => o.slug === lastOrgSlug,
+      );
       if (slugIsValid) {
         throw redirect({
           to: "/$org",
@@ -170,9 +172,6 @@ const orgLayout = createRoute({
   getParentRoute: () => shellLayout,
   path: "/$org",
   component: lazyRouteComponent(() => import("./layouts/org-layout.tsx")),
-  validateSearch: z.object({
-    settings: z.string().optional(),
-  }),
 });
 
 // ============================================
@@ -183,27 +182,46 @@ const orgLayout = createRoute({
 const orgHomeRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/",
+  validateSearch: z.object({
+    taskId: z
+      .string()
+      .optional()
+      .transform((v) => v ?? crypto.randomUUID()),
+    view: z.string().optional(),
+    main: z.string().optional(),
+    id: z.string().optional(),
+    virtualMcpOverride: z.string().optional(),
+  }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
-// Projects list
-const projectsListRoute = createRoute({
+// ============================================
+// SETTINGS LAYOUT (/$org/settings)
+// ============================================
+
+const settingsLayout = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/projects",
-  component: lazyRouteComponent(() => import("./routes/projects-list.tsx")),
+  path: "/settings",
+  component: lazyRouteComponent(() => import("./layouts/settings-layout.tsx")),
 });
 
-// Members
-const membersRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/members",
-  component: lazyRouteComponent(() => import("./routes/orgs/members.tsx")),
+// Settings index → redirect to /general
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/",
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/$org/settings/general",
+      params: { org: params.org },
+    });
+  },
+  component: () => null,
 });
 
-// Connections (mcps)
+// Operations: Connections
 const connectionsRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps",
+  getParentRoute: () => settingsLayout,
+  path: "/connections",
   component: lazyRouteComponent(() => import("./routes/orgs/connections.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -213,10 +231,9 @@ const connectionsRoute = createRoute({
   ),
 });
 
-// Connection detail
 const connectionDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps/$appSlug",
+  getParentRoute: () => settingsLayout,
+  path: "/connections/$appSlug",
   component: lazyRouteComponent(
     () => import("./routes/orgs/connection-detail.tsx"),
   ),
@@ -227,24 +244,36 @@ const connectionDetailRoute = createRoute({
   ),
 });
 
-// Collection detail
 const collectionDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/mcps/$appSlug/$collectionName/$itemId",
+  getParentRoute: () => settingsLayout,
+  path: "/connections/$appSlug/$collectionName/$itemId",
   component: lazyRouteComponent(
     () => import("./routes/orgs/collection-detail.tsx"),
   ),
   validateSearch: z.lazy(() =>
     z.object({
-      replayId: z.string().optional(), // Random ID to lookup input in sessionStorage
+      replayId: z.string().optional(),
     }),
   ),
 });
 
-// Monitoring
+const automationDetailRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/automations/$automationId",
+  component: lazyRouteComponent(
+    () => import("./views/automations/automation-detail.tsx"),
+  ),
+  validateSearch: z.lazy(() =>
+    z.object({
+      tab: z.string().optional(),
+    }),
+  ),
+});
+
+// Operations: Monitor
 const monitoringRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/monitoring",
+  getParentRoute: () => settingsLayout,
+  path: "/monitor",
   component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
   validateSearch: z.lazy(() =>
     z.object({
@@ -264,16 +293,49 @@ const monitoringRoute = createRoute({
   ),
 });
 
-// Store
-const storeRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store",
-  component: lazyRouteComponent(() => import("./routes/orgs/store/page.tsx")),
+// Organization settings pages
+const settingsGeneralRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/general",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/general.tsx"),
+  ),
 });
 
+const settingsFeaturesRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/features",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/features.tsx"),
+  ),
+});
+
+const settingsAiProvidersRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/ai-providers",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/ai-providers.tsx"),
+  ),
+});
+
+const settingsMembersRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/members",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/members.tsx"),
+  ),
+});
+
+const settingsSsoRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/sso",
+  component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
+});
+
+// Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
-  getParentRoute: () => storeRoute,
-  path: "/$appName",
+  getParentRoute: () => orgLayout,
+  path: "/store/$appName",
   component: lazyRouteComponent(
     () => import("./routes/orgs/store/mcp-server-detail.tsx"),
   ),
@@ -286,185 +348,85 @@ const storeDetailRoute = createRoute({
   ),
 });
 
-// Automations
-const automationsRoute = createRoute({
+// Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
+const orgPluginRoute = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/automations",
-  component: lazyRouteComponent(() => import("./routes/orgs/automations.tsx")),
-});
-
-const automationDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/automations/$automationId",
+  path: "/plugins/$pluginId",
   component: lazyRouteComponent(
-    () => import("./routes/orgs/automation-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
+    () => import("./layouts/org-plugin-layout.tsx"),
   ),
 });
 
-// Agents
-const agentsRoute = createRoute({
+// ============================================
+// AGENTS (sidebar agents with chat)
+// ============================================
+
+// Agents list (view all)
+const agentsListRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/agents",
-  component: lazyRouteComponent(() => import("./routes/orgs/agents.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      action: z.enum(["create"]).optional(),
-    }),
-  ),
+  component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
-const agentDetailRoute = createRoute({
+// Agents layout (/$org/$virtualMcpId)
+const agentsLayout = createRoute({
   getParentRoute: () => orgLayout,
-  path: "/agents/$agentId",
-  component: lazyRouteComponent(() => import("./routes/orgs/agent-detail.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      tab: z.string().optional(),
-    }),
-  ),
+  path: "/$virtualMcpId",
+  component: Outlet,
 });
 
-// ============================================
-// VIRTUAL MCP LAYOUT (/$org/projects/$virtualMcpId)
-// ============================================
-
-const virtualMcpLayout = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/projects/$virtualMcpId",
-  component: lazyRouteComponent(
-    () => import("./layouts/virtual-mcp-layout.tsx"),
-  ),
-  validateSearch: z.object({
-    settings: z.string().optional(),
-  }),
-});
-
-// ============================================
-// VIRTUAL MCP ROUTES (children of virtualMcpLayout)
-// ============================================
-
-// Project home - chat view (same as org home)
-const projectHomeRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
+// Agent home - empty center, sidebar chat is the interaction point
+const agentHomeRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/",
-  component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
+  validateSearch: z.object({
+    taskId: z
+      .string()
+      .optional()
+      .transform((v) => v ?? crypto.randomUUID()),
+    main: z.string().optional(),
+    id: z.string().optional(),
+    virtualMcpOverride: z.string().optional(),
+  }),
+  component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });
 
-// Project settings — layout for /$org/projects/$virtualMcpId/settings/*
-const projectSettingsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
-  path: "/settings",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/project-settings/layout.tsx"),
-  ),
-});
-
-// Backward-compat redirects: old sub-routes → /settings
-const projectSettingsGeneralRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/general",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDependenciesRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/dependencies",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsSidebarRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/sidebar",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsPluginsRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/plugins",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-const projectSettingsDangerRedirect = createRoute({
-  getParentRoute: () => projectSettingsRoute,
-  path: "/danger",
-  beforeLoad: ({ params }) => {
-    throw redirect({
-      to: "/$org/projects/$virtualMcpId/settings",
-      params: {
-        org: params.org,
-        virtualMcpId: (params as Record<string, string>).virtualMcpId,
-      },
-    });
-  },
-  component: () => null,
-});
-
-// Pinned App View (virtual MCP scoped)
-const projectAppViewRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
+// Agent app view
+const agentAppViewRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/apps/$connectionId/$toolName",
   component: lazyRouteComponent(() => import("./routes/project-app-view.tsx")),
 });
 
-// Workflows (virtual MCP scoped)
-const workflowsRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
+// Agent workflows
+const agentWorkflowsRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/workflows",
   component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
 });
 
-// ============================================
-// PLUGIN ROUTES
-// ============================================
+// Agent automations
+const agentAutomationsRoute = createRoute({
+  getParentRoute: () => agentsLayout,
+  path: "/automations",
+  validateSearch: z.object({ id: z.string().optional() }),
+  component: lazyRouteComponent(
+    () => import("./views/automations/agent-automations.tsx"),
+  ),
+});
 
-const pluginLayoutRoute = createRoute({
-  getParentRoute: () => virtualMcpLayout,
+// Agent plugin layout
+const agentPluginLayoutRoute = createRoute({
+  getParentRoute: () => agentsLayout,
   path: "/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/dynamic-plugin-layout.tsx"),
   ),
 });
+
+// ============================================
+// PLUGIN ROUTES
+// ============================================
 
 // Plugin setup (same as before)
 export const pluginRootSidebarItems: {
@@ -488,7 +450,7 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   if (!plugin.setup) return;
 
   const context: PluginSetupContext = {
-    parentRoute: pluginLayoutRoute as AnyRoute,
+    parentRoute: agentPluginLayoutRoute as AnyRoute,
     routing: {
       createRoute: createRoute,
       lazyRouteComponent: lazyRouteComponent,
@@ -505,45 +467,43 @@ sourcePlugins.forEach((plugin: AnyClientPlugin) => {
   plugin.setup(context);
 });
 
-// Add all plugin routes as children of the plugin layout
-const pluginLayoutWithChildren = pluginLayoutRoute.addChildren(pluginRoutes);
+// Add all plugin routes as children of the agent plugin layout
+const agentPluginWithChildren =
+  agentPluginLayoutRoute.addChildren(pluginRoutes);
 
 // ============================================
 // ROUTE TREE
 // ============================================
 
-const storeRouteWithChildren = storeRoute.addChildren([storeDetailRoute]);
-
-const projectSettingsWithChildren = projectSettingsRoute.addChildren([
-  projectSettingsGeneralRedirect,
-  projectSettingsDependenciesRedirect,
-  projectSettingsSidebarRedirect,
-  projectSettingsPluginsRedirect,
-  projectSettingsDangerRedirect,
+const settingsWithChildren = settingsLayout.addChildren([
+  settingsIndexRoute,
+  connectionsRoute,
+  connectionDetailRoute,
+  collectionDetailRoute,
+  automationDetailRoute,
+  monitoringRoute,
+  settingsGeneralRoute,
+  settingsFeaturesRoute,
+  settingsAiProvidersRoute,
+  settingsMembersRoute,
+  settingsSsoRoute,
 ]);
 
-const virtualMcpWithChildren = virtualMcpLayout.addChildren([
-  projectHomeRoute,
-  projectSettingsWithChildren,
-  projectAppViewRoute,
-  workflowsRoute,
-  pluginLayoutWithChildren,
+const agentsWithChildren = agentsLayout.addChildren([
+  agentHomeRoute,
+  agentAppViewRoute,
+  agentWorkflowsRoute,
+  agentAutomationsRoute,
+  agentPluginWithChildren,
 ]);
 
 const orgRoutes = [
   orgHomeRoute,
-  projectsListRoute,
-  membersRoute,
-  connectionsRoute,
-  connectionDetailRoute,
-  collectionDetailRoute,
-  monitoringRoute,
-  storeRouteWithChildren,
-  automationsRoute,
-  automationDetailRoute,
-  agentsRoute,
-  agentDetailRoute,
-  virtualMcpWithChildren,
+  agentsListRoute,
+  agentsWithChildren,
+  settingsWithChildren,
+  storeDetailRoute,
+  orgPluginRoute,
 ];
 
 const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);
@@ -565,6 +525,23 @@ const routeTree = rootRoute.addChildren([
 
 const router = createRouter({
   routeTree,
+  defaultNotFoundComponent: () => (
+    <div className="flex h-full items-center justify-center">
+      <div className="flex flex-col items-center gap-4 p-8">
+        <h3 className="text-lg font-medium text-foreground">Page not found</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-[300px]">
+          The page you are looking for does not exist or has been moved.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="text-sm text-primary hover:underline"
+        >
+          Go back
+        </button>
+      </div>
+    </div>
+  ),
 });
 
 declare module "@tanstack/react-router" {

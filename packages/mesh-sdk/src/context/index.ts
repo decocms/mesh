@@ -3,7 +3,6 @@ export {
   useProjectContext,
   useOrg,
   useCurrentProject,
-  useIsOrgAdmin,
   Locator,
   type ProjectContextProviderProps,
   type ProjectLocator,

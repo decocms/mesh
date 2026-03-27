@@ -62,6 +62,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
   aiProviders: null as never,
   createMCPProxy: async () => ({}) as never,
   getOrCreateClient: async () => ({}) as never,
+  pendingRevalidations: [],
   ...overrides,
 });
 

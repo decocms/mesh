@@ -10,7 +10,7 @@ import type { ValidatedCollection } from "@/web/hooks/use-binding";
 import { useListState } from "@/web/hooks/use-list-state";
 import { authClient } from "@/web/lib/auth-client";
 import { BaseCollectionJsonSchema } from "@/web/utils/constants";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,7 +104,7 @@ export function CollectionTab({
   // Create action handlers
   const handleEdit = (item: BaseCollectionEntity) => {
     navigate({
-      to: "/$org/mcps/$appSlug/$collectionName/$itemId",
+      to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
       params: {
         org,
         appSlug,
@@ -171,7 +171,7 @@ export function CollectionTab({
 
       // Navigate to the new item's detail page
       navigate({
-        to: "/$org/mcps/$appSlug/$collectionName/$itemId",
+        to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
         params: {
           org,
           appSlug,

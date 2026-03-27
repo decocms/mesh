@@ -6,7 +6,7 @@ import {
   getUserId,
 } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
-import { PROVIDERS } from "../../ai-providers/registry";
+import { getProviders } from "../../ai-providers/registry";
 import { mintGatewayJwt } from "../../auth/jwt";
 
 export const AI_PROVIDER_CREDITS = defineTool({
@@ -29,7 +29,7 @@ export const AI_PROVIDER_CREDITS = defineTool({
     const userId = getUserId(ctx);
     if (!userId) throw new Error("Unable to determine user ID");
 
-    const adapter = PROVIDERS[input.providerId];
+    const adapter = getProviders()[input.providerId];
     if (!adapter) {
       throw new Error(`Unknown provider: ${input.providerId}`);
     }
