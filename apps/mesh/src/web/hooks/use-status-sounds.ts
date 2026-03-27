@@ -3,7 +3,6 @@ import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { error005Sound } from "@deco/ui/lib/error-005.ts";
 import { successChimeSound } from "@deco/ui/lib/success-chime.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
-import { notificationPopSound } from "@deco/ui/lib/notification-pop.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
 import { usePreferences } from "./use-preferences";
 
@@ -11,7 +10,6 @@ const SOUND_MAP: Record<string, { dataUri: string }> = {
   completed: successChimeSound,
   failed: error005Sound,
   requires_action: question004Sound,
-  in_progress: notificationPopSound,
 };
 
 function playSoundForStatus(status: string) {
