@@ -17,9 +17,9 @@ import {
   Settings01,
 } from "@untitledui/icons";
 import { useMatch } from "@tanstack/react-router";
-import { useVirtualMCPActions, useVirtualMCPs } from "@decocms/mesh-sdk";
+import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { Suspense, useTransition } from "react";
+import { Suspense, useRef, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
 import { useChatTask } from "./context";
@@ -126,21 +126,28 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
 
 function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   const actions = useVirtualMCPActions();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleTitleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+  const debouncedUpdate = (
+    data: Parameters<typeof actions.update.mutate>[0]["data"],
+  ) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      actions.update.mutate({ id: project.id, data });
+    }, 1000);
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.trim();
     if (value && value !== project.title) {
-      actions.update.mutate({ id: project.id, data: { title: value } });
+      debouncedUpdate({ title: value });
     }
   };
 
-  const handleDescriptionBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value !== (project.description ?? "")) {
-      actions.update.mutate({
-        id: project.id,
-        data: { description: value },
-      });
+      debouncedUpdate({ description: value });
     }
   };
 
@@ -164,10 +171,7 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
   };
 
   return (
-    <div
-      key={`${project.id}-${project.updated_at}`}
-      className="flex items-center gap-3 px-4 pt-4 pb-2"
-    >
+    <div className="flex items-center gap-3 px-4 pt-4 pb-2">
       <IconPicker
         value={project.icon}
         onChange={handleIconChange}
@@ -180,14 +184,14 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
         <input
           type="text"
           defaultValue={project.title}
-          onBlur={handleTitleBlur}
+          onChange={handleTitleChange}
           placeholder="Space Name"
           className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
         />
         <input
           type="text"
           defaultValue={project.description ?? ""}
-          onBlur={handleDescriptionBlur}
+          onChange={handleDescriptionChange}
           placeholder="Add a description..."
           className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
         />
@@ -217,10 +221,7 @@ function TasksPanelContent({
   const virtualMcpId =
     virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
 
-  const virtualMcps = useVirtualMCPs();
-  const virtualMcp = virtualMcpId
-    ? (virtualMcps.find((s) => s.id === virtualMcpId) ?? null)
-    : null;
+  const virtualMcp = useVirtualMCP(virtualMcpId);
 
   const handleNewTask = () => {
     startTransition(() => {

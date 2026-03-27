@@ -31,7 +31,7 @@ import {
 import {
   selectDefaultModel,
   useProjectContext,
-  useVirtualMCPs,
+  useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { toast } from "sonner";
 
@@ -104,9 +104,6 @@ export interface ChatTaskContextValue {
   hideTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, title: string) => Promise<void>;
   setTaskStatus: (taskId: string, status: string) => Promise<void>;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  fetchNextPage: () => void;
   ownerFilter: TaskOwnerFilter;
   setOwnerFilter: (filter: TaskOwnerFilter) => void;
   isFilterChangePending: boolean;
@@ -125,7 +122,6 @@ export interface ChatPrefsContextValue {
   setCredentialId: (id: string | null) => void;
   allModelsConnections: ReturnType<typeof useAiProviderKeys>;
   isModelsLoading: boolean;
-  virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcp: VirtualMCPInfo | null;
   appContexts: Record<string, string>;
   setAppContext: (sourceId: string, params: SetAppContextParams) => void;
@@ -248,9 +244,6 @@ export function ChatContextProvider({
   const selectedModel = storedModel ?? defaultModel;
   const isModelsLoading = needsDefault && isModelsQueryLoading;
 
-  // Virtual MCPs
-  const virtualMcps = useVirtualMCPs();
-
   // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
   const taskManager = useTaskManager(virtualMcpId);
   const { tasks } = taskManager;
@@ -261,9 +254,9 @@ export function ChatContextProvider({
   // Effective agent: URL override (ephemeral per-task) ?? path param (thread owner)
   const effectiveVirtualMcpId = virtualMcpOverride ?? virtualMcpId;
 
-  const selectedVirtualMcp = virtualMcps.find(
-    (v) => v.id === effectiveVirtualMcpId,
-  ) ?? {
+  // Single-item fetch for the selected virtual MCP (no full list needed)
+  const selectedVirtualMcpData = useVirtualMCP(effectiveVirtualMcpId);
+  const selectedVirtualMcp: VirtualMCPInfo = selectedVirtualMcpData ?? {
     id: effectiveVirtualMcpId,
     title: "",
     description: null,
@@ -438,9 +431,6 @@ export function ChatContextProvider({
     hideTask,
     renameTask: taskManager.renameTask,
     setTaskStatus: taskManager.setTaskStatus,
-    hasNextPage: taskManager.hasNextPage ?? false,
-    isFetchingNextPage: taskManager.isFetchingNextPage ?? false,
-    fetchNextPage: taskManager.fetchNextPage ?? (() => {}),
     ownerFilter: taskManager.ownerFilter,
     setOwnerFilter: taskManager.setOwnerFilter,
     isFilterChangePending: taskManager.isFilterChangePending ?? false,
@@ -455,7 +445,6 @@ export function ChatContextProvider({
     setCredentialId: setStoredCredentialId,
     allModelsConnections: keys,
     isModelsLoading,
-    virtualMcps,
     selectedVirtualMcp,
     appContexts,
     setAppContext,

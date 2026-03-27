@@ -4,7 +4,7 @@ import { buildCollectionQueryKey } from "@decocms/mesh-sdk";
 import type { QueryClient } from "@tanstack/react-query";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { KEYS } from "../../../lib/query-keys";
-import type { ChatMessage, Task, TasksInfiniteQueryData } from "./types.ts";
+import type { ChatMessage, Task, TasksQueryData } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
 
 /**
@@ -21,59 +21,37 @@ export function updateTaskInCache(
 ): void {
   const queryKey = KEYS.tasks(locator, ownerFilter, userId, virtualMcpId);
 
-  const currentData =
-    queryClient.getQueryData<TasksInfiniteQueryData>(queryKey);
+  const currentData = queryClient.getQueryData<TasksQueryData>(queryKey);
 
   if (!currentData) {
     return;
   }
 
-  const updatedPages = currentData.pages.map((page) => {
-    const taskIndex = page.items.findIndex((task) => task.id === taskId);
-
-    if (taskIndex === -1) {
-      return page;
-    }
-
-    const updatedItems = [...page.items];
-    const currentTask = updatedItems[taskIndex];
-
-    if (!currentTask) {
-      return page;
-    }
-
-    const updatedTask: Task = {
-      ...currentTask,
-      title: updates.title ?? currentTask.title,
-      updated_at: updates.updated_at ?? currentTask.updated_at,
-      hidden: updates.hidden ?? currentTask.hidden,
-      status: updates.status ?? currentTask.status,
-    };
-    updatedItems[taskIndex] = updatedTask;
-
-    return {
-      ...page,
-      items: updatedItems,
-    };
-  });
-
-  const wasUpdated = updatedPages.some((page, pageIndex) => {
-    return (
-      page.items.length !== currentData.pages[pageIndex]?.items.length ||
-      page.items.some(
-        (task, index) =>
-          task.id === taskId &&
-          task !== currentData.pages[pageIndex]?.items[index],
-      )
-    );
-  });
-
-  if (wasUpdated) {
-    queryClient.setQueryData(queryKey, {
-      ...currentData,
-      pages: updatedPages,
-    });
+  const taskIndex = currentData.items.findIndex((task) => task.id === taskId);
+  if (taskIndex === -1) {
+    return;
   }
+
+  const currentTask = currentData.items[taskIndex];
+  if (!currentTask) {
+    return;
+  }
+
+  const updatedTask: Task = {
+    ...currentTask,
+    title: updates.title ?? currentTask.title,
+    updated_at: updates.updated_at ?? currentTask.updated_at,
+    hidden: updates.hidden ?? currentTask.hidden,
+    status: updates.status ?? currentTask.status,
+  };
+
+  const updatedItems = [...currentData.items];
+  updatedItems[taskIndex] = updatedTask;
+
+  queryClient.setQueryData(queryKey, {
+    ...currentData,
+    items: updatedItems,
+  });
 }
 
 /**
@@ -89,58 +67,28 @@ export function addTaskToCache(
 ): void {
   const queryKey = KEYS.tasks(locator, ownerFilter, userId, virtualMcpId);
 
-  const currentData =
-    queryClient.getQueryData<TasksInfiniteQueryData>(queryKey);
+  const currentData = queryClient.getQueryData<TasksQueryData>(queryKey);
 
   if (!currentData) {
-    // No cache exists yet, create initial structure
     queryClient.setQueryData(queryKey, {
-      pages: [
-        {
-          items: [task],
-          hasMore: false,
-          totalCount: 1,
-        },
-      ],
-      pageParams: [0],
+      items: [task],
+      hasMore: false,
+      totalCount: 1,
     });
     return;
   }
 
   // Check if task already exists in cache
-  const taskExists = currentData.pages.some((page) =>
-    page.items.some((t) => t.id === task.id),
-  );
+  const taskExists = currentData.items.some((t) => t.id === task.id);
   if (taskExists) {
     return;
   }
 
-  // Add task to the first page (most recent tasks)
-  const firstPage = currentData.pages[0];
-  if (firstPage) {
-    const updatedFirstPage = {
-      ...firstPage,
-      items: [task, ...firstPage.items],
-      totalCount: (firstPage.totalCount ?? firstPage.items.length) + 1,
-    };
-
-    queryClient.setQueryData(queryKey, {
-      ...currentData,
-      pages: [updatedFirstPage, ...currentData.pages.slice(1)],
-    });
-  } else {
-    // No pages exist, create first page
-    queryClient.setQueryData(queryKey, {
-      ...currentData,
-      pages: [
-        {
-          items: [task],
-          hasMore: false,
-          totalCount: 1,
-        },
-      ],
-    });
-  }
+  queryClient.setQueryData(queryKey, {
+    ...currentData,
+    items: [task, ...currentData.items],
+    totalCount: (currentData.totalCount ?? currentData.items.length) + 1,
+  });
 }
 
 /**

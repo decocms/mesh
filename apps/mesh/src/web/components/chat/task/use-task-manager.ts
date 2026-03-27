@@ -15,10 +15,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import {
-  useQueryClient,
-  useSuspenseInfiniteQuery,
-} from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { authClient } from "../../../lib/auth-client";
 import { useCollectionCachePrefill } from "../../../hooks/use-collection-cache-prefill";
@@ -32,7 +29,7 @@ import {
 } from "./cache-operations.ts";
 import { buildOptimisticTask, callUpdateTaskTool } from "./helpers.ts";
 import { useState, useTransition } from "react";
-import type { ChatMessage, Task, TasksInfiniteQueryData } from "./types.ts";
+import type { ChatMessage, Task, TasksQueryData } from "./types.ts";
 import { TASK_CONSTANTS } from "./types.ts";
 
 export type TaskOwnerFilter = "me" | "everyone";
@@ -52,50 +49,44 @@ export function useTasks(
     orgId: org.id,
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
-    useSuspenseInfiniteQuery({
-      queryKey: KEYS.tasks(
-        locator,
-        ownerFilter,
-        ownerFilter === "me" ? userId : undefined,
-        virtualMcpId,
-      ),
-      queryFn: async ({ pageParam = 0 }) => {
-        if (!client) {
-          throw new Error("MCP client is not available");
-        }
-        const input = {
-          limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
-          offset: pageParam,
-          where: {
-            ...(ownerFilter === "me" && { created_by: "me" }),
-            virtual_mcp_id: virtualMcpId,
-          },
-        };
+  const { data, refetch } = useSuspenseQuery({
+    queryKey: KEYS.tasks(
+      locator,
+      ownerFilter,
+      ownerFilter === "me" ? userId : undefined,
+      virtualMcpId,
+    ),
+    queryFn: async () => {
+      if (!client) {
+        throw new Error("MCP client is not available");
+      }
+      const input = {
+        limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
+        offset: 0,
+        where: {
+          ...(ownerFilter === "me" && { created_by: "me" }),
+          virtual_mcp_id: virtualMcpId,
+        },
+      };
 
-        const result = (await client.callTool({
-          name: "COLLECTION_THREADS_LIST",
-          arguments: input,
-        })) as { structuredContent?: unknown };
-        const payload = (result.structuredContent ??
-          result) as CollectionListOutput<Task>;
+      const result = (await client.callTool({
+        name: "COLLECTION_THREADS_LIST",
+        arguments: input,
+      })) as { structuredContent?: unknown };
+      const payload = (result.structuredContent ??
+        result) as CollectionListOutput<Task>;
 
-        return {
-          items: payload.items ?? [],
-          hasMore: payload.hasMore ?? false,
-          totalCount: payload.totalCount,
-        };
-      },
-      getNextPageParam: (lastPage, allPages) => {
-        if (!lastPage.hasMore) return undefined;
-        return allPages.length * TASK_CONSTANTS.TASKS_PAGE_SIZE;
-      },
-      initialPageParam: 0,
-      staleTime: TASK_CONSTANTS.QUERY_STALE_TIME,
-    });
+      return {
+        items: payload.items ?? [],
+        hasMore: payload.hasMore ?? false,
+        totalCount: payload.totalCount,
+      };
+    },
+    staleTime: TASK_CONSTANTS.QUERY_STALE_TIME,
+  });
 
-  const tasks = data?.pages.flatMap((page) => page.items) ?? [];
-  return { tasks, refetch, hasNextPage, isFetchingNextPage, fetchNextPage };
+  const tasks = data?.items ?? [];
+  return { tasks, refetch };
 }
 
 // ============================================================================
@@ -172,11 +163,7 @@ export function useTaskManager(virtualMcpId: string) {
   };
 
   // Fetch tasks (scoped by virtualMcpId)
-  const { tasks, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasks(
-    ownerFilter,
-    userId,
-    virtualMcpId,
-  );
+  const { tasks } = useTasks(ownerFilter, userId, virtualMcpId);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -316,12 +303,10 @@ export function useTaskManager(virtualMcpId: string) {
       let foundInCache = false;
       for (const filter of ["me", "everyone"] as const) {
         const filterUserId = filter === "me" ? userId : undefined;
-        const cached = queryClient.getQueryData<TasksInfiniteQueryData>(
+        const cached = queryClient.getQueryData<TasksQueryData>(
           KEYS.tasks(locator, filter, filterUserId, virtualMcpId),
         );
-        const inCache =
-          cached?.pages.some((p) => p.items.some((t) => t.id === threadId)) ??
-          false;
+        const inCache = cached?.items.some((t) => t.id === threadId) ?? false;
 
         if (inCache) {
           foundInCache = true;
@@ -346,9 +331,6 @@ export function useTaskManager(virtualMcpId: string) {
 
   return {
     tasks,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
     ownerFilter,
     setOwnerFilter,
     isFilterChangePending,

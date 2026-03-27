@@ -134,7 +134,7 @@ export class ChunkErrorBoundary extends Component<
   override render() {
     if (this.state.hasError && isChunkLoadError(this.state.error)) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+        <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
           <div className="bg-primary/10 p-3 rounded-full">
             <RefreshCw01 className="h-6 w-6 text-primary" />
           </div>
@@ -151,7 +151,7 @@ export class ChunkErrorBoundary extends Component<
 
     if (this.state.hasError) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+        <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center space-y-4">
           <div className="bg-destructive/10 p-3 rounded-full">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>

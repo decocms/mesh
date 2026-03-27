@@ -26,11 +26,8 @@ export interface Task {
 
 export type { ChatMessage } from "../types.ts";
 
-export type TasksInfiniteQueryData = {
-  pages: Array<{
-    items: Task[];
-    hasMore: boolean;
-    totalCount?: number;
-  }>;
-  pageParams: number[];
+export type TasksQueryData = {
+  items: Task[];
+  hasMore: boolean;
+  totalCount?: number;
 };

@@ -408,8 +408,9 @@ function PinAgentPopover() {
 }
 
 function AgentsSectionContent() {
-  const allAgents = useVirtualMCPs();
-  const agents = allAgents.filter((s) => s.pinned);
+  const agents = useVirtualMCPs({
+    filters: [{ column: "pinned", value: true }],
+  });
   const { org } = useProjectContext();
   const { badges, markSeen } = useAgentBadges(agents.map((s) => s.id));
 

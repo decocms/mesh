@@ -9,7 +9,6 @@ import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessagePair, useMessagePairs } from "./message/pair.tsx";
 import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
-import { TaskHistoryPopover } from "./popover-tasks";
 import { DecoChatSkeleton } from "./skeleton";
 export { useChatTask } from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
@@ -129,5 +128,4 @@ export const Chat = Object.assign(ChatRoot, {
   Skeleton: DecoChatSkeleton,
   IceBreakers: IceBreakers,
   NoAiProviderEmptyState: NoAiProviderEmptyState,
-  TaskHistoryPopover: TaskHistoryPopover,
 });

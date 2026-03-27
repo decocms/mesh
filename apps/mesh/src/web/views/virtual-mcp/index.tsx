@@ -53,7 +53,7 @@ import {
   XClose,
   ZapCircle,
 } from "@untitledui/icons";
-import { Suspense, useReducer, useState } from "react";
+import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Header, ViewLayout } from "@/web/components/details/layout";
@@ -155,6 +155,43 @@ function ConnectionItem({
   );
 }
 
+function SiblingInstanceSelector({
+  appName,
+  connectionId,
+  onSwitchInstance,
+}: {
+  appName: string;
+  connectionId: string;
+  onSwitchInstance: (oldId: string, newId: string) => void;
+}) {
+  const siblings = useConnections({
+    filters: [{ column: "app_name", value: appName }],
+  });
+
+  if (siblings.length <= 1) return null;
+
+  return (
+    <Select
+      value={connectionId}
+      onValueChange={(newId) => onSwitchInstance(connectionId, newId)}
+    >
+      <SelectTrigger
+        size="sm"
+        className="w-auto text-xs gap-1 px-2 border border-border bg-background rounded"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {siblings.map((s) => (
+          <SelectItem key={s.id} value={s.id} className="text-xs">
+            {s.title}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function ConnectionItemWithAuth({
   connection_id,
   connectionTitle,
@@ -188,12 +225,6 @@ function ConnectionItemWithAuth({
   onAuthenticate: (connectionId: string) => void;
   onSwitchInstance: (oldId: string, newId: string) => void;
 }) {
-  // Find sibling instances (same app_name) — always filter to avoid unfiltered fetch
-  const siblingsFromQuery = useConnections({
-    filters: [{ column: "app_name", value: appName ?? "" }],
-  });
-  const siblings =
-    appName && siblingsFromQuery.length > 1 ? siblingsFromQuery : [];
   const authStatus = useMCPAuthStatus({ connectionId: connection_id });
   const isVirtual = connectionType === "VIRTUAL";
   const needsAuth =
@@ -256,25 +287,12 @@ function ConnectionItemWithAuth({
       {/* Footer — instance selector + resources summary + edit + remove */}
       <div className="flex items-center gap-3 px-4 py-2 border-t border-border bg-muted/25">
         {/* Instance selector */}
-        {siblings.length > 0 && (
-          <Select
-            value={connection_id}
-            onValueChange={(newId) => onSwitchInstance(connection_id, newId)}
-          >
-            <SelectTrigger
-              size="sm"
-              className="w-auto text-xs gap-1 px-2 border border-border bg-background rounded"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {siblings.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">
-                  {s.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {appName && (
+          <SiblingInstanceSelector
+            appName={appName}
+            connectionId={connection_id}
+            onSwitchInstance={onSwitchInstance}
+          />
         )}
 
         {/* Resources summary */}
@@ -787,23 +805,36 @@ function VirtualMcpDetailViewWithData({
     createTask();
   };
 
-  const saveForm = async () => {
-    if (!form.formState.isDirty) return;
-    const formData = form.getValues();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const saveForm = async () => {
+    const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
+    if (!hasDirtyFields) return;
+
+    const formData = form.getValues();
     const data = await actions.update.mutateAsync({
       id: virtualMcp.id,
       data: formData,
     });
-
     form.reset(data);
   };
+
+  const debouncedSave = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveForm();
+    }, 1000);
+  };
+
+  form.watch(() => {
+    debouncedSave();
+  });
 
   const handleOpenAddDialog = () => {
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });
   };
 
-  const handleAddConnection = async (connectionId: string) => {
+  const handleAddConnection = (connectionId: string) => {
     const current = form.getValues("connections");
     // Don't add duplicates
     if (current.some((c) => c.connection_id === connectionId)) return;
@@ -821,20 +852,15 @@ function VirtualMcpDetailViewWithData({
       ],
       { shouldDirty: true },
     );
-    await saveForm();
   };
 
-  const handleRemoveConnection = async (connectionId: string) => {
+  const handleRemoveConnection = (connectionId: string) => {
     const current = form.getValues("connections");
-    form.setValue(
-      "connections",
-      current.filter((c) => c.connection_id !== connectionId),
-      { shouldDirty: true },
-    );
-    await saveForm();
+    const filtered = current.filter((c) => c.connection_id !== connectionId);
+    form.setValue("connections", filtered, { shouldDirty: true });
   };
 
-  const handleSwitchInstance = async (oldId: string, newId: string) => {
+  const handleSwitchInstance = (oldId: string, newId: string) => {
     const current = form.getValues("connections");
     form.setValue(
       "connections",
@@ -843,7 +869,6 @@ function VirtualMcpDetailViewWithData({
       ),
       { shouldDirty: true },
     );
-    await saveForm();
   };
 
   const handleOpenSettings = (connectionId: string) => {
@@ -1112,10 +1137,7 @@ Define step-by-step how the agent should handle requests.
                     <Textarea
                       {...field}
                       value={field.value ?? ""}
-                      onBlur={() => {
-                        field.onBlur();
-                        saveForm();
-                      }}
+                      onBlur={field.onBlur}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
                       className="min-h-[200px] resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
                     />
@@ -1148,7 +1170,6 @@ Define step-by-step how the agent should handle requests.
         form={form}
         connections={connections}
         onAuthenticate={handleAuthenticate}
-        onSave={saveForm}
       />
 
       <VirtualMCPShareModal

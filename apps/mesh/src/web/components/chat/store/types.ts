@@ -22,11 +22,6 @@ export interface ChatStoreState {
   threads: Task[];
   threadMessages: Record<string, ChatMessage[]>;
 
-  // Pagination (set by ThreadListSync)
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  fetchNextPage: (() => void) | undefined;
-
   // Owner filter
   ownerFilter: TaskOwnerFilter;
   isFilterChangePending: boolean;
@@ -37,8 +32,7 @@ export interface ChatStoreState {
   selectedVirtualMcp: VirtualMCPInfo | null;
   credentialId: string | null;
 
-  // All available agents and model connections
-  virtualMcps: VirtualMCPInfo[];
+  // All available model connections
   allModelsConnections: ReturnType<
     typeof import("../../../hooks/collections/use-ai-providers").useAiProviderKeys
   >;
