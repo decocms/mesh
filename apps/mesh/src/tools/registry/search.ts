@@ -46,7 +46,7 @@ export const REGISTRY_SEARCH = defineTool({
       limit: input.limit,
     });
 
-    // Fan out to non-community first, then community
+    // Fan out to non-community first
     const ncResults = await fanOutToRegistries(
       ctx,
       nonCommunity,
@@ -54,6 +54,13 @@ export const REGISTRY_SEARCH = defineTool({
       buildArgs,
       toolListCache,
     );
+    const ncItems = ncResults.flatMap(normalizeItems);
+
+    // Only query community registries if non-community didn't fill the limit
+    if (ncItems.length >= input.limit) {
+      return { items: ncItems.slice(0, input.limit) };
+    }
+
     const cResults = await fanOutToRegistries(
       ctx,
       community,
@@ -62,10 +69,10 @@ export const REGISTRY_SEARCH = defineTool({
       toolListCache,
     );
 
-    const items = [
-      ...ncResults.flatMap(normalizeItems),
-      ...cResults.flatMap(normalizeItems),
-    ].slice(0, input.limit);
+    const items = [...ncItems, ...cResults.flatMap(normalizeItems)].slice(
+      0,
+      input.limit,
+    );
 
     return { items };
   },

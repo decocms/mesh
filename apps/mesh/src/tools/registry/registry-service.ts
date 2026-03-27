@@ -374,14 +374,15 @@ export async function fanOutToRegistries(
 /**
  * Extract items array from various response formats.
  */
+/** Known payload keys that contain item arrays in registry responses. */
+const KNOWN_ITEM_KEYS = ["items", "data", "results", "entries"];
+
 function extractItems(response: unknown): unknown[] {
   if (!response) return [];
   if (Array.isArray(response)) return response;
   if (typeof response === "object" && response !== null) {
     const obj = response as Record<string, unknown>;
-    if (Array.isArray(obj.items)) return obj.items;
-    if (Array.isArray(obj.data)) return obj.data;
-    for (const key of Object.keys(obj)) {
+    for (const key of KNOWN_ITEM_KEYS) {
       if (Array.isArray(obj[key])) return obj[key] as unknown[];
     }
   }

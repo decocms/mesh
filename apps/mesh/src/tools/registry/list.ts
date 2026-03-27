@@ -57,14 +57,18 @@ export const REGISTRY_LIST = defineTool({
     const phase = cursor?.phase ?? "non-community";
     const registryCursors = cursor?.registryCursors ?? {};
 
-    const allItems: RegistryItem[] = [];
-    let nextRegistryCursors: Record<string, string> = {
-      ...registryCursors,
-    };
+    // Track items per registry so we only advance cursors for registries
+    // whose items actually made it into the output (avoids skipping items).
+    interface TaggedItems {
+      registryId: string;
+      items: RegistryItem[];
+      nextCursor: string | null;
+    }
+
+    const taggedResults: TaggedItems[] = [];
     let nextPhase = phase;
 
     if (phase === "non-community") {
-      // Filter out exhausted registries
       const activeNonCommunity = nonCommunity.filter(
         (r) => registryCursors[r.id] !== "EXHAUSTED",
       );
@@ -79,25 +83,32 @@ export const REGISTRY_LIST = defineTool({
         );
 
         for (const result of results) {
-          const items = normalizeItems(result);
-          allItems.push(...items);
-          const nc = extractNextCursorFromResult(result);
-          nextRegistryCursors[result.registryId] = nc ?? "EXHAUSTED";
+          taggedResults.push({
+            registryId: result.registryId,
+            items: normalizeItems(result),
+            nextCursor: extractNextCursorFromResult(result),
+          });
         }
       }
 
       // Check if all non-community registries are exhausted
-      const allExhausted = nonCommunity.every(
-        (r) => nextRegistryCursors[r.id] === "EXHAUSTED",
-      );
+      const allExhausted = nonCommunity.every((r) => {
+        const tagged = taggedResults.find((t) => t.registryId === r.id);
+        return (
+          registryCursors[r.id] === "EXHAUSTED" ||
+          (tagged && !tagged.nextCursor)
+        );
+      });
       if (allExhausted && community.length > 0) {
         nextPhase = "community";
       }
     }
 
+    const allItemsSoFar = taggedResults.flatMap((t) => t.items);
+
     if (
       (phase === "community" || nextPhase === "community") &&
-      allItems.length < input.limit
+      allItemsSoFar.length < input.limit
     ) {
       const activeCommunity = community.filter(
         (r) => registryCursors[r.id] !== "EXHAUSTED",
@@ -111,20 +122,49 @@ export const REGISTRY_LIST = defineTool({
           toolListCache,
         );
         for (const result of results) {
-          const items = normalizeItems(result);
-          allItems.push(...items);
-          const nc = extractNextCursorFromResult(result);
-          nextRegistryCursors[result.registryId] = nc ?? "EXHAUSTED";
+          taggedResults.push({
+            registryId: result.registryId,
+            items: normalizeItems(result),
+            nextCursor: extractNextCursorFromResult(result),
+          });
         }
       }
       nextPhase = "community";
     }
 
+    // Flatten all items and determine which registries had items included
+    const allItems = taggedResults.flatMap((t) => t.items);
     const limitedItems = allItems.slice(0, input.limit);
+    const includedCount = limitedItems.length;
+
+    // Build next cursors: only advance cursors for registries whose items
+    // were fully included in the output. If a registry's items were
+    // partially or fully truncated, keep the old cursor so those items
+    // are re-fetched on the next page.
+    const nextRegistryCursors: Record<string, string> = {
+      ...registryCursors,
+    };
+    let consumed = 0;
+    for (const tagged of taggedResults) {
+      const prevConsumed = consumed;
+      consumed += tagged.items.length;
+      if (consumed <= includedCount) {
+        // All items from this registry were included — advance cursor
+        nextRegistryCursors[tagged.registryId] =
+          tagged.nextCursor ?? "EXHAUSTED";
+      } else if (prevConsumed >= includedCount) {
+        // No items from this registry were included — keep old cursor
+        // (don't set anything, preserving the existing cursor from input)
+      } else {
+        // Partially included — don't advance cursor (re-fetch next time)
+        // Keep the existing cursor from input
+      }
+    }
+
     const allRegistriesExhausted = [...nonCommunity, ...community].every(
       (r) => nextRegistryCursors[r.id] === "EXHAUSTED",
     );
-    const hasMore = !allRegistriesExhausted || allItems.length > input.limit;
+    const hasMore = !allRegistriesExhausted || allItems.length > includedCount;
 
     const nextCursor = hasMore
       ? encodeCursor({

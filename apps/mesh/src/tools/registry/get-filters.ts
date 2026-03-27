@@ -55,19 +55,22 @@ export const REGISTRY_GET_FILTERS = defineTool({
       const tags = Array.isArray(data.tags) ? data.tags : [];
       for (const tag of tags) {
         if (tag && typeof tag === "object" && "value" in tag) {
-          const t = tag as { value: string; count: number };
-          tagsMap.set(t.value, (tagsMap.get(t.value) ?? 0) + (t.count ?? 0));
+          const raw = tag as Record<string, unknown>;
+          const value =
+            typeof raw.value === "string" ? raw.value : String(raw.value);
+          const count = typeof raw.count === "number" ? raw.count : 0;
+          tagsMap.set(value, (tagsMap.get(value) ?? 0) + count);
         }
       }
 
       const categories = Array.isArray(data.categories) ? data.categories : [];
       for (const cat of categories) {
         if (cat && typeof cat === "object" && "value" in cat) {
-          const c = cat as { value: string; count: number };
-          categoriesMap.set(
-            c.value,
-            (categoriesMap.get(c.value) ?? 0) + (c.count ?? 0),
-          );
+          const raw = cat as Record<string, unknown>;
+          const value =
+            typeof raw.value === "string" ? raw.value : String(raw.value);
+          const count = typeof raw.count === "number" ? raw.count : 0;
+          categoriesMap.set(value, (categoriesMap.get(value) ?? 0) + count);
         }
       }
     }
