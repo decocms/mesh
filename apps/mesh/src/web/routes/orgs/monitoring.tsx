@@ -37,6 +37,8 @@ import { KEYS } from "@/web/lib/query-keys";
 import {
   SELF_MCP_ALIAS_ID,
   WellKnownOrgMCPId,
+  getWellKnownDecopilotVirtualMCP,
+  isDecopilot,
   useConnections,
   useMCPClient,
   useProjectContext,
@@ -1579,6 +1581,22 @@ function getThreadAgentId(thread: ThreadEntity): string | null {
   return runConfig.agent?.id ?? (thread.virtual_mcp_id || null);
 }
 
+function resolveAgentName(
+  agentId: string | null,
+  virtualMcps: ReturnType<typeof useVirtualMCPs>,
+  connections: ReturnType<typeof useConnections>,
+  fallback: string,
+): string {
+  if (!agentId) return fallback;
+  const found =
+    virtualMcps.find((v) => v.id === agentId) ??
+    connections?.find((c) => c.id === agentId);
+  if (found?.title) return found.title;
+  const orgId = isDecopilot(agentId);
+  if (orgId) return getWellKnownDecopilotVirtualMCP(orgId).title ?? fallback;
+  return agentId;
+}
+
 /** Extract model name from the first assistant message's metadata */
 function extractModelFromMessages(
   messages: ThreadMessageEntity[],
@@ -1617,12 +1635,7 @@ function ThreadMetaRow({
   modelName?: string | null;
 }) {
   const agentId = getThreadAgentId(thread);
-
-  const agent = agentId
-    ? (virtualMcps.find((v) => v.id === agentId) ??
-      connections?.find((c) => c.id === agentId))
-    : null;
-  const agentName = agent?.title ?? agentId ?? null;
+  const agentName = resolveAgentName(agentId, virtualMcps, connections, "");
 
   const membersList = getOrgMembers(members);
   const member = membersList.find((m) => m.userId === thread.created_by);
@@ -1698,12 +1711,7 @@ function ThreadRow({
   lastRowRef?: (node: HTMLTableRowElement | null) => void;
 }) {
   const agentId = getThreadAgentId(thread);
-
-  const agent = agentId
-    ? (virtualMcps.find((v) => v.id === agentId) ??
-      connections?.find((c) => c.id === agentId))
-    : null;
-  const agentName = agent?.title ?? agentId ?? "—";
+  const agentName = resolveAgentName(agentId, virtualMcps, connections, "—");
 
   const membersList = getOrgMembers(members);
   const member = membersList.find((m) => m.userId === thread.created_by);
