@@ -29,17 +29,9 @@ export async function buildSettings(flags: CliFlags): Promise<BuildResult> {
 
   // Log encryption key status on startup
   const ek = config.settings.encryptionKey;
-  if (ek) {
-    const masked =
-      ek.length <= 8 ? "***" : `${ek.slice(0, 4)}..${ek.slice(-4)}`;
-    console.log(
-      `[settings] ENCRYPTION_KEY is set (${masked}, ${ek.length} chars)`,
-    );
-  } else {
-    console.log(
-      "[settings] ENCRYPTION_KEY is not set (using deterministic fallback, 32 chars) — set ENCRYPTION_KEY for production",
-    );
-  }
+  console.log(
+    `[settings] ENCRYPTION_KEY = ${JSON.stringify(ek)} (${ek.length} chars)`,
+  );
 
   // 3. Start services if needed
   const { ensureServices } = await import("../services/ensure-services");
