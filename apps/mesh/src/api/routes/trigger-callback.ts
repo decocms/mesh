@@ -10,8 +10,14 @@
 
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { z } from "zod";
 import type { EventTriggerEngine } from "@/automations/event-trigger-engine";
 import type { TriggerCallbackTokenStorage } from "@/storage/trigger-callback-tokens";
+
+const TriggerCallbackBodySchema = z.object({
+  type: z.string(),
+  data: z.record(z.string(), z.unknown()).optional(),
+});
 
 interface TriggerCallbackDeps {
   tokenStorage: TriggerCallbackTokenStorage;
@@ -46,29 +52,30 @@ export function createTriggerCallbackRoutes(deps: TriggerCallbackDeps) {
         return c.json({ error: "Invalid callback token" }, 401);
       }
 
-      // Parse body
-      let body: { type?: string; data?: unknown };
-      try {
-        body = await c.req.json();
-      } catch {
-        return c.json({ error: "Invalid JSON body" }, 400);
+      // Parse and validate body
+      const parsed = TriggerCallbackBodySchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
+      if (!parsed.success) {
+        return c.json(
+          { error: "Invalid body", details: parsed.error.issues },
+          400,
+        );
       }
 
-      if (!body.type || typeof body.type !== "string") {
-        return c.json({ error: "Missing required field: type" }, 400);
-      }
+      const { type, data } = parsed.data;
 
       // Fire matching automations (fire-and-forget)
       deps.eventTriggerEngine.notifyEvents([
         {
           source: context.connectionId,
-          type: body.type,
-          data: body.data ?? {},
+          type,
+          data: data ?? {},
           organizationId: context.organizationId,
         },
       ]);
 
-      return c.json({ ok: true, type: body.type }, 202);
+      return c.json({ ok: true, type }, 202);
     },
   );
 
