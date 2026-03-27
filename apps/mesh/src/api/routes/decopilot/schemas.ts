@@ -29,6 +29,7 @@ const ProviderEnum = z.enum([
   "openai-compatible",
   "deco",
   "claude-code",
+  "codex",
 ]);
 
 const ProviderSchema = ProviderEnum.optional().nullable();
