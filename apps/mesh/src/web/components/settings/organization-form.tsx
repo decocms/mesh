@@ -175,7 +175,11 @@ export function OrganizationForm() {
                   const sanitized = e.target.value
                     .toLowerCase()
                     .replace(/[^a-z0-9-]/g, "");
-                  form.setValue("slug", sanitized, { shouldDirty: true });
+                  form.setValue("slug", sanitized, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  });
                 }}
               />
               <p className="text-xs text-muted-foreground">

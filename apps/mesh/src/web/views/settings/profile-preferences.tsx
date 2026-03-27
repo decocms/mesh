@@ -82,16 +82,18 @@ function ProfileSection() {
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
-  const [name, setName] = useState(user?.name ?? "");
+  const [editedName, setEditedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const isDirty = name !== (user?.name ?? "");
+  const name = editedName ?? user?.name ?? "";
+  const isDirty = editedName !== null && editedName !== (user?.name ?? "");
 
   const handleSave = async () => {
     if (!isDirty) return;
     setSaving(true);
     try {
       await authClient.updateUser({ name });
+      setEditedName(null);
       toast.success("Profile updated");
     } catch {
       toast.error("Failed to update profile");
@@ -128,7 +130,7 @@ function ProfileSection() {
               <Input
                 id="display-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setEditedName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void handleSave();
                 }}
