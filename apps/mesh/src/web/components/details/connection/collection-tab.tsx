@@ -189,7 +189,6 @@ export function CollectionTab({
   const sortOptions = generateSortOptionsFromSchema(schema);
 
   const hasItems = (items?.length ?? 0) > 0;
-  const showCreateInToolbar = hasCreateTool && hasItems;
   const showCreateInEmptyState = hasCreateTool && !hasItems && !search;
 
   const createButton = hasCreateTool ? (
@@ -213,22 +212,26 @@ export function CollectionTab({
           onSort={handleSort}
           sortOptions={sortOptions}
         />
-        {showCreateInToolbar && createButton}
       </ViewActions>
 
       <div className="flex flex-col h-full overflow-hidden">
-        {/* Search */}
-        <CollectionSearch
-          value={search}
-          onChange={setSearch}
-          placeholder={`Search ${collectionName}...`}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setSearch("");
-              (event.target as HTMLInputElement).blur();
-            }
-          }}
-        />
+        {/* Search + Create */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <CollectionSearch
+              value={search}
+              onChange={setSearch}
+              placeholder={`Search ${collectionName}...`}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setSearch("");
+                  (event.target as HTMLInputElement).blur();
+                }
+              }}
+            />
+          </div>
+          {hasCreateTool && <div className="pr-3">{createButton}</div>}
+        </div>
 
         {/* Collections List with schema-based rendering */}
         <div className="flex-1 overflow-auto">
