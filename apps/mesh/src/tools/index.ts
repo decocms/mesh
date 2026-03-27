@@ -30,6 +30,7 @@ import * as ThreadTools from "./thread";
 import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
+import * as UnifiedRegistryTools from "./registry/index";
 import { getPrompts, getResources } from "./guides";
 import { ToolName } from "./registry";
 // Core tools - always available
@@ -128,6 +129,13 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
+
+  // Registry tools
+  UnifiedRegistryTools.REGISTRY_LIST,
+  UnifiedRegistryTools.REGISTRY_SEARCH,
+  UnifiedRegistryTools.REGISTRY_GET,
+  UnifiedRegistryTools.REGISTRY_GET_VERSIONS,
+  UnifiedRegistryTools.REGISTRY_GET_FILTERS,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime

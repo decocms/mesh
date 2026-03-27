@@ -5,6 +5,7 @@ import { getPluginStorage, orgHandler } from "./utils";
 export const REGISTRY_ITEM_LIST: ServerPluginToolDefinition = {
   name: "REGISTRY_ITEM_LIST",
   description: "List private registry items for the current organization",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: RegistryListInputSchema,
   outputSchema: RegistryListOutputSchema,
 

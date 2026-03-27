@@ -29,7 +29,8 @@ export type ToolCategory =
   | "Event Bus"
   | "Tags"
   | "AI Providers"
-  | "Automations";
+  | "Automations"
+  | "Registry";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -119,6 +120,13 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
+
+  // Registry tools
+  "REGISTRY_LIST",
+  "REGISTRY_SEARCH",
+  "REGISTRY_GET",
+  "REGISTRY_GET_VERSIONS",
+  "REGISTRY_GET_FILTERS",
 ] as const;
 
 /**
@@ -530,6 +538,32 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
+  // Registry tools
+  {
+    name: "REGISTRY_LIST",
+    description: "Browse available MCP servers across registries",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_SEARCH",
+    description: "Search for MCP servers across registries",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_GET",
+    description: "Get details of a specific registry item",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_GET_VERSIONS",
+    description: "Get available versions for a registry item",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_GET_FILTERS",
+    description: "Get available filter options from registries",
+    category: "Registry",
+  },
 ];
 
 /**
@@ -608,6 +642,12 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
+
+  REGISTRY_LIST: "Browse registry",
+  REGISTRY_SEARCH: "Search registry",
+  REGISTRY_GET: "View registry item",
+  REGISTRY_GET_VERSIONS: "View item versions",
+  REGISTRY_GET_FILTERS: "View registry filters",
 };
 
 // ============================================================================
@@ -630,6 +670,7 @@ export function getToolsByCategory() {
     Tags: [],
     "AI Providers": [],
     Automations: [],
+    Registry: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

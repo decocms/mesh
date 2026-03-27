@@ -7,6 +7,7 @@ import { getPluginStorage, orgHandler } from "./utils";
 
 export const REGISTRY_ITEM_SEARCH: ServerPluginToolDefinition = {
   name: "REGISTRY_ITEM_SEARCH",
+  _meta: { ui: { visibility: "app" } },
   description:
     "Search registry items returning minimal data (id, title, tags, categories, is_public, is_unlisted). " +
     "Use this instead of LIST when you need to find items efficiently without loading full details. " +

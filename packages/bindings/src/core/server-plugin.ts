@@ -61,6 +61,11 @@ export interface ServerPluginToolDefinition {
   description?: string;
   inputSchema: unknown;
   outputSchema?: unknown;
+  /**
+   * Static metadata forwarded to the MCP tool registration.
+   * Use `{ ui: { visibility: "app" } }` to hide from AI models.
+   */
+  _meta?: Record<string, unknown>;
   handler: (input: unknown, ctx: ServerPluginToolContext) => Promise<unknown>;
 }
 

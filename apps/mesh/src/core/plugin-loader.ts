@@ -196,6 +196,7 @@ export function collectPluginTools(): ToolDefinition<
         description: toolDef.description ?? "",
         inputSchema: toolDef.inputSchema as z.ZodType,
         outputSchema: toolDef.outputSchema as z.ZodType | undefined,
+        _meta: toolDef._meta,
         handler,
         execute: handler,
       } as Tool<z.ZodType, z.ZodType, string>;

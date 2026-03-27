@@ -6,6 +6,7 @@ import { getPluginStorage, orgHandler } from "./utils";
 export const REGISTRY_ITEM_VERSIONS: ServerPluginToolDefinition = {
   name: "REGISTRY_ITEM_VERSIONS",
   description: "Get available versions of a registry item",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: RegistryGetInputSchema,
   outputSchema: z.object({
     versions: z.array(RegistryItemSchema),

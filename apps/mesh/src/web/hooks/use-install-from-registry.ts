@@ -1,24 +1,22 @@
 /**
  * Hook to install an MCP Server from registry by binding type.
  * Provides inline installation without navigation.
+ *
+ * Uses the unified REGISTRY_SEARCH tool via the self MCP instead of
+ * querying each registry connection directly.
  */
 
 import { toast } from "sonner";
 import type { RegistryItem } from "@/web/components/store/types";
 import { authClient } from "@/web/lib/auth-client";
 import {
+  SELF_MCP_ALIAS_ID,
   useConnectionActions,
+  useMCPClient,
   useProjectContext,
   type ConnectionEntity,
 } from "@decocms/mesh-sdk";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
-import {
-  inferRegistryListToolName,
-  extractItemsFromResponse,
-  callRegistryTool,
-} from "@/web/utils/registry-utils";
-import { useRegistryConnections } from "./use-registry-connections";
-import { useRegistrySettings } from "./use-registry-settings";
 
 interface InstallResult {
   id: string;
@@ -39,9 +37,6 @@ interface UseInstallFromRegistryResult {
 
 /**
  * Normalize MCP Server name format, ensuring @ prefix is present
- * @example
- * - "@deco/database" -> "@deco/database" (unchanged)
- * - "deco/database" -> "@deco/database" (adds @)
  */
 function parseServerName(serverName: string): string {
   return serverName.startsWith("@") ? serverName : `@${serverName}`;
@@ -55,15 +50,11 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const actions = useConnectionActions();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
-  // Get registry connections from registry_config, filtered to enabled only
-  const registryConnections = useRegistryConnections();
-  const { isRegistryEnabled } = useRegistrySettings();
-  const enabledRegistries = registryConnections.filter((c) =>
-    isRegistryEnabled(c.id),
-  );
-
-  // Installation function - queries registries directly with MCP Server name filter
   const installByBinding = async (
     bindingType: string,
   ): Promise<InstallResult | undefined> => {
@@ -74,36 +65,27 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
 
     const parsedServerName = parseServerName(bindingType);
 
-    // Query all registries in parallel to find the MCP Server
-    const results = await Promise.all(
-      enabledRegistries.map(async (registryConnection) => {
-        const listToolName = inferRegistryListToolName(
-          registryConnection.id,
-          org.id,
-        );
+    // Search all enabled registries via unified tool
+    const result = (await client.callTool({
+      name: "REGISTRY_SEARCH",
+      arguments: {
+        query: parsedServerName,
+        limit: 5,
+      },
+    })) as { structuredContent?: unknown };
 
-        try {
-          const result = await callRegistryTool(
-            registryConnection.id,
-            org.id,
-            listToolName,
-            {
-              where: { appName: parsedServerName },
-            },
-          );
-          const items = extractItemsFromResponse<RegistryItem>(result ?? []);
-          return items[0] ?? null;
-        } catch {
-          // Silently fail for individual registries - we'll try others
-          return null;
-        }
-      }),
-    );
+    const payload = (result.structuredContent ?? result) as {
+      items?: Array<Record<string, unknown>>;
+    };
+    const items = payload?.items ?? [];
 
-    // Find the first successful result
-    const registryItem = results.find(
-      (item): item is RegistryItem => item !== null,
-    );
+    // Find exact match by server name
+    const registryItem = items.find((item) => {
+      const server = item.server as { name?: string } | undefined;
+      return (
+        server?.name === parsedServerName || item.name === parsedServerName
+      );
+    }) as RegistryItem | undefined;
 
     if (!registryItem) {
       toast.error(`MCP Server not found in registry: ${bindingType}`);
@@ -134,8 +116,6 @@ export function useInstallFromRegistry(): UseInstallFromRegistryResult {
     }
 
     await actions.create.mutateAsync(connectionData);
-    // Success toast is handled by the mutation's onSuccess
-    // Return full connection data so caller doesn't need to fetch from collection
     return {
       id: connectionData.id,
       connection: connectionData as ConnectionEntity,

@@ -65,6 +65,7 @@ export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_LIST",
   description:
     "List registry items for Store discovery. Supports private-only mode from plugin settings.",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: RegistryListInputSchema,
   outputSchema: RegistryListOutputSchema,
   handler: orgHandler(RegistryListInputSchema, async (input, ctx) => {
@@ -84,6 +85,7 @@ export const COLLECTION_REGISTRY_APP_GET: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_GET",
   description:
     "Get a registry item for Store details. Respects private-only mode from plugin settings.",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: RegistryGetInputSchema,
   outputSchema: RegistryGetOutputSchema,
   handler: orgHandler(RegistryGetInputSchema, async (input, ctx) => {
@@ -105,6 +107,7 @@ export const COLLECTION_REGISTRY_APP_VERSIONS: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_VERSIONS",
   description:
     "Get registry item versions for Store details. Respects private-only mode from plugin settings.",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: RegistryGetInputSchema,
   outputSchema: z.object({
     versions: z.array(RegistryItemSchema),
@@ -128,6 +131,7 @@ export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
   name: "COLLECTION_REGISTRY_APP_FILTERS",
   description:
     "List Store filter facets for registry items. Respects private-only mode from plugin settings.",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({}),
   outputSchema: RegistryFiltersOutputSchema,
   handler: orgHandler(z.object({}), async (_input, ctx) => {

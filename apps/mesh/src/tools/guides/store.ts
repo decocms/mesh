@@ -11,15 +11,13 @@ Goal: find good candidate connections in the Deco Store or another registry befo
 Read docs://store.md for registry types, search patterns, and evaluation criteria. Read docs://connections.md if you need a refresher on how installed connections behave after discovery.
 
 Recommended tool order:
-1. Use COLLECTION_CONNECTIONS_LIST to find available registry connections such as Deco Store or MCP Registry.
-2. If the user has not clearly described the target capability, data source, or authentication constraints, use user_ask.
-3. Use COLLECTION_CONNECTIONS_GET if you need more detail about the chosen registry connection.
-4. Enable the registry discovery tools from that connection.
-5. Prefer REGISTRY_ITEM_SEARCH when available. Otherwise use the registry's list tool with search-like filters.
-6. Use REGISTRY_ITEM_GET on the most promising results. Read docs://store-inspect-item.md for detailed inspection criteria.
-7. Summarize the best matches, key tradeoffs, and which one to install next.
-8. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow that resource before creating the connection.
-9. Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification.
+1. If the user has not clearly described the target capability, data source, or authentication constraints, use user_ask.
+2. Use REGISTRY_SEARCH to find MCP servers across all enabled registries. If search is not specific enough, use REGISTRY_LIST with tag/category filters.
+3. Use REGISTRY_GET on the most promising results to inspect details. Read docs://store-inspect-item.md for detailed inspection criteria.
+4. Use REGISTRY_GET_VERSIONS if you need to check available versions.
+5. Summarize the best matches, key tradeoffs, and which one to install next.
+6. Once the user picks a candidate and asks to install it, read docs://store-install-connection.md and follow that resource before creating the connection.
+7. Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification.
 
 Checks:
 - Search by the user's outcome, not just product names.
@@ -38,14 +36,13 @@ Goal: install a specific MCP server from a registry into the workspace as a work
 Read docs://install-workflow.md for the complete end-to-end install workflow including transport selection, parameter extraction, and verification. Read docs://store-install-connection.md for detailed mapping rules when building the connection payload.
 
 Recommended tool order:
-1. COLLECTION_CONNECTIONS_LIST — find registry connections and check for duplicates of the target server.
-2. Enable registry tools from the chosen registry connection.
-3. REGISTRY_ITEM_SEARCH or the registry list tool — find the MCP server by name or capability.
-4. REGISTRY_ITEM_GET — load full details for the chosen item.
-5. Extract connection parameters per docs://install-workflow.md (transport selection, URL, auth, headers).
-6. COLLECTION_CONNECTIONS_CREATE with the extracted payload wrapped in \`{ data: ... }\`.
-7. CONNECTION_TEST to verify the new connection is healthy.
-8. COLLECTION_CONNECTIONS_GET to confirm the saved result and explain next steps.
+1. COLLECTION_CONNECTIONS_LIST — check for duplicates of the target server.
+2. REGISTRY_SEARCH — find the MCP server by name or capability across all registries.
+3. REGISTRY_GET — load full details for the chosen item.
+4. Extract connection parameters per docs://install-workflow.md (transport selection, URL, auth, headers).
+5. COLLECTION_CONNECTIONS_CREATE with the extracted payload wrapped in \`{ data: ... }\`.
+6. CONNECTION_TEST to verify the new connection is healthy.
+7. COLLECTION_CONNECTIONS_GET to confirm the saved result and explain next steps.
 
 Checks:
 - Do not install until the user has chosen or confirmed the specific item.
@@ -70,13 +67,12 @@ Take a registry item the user already chose and convert it into a real connectio
 
 ## Recommended tool order
 
-1. Use COLLECTION_CONNECTIONS_LIST to avoid duplicate installs and confirm the correct registry connection is available.
-2. Enable the relevant registry detail tools from that connection.
-3. Use REGISTRY_ITEM_GET to load the full chosen item.
-4. Derive the connection payload from the registry item instead of inventing values.
-5. Use COLLECTION_CONNECTIONS_CREATE with the derived connection fields.
-6. Use CONNECTION_TEST before treating the connection as usable.
-7. Use COLLECTION_CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
+1. Use COLLECTION_CONNECTIONS_LIST to avoid duplicate installs.
+2. Use REGISTRY_GET to load the full chosen item (requires registryId and itemId).
+3. Derive the connection payload from the registry item instead of inventing values.
+4. Use COLLECTION_CONNECTIONS_CREATE with the derived connection fields.
+5. Use CONNECTION_TEST before treating the connection as usable.
+6. Use COLLECTION_CONNECTIONS_GET if you need to confirm the saved result or explain next steps.
 
 ## How to map a registry item into COLLECTION_CONNECTIONS_CREATE
 
@@ -131,11 +127,9 @@ Validate that a specific store or registry item actually matches the user's requ
 
 ## Recommended tool order
 
-1. Use COLLECTION_CONNECTIONS_LIST to confirm which registry connection should be queried.
-2. Enable the relevant registry detail tools from that connection.
-3. Use REGISTRY_ITEM_GET to inspect the candidate item.
-4. If multiple versions are available and a versions tool exists, use REGISTRY_ITEM_VERSIONS.
-5. Report whether the item fits the user's use case and what the next step should be.
+1. Use REGISTRY_GET to inspect the candidate item (requires registryId and itemId from a previous search or list).
+2. If multiple versions are available, use REGISTRY_GET_VERSIONS.
+3. Report whether the item fits the user's use case and what the next step should be.
 
 ## Checks
 
@@ -218,21 +212,19 @@ Use the Deco Store or another registry connection when the user needs a capabili
 
 End-to-end guide for programmatically installing an MCP server from a registry into the workspace. Covers everything from registry discovery through post-install verification.
 
-## 1. Find registry connections
+## 1. Check for duplicates
 
-Use COLLECTION_CONNECTIONS_LIST to discover available registries in the workspace. Look for connections that expose tools like REGISTRY_ITEM_SEARCH or REGISTRY_ITEM_LIST. Common registries include the Deco Store and community registries.
-
-Also check whether the target server is already installed to avoid duplicates.
+Use COLLECTION_CONNECTIONS_LIST to check whether the target server is already installed to avoid duplicates.
 
 ## 2. Search the registry
 
-Use REGISTRY_ITEM_SEARCH when available — it supports keyword and capability-based queries. Otherwise use the registry's list tool with search-like filters.
+Use REGISTRY_SEARCH to find MCP servers across all enabled registries. It supports keyword and capability-based queries.
 
 Search by the user's intended outcome (e.g. "send email", "query database") rather than just product names.
 
 ## 3. Inspect the registry item
 
-Use REGISTRY_ITEM_GET on the chosen item. The response typically includes:
+Use REGISTRY_GET on the chosen item (requires registryId and itemId from the search results). The response typically includes:
 - \`server.remotes[]\` — remote transport endpoints (HTTP, SSE, Websocket)
 - \`server.packages[]\` — STDIO package commands (npx, uvx, docker, etc.)
 - \`_meta["mcp.mesh"]\` — Mesh-specific metadata (oauth_config, configuration_state)

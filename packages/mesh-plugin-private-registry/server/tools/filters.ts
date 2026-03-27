@@ -6,6 +6,7 @@ import { getPluginStorage, orgHandler } from "./utils";
 export const REGISTRY_ITEM_FILTERS: ServerPluginToolDefinition = {
   name: "REGISTRY_ITEM_FILTERS",
   description: "List available tag/category filters for private registry items",
+  _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({}),
   outputSchema: RegistryFiltersOutputSchema,
 
