@@ -316,8 +316,9 @@ export const WORKFLOW_COLLECTION_DELETE: ServerPluginToolDefinition = {
     id: z.string(),
   }),
   outputSchema: z.object({
-    success: z.boolean(),
-    error: z.string().optional(),
+    item: z.object({
+      id: z.string(),
+    }),
   }),
 
   handler: async (input, ctx) => {
@@ -326,14 +327,7 @@ export const WORKFLOW_COLLECTION_DELETE: ServerPluginToolDefinition = {
     const { id } = input as { id: string };
     const storage = getPluginStorage();
 
-    try {
-      await storage.collections.delete(id, meshCtx.organization.id);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
+    await storage.collections.delete(id, meshCtx.organization.id);
+    return { item: { id } };
   },
 };
