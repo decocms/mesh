@@ -225,7 +225,9 @@ function PinAgentPopoverContent({
   const allAgents = useVirtualMCPs();
   const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
-  const { createVirtualMCP, isCreating } = useCreateVirtualMCP();
+  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
+    navigateOnCreate: true,
+  });
 
   const navigateToNewTask = useCreateTaskAndNavigate();
 
@@ -283,9 +285,8 @@ function PinAgentPopoverContent({
             type="button"
             disabled={isCreating}
             onClick={async () => {
-              const { id } = await createVirtualMCP();
+              await createVirtualMCP();
               onClose();
-              navigateToNewTask(id);
             }}
             className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
           >
