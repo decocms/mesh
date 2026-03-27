@@ -173,7 +173,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
     key: "workflows",
     label: "Workflows",
     icon: <Dataflow03 className="size-4!" />,
-    isActive: isActiveRoute("workflows"),
+    isActive: pathname.startsWith(`/${org}/settings/workflows`),
     onClick: () =>
       navigate({
         to: "/$org/settings/workflows",
