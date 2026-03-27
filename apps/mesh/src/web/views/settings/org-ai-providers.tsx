@@ -771,7 +771,7 @@ function OrgAiProvidersContent() {
         Set up AI model providers. Keys are stored encrypted in the vault.
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 [&>*:first-child]:lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {providers.map((provider, index) => (
           <div
             key={provider.id}
