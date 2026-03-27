@@ -2,11 +2,19 @@ import { authClient } from "@/web/lib/auth-client";
 import { useNavigate } from "@tanstack/react-router";
 import { EntityCard } from "@deco/ui/components/entity-card.tsx";
 import { EntityGrid } from "@deco/ui/components/entity-grid.tsx";
-import { AlertCircle, Plus, Check, XClose, SearchMd } from "@untitledui/icons";
+import {
+  AlertCircle,
+  Plus,
+  Check,
+  XClose,
+  SearchMd,
+  Link01,
+} from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Suspense, useState, useDeferredValue, useContext } from "react";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
+import { ConnectRemoteOrgDialog } from "./connect-remote-org-dialog";
 import { AuthUIContext } from "@daveyplate/better-auth-ui";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -238,7 +246,15 @@ function OrganizationsGrid({ query }: { query?: string }) {
                 />
               </EntityCard.AvatarSection>
               <EntityCard.Content>
-                <EntityCard.Subtitle>@{org.slug}</EntityCard.Subtitle>
+                <EntityCard.Subtitle>
+                  @{org.slug}
+                  {(org.metadata as Record<string, unknown> | null | undefined)
+                    ?.remote === true && (
+                    <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                      Remote
+                    </span>
+                  )}
+                </EntityCard.Subtitle>
                 <EntityCard.Title>{org.name}</EntityCard.Title>
               </EntityCard.Content>
             </EntityCard.Header>
@@ -274,6 +290,7 @@ export function OrganizationsHome() {
   const { error, isPending } = authClient.useListOrganizations();
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const deferredQuery = useDeferredValue(searchQuery);
 
   if (isPending) {
@@ -316,6 +333,14 @@ export function OrganizationsHome() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsConnectDialogOpen(true)}
+              >
+                <Link01 size={16} />
+                <span className="hidden sm:inline">Connect remote</span>
+              </Button>
               <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus size={16} />
                 <span className="hidden sm:inline">New organization</span>
@@ -338,6 +363,10 @@ export function OrganizationsHome() {
       <CreateOrganizationDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
+      />
+      <ConnectRemoteOrgDialog
+        open={isConnectDialogOpen}
+        onOpenChange={setIsConnectDialogOpen}
       />
     </div>
   );

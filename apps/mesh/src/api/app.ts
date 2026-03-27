@@ -1261,6 +1261,10 @@ export async function createApp(options: CreateAppOptions = {}) {
   const kvStorage = new KyselyKVStorage(database.db);
   app.route("/api", createKVRoutes({ kvStorage }));
 
+  // Remote organization connect routes
+  const { default: remoteOrgRoutes } = await import("./routes/remote-org");
+  app.route("/api/remote-org", remoteOrgRoutes);
+
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
     const orgId = c.req.param("organizationId");

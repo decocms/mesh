@@ -18,6 +18,7 @@ import {
   Copy01,
   File06,
   Globe01,
+  Link01,
   LogOut01,
   Monitor01,
   Moon01,
@@ -33,6 +34,7 @@ import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
+import { ConnectRemoteOrgDialog } from "@/web/components/connect-remote-org-dialog";
 import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 
@@ -134,16 +136,19 @@ function OrganizationsPanel({
   orgParam,
   onSelectOrg,
   onCreateOrg,
+  onConnectRemote,
 }: {
   sortedOrgs: Array<{
     id: string;
     name: string;
     slug: string;
     logo?: string | null;
+    metadata?: Record<string, unknown> | null;
   }>;
   orgParam?: string;
   onSelectOrg: (slug: string) => void;
   onCreateOrg: () => void;
+  onConnectRemote: () => void;
 }) {
   return (
     <>
@@ -151,13 +156,24 @@ function OrganizationsPanel({
         <span className="text-sm font-medium text-muted-foreground/60">
           Your Organizations
         </span>
-        <button
-          type="button"
-          onClick={onCreateOrg}
-          className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-        >
-          <Plus size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onConnectRemote}
+            className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            title="Connect remote organization"
+          >
+            <Link01 size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onCreateOrg}
+            className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            title="Create new organization"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1">
         {sortedOrgs.map((org) => (
@@ -174,7 +190,15 @@ function OrganizationsPanel({
           >
             <OrgIcon org={org} size="sm" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{org.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium truncate">{org.name}</p>
+                {(org.metadata as Record<string, unknown> | null | undefined)
+                  ?.remote === true && (
+                  <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                    Remote
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">
                 {org.slug}
               </p>
@@ -202,6 +226,7 @@ export function AccountPopover() {
 
   const [open, setOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
+  const [connectingRemote, setConnectingRemote] = useState(false);
 
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
@@ -449,6 +474,10 @@ export function AccountPopover() {
                   setOpen(false);
                   setCreatingOrg(true);
                 }}
+                onConnectRemote={() => {
+                  setOpen(false);
+                  setConnectingRemote(true);
+                }}
               />
             </div>
           </div>
@@ -458,6 +487,10 @@ export function AccountPopover() {
       <CreateOrganizationDialog
         open={creatingOrg}
         onOpenChange={setCreatingOrg}
+      />
+      <ConnectRemoteOrgDialog
+        open={connectingRemote}
+        onOpenChange={setConnectingRemote}
       />
     </>
   );
