@@ -24,7 +24,9 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
 
   const members = membersData?.data?.members ?? [];
   const updatedByUser = project.updated_by
-    ? members.find((m) => m.user?.id === project.updated_by)?.user
+    ? members.find(
+        (m: (typeof members)[number]) => m.user?.id === project.updated_by,
+      )?.user
     : null;
 
   const ui = project.metadata?.ui;

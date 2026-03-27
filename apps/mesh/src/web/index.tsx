@@ -140,7 +140,9 @@ const homeRoute = createRoute({
     // where an invalid slug → shell fails → back to "/" → same redirect → loop.
     const lastOrgSlug = localStorage.getItem(LOCALSTORAGE_KEYS.lastOrgSlug());
     if (lastOrgSlug) {
-      const slugIsValid = orgs.some((o) => o.slug === lastOrgSlug);
+      const slugIsValid = orgs.some(
+        (o: NonNullable<typeof orgs>[number]) => o.slug === lastOrgSlug,
+      );
       if (slugIsValid) {
         throw redirect({
           to: "/$org",

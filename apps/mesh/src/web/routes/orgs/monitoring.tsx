@@ -1293,7 +1293,13 @@ function MonitoringLogsTableContent({
   const lastLogRef = useInfiniteScroll(onLoadMore, hasMore, isLoadingMore);
 
   const members = membersData?.data?.members ?? [];
-  const userMap = new Map(members.map((m) => [m.userId, m.user]));
+  type UserInfo = { name?: string | null; image?: string | null };
+  const userMap = new Map<string, UserInfo | undefined>(
+    members.map((m: (typeof members)[number]) => [
+      m.userId as string,
+      m.user as UserInfo | undefined,
+    ]),
+  );
 
   // Create virtual MCP lookup map
   const virtualMcpMap = new Map(virtualMcps.map((vm) => [vm.id, vm]));
@@ -1306,7 +1312,7 @@ function MonitoringLogsTableContent({
     return {
       ...log,
       userName: user?.name ?? log.userId ?? "Unknown",
-      userImage: user?.image,
+      userImage: user?.image ?? undefined,
       virtualMcpName: virtualMcp?.title ?? null,
     };
   });
