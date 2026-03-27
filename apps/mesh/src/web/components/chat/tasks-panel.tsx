@@ -6,7 +6,6 @@
  */
 
 import { useChatTask } from "@/web/components/chat/context";
-import { CollectionSearch } from "@/web/components/collections/collection-search";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
@@ -14,7 +13,6 @@ import {
   getTaskVerb,
   STATUS_CONFIG,
   toDisplayGroupKey,
-  type StatusKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
 import { useTasks } from "./task";
@@ -29,20 +27,15 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   CheckDone01,
   ChevronRight,
-  FilterLines,
   Loading01,
   Plus,
   RefreshCcw01,
-  SearchMd,
-  X,
 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -525,60 +518,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 }
 
 // ────────────────────────────────────────
-// Filter dropdown
-// ────────────────────────────────────────
-
-function FilterDropdown({
-  statusFilter,
-  onStatusChange,
-}: {
-  statusFilter: Set<StatusKey>;
-  onStatusChange: (status: StatusKey) => void;
-}) {
-  const hasFilters = statusFilter.size > 0;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "relative flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-            hasFilters
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-          title="Filter"
-        >
-          <FilterLines size={16} />
-          {hasFilters && (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-blue-500" />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Status
-        </DropdownMenuLabel>
-        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-          const Icon = cfg.icon;
-          return (
-            <DropdownMenuCheckboxItem
-              key={key}
-              checked={statusFilter.has(key as StatusKey)}
-              onCheckedChange={() => onStatusChange(key as StatusKey)}
-            >
-              <Icon size={12} className={cfg.iconClassName} />
-              {cfg.label}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ────────────────────────────────────────
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
@@ -713,30 +652,11 @@ export function TaskListContent({
     virtualMcpId ?? "",
   );
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
   const visible = tasks.filter((t) => !t.hidden);
-
-  const searched = searchQuery.trim()
-    ? visible.filter((t) =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : visible;
-
-  const filtered = searched.filter((task) => {
-    if (
-      statusFilter.size > 0 &&
-      !statusFilter.has((task.status ?? "completed") as StatusKey)
-    )
-      return false;
-    return true;
-  });
-
-  const groups = buildDisplayGroups(filtered);
+  const groups = buildDisplayGroups(visible);
 
   // Find which group the active task belongs to so we can auto-open it
-  const activeTask = taskId ? filtered.find((t) => t.id === taskId) : null;
+  const activeTask = taskId ? visible.find((t) => t.id === taskId) : null;
   const activeGroupKey = activeTask
     ? toDisplayGroupKey(activeTask.status)
     : null;
@@ -751,65 +671,12 @@ export function TaskListContent({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Tasks header + search/filter */}
-      {searchOpen ? (
-        <div className="flex items-center">
-          <div className="flex-1 min-w-0">
-            <CollectionSearch
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search tasks..."
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearchQuery("");
-                  setSearchOpen(false);
-                }
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery("");
-              setSearchOpen(false);
-            }}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors text-muted-foreground hover:bg-accent hover:text-foreground mr-2"
-            title="Close search"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      ) : (
-        <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
-          <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-            Tasks
-          </span>
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-              searchQuery
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-            title="Search tasks"
-          >
-            <SearchMd size={16} />
-          </button>
-          <FilterDropdown
-            statusFilter={statusFilter}
-            onStatusChange={(s) =>
-              setStatusFilter((prev) => {
-                const next = new Set(prev);
-                if (next.has(s)) next.delete(s);
-                else next.add(s);
-                return next;
-              })
-            }
-          />
-        </div>
-      )}
+      {/* Tasks header */}
+      <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
+        <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+          Tasks
+        </span>
+      </div>
 
       {/* Grouped list — key resets expanded state when active task moves groups */}
       <GroupedTaskList
