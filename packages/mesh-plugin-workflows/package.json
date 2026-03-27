@@ -9,7 +9,8 @@
   },
   "exports": {
     "./server": "./server/index.ts",
-    "./client": "./client/index.tsx"
+    "./client": "./client/index.tsx",
+    "./shared": "./shared.ts"
   },
   "dependencies": {
     "@decocms/bindings": "workspace:*",

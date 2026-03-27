@@ -75,7 +75,7 @@ function VirtualMCPProviderContent({
 
   // --- VirtualMCPContext: URL-driven state ---
 
-  const search = useSearch({ from: "/shell/$org/$virtualMcpId/" }) as {
+  const search = useSearch({ strict: false }) as {
     main?: string;
     id?: string;
     toolName?: string;
