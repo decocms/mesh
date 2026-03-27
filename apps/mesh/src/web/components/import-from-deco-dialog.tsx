@@ -140,7 +140,7 @@ export function ImportFromDecoDialog({
             title: siteName,
             description: "Imported from deco.cx",
             pinned: true,
-            icon: projectIcon,
+            icon: projectIcon ?? "icon://Globe01?color=green",
             subtype: "project",
             metadata: {
               instructions: null,
@@ -171,6 +171,13 @@ export function ImportFromDecoDialog({
                     icon: null,
                   },
                 ],
+                layout: {
+                  defaultMainView: {
+                    type: "ext-apps",
+                    id: connId,
+                    toolName: "file_explorer",
+                  },
+                },
               },
             },
             connections: [{ connection_id: connId }],
@@ -188,7 +195,7 @@ export function ImportFromDecoDialog({
         item: payload.item,
       };
     },
-    onSuccess: ({ slug, virtualMcpId, connId, item }) => {
+    onSuccess: ({ slug, virtualMcpId, item }) => {
       // Seed the individual item cache so useVirtualMCP resolves instantly on
       // the redirected page without waiting for a network round-trip.
       queryClient.setQueryData(
@@ -215,12 +222,10 @@ export function ImportFromDecoDialog({
       handleClose(false);
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
       navigate({
-        to: "/$org/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/$virtualMcpId",
         params: {
           org: org.slug,
           virtualMcpId,
-          connectionId: connId,
-          toolName: "file_explorer",
         },
       });
     },
