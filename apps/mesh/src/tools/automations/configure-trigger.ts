@@ -44,23 +44,42 @@ export async function configureTriggerOnMcp(
       callbackUrl = `${ctx.baseUrl}/api/trigger-callback`;
     }
 
+    const TIMEOUT_MS = 5000;
+    let timedOut = false;
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("TRIGGER_CONFIGURE timeout")), 5000),
+      setTimeout(() => {
+        timedOut = true;
+        reject(new Error("TRIGGER_CONFIGURE timeout"));
+      }, TIMEOUT_MS),
     );
 
-    // Call TRIGGER_CONFIGURE on the MCP first — if this fails, no DB state changes
-    await Promise.race([
-      client.TRIGGER_CONFIGURE({
-        type: trigger.event_type!,
-        params: JSON.parse(trigger.params ?? "{}"),
-        enabled,
-        callbackUrl,
-        callbackToken,
-      }),
-      timeoutPromise,
-    ]);
+    try {
+      await Promise.race([
+        client.TRIGGER_CONFIGURE({
+          type: trigger.event_type!,
+          params: JSON.parse(trigger.params ?? "{}"),
+          enabled,
+          callbackUrl,
+          callbackToken,
+        }),
+        timeoutPromise,
+      ]);
+    } catch (err) {
+      if (timedOut && enabled && tokenStorage && organizationId && tokenHash) {
+        // Timeout is ambiguous — the MCP may still accept the token.
+        // Persist the hash so future callbacks can authenticate.
+        await tokenStorage.persistTokenHash(
+          organizationId,
+          trigger.connection_id,
+          tokenHash,
+        );
+      }
+      // On definitive (non-timeout) failure, skip persistence —
+      // the MCP rejected the call, old token (if any) is still valid.
+      return { success: false, error: String(err) };
+    }
 
-    // MCP confirmed — now persist token or clean up
+    // MCP confirmed — persist token or clean up
     if (enabled && tokenStorage && organizationId && tokenHash) {
       await tokenStorage.persistTokenHash(
         organizationId,
