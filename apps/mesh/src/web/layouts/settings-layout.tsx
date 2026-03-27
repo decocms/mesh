@@ -44,22 +44,11 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
       label: "",
       items: [
         {
-          key: "profile",
-          label: "Profile & Preferences",
-          icon: <User01 size={14} />,
-          to: "/$org/settings/profile",
-        },
-        {
           key: "general",
           label: "General",
           icon: <Building02 size={14} />,
           to: "/$org/settings/general",
         },
-      ],
-    },
-    {
-      label: "",
-      items: [
         {
           key: "connections",
           label: "Connections",
@@ -95,6 +84,17 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "SSO",
           icon: <Lock01 size={14} />,
           to: "/$org/settings/sso",
+        },
+      ],
+    },
+    {
+      label: "",
+      items: [
+        {
+          key: "profile",
+          label: "Profile & Preferences",
+          icon: <User01 size={14} />,
+          to: "/$org/settings/profile",
         },
       ],
     },
