@@ -210,7 +210,7 @@ function PersistentSidebarProvider({
   );
 }
 
-function OptionalAgentProvider({
+function VirtualMCPScope({
   virtualMcpId,
   children,
 }: {
@@ -404,15 +404,6 @@ function ShellLayoutInner({
     }
   };
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs URL-driven mainDisabled with imperative panel API
-  useLayoutEffect(() => {
-    if (mainDisabled) {
-      mainPanelRef.current?.collapse();
-    } else if (agentHomeMatch) {
-      mainPanelRef.current?.expand();
-    }
-  }, [mainDisabled]);
-
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const onNewTask = useRef<(() => void) | null>(null);
@@ -454,7 +445,7 @@ function ShellLayoutInner({
       <PanelContextProvider value={panelControls}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           {showThreePanels ? (
-            <OptionalAgentProvider virtualMcpId={providerVirtualMcpId}>
+            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
@@ -496,7 +487,7 @@ function ShellLayoutInner({
                   </SheetContent>
                 </Sheet>
               </Chat.Provider>
-            </OptionalAgentProvider>
+            </VirtualMCPScope>
           ) : (
             <>
               <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
@@ -664,102 +655,27 @@ function ShellLayoutInner({
               </div>
             }
           >
-            <OptionalAgentProvider virtualMcpId={providerVirtualMcpId}>
+            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
               >
                 <NewTaskBridge onNewTaskRef={onNewTask} />
-                <ResizablePanelGroup
-                  direction="horizontal"
-                  className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
-                  style={{ overflow: "visible" }}
-                >
-                  {showThreePanels && (
-                    <>
-                      <TasksResizablePanel
-                        panelRef={tasksPanelRef}
-                        defaultCollapsed={!isAgentRoute}
-                        onCollapse={() => setTasksOpen(false)}
-                        onExpand={() => setTasksOpen(true)}
-                      >
-                        <div className="h-full p-0.5 overflow-hidden">
-                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                            <TasksSidePanel
-                              virtualMcpId={tasksVirtualMcpId}
-                              hideProjectHeader={isOrgHome}
-                            />
-                          </div>
-                        </div>
-                      </TasksResizablePanel>
-                      <ResizableHandle className="bg-sidebar" />
-                    </>
-                  )}
-
-                  {!isOrgHome && (
-                    <ResizablePanel
-                      ref={mainPanelRef}
-                      className="min-w-0 flex flex-col"
-                      order={2}
-                      style={{ overflow: "visible" }}
-                      collapsible={isAgentRoute}
-                      collapsedSize={0}
-                      minSize={isAgentRoute ? 20 : undefined}
-                      onCollapse={() => setMainOpen(false)}
-                      onExpand={() => setMainOpen(true)}
-                    >
-                      <div className="h-full p-0.5 overflow-hidden">
-                        <div
-                          className={cn(
-                            "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                            "border border-sidebar-border shadow-sm",
-                            "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                            "rounded-[0.75rem]",
-                          )}
-                        >
-                          <Suspense
-                            fallback={
-                              <div className="flex-1 flex items-center justify-center">
-                                <Loading01
-                                  size={20}
-                                  className="animate-spin text-muted-foreground"
-                                />
-                              </div>
-                            }
-                          >
-                            <div className="flex-1 overflow-hidden rounded-[inherit]">
-                              <Outlet />
-                            </div>
-                          </Suspense>
-                        </div>
-                      </div>
-                    </ResizablePanel>
-                  )}
-
-                  {showThreePanels && (
-                    <>
-                      <ResizableHandle className="bg-sidebar" />
-                      <PersistentResizablePanel
-                        key={isOrgHome ? "chat-home" : "chat-default"}
-                        panelRef={chatPanelRef}
-                        defaultCollapsed={false}
-                        defaultFullWidth={isOrgHome}
-                        onCollapse={() => setChatOpen(false)}
-                        onExpand={() => setChatOpen(true)}
-                      >
-                        <div className="h-full p-0.5">
-                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                            <ActiveTaskBoundary
-                              variant={isOrgHome ? "home" : undefined}
-                            />
-                          </div>
-                        </div>
-                      </PersistentResizablePanel>
-                    </>
-                  )}
-                </ResizablePanelGroup>
+                <AgentPanelGroup
+                  agentVirtualMcpId={agentVirtualMcpId}
+                  isAgentRoute={isAgentRoute}
+                  isOrgHome={isOrgHome}
+                  showThreePanels={showThreePanels}
+                  tasksVirtualMcpId={tasksVirtualMcpId}
+                  tasksPanelRef={tasksPanelRef}
+                  mainPanelRef={mainPanelRef}
+                  chatPanelRef={chatPanelRef}
+                  setTasksOpen={setTasksOpen}
+                  setMainOpen={setMainOpen}
+                  setChatOpen={setChatOpen}
+                />
               </Chat.Provider>
-            </OptionalAgentProvider>
+            </VirtualMCPScope>
           </Suspense>
         </SidebarInset>
       </SidebarLayout>
