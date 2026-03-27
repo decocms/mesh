@@ -11,7 +11,7 @@
  */
 
 import { Suspense, type ReactNode } from "react";
-import { useNavigate, useSearch, useMatch } from "@tanstack/react-router";
+import { useNavigate, useMatch, useSearch } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
@@ -39,8 +39,13 @@ function VirtualMCPProviderContent({
     from: "/shell/$org/$virtualMcpId",
     shouldThrow: false,
   });
+  const orgHomeMatch = useMatch({
+    from: "/shell/$org/",
+    shouldThrow: false,
+  });
 
-  const orgSlug = agentsMatch?.params.org ?? "";
+  const orgSlug = agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? "";
+  const isAgentRoute = !!agentsMatch;
 
   // Fetch entity (Suspense-based — resolved before render)
   const entity = useVirtualMCP(virtualMcpId);
@@ -74,6 +79,7 @@ function VirtualMCPProviderContent({
   }
 
   // --- VirtualMCPContext: URL-driven state ---
+  // Read search params from router state (route-agnostic)
 
   const search = useSearch({ strict: false }) as {
     main?: string;
@@ -98,8 +104,13 @@ function VirtualMCPProviderContent({
     mainView = null;
   }
 
-  const routeBase = "/$org/$virtualMcpId/" as const;
-  const params = { org: orgSlug, virtualMcpId };
+  // Navigate to the correct route depending on context
+  const routeBase = isAgentRoute
+    ? ("/$org/$virtualMcpId/" as const)
+    : ("/$org/" as const);
+  const params = isAgentRoute
+    ? { org: orgSlug, virtualMcpId }
+    : { org: orgSlug };
 
   const openTask: VirtualMCPContextValue["openTask"] = (taskId) => {
     navigate({
