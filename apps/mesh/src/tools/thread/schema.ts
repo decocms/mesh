@@ -55,12 +55,10 @@ export const ThreadEntitySchema = z.object({
     .string()
     .nullable()
     .describe("User ID who last updated the thread"),
-  agent_ids: z
-    .array(z.string())
+  virtual_mcp_id: z
+    .string()
     .optional()
-    .describe(
-      "Connection IDs used in this thread, ordered by first appearance",
-    ),
+    .describe("Virtual MCP (agent) this thread was initiated with"),
   // Typed as a loose record to stay compatible with the Kysely storage type
   // (Thread.run_config: Record<string, unknown> | null). Callers that need the
   // typed shape should parse with PersistedRunConfigSchema from run-config.ts.

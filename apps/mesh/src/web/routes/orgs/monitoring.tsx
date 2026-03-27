@@ -1560,7 +1560,7 @@ interface ThreadEntity {
   created_by: string;
   created_at: string;
   updated_at: string;
-  agent_ids?: string[];
+  virtual_mcp_id?: string;
   run_config?: Record<string, unknown> | null;
 }
 
@@ -1576,7 +1576,7 @@ interface ThreadMessageEntity {
 
 function getThreadAgentId(thread: ThreadEntity): string | null {
   const runConfig = (thread.run_config ?? {}) as { agent?: { id: string } };
-  return runConfig.agent?.id ?? thread.agent_ids?.[0] ?? null;
+  return runConfig.agent?.id ?? (thread.virtual_mcp_id || null);
 }
 
 /** Extract model name from the first assistant message's metadata */
