@@ -202,6 +202,8 @@ export const KEYS = {
     [locator, "member-tags", memberId] as const,
 
   // Automations (scoped by organization, optionally by project)
+  automationsAll: (organizationId: string) =>
+    ["automations", organizationId] as const,
   automations: (organizationId: string, virtualMcpId?: string | null) =>
     ["automations", organizationId, virtualMcpId ?? null] as const,
   automation: (organizationId: string, id: string) =>

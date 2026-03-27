@@ -19,7 +19,7 @@ import { auth } from "./index";
  * no file I/O, no secrets.json, same value across restarts.
  */
 export async function getLocalAdminPassword(): Promise<string> {
-  return getSettings().betterAuthSecret || "local";
+  return getSettings().betterAuthSecret || "local-mode-default";
 }
 
 function getLocalUserName(): string {
