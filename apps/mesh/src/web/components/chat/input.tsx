@@ -216,6 +216,7 @@ function VirtualMCPBadge({
         org: org.slug,
         virtualMcpId: virtualMcp.id!,
       },
+      search: { main: "settings" },
     });
   };
 
