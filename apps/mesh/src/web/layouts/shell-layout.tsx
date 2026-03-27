@@ -132,6 +132,10 @@ function TasksResizablePanel({
   onCollapse?: () => void;
   onExpand?: () => void;
 }>) {
+  console.log("[TasksResizablePanel] render", {
+    defaultCollapsed,
+    defaultSize: defaultCollapsed ? 0 : 22,
+  });
   return (
     <ResizablePanel
       ref={panelRef}
@@ -302,15 +306,13 @@ function NewTaskBridge({
   onNewTaskRef: React.MutableRefObject<(() => void) | null>;
 }) {
   const { createTask } = useChatTask();
-  const [chatOpen, setChatOpen] = useChatPanel();
+  const [, setChatOpen] = useChatPanel();
   useLayoutEffect(() => {
     onNewTaskRef.current = () => {
+      console.log("[NewTaskBridge] onNewTask triggered");
       createTask();
-      // Only open the chat panel if it's collapsed — resizing an already-open
-      // (possibly full-width) panel shrinks it and causes the tasks panel to expand.
-      if (!chatOpen) {
-        setChatOpen(true);
-      }
+      console.log("[NewTaskBridge] createTask done, calling setChatOpen(true)");
+      setChatOpen(true);
     };
     return () => {
       onNewTaskRef.current = null;
@@ -370,6 +372,10 @@ function ShellLayoutInner({
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const toggleTasks = () => {
+    console.log("[ShellLayout] toggleTasks called", {
+      tasksOpen,
+      expandedCount,
+    });
     if (tasksOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (tasksOpen) {
@@ -524,7 +530,7 @@ function ShellLayoutInner({
           className="flex flex-col"
           style={{ background: "transparent", containerType: "inline-size" }}
         >
-          <div className="shrink-0 flex items-center justify-between pl-3.5 pr-2 h-10">
+          <div className="shrink-0 flex items-center justify-between pl-5 pr-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
               {showThreePanels && (
                 <>
@@ -659,8 +665,17 @@ function ShellLayoutInner({
                       <TasksResizablePanel
                         panelRef={tasksPanelRef}
                         defaultCollapsed={!isAgentRoute}
-                        onCollapse={() => setTasksOpen(false)}
-                        onExpand={() => setTasksOpen(true)}
+                        onCollapse={() => {
+                          console.log("[TasksResizablePanel] onCollapse fired");
+                          setTasksOpen(false);
+                        }}
+                        onExpand={() => {
+                          console.log(
+                            "[TasksResizablePanel] onExpand fired",
+                            new Error().stack,
+                          );
+                          setTasksOpen(true);
+                        }}
                       >
                         <div className="h-full p-1.5 pt-1 overflow-hidden">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
