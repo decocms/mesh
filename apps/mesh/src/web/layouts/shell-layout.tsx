@@ -72,12 +72,15 @@ function PersistentResizablePanel({
   panelRef,
   defaultCollapsed,
   defaultFullWidth,
+  defaultSizeOverride,
   onCollapse,
   onExpand,
 }: PropsWithChildren<{
   panelRef: React.RefObject<ImperativePanelHandle | null>;
   defaultCollapsed: boolean;
   defaultFullWidth?: boolean;
+  /** When set, overrides the computed defaultSize (e.g. to fill remaining space). */
+  defaultSizeOverride?: number;
   onCollapse: () => void;
   onExpand: () => void;
 }>) {
@@ -93,11 +96,9 @@ function PersistentResizablePanel({
     });
 
   const savedWidth = Math.min(chatPanelWidth, 35);
-  const defaultSize = defaultCollapsed
-    ? 0
-    : defaultFullWidth
-      ? 100
-      : savedWidth;
+  const defaultSize =
+    defaultSizeOverride ??
+    (defaultCollapsed ? 0 : defaultFullWidth ? 100 : savedWidth);
 
   return (
     <ResizablePanel
@@ -404,15 +405,6 @@ function ShellLayoutInner({
     }
   };
 
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — syncs URL-driven mainDisabled with imperative panel API
-  useLayoutEffect(() => {
-    if (mainDisabled) {
-      mainPanelRef.current?.collapse();
-    } else if (agentHomeMatch) {
-      mainPanelRef.current?.expand();
-    }
-  }, [mainDisabled]);
-
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const onNewTask = useRef<(() => void) | null>(null);
@@ -696,7 +688,7 @@ function ShellLayoutInner({
                     </>
                   )}
 
-                  {!isOrgHome && (
+                  {!isOrgHome && !mainDisabled && (
                     <ResizablePanel
                       ref={mainPanelRef}
                       className="min-w-0 flex flex-col"
@@ -738,12 +730,21 @@ function ShellLayoutInner({
 
                   {showThreePanels && (
                     <>
-                      <ResizableHandle className="bg-sidebar" />
+                      {!isOrgHome && !mainDisabled && (
+                        <ResizableHandle className="bg-sidebar" />
+                      )}
                       <PersistentResizablePanel
-                        key={isOrgHome ? "chat-home" : "chat-default"}
+                        key={
+                          isOrgHome
+                            ? "chat-home"
+                            : mainDisabled
+                              ? "chat-no-main"
+                              : "chat-default"
+                        }
                         panelRef={chatPanelRef}
                         defaultCollapsed={false}
                         defaultFullWidth={isOrgHome}
+                        defaultSizeOverride={mainDisabled ? 78 : undefined}
                         onCollapse={() => setChatOpen(false)}
                         onExpand={() => setChatOpen(true)}
                       >

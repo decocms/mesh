@@ -103,6 +103,30 @@ function VirtualMCPProviderContent({
       : { type: "settings" };
   } else {
     mainView = null;
+
+    // When no ?main is set, check for a defaultMainView in entity metadata.
+    // Redirect to include ?main so the URL stays the source of truth for panel visibility.
+    const layoutConfig = (
+      entity?.metadata?.ui as Record<string, unknown> | null | undefined
+    )?.layout as {
+      defaultMainView?: { type: string; id?: string; toolName?: string };
+    } | null;
+    const def = layoutConfig?.defaultMainView;
+    if (def?.type) {
+      const nextSearch: Record<string, unknown> = { main: def.type };
+      if (def.id) nextSearch.id = def.id;
+      if (def.toolName) nextSearch.toolName = def.toolName;
+      if (search.taskId) nextSearch.taskId = search.taskId;
+
+      navigate({
+        to: isAgentRoute ? "/$org/$virtualMcpId/" : "/$org/",
+        params: isAgentRoute
+          ? { org: orgSlug, virtualMcpId }
+          : { org: orgSlug },
+        search: nextSearch,
+        replace: true,
+      });
+    }
   }
 
   // Navigate to the correct route depending on context
