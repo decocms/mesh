@@ -22,12 +22,6 @@ interface PortalProps {
   title?: string;
 }
 
-function HeaderLeft({ children }: PortalProps) {
-  const ctx = useContext(ViewLayoutContext);
-  if (!ctx?.leftEl) return null;
-  return createPortal(children, ctx.leftEl);
-}
-
 export function ViewTabs({ children }: PortalProps) {
   const ctx = useContext(ViewLayoutContext);
   if (!ctx?.tabsEl) return null;
@@ -42,12 +36,6 @@ function HeaderRight({ children }: PortalProps) {
 
 // Backward compat alias
 export const ViewActions = HeaderRight;
-
-// Compound Header export
-export const Header = {
-  Left: HeaderLeft,
-  Right: HeaderRight,
-};
 
 interface ViewLayoutProps {
   children: ReactNode;
