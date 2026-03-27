@@ -10,7 +10,7 @@ import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import { useNavigate } from "@tanstack/react-router";
 import { Container } from "@untitledui/icons";
-import { Line, LineChart, XAxis } from "recharts";
+import { Line, LineChart, XAxis, YAxis } from "recharts";
 import { useMonitoringLlmStats, useMonitoringTopTools } from "./hooks";
 
 export type TopChartMetric =
@@ -72,10 +72,15 @@ function buildToolBuckets(
     }
   >();
 
-  // Always create exactly 10 display buckets spanning the full range
-  const BUCKET_COUNT = 20;
+  // Compute bucket count from interval so display buckets align with server data
   const startMs = start.getTime();
   const endMs = end.getTime();
+  const intervalMs =
+    interval === "1m" ? 60_000 : interval === "1h" ? 3_600_000 : 86_400_000;
+  const BUCKET_COUNT = Math.max(
+    2,
+    Math.min(60, Math.ceil((endMs - startMs) / intervalMs)),
+  );
   const step = (endMs - startMs) / (BUCKET_COUNT - 1);
 
   for (let i = 0; i < BUCKET_COUNT; i++) {
@@ -222,9 +227,14 @@ function buildLlmBuckets(
   end: Date,
   interval: "1m" | "1h" | "1d",
 ): LlmBucket[] {
-  const BUCKET_COUNT = 20;
   const startMs = start.getTime();
   const endMs = end.getTime();
+  const intervalMs =
+    interval === "1m" ? 60_000 : interval === "1h" ? 3_600_000 : 86_400_000;
+  const BUCKET_COUNT = Math.max(
+    2,
+    Math.min(60, Math.ceil((endMs - startMs) / intervalMs)),
+  );
   const step = (endMs - startMs) / (BUCKET_COUNT - 1);
 
   // Create empty display buckets
@@ -305,6 +315,7 @@ interface TopToolsContentProps {
   status?: "success" | "error";
   isStreaming?: boolean;
   streamingRefetchInterval?: number;
+  onToolClick?: (toolName: string) => void;
 }
 
 function TopToolsContent({
@@ -316,6 +327,7 @@ function TopToolsContent({
   status,
   isStreaming,
   streamingRefetchInterval,
+  onToolClick,
 }: TopToolsContentProps) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
@@ -466,13 +478,26 @@ function TopToolsContent({
             >
               <LineChart
                 data={llmBuckets}
-                margin={{ left: 8, right: 8, top: 5, bottom: 5 }}
+                margin={{ left: 0, right: 8, top: 5, bottom: 5 }}
               >
                 <XAxis
                   dataKey="label"
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  width={44}
+                  tickFormatter={(value: number) =>
+                    value >= 10000
+                      ? `${(value / 1000).toFixed(0)}k`
+                      : value >= 1000
+                        ? `${(value / 1000).toFixed(1)}k`
+                        : String(value)
+                  }
                 />
                 <ChartTooltip
                   content={({ active, payload }) => {
@@ -525,11 +550,23 @@ function TopToolsContent({
           <p className="text-sm text-muted-foreground">
             {METRIC_LABELS[metricsMode]}
           </p>
-          <div className="flex items-center gap-3">
-            {topTools.slice(0, 3).map((tool) => {
+          <div className="flex items-center gap-4 flex-wrap">
+            {topTools.map((tool) => {
               const connection = connectionMap.get(tool.connectionId || "");
+              const color = toolColors.get(tool.toolName);
               return (
-                <div key={tool.toolName} className="flex items-center gap-1">
+                <button
+                  key={tool.toolName}
+                  className="flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToolClick?.(tool.toolName);
+                  }}
+                >
+                  <div
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
                   <IntegrationIcon
                     icon={connection?.icon || null}
                     name={tool.toolName}
@@ -537,10 +574,10 @@ function TopToolsContent({
                     fallbackIcon={<Container />}
                     className="shrink-0 size-4! min-w-4! aspect-square rounded-sm"
                   />
-                  <span className="text-[10px] text-foreground truncate max-w-32">
+                  <span className="text-xs text-foreground truncate max-w-40">
                     {tool.toolName}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -560,13 +597,26 @@ function TopToolsContent({
           >
             <LineChart
               data={toolBuckets}
-              margin={{ left: 8, right: 8, top: 5, bottom: 5 }}
+              margin={{ left: 0, right: 8, top: 5, bottom: 5 }}
             >
               <XAxis
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                width={44}
+                tickFormatter={(value: number) =>
+                  value >= 10000
+                    ? `${(value / 1000).toFixed(0)}k`
+                    : value >= 1000
+                      ? `${(value / 1000).toFixed(1)}k`
+                      : String(value)
+                }
               />
               <ChartTooltip
                 content={({ active, payload }) => {

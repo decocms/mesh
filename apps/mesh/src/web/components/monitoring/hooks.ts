@@ -4,6 +4,13 @@ import {
   useMCPToolCall,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import {
+  USE_MOCK_DATA,
+  getMockStats,
+  getMockTopTools,
+  getMockLlmStats,
+} from "./mock-data";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 /** Connection ID used for all LLM calls emitted by Decopilot. Must match server-side DECOPILOT_CONNECTION_ID. */
 const DECOPILOT_CONNECTION_ID = "decopilot";
@@ -33,6 +40,103 @@ interface MonitoringTopToolsParams extends MonitoringMetricFilters {
   topN: number;
 }
 
+interface MonitoringLlmStatsParams {
+  interval: "1m" | "1h" | "1d";
+  startDate: string;
+  endDate: string;
+}
+
+type MonitoringStatsResult = {
+  totalCalls: number;
+  totalErrors: number;
+  avgDurationMs: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+  connectionBreakdown: Array<{
+    connectionId: string;
+    calls: number;
+    errors: number;
+    errorRate: number;
+    avgDurationMs: number;
+  }>;
+  timeseries: Array<{
+    timestamp: string;
+    calls: number;
+    errors: number;
+    errorRate: number;
+    avg: number;
+    p50: number;
+    p95: number;
+  }>;
+};
+
+type MonitoringTopToolsResult = {
+  topTools: Array<{
+    toolName: string;
+    connectionId: string | null;
+    calls: number;
+  }>;
+  timeseries: Array<{
+    timestamp: string;
+    calls: number;
+    errors: number;
+    errorRate: number;
+    avg: number;
+    p50: number;
+    p95: number;
+  }>;
+  topToolsTimeseries: Array<{
+    timestamp: string;
+    toolName: string;
+    calls: number;
+    errors: number;
+    avg: number;
+    p95: number;
+  }>;
+};
+
+type MonitoringLlmStatsResult = {
+  totalCalls: number;
+  totalErrors: number;
+  avgDurationMs: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+  connectionBreakdown: Array<{
+    connectionId: string;
+    calls: number;
+    errors: number;
+    errorRate: number;
+    avgDurationMs: number;
+  }>;
+  topTools: Array<{
+    toolName: string;
+    connectionId: string | null;
+    calls: number;
+  }>;
+  timeseries: Array<{
+    timestamp: string;
+    calls: number;
+    errors: number;
+    errorRate: number;
+    avg: number;
+    p50: number;
+    p95: number;
+  }>;
+};
+
+/**
+ * Use a suspense query that resolves immediately with mock data.
+ * The queryKey includes the params so React Query treats different
+ * param combinations as separate cache entries.
+ */
+export function useMockSuspense<T>(key: string, factory: () => T) {
+  return useSuspenseQuery<T>({
+    queryKey: ["mock", key],
+    queryFn: () => Promise.resolve(factory()),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
 export function useMonitoringStats(
   params: MonitoringStatsParams,
   queryOptions?: MonitoringQueryOptions,
@@ -43,29 +147,11 @@ export function useMonitoringStats(
     orgId: org.id,
   });
 
-  return useMCPToolCall<{
-    totalCalls: number;
-    totalErrors: number;
-    avgDurationMs: number;
-    p50DurationMs: number;
-    p95DurationMs: number;
-    connectionBreakdown: Array<{
-      connectionId: string;
-      calls: number;
-      errors: number;
-      errorRate: number;
-      avgDurationMs: number;
-    }>;
-    timeseries: Array<{
-      timestamp: string;
-      calls: number;
-      errors: number;
-      errorRate: number;
-      avg: number;
-      p50: number;
-      p95: number;
-    }>;
-  }>({
+  if (USE_MOCK_DATA) {
+    return useMockSuspense("stats", () => getMockStats(params));
+  }
+
+  return useMCPToolCall<MonitoringStatsResult>({
     client,
     toolName: "MONITORING_STATS",
     toolArguments: {
@@ -93,30 +179,11 @@ export function useMonitoringTopTools(
     orgId: org.id,
   });
 
-  return useMCPToolCall<{
-    topTools: Array<{
-      toolName: string;
-      connectionId: string | null;
-      calls: number;
-    }>;
-    timeseries: Array<{
-      timestamp: string;
-      calls: number;
-      errors: number;
-      errorRate: number;
-      avg: number;
-      p50: number;
-      p95: number;
-    }>;
-    topToolsTimeseries: Array<{
-      timestamp: string;
-      toolName: string;
-      calls: number;
-      errors: number;
-      avg: number;
-      p95: number;
-    }>;
-  }>({
+  if (USE_MOCK_DATA) {
+    return useMockSuspense("topTools", () => getMockTopTools(params));
+  }
+
+  return useMCPToolCall<MonitoringTopToolsResult>({
     client,
     toolName: "MONITORING_STATS",
     toolArguments: {
@@ -132,12 +199,6 @@ export function useMonitoringTopTools(
       ((result as { structuredContent?: unknown }).structuredContent ??
         result) as any,
   });
-}
-
-interface MonitoringLlmStatsParams {
-  interval: "1m" | "1h" | "1d";
-  startDate: string;
-  endDate: string;
 }
 
 /**
@@ -157,34 +218,11 @@ export function useMonitoringLlmStats(
     orgId: org.id,
   });
 
-  return useMCPToolCall<{
-    totalCalls: number;
-    totalErrors: number;
-    avgDurationMs: number;
-    p50DurationMs: number;
-    p95DurationMs: number;
-    connectionBreakdown: Array<{
-      connectionId: string;
-      calls: number;
-      errors: number;
-      errorRate: number;
-      avgDurationMs: number;
-    }>;
-    topTools: Array<{
-      toolName: string;
-      connectionId: string | null;
-      calls: number;
-    }>;
-    timeseries: Array<{
-      timestamp: string;
-      calls: number;
-      errors: number;
-      errorRate: number;
-      avg: number;
-      p50: number;
-      p95: number;
-    }>;
-  }>({
+  if (USE_MOCK_DATA) {
+    return useMockSuspense("llmStats", () => getMockLlmStats(params));
+  }
+
+  return useMCPToolCall<MonitoringLlmStatsResult>({
     client,
     toolName: "MONITORING_STATS",
     toolArguments: {

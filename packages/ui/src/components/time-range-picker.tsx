@@ -117,7 +117,7 @@ export function TimeRangePicker({
         <div className="flex">
           {/* Left: Absolute time range */}
           <div className="flex-1 p-4 border-r">
-            <h4 className="text-sm font-medium mb-4">Absolute time range</h4>
+            <h4 className="text-sm font-medium mb-4">Custom time range</h4>
 
             <div className="space-y-4">
               <div>

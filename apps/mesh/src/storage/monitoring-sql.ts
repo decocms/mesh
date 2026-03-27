@@ -331,8 +331,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
   async query(filters: {
     organizationId: string;
     connectionId?: string;
+    connectionIds?: string[];
     excludeConnectionIds?: string[];
     virtualMcpId?: string;
+    virtualMcpIds?: string[];
     toolName?: string;
     isError?: boolean;
     startDate?: Date;
@@ -351,7 +353,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       `organization_id = '${esc(filters.organizationId)}'`,
     ];
 
-    if (filters.connectionId) {
+    if (filters.connectionIds?.length) {
+      const ids = filters.connectionIds.map((id) => `'${esc(id)}'`).join(",");
+      where.push(`connection_id IN (${ids})`);
+    } else if (filters.connectionId) {
       where.push(`connection_id = '${esc(filters.connectionId)}'`);
     }
     if (filters.excludeConnectionIds?.length) {
@@ -360,7 +365,10 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         .join(",");
       where.push(`connection_id NOT IN (${ids})`);
     }
-    if (filters.virtualMcpId) {
+    if (filters.virtualMcpIds?.length) {
+      const ids = filters.virtualMcpIds.map((id) => `'${esc(id)}'`).join(",");
+      where.push(`virtual_mcp_id IN (${ids})`);
+    } else if (filters.virtualMcpId) {
       where.push(`virtual_mcp_id = '${esc(filters.virtualMcpId)}'`);
     }
     if (filters.toolName) {

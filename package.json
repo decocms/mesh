@@ -79,5 +79,8 @@
     "@tiptap/extension-text": "3.20.2",
     "@tiptap/extension-underline": "3.20.2",
     "@tiptap/extensions": "3.20.2"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.5.1-r.1"
   }
 }

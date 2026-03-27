@@ -50,6 +50,10 @@ export const MONITORING_LOGS_LIST = defineTool({
   },
   inputSchema: z.object({
     connectionId: z.string().optional().describe("Filter by connection ID"),
+    connectionIds: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by multiple connection IDs"),
     excludeConnectionIds: z
       .array(z.string())
       .optional()
@@ -60,6 +64,10 @@ export const MONITORING_LOGS_LIST = defineTool({
       .string()
       .optional()
       .describe("Filter by Virtual MCP (Agent) ID"),
+    virtualMcpIds: z
+      .array(z.string())
+      .optional()
+      .describe("Filter by multiple Virtual MCP (Agent) IDs"),
     toolName: z.string().optional().describe("Filter by tool name"),
     isError: z.boolean().optional().describe("Filter by error status"),
     startDate: z
@@ -104,7 +112,13 @@ export const MONITORING_LOGS_LIST = defineTool({
   }),
   handler: async (input, ctx) => {
     // Flush buffered spans so the query sees the latest data (local mode).
-    await flushMonitoringData();
+    // Catch flush errors to avoid failing the entire query — stale data is
+    // preferable to no data at all.
+    try {
+      await flushMonitoringData();
+    } catch (err) {
+      console.warn("[monitoring] flush failed before list query:", err);
+    }
 
     const org = requireOrganization(ctx);
 
@@ -126,8 +140,10 @@ export const MONITORING_LOGS_LIST = defineTool({
     const filters = {
       organizationId: org.id,
       connectionId: input.connectionId,
+      connectionIds: input.connectionIds,
       excludeConnectionIds: input.excludeConnectionIds,
       virtualMcpId: input.virtualMcpId,
+      virtualMcpIds: input.virtualMcpIds,
       toolName: input.toolName,
       isError: input.isError,
       startDate: input.startDate ? new Date(input.startDate) : undefined,

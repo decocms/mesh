@@ -140,7 +140,13 @@ export const MONITORING_STATS = defineTool({
   handler: async (input, ctx) => {
     const org = requireOrganization(ctx);
     await ctx.access.check();
-    await flushMonitoringData();
+    // Catch flush errors to avoid failing the entire query — stale data is
+    // preferable to no data at all.
+    try {
+      await flushMonitoringData();
+    } catch (err) {
+      console.warn("[monitoring] flush failed before stats query:", err);
+    }
 
     if (input.interval) {
       const stats = await ctx.storage.monitoring.queryMetricTimeseries({

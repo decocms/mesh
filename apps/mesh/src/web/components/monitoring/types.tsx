@@ -555,11 +555,16 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                 <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
                   Input
                 </span>
-                {inputJson.isTruncated && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    ({formatBytes(inputJson.originalSize)} - truncated)
-                  </span>
-                )}
+                <span
+                  className={
+                    inputJson.isTruncated
+                      ? "text-xs text-amber-600 dark:text-amber-400"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {formatBytes(inputJson.originalSize)}
+                  {inputJson.isTruncated && " - truncated"}
+                </span>
               </div>
               <div className="flex items-center gap-1">
                 {log.input && (
@@ -578,22 +583,20 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                     <TooltipContent>Replay tool call</TooltipContent>
                   </Tooltip>
                 )}
-                {inputJson.isTruncated && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDownload("input")}
-                        aria-label="Download full input"
-                        className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
-                      >
-                        <Download01 size={14} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Download full input</TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDownload("input")}
+                      aria-label="Download full input"
+                      className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                    >
+                      <Download01 size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download full input</TooltipContent>
+                </Tooltip>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -622,29 +625,32 @@ export function ExpandedLogContent({ log }: ExpandedLogContentProps) {
                 <span className="text-xs font-mono uppercase text-muted-foreground tracking-widest select-none">
                   Output
                 </span>
-                {outputJson.isTruncated && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    ({formatBytes(outputJson.originalSize)} - truncated)
-                  </span>
-                )}
+                <span
+                  className={
+                    outputJson.isTruncated
+                      ? "text-xs text-amber-600 dark:text-amber-400"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {formatBytes(outputJson.originalSize)}
+                  {outputJson.isTruncated && " - truncated"}
+                </span>
               </div>
               <div className="flex items-center gap-1">
-                {outputJson.isTruncated && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDownload("output")}
-                        aria-label="Download full output"
-                        className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
-                      >
-                        <Download01 size={14} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Download full output</TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDownload("output")}
+                      aria-label="Download full output"
+                      className="text-muted-foreground hover:text-foreground rounded-lg h-8 w-8"
+                    >
+                      <Download01 size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download full output</TooltipContent>
+                </Tooltip>
                 <Button
                   size="icon"
                   variant="ghost"
