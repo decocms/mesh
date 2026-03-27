@@ -51,11 +51,11 @@ import * as migration049removeorgadminprojects from "./049-remove-org-admin-proj
 import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
 import * as migration052threadagentids from "./052-thread-agent-ids.ts";
-import * as migration052spaces from "./052-spaces.ts";
 import * as migration053registryconfig from "./053-registry-config.ts";
-import * as migration054automationprojectscope from "./054-automation-project-scope.ts";
-import * as migration054connectionslug from "./054-connection-slug.ts";
-import * as migration055threadvirtualmcpid from "./055-thread-virtual-mcp-id.ts";
+import * as migration054spaces from "./054-spaces.ts";
+import * as migration055automationprojectscope from "./055-automation-project-scope.ts";
+import * as migration056connectionslug from "./056-connection-slug.ts";
+import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -121,11 +121,11 @@ const migrations: Record<string, Migration> = {
   "050-durable-agent-runs": migration050durableagentruns,
   "051-org-sso": migration051orgsso,
   "052-thread-agent-ids": migration052threadagentids,
-  "052-spaces": migration052spaces,
   "053-registry-config": migration053registryconfig,
-  "054-automation-project-scope": migration054automationprojectscope,
-  "054-connection-slug": migration054connectionslug,
-  "055-thread-virtual-mcp-id": migration055threadvirtualmcpid,
+  "054-spaces": migration054spaces,
+  "055-automation-project-scope": migration055automationprojectscope,
+  "056-connection-slug": migration056connectionslug,
+  "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
 };
 
 export default migrations;
