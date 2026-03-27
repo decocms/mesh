@@ -6,10 +6,7 @@
  */
 
 import { useChatPrefs } from "@/web/components/chat/context";
-import {
-  VirtualMCPPopoverContent,
-  type VirtualMCPInfo,
-} from "@/web/components/chat/select-virtual-mcp";
+import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   Popover,
@@ -99,11 +96,9 @@ function AgentPreview({
  * See All button component
  */
 function SeeAllButton({
-  virtualMcps,
   selectedVirtualMcpId,
   onVirtualMcpChange,
 }: {
-  virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
 }) {
@@ -151,7 +146,6 @@ function SeeAllButton({
         }}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={virtualMcps}
           selectedVirtualMcpId={selectedVirtualMcpId}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}
@@ -233,14 +227,6 @@ function AgentsListContent() {
     })
     .slice(0, 5);
 
-  // Convert to VirtualMCPInfo format
-  const virtualMcpsInfo: VirtualMCPInfo[] = virtualMcps.map((agent) => ({
-    id: agent.id,
-    title: agent.title,
-    description: agent.description,
-    icon: agent.icon,
-  }));
-
   const hasAgents = agents.length > 0;
 
   return (
@@ -258,7 +244,6 @@ function AgentsListContent() {
           <CreateAgentButton />
           {hasAgents && (
             <SeeAllButton
-              virtualMcps={virtualMcpsInfo}
               selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
               onVirtualMcpChange={setVirtualMcpId}
             />

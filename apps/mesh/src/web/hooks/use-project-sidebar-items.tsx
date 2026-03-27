@@ -4,7 +4,7 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Home01, LayoutLeft } from "@untitledui/icons";
+import { Browser, Home01 } from "@untitledui/icons";
 import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
@@ -110,7 +110,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
     icon: view.icon ? (
       <img src={view.icon} alt="" className="size-4 rounded" />
     ) : (
-      <LayoutLeft />
+      // Keep in sync with side-panel-tasks.tsx pinned view icon
+      <Browser />
     ),
     isActive: isActiveRoute(
       `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,

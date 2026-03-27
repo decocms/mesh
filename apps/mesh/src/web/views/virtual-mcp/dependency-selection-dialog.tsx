@@ -454,6 +454,7 @@ interface DependencySelectionDialogProps {
   form: VirtualMcpFormReturn;
   connections: VirtualMCPConnection[];
   onAuthenticate?: (connectionId: string) => void;
+  onSave?: () => void;
 }
 
 // Auth check — renders auth prompt if the connection needs authorization
@@ -547,6 +548,7 @@ export function DependencySelectionDialog({
   form,
   connections,
   onAuthenticate,
+  onSave,
 }: DependencySelectionDialogProps) {
   const [dialogState, dispatch] = useReducer(dialogReducer, {
     activeTab: "tools",
@@ -589,6 +591,7 @@ export function DependencySelectionDialog({
       shouldDirty: true,
       shouldTouch: true,
     });
+    onSave?.();
   };
 
   const toggleAll = (
@@ -610,6 +613,7 @@ export function DependencySelectionDialog({
       shouldDirty: true,
       shouldTouch: true,
     });
+    onSave?.();
   };
 
   const toggleTool = (

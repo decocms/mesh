@@ -134,7 +134,7 @@ export interface ChatPrefsContextValue {
   setTiptapDoc: (doc: Metadata["tiptapDoc"]) => void;
   /** @deprecated Use tiptapDoc directly */
   tiptapDocRef: { current: Metadata["tiptapDoc"] };
-  /** @deprecated No-op — virtualMcpId is URL-driven */
+  /** Set ephemeral per-task agent override. Passing null resets to URL agent. */
   setVirtualMcpId: (id: string | null) => void;
   /** @deprecated No-op */
   resetInteraction: () => void;
@@ -206,8 +206,12 @@ export function ChatContextProvider({
   const user = session?.user ?? null;
 
   // URL state
-  const { taskId: urlTaskId, navigateToTask: rawNavigateToTask } =
-    useChatNavigation();
+  const {
+    taskId: urlTaskId,
+    virtualMcpOverride,
+    navigateToTask: rawNavigateToTask,
+    setVirtualMcpOverride,
+  } = useChatNavigation();
 
   // Preferences
   const [preferences] = usePreferences();
@@ -246,22 +250,28 @@ export function ChatContextProvider({
 
   // Virtual MCPs
   const virtualMcps = useVirtualMCPs();
-  const selectedVirtualMcp = virtualMcps.find((v) => v.id === virtualMcpId) ?? {
-    id: virtualMcpId,
+
+  // Task management (scoped by URL virtualMcpId — task list doesn't change on override)
+  const taskManager = useTaskManager(virtualMcpId);
+  const { tasks } = taskManager;
+
+  // taskId always comes from the URL (seeded by router's validateSearch)
+  const effectiveTaskId = urlTaskId;
+
+  // Effective agent: URL override (ephemeral per-task) ?? path param (thread owner)
+  const effectiveVirtualMcpId = virtualMcpOverride ?? virtualMcpId;
+
+  const selectedVirtualMcp = virtualMcps.find(
+    (v) => v.id === effectiveVirtualMcpId,
+  ) ?? {
+    id: effectiveVirtualMcpId,
     title: "",
     description: null,
     icon: null,
   };
 
-  // Task management (scoped by virtualMcpId)
-  const taskManager = useTaskManager(virtualMcpId);
-  const { tasks } = taskManager;
-
-  // taskId comes from the URL (seeded by router's validateSearch if absent)
-  const effectiveTaskId = urlTaskId ?? tasks[0]?.id ?? "";
-
-  // Context prompt
-  const contextPrompt = useContextHook(virtualMcpId);
+  // Context prompt (uses effective agent)
+  const contextPrompt = useContextHook(effectiveVirtualMcpId);
 
   // App contexts
   const [appContexts, setAppContextsState] = useState<Record<string, string>>(
@@ -369,9 +379,12 @@ export function ChatContextProvider({
   const clearPendingMessage = () => setPendingMessage(null);
 
   // Navigate to task with read tracking
-  const navigateToTask = (taskId: string) => {
+  const navigateToTask = (
+    taskId: string,
+    opts?: { virtualMcpOverride?: string },
+  ) => {
     markTaskRead(taskId);
-    rawNavigateToTask(taskId);
+    rawNavigateToTask(taskId, opts);
   };
 
   // Create task (optimistic + navigate), returns new task ID
@@ -386,16 +399,13 @@ export function ChatContextProvider({
     message: SendMessageParams;
     virtualMcpId?: string;
   }) => {
-    // If target is a different agent, navigate there first
-    if (params.virtualMcpId && params.virtualMcpId !== virtualMcpId) {
-      // Cross-agent send: navigate to the target agent with a new task
-      // The pending message will be consumed when ActiveTaskProvider mounts
-      // for that agent (after TaskProvider remounts with new virtualMcpId)
-      console.warn(
-        "[ChatBridge] cross-agent createTaskWithMessage not yet supported, falling back to current agent",
-      );
-    }
-    const newId = createTask();
+    const newId = taskManager.createTask();
+    navigateToTask(newId, {
+      virtualMcpOverride:
+        params.virtualMcpId && params.virtualMcpId !== virtualMcpId
+          ? params.virtualMcpId
+          : undefined,
+    });
     setPendingMessage({
       taskId: newId,
       message: params.message,
@@ -419,7 +429,7 @@ export function ChatContextProvider({
   // ---- Build context values ----
 
   const taskValue: ChatTaskContextValue = {
-    virtualMcpId,
+    virtualMcpId: effectiveVirtualMcpId,
     taskId: effectiveTaskId,
     openTask: navigateToTask,
     createTask,
@@ -453,7 +463,7 @@ export function ChatContextProvider({
     tiptapDoc,
     setTiptapDoc,
     tiptapDocRef: { current: tiptapDoc },
-    setVirtualMcpId: () => {},
+    setVirtualMcpId: setVirtualMcpOverride,
     resetInteraction: () => {},
   };
 

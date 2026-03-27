@@ -11,7 +11,7 @@ import { Page } from "@/web/components/page";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
 import {
-  LayoutLeft,
+  Browser,
   Loading01,
   MessageTextCircle02,
   Settings01,
@@ -110,7 +110,8 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
           {view.icon ? (
             <img src={view.icon} alt="" className="size-4 rounded shrink-0" />
           ) : (
-            <LayoutLeft size={15} className="shrink-0" />
+            // Keep in sync with use-project-sidebar-items.tsx pinned view icon
+            <Browser size={15} className="shrink-0" />
           )}
           <span className="truncate">{view.label || view.toolName}</span>
         </button>

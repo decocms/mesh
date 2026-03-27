@@ -120,7 +120,7 @@ const DISPLAY_GROUP_META: Record<
   },
 };
 
-function toDisplayGroupKey(status: string | undefined): DisplayGroupKey {
+export function toDisplayGroupKey(status: string | undefined): DisplayGroupKey {
   switch (status) {
     case "requires_action":
     case "failed":

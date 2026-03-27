@@ -41,7 +41,7 @@ export type TaskOwnerFilter = "me" | "everyone";
 // useTasks — fetch task list scoped by virtualMcpId
 // ============================================================================
 
-function useTasks(
+export function useTasks(
   ownerFilter: TaskOwnerFilter,
   userId: string | undefined,
   virtualMcpId: string,

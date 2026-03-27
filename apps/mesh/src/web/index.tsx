@@ -374,6 +374,7 @@ const agentHomeRoute = createRoute({
       .transform((v) => v ?? crypto.randomUUID()),
     main: z.string().optional(),
     id: z.string().optional(),
+    virtualMcpOverride: z.string().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });

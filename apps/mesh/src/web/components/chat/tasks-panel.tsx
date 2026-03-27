@@ -13,9 +13,13 @@ import {
   buildDisplayGroups,
   getTaskVerb,
   STATUS_CONFIG,
+  toDisplayGroupKey,
   type StatusKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
+import { useTasks } from "./task";
+import { authClient } from "../../lib/auth-client";
+import { useSearch } from "@tanstack/react-router";
 import {
   Tooltip,
   TooltipContent,
@@ -567,6 +571,103 @@ function FilterDropdown({
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
+// ────────────────────────────────────────
+// Grouped task list — keyed by activeGroupKey so expanded state resets
+// when the active task moves between groups
+// ────────────────────────────────────────
+
+function GroupedTaskList({
+  groups,
+  activeGroupKey,
+  activeTaskId,
+  virtualMcpId,
+  onTaskSelect,
+}: {
+  groups: ReturnType<typeof buildDisplayGroups>;
+  activeGroupKey: string | null;
+  activeTaskId: string | null;
+  virtualMcpId?: string | null;
+  onTaskSelect: (task: Task) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    // Default: auto-open the group containing the active task
+    if (activeGroupKey) return { [activeGroupKey]: true };
+    return {};
+  });
+
+  const toggleGroup = (key: string) => {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {groups
+        .filter((g) => g.key !== "done")
+        .map((group) => {
+          const isOpen = !!expanded[group.key];
+          return (
+            <div key={group.key}>
+              <GroupHeader
+                label={group.label}
+                icon={group.icon}
+                iconClassName={group.iconClassName}
+                count={group.tasks.length}
+                isOpen={isOpen}
+                onToggle={() => toggleGroup(group.key)}
+              />
+              {isOpen &&
+                (group.tasks.length > 0 ? (
+                  group.tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      isActive={task.id === activeTaskId}
+                      onClick={() => onTaskSelect(task)}
+                    />
+                  ))
+                ) : (
+                  <SectionEmptyState />
+                ))}
+            </div>
+          );
+        })}
+      {virtualMcpId && <IncomingSection virtualMcpId={virtualMcpId} />}
+      {groups
+        .filter((g) => g.key === "done")
+        .map((group) => {
+          const isOpen = !!expanded[group.key];
+          return (
+            <div key={group.key}>
+              <GroupHeader
+                label={group.label}
+                icon={group.icon}
+                iconClassName={group.iconClassName}
+                count={group.tasks.length}
+                isOpen={isOpen}
+                onToggle={() => toggleGroup(group.key)}
+              />
+              {isOpen &&
+                (group.tasks.length > 0 ? (
+                  group.tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      isActive={task.id === activeTaskId}
+                      onClick={() => onTaskSelect(task)}
+                    />
+                  ))
+                ) : (
+                  <SectionEmptyState />
+                ))}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────
+
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
   virtualMcpId?: string | null;
@@ -576,26 +677,31 @@ export function TaskListContent({
   onTaskSelect,
   virtualMcpId,
 }: TaskListContentProps) {
-  const { taskId, openTask, tasks } = useChatTask();
+  const { openTask, ownerFilter } = useChatTask();
+
+  // Read taskId directly from router (seeded by validateSearch)
+  const search = useSearch({ strict: false }) as { taskId?: string };
+  const taskId = search.taskId ?? null;
+
+  // Own task list fetch — shares TanStack Query cache with ChatContextProvider
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id;
+  const { tasks } = useTasks(
+    ownerFilter,
+    ownerFilter === "me" ? userId : undefined,
+    virtualMcpId ?? "",
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<StatusKey>>(new Set());
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
   const visible = tasks.filter((t) => !t.hidden);
 
-  // When inside a space, show only tasks that involve this space's agent
-  const spaceId = virtualMcpId ?? null;
-  const spaceFiltered = spaceId
-    ? visible.filter((t) => t.virtual_mcp_id === spaceId)
-    : visible;
-
   const searched = searchQuery.trim()
-    ? spaceFiltered.filter((t) =>
+    ? visible.filter((t) =>
         t.title.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-    : spaceFiltered;
+    : visible;
 
   const filtered = searched.filter((task) => {
     if (
@@ -608,9 +714,11 @@ export function TaskListContent({
 
   const groups = buildDisplayGroups(filtered);
 
-  const toggleGroup = (key: string) => {
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  // Find which group the active task belongs to so we can auto-open it
+  const activeTask = taskId ? filtered.find((t) => t.id === taskId) : null;
+  const activeGroupKey = activeTask
+    ? toDisplayGroupKey(activeTask.status)
+    : null;
 
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
@@ -682,70 +790,15 @@ export function TaskListContent({
         </div>
       )}
 
-      {/* Grouped list */}
-      <div className="flex-1 overflow-y-auto">
-        {groups
-          .filter((g) => g.key !== "done")
-          .map((group) => {
-            const isGroupOpen = !!expanded[group.key];
-            return (
-              <div key={group.key}>
-                <GroupHeader
-                  label={group.label}
-                  icon={group.icon}
-                  iconClassName={group.iconClassName}
-                  count={group.tasks.length}
-                  isOpen={isGroupOpen}
-                  onToggle={() => toggleGroup(group.key)}
-                />
-                {isGroupOpen &&
-                  (group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === taskId}
-                        onClick={() => handleSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  ))}
-              </div>
-            );
-          })}
-        {virtualMcpId && <IncomingSection virtualMcpId={virtualMcpId} />}
-        {groups
-          .filter((g) => g.key === "done")
-          .map((group) => {
-            const isGroupOpen = !!expanded[group.key];
-            return (
-              <div key={group.key}>
-                <GroupHeader
-                  label={group.label}
-                  icon={group.icon}
-                  iconClassName={group.iconClassName}
-                  count={group.tasks.length}
-                  isOpen={isGroupOpen}
-                  onToggle={() => toggleGroup(group.key)}
-                />
-                {isGroupOpen &&
-                  (group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === taskId}
-                        onClick={() => handleSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  ))}
-              </div>
-            );
-          })}
-      </div>
+      {/* Grouped list — key resets expanded state when active task moves groups */}
+      <GroupedTaskList
+        key={activeGroupKey ?? "none"}
+        groups={groups}
+        activeGroupKey={activeGroupKey}
+        activeTaskId={taskId}
+        virtualMcpId={virtualMcpId}
+        onTaskSelect={handleSelect}
+      />
     </div>
   );
 }

@@ -15,8 +15,9 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import { isDecopilot, type VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { useVirtualMCPs } from "@decocms/mesh-sdk";
-import { Check, SearchMd, Users03 } from "@untitledui/icons";
+import { Check, Loading01, SearchMd, Users03 } from "@untitledui/icons";
 import {
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -75,23 +76,33 @@ function VirtualMCPItemContent({
 // ---------- Shared Popover Content ----------
 
 export interface VirtualMCPPopoverContentProps {
-  virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
+}
+
+function PopoverContentLoading() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loading01 size={20} className="animate-spin text-muted-foreground" />
+    </div>
+  );
 }
 
 /**
  * Shared popover content for virtual MCP (agent) selection.
  * Contains search input and virtual MCP grid.
  * Used by both VirtualMCPSelector and VirtualMCPBadge.
+ *
+ * Wrapped in Suspense via SuspendedVirtualMCPPopoverContent — this component
+ * calls useVirtualMCPs() internally so the agent list is only fetched on open.
  */
-export function VirtualMCPPopoverContent({
-  virtualMcps,
+function VirtualMCPPopoverContentInner({
   selectedVirtualMcpId,
   onVirtualMcpChange,
   searchInputRef,
 }: VirtualMCPPopoverContentProps) {
+  const virtualMcps = useVirtualMCPs();
   const [searchTerm, setSearchTerm] = useState("");
   const internalRef = useRef<HTMLInputElement>(null);
   const inputRef = searchInputRef ?? internalRef;
@@ -186,12 +197,23 @@ export function VirtualMCPPopoverContent({
   );
 }
 
+/**
+ * Suspense-wrapped popover content — lazy-loads the agent list on open.
+ */
+export function VirtualMCPPopoverContent(props: VirtualMCPPopoverContentProps) {
+  return (
+    <Suspense fallback={<PopoverContentLoading />}>
+      <VirtualMCPPopoverContentInner {...props} />
+    </Suspense>
+  );
+}
+
 // ---------- Virtual MCP Selector Component ----------
 
 export interface VirtualMCPSelectorProps {
   selectedVirtualMcpId?: string | null;
+  selectedVirtualMcp?: VirtualMCPInfo | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  virtualMcps?: VirtualMCPInfo[];
   variant?: "borderless" | "bordered";
   className?: string;
   placeholder?: string;
@@ -206,8 +228,8 @@ export interface VirtualMCPSelectorProps {
  */
 export function VirtualMCPSelector({
   selectedVirtualMcpId,
+  selectedVirtualMcp,
   onVirtualMcpChange,
-  virtualMcps: virtualMcpsProp,
   variant: _variant,
   className,
   placeholder = "Select Agent",
@@ -216,19 +238,6 @@ export function VirtualMCPSelector({
 }: VirtualMCPSelectorProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Use provided virtual MCPs or fetch from hook
-  const virtualMcpsFromHook = useVirtualMCPs();
-  const allVirtualMcps = virtualMcpsProp ?? virtualMcpsFromHook;
-
-  // Filter out Decopilot from the list
-  const virtualMcps = allVirtualMcps.filter(
-    (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
-  );
-
-  const selectedVirtualMcp = selectedVirtualMcpId
-    ? allVirtualMcps.find((g) => g.id === selectedVirtualMcpId)
-    : null;
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -336,7 +345,6 @@ export function VirtualMCPSelector({
         collisionPadding={16}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={virtualMcps}
           selectedVirtualMcpId={selectedVirtualMcpId}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}

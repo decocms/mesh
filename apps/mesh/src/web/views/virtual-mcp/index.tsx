@@ -1142,13 +1142,13 @@ Define step-by-step how the agent should handle requests.
         onOpenChange={(open) => {
           if (!open) {
             dispatch({ type: "CLOSE_SETTINGS" });
-            saveForm();
           }
         }}
         selectedId={dialogState.settingsConnectionId}
         form={form}
         connections={connections}
         onAuthenticate={handleAuthenticate}
+        onSave={saveForm}
       />
 
       <VirtualMCPShareModal

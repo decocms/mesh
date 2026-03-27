@@ -58,13 +58,11 @@ import { authClient } from "@/web/lib/auth-client.ts";
 
 interface DecopilotIconButtonProps {
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  virtualMcps: VirtualMCPInfo[];
   disabled?: boolean;
 }
 
 function DecopilotIconButton({
   onVirtualMcpChange,
-  virtualMcps,
   disabled = false,
 }: DecopilotIconButtonProps) {
   const [open, setOpen] = useState(false);
@@ -73,11 +71,6 @@ function DecopilotIconButton({
   const isMobile = useIsMobile();
 
   const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
-
-  // Filter out Decopilot from the list
-  const filteredVirtualMcps = virtualMcps.filter(
-    (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
-  );
 
   // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -156,7 +149,6 @@ function DecopilotIconButton({
         collisionPadding={16}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={filteredVirtualMcps}
           selectedVirtualMcpId={decopilot.id}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}
@@ -171,15 +163,13 @@ function DecopilotIconButton({
 // ============================================================================
 
 interface VirtualMCPBadgeProps {
-  virtualMcpId: string;
-  virtualMcps: VirtualMCPInfo[];
+  virtualMcp: VirtualMCPInfo | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
   disabled?: boolean;
 }
 
 function VirtualMCPBadge({
-  virtualMcpId,
-  virtualMcps,
+  virtualMcp,
   onVirtualMcpChange,
   disabled = false,
 }: VirtualMCPBadgeProps) {
@@ -188,8 +178,6 @@ function VirtualMCPBadge({
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const isMobile = useIsMobile();
-
-  const virtualMcp = virtualMcps.find((g) => g.id === virtualMcpId);
 
   // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -201,7 +189,7 @@ function VirtualMCPBadge({
     }
   }, [open, isMobile]);
 
-  if (!virtualMcp || isDecopilot(virtualMcpId)) return null; // Don't show badge for Decopilot
+  if (!virtualMcp?.id || isDecopilot(virtualMcp.id)) return null; // Don't show badge for Decopilot
 
   const themeColor = (
     virtualMcp as {
@@ -216,7 +204,8 @@ function VirtualMCPBadge({
 
   const handleReset = (e: MouseEvent) => {
     e.stopPropagation();
-    onVirtualMcpChange(null);
+    const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+    onVirtualMcpChange(decopilotId);
   };
 
   const handleEdit = (e: MouseEvent) => {
@@ -225,7 +214,7 @@ function VirtualMCPBadge({
       to: "/$org/$virtualMcpId",
       params: {
         org: org.slug,
-        virtualMcpId,
+        virtualMcpId: virtualMcp.id!,
       },
     });
   };
@@ -266,8 +255,7 @@ function VirtualMCPBadge({
           sideOffset={8}
         >
           <VirtualMCPPopoverContent
-            virtualMcps={virtualMcps}
-            selectedVirtualMcpId={virtualMcpId}
+            selectedVirtualMcpId={virtualMcp.id}
             onVirtualMcpChange={handleVirtualMcpChange}
             searchInputRef={searchInputRef}
           />
@@ -375,7 +363,6 @@ export function ChatInput({
   const {
     selectedModel,
     selectedVirtualMcp,
-    virtualMcps,
     setVirtualMcpId,
     isModelsLoading,
     tiptapDocRef,
@@ -484,8 +471,7 @@ export function ChatInput({
 
   // Keep last active agent + color for exit animation
   const lastAgentRef = useRef<{
-    id: string;
-    virtualMcps: VirtualMCPInfo[];
+    virtualMcp: VirtualMCPInfo;
     color: ReturnType<typeof getAgentWrapperColor> | null;
   } | null>(null);
 
@@ -503,15 +489,13 @@ export function ChatInput({
     : null;
 
   if (hasAgentBadge && selectedVirtualMcp?.id) {
-    lastAgentRef.current = { id: selectedVirtualMcp.id, virtualMcps, color };
+    lastAgentRef.current = { virtualMcp: selectedVirtualMcp, color };
   }
 
-  const badgeAgent = hasAgentBadge ? selectedVirtualMcp : null;
-  const badgeAgentId = badgeAgent?.id ?? lastAgentRef.current?.id;
-  const badgeVirtualMcps = badgeAgent
-    ? virtualMcps
-    : (lastAgentRef.current?.virtualMcps ?? []);
-  // Use current color when active, last color during exit animation
+  // Use current agent when active, last agent during exit animation
+  const badgeVirtualMcp = hasAgentBadge
+    ? selectedVirtualMcp
+    : (lastAgentRef.current?.virtualMcp ?? null);
   const wrapperBg = color?.bg ?? lastAgentRef.current?.color?.bg;
 
   if (userId && task?.created_by && task.created_by !== userId) {
@@ -551,11 +535,10 @@ export function ChatInput({
           onTransitionEnd={handleGridTransitionEnd}
         >
           <div className="overflow-hidden">
-            {badgeAgentId && (
+            {badgeVirtualMcp && (
               <VirtualMCPBadge
+                virtualMcp={badgeVirtualMcp}
                 onVirtualMcpChange={setVirtualMcpId}
-                virtualMcpId={badgeAgentId}
-                virtualMcps={badgeVirtualMcps}
                 disabled={isStreaming}
               />
             )}
@@ -608,14 +591,13 @@ export function ChatInput({
                   {!selectedVirtualMcp || isDecopilot(selectedVirtualMcp.id) ? (
                     <DecopilotIconButton
                       onVirtualMcpChange={setVirtualMcpId}
-                      virtualMcps={virtualMcps}
                       disabled={isStreaming}
                     />
                   ) : (
                     <VirtualMCPSelector
                       selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
+                      selectedVirtualMcp={selectedVirtualMcp}
                       onVirtualMcpChange={setVirtualMcpId}
-                      virtualMcps={virtualMcps}
                       placeholder="Agent"
                       disabled={isStreaming}
                     />
