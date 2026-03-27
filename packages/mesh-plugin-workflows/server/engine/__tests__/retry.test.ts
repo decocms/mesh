@@ -48,7 +48,6 @@ afterEach(async () => {
 // Helpers
 // ============================================================================
 
-const IDENTITY_CODE = "export default function(input) { return input; }";
 const FAIL_CODE =
   "export default function() { throw new Error('step failed'); }";
 
