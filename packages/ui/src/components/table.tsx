@@ -6,7 +6,10 @@ import { cn } from "@deco/ui/lib/utils.ts";
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div data-slot="table-container" className="w-full min-w-0 bg-background">
+    <div
+      data-slot="table-container"
+      className="w-full min-w-0 bg-background rounded-xl border border-border shadow-xs overflow-hidden"
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm min-w-0", className)}

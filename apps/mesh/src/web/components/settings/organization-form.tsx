@@ -3,15 +3,14 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@deco/ui/components/form.tsx";
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { Label } from "@deco/ui/components/label.tsx";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -60,7 +59,6 @@ export function OrganizationForm() {
         slug: data.slug,
       };
 
-      // Include logo if it has a value (Better Auth expects string or undefined, not null)
       if (data.logo) {
         updateData.logo = data.logo;
       }
@@ -85,7 +83,6 @@ export function OrganizationForm() {
       });
       toast.success("Organization settings updated successfully");
 
-      // If slug changed, navigate to new slug
       if (data?.data?.slug && data.data.slug !== org.slug) {
         navigate({
           to: "/$org/settings/general",
@@ -111,85 +108,97 @@ export function OrganizationForm() {
   };
 
   const hasChanges = form.formState.isDirty;
+  const errors = form.formState.errors;
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Organization Name</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="My Organization"
-                  {...field}
-                  disabled={isSaving}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex flex-col gap-6"
+    >
+      <Card className="hover:bg-card p-6">
+        <CardHeader className="p-0">
+          <CardTitle className="text-sm">Overview</CardTitle>
+        </CardHeader>
 
-        <FormField
-          control={form.control}
-          name="slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Organization Slug</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="my-organization"
-                  {...field}
-                  disabled={isSaving}
-                  onChange={(e) => {
-                    // Convert to lowercase and remove invalid chars
-                    const sanitized = e.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9-]/g, "");
-                    field.onChange(sanitized);
-                  }}
-                />
-              </FormControl>
-              <FormDescription>
-                Used in URLs. Only lowercase letters, numbers, and hyphens are
-                allowed.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <CardContent className="flex flex-col gap-6 p-0">
+          {/* Logo */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Logo</Label>
+            <LogoUpload
+              value={form.watch("logo")}
+              onChange={(val) =>
+                form.setValue("logo", val ?? "", { shouldDirty: true })
+              }
+              name={form.watch("name")}
+              disabled={isSaving}
+            />
+            {errors.logo && (
+              <p className="text-xs text-destructive">{errors.logo.message}</p>
+            )}
+          </div>
 
-        <FormField
-          control={form.control}
-          name="logo"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Logo</FormLabel>
-              <FormControl>
-                <LogoUpload
-                  value={field.value}
-                  onChange={field.onChange}
-                  name={form.watch("name")}
-                  disabled={isSaving}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          {/* Name + Slug side by side */}
+          <div className="grid grid-cols-2 gap-5">
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="org-name"
+                className="text-xs text-muted-foreground"
+              >
+                Organization name
+              </Label>
+              <Input
+                id="org-name"
+                {...form.register("name")}
+                placeholder="Organization name"
+                disabled={isSaving}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
 
-        <div className="flex items-center gap-3 pt-4">
-          <Button
-            type="submit"
-            disabled={!hasChanges || isSaving}
-            className="min-w-24"
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
-          {hasChanges && (
+            <div className="flex flex-col gap-1.5">
+              <Label
+                htmlFor="org-slug"
+                className="text-xs text-muted-foreground"
+              >
+                Slug
+              </Label>
+              <Input
+                id="org-slug"
+                {...form.register("slug")}
+                placeholder="my-organization"
+                disabled={isSaving}
+                onChange={(e) => {
+                  const sanitized = e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]/g, "");
+                  form.setValue("slug", sanitized, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  });
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Only lowercase letters, numbers, and hyphens.
+              </p>
+              {errors.slug && (
+                <p className="text-xs text-destructive">
+                  {errors.slug.message}
+                </p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+
+        {hasChanges && (
+          <CardFooter className="p-0 pt-2 gap-2">
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving…" : "Save"}
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -198,9 +207,9 @@ export function OrganizationForm() {
             >
               Cancel
             </Button>
-          )}
-        </div>
-      </form>
-    </Form>
+          </CardFooter>
+        )}
+      </Card>
+    </form>
   );
 }

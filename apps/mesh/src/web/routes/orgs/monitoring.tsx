@@ -4,14 +4,8 @@
  * Displays tool call monitoring logs and statistics for the organization.
  */
 
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { MONITORING_CONFIG } from "@/web/components/monitoring/config.ts";
@@ -1618,18 +1612,19 @@ function AuditTabContent({
   return (
     <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden min-w-0">
       {/* Search Bar */}
-      <CollectionSearch
-        value={searchQuery}
-        onChange={(value) => onUpdateFilters({ search: value })}
-        placeholder="Search by tool name, connection, or error..."
-        className="border-t"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            onUpdateFilters({ search: "" });
-            (event.target as HTMLInputElement).blur();
-          }
-        }}
-      />
+      <div className="px-10 pt-4">
+        <SearchInput
+          value={searchQuery}
+          onChange={(value) => onUpdateFilters({ search: value })}
+          placeholder="Search by tool name, connection, or error..."
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              onUpdateFilters({ search: "" });
+              (event.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+      </div>
 
       {/* Logs Table */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -1765,20 +1760,11 @@ function MonitoringDashboardContent({
 
   return (
     <>
-      <Page.Header>
-        <Page.Header.Left>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Monitoring</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </Page.Header.Left>
-        {(tab === "overview" || tab === "audit") && (
-          <Page.Header.Right>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Filters Button */}
+      <Page.Body className="pb-0">
+        <div className="flex flex-col gap-6">
+          <Page.Title>Monitoring</Page.Title>
+          {(tab === "overview" || tab === "audit") && (
+            <div className="flex items-center justify-end gap-2">
               <FiltersPopover
                 connectionIds={connectionIds}
                 virtualMcpIds={virtualMcpIds}
@@ -1794,7 +1780,6 @@ function MonitoringDashboardContent({
                 onConnectionSearchChange={setConnectionSearch}
               />
 
-              {/* AI Only Toggle (Audit tab only) */}
               {tab === "audit" && (
                 <Button
                   variant={aiOnly ? "secondary" : "outline"}
@@ -1806,7 +1791,6 @@ function MonitoringDashboardContent({
                 </Button>
               )}
 
-              {/* Streaming Toggle */}
               <Button
                 variant="outline"
                 size="sm"
@@ -1823,24 +1807,19 @@ function MonitoringDashboardContent({
                 </span>
               </Button>
 
-              {/* Time Range Picker */}
               <TimeRangePicker
                 value={{ from, to }}
                 onChange={onTimeRangeChange}
               />
             </div>
-          </Page.Header.Right>
-        )}
-      </Page.Header>
-
-      {/* Tabs */}
-      <div className="px-5 py-3 border-b border-border">
-        <CollectionTabs
-          tabs={tabs}
-          activeTab={tab}
-          onTabChange={(tabId) => onTabChange(tabId as "overview" | "audit")}
-        />
-      </div>
+          )}
+          <CollectionTabs
+            tabs={tabs}
+            activeTab={tab}
+            onTabChange={(tabId) => onTabChange(tabId as "overview" | "audit")}
+          />
+        </div>
+      </Page.Body>
 
       {tab === "audit" ? (
         <AuditTabContent
@@ -1993,13 +1972,9 @@ export default function MonitoringDashboard() {
       <ErrorBoundary
         fallback={
           <>
-            <Page.Header>
-              <Page.Header.Left>
-                <h1 className="text-sm font-medium text-foreground">
-                  Monitoring
-                </h1>
-              </Page.Header.Left>
-            </Page.Header>
+            <Page.Body className="pb-0">
+              <Page.Title>Monitoring</Page.Title>
+            </Page.Body>
             <Page.Content>
               <div className="flex flex-col overflow-auto md:overflow-hidden h-full">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-[0.5px] bg-border shrink-0 border-b">
@@ -2021,33 +1996,23 @@ export default function MonitoringDashboard() {
         <Suspense
           fallback={
             <>
-              <Page.Header>
-                <Page.Header.Left>
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbPage>Monitoring</BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                </Page.Header.Left>
-              </Page.Header>
-
-              {/* Tabs */}
-              <div className="px-5 py-3 border-b border-border">
-                <CollectionTabs
-                  tabs={[
-                    { id: "overview", label: "Overview" },
-                    { id: "audit", label: "Audit" },
-                  ]}
-                  activeTab={tab}
-                  onTabChange={(tabId) =>
-                    updateFilters({
-                      tab: tabId as "overview" | "audit",
-                    })
-                  }
-                />
-              </div>
+              <Page.Body className="pb-0">
+                <div className="flex flex-col gap-6">
+                  <Page.Title>Monitoring</Page.Title>
+                  <CollectionTabs
+                    tabs={[
+                      { id: "overview", label: "Overview" },
+                      { id: "audit", label: "Audit" },
+                    ]}
+                    activeTab={tab}
+                    onTabChange={(tabId) =>
+                      updateFilters({
+                        tab: tabId as "overview" | "audit",
+                      })
+                    }
+                  />
+                </div>
+              </Page.Body>
 
               {tab === "audit" ? (
                 <div className="flex-1 flex flex-col overflow-auto md:overflow-hidden">

@@ -13,7 +13,18 @@ import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Card, CardContent } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -50,13 +61,14 @@ import {
   Plus,
   Settings01,
   Stars01,
+  Trash01,
   XClose,
   ZapCircle,
 } from "@untitledui/icons";
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Header, ViewLayout } from "@/web/components/details/layout";
+import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED, getSelectionSummary } from "./selection-utils";
@@ -988,10 +1000,18 @@ Define step-by-step how the agent should handle requests.
   };
 
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
+  const navigate = useNavigate();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const breadcrumb = (
-    <span className="text-sm font-medium text-foreground">Settings</span>
-  );
+  const handleDelete = async () => {
+    try {
+      await actions.delete.mutateAsync(virtualMcp.id);
+      toast.success(`Deleted "${virtualMcp.title}"`);
+      navigate({ to: "/$org", params: { org: org.slug } });
+    } catch {
+      // Error toast handled by mutation
+    }
+  };
 
   // Variant-specific tabs
   const tabs = [
@@ -1008,92 +1028,106 @@ Define step-by-step how the agent should handle requests.
   ];
 
   return (
-    <ViewLayout breadcrumb={breadcrumb}>
-      <Header.Right>
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span className="inline-block">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2 border border-input"
-                onClick={handleTestAgent}
-                aria-label="Test Agent"
-              >
-                <Play size={14} />
-                Test Agent
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Test this agent in chat</TooltipContent>
-        </Tooltip>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1.5 px-2 border border-input"
-          onClick={() =>
-            dispatch({ type: "SET_SHARE_DIALOG_OPEN", payload: true })
-          }
-        >
-          <ZapCircle size={14} />
-          Connect
-        </Button>
-      </Header.Right>
-
-      <div className="flex h-full w-full bg-background overflow-auto">
-        <div className="flex flex-col w-full">
-          {/* Tabs */}
-          <div className="flex items-center justify-between px-6 py-3 border-t border-border shrink-0">
-            <CollectionTabs
-              tabs={tabs}
-              activeTab={activeTab}
-              onTabChange={(id) => {
-                setActiveTab(id);
-                localStorage.setItem("agent-detail-tab", id);
-              }}
-            />
-            {activeTab === "connections" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={handleOpenAddDialog}
-              >
-                <Plus size={13} />
-                Add
-              </Button>
-            )}
-            {activeTab === "instructions" && (
-              <div className="flex items-center gap-1.5">
-                {!form.watch("metadata.instructions")?.trim() && (
+    <Page>
+      <Page.Content>
+        <Page.Body>
+          <div className="flex flex-col gap-6">
+            <Page.Title
+              actions={
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={handleTestAgent}>
+                    <Play size={14} />
+                    Test Agent
+                  </Button>
                   <Button
                     variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 px-2 text-xs"
-                    onClick={handleInsertTemplate}
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_SHARE_DIALOG_OPEN",
+                        payload: true,
+                      })
+                    }
                   >
-                    + Prompt template
+                    <ZapCircle size={14} />
+                    Connect
                   </Button>
-                )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash01 size={14} />
+                  </Button>
+                </div>
+              }
+            >
+              {virtualMcp.title}&apos;s Settings
+            </Page.Title>
+
+            {/* Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CollectionTabs
+                tabs={tabs}
+                activeTab={activeTab}
+                onTabChange={(id) => {
+                  setActiveTab(id);
+                  localStorage.setItem("agent-detail-tab", id);
+                }}
+              />
+              {activeTab === "connections" && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  disabled={!form.watch("metadata.instructions")?.trim()}
-                  onClick={handleImprovePrompt}
+                  onClick={handleOpenAddDialog}
                 >
-                  <Stars01 size={13} />
-                  Improve
+                  <Plus size={13} />
+                  Add
                 </Button>
-              </div>
-            )}
-          </div>
+              )}
+              {activeTab === "instructions" && (
+                <div className="flex items-center gap-2">
+                  {!form.watch("metadata.instructions")?.trim() && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleInsertTemplate}
+                    >
+                      + Prompt template
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!form.watch("metadata.instructions")?.trim()}
+                    onClick={handleImprovePrompt}
+                  >
+                    <Stars01 size={13} />
+                    Improve
+                  </Button>
+                </div>
+              )}
+            </div>
 
-          {/* Tab content */}
-          <div className="flex-1 overflow-auto">
+            {/* Tab content */}
+            {activeTab === "instructions" && (
+              <Controller
+                name="metadata.instructions"
+                control={form.control}
+                render={({ field }) => (
+                  <Textarea
+                    {...field}
+                    value={field.value ?? ""}
+                    onBlur={field.onBlur}
+                    placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
+                    className="min-h-[300px] flex-1 resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
+                  />
+                )}
+              />
+            )}
+
             {activeTab === "connections" && (
-              <div className="flex flex-col gap-2 p-6">
+              <div className="flex flex-col gap-2">
                 {connections.length === 0 ? (
                   <button
                     type="button"
@@ -1136,31 +1170,41 @@ Define step-by-step how the agent should handle requests.
             )}
 
             {activeTab === "layout" && (
-              <LayoutTabContent virtualMcpId={virtualMcp.id} />
-            )}
-
-            {activeTab === "instructions" && (
-              <div className="p-6">
-                <Controller
-                  name="metadata.instructions"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Textarea
-                      {...field}
-                      value={field.value ?? ""}
-                      onBlur={field.onBlur}
-                      placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
-                      className="min-h-[200px] resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
-                    />
-                  )}
-                />
-              </div>
+              <Card className="hover:bg-card">
+                <CardContent className="p-0">
+                  <LayoutTabContent virtualMcpId={virtualMcp.id} />
+                </CardContent>
+              </Card>
             )}
           </div>
-        </div>
-      </div>
+        </Page.Body>
+      </Page.Content>
 
       {/* Dialogs */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Agent?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {virtualMcp.title}
+              </span>
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AddConnectionDialog
         open={dialogState.addDialogOpen}
         onOpenChange={(open) =>
@@ -1190,7 +1234,7 @@ Define step-by-step how the agent should handle requests.
         }
         virtualMcp={virtualMcp}
       />
-    </ViewLayout>
+    </Page>
   );
 }
 
