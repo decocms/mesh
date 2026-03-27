@@ -437,7 +437,7 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
       >
         <RefreshCcw01 size={14} className="text-purple-500" />
         <span className="text-sm font-medium text-muted-foreground">
-          Incoming
+          Automations
         </span>
         <span className="text-xs text-muted-foreground/60 tabular-nums">
           {automations.filter((a) => a.active && a.trigger_count > 0).length}/
