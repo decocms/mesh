@@ -157,7 +157,7 @@ export function useAutomationCreate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["automations", org.id],
+        queryKey: KEYS.automations(org.id),
       });
     },
   });
@@ -182,7 +182,7 @@ export function useAutomationUpdate() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["automations", org.id],
+        queryKey: KEYS.automations(org.id),
       });
       if (typeof variables.id === "string") {
         queryClient.invalidateQueries({
@@ -211,7 +211,7 @@ export function useAutomationDelete() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["automations", org.id],
+        queryKey: KEYS.automations(org.id),
       });
     },
   });
@@ -235,7 +235,7 @@ export function useAutomationTriggerAdd() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["automations", org.id],
+        queryKey: KEYS.automations(org.id),
       });
       if (typeof variables.automation_id === "string") {
         queryClient.invalidateQueries({
@@ -267,7 +267,7 @@ export function useAutomationTriggerRemove() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["automations", org.id],
+        queryKey: KEYS.automations(org.id),
       });
       queryClient.invalidateQueries({
         queryKey: KEYS.automation(org.id, variables.automation_id),

@@ -1,16 +1,5 @@
 import { toast } from "@deco/ui/components/sonner.js";
 
-const notificationAudio = (() => {
-  if (typeof window === "undefined") return null;
-  const audio = new Audio("/sounds/notification.mp3");
-  audio.preload = "auto";
-  audio.addEventListener("error", (event) => {
-    console.warn("Failed to preload notification sound:", event);
-  });
-  audio.load();
-  return audio;
-})();
-
 interface NotificationOptions {
   title: string;
   body?: string;
@@ -41,14 +30,6 @@ export function useNotification() {
 
     // Only show notifications when document is unfocused (user in another tab)
     if (document?.hasFocus()) return;
-
-    // Play notification sound
-    if (notificationAudio) {
-      notificationAudio.currentTime = 0;
-      notificationAudio.play().catch((error) => {
-        console.warn("Failed to play notification sound:", error);
-      });
-    }
 
     // Show browser notification (Notification is defined here due to guard above)
     const notification = new Notification(title, {

@@ -8,6 +8,7 @@ interface Preferences {
   devMode: boolean;
   toolApprovalLevel: ToolApprovalLevel;
   enableNotifications: boolean;
+  enableSounds: boolean;
   theme: ThemeMode;
 }
 
@@ -15,6 +16,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   devMode: false,
   toolApprovalLevel: "readonly",
   enableNotifications: typeof Notification !== "undefined" ? true : false,
+  enableSounds: false,
   theme: "system",
 };
 
