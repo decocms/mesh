@@ -15,7 +15,7 @@ import type { EventTriggerEngine } from "@/automations/event-trigger-engine";
 import type { TriggerCallbackTokenStorage } from "@/storage/trigger-callback-tokens";
 
 const TriggerCallbackBodySchema = z.object({
-  type: z.string(),
+  type: z.string().min(1),
   data: z.record(z.string(), z.unknown()).optional(),
 });
 

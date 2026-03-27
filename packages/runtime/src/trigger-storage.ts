@@ -156,8 +156,16 @@ export class JsonFileStorage implements TriggerStorage {
       const raw = await fs.readFile(this.path, "utf-8");
       const data = JSON.parse(raw) as Record<string, unknown>;
       this.cache = new Map(Object.entries(data));
-    } catch {
-      this.cache = new Map();
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        this.cache = new Map();
+      } else {
+        throw err;
+      }
     }
     return this.cache;
   }
