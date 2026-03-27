@@ -218,6 +218,7 @@ export function useTaskManager(virtualMcpId: string) {
   };
 
   // Set task status (backend + cache)
+  // If the thread doesn't exist server-side (cache-only), apply the transition locally.
   const setTaskStatus = async (taskId: string, status: string) => {
     try {
       const updatedTask = await callUpdateTaskTool(client, taskId, {
@@ -227,22 +228,20 @@ export function useTaskManager(virtualMcpId: string) {
           | "in_progress"
           | "completed",
       });
-      if (updatedTask) {
-        const updates = {
-          status: updatedTask.status,
-          updated_at: updatedTask.updated_at ?? new Date().toISOString(),
-        };
-        for (const filter of ["me", "everyone"] as const) {
-          updateTaskInCache(
-            queryClient,
-            locator,
-            taskId,
-            updates,
-            filter,
-            filter === "me" ? userId : undefined,
-            virtualMcpId,
-          );
-        }
+      const updates = {
+        status: updatedTask?.status ?? status,
+        updated_at: updatedTask?.updated_at ?? new Date().toISOString(),
+      };
+      for (const filter of ["me", "everyone"] as const) {
+        updateTaskInCache(
+          queryClient,
+          locator,
+          taskId,
+          updates,
+          filter,
+          filter === "me" ? userId : undefined,
+          virtualMcpId,
+        );
       }
     } catch (error) {
       const err = error as Error;

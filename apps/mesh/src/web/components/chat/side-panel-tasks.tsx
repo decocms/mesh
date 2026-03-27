@@ -286,7 +286,6 @@ function TasksPanelContent({
       {/* Task list */}
       <TaskListContent
         virtualMcpId={virtualMcpId}
-        agent={currentVirtualMcp}
         onTaskSelect={(taskId) => {
           openTask(taskId);
           setChatOpen(true);

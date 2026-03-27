@@ -57,9 +57,21 @@ import type { TaskOwnerFilter } from "./task";
 import {
   useAutomationsList,
   useAutomationCreate,
+  useAutomationDelete,
   buildDefaultAutomationInput,
   type AutomationListItem,
 } from "@/web/hooks/use-automations";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@deco/ui/components/alert-dialog.tsx";
+import { Trash01 } from "@untitledui/icons";
 
 // ────────────────────────────────────────
 
@@ -167,11 +179,9 @@ function GroupHeader({
     >
       <Icon size={14} className={iconClassName} />
       <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      {!isOpen && (
-        <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {count}
-        </span>
-      )}
+      <span className="text-xs text-muted-foreground/60 tabular-nums">
+        {count}
+      </span>
       <ChevronRight
         size={12}
         className={cn(
@@ -190,12 +200,10 @@ function GroupHeader({
 function TaskRow({
   task,
   isActive,
-  agent,
   onClick,
 }: {
   task: Task;
   isActive: boolean;
-  agent: { icon: string | null | undefined; title: string };
   onClick: () => void;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
@@ -226,18 +234,14 @@ function TaskRow({
                   : ""}
               </span>
             </div>
-            {/* Line 2: agent name · status verb (only when actionable) */}
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span className="truncate">{agent.title}</span>
-              {taskVerb && (
-                <>
-                  <span>·</span>
-                  <span className={cn("shrink-0", taskVerb.labelColor)}>
-                    {taskVerb.verb}
-                  </span>
-                </>
-              )}
-            </div>
+            {/* Line 2: status verb (only when actionable) */}
+            {taskVerb && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className={cn("shrink-0", taskVerb.labelColor)}>
+                  {taskVerb.verb}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Mark done button — shown on hover for non-completed tasks */}
@@ -299,9 +303,11 @@ function TaskRow({
 function AutomationRow({
   automation,
   onClick,
+  onDelete,
 }: {
   automation: AutomationListItem;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   const nextRun = automation.nearest_next_run_at;
 
@@ -310,33 +316,34 @@ function AutomationRow({
       className="group/row relative flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors hover:bg-accent/50"
       onClick={onClick}
     >
-      <div className={cn("flex-1 min-w-0", !automation.active && "opacity-50")}>
-        <div className="flex items-center gap-1.5">
-          <TruncatedText
-            text={automation.name || "Untitled"}
-            className="text-sm text-foreground flex-1 min-w-0"
-          />
-          <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap">
-            {!automation.active
-              ? ""
-              : automation.trigger_count === 0
-                ? ""
-                : nextRun
-                  ? formatTimeUntil(new Date(nextRun))
-                  : `${automation.trigger_count} starter${automation.trigger_count > 1 ? "s" : ""}`}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span className="shrink-0">
-            {!automation.active
-              ? "Disabled"
-              : automation.trigger_count === 0
-                ? "No starters"
-                : nextRun
-                  ? "Scheduled"
-                  : `${automation.trigger_count} event starter${automation.trigger_count > 1 ? "s" : ""}`}
-          </span>
-        </div>
+      <span
+        className={cn(
+          "text-sm truncate flex-1 min-w-0",
+          automation.active ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {automation.name || "Untitled"}
+      </span>
+      {/* Status / delete button — overlaid in same cell to avoid layout shift */}
+      <div className="shrink-0 grid [grid-template-areas:'slot'] items-center justify-items-end">
+        <span className="[grid-area:slot] text-xs text-muted-foreground tabular-nums whitespace-nowrap group-hover/row:invisible">
+          {nextRun ? formatTimeUntil(new Date(nextRun)) : "No starters"}
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="[grid-area:slot] invisible group-hover/row:visible flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash01 size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Delete automation</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
@@ -350,7 +357,12 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
   const virtualMcpCtx = useVirtualMCPURLContext();
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
+  const deleteMutation = useAutomationDelete();
   const [isOpen, setIsOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const automations = (allAutomations ?? []).sort(
     (a, b) =>
@@ -376,6 +388,25 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      // If we're currently viewing the deleted automation, navigate away
+      const currentView = virtualMcpCtx?.mainView;
+      if (
+        currentView?.type === "automation" &&
+        currentView.id === deleteTarget.id
+      ) {
+        virtualMcpCtx?.openMainView("default");
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   return (
     <div>
       <button
@@ -387,11 +418,9 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
         <span className="text-sm font-medium text-muted-foreground">
           Incoming
         </span>
-        {!isOpen && (
-          <span className="text-xs text-muted-foreground/60 tabular-nums">
-            {automations.length}
-          </span>
-        )}
+        <span className="text-xs text-muted-foreground/60 tabular-nums">
+          {automations.length}
+        </span>
         <ChevronRight
           size={12}
           className={cn(
@@ -427,8 +456,38 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
             key={automation.id}
             automation={automation}
             onClick={() => navigateToAutomation(automation.id)}
+            onDelete={() =>
+              setDeleteTarget({ id: automation.id, name: automation.name })
+            }
           />
         ))}
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Automation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.name || "Untitled"}
+              </span>
+              . All triggers will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -494,13 +553,11 @@ function FilterDropdown({
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
   virtualMcpId?: string | null;
-  agent: { icon: string | null | undefined; title: string };
 }
 
 export function TaskListContent({
   onTaskSelect,
   virtualMcpId,
-  agent,
 }: TaskListContentProps) {
   const { taskId, openTask, tasks } = useChatTask();
 
@@ -630,7 +687,6 @@ export function TaskListContent({
                       key={task.id}
                       task={task}
                       isActive={task.id === taskId}
-                      agent={agent}
                       onClick={() => handleSelect(task)}
                     />
                   ))}
@@ -658,7 +714,6 @@ export function TaskListContent({
                       key={task.id}
                       task={task}
                       isActive={task.id === taskId}
-                      agent={agent}
                       onClick={() => handleSelect(task)}
                     />
                   ))}
