@@ -25,10 +25,32 @@ function generateToken(): string {
     .join("");
 }
 
+export interface TokenPair {
+  plaintext: string;
+  hash: string;
+}
+
 export interface TriggerCallbackTokenStorage {
+  /**
+   * Generate a token pair (plaintext + hash) without persisting.
+   * Use with persistTokenHash() for two-phase token creation.
+   */
+  generateTokenPair(): Promise<TokenPair>;
+
+  /**
+   * Persist a token hash for a connection+organization pair.
+   * Upserts — safe for concurrent calls.
+   */
+  persistTokenHash(
+    organizationId: string,
+    connectionId: string,
+    tokenHash: string,
+  ): Promise<void>;
+
   /**
    * Create or rotate a callback token for a connection+organization pair.
    * Returns the plaintext token (only available at creation time).
+   * Convenience method that combines generateTokenPair + persistTokenHash.
    */
   createOrRotateToken(
     organizationId: string,
@@ -57,14 +79,18 @@ export class KyselyTriggerCallbackTokenStorage
 {
   constructor(private db: Kysely<Database>) {}
 
-  async createOrRotateToken(
+  async generateTokenPair(): Promise<TokenPair> {
+    const plaintext = generateToken();
+    const hash = await hashToken(plaintext);
+    return { plaintext, hash };
+  }
+
+  async persistTokenHash(
     organizationId: string,
     connectionId: string,
-  ): Promise<string> {
-    const plaintext = generateToken();
-    const tokenHash = await hashToken(plaintext);
+    tokenHash: string,
+  ): Promise<void> {
     const id = crypto.randomUUID();
-
     await this.db
       .insertInto("trigger_callback_tokens")
       .values({
@@ -81,7 +107,14 @@ export class KyselyTriggerCallbackTokenStorage
         }),
       )
       .execute();
+  }
 
+  async createOrRotateToken(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<string> {
+    const { plaintext, hash } = await this.generateTokenPair();
+    await this.persistTokenHash(organizationId, connectionId, hash);
     return plaintext;
   }
 

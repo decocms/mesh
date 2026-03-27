@@ -160,12 +160,20 @@ export function createTriggers<const TDefs extends TriggerDef[]>(
           Authorization: `Bearer ${credentials.callbackToken}`,
         },
         body: JSON.stringify({ type, data }),
-      }).catch((err) => {
-        console.error(
-          `[Triggers] Failed to deliver callback for ${type}:`,
-          err,
-        );
-      });
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.error(
+              `[Triggers] Callback delivery failed for ${type}: ${res.status} ${res.statusText}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error(
+            `[Triggers] Failed to deliver callback for ${type}:`,
+            err,
+          );
+        });
     },
   };
 }

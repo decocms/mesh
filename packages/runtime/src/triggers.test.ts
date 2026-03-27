@@ -173,6 +173,40 @@ describe("createTriggers", () => {
     consoleSpy.mockRestore();
   });
 
+  it("notify logs error on non-2xx response", async () => {
+    const configureTool = triggers.tools()[1];
+    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Unauthorized", { status: 401, statusText: "Unauthorized" }),
+    );
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    // Ensure credentials exist (reuse from prior test state or set up fresh)
+    await configureTool.execute({
+      context: {
+        type: "github.push",
+        params: {},
+        enabled: true,
+        callbackUrl: "https://mesh.example.com/api/trigger-callback",
+        callbackToken: "token-err",
+      },
+      runtimeContext: mockCtx("conn-err"),
+    });
+
+    fetchSpy.mockResolvedValue(
+      new Response("Unauthorized", { status: 401, statusText: "Unauthorized" }),
+    );
+
+    triggers.notify("conn-err", "github.push", {});
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Callback delivery failed"),
+    );
+
+    fetchSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it("TRIGGER_CONFIGURE throws without connectionId", async () => {
     const configureTool = triggers.tools()[1];
     expect(

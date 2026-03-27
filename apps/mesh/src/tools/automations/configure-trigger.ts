@@ -33,28 +33,22 @@ export async function configureTriggerOnMcp(
     const mcpClient = await clientFromConnection(connection, ctx, true);
     const client = TriggerBinding.forClient(toServerClient(mcpClient));
 
-    // Generate callback credentials when enabling
+    // Generate token pair (plaintext + hash) without persisting to DB
     let callbackUrl: string | undefined;
     let callbackToken: string | undefined;
+    let tokenHash: string | undefined;
     if (enabled && tokenStorage && organizationId) {
-      callbackToken = await tokenStorage.createOrRotateToken(
-        organizationId,
-        trigger.connection_id,
-      );
+      const pair = await tokenStorage.generateTokenPair();
+      callbackToken = pair.plaintext;
+      tokenHash = pair.hash;
       callbackUrl = `${ctx.baseUrl}/api/trigger-callback`;
-    }
-
-    // Clean up token when disabling
-    if (!enabled && tokenStorage && organizationId) {
-      await tokenStorage.deleteByConnection(
-        trigger.connection_id,
-        organizationId,
-      );
     }
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("TRIGGER_CONFIGURE timeout")), 5000),
     );
+
+    // Call TRIGGER_CONFIGURE on the MCP first — if this fails, no DB state changes
     await Promise.race([
       client.TRIGGER_CONFIGURE({
         type: trigger.event_type!,
@@ -65,6 +59,22 @@ export async function configureTriggerOnMcp(
       }),
       timeoutPromise,
     ]);
+
+    // MCP confirmed — now persist token or clean up
+    if (enabled && tokenStorage && organizationId && tokenHash) {
+      await tokenStorage.persistTokenHash(
+        organizationId,
+        trigger.connection_id,
+        tokenHash,
+      );
+    }
+    if (!enabled && tokenStorage && organizationId) {
+      await tokenStorage.deleteByConnection(
+        trigger.connection_id,
+        organizationId,
+      );
+    }
+
     return { success: true };
   } catch (err) {
     return { success: false, error: String(err) };
