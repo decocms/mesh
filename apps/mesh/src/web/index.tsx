@@ -180,6 +180,16 @@ const orgLayout = createRoute({
 const orgHomeRoute = createRoute({
   getParentRoute: () => orgLayout,
   path: "/",
+  validateSearch: z.object({
+    taskId: z
+      .string()
+      .optional()
+      .transform((v) => v ?? crypto.randomUUID()),
+    view: z.string().optional(),
+    main: z.string().optional(),
+    id: z.string().optional(),
+    virtualMcpOverride: z.string().optional(),
+  }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
 
