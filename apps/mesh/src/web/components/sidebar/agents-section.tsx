@@ -271,10 +271,10 @@ function PinAgentPopoverContent({
 
       {/* Scrollable content */}
       <div className="overflow-y-auto flex-1 min-h-0 px-3 pb-3">
-        {/* Your Agents section */}
+        {/* Agents section */}
         <div className="px-1 pt-3 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
-            Your Agents
+            Agents
           </span>
         </div>
         <div className="grid grid-cols-3 gap-1">
@@ -306,12 +306,12 @@ function PinAgentPopoverContent({
           ))}
         </div>
 
-        {/* Default Agents section */}
+        {/* Agent templates section */}
         {filteredDefaults.length > 0 && (
           <>
             <div className="px-1 pt-4 pb-2">
               <span className="text-xs font-medium text-muted-foreground">
-                Agents
+                Agent templates
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1">
