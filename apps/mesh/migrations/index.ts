@@ -52,9 +52,9 @@ import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
 import * as migration052threadagentids from "./052-thread-agent-ids.ts";
 import * as migration053registryconfig from "./053-registry-config.ts";
-import * as migration054spaces from "./054-spaces.ts";
-import * as migration055automationprojectscope from "./055-automation-project-scope.ts";
-import * as migration056connectionslug from "./056-connection-slug.ts";
+import * as migration054connectionslug from "./054-connection-slug.ts";
+import * as migration055spaces from "./055-spaces.ts";
+import * as migration056automationprojectscope from "./056-automation-project-scope.ts";
 import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
 
 /**
@@ -122,9 +122,9 @@ const migrations: Record<string, Migration> = {
   "051-org-sso": migration051orgsso,
   "052-thread-agent-ids": migration052threadagentids,
   "053-registry-config": migration053registryconfig,
-  "054-spaces": migration054spaces,
-  "055-automation-project-scope": migration055automationprojectscope,
-  "056-connection-slug": migration056connectionslug,
+  "054-connection-slug": migration054connectionslug,
+  "055-spaces": migration055spaces,
+  "056-automation-project-scope": migration056automationprojectscope,
   "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
 };
 
