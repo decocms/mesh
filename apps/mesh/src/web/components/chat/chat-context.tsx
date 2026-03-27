@@ -228,8 +228,12 @@ export function ChatContextProvider({
   const effectiveKeyId = keys.some((k) => k.id === storedCredentialId)
     ? storedCredentialId
     : (keys[0]?.id ?? null);
+  // Only fetch models when no stored model — once the user picks one, skip the fetch
+  const needsDefault = !storedModel;
   const { models: defaultKeyModels, isLoading: isModelsQueryLoading } =
-    useAiProviderModels(effectiveKeyId ?? undefined);
+    useAiProviderModels(
+      needsDefault ? (effectiveKeyId ?? undefined) : undefined,
+    );
   const effectiveProviderId =
     keys.find((k) => k.id === effectiveKeyId)?.providerId ?? "anthropic";
   const defaultModel = selectDefaultModel(
@@ -238,7 +242,7 @@ export function ChatContextProvider({
     effectiveKeyId ?? undefined,
   );
   const selectedModel = storedModel ?? defaultModel;
-  const isModelsLoading = !storedModel && isModelsQueryLoading;
+  const isModelsLoading = needsDefault && isModelsQueryLoading;
 
   // Virtual MCPs
   const virtualMcps = useVirtualMCPs();

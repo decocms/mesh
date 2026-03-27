@@ -344,6 +344,7 @@ function PreferencesPanel() {
                 {{
                   readonly: "Ask before edit",
                   auto: "Auto approve",
+                  plan: "Plan mode",
                 }[preferences.toolApprovalLevel] ?? "Ask before edit"}
               </span>
             </SelectTrigger>

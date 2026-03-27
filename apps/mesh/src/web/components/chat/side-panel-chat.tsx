@@ -18,10 +18,7 @@ import { Chat } from "./index";
 import { useChatStream, useChatPrefs } from "./context";
 import { ChatContextPanel } from "./context-panel";
 
-import {
-  useAiProviders,
-  useAiProviderKeys,
-} from "@/web/hooks/collections/use-ai-providers";
+import { useAiProviderKeys } from "@/web/hooks/collections/use-ai-providers";
 
 // ---------- Import deco.cx Banner ----------
 
@@ -183,17 +180,9 @@ function SidebarEmptyState() {
 // ---------- Panel content ----------
 
 function ChatPanelContent({ variant }: { variant?: "home" | "default" }) {
-  const aiProviders = useAiProviders();
   const allKeys = useAiProviderKeys();
   const { isChatEmpty } = useChatStream();
   const [activePanel, setActivePanel] = useState<"chat" | "context">("chat");
-
-  console.log(
-    "[ChatPanelContent] providers count:",
-    aiProviders?.providers?.length,
-    "keys count:",
-    allKeys.length,
-  );
 
   if (allKeys.length === 0) {
     const title = "No model provider connected";

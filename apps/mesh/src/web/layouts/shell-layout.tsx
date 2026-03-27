@@ -729,7 +729,7 @@ function ShellLayoutContent() {
   }
 
   return (
-    <ShellProjectProvider org={activeOrg}>
+    <ShellProjectProvider org={{ ...activeOrg, logo: activeOrg.logo ?? null }}>
       <PersistentSidebarProvider defaultOpen={isSettingsRoute}>
         <div className="flex flex-col h-dvh overflow-hidden">
           <ShellLayoutInner

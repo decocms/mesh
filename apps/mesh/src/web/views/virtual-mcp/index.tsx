@@ -57,7 +57,6 @@ import { Suspense, useReducer, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Header, ViewLayout } from "@/web/components/details/layout";
-import { SaveActions } from "@/web/components/save-actions";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED, getSelectionSummary } from "./selection-utils";
@@ -788,9 +787,8 @@ function VirtualMcpDetailViewWithData({
     createTask();
   };
 
-  const hasFormChanges = form.formState.isDirty;
-
-  const handleSave = async () => {
+  const saveForm = async () => {
+    if (!form.formState.isDirty) return;
     const formData = form.getValues();
 
     const data = await actions.update.mutateAsync({
@@ -801,15 +799,11 @@ function VirtualMcpDetailViewWithData({
     form.reset(data);
   };
 
-  const handleCancel = () => {
-    form.reset(virtualMcp);
-  };
-
   const handleOpenAddDialog = () => {
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });
   };
 
-  const handleAddConnection = (connectionId: string) => {
+  const handleAddConnection = async (connectionId: string) => {
     const current = form.getValues("connections");
     // Don't add duplicates
     if (current.some((c) => c.connection_id === connectionId)) return;
@@ -827,18 +821,20 @@ function VirtualMcpDetailViewWithData({
       ],
       { shouldDirty: true },
     );
+    await saveForm();
   };
 
-  const handleRemoveConnection = (connectionId: string) => {
+  const handleRemoveConnection = async (connectionId: string) => {
     const current = form.getValues("connections");
     form.setValue(
       "connections",
       current.filter((c) => c.connection_id !== connectionId),
       { shouldDirty: true },
     );
+    await saveForm();
   };
 
-  const handleSwitchInstance = (oldId: string, newId: string) => {
+  const handleSwitchInstance = async (oldId: string, newId: string) => {
     const current = form.getValues("connections");
     form.setValue(
       "connections",
@@ -847,6 +843,7 @@ function VirtualMcpDetailViewWithData({
       ),
       { shouldDirty: true },
     );
+    await saveForm();
   };
 
   const handleOpenSettings = (connectionId: string) => {
@@ -954,7 +951,6 @@ Define step-by-step how the agent should handle requests.
     form.setValue("metadata.instructions", next, { shouldDirty: true });
   };
 
-  const isSaving = actions.update.isPending;
   const addedConnectionIds = new Set(connections.map((c) => c.connection_id));
 
   const breadcrumb = (
@@ -978,12 +974,6 @@ Define step-by-step how the agent should handle requests.
   return (
     <ViewLayout breadcrumb={breadcrumb}>
       <Header.Right>
-        <SaveActions
-          onSave={handleSave}
-          onUndo={handleCancel}
-          isDirty={hasFormChanges}
-          isSaving={isSaving}
-        />
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <span className="inline-block">
@@ -1122,6 +1112,10 @@ Define step-by-step how the agent should handle requests.
                     <Textarea
                       {...field}
                       value={field.value ?? ""}
+                      onBlur={() => {
+                        field.onBlur();
+                        saveForm();
+                      }}
                       placeholder="Define how this agent should behave, what tone to use, any constraints or guidelines..."
                       className="min-h-[200px] resize-none text-[15px] placeholder:text-muted-foreground/40 leading-relaxed border-0 rounded-none shadow-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-0 bg-transparent"
                     />
@@ -1146,7 +1140,10 @@ Define step-by-step how the agent should handle requests.
       <DependencySelectionDialog
         open={dialogState.settingsDialogOpen}
         onOpenChange={(open) => {
-          if (!open) dispatch({ type: "CLOSE_SETTINGS" });
+          if (!open) {
+            dispatch({ type: "CLOSE_SETTINGS" });
+            saveForm();
+          }
         }}
         selectedId={dialogState.settingsConnectionId}
         form={form}

@@ -17,12 +17,7 @@ import {
   Settings01,
 } from "@untitledui/icons";
 import { useMatch } from "@tanstack/react-router";
-import {
-  getWellKnownDecopilotVirtualMCP,
-  useProjectContext,
-  useVirtualMCPActions,
-  useVirtualMCPs,
-} from "@decocms/mesh-sdk";
+import { useVirtualMCPActions, useVirtualMCPs } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useTransition } from "react";
 import { ErrorBoundary } from "../error-boundary";
@@ -221,16 +216,10 @@ function TasksPanelContent({
   const virtualMcpId =
     virtualMcpIdProp ?? agentsMatch?.params.virtualMcpId ?? null;
 
-  const { org } = useProjectContext();
   const virtualMcps = useVirtualMCPs();
   const virtualMcp = virtualMcpId
     ? (virtualMcps.find((s) => s.id === virtualMcpId) ?? null)
     : null;
-
-  const defaultVirtualMcp = getWellKnownDecopilotVirtualMCP(org.id);
-  const currentVirtualMcp = virtualMcp
-    ? { icon: virtualMcp.icon, title: virtualMcp.title }
-    : { icon: defaultVirtualMcp.icon, title: defaultVirtualMcp.title };
 
   const handleNewTask = () => {
     startTransition(() => {

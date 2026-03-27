@@ -228,8 +228,8 @@ export function useTaskManager(virtualMcpId: string) {
           | "in_progress"
           | "completed",
       });
-      const updates = {
-        status: updatedTask?.status ?? status,
+      const updates: Partial<Task> = {
+        status: updatedTask?.status ?? (status as Task["status"]),
         updated_at: updatedTask?.updated_at ?? new Date().toISOString(),
       };
       for (const filter of ["me", "everyone"] as const) {
