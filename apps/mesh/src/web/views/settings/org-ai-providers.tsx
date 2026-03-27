@@ -14,12 +14,6 @@ import {
   CreditCard01,
 } from "@untitledui/icons";
 import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
@@ -793,29 +787,23 @@ function OrgAiProvidersContent() {
 export function OrgAiProvidersPage() {
   return (
     <Page>
-      <Page.Header hideSidebarTrigger>
-        <Page.Header.Left>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>AI Providers</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </Page.Header.Left>
-      </Page.Header>
-      <Page.Content className="p-4">
-        <ErrorBoundary
-          fallback={({ error }) => (
-            <ErrorFallback
-              error={error ?? new Error("Failed to load AI providers")}
-            />
-          )}
-        >
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <OrgAiProvidersContent />
-          </Suspense>
-        </ErrorBoundary>
+      <Page.Content>
+        <Page.Body>
+          <div className="flex flex-col gap-6">
+            <Page.Title>AI Providers</Page.Title>
+            <ErrorBoundary
+              fallback={({ error }) => (
+                <ErrorFallback
+                  error={error ?? new Error("Failed to load AI providers")}
+                />
+              )}
+            >
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <OrgAiProvidersContent />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </Page.Body>
       </Page.Content>
     </Page>
   );

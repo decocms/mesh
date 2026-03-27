@@ -74,8 +74,8 @@ export function AutomationInlineDetail({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto">
+    <div className="flex flex-col h-full overflow-auto">
+      <div className="mx-auto w-full max-w-[1200px] px-4 pt-6 pb-6 md:px-10 md:pt-8 md:pb-10">
         <SettingsTab
           key={automationId}
           automationId={automationId}
