@@ -332,6 +332,14 @@ const settingsSsoRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/orgs/settings/sso.tsx")),
 });
 
+const settingsProfileRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/profile",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/profile.tsx"),
+  ),
+});
+
 // Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -487,6 +495,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsAiProvidersRoute,
   settingsMembersRoute,
   settingsSsoRoute,
+  settingsProfileRoute,
 ]);
 
 const agentsWithChildren = agentsLayout.addChildren([

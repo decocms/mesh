@@ -116,6 +116,44 @@ function PageContent({
   );
 }
 
+// Page title — prominent heading for the page
+function PageTitle({
+  children,
+  actions,
+  className,
+}: PropsWithChildren<{ actions?: ReactNode; className?: string }>) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3",
+        className,
+      )}
+    >
+      <h1 className="text-lg font-medium">{children}</h1>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+// Settings page body — centers content with max-width and consistent padding
+function PageBody({
+  children,
+  className,
+  maxWidth = "max-w-[1200px]",
+}: PropsWithChildren<{ className?: string; maxWidth?: string }>) {
+  return (
+    <div
+      className={cn(
+        "mx-auto w-full px-4 pt-6 pb-6 md:px-10 md:pt-8 md:pb-10",
+        maxWidth,
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 // Export with composition pattern
 export const Page = Object.assign(PageRoot, {
   Header: Object.assign(PageHeader, {
@@ -123,4 +161,6 @@ export const Page = Object.assign(PageRoot, {
     Right: PageHeaderRight,
   }),
   Content: PageContent,
+  Title: PageTitle,
+  Body: PageBody,
 });

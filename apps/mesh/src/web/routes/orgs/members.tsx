@@ -1,12 +1,6 @@
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { CollectionTableWrapper } from "@/web/components/collections/collection-table-wrapper.tsx";
 import { ManageRolesDialog } from "@/web/components/manage-roles-dialog";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -777,17 +771,13 @@ function OrgMembersContent() {
     <div className="flex items-center gap-2">
       <ManageRolesDialog
         trigger={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-3 rounded-lg text-sm font-medium"
-          >
+          <Button variant="outline">
             <Shield01 size={16} />
             Manage Roles
           </Button>
         }
       />
-      <InviteMemberDialog trigger={<Button size="sm">Invite Member</Button>} />
+      <InviteMemberDialog trigger={<Button>Invite Member</Button>} />
     </div>
   );
 
@@ -864,189 +854,189 @@ function OrgMembersContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Page.Header>
-        <Page.Header.Left>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Members</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </Page.Header.Left>
-        <Page.Header.Right>
-          <CollectionDisplayButton
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            sortOptions={[
-              { id: "member", label: "Name" },
-              { id: "role", label: "Role" },
-              { id: "joined", label: "Joined" },
-            ]}
-          />
-          {ctaButton}
-        </Page.Header.Right>
-      </Page.Header>
-
-      <CollectionSearch
-        value={search}
-        onChange={setSearch}
-        placeholder="Search members..."
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setSearch("");
-            (event.target as HTMLInputElement).blur();
-          }
-        }}
-      />
-
       <Page.Content>
-        {viewMode === "cards" ? (
-          <div className="flex-1 overflow-auto p-5">
-            {allRows.length === 0 ? (
-              <EmptyState
-                title={search ? "No members found" : "No members found"}
-                description={
-                  search
-                    ? `No members match "${search}"`
-                    : "Invite members to get started."
-                }
+        <Page.Body>
+          <div className="flex flex-col gap-6">
+            <Page.Title>Members</Page.Title>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search members..."
+                className="w-full md:w-[375px]"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setSearch("");
+                    (event.target as HTMLInputElement).blur();
+                  }
+                }}
               />
-            ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                {allRows.map((row) => {
-                  if (row.type === "invitation") {
-                    // Invitation card
-                    return (
-                      <Card
-                        key={`inv-${row.data.id}`}
-                        className="transition-colors relative opacity-75"
-                      >
-                        <div className="absolute top-4 right-4 z-10">
-                          <InvitationActionsDropdown
-                            invitationId={row.data.id}
-                            onCancel={setInvitationToCancel}
-                            isCancelling={invitationActions.cancel.isPending}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-4 p-6">
-                          <Avatar
-                            fallback={getInitials(row.data.email)}
-                            shape="circle"
-                            size="lg"
-                            className="shrink-0"
-                          />
-                          <div className="flex flex-col gap-2">
-                            <h3 className="text-base font-medium text-foreground truncate">
-                              {row.data.email}
-                            </h3>
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className="w-fit text-amber-600 border-amber-400"
-                              >
-                                Pending
-                              </Badge>
+              <div className="flex items-center gap-2">
+                <CollectionDisplayButton
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  sortOptions={[
+                    { id: "member", label: "Name" },
+                    { id: "role", label: "Role" },
+                    { id: "joined", label: "Joined" },
+                  ]}
+                />
+                {ctaButton}
+              </div>
+            </div>
+            {viewMode === "cards" ? (
+              <div>
+                {allRows.length === 0 ? (
+                  <EmptyState
+                    title={search ? "No members found" : "No members found"}
+                    description={
+                      search
+                        ? `No members match "${search}"`
+                        : "Invite members to get started."
+                    }
+                  />
+                ) : (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+                    {allRows.map((row) => {
+                      if (row.type === "invitation") {
+                        // Invitation card
+                        return (
+                          <Card
+                            key={`inv-${row.data.id}`}
+                            className="transition-colors relative opacity-75"
+                          >
+                            <div className="absolute top-4 right-4 z-10">
+                              <InvitationActionsDropdown
+                                invitationId={row.data.id}
+                                onCancel={setInvitationToCancel}
+                                isCancelling={
+                                  invitationActions.cancel.isPending
+                                }
+                              />
                             </div>
-                            <RoleSelector
-                              role={row.data.role}
-                              memberId={row.data.id}
-                              isOwner={false}
-                              roleColorMap={roleColorMap}
-                              selectableRoles={selectableRoles}
-                              onRoleChange={(invitationId, role) =>
-                                updateInvitationRoleMutation.mutate({
-                                  invitationId,
-                                  role,
-                                  email: row.data.email,
-                                })
+                            <div className="flex flex-col gap-4 p-6">
+                              <Avatar
+                                fallback={getInitials(row.data.email)}
+                                shape="circle"
+                                size="lg"
+                                className="shrink-0"
+                              />
+                              <div className="flex flex-col gap-2">
+                                <h3 className="text-base font-medium text-foreground truncate">
+                                  {row.data.email}
+                                </h3>
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="w-fit text-amber-600 border-amber-400"
+                                  >
+                                    Pending
+                                  </Badge>
+                                </div>
+                                <RoleSelector
+                                  role={row.data.role}
+                                  memberId={row.data.id}
+                                  isOwner={false}
+                                  roleColorMap={roleColorMap}
+                                  selectableRoles={selectableRoles}
+                                  onRoleChange={(invitationId, role) =>
+                                    updateInvitationRoleMutation.mutate({
+                                      invitationId,
+                                      role,
+                                      email: row.data.email,
+                                    })
+                                  }
+                                  className="w-fit"
+                                />
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      }
+                      // Member card
+                      const member = row.data;
+                      return (
+                        <Card
+                          key={member.id}
+                          className="transition-colors relative"
+                        >
+                          <div className="absolute top-4 right-4 z-10">
+                            <MemberActionsDropdown
+                              member={member}
+                              roles={roles}
+                              onChangeRole={(memberId, role) =>
+                                updateRoleMutation.mutate({ memberId, role })
                               }
-                              className="w-fit"
+                              onRemove={setMemberToRemove}
+                              isUpdating={updateRoleMutation.isPending}
                             />
                           </div>
-                        </div>
-                      </Card>
-                    );
-                  }
-                  // Member card
-                  const member = row.data;
-                  return (
-                    <Card
-                      key={member.id}
-                      className="transition-colors relative"
-                    >
-                      <div className="absolute top-4 right-4 z-10">
-                        <MemberActionsDropdown
-                          member={member}
-                          roles={roles}
-                          onChangeRole={(memberId, role) =>
-                            updateRoleMutation.mutate({ memberId, role })
-                          }
-                          onRemove={setMemberToRemove}
-                          isUpdating={updateRoleMutation.isPending}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-4 p-6">
-                        <Avatar
-                          url={member.user?.image ?? undefined}
-                          fallback={getInitials(member.user?.name)}
-                          shape="circle"
-                          size="lg"
-                          className="shrink-0"
-                        />
-                        <div className="flex flex-col gap-2">
-                          <h3 className="text-base font-medium text-foreground truncate">
-                            {member.user?.name || "Unknown"}
-                          </h3>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {member.user?.email}
-                          </p>
-                          <RoleSelector
-                            role={member.role}
-                            memberId={member.id}
-                            isOwner={member.role === "owner"}
-                            roleColorMap={roleColorMap}
-                            selectableRoles={selectableRoles}
-                            onRoleChange={(memberId, role) =>
-                              updateRoleMutation.mutate({ memberId, role })
-                            }
-                            className="w-fit"
-                          />
-                          <TagMultiSelect memberId={member.id} maxDisplay={3} />
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
+                          <div className="flex flex-col gap-4 p-6">
+                            <Avatar
+                              url={member.user?.image ?? undefined}
+                              fallback={getInitials(member.user?.name)}
+                              shape="circle"
+                              size="lg"
+                              className="shrink-0"
+                            />
+                            <div className="flex flex-col gap-2">
+                              <h3 className="text-base font-medium text-foreground truncate">
+                                {member.user?.name || "Unknown"}
+                              </h3>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {member.user?.email}
+                              </p>
+                              <RoleSelector
+                                role={member.role}
+                                memberId={member.id}
+                                isOwner={member.role === "owner"}
+                                roleColorMap={roleColorMap}
+                                selectableRoles={selectableRoles}
+                                onRoleChange={(memberId, role) =>
+                                  updateRoleMutation.mutate({ memberId, role })
+                                }
+                                className="w-fit"
+                              />
+                              <TagMultiSelect
+                                memberId={member.id}
+                                maxDisplay={3}
+                              />
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+            ) : (
+              <CollectionTableWrapper
+                columns={columns}
+                data={allRows}
+                isLoading={false}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+                emptyState={
+                  search ? (
+                    <EmptyState
+                      title="No members found"
+                      description={`No members match "${search}"`}
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No members found"
+                      description="Invite members to get started."
+                    />
+                  )
+                }
+              />
             )}
           </div>
-        ) : (
-          <CollectionTableWrapper
-            columns={columns}
-            data={allRows}
-            isLoading={false}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            emptyState={
-              search ? (
-                <EmptyState
-                  title="No members found"
-                  description={`No members match "${search}"`}
-                />
-              ) : (
-                <EmptyState
-                  title="No members found"
-                  description="Invite members to get started."
-                />
-              )
-            }
-          />
-        )}
+        </Page.Body>
       </Page.Content>
     </Page>
   );

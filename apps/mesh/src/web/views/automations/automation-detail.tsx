@@ -5,11 +5,7 @@
  */
 
 import { EmptyState } from "@/web/components/empty-state.tsx";
-import {
-  Header,
-  ViewActions,
-  ViewLayout,
-} from "@/web/components/details/layout";
+import { Page } from "@/web/components/page";
 import { SaveActions } from "@/web/components/save-actions";
 import {
   useAiProviderModels,
@@ -36,14 +32,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
@@ -53,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { getDecopilotId, useProjectContext } from "@decocms/mesh-sdk";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowUp,
@@ -107,11 +95,13 @@ export function SettingsTab({
   automation,
   fixedAgentId,
   onBack,
+  onDelete,
 }: {
   automationId: string;
   automation: NonNullable<ReturnType<typeof useAutomationDetail>["data"]>;
   fixedAgentId?: string;
   onBack?: () => void;
+  onDelete?: () => void;
 }) {
   const { org } = useProjectContext();
   const updateMutation = useAutomationUpdate();
@@ -283,14 +273,9 @@ export function SettingsTab({
 
   return (
     <>
-      {onBack ? (
-        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 px-2 text-xs"
-            onClick={onBack}
-          >
+      {onBack && (
+        <div className="flex items-center justify-between pb-4 shrink-0">
+          <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft size={14} />
             Back to list
           </Button>
@@ -305,30 +290,43 @@ export function SettingsTab({
             />
           </div>
         </div>
-      ) : (
-        <ViewActions>
-          <SaveActions
-            onSave={async () => {
-              await handleSave();
-            }}
-            onUndo={handleUndo}
-            isDirty={isDirty}
-            isSaving={updateMutation.isPending}
-          />
-        </ViewActions>
       )}
 
-      <div className="max-w-2xl mx-auto w-full px-6 py-6 flex flex-col gap-8">
+      <div className="flex flex-col gap-8">
         {/* Header: Name + Status + Creator */}
         <div className="flex flex-col gap-1.5">
-          <Input
-            {...form.register("name")}
-            onBlur={() => {
-              if (form.formState.isDirty) void handleSave();
-            }}
-            placeholder="Automation name"
-            className="border border-transparent shadow-none px-0 text-2xl md:text-2xl font-semibold h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent"
-          />
+          <div className="flex items-center justify-between gap-4">
+            <Input
+              {...form.register("name")}
+              onBlur={() => {
+                if (form.formState.isDirty) void handleSave();
+              }}
+              placeholder="Automation name"
+              className="border border-transparent shadow-none px-0 text-lg font-medium h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent flex-1"
+            />
+            <div className="flex items-center gap-2 shrink-0">
+              {!onBack && (
+                <SaveActions
+                  onSave={async () => {
+                    await handleSave();
+                  }}
+                  onUndo={handleUndo}
+                  isDirty={isDirty}
+                  isSaving={updateMutation.isPending}
+                />
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={onDelete}
+                >
+                  <Trash01 size={14} />
+                </Button>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <Controller
               control={form.control}
@@ -587,44 +585,18 @@ export default function AutomationDetailPage() {
     );
   }
 
-  const breadcrumb = (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
-            <Link to="/$org/settings/automations" params={{ org: org.slug }}>
-              Automations
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{automation.name}</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
-
   return (
-    <ViewLayout>
-      <Header.Left>{breadcrumb}</Header.Left>
-      <Header.Right>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-destructive hover:text-destructive"
-          onClick={() => setConfirmDelete(true)}
-        >
-          <Trash01 size={14} />
-          Delete
-        </Button>
-      </Header.Right>
-
-      <SettingsTab
-        key={automationId}
-        automationId={automationId}
-        automation={automation}
-      />
+    <Page>
+      <Page.Content>
+        <Page.Body>
+          <SettingsTab
+            key={automationId}
+            automationId={automationId}
+            automation={automation}
+            onDelete={() => setConfirmDelete(true)}
+          />
+        </Page.Body>
+      </Page.Content>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -646,6 +618,6 @@ export default function AutomationDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </ViewLayout>
+    </Page>
   );
 }

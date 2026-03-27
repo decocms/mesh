@@ -6,17 +6,6 @@ import {
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
-import { Switch } from "@deco/ui/components/switch.tsx";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@deco/ui/components/select.tsx";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@deco/ui/components/toggle-group.tsx";
 import {
   Tooltip,
   TooltipContent,
@@ -25,9 +14,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
-  Bell01,
   Check,
-  Code01,
   Copy01,
   File06,
   Globe01,
@@ -40,19 +27,14 @@ import {
   Sun,
   Users03,
   VolumeMax,
+  VolumeX,
 } from "@untitledui/icons";
 import { GitHubIcon } from "@daveyplate/better-auth-ui";
 import { SidebarMenuButton } from "@deco/ui/components/sidebar.tsx";
 import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
-import {
-  usePreferences,
-  type ThemeMode,
-  type ToolApprovalLevel,
-} from "@/web/hooks/use-preferences.ts";
+import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
-
-type PanelView = "organizations" | "preferences";
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -177,7 +159,7 @@ function OrganizationsPanel({
           <Plus size={16} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1">
+      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1">
         {sortedOrgs.map((org) => (
           <button
             key={org.id}
@@ -210,202 +192,16 @@ function OrganizationsPanel({
   );
 }
 
-function PreferenceRow({
-  icon,
-  label,
-  control,
-  onClick,
-  disabled,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  control: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      className="flex items-center justify-between gap-3 py-1.5"
-      onClick={disabled ? undefined : onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick && !disabled ? 0 : undefined}
-      onKeyDown={
-        onClick && !disabled
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      style={{ cursor: onClick && !disabled ? "pointer" : undefined }}
-    >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-muted-foreground shrink-0">{icon}</span>
-        <span className="text-sm text-foreground">{label}</span>
-      </div>
-      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-        {control}
-      </div>
-    </div>
-  );
-}
-
-function PreferencesPanel() {
-  const [preferences, setPreferences] = usePreferences();
-
-  const handleNotificationsChange = async (checked: boolean) => {
-    if (checked) {
-      const result = await Notification.requestPermission();
-      if (result !== "granted") {
-        toast.error(
-          "Notifications denied. Please enable them in your browser settings.",
-        );
-        setPreferences((prev) => ({ ...prev, enableNotifications: false }));
-        return;
-      }
-    }
-    setPreferences((prev) => ({ ...prev, enableNotifications: checked }));
-  };
-
-  return (
-    <div className="flex flex-col px-4 py-3 gap-1">
-      <PreferenceRow
-        icon={<Sun size={14} />}
-        label="Theme"
-        control={
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            value={preferences.theme}
-            onValueChange={(value) => {
-              if (value) {
-                setPreferences((prev) => ({
-                  ...prev,
-                  theme: value as ThemeMode,
-                }));
-              }
-            }}
-          >
-            <ToggleGroupItem value="light" aria-label="Light theme">
-              <Sun size={14} />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="dark" aria-label="Dark theme">
-              <Moon01 size={14} />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="system" aria-label="System theme">
-              <Monitor01 size={14} />
-            </ToggleGroupItem>
-          </ToggleGroup>
-        }
-      />
-      <PreferenceRow
-        icon={<Code01 size={14} />}
-        label="Developer Mode"
-        onClick={() =>
-          setPreferences((prev) => ({ ...prev, devMode: !prev.devMode }))
-        }
-        control={
-          <Switch
-            checked={preferences.devMode}
-            onCheckedChange={(checked) =>
-              setPreferences((prev) => ({ ...prev, devMode: checked }))
-            }
-          />
-        }
-      />
-      <PreferenceRow
-        icon={<Bell01 size={14} />}
-        label="Notifications"
-        disabled={typeof Notification === "undefined"}
-        onClick={() =>
-          handleNotificationsChange(!preferences.enableNotifications)
-        }
-        control={
-          <Switch
-            disabled={typeof Notification === "undefined"}
-            checked={preferences.enableNotifications}
-            onCheckedChange={handleNotificationsChange}
-          />
-        }
-      />
-      <PreferenceRow
-        icon={<VolumeMax size={14} />}
-        label="Sounds"
-        onClick={() =>
-          setPreferences((prev) => ({
-            ...prev,
-            enableSounds: !prev.enableSounds,
-          }))
-        }
-        control={
-          <Switch
-            checked={preferences.enableSounds}
-            onCheckedChange={(checked) =>
-              setPreferences((prev) => ({ ...prev, enableSounds: checked }))
-            }
-          />
-        }
-      />
-      <PreferenceRow
-        icon={<Shield01 size={14} />}
-        label="Tool Approval"
-        control={
-          <Select
-            value={preferences.toolApprovalLevel}
-            onValueChange={(value) =>
-              setPreferences((prev) => ({
-                ...prev,
-                toolApprovalLevel: value as ToolApprovalLevel,
-              }))
-            }
-          >
-            <SelectTrigger className="w-36 h-7 text-xs">
-              <span>
-                {{
-                  readonly: "Ask before edit",
-                  auto: "Auto approve",
-                  plan: "Plan mode",
-                }[preferences.toolApprovalLevel] ?? "Ask before edit"}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="readonly" textValue="Ask before edit">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Ask before edit</span>
-                  <span className="text-xs text-muted-foreground">
-                    Auto-approve read-only tools
-                  </span>
-                </div>
-              </SelectItem>
-              <SelectItem value="auto" textValue="Auto approve">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Auto approve</span>
-                  <span className="text-xs text-muted-foreground">
-                    Execute all without approval
-                  </span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        }
-      />
-    </div>
-  );
-}
-
 export function AccountPopover() {
   const { data: session } = authClient.useSession();
   const { data: organizations } = authClient.useListOrganizations();
   const navigate = useNavigate();
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const orgParam = orgMatch?.params.org;
+  const [preferences, setPreferences] = usePreferences();
 
   const [open, setOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
-  const [activePanel, setActivePanel] = useState<PanelView>("organizations");
 
   const user = session?.user;
   const userImage = (user as { image?: string } | undefined)?.image;
@@ -431,6 +227,17 @@ export function AccountPopover() {
   const close = () => setOpen(false);
 
   const menuItems: MenuItem[] = [
+    {
+      key: "preferences",
+      label: "Preferences",
+      icon: <Settings01 size={16} />,
+      onClick: () => {
+        navigate({
+          to: "/$org/settings/profile",
+          params: { org: orgParam ?? "" },
+        });
+      },
+    },
     {
       key: "terms",
       label: "Terms of Use",
@@ -475,23 +282,19 @@ export function AccountPopover() {
     onClick: () => authClient.signOut(),
   };
 
-  const navItemClass = (view: PanelView) =>
-    cn(
-      "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-left w-full transition-colors",
-      activePanel === view
-        ? "bg-sidebar-accent text-foreground"
-        : "text-foreground/80 hover:bg-sidebar-accent hover:text-foreground",
-    );
+  const themeOptions: {
+    value: ThemeMode;
+    icon: React.ReactNode;
+    label: string;
+  }[] = [
+    { value: "light", icon: <Sun size={14} />, label: "Light theme" },
+    { value: "dark", icon: <Moon01 size={14} />, label: "Dark theme" },
+    { value: "system", icon: <Monitor01 size={14} />, label: "System theme" },
+  ];
 
   return (
     <>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (next) setActivePanel("organizations");
-        }}
-      >
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <SidebarMenuButton
             tooltip={currentOrg?.name ?? "Account"}
@@ -525,10 +328,10 @@ export function AccountPopover() {
           align="end"
           sideOffset={18}
           collisionPadding={16}
-          className="w-[520px] p-0 flex"
+          className="w-[520px] p-0 flex max-h-[520px]"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="flex min-h-[380px] w-full">
+          <div className="flex min-h-[380px] w-full overflow-hidden">
             {/* Left panel */}
             <div className="w-60 shrink-0 flex flex-col border-r border-border bg-sidebar/75">
               {/* User info */}
@@ -573,64 +376,80 @@ export function AccountPopover() {
               </div>
 
               {/* Navigation items */}
-              <nav className="flex-1 flex flex-col px-2 pt-1">
-                {/* Organizations */}
-                <button
-                  type="button"
-                  autoFocus
-                  className={cn(navItemClass("organizations"))}
-                  onMouseEnter={() => setActivePanel("organizations")}
-                >
-                  <span className="shrink-0 text-muted-foreground">
-                    <Users03 size={16} />
-                  </span>
-                  <span className="flex-1">Organizations</span>
-                </button>
-
-                {/* Preferences */}
-                <button
-                  type="button"
-                  className={cn(navItemClass("preferences"))}
-                  onMouseEnter={() => setActivePanel("preferences")}
-                >
-                  <span className="shrink-0 text-muted-foreground">
-                    <Settings01 size={16} />
-                  </span>
-                  <span className="flex-1">Preferences</span>
-                </button>
-
-                {/* Divider */}
-                <div className="my-2 border-t border-border" />
-
-                {/* External links */}
+              <nav className="flex-1 flex flex-col px-2 pt-1 overflow-y-auto">
                 {menuItems.map((item) => (
                   <MenuItemButton key={item.key} item={item} onClose={close} />
                 ))}
                 <MenuItemButton item={signOutItem} onClose={close} />
+              </nav>
 
-                <div className="flex-1" />
-                <div className="px-3 py-1.5">
+              {/* Bottom bar: theme toggles + sound + version */}
+              <div className="flex items-center justify-between px-2 py-1.5 border-t border-border/50">
+                <div className="flex items-center gap-0.5">
+                  {themeOptions.map(({ value, icon, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-label={label}
+                      onClick={() =>
+                        setPreferences((prev) => ({ ...prev, theme: value }))
+                      }
+                      className={cn(
+                        "size-7 rounded-md flex items-center justify-center transition-colors",
+                        preferences.theme === value
+                          ? "bg-sidebar-accent text-foreground"
+                          : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+                      )}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label={
+                      preferences.enableSounds
+                        ? "Disable sounds"
+                        : "Enable sounds"
+                    }
+                    onClick={() =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        enableSounds: !prev.enableSounds,
+                      }))
+                    }
+                    className={cn(
+                      "size-7 rounded-md flex items-center justify-center transition-colors",
+                      preferences.enableSounds
+                        ? "text-foreground hover:bg-sidebar-accent/50"
+                        : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+                    )}
+                  >
+                    {preferences.enableSounds ? (
+                      <VolumeMax size={14} />
+                    ) : (
+                      <VolumeX size={14} />
+                    )}
+                  </button>
                   <span className="text-xs text-muted-foreground/60">
                     v{__MESH_VERSION__}
                   </span>
                 </div>
-              </nav>
+              </div>
             </div>
 
-            {/* Right panel - contextual */}
-            <div className="flex-1 flex flex-col min-w-0">
-              {activePanel === "organizations" && (
-                <OrganizationsPanel
-                  sortedOrgs={sortedOrgs}
-                  orgParam={orgParam}
-                  onSelectOrg={handleSelectOrg}
-                  onCreateOrg={() => {
-                    setOpen(false);
-                    setCreatingOrg(true);
-                  }}
-                />
-              )}
-              {activePanel === "preferences" && <PreferencesPanel />}
+            {/* Right panel - org selector */}
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+              <OrganizationsPanel
+                sortedOrgs={sortedOrgs}
+                orgParam={orgParam}
+                onSelectOrg={handleSelectOrg}
+                onCreateOrg={() => {
+                  setOpen(false);
+                  setCreatingOrg(true);
+                }}
+              />
             </div>
           </div>
         </PopoverContent>

@@ -1,6 +1,6 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { CollectionDisplayButton } from "@/web/components/collections/collection-display-button.tsx";
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import { EmptyState } from "@/web/components/empty-state.tsx";
@@ -33,12 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import {
@@ -1760,12 +1754,7 @@ function OrgMcpsContent() {
 
   const ctaButton = (
     <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        onClick={openCreateDialog}
-        size="sm"
-        className="h-7 w-7 px-0 sm:w-auto sm:px-3 rounded-lg text-sm font-medium"
-      >
+      <Button variant="outline" onClick={openCreateDialog}>
         <Plus size={14} className="sm:hidden" />
         <span className="hidden sm:inline">Custom Connection</span>
       </Button>
@@ -2241,310 +2230,304 @@ function OrgMcpsContent() {
           onConfirm={handleAddToAgent}
         />
 
-        {/* Page Header */}
-        <Page.Header>
-          <Page.Header.Left>
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Connections</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </Page.Header.Left>
-          <Page.Header.Right>
-            <CollectionDisplayButton
-              sortKey={listState.sortKey}
-              sortDirection={listState.sortDirection}
-              onSort={listState.handleSort}
-              sortOptions={[
-                { id: "title", label: "Name" },
-                { id: "description", label: "Description" },
-                { id: "connection_type", label: "Type" },
-                { id: "updated_by", label: "Updated by" },
-                { id: "updated_at", label: "Updated" },
-              ]}
-              filters={[
-                {
-                  label: "Type",
-                  value: typeFilter,
-                  onChange: (v) =>
-                    setTypeFilter((v as ConnectionTypeFilter) || "ALL"),
-                  options: [
-                    { id: "ALL", label: "All" },
-                    { id: "HTTP", label: "HTTP" },
-                    { id: "SSE", label: "SSE" },
-                    { id: "Websocket", label: "WebSocket" },
-                    { id: "STDIO", label: "STDIO" },
-                  ],
-                },
-                {
-                  label: "Status",
-                  value: statusFilter,
-                  onChange: (v) =>
-                    setStatusFilter((v as ConnectionStatusFilter) || "ALL"),
-                  options: [
-                    { id: "ALL", label: "All" },
-                    { id: "active", label: "Active" },
-                    { id: "inactive", label: "Inactive" },
-                    { id: "error", label: "Error" },
-                  ],
-                },
-                ...(enabledRegistries.length > 1
-                  ? [
+        <Page.Content>
+          {/* Title + Toolbar */}
+          <Page.Body>
+            <div className="flex flex-col gap-6">
+              <Page.Title>Connections</Page.Title>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <SearchInput
+                    value={listState.search}
+                    onChange={listState.setSearch}
+                    placeholder="Search for a connection"
+                    className="w-full md:w-[375px]"
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        listState.setSearch("");
+                        (event.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <CollectionDisplayButton
+                    sortKey={listState.sortKey}
+                    sortDirection={listState.sortDirection}
+                    onSort={listState.handleSort}
+                    sortOptions={[
+                      { id: "title", label: "Name" },
+                      { id: "description", label: "Description" },
+                      { id: "connection_type", label: "Type" },
+                      { id: "updated_by", label: "Updated by" },
+                      { id: "updated_at", label: "Updated" },
+                    ]}
+                    filters={[
                       {
-                        label: "Registry",
-                        value: registryFilter,
-                        onChange: (v: string) => setRegistryFilter(v || "ALL"),
+                        label: "Type",
+                        value: typeFilter,
+                        onChange: (v) =>
+                          setTypeFilter((v as ConnectionTypeFilter) || "ALL"),
                         options: [
-                          { id: "ALL", label: "All registries" },
-                          ...enabledRegistries.map((r) => ({
-                            id: r.id,
-                            label: r.id.includes("community-registry")
-                              ? "Community MCP Registry"
-                              : r.title,
-                          })),
+                          { id: "ALL", label: "All" },
+                          { id: "HTTP", label: "HTTP" },
+                          { id: "SSE", label: "SSE" },
+                          { id: "Websocket", label: "WebSocket" },
+                          { id: "STDIO", label: "STDIO" },
                         ],
                       },
-                    ]
-                  : []),
-              ]}
-            />
-            {ctaButton}
-          </Page.Header.Right>
-        </Page.Header>
-
-        {/* Search + Tabs */}
-        <div className="flex flex-col gap-0">
-          <div>
-            <CollectionSearch
-              value={listState.search}
-              onChange={listState.setSearch}
-              placeholder="Search for a Connection..."
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  listState.setSearch("");
-                  (event.target as HTMLInputElement).blur();
-                }
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <CollectionTabs
-              tabs={[
-                { id: "all", label: "All" },
-                { id: "connected", label: "Connected" },
-              ]}
-              activeTab={activeTab}
-              onTabChange={(id) => setActiveTab(id as ConnectionTab)}
-            />
-          </div>
-        </div>
-
-        {/* Content: Cards */}
-        <Page.Content>
-          {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
-            <div className="flex h-full items-center justify-center">
-              <Loading01
-                size={32}
-                className="animate-spin text-muted-foreground"
+                      {
+                        label: "Status",
+                        value: statusFilter,
+                        onChange: (v) =>
+                          setStatusFilter(
+                            (v as ConnectionStatusFilter) || "ALL",
+                          ),
+                        options: [
+                          { id: "ALL", label: "All" },
+                          { id: "active", label: "Active" },
+                          { id: "inactive", label: "Inactive" },
+                          { id: "error", label: "Error" },
+                        ],
+                      },
+                      ...(enabledRegistries.length > 1
+                        ? [
+                            {
+                              label: "Registry",
+                              value: registryFilter,
+                              onChange: (v: string) =>
+                                setRegistryFilter(v || "ALL"),
+                              options: [
+                                { id: "ALL", label: "All registries" },
+                                ...enabledRegistries.map((r) => ({
+                                  id: r.id,
+                                  label: r.id.includes("community-registry")
+                                    ? "Community MCP Registry"
+                                    : r.title,
+                                })),
+                              ],
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </div>
+                {ctaButton}
+              </div>
+              <CollectionTabs
+                tabs={[
+                  { id: "all", label: "All" },
+                  { id: "connected", label: "Connected" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={(id) => setActiveTab(id as ConnectionTab)}
               />
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto p-5">
-              {(
-                searchLower
-                  ? catalogItems.length === 0 &&
-                    filteredConnections.length === 0
-                  : activeTab === "all"
-                    ? catalogItems.length === 0
-                    : filteredConnections.length === 0
-              ) ? (
-                <EmptyState
-                  image={
-                    <img
-                      src="/emptystate-mcp.svg"
-                      alt=""
-                      width={336}
-                      height={320}
-                      aria-hidden="true"
-                    />
-                  }
-                  title="No Connections found"
-                  description={
-                    listState.search
-                      ? `No Connections match "${listState.search}"`
-                      : "Create a connection to get started."
-                  }
-                />
+              {/* Cards */}
+              {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loading01
+                    size={32}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                  {groupedForDisplay.map((item) => {
-                    if (item.type === "group") {
-                      return (
-                        <ConnectionGroupCard
-                          key={item.key}
-                          group={item}
-                          onOpen={() => {
+                <div>
+                  {(
+                    searchLower
+                      ? catalogItems.length === 0 &&
+                        filteredConnections.length === 0
+                      : activeTab === "all"
+                        ? catalogItems.length === 0
+                        : filteredConnections.length === 0
+                  ) ? (
+                    <EmptyState
+                      image={
+                        <img
+                          src="/emptystate-mcp.svg"
+                          alt=""
+                          width={336}
+                          height={320}
+                          aria-hidden="true"
+                        />
+                      }
+                      title="No Connections found"
+                      description={
+                        listState.search
+                          ? `No Connections match "${listState.search}"`
+                          : "Create a connection to get started."
+                      }
+                    />
+                  ) : (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+                      {groupedForDisplay.map((item) => {
+                        if (item.type === "group") {
+                          return (
+                            <ConnectionGroupCard
+                              key={item.key}
+                              group={item}
+                              onOpen={() => {
+                                navigate({
+                                  to: "/$org/settings/connections/$appSlug",
+                                  params: {
+                                    org: org.slug,
+                                    appSlug: item.key,
+                                  },
+                                });
+                              }}
+                              selectionMode={selectionMode}
+                              selectedIds={selectedIds}
+                              onToggleSelect={toggleSelect}
+                            />
+                          );
+                        }
+
+                        const connection = item.connection;
+                        const isSelected = selectedIds.has(connection.id);
+                        return (
+                          <ConnectionCard
+                            key={connection.id}
+                            connection={connection}
+                            fallbackIcon={<Container />}
+                            onClick={() =>
+                              selectionMode
+                                ? toggleSelect(connection.id)
+                                : navigate({
+                                    to: "/$org/settings/connections/$appSlug",
+                                    params: {
+                                      org: org.slug,
+                                      appSlug: getConnectionSlug(connection),
+                                    },
+                                  })
+                            }
+                            className={cn(
+                              isSelected && "ring-2 ring-primary bg-primary/5",
+                            )}
+                            headerActionsAlwaysVisible
+                            headerActions={
+                              <div className="flex items-center gap-1">
+                                {selectionMode ? (
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() =>
+                                      toggleSelect(connection.id)
+                                    }
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <span className="text-xs text-muted-foreground font-normal">
+                                    Connected
+                                  </span>
+                                )}
+                                <div
+                                  className={cn(
+                                    "overflow-hidden transition-all duration-150 ease-out",
+                                    selectionMode
+                                      ? "w-8 opacity-100"
+                                      : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
+                                  )}
+                                >
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <DotsVertical size={20} />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate({
+                                            to: "/$org/settings/connections/$appSlug",
+                                            params: {
+                                              org: org.slug,
+                                              appSlug:
+                                                getConnectionSlug(connection),
+                                            },
+                                          });
+                                        }}
+                                      >
+                                        <Eye size={16} />
+                                        Open
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleSelect(connection.id);
+                                        }}
+                                      >
+                                        <CheckSquare size={16} />
+                                        Select
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          dispatch({
+                                            type: "delete",
+                                            connection,
+                                          });
+                                        }}
+                                      >
+                                        <Trash01 size={16} />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </div>
+                            }
+                          />
+                        );
+                      })}
+                      {/* Catalog items (uninstalled) — only on "All" tab */}
+                      {catalogItems.map((item) => (
+                        <CatalogItemCard
+                          key={`catalog-${item._registryId}:${item.id}`}
+                          item={item}
+                          allConnections={connections}
+                          connectedAppNames={connectedAppNames}
+                          connectingItemId={connectingItemId}
+                          onNavigateConnected={(conn) =>
                             navigate({
                               to: "/$org/settings/connections/$appSlug",
                               params: {
                                 org: org.slug,
-                                appSlug: item.key,
+                                appSlug: getConnectionSlug(conn),
                               },
-                            });
-                          }}
-                          selectionMode={selectionMode}
-                          selectedIds={selectedIds}
-                          onToggleSelect={toggleSelect}
+                            })
+                          }
+                          onNavigateCatalog={navigateToCatalogItem}
+                          onConnect={handleInlineConnect}
                         />
-                      );
-                    }
-
-                    const connection = item.connection;
-                    const isSelected = selectedIds.has(connection.id);
-                    return (
-                      <ConnectionCard
-                        key={connection.id}
-                        connection={connection}
-                        fallbackIcon={<Container />}
-                        onClick={() =>
-                          selectionMode
-                            ? toggleSelect(connection.id)
-                            : navigate({
-                                to: "/$org/settings/connections/$appSlug",
-                                params: {
-                                  org: org.slug,
-                                  appSlug: getConnectionSlug(connection),
-                                },
-                              })
-                        }
-                        className={cn(
-                          isSelected && "ring-2 ring-primary bg-primary/5",
+                      ))}
+                      {(activeTab === "all" || searchLower) &&
+                        enabledRegistries.length > 0 && (
+                          <div
+                            ref={catalogSentinelRef}
+                            className="col-span-full h-4"
+                          />
                         )}
-                        headerActionsAlwaysVisible
-                        headerActions={
-                          <div className="flex items-center gap-1">
-                            {selectionMode ? (
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() =>
-                                  toggleSelect(connection.id)
-                                }
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground font-normal">
-                                Connected
-                              </span>
-                            )}
-                            <div
-                              className={cn(
-                                "overflow-hidden transition-all duration-150 ease-out",
-                                selectionMode
-                                  ? "w-8 opacity-100"
-                                  : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
-                              )}
-                            >
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <DotsVertical size={20} />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate({
-                                        to: "/$org/settings/connections/$appSlug",
-                                        params: {
-                                          org: org.slug,
-                                          appSlug:
-                                            getConnectionSlug(connection),
-                                        },
-                                      });
-                                    }}
-                                  >
-                                    <Eye size={16} />
-                                    Open
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleSelect(connection.id);
-                                    }}
-                                  >
-                                    <CheckSquare size={16} />
-                                    Select
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dispatch({ type: "delete", connection });
-                                    }}
-                                  >
-                                    <Trash01 size={16} />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
+                      {(activeTab === "all" || searchLower) &&
+                        mergedDiscovery.isLoadingMore && (
+                          <div className="col-span-full flex justify-center py-6">
+                            <Loading01
+                              size={24}
+                              className="animate-spin text-muted-foreground"
+                            />
                           </div>
-                        }
-                      />
-                    );
-                  })}
-                  {/* Catalog items (uninstalled) — only on "All" tab */}
-                  {catalogItems.map((item) => (
-                    <CatalogItemCard
-                      key={`catalog-${item._registryId}:${item.id}`}
-                      item={item}
-                      allConnections={connections}
-                      connectedAppNames={connectedAppNames}
-                      connectingItemId={connectingItemId}
-                      onNavigateConnected={(conn) =>
-                        navigate({
-                          to: "/$org/settings/connections/$appSlug",
-                          params: {
-                            org: org.slug,
-                            appSlug: getConnectionSlug(conn),
-                          },
-                        })
-                      }
-                      onNavigateCatalog={navigateToCatalogItem}
-                      onConnect={handleInlineConnect}
-                    />
-                  ))}
-                  {(activeTab === "all" || searchLower) &&
-                    enabledRegistries.length > 0 && (
-                      <div
-                        ref={catalogSentinelRef}
-                        className="col-span-full h-4"
-                      />
-                    )}
-                  {(activeTab === "all" || searchLower) &&
-                    mergedDiscovery.isLoadingMore && (
-                      <div className="col-span-full flex justify-center py-6">
-                        <Loading01
-                          size={24}
-                          className="animate-spin text-muted-foreground"
-                        />
-                      </div>
-                    )}
+                        )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </Page.Body>
         </Page.Content>
 
         {/* Floating bulk action bar */}
