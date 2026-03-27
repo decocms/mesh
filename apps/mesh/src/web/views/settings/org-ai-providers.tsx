@@ -540,7 +540,7 @@ export function ProviderCard({
       queryClient.invalidateQueries({
         queryKey: KEYS.aiProviders(org.id),
       });
-      toast.success("Claude Code activated");
+      toast.success(`${provider.name} activated`);
     },
     onError: (err) => toast.error(err.message),
   });
