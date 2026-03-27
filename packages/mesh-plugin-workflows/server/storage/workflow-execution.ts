@@ -456,7 +456,12 @@ export class WorkflowExecutionStorage {
 
   async listExecutions(
     organizationId: string,
-    options: { limit?: number; offset?: number; status?: string } = {},
+    options: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      workflowCollectionId?: string;
+    } = {},
   ): Promise<{
     items: (WorkflowExecutionRow & {
       title: string;
@@ -465,7 +470,7 @@ export class WorkflowExecutionStorage {
     totalCount: number;
     hasMore: boolean;
   }> {
-    const { limit = 50, offset = 0, status } = options;
+    const { limit = 50, offset = 0, status, workflowCollectionId } = options;
 
     let query = this.db
       .selectFrom("workflow_execution as we")
@@ -506,6 +511,14 @@ export class WorkflowExecutionStorage {
       );
     }
 
+    if (workflowCollectionId) {
+      query = query.where(
+        "w.workflow_collection_id",
+        "=",
+        workflowCollectionId,
+      );
+    }
+
     const items = await query
       .orderBy("we.created_at", "desc")
       .limit(limit)
@@ -513,15 +526,24 @@ export class WorkflowExecutionStorage {
       .execute();
 
     let countQuery = this.db
-      .selectFrom("workflow_execution")
+      .selectFrom("workflow_execution as we")
+      .innerJoin("workflow as w", "we.workflow_id", "w.id")
       .select((eb) => eb.fn.countAll<number>().as("count"))
-      .where("organization_id", "=", organizationId);
+      .where("we.organization_id", "=", organizationId);
 
     if (status) {
       countQuery = countQuery.where(
-        "status",
+        "we.status",
         "=",
         status as unknown as ExecutionStatus,
+      );
+    }
+
+    if (workflowCollectionId) {
+      countQuery = countQuery.where(
+        "w.workflow_collection_id",
+        "=",
+        workflowCollectionId,
       );
     }
 

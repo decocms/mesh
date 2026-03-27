@@ -45,6 +45,12 @@ export const WORKFLOW_EXECUTION_LIST: ServerPluginToolDefinition = {
     limit: z.number().optional().default(50),
     offset: z.number().optional().default(0),
     status: z.string().optional(),
+    workflow_collection_id: z
+      .string()
+      .optional()
+      .describe(
+        "Filter executions by workflow collection (template) ID. Only returns executions created from this template.",
+      ),
   }),
 
   handler: async (input, ctx) => {
@@ -54,6 +60,7 @@ export const WORKFLOW_EXECUTION_LIST: ServerPluginToolDefinition = {
       limit?: number;
       offset?: number;
       status?: string;
+      workflow_collection_id?: string;
     };
     const storage = getPluginStorage();
 
@@ -63,6 +70,7 @@ export const WORKFLOW_EXECUTION_LIST: ServerPluginToolDefinition = {
         limit: typedInput.limit,
         offset: typedInput.offset,
         status: typedInput.status,
+        workflowCollectionId: typedInput.workflow_collection_id,
       },
     );
 
