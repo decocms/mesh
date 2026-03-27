@@ -244,7 +244,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false)
-      .orderBy("updated_at", "asc");
+      .orderBy("updated_at", "desc");
 
     if (createdBy) {
       query = query.where("created_by", "=", createdBy);
@@ -303,7 +303,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false)
       .where("trigger_id", "in", triggerIds)
-      .orderBy("updated_at", "asc");
+      .orderBy("updated_at", "desc");
 
     const countQuery = this.db
       .selectFrom("threads")

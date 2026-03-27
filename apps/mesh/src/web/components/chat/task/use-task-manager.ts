@@ -63,6 +63,7 @@ export function useTasks(
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
         offset: 0,
+        orderBy: [{ field: ["updated_at"], direction: "desc" as const }],
         where: {
           ...(ownerFilter === "me" && { created_by: "me" }),
           virtual_mcp_id: virtualMcpId,
