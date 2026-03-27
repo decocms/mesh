@@ -9,18 +9,11 @@
 
 import { Page } from "@/web/components/page";
 
-import { useChatPanel, useOnNewTask } from "@/web/contexts/panel-context";
+import { useChatPanel } from "@/web/contexts/panel-context";
 import { Browser, Edit05, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import {
-  Suspense,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";

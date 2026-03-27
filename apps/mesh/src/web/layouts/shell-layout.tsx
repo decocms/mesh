@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
@@ -8,7 +8,10 @@ import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
 import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
-import { PanelContextProvider } from "@/web/contexts/panel-context";
+import {
+  PanelContextProvider,
+  useChatPanel,
+} from "@/web/contexts/panel-context";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -129,6 +132,7 @@ function TasksResizablePanel({
   onCollapse?: () => void;
   onExpand?: () => void;
 }>) {
+  console.log("[TasksResizablePanel] render", { defaultCollapsed, defaultSize: defaultCollapsed ? 0 : 22 });
   return (
     <ResizablePanel
       ref={panelRef}
@@ -289,6 +293,31 @@ function ActiveTaskBoundary({
   );
 }
 
+/**
+ * Bridges createTask from inside Chat.Provider to the toolbar ref
+ * so the ⇧⌘S shortcut and sidebar button can create tasks.
+ */
+function NewTaskBridge({
+  onNewTaskRef,
+}: {
+  onNewTaskRef: React.MutableRefObject<(() => void) | null>;
+}) {
+  const { createTask } = useChatTask();
+  const [, setChatOpen] = useChatPanel();
+  useLayoutEffect(() => {
+    onNewTaskRef.current = () => {
+      console.log("[NewTaskBridge] onNewTask triggered");
+      createTask();
+      console.log("[NewTaskBridge] createTask done, calling setChatOpen(true)");
+      setChatOpen(true);
+    };
+    return () => {
+      onNewTaskRef.current = null;
+    };
+  });
+  return null;
+}
+
 function ShellLayoutInner({
   isAgentRoute,
   isOrgHome,
@@ -340,6 +369,7 @@ function ShellLayoutInner({
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const toggleTasks = () => {
+    console.log("[ShellLayout] toggleTasks called", { tasksOpen, expandedCount });
     if (tasksOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (tasksOpen) {
@@ -409,6 +439,7 @@ function ShellLayoutInner({
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
               >
+                <NewTaskBridge onNewTaskRef={onNewTask} />
                 <MobileToolbar
                   onOpenSidebar={() => setMobileSidebarOpen(true)}
                 />
@@ -608,6 +639,7 @@ function ShellLayoutInner({
                 key={chatVirtualMcpId}
                 virtualMcpId={chatVirtualMcpId}
               >
+                <NewTaskBridge onNewTaskRef={onNewTask} />
                 <ResizablePanelGroup
                   direction="horizontal"
                   className="flex-1 min-h-0"
@@ -618,10 +650,16 @@ function ShellLayoutInner({
                       <TasksResizablePanel
                         panelRef={tasksPanelRef}
                         defaultCollapsed={!isAgentRoute}
-                        onCollapse={() => setTasksOpen(false)}
-                        onExpand={() => setTasksOpen(true)}
+                        onCollapse={() => {
+                          console.log("[TasksResizablePanel] onCollapse fired");
+                          setTasksOpen(false);
+                        }}
+                        onExpand={() => {
+                          console.log("[TasksResizablePanel] onExpand fired", new Error().stack);
+                          setTasksOpen(true);
+                        }}
                       >
-                        <div className="h-full pt-1 pr-1.5 pb-1.5 overflow-hidden">
+                        <div className="h-full p-1.5 pt-1 overflow-hidden">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                             <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
                           </div>
@@ -643,7 +681,7 @@ function ShellLayoutInner({
                       onCollapse={() => setMainOpen(false)}
                       onExpand={() => setMainOpen(true)}
                     >
-                      <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                      <div className="h-full p-1.5 pt-1 overflow-hidden">
                         <div
                           className={cn(
                             "flex flex-col h-full min-h-0 bg-card overflow-hidden",
@@ -682,7 +720,7 @@ function ShellLayoutInner({
                         onCollapse={() => setChatOpen(false)}
                         onExpand={() => setChatOpen(true)}
                       >
-                        <div className="h-full pr-1.5 pb-1.5">
+                        <div className="h-full p-1.5 pt-1">
                           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
                             <ActiveTaskBoundary
                               variant={isOrgHome ? "home" : undefined}
