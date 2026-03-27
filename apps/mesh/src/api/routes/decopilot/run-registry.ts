@@ -2,7 +2,7 @@
  * RunRegistry — stateful dispatcher for decopilot run lifecycle
  *
  * Wraps the pure decide + project functions into a stateful registry. Tracks
- * all in-flight runs by threadId. A reaper timer evicts runs that have been
+ * all in-flight runs by taskId. A reaper timer evicts runs that have been
  * in the "running" state for longer than MAX_RUN_AGE_MS.
  *
  * Entry points:
@@ -74,12 +74,12 @@ export class RunRegistry {
    * to do both in one step.
    */
   dispatch(command: RunCommand): RunTransition[] {
-    const current = this.states.get(command.threadId);
+    const current = this.states.get(command.taskId);
     const events = decide(command, current);
     const transitions: RunTransition[] = [];
 
     for (const event of events) {
-      const stateBeforeEvent = this.states.get(event.threadId);
+      const stateBeforeEvent = this.states.get(event.taskId);
 
       // Abort the running controller before projecting it away
       if (
@@ -94,9 +94,9 @@ export class RunRegistry {
       const newState = project(stateBeforeEvent, event, this.clock());
 
       if (newState === undefined) {
-        this.states.delete(event.threadId);
+        this.states.delete(event.taskId);
       } else {
-        this.states.set(event.threadId, newState);
+        this.states.set(event.taskId, newState);
       }
 
       transitions.push({ event, state: newState });
@@ -126,8 +126,8 @@ export class RunRegistry {
   }
 
   /** Returns the AbortSignal for the running thread, or null if not running. */
-  getAbortSignal(threadId: string): AbortSignal | null {
-    const state = this.states.get(threadId);
+  getAbortSignal(taskId: string): AbortSignal | null {
+    const state = this.states.get(taskId);
     if (state?.status.tag === "running") {
       return state.status.abortController.signal;
     }
@@ -135,8 +135,8 @@ export class RunRegistry {
   }
 
   /** Returns true when the thread currently has an active run in progress. */
-  isRunning(threadId: string): boolean {
-    return this.states.get(threadId)?.status.tag === "running";
+  isRunning(taskId: string): boolean {
+    return this.states.get(taskId)?.status.tag === "running";
   }
 
   /**
@@ -208,7 +208,7 @@ export class RunRegistry {
   async handlePodDeath(
     deadPodId: string,
     resumeFn: (thread: Thread) => Promise<void>,
-    cancelBroadcast?: { broadcast(threadId: string): void },
+    cancelBroadcast?: { broadcast(taskId: string): void },
   ): Promise<void> {
     const orphans = await this.deps.storage.listOrphanedRunsByPod(deadPodId);
     if (orphans.length === 0) return;
@@ -254,17 +254,17 @@ export class RunRegistry {
 
   private reapStaleRuns(): void {
     const now = this.clock().getTime();
-    for (const [threadId, state] of this.states) {
+    for (const [taskId, state] of this.states) {
       if (
         state.status.tag === "running" &&
         now - state.status.startedAt.getTime() > MAX_RUN_AGE_MS
       ) {
         console.warn(
-          `[RunRegistry] Reaping stale run for thread ${threadId} ...`,
+          `[RunRegistry] Reaping stale run for thread ${taskId} ...`,
         );
         this.execute({
           type: "FORCE_FAIL",
-          threadId,
+          taskId,
           reason: "reaped",
         }).catch((err) => {
           console.error("[RunRegistry] Reaper execute failed", err);

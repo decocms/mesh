@@ -49,16 +49,16 @@ export function useCreateVirtualMCP(
       title: "New Agent",
       description: "AI-driven assistant designed to handle specific tasks",
       status: "active",
-      subtype: "agent",
       connections: [],
+      pinned: true,
     });
 
     if (navigateOnCreate) {
       navigate({
-        to: "/$org/agents/$agentId",
+        to: "/$org/$virtualMcpId",
         params: {
           org: org.slug,
-          agentId: virtualMcp.id,
+          virtualMcpId: virtualMcp.id,
         },
       });
     }

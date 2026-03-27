@@ -1,38 +1,23 @@
-import { useProjectContext, useIsOrgAdmin } from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import type {
   NavigationSidebarItem,
   SidebarSection,
 } from "@/web/components/sidebar/types";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  BarChart10,
-  CheckDone01,
-  Container,
-  Dataflow03,
-  Folder,
-  Home02,
-  LayoutLeft,
-  RefreshCcw01,
-  Settings01,
-  Users03,
-} from "@untitledui/icons";
+import { Browser, Home01 } from "@untitledui/icons";
+import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 
-export function useProjectSidebarItems(options?: {
-  virtualMcpId?: string;
-}): SidebarSection[] {
+export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
+  const [, setTasksOpen] = useTasksPanel();
   const org = orgContext.slug;
-  const isOrgAdminProject = useIsOrgAdmin();
   const currentProject = useProjectContext().project;
-  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
 
-  // The virtual MCP ID for this project (used in /$org/projects/$virtualMcpId routes)
-  // Prefer explicit prop (from URL params) over project context
-  const virtualMcpId = options?.virtualMcpId ?? currentProject.id;
+  // The virtual MCP ID for this project
+  const virtualMcpId = currentProject.id;
 
   // All projects (including org-admin) use project-level enabledPlugins
   const enabledPlugins = currentProject.enabledPlugins ?? [];
@@ -60,127 +45,28 @@ export function useProjectSidebarItems(options?: {
 
   const pathname = routerState.location.pathname;
 
-  // For org-admin, base path is /$org; for projects, /$org/projects/$virtualMcpId
-  const basePath = isOrgAdminProject
-    ? `/${org}`
-    : `/${org}/projects/${virtualMcpId}`;
-
-  const isOnHome = pathname === basePath || pathname === `${basePath}/`;
+  const basePath = `/${org}/${virtualMcpId}`;
 
   const isActiveRoute = (path: string) =>
     pathname.startsWith(`${basePath}/${path}`);
 
-  // Common items for all projects
-  const homeItem: NavigationSidebarItem = {
-    key: "home",
-    label: "Home",
-    icon: <Home02 />,
-    isActive: isOnHome,
-    onClick: () => {
-      if (isOnHome) {
-        window.dispatchEvent(new CustomEvent("reset-home-view"));
-      } else if (isOrgAdminProject) {
-        navigate({
-          to: "/$org",
-          params: { org },
-        });
-      } else {
-        navigate({
-          to: "/$org/projects/$virtualMcpId",
-          params: { org, virtualMcpId },
-        });
-      }
-    },
-  };
-
-  // Org-admin specific items - flat list matching Figma design
-  const tasksItem: NavigationSidebarItem = {
-    key: "tasks",
-    label: "Tasks",
-    icon: <CheckDone01 />,
-    isActive: tasksOpen,
-    onClick: () => setTasksOpen((prev) => !prev),
-  };
-
-  const connectionsItem: NavigationSidebarItem = {
-    key: "mcps",
-    label: "Connections",
-    icon: <Container />,
-    isActive: isActiveRoute("mcps"),
-    onClick: () =>
-      navigate({
-        to: "/$org/mcps",
-        params: { org },
-      }),
-  };
-
-  const projectsItem: NavigationSidebarItem = {
-    key: "projects",
-    label: "Projects",
-    icon: <Folder />,
-    isActive: isActiveRoute("projects"),
-    onClick: () =>
-      navigate({
-        to: "/$org/projects",
-        params: { org },
-      }),
-  };
-
-  const agentsItem: NavigationSidebarItem = {
-    key: "agents",
-    label: "Agents",
-    icon: <Users03 />,
-    isActive: isActiveRoute("agents"),
-    onClick: () =>
-      navigate({
-        to: "/$org/agents",
-        params: { org },
-      }),
-  };
-
-  const automationsItem: NavigationSidebarItem = {
-    key: "automations",
-    label: "Automations",
-    icon: <RefreshCcw01 />,
-    isActive: isActiveRoute("automations"),
-    onClick: () =>
-      navigate({
-        to: "/$org/automations",
-        params: { org },
-      }),
-  };
-
-  const monitorItem: NavigationSidebarItem = {
-    key: "monitoring",
-    label: "Monitor",
-    icon: <BarChart10 />,
-    isActive: isActiveRoute("monitoring"),
-    onClick: () =>
-      navigate({
-        to: "/$org/monitoring",
-        params: { org },
-      }),
-  };
-
   // Plugin items mapped to navigation items (flat items)
+  // Plugins are scoped to the virtual MCP
   const pluginItems: NavigationSidebarItem[] = enabledPluginItems.map(
     (item) => ({
       key: item.pluginId,
       label: item.label,
       icon: item.icon,
-      isActive: isActiveRoute(
-        isOrgAdminProject ? `plugins/${item.pluginId}` : item.pluginId,
-      ),
+      isActive: isActiveRoute(item.pluginId),
       onClick: () =>
-        isOrgAdminProject
-          ? navigate({
-              to: "/$org/plugins/$pluginId",
-              params: { org, pluginId: item.pluginId },
-            })
-          : navigate({
-              to: "/$org/projects/$virtualMcpId/$pluginId",
-              params: { org, virtualMcpId, pluginId: item.pluginId },
-            }),
+        navigate({
+          to: "/$org/$virtualMcpId/$pluginId",
+          params: {
+            org,
+            virtualMcpId,
+            pluginId: item.pluginId,
+          },
+        }),
     }),
   );
 
@@ -202,15 +88,14 @@ export function useProjectSidebarItems(options?: {
           icon: item.icon,
           isActive: isActiveRoute(group.pluginId),
           onClick: () =>
-            isOrgAdminProject
-              ? navigate({
-                  to: "/$org/plugins/$pluginId",
-                  params: { org, pluginId: group.pluginId },
-                })
-              : navigate({
-                  to: "/$org/projects/$virtualMcpId/$pluginId",
-                  params: { org, virtualMcpId, pluginId: group.pluginId },
-                }),
+            navigate({
+              to: "/$org/$virtualMcpId/$pluginId",
+              params: {
+                org,
+                virtualMcpId,
+                pluginId: group.pluginId,
+              },
+            }),
         })),
         defaultExpanded: group.defaultExpanded ?? true,
       },
@@ -225,14 +110,15 @@ export function useProjectSidebarItems(options?: {
     icon: view.icon ? (
       <img src={view.icon} alt="" className="size-4 rounded" />
     ) : (
-      <LayoutLeft />
+      // Keep in sync with side-panel-tasks.tsx pinned view icon
+      <Browser />
     ),
     isActive: isActiveRoute(
       `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,
     ),
     onClick: () =>
       navigate({
-        to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org,
           virtualMcpId,
@@ -255,132 +141,21 @@ export function useProjectSidebarItems(options?: {
         }
       : null;
 
-  if (isOrgAdminProject) {
-    // Org-admin sidebar layout:
-    // - Home, Tasks (if enabled), Projects (if enabled) (top-level)
-    // - Build group: Agents, Connections, Workflows (if enabled), Store
-    // - Manage group: Monitor, Settings
-    // - Plugin items / groups
-    const settingsItem: NavigationSidebarItem = {
-      key: "settings",
-      label: "Settings",
-      icon: <Settings01 />,
-      isActive: isActiveRoute("settings"),
-      onClick: () =>
-        navigate({
-          to: "/$org",
-          params: { org },
-          search: { settings: "org.general" },
-        }),
-    };
-
-    // Flatten plugin group items into the Manage group
-    const pluginGroupItems: NavigationSidebarItem[] =
-      enabledPluginGroups.flatMap((group) =>
-        group.items.map((item, index) => ({
-          key: `${group.pluginId}-${group.id}-${index}`,
-          label: item.label,
-          icon: item.icon,
-          isActive: isActiveRoute(`plugins/${group.pluginId}`),
-          onClick: () =>
-            navigate({
-              to: "/$org/plugins/$pluginId",
-              params: { org, pluginId: group.pluginId },
-            }),
-        })),
-      );
-
-    const sections: SidebarSection[] = [
-      {
-        type: "items",
-        items: [homeItem, tasksItem, projectsItem],
-      },
-      {
-        type: "group",
-        group: {
-          id: "build",
-          label: "Build",
-          items: [automationsItem, agentsItem, connectionsItem],
-          defaultExpanded: true,
-        },
-      },
-      {
-        type: "group",
-        group: {
-          id: "manage",
-          label: "Manage",
-          items: [
-            monitorItem,
-            ...pluginItems,
-            ...pluginGroupItems,
-            settingsItem,
-          ],
-          defaultExpanded: true,
-        },
-      },
-    ];
-
-    // Add pinned views
-    if (pinnedViewsSection) {
-      sections.push(pinnedViewsSection);
-    }
-
-    return sections;
-  }
-
-  // Project-specific items (for regular projects, not org-admin)
-  const projectTasksItem: NavigationSidebarItem = {
-    key: "tasks",
-    label: "Tasks",
-    icon: <CheckDone01 />,
-    isActive: tasksOpen,
-    onClick: () => setTasksOpen((prev) => !prev),
+  const homeItem: NavigationSidebarItem = {
+    key: "home",
+    label: "Home",
+    icon: <Home01 className="!size-4" />,
+    isActive: pathname === `/${org}` || pathname === `/${org}/`,
+    onClick: () => {
+      setTasksOpen(false);
+      navigate({ to: "/$org", params: { org } });
+    },
   };
 
-  const projectWorkflowsItem: NavigationSidebarItem | null =
-    enabledPlugins.includes("MCP Workflows")
-      ? {
-          key: "Workflows",
-          label: "Workflows",
-          icon: <Dataflow03 />,
-          isActive: isActiveRoute("workflows"),
-          onClick: () =>
-            navigate({
-              to: "/$org/projects/$virtualMcpId/workflows",
-              params: { org, virtualMcpId },
-            }),
-        }
-      : null;
-
-  const configureItem: NavigationSidebarItem = {
-    key: "configure",
-    label: "Settings",
-    icon: <Settings01 />,
-    isActive: isActiveRoute("settings"),
-    onClick: () =>
-      navigate({
-        to: "/$org/projects/$virtualMcpId/settings",
-        params: { org, virtualMcpId },
-      }),
-  };
-
-  // Regular project sidebar layout (matching Figma):
-  // - Home, Tasks, Workflows, Configure
-  // - [Divider] (if enabled plugins exist)
-  // - Plugin items (flat)
-  // - Plugin groups
-  const projectItems: NavigationSidebarItem[] = [
-    homeItem,
-    projectTasksItem,
-    ...(projectWorkflowsItem ? [projectWorkflowsItem] : []),
-    configureItem,
-  ];
-
-  const sections: SidebarSection[] = [{ type: "items", items: projectItems }];
+  const sections: SidebarSection[] = [{ type: "items", items: [homeItem] }];
 
   // Add flat plugin items if any
   if (pluginItems.length > 0) {
-    sections.push({ type: "divider" });
     sections.push({ type: "items", items: pluginItems });
   }
 

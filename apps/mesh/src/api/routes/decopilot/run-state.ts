@@ -45,7 +45,7 @@ export type RunStatus = {
 };
 
 export interface RunState {
-  threadId: string;
+  taskId: string;
   orgId: string;
   userId: string;
   status: RunStatus;
@@ -58,7 +58,7 @@ export interface RunState {
 export type RunCommand =
   | {
       type: "START";
-      threadId: string;
+      taskId: string;
       orgId: string;
       userId: string;
       /** Caller creates the AbortController so the decider stays truly pure */
@@ -70,22 +70,22 @@ export type RunCommand =
     }
   | {
       type: "RESUME";
-      threadId: string;
+      taskId: string;
       orgId: string;
       userId: string;
       abortController: AbortController;
       podId: string;
     }
-  | { type: "STEP_DONE"; threadId: string }
+  | { type: "STEP_DONE"; taskId: string }
   | {
       type: "FINISH";
-      threadId: string;
+      taskId: string;
       threadStatus: "completed" | "failed" | "requires_action";
     }
-  | { type: "CANCEL"; threadId: string }
+  | { type: "CANCEL"; taskId: string }
   | {
       type: "FORCE_FAIL";
-      threadId: string;
+      taskId: string;
       reason: "ghost";
       /**
        * Required for ghost commands — the server restarted and there is no
@@ -95,7 +95,7 @@ export type RunCommand =
     }
   | {
       type: "FORCE_FAIL";
-      threadId: string;
+      taskId: string;
       reason: "reaped";
       /** orgId is read from the existing RunState; must not be supplied. */
       orgId?: never;
@@ -108,7 +108,7 @@ export type RunCommand =
 export type RunEvent =
   | {
       type: "RUN_STARTED";
-      threadId: string;
+      taskId: string;
       orgId: string;
       userId: string;
       abortController: AbortController;
@@ -117,7 +117,7 @@ export type RunEvent =
     }
   | {
       type: "RUN_RESUMED";
-      threadId: string;
+      taskId: string;
       orgId: string;
       userId: string;
       abortController: AbortController;
@@ -125,7 +125,7 @@ export type RunEvent =
     }
   | {
       type: "STEP_COMPLETED";
-      threadId: string;
+      taskId: string;
       orgId: string;
       stepCount: number;
     }
@@ -138,19 +138,19 @@ export type RunEvent =
    */
   | {
       type: "RUN_COMPLETED";
-      threadId: string;
+      taskId: string;
       orgId: string;
       stepCount: number;
     }
   | {
       type: "RUN_REQUIRES_ACTION";
-      threadId: string;
+      taskId: string;
       orgId: string;
       stepCount: number;
     }
   | {
       type: "RUN_FAILED";
-      threadId: string;
+      taskId: string;
       orgId: string;
       reason: RunFailedReason;
     }
@@ -160,7 +160,7 @@ export type RunEvent =
    * is intentionally a no-op for this event — the DB row is overwritten by
    * the subsequent RUN_STARTED event.
    */
-  | { type: "PREVIOUS_RUN_ABORTED"; threadId: string; orgId: string };
+  | { type: "PREVIOUS_RUN_ABORTED"; taskId: string; orgId: string };
 
 /**
  * The result of applying a single event during dispatch: the event that was

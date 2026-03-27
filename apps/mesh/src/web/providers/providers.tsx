@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthConfigProvider } from "@/web/providers/auth-config-provider";
 import { BetterAuthUIProvider } from "@/web/providers/better-auth-ui-provider";
-import { ThemeProvider } from "@/web/providers/theme-provider";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { ThemeProvider } from "@/web/providers/theme-provider";
 import { Toaster } from "sonner";
 
 const queryClient = new QueryClient({

@@ -225,14 +225,14 @@ export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
         ? input.where.value
         : undefined;
 
-    // Fast-path: if the where clause filters by subtype eq, pass it to the DB query.
-    const subtypeEq =
+    // Fast-path: if the where clause filters by pinned eq, pass it to the DB query.
+    const pinnedEq =
       input.where &&
       !("conditions" in input.where) &&
-      input.where.field.join(".") === "subtype" &&
+      input.where.field.join(".") === "pinned" &&
       input.where.operator === "eq" &&
-      (input.where.value === "agent" || input.where.value === "project")
-        ? (input.where.value as "agent" | "project")
+      typeof input.where.value === "boolean"
+        ? input.where.value
         : undefined;
 
     const virtualMcps = connectionIdEq
@@ -240,7 +240,10 @@ export const COLLECTION_VIRTUAL_MCP_LIST = defineTool({
           organization.id,
           connectionIdEq,
         )
-      : await ctx.storage.virtualMcps.list(organization.id, subtypeEq);
+      : await ctx.storage.virtualMcps.list(
+          organization.id,
+          pinnedEq !== undefined ? { pinnedOnly: pinnedEq } : undefined,
+        );
 
     // Virtual MCPs are already in VirtualMCPEntity format (snake_case)
     let filtered: VirtualMCPEntity[] = virtualMcps;

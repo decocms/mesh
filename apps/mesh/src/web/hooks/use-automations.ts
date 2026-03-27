@@ -23,6 +23,8 @@ export interface AutomationListItem {
   created_by: string;
   created_at: string;
   trigger_count: number;
+  agent: { id: string } | null;
+  nearest_next_run_at: string | null;
 }
 
 export interface AutomationTrigger {
@@ -44,7 +46,7 @@ export interface AutomationDetail {
   created_by: string;
   created_at: string;
   updated_at: string;
-  agent: { id: string; mode: string };
+  agent: { id: string };
   messages: unknown[];
   models: {
     credentialId: string;
@@ -61,7 +63,7 @@ export interface AutomationDetail {
 
 type AutomationListOutput = { automations: AutomationListItem[] };
 
-export function useAutomationsList() {
+export function useAutomationsList(virtualMcpId?: string | null) {
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -69,11 +71,13 @@ export function useAutomationsList() {
   });
 
   return useQuery({
-    queryKey: KEYS.automations(org.id),
+    queryKey: KEYS.automations(org.id, virtualMcpId),
     queryFn: async () => {
+      const args: Record<string, unknown> =
+        virtualMcpId !== undefined ? { virtual_mcp_id: virtualMcpId } : {};
       const result = (await client.callTool({
         name: "AUTOMATION_LIST",
-        arguments: {},
+        arguments: args,
       })) as { structuredContent?: unknown };
       const payload = (result.structuredContent ??
         result) as AutomationListOutput;
@@ -113,6 +117,22 @@ export function useAutomationDetail(id: string) {
 }
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+export function buildDefaultAutomationInput(virtualMcpId: string) {
+  return {
+    name: "New Automation",
+    agent: { id: virtualMcpId },
+    messages: [],
+    models: { credentialId: "", thinking: { id: "" } },
+    temperature: 0.5,
+    active: true,
+    virtual_mcp_id: virtualMcpId,
+  };
+}
+
+// ============================================================================
 // Mutation Hooks
 // ============================================================================
 
@@ -136,7 +156,9 @@ export function useAutomationCreate() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automations(org.id),
+      });
     },
   });
 }
@@ -155,10 +177,13 @@ export function useAutomationUpdate() {
         name: "AUTOMATION_UPDATE",
         arguments: input,
       })) as { structuredContent?: unknown };
-      return (result.structuredContent ?? result) as { id: string };
+      const parsed = (result.structuredContent ?? result) as { id: string };
+      return parsed;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automations(org.id),
+      });
       if (typeof variables.id === "string") {
         queryClient.invalidateQueries({
           queryKey: KEYS.automation(org.id, variables.id),
@@ -185,7 +210,9 @@ export function useAutomationDelete() {
       return (result.structuredContent ?? result) as { success: boolean };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automations(org.id),
+      });
     },
   });
 }
@@ -207,7 +234,9 @@ export function useAutomationTriggerAdd() {
       return (result.structuredContent ?? result) as { id: string };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automations(org.id),
+      });
       if (typeof variables.automation_id === "string") {
         queryClient.invalidateQueries({
           queryKey: KEYS.automation(org.id, variables.automation_id),
@@ -237,7 +266,9 @@ export function useAutomationTriggerRemove() {
       return (result.structuredContent ?? result) as { success: boolean };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: KEYS.automations(org.id) });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.automations(org.id),
+      });
       queryClient.invalidateQueries({
         queryKey: KEYS.automation(org.id, variables.automation_id),
       });

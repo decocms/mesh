@@ -11,7 +11,6 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { LinkExternal01 } from "@untitledui/icons";
 import type { ReactNode } from "react";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
@@ -22,7 +21,6 @@ interface NavigationSidebarProps {
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
-  collapsible?: "offcanvas" | "icon" | "none";
   /** Additional classes for the content area */
   contentClassName?: string;
 }
@@ -36,23 +34,13 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
   };
 
   return (
-    <SidebarMenuItem key={item.key}>
+    <SidebarMenuItem key={item.key} className={cn(item.isActive && "z-10")}>
       <SidebarMenuButton
         onClick={handleClick}
         isActive={item.isActive}
         tooltip={item.label}
-        className={cn(item.isExternal && "group/external")}
       >
-        <span className="[&>svg]:size-4">{item.icon}</span>
-        <span className={cn("truncate group-data-[collapsible=icon]:hidden")}>
-          {item.label}
-        </span>
-        {item.isExternal && (
-          <LinkExternal01
-            size={12}
-            className="ml-auto mr-1 shrink-0 opacity-0 group-hover/external:opacity-60 transition-opacity group-data-[collapsible=icon]:hidden"
-          />
-        )}
+        <span className="[&>svg]:size-8">{item.icon}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -79,7 +67,7 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
       return (
         <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
+            <SidebarMenu className="gap-1.5">
               {section.items.map((item) => (
                 <SidebarNavigationItem key={item.key} item={item} />
               ))}
@@ -94,21 +82,20 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
  * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
  * Accepts sections (items, groups, dividers) and optional footer/additional content.
  */
-export function NavigationSidebar({
+function NavigationSidebarInner({
   sections,
   header,
   footer,
   additionalContent,
   variant = "sidebar",
-  collapsible = "icon",
   contentClassName,
 }: NavigationSidebarProps) {
   return (
-    <Sidebar variant={variant} collapsible={collapsible}>
+    <Sidebar variant={variant}>
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3.5 pb-2 group-data-[collapsible=icon]:px-2",
+          "flex flex-col flex-1 overflow-x-hidden mt-10 px-2 pb-2 gap-0",
           contentClassName,
         )}
       >
@@ -120,6 +107,14 @@ export function NavigationSidebar({
       {footer}
     </Sidebar>
   );
+}
+
+/**
+ * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
+ * Accepts sections (items, groups, dividers) and optional footer/additional content.
+ */
+export function NavigationSidebar(props: NavigationSidebarProps) {
+  return <NavigationSidebarInner {...props} />;
 }
 
 NavigationSidebar.Skeleton = function NavigationSidebarSkeleton() {

@@ -74,8 +74,8 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
     await ctx.access.check();
 
     // Use top-level thread_id, fall back to extracting from where clause
-    const threadId = input.thread_id ?? extractThreadIdFromWhere(input.where);
-    if (!threadId) {
+    const taskId = input.thread_id ?? extractThreadIdFromWhere(input.where);
+    if (!taskId) {
       throw new Error(
         "thread_id is required (provide as top-level param or in where clause)",
       );
@@ -84,10 +84,10 @@ export const COLLECTION_THREAD_MESSAGES_LIST = defineTool({
     const offset = input.offset ?? 0;
     const limit = input.limit ?? 100;
 
-    const { messages, total } = await ctx.storage.threads.listMessages(
-      threadId,
-      { limit, offset },
-    );
+    const { messages, total } = await ctx.storage.threads.listMessages(taskId, {
+      limit,
+      offset,
+    });
 
     const hasMore = offset + limit < total;
 

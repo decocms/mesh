@@ -99,15 +99,27 @@ export function IconPicker({
     onChange(buildIconString(randomName, selectedColor));
   };
 
+  const sizeRadius: Record<string, string> = {
+    xs: "rounded-md",
+    sm: "rounded-lg",
+    md: "rounded-xl",
+    lg: "rounded-2xl",
+    xl: "rounded-2xl",
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={cn("relative group cursor-pointer rounded-2xl", className)}
+          className={cn(
+            "relative group cursor-pointer overflow-hidden",
+            sizeRadius[size],
+            className,
+          )}
         >
           <AgentAvatar icon={value} name={name} size={size} />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
             <Edit05 size={16} className="text-white" />
           </div>
         </button>

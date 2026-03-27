@@ -82,7 +82,7 @@ export function ImportFromDecoDialog({
     isLoading,
     error: sitesError,
   } = useQuery({
-    queryKey: ["deco-sites", session?.user?.email],
+    queryKey: KEYS.decoSites(session?.user?.email),
     queryFn: loadDecoSites,
     enabled: open && Boolean(session?.user?.email),
     staleTime: 60_000,
@@ -129,14 +129,14 @@ export function ImportFromDecoDialog({
 
       const slug = generateSlug(siteName);
 
-      // 2. Create a project (virtual MCP with subtype "project") with the connection already linked
+      // 2. Create a space (virtual MCP) with the connection already linked
       const result = (await client.callTool({
         name: "COLLECTION_VIRTUAL_MCP_CREATE",
         arguments: {
           data: {
             title: siteName,
             description: "Imported from deco.cx",
-            subtype: "project",
+            pinned: true,
             metadata: {
               instructions: null,
               enabled_plugins: [],
@@ -179,12 +179,25 @@ export function ImportFromDecoDialog({
       return { slug, virtualMcpId: payload.item.id, connId };
     },
     onSuccess: ({ slug, virtualMcpId, connId }) => {
+      // Invalidate the virtual MCPs collection list (used by sidebar + task panel).
+      // The collection list key is [client, orgId, scopeKey, "collection", collectionName, ...].
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return (
+            key[1] === org.id &&
+            key[3] === "collection" &&
+            key[4] === "VIRTUAL_MCP"
+          );
+        },
+      });
+      // Also invalidate the legacy projects key for any other consumers.
       queryClient.invalidateQueries({ queryKey: KEYS.projects(org.id) });
       toast.success(`Imported ${slug} from deco.cx`);
       handleClose(false);
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
       navigate({
-        to: "/$org/projects/$virtualMcpId/apps/$connectionId/$toolName",
+        to: "/$org/$virtualMcpId/apps/$connectionId/$toolName",
         params: {
           org: org.slug,
           virtualMcpId,

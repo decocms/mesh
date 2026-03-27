@@ -32,6 +32,7 @@ export type SqlDialect = "clickhouse" | "duckdb";
 
 /** Escape a string value for safe use in SQL single-quoted literals. */
 function esc(value: string): string {
+  // oxlint-disable-next-line no-control-regex
   return value.replace(/\0/g, "").replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
 

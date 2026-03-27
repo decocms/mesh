@@ -19,7 +19,7 @@ export interface StreamBuffer {
    */
   relay(
     stream: ReadableStream,
-    threadId: string,
+    taskId: string,
     abortSignal?: AbortSignal,
   ): ReadableStream;
 
@@ -27,10 +27,10 @@ export interface StreamBuffer {
    * Create a replay stream for a late-joining client.
    * Returns null if the thread has no data.
    */
-  createReplayStream(threadId: string): Promise<ReadableStream | null>;
+  createReplayStream(taskId: string): Promise<ReadableStream | null>;
 
   /** Purge buffered data for a thread (best-effort, fire-and-forget). */
-  purge(threadId: string): void;
+  purge(taskId: string): void;
 
   /** Release resources (clear references, called on shutdown). */
   teardown(): void;

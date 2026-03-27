@@ -22,7 +22,7 @@ import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
-import { useChatStable } from "./context";
+import { useChatStream, useChatPrefs } from "./context";
 import {
   PromptArgsDialog,
   type PromptArgumentValues,
@@ -232,7 +232,8 @@ function iceBreakerReducer(
  * @param connectionId - The connection ID, or null for the management MCP
  */
 function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
-  const { tiptapDocRef, sendMessage } = useChatStable();
+  const { sendMessage } = useChatStream();
+  const { tiptapDocRef } = useChatPrefs();
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId,
@@ -331,7 +332,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
  * Includes ErrorBoundary, Suspense, and container internally.
  */
 export function IceBreakers({ className }: IceBreakersProps) {
-  const { selectedVirtualMcp } = useChatStable();
+  const { selectedVirtualMcp } = useChatPrefs();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const connectionId = selectedVirtualMcp?.id ?? decopilotId;

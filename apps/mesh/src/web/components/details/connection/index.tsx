@@ -301,7 +301,7 @@ function ConnectionInspectorViewWithConnection({
   resources: Array<{ name: string; description?: string; uri?: string }>;
   siblings: ConnectionEntity[];
 }) {
-  const navigate = useNavigate({ from: "/$org/mcps/$appSlug" });
+  const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
   const [configureInstance, setConfigureInstance] =
@@ -318,7 +318,7 @@ function ConnectionInspectorViewWithConnection({
   const members = membersData?.data?.members ?? [];
   const activeInstance = configureInstance ?? connection;
   const instanceCreator = members.find(
-    (m) => m.userId === activeInstance.created_by,
+    (m: (typeof members)[number]) => m.userId === activeInstance.created_by,
   );
   // VIRTUAL connections are always "authenticated" - they don't have OAuth
   // They're internal connections that aggregate tools from other connections
@@ -466,7 +466,7 @@ function ConnectionInspectorViewWithConnection({
     // If we deleted the last sibling, go back to list
     if (siblings.length <= 1) {
       navigate({
-        to: "/$org/mcps",
+        to: "/$org/settings/connections",
         params: { org },
       });
     }
@@ -479,7 +479,7 @@ function ConnectionInspectorViewWithConnection({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org }}>
+            <Link to="/$org/settings/connections" params={{ org }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -746,9 +746,9 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/mcps/$appSlug" });
+  const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const { appSlug, org } = useParams({
-    from: "/shell/$org/mcps/$appSlug",
+    from: "/shell/$org/settings/connections/$appSlug",
   });
   const { org: projectOrg } = useProjectContext();
 
@@ -860,7 +860,7 @@ function ConnectionInspectorViewContent() {
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: "/$org/mcps",
+                  to: "/$org/settings/connections",
                   params: {
                     org: org as string,
                   },

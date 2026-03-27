@@ -55,13 +55,15 @@ export const ORGANIZATION_LIST = defineTool({
 
     // Convert dates to ISO strings for JSON Schema compatibility
     return {
-      organizations: organizations.map((org) => ({
-        ...org,
-        createdAt:
-          org.createdAt instanceof Date
-            ? org.createdAt.toISOString()
-            : org.createdAt,
-      })),
+      organizations: organizations.map(
+        (org: (typeof organizations)[number]) => ({
+          ...org,
+          createdAt:
+            org.createdAt instanceof Date
+              ? org.createdAt.toISOString()
+              : org.createdAt,
+        }),
+      ),
     };
   },
 });

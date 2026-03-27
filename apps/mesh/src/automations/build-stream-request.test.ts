@@ -18,6 +18,7 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
       credentialId: "cred_1",
     }),
     temperature: 0.7,
+    virtual_mcp_id: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -71,9 +72,9 @@ describe("buildStreamRequest", () => {
     expect(result.triggerId).toBeUndefined();
   });
 
-  it("passes threadId through", () => {
+  it("passes taskId through", () => {
     const result = buildStreamRequest(makeAutomation(), null, "thrd_abc");
-    expect(result.threadId).toBe("thrd_abc");
+    expect(result.taskId).toBe("thrd_abc");
   });
 
   it("uses automation temperature", () => {

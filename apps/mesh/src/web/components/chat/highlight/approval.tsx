@@ -40,8 +40,8 @@ const APPROVAL_LEVEL_OPTIONS: {
   value: ToolApprovalLevel;
   label: string;
 }[] = [
-  { value: "readonly", label: "Skip read-only" },
-  { value: "auto", label: "Auto-approve all" },
+  { value: "readonly", label: "Ask before edit" },
+  { value: "auto", label: "Auto approve" },
 ];
 
 // ============================================================================

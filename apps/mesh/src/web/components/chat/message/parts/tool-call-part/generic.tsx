@@ -3,7 +3,7 @@
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer as MCPAppIframeRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatStable } from "@/web/components/chat/context.tsx";
+import { useChatStream, useChatPrefs } from "@/web/components/chat/context.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -31,7 +31,7 @@ import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
 import { Suspense } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -166,10 +166,10 @@ export function GenericToolCallPart({
         : part.type.replace("tool-", "") || "Tool";
   const friendlyName = getFriendlyToolName(toolName);
 
-  const { selectedVirtualMcp, sendMessage, setAppContext, clearAppContext } =
-    useChatStable();
+  const { sendMessage } = useChatStream();
+  const { selectedVirtualMcp, setAppContext, clearAppContext } = useChatPrefs();
   const { org } = useProjectContext();
-  const [, setChatOpen] = useDecoChatOpen();
+  const [, setChatOpen] = useChatPanel();
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 

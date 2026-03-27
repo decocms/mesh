@@ -67,7 +67,7 @@ export class OrgScopedThreadStorage {
 
   list(
     createdBy?: string,
-    options?: { limit?: number; offset?: number },
+    options?: { limit?: number; offset?: number; virtualMcpId?: string },
   ): Promise<{ threads: Thread[]; total: number }> {
     return this.inner.list(this.requireOrg(), createdBy, options);
   }
@@ -84,14 +84,14 @@ export class OrgScopedThreadStorage {
   }
 
   listMessages(
-    threadId: string,
+    taskId: string,
     options?: {
       limit?: number;
       offset?: number;
       sort?: "asc" | "desc";
     },
   ): Promise<{ messages: ThreadMessage[]; total: number }> {
-    return this.inner.listMessages(threadId, this.requireOrg(), options);
+    return this.inner.listMessages(taskId, this.requireOrg(), options);
   }
 }
 
@@ -125,9 +125,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
       organization_id: data.organization_id,
       title: data.title,
       description: data.description ?? null,
-      status: data.status ?? "completed",
+      status: data.status ?? "in_progress",
       trigger_id: data.trigger_id ?? null,
-      agent_ids: JSON.stringify(data.agent_ids ?? []),
+      virtual_mcp_id: data.virtual_mcp_id ?? "",
       created_at: now,
       updated_at: now,
       created_by: data.created_by,
@@ -237,25 +237,37 @@ export class SqlThreadStorage implements ThreadStoragePort {
   async list(
     organizationId: string,
     createdBy?: string,
-    options?: { limit?: number; offset?: number },
+    options?: { limit?: number; offset?: number; virtualMcpId?: string },
   ): Promise<{ threads: Thread[]; total: number }> {
     let query = this.db
       .selectFrom("threads")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false)
-
       .orderBy("updated_at", "desc");
+
     if (createdBy) {
       query = query.where("created_by", "=", createdBy);
     }
+    if (options?.virtualMcpId) {
+      query = query.where("virtual_mcp_id", "=", options.virtualMcpId);
+    }
+
     let countQuery = this.db
       .selectFrom("threads")
       .select((eb) => eb.fn.count("id").as("count"))
       .where("organization_id", "=", organizationId)
       .where("hidden", "=", false);
+
     if (createdBy) {
       countQuery = countQuery.where("created_by", "=", createdBy);
+    }
+    if (options?.virtualMcpId) {
+      countQuery = countQuery.where(
+        "virtual_mcp_id",
+        "=",
+        options.virtualMcpId,
+      );
     }
 
     if (options?.limit) {
@@ -328,11 +340,11 @@ export class SqlThreadStorage implements ThreadStoragePort {
     organizationId: string,
   ): Promise<void> {
     const now = new Date().toISOString();
-    const threadId = data[0]?.thread_id;
-    if (!threadId) {
+    const taskId = data[0]?.thread_id;
+    if (!taskId) {
       throw new Error("thread_id is required when creating multiple messages");
     }
-    const thread = await this.get(threadId, organizationId);
+    const thread = await this.get(taskId, organizationId);
     if (!thread) {
       throw new Error("Thread not found or access denied");
     }
@@ -350,31 +362,21 @@ export class SqlThreadStorage implements ThreadStoragePort {
     }
     const unique = [...byId.values()];
     // Validate all messages target the same thread to prevent data corruption.
-    const mismatchedMessage = unique.find((m) => m.thread_id !== threadId);
+    const mismatchedMessage = unique.find((m) => m.thread_id !== taskId);
     if (mismatchedMessage) {
       throw new Error(
-        `All messages must target the same thread. Expected thread_id "${threadId}", but message "${mismatchedMessage.id}" has thread_id "${mismatchedMessage.thread_id}"`,
+        `All messages must target the same thread. Expected thread_id "${taskId}", but message "${mismatchedMessage.id}" has thread_id "${mismatchedMessage.thread_id}"`,
       );
     }
     const rows = unique.map((message) => ({
       id: message.id,
-      thread_id: threadId,
+      thread_id: taskId,
       metadata: message.metadata ? JSON.stringify(message.metadata) : null,
       parts: JSON.stringify(message.parts),
       role: message.role,
       created_at: message.created_at ?? now,
       updated_at: now,
     }));
-
-    // Extract agent IDs from user messages metadata and merge into thread's agent_ids
-    const incomingAgentIds = unique
-      .filter((m) => m.role === "user" && m.metadata)
-      .map(
-        (m) =>
-          (m.metadata as Record<string, unknown> & { agent?: { id?: string } })
-            ?.agent?.id,
-      )
-      .filter((id): id is string => typeof id === "string" && id.length > 0);
 
     await this.db.transaction().execute(async (trx) => {
       await trx
@@ -390,49 +392,17 @@ export class SqlThreadStorage implements ThreadStoragePort {
         )
         .execute();
 
-      // Lock the thread row inside the transaction to prevent lost-update races
-      // when concurrent saveMessages calls merge agent_ids simultaneously.
-      const locked = await trx
-        .selectFrom("threads")
-        .select("agent_ids")
-        .where("id", "=", threadId)
-        .where("organization_id", "=", organizationId)
-        .forUpdate()
-        .executeTakeFirst();
-
-      let currentAgentIds: string[] = [];
-      if (locked?.agent_ids) {
-        try {
-          currentAgentIds = JSON.parse(locked.agent_ids as unknown as string);
-        } catch {
-          currentAgentIds = [];
-        }
-      }
-
-      const mergedAgentIds = [...currentAgentIds];
-      for (const id of incomingAgentIds) {
-        if (!mergedAgentIds.includes(id)) {
-          mergedAgentIds.push(id);
-        }
-      }
-      const agentIdsChanged = mergedAgentIds.length > currentAgentIds.length;
-
       await trx
         .updateTable("threads")
-        .set({
-          updated_at: now,
-          ...(agentIdsChanged && {
-            agent_ids: JSON.stringify(mergedAgentIds),
-          }),
-        })
-        .where("id", "=", threadId)
+        .set({ updated_at: now })
+        .where("id", "=", taskId)
         .where("organization_id", "=", organizationId)
         .execute();
     });
   }
 
   async listMessages(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     options?: {
       limit?: number;
@@ -440,7 +410,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       sort?: "asc" | "desc";
     },
   ): Promise<{ messages: ThreadMessage[]; total: number }> {
-    const thread = await this.get(threadId, organizationId);
+    const thread = await this.get(taskId, organizationId);
     if (!thread) {
       return { messages: [], total: 0 };
     }
@@ -450,14 +420,14 @@ export class SqlThreadStorage implements ThreadStoragePort {
     let query = this.db
       .selectFrom("thread_messages")
       .selectAll()
-      .where("thread_id", "=", threadId)
+      .where("thread_id", "=", taskId)
       .orderBy("created_at", sort)
       .orderBy("id", sort);
 
     const countQuery = this.db
       .selectFrom("thread_messages")
       .select((eb) => eb.fn.count("id").as("count"))
-      .where("thread_id", "=", threadId);
+      .where("thread_id", "=", taskId);
 
     if (options?.limit) {
       query = query.limit(options.limit);
@@ -482,7 +452,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   // ==========================================================================
 
   async claimOrphanedRun(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     podId: string,
   ): Promise<boolean> {
@@ -493,7 +463,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const result = await this.db
       .updateTable("threads")
       .set({ run_owner_pod: podId, updated_at: new Date().toISOString() })
-      .where("id", "=", threadId)
+      .where("id", "=", taskId)
       .where("organization_id", "=", organizationId)
       .where("status", "=", "in_progress")
       .where(({ eb, or }) =>
@@ -535,7 +505,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
   }
 
   async claimRunStart(
-    threadId: string,
+    taskId: string,
     organizationId: string,
     data: Partial<Thread>,
     podId: string | null,
@@ -558,7 +528,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
     const result = await this.db
       .updateTable("threads")
       .set(updateData)
-      .where("id", "=", threadId)
+      .where("id", "=", taskId)
       .where("organization_id", "=", organizationId)
       .where(({ eb, or }) =>
         or([
@@ -601,22 +571,13 @@ export class SqlThreadStorage implements ThreadStoragePort {
     run_owner_pod?: string | null;
     run_config?: Record<string, unknown> | null;
     run_started_at?: Date | string | null;
-    agent_ids?: string | null;
+    virtual_mcp_id?: string | null;
     created_at: Date | string;
     updated_at: Date | string;
     created_by: string;
     updated_by: string | null;
     hidden: boolean | number | null;
   }): Thread {
-    let agentIds: string[] = [];
-    if (row.agent_ids) {
-      try {
-        agentIds = JSON.parse(row.agent_ids);
-      } catch {
-        agentIds = [];
-      }
-    }
-
     return {
       id: row.id,
       organization_id: row.organization_id,
@@ -630,7 +591,7 @@ export class SqlThreadStorage implements ThreadStoragePort {
       run_started_at: row.run_started_at
         ? toIsoString(row.run_started_at)
         : null,
-      agent_ids: agentIds,
+      virtual_mcp_id: row.virtual_mcp_id ?? "",
       created_at: toIsoString(row.created_at),
       updated_at: toIsoString(row.updated_at),
       created_by: row.created_by,

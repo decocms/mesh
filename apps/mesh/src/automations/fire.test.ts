@@ -37,6 +37,7 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
       credentialId: "cred_1",
     }),
     temperature: 0.5,
+    virtual_mcp_id: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -98,7 +99,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage: makeStorage(),
       streamCoreFn: mock(() =>
-        Promise.resolve({ threadId: "t", stream: makeEmptyStream() }),
+        Promise.resolve({ taskId: "t", stream: makeEmptyStream() }),
       ),
       meshContextFactory: mock(() => Promise.resolve(makeMeshContext(ORG_ID))),
       config: makeConfig(),
@@ -115,7 +116,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage: makeStorage(),
       streamCoreFn: mock(() =>
-        Promise.resolve({ threadId: "t", stream: makeEmptyStream() }),
+        Promise.resolve({ taskId: "t", stream: makeEmptyStream() }),
       ),
       meshContextFactory: factory,
       config: makeConfig(),
@@ -132,7 +133,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage,
       streamCoreFn: mock(() =>
-        Promise.resolve({ threadId: "t", stream: makeEmptyStream() }),
+        Promise.resolve({ taskId: "t", stream: makeEmptyStream() }),
       ),
       meshContextFactory: mock(() => Promise.resolve(null)),
       config: makeConfig(),
@@ -154,7 +155,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage: makeStorage(),
       streamCoreFn: mock(() =>
-        Promise.resolve({ threadId: "t", stream: makeEmptyStream() }),
+        Promise.resolve({ taskId: "t", stream: makeEmptyStream() }),
       ),
       meshContextFactory: factory,
       config: makeConfig(),
@@ -173,7 +174,7 @@ describe("fireAutomation", () => {
       triggerId: "trig_1",
       storage,
       streamCoreFn: mock(() =>
-        Promise.resolve({ threadId: "t", stream: makeEmptyStream() }),
+        Promise.resolve({ taskId: "t", stream: makeEmptyStream() }),
       ),
       meshContextFactory: mock(() => Promise.resolve(makeMeshContext(ORG_ID))),
       config: makeConfig(),
@@ -190,7 +191,7 @@ describe("fireAutomation", () => {
       triggerId: "trig_99",
       storage,
       streamCoreFn: mock(async () => ({
-        threadId: "thrd_1",
+        taskId: "thrd_1",
         stream: makeEmptyStream(),
       })),
       meshContextFactory: mock(() => Promise.resolve(makeMeshContext(ORG_ID))),
@@ -211,7 +212,7 @@ describe("fireAutomation", () => {
 
     const streamCoreFn: StreamCoreFn = mock(async (_input, c) => {
       receivedCtx = c;
-      return { threadId: "thrd_1", stream: makeEmptyStream() };
+      return { taskId: "thrd_1", stream: makeEmptyStream() };
     });
 
     const result = await fireAutomation({
@@ -225,7 +226,7 @@ describe("fireAutomation", () => {
       deps: makeDeps(),
     });
 
-    expect(result).toEqual({ threadId: "thrd_1" });
+    expect(result).toEqual({ taskId: "thrd_1" });
     expect(receivedCtx).toBe(ctx);
   });
 
@@ -246,7 +247,7 @@ describe("fireAutomation", () => {
       deps: makeDeps(),
     });
 
-    expect(result).toEqual({ threadId: "thrd_1", error: "stream failed" });
+    expect(result).toEqual({ taskId: "thrd_1", error: "stream failed" });
     expect(storage.markRunFailed).toHaveBeenCalledWith("thrd_1");
   });
 
@@ -268,7 +269,7 @@ describe("fireAutomation", () => {
       deps: makeDeps(),
     });
 
-    expect(result).toEqual({ threadId: "thrd_1", error: "boom" });
+    expect(result).toEqual({ taskId: "thrd_1", error: "boom" });
   });
 
   it("releases global semaphore on success", async () => {
@@ -278,7 +279,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage: makeStorage(),
       streamCoreFn: mock(async () => ({
-        threadId: "thrd_1",
+        taskId: "thrd_1",
         stream: makeEmptyStream(),
       })),
       meshContextFactory: mock(() => Promise.resolve(makeMeshContext(ORG_ID))),
@@ -313,7 +314,7 @@ describe("fireAutomation", () => {
       triggerId: null,
       storage: makeStorage(),
       streamCoreFn: mock(async () => ({
-        threadId: "t",
+        taskId: "t",
         stream: makeEmptyStream(),
       })),
       meshContextFactory: mock(() => Promise.resolve(null)),
@@ -328,7 +329,7 @@ describe("fireAutomation", () => {
     let receivedInput: any;
     const streamCoreFn: StreamCoreFn = mock(async (input) => {
       receivedInput = input;
-      return { threadId: "thrd_1", stream: makeEmptyStream() };
+      return { taskId: "thrd_1", stream: makeEmptyStream() };
     });
 
     await fireAutomation({
@@ -358,7 +359,7 @@ describe("fireAutomation", () => {
       contextMessages: [{ role: "system", content: "extra" }],
       storage: makeStorage(),
       streamCoreFn: mock(async () => ({
-        threadId: "thrd_1",
+        taskId: "thrd_1",
         stream: makeEmptyStream(),
       })),
       meshContextFactory: mock(() => Promise.resolve(makeMeshContext(ORG_ID))),
@@ -384,6 +385,6 @@ describe("fireAutomation", () => {
       globalSemaphore: new Semaphore(10),
       deps: makeDeps(),
     });
-    expect(result).toEqual({ threadId: "thrd_1", error: "string error" });
+    expect(result).toEqual({ taskId: "thrd_1", error: "string error" });
   });
 });

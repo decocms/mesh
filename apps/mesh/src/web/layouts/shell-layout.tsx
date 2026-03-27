@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Chat } from "@/web/components/chat/index";
+import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
+import { ErrorBoundary } from "@/web/components/error-boundary";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isModKey } from "@/web/lib/keyboard-shortcuts";
-import { MeshSidebar } from "@/web/components/sidebar";
-import { SplashScreen } from "@/web/components/splash-screen";
+import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
+import { SettingsSidebar } from "@/web/layouts/settings-layout";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { useDecoTasksOpen } from "@/web/hooks/use-deco-tasks-open";
+import { PanelContextProvider } from "@/web/contexts/panel-context";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
-import { Drawer, DrawerContent } from "@deco/ui/components/drawer.tsx";
 import {
+  type ImperativePanelHandle,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -24,19 +24,33 @@ import {
   SidebarLayout,
   SidebarProvider,
 } from "@deco/ui/components/sidebar.tsx";
+import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { CheckDone01, MessageTextCircle02 } from "@untitledui/icons";
 import {
+  Browser,
+  ChevronLeft,
+  ChevronRight,
+  LayoutLeft,
+  Loading01,
+  Menu01,
+  MessageTextCircle02,
+} from "@untitledui/icons";
+import {
+  getWellKnownDecopilotVirtualMCP,
   ProjectContextProvider,
-  ProjectContextProviderProps,
+  SELF_MCP_ALIAS_ID,
+  useMCPClient,
+  useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
+import { useStatusSounds } from "../hooks/use-status-sounds";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
+import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -44,22 +58,46 @@ import { SsoRequiredScreen } from "../components/sso-required-screen";
  */
 function PersistentResizablePanel({
   children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
+  panelRef,
+  defaultCollapsed,
+  defaultFullWidth,
+  onCollapse,
+  onExpand,
+}: PropsWithChildren<{
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  defaultCollapsed: boolean;
+  defaultFullWidth?: boolean;
+  onCollapse: () => void;
+  onExpand: () => void;
+}>) {
   const [_isPending, startTransition] = useTransition();
   const [chatPanelWidth, setChatPanelWidth] = useLocalStorage(
     LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
+    25,
   );
 
   const handleResize = (size: number) =>
-    startTransition(() => setChatPanelWidth(size));
+    startTransition(() => {
+      if (size > 0 && !defaultFullWidth) setChatPanelWidth(size);
+    });
+
+  const savedWidth = Math.min(chatPanelWidth, 35);
+  const defaultSize = defaultCollapsed
+    ? 0
+    : defaultFullWidth
+      ? 100
+      : savedWidth;
 
   return (
     <ResizablePanel
-      defaultSize={chatPanelWidth}
+      ref={panelRef}
+      defaultSize={defaultSize}
       minSize={20}
-      className={cn("min-w-0", className)}
+      collapsible={true}
+      collapsedSize={0}
+      onCollapse={onCollapse}
+      onExpand={onExpand}
+      className="min-w-0 overflow-hidden bg-sidebar"
       onResize={handleResize}
       order={3}
     >
@@ -73,23 +111,27 @@ function PersistentResizablePanel({
  */
 function PersistentTasksResizablePanel({
   children,
-  className,
-}: PropsWithChildren<{ className?: string }>) {
-  const [_isPending, startTransition] = useTransition();
-  const [tasksPanelWidth, setTasksPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
-  );
-
-  const handleResize = (size: number) =>
-    startTransition(() => setTasksPanelWidth(size));
-
+  panelRef,
+  defaultCollapsed,
+  onCollapse,
+  onExpand,
+}: PropsWithChildren<{
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  defaultCollapsed: boolean;
+  onCollapse?: () => void;
+  onExpand?: () => void;
+}>) {
   return (
     <ResizablePanel
-      defaultSize={tasksPanelWidth}
+      ref={panelRef}
+      defaultSize={defaultCollapsed ? 0 : 22}
       minSize={22}
-      className={cn("min-w-0", className)}
-      onResize={handleResize}
+      maxSize={22}
+      collapsible={true}
+      collapsedSize={0}
+      onCollapse={onCollapse}
+      onExpand={onExpand}
+      className="min-w-0 overflow-hidden bg-sidebar"
       order={1}
     >
       {children}
@@ -97,238 +139,510 @@ function PersistentTasksResizablePanel({
   );
 }
 
+type OrgSettingsPayload = {
+  organizationId: string;
+  enabled_plugins?: string[] | null;
+};
+
 /**
- * This component persists the open state of the sidebar across reloads.
- * Also, it's important to keep it like this to avoid unnecessary re-renders.
+ * Single ProjectContextProvider for the entire shell.
+ * Fetches org settings (enabledPlugins) and provides a complete project context.
+ * Agent routes override this via VirtualMCPProvider.
  */
-function PersistentSidebarProvider({ children }: PropsWithChildren) {
-  const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useLocalStorage(
-    LOCALSTORAGE_KEYS.sidebarOpen(),
-    true,
-  );
-
-  return (
-    <SidebarProvider
-      open={isMobile ? true : sidebarOpen}
-      onOpenChange={setSidebarOpen}
-    >
-      {children}
-    </SidebarProvider>
-  );
-}
-
-function MobileFABs({
-  chatOpen,
-  onChatToggle,
-  tasksOpen,
-  onTasksToggle,
+function ShellProjectProvider({
+  org,
+  children,
 }: {
-  chatOpen: boolean;
-  onChatToggle: () => void;
-  tasksOpen: boolean;
-  onTasksToggle: () => void;
+  org: NonNullable<Parameters<typeof ProjectContextProvider>[0]["org"]>;
+  children: React.ReactNode;
 }) {
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+
+  const { data: orgSettings } = useSuspenseQuery({
+    queryKey: KEYS.organizationSettings(org.id),
+    queryFn: async () => {
+      const result = await client.callTool({
+        name: "ORGANIZATION_SETTINGS_GET",
+        arguments: {},
+      });
+      const payload =
+        (result as { structuredContent?: unknown }).structuredContent ?? result;
+      return (payload ?? {}) as OrgSettingsPayload;
+    },
+    staleTime: 60_000,
+  });
+
+  const project = {
+    id: org.id,
+    organizationId: org.id,
+    slug: "_org",
+    name: org.name,
+    enabledPlugins: orgSettings?.enabled_plugins ?? null,
+    ui: null,
+  };
+
   return (
-    <>
-      <button
-        type="button"
-        onClick={onTasksToggle}
-        className={cn(
-          "fixed bottom-4 left-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
-          tasksOpen
-            ? "bg-accent text-foreground"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
-        )}
-        aria-label="Toggle tasks"
-      >
-        <CheckDone01 size={20} />
-      </button>
-      <button
-        type="button"
-        onClick={onChatToggle}
-        className={cn(
-          "fixed bottom-4 right-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-colors",
-          chatOpen
-            ? "bg-accent text-foreground"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
-        )}
-        aria-label="Toggle chat"
-      >
-        <MessageTextCircle02 size={20} />
-      </button>
-    </>
+    <ProjectContextProvider org={org} project={project}>
+      {children}
+    </ProjectContextProvider>
   );
 }
 
-function ShellLayoutInner({ isHomeRoute }: { isHomeRoute: boolean }) {
-  const [chatOpen, setChatOpen] = useDecoChatOpen();
-  const [tasksOpen, setTasksOpen] = useDecoTasksOpen();
-  const isMobile = useIsMobile();
-  const [chatPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
-    30,
-  );
-  const [tasksPanelWidth] = useLocalStorage(
-    LOCALSTORAGE_KEYS.decoTasksPanelWidth(),
-    22,
-  );
-
-  // Track open/close transitions — apply max-w + CSS transition only during
-  // the 200ms animation window, then remove so resize handles work freely.
-  const [tasksAnimating, setTasksAnimating] = useState(false);
-  const [chatAnimating, setChatAnimating] = useState(false);
-  const prevTasksOpen = useRef(tasksOpen);
-  const prevChatOpen = useRef(chatOpen);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (prevTasksOpen.current === tasksOpen) return;
-    prevTasksOpen.current = tasksOpen;
-    setTasksAnimating(true);
-    const id = setTimeout(() => setTasksAnimating(false), 220);
-    return () => clearTimeout(id);
-  }, [tasksOpen]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (prevChatOpen.current === chatOpen) return;
-    prevChatOpen.current = chatOpen;
-    setChatAnimating(true);
-    const id = setTimeout(() => setChatAnimating(false), 220);
-    return () => clearTimeout(id);
-  }, [chatOpen]);
-
-  // Either panel open means the content card gets right rounding
-  const hasRightPanel = !isMobile && chatOpen && !isHomeRoute;
-
+function PersistentSidebarProvider({
+  children,
+  defaultOpen,
+}: PropsWithChildren<{ defaultOpen?: boolean }>) {
   return (
-    <SidebarLayout
-      className="flex-1 bg-sidebar"
-      style={
-        {
-          "--sidebar-width": "13.5rem",
-          "--sidebar-width-mobile": "11rem",
-          "--chat-panel-w": `${chatPanelWidth}cqi`,
-          "--tasks-panel-w": `${tasksPanelWidth}cqi`,
-        } as Record<string, string>
+    <SidebarProvider defaultOpen={defaultOpen}>{children}</SidebarProvider>
+  );
+}
+
+function OptionalAgentProvider({
+  virtualMcpId,
+  children,
+}: {
+  virtualMcpId?: string;
+  children: React.ReactNode;
+}) {
+  if (virtualMcpId) {
+    return (
+      <VirtualMCPProvider virtualMcpId={virtualMcpId}>
+        {children}
+      </VirtualMCPProvider>
+    );
+  }
+  return <>{children}</>;
+}
+
+function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
+  return (
+    <div className="shrink-0 flex items-center justify-between px-3 h-12 bg-background border-b border-border">
+      <button
+        type="button"
+        onClick={onOpenSidebar}
+        className="flex size-8 items-center justify-center rounded-md text-foreground/60 hover:bg-accent hover:text-foreground transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu01 size={20} />
+      </button>
+    </div>
+  );
+}
+
+function ToolbarBreadcrumb() {
+  const routerState = useRouterState();
+  const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
+  const org = orgMatch?.params.org;
+
+  const isAgentsList =
+    org && routerState.location.pathname === `/${org}/agents`;
+
+  if (isAgentsList) {
+    return (
+      <div className="flex items-center min-w-0 ml-1.5">
+        <span className="text-sm font-medium text-sidebar-foreground">
+          Agents
+        </span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Reads taskId from ChatTaskContext and wraps children in ActiveTaskProvider
+ * inside a Suspense + ErrorBoundary boundary.
+ */
+function ActiveTaskBoundary({
+  children,
+  variant,
+}: {
+  children?: React.ReactNode;
+  variant?: "home" | "default";
+}) {
+  const { taskId } = useChatTask();
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+          Something went wrong loading the chat. Try refreshing.
+        </div>
       }
     >
-      <MeshSidebar />
-      {/* SidebarInset: transparent so bg-sidebar from SidebarLayout shows
-          through the rounded corners of the inner card */}
-      <SidebarInset
-        className="pt-1.5"
-        style={{ background: "transparent", containerType: "inline-size" }}
-      >
-        <ResizablePanelGroup
-          direction="horizontal"
-          className="h-full"
-          style={{ overflow: "visible" }}
-        >
-          {/* Desktop: Tasks panel on the left */}
-          {!isMobile && (
-            <>
-              <PersistentTasksResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  tasksAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  tasksOpen
-                    ? tasksAnimating
-                      ? "max-w-[var(--tasks-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
-                )}
-              >
-                <div className="h-full min-w-[var(--tasks-panel-w)] pr-1.5 pb-1.5 overflow-hidden">
-                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <TasksSidePanel />
-                  </div>
-                </div>
-              </PersistentTasksResizablePanel>
-              <ResizableHandle className="bg-sidebar" />
-            </>
-          )}
+      <Suspense fallback={<Chat.Skeleton />}>
+        <Chat.ActiveTaskProvider taskId={taskId}>
+          {children ?? <ChatPanel variant={variant} />}
+        </Chat.ActiveTaskProvider>
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
 
-          {/* Main content */}
-          <ResizablePanel
-            className="min-w-0 flex flex-col"
-            order={2}
-            style={{ overflow: "visible" }}
-          >
-            <div
-              className={cn(
-                "flex flex-col flex-1 min-h-0 bg-card overflow-hidden",
-                "border-t border-sidebar-border",
-                "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
-                // Left edge: rounded when tasks panel is open (gap visible), border-l always
-                "border-l",
-                "rounded-tl-[0.75rem]",
-                // Right edge: rounded + border when chat panel is open (gap visible)
-                hasRightPanel && "rounded-tr-[0.75rem] border-r",
-                isMobile && "rounded-tr-[0.75rem] border-r",
-              )}
-            >
+function ShellLayoutInner({
+  isAgentRoute,
+  isOrgHome,
+  isSettingsRoute,
+}: {
+  isAgentRoute: boolean;
+  isOrgHome: boolean;
+  isSettingsRoute: boolean;
+}) {
+  const [chatOpen, setChatOpen] = useState(true);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [mainOpen, setMainOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const { org } = useProjectContext();
+
+  // Org-wide SSE sound notifications
+  useStatusSounds(org.id);
+
+  // Extract virtualMcpId from route for agent context
+  const agentsMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
+
+  const showThreePanels = isAgentRoute || isOrgHome;
+
+  // Compute decopilot virtualMcpId for tasks filtering on org home
+  const tasksVirtualMcpId = isOrgHome
+    ? getWellKnownDecopilotVirtualMCP(org.id).id
+    : undefined;
+
+  const chatPanelRef = useRef<ImperativePanelHandle>(null);
+  const tasksPanelRef = useRef<ImperativePanelHandle>(null);
+  const mainPanelRef = useRef<ImperativePanelHandle>(null);
+  const [chatPanelWidth] = useLocalStorage(
+    LOCALSTORAGE_KEYS.decoChatPanelWidth(),
+    25,
+  );
+
+  // --- Toggle handlers with all-panels-collapsed guard ---
+  // Use imperative panel API to resize panels directly.
+  // The onCollapse/onExpand callbacks on each panel sync the open state back.
+
+  const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
+
+  const toggleTasks = () => {
+    if (tasksOpen && expandedCount <= 1) return;
+    if (tasksOpen) {
+      tasksPanelRef.current?.collapse();
+    } else {
+      tasksPanelRef.current?.expand();
+    }
+  };
+  const toggleMain = () => {
+    if (mainOpen && expandedCount <= 1) return;
+    if (mainOpen) {
+      mainPanelRef.current?.collapse();
+    } else {
+      mainPanelRef.current?.expand();
+    }
+  };
+  const toggleChat = () => {
+    if (chatOpen && expandedCount <= 1) return;
+    if (chatOpen) {
+      chatPanelRef.current?.collapse();
+    } else {
+      chatPanelRef.current?.resize(Math.min(chatPanelWidth, 35));
+    }
+  };
+
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const panelControls = {
+    chatOpen,
+    tasksOpen,
+    mainOpen,
+    chatPanelRef,
+    tasksPanelRef,
+    mainPanelRef,
+    chatPanelWidth,
+  };
+
+  // Compute Chat.Provider virtualMcpId
+  const chatVirtualMcpId =
+    agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
+
+  // --- Mobile layout: full-screen chat with hamburger toolbar ---
+  if (isMobile) {
+    return (
+      <PanelContextProvider value={panelControls}>
+        <div className="flex flex-col flex-1 bg-background min-h-0">
+          {showThreePanels ? (
+            <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+              <Chat.Provider
+                key={chatVirtualMcpId}
+                virtualMcpId={chatVirtualMcpId}
+              >
+                <MobileToolbar
+                  onOpenSidebar={() => setMobileSidebarOpen(true)}
+                />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ActiveTaskBoundary
+                    variant={isOrgHome ? "home" : undefined}
+                  />
+                </div>
+                {/* Mobile sidebar: icon rail + tasks panel */}
+                <Sheet
+                  open={mobileSidebarOpen}
+                  onOpenChange={setMobileSidebarOpen}
+                >
+                  <SheetContent
+                    side="left"
+                    className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+                  >
+                    <SheetTitle className="sr-only">Navigation</SheetTitle>
+                    <div className="flex h-full">
+                      {/* Icon sidebar rail */}
+                      <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
+                        <MeshSidebarMobile
+                          onClose={() => setMobileSidebarOpen(false)}
+                        />
+                      </div>
+                      {/* Tasks / agent panel */}
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </Chat.Provider>
+            </OptionalAgentProvider>
+          ) : (
+            <>
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
               <div className="flex-1 overflow-hidden">
                 <Outlet />
               </div>
-            </div>
-          </ResizablePanel>
-
-          {/* Desktop: Chat card as resizable side panel */}
-          {!isHomeRoute && !isMobile && (
-            <>
-              <ResizableHandle className="bg-sidebar" />
-              <PersistentResizablePanel
-                className={cn(
-                  "overflow-hidden",
-                  chatAnimating &&
-                    "transition-[max-width] duration-200 ease-[var(--ease-out-quart)]",
-                  chatOpen
-                    ? chatAnimating
-                      ? "max-w-[var(--chat-panel-w)] bg-sidebar"
-                      : "bg-sidebar"
-                    : "max-w-0",
-                )}
+              <Sheet
+                open={mobileSidebarOpen}
+                onOpenChange={setMobileSidebarOpen}
               >
-                <div className="h-full min-w-[var(--chat-panel-w)] pl-1.5 pr-1.5 pb-1.5">
-                  <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-                    <ChatPanel />
+                <SheetContent
+                  side="left"
+                  className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+                >
+                  <SheetTitle className="sr-only">Navigation</SheetTitle>
+                  <div className="flex h-full">
+                    <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
+                      <MeshSidebarMobile
+                        onClose={() => setMobileSidebarOpen(false)}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <TasksSidePanel />
+                    </div>
                   </div>
-                </div>
-              </PersistentResizablePanel>
+                </SheetContent>
+              </Sheet>
             </>
           )}
-        </ResizablePanelGroup>
-      </SidebarInset>
+        </div>
+      </PanelContextProvider>
+    );
+  }
 
-      {/* Mobile: FABs + bottom Drawers */}
-      {!isHomeRoute && isMobile && (
-        <>
-          <MobileFABs
-            chatOpen={chatOpen}
-            onChatToggle={() => setChatOpen((prev) => !prev)}
-            tasksOpen={tasksOpen}
-            onTasksToggle={() => setTasksOpen((prev) => !prev)}
-          />
-          <Drawer open={chatOpen} onOpenChange={setChatOpen} direction="bottom">
-            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-              <ChatPanel />
-            </DrawerContent>
-          </Drawer>
-          <Drawer
-            open={tasksOpen}
-            onOpenChange={setTasksOpen}
-            direction="bottom"
+  // --- Desktop layout: resizable 3-panel ---
+  return (
+    <PanelContextProvider value={panelControls}>
+      <SidebarLayout
+        className="flex-1 bg-sidebar"
+        style={
+          {
+            "--sidebar-width-icon": "3.5rem",
+          } as Record<string, string>
+        }
+      >
+        {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
+        <SidebarInset
+          className="flex flex-col"
+          style={{ background: "transparent", containerType: "inline-size" }}
+        >
+          <div className="shrink-0 flex items-center justify-between px-2 h-10">
+            <div className="flex items-center gap-0.5 min-w-0">
+              {showThreePanels && (
+                <button
+                  type="button"
+                  onClick={toggleTasks}
+                  aria-pressed={tasksOpen}
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                    tasksOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle tasks"
+                >
+                  <LayoutLeft size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <ToolbarBreadcrumb />
+            </div>
+            {showThreePanels && (
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={toggleMain}
+                  aria-pressed={mainOpen}
+                  disabled={isOrgHome}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    isOrgHome
+                      ? "text-sidebar-foreground/30 cursor-not-allowed"
+                      : mainOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle content"
+                >
+                  <Browser size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleChat}
+                  aria-pressed={chatOpen}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md transition-colors",
+                    chatOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  title="Toggle chat"
+                >
+                  <MessageTextCircle02 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
           >
-            <DrawerContent className="h-[95dvh] max-h-[95dvh]">
-              <TasksSidePanel />
-            </DrawerContent>
-          </Drawer>
-        </>
-      )}
-    </SidebarLayout>
+            <OptionalAgentProvider virtualMcpId={agentVirtualMcpId}>
+              <Chat.Provider
+                key={chatVirtualMcpId}
+                virtualMcpId={chatVirtualMcpId}
+              >
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  className="flex-1 min-h-0"
+                  style={{ overflow: "visible" }}
+                >
+                  {showThreePanels && (
+                    <>
+                      <PersistentTasksResizablePanel
+                        panelRef={tasksPanelRef}
+                        defaultCollapsed={!isAgentRoute}
+                        onCollapse={() => setTasksOpen(false)}
+                        onExpand={() => setTasksOpen(true)}
+                      >
+                        <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                            <TasksSidePanel virtualMcpId={tasksVirtualMcpId} />
+                          </div>
+                        </div>
+                      </PersistentTasksResizablePanel>
+                      <ResizableHandle className="bg-sidebar" />
+                    </>
+                  )}
+
+                  {!isOrgHome && (
+                    <ResizablePanel
+                      ref={mainPanelRef}
+                      className="min-w-0 flex flex-col"
+                      order={2}
+                      style={{ overflow: "visible" }}
+                      collapsible={isAgentRoute}
+                      collapsedSize={0}
+                      minSize={isAgentRoute ? 20 : undefined}
+                      onCollapse={() => setMainOpen(false)}
+                      onExpand={() => setMainOpen(true)}
+                    >
+                      <div className="h-full pr-1.5 pb-1.5 overflow-hidden">
+                        <div
+                          className={cn(
+                            "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                            "border border-sidebar-border shadow-sm",
+                            "transition-[border-radius] duration-200 ease-[var(--ease-out-quart)]",
+                            "rounded-[0.75rem]",
+                          )}
+                        >
+                          <Suspense
+                            fallback={
+                              <div className="flex-1 flex items-center justify-center">
+                                <Loading01
+                                  size={20}
+                                  className="animate-spin text-muted-foreground"
+                                />
+                              </div>
+                            }
+                          >
+                            <div className="flex-1 overflow-hidden">
+                              <Outlet />
+                            </div>
+                          </Suspense>
+                        </div>
+                      </div>
+                    </ResizablePanel>
+                  )}
+
+                  {showThreePanels && (
+                    <>
+                      <ResizableHandle className="bg-sidebar" />
+                      <PersistentResizablePanel
+                        key={isOrgHome ? "chat-home" : "chat-default"}
+                        panelRef={chatPanelRef}
+                        defaultCollapsed={false}
+                        defaultFullWidth={isOrgHome}
+                        onCollapse={() => setChatOpen(false)}
+                        onExpand={() => setChatOpen(true)}
+                      >
+                        <div className="h-full pr-1.5 pb-1.5">
+                          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+                            <ActiveTaskBoundary
+                              variant={isOrgHome ? "home" : undefined}
+                            />
+                          </div>
+                        </div>
+                      </PersistentResizablePanel>
+                    </>
+                  )}
+                </ResizablePanelGroup>
+              </Chat.Provider>
+            </OptionalAgentProvider>
+          </Suspense>
+        </SidebarInset>
+      </SidebarLayout>
+    </PanelContextProvider>
   );
 }
 
@@ -336,6 +650,10 @@ function ShellLayoutContent() {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const org = orgMatch?.params.org;
   const routerState = useRouterState();
+  const agentsMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
   const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect
@@ -350,12 +668,21 @@ function ShellLayoutContent() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Check if we're on the org home route (/$org)
-  const isHomeRoute =
+  // Check if we're on an agent route (/$org/$virtualMcpId) but not settings
+  const isAgentRoute =
+    !!agentsMatch && !routerState.location.pathname.includes("/settings");
+
+  // Check if we're on the org home route (/$org or /$org/)
+  const isOrgHome =
     routerState.location.pathname === `/${org}` ||
     routerState.location.pathname === `/${org}/`;
 
-  const { data: projectContext } = useSuspenseQuery({
+  // Check if we're on settings routes (/$org/settings/*)
+  const isSettingsRoute = routerState.location.pathname.startsWith(
+    `/${org}/settings`,
+  );
+
+  const { data: activeOrg } = useSuspenseQuery({
     queryKey: KEYS.activeOrganization(org),
     queryFn: async () => {
       if (!org) {
@@ -372,26 +699,17 @@ function ShellLayoutContent() {
         localStorage.setItem(LOCALSTORAGE_KEYS.lastOrgSlug(), org);
       }
 
-      return {
-        org: data,
-        // Provide a minimal project stub at shell level.
-        // The org-layout and virtual-mcp-layout will override with proper context.
-        project: {
-          id: data?.id ?? "_org",
-          slug: "_org",
-          isOrgAdmin: true,
-        },
-      } as ProjectContextProviderProps;
+      return data;
     },
     gcTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
   // Check org-level SSO enforcement (must be before early returns to satisfy Rules of Hooks)
-  const orgId = projectContext?.org?.id;
+  const orgId = activeOrg?.id;
   const { data: ssoStatus } = useOrgSsoStatus(orgId);
 
-  if (!projectContext) {
+  if (!activeOrg) {
     return (
       <div className="min-h-screen bg-background">
         <header className="h-12 flex items-center justify-end px-4 border-b border-border">
@@ -404,32 +722,25 @@ function ShellLayoutContent() {
     );
   }
 
-  // If org parameter exists but organization is invalid/doesn't exist, redirect to home
-  if (!projectContext.org) {
-    // Prevent infinite redirect loop - only redirect if not already at home
-    if (window.location.pathname !== "/") {
-      window.location.href = "/";
-    }
-    return null;
-  }
-
   if (ssoStatus?.ssoRequired && !ssoStatus.authenticated) {
     return (
       <SsoRequiredScreen
-        orgId={projectContext.org.id}
-        orgName={projectContext.org.name}
+        orgId={activeOrg.id}
+        orgName={activeOrg.name}
         domain={ssoStatus.domain}
       />
     );
   }
 
   return (
-    <ProjectContextProvider {...projectContext}>
-      <PersistentSidebarProvider>
+    <ShellProjectProvider org={{ ...activeOrg, logo: activeOrg.logo ?? null }}>
+      <PersistentSidebarProvider defaultOpen={isSettingsRoute}>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <Chat.Provider>
-            <ShellLayoutInner isHomeRoute={isHomeRoute} />
-          </Chat.Provider>
+          <ShellLayoutInner
+            isAgentRoute={isAgentRoute}
+            isOrgHome={isOrgHome}
+            isSettingsRoute={isSettingsRoute}
+          />
         </div>
       </PersistentSidebarProvider>
 
@@ -438,16 +749,14 @@ function ShellLayoutContent() {
         open={shortcutsDialogOpen}
         onOpenChange={setShortcutsDialogOpen}
       />
-    </ProjectContextProvider>
+    </ShellProjectProvider>
   );
 }
 
 export default function ShellLayout() {
   return (
     <RequiredAuthLayout>
-      <Suspense fallback={<SplashScreen />}>
-        <ShellLayoutContent />
-      </Suspense>
+      <ShellLayoutContent />
     </RequiredAuthLayout>
   );
 }

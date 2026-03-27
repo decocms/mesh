@@ -4,7 +4,7 @@ import type { RunEvent, RunState } from "./run-state.ts";
 
 function makeRunningState(stepCount = 3): RunState {
   return {
-    threadId: "t1",
+    taskId: "t1",
     orgId: "org1",
     userId: "u1",
     status: {
@@ -19,7 +19,7 @@ function makeRunningState(stepCount = 3): RunState {
 function makeRunStartedEvent(): Extract<RunEvent, { type: "RUN_STARTED" }> {
   return {
     type: "RUN_STARTED",
-    threadId: "t1",
+    taskId: "t1",
     orgId: "org1",
     userId: "u1",
     abortController: new AbortController(),
@@ -34,7 +34,7 @@ describe("project", () => {
       const result = project(undefined, event, fixedNow);
       expect(result).not.toBeUndefined();
       expect(result!.status.tag).toBe("running");
-      expect(result!.threadId).toBe("t1");
+      expect(result!.taskId).toBe("t1");
       expect(result!.orgId).toBe("org1");
       expect(result!.userId).toBe("u1");
       if (result!.status.tag === "running") {
@@ -59,14 +59,14 @@ describe("project", () => {
       const existing = makeRunningState(5);
       const event: Extract<RunEvent, { type: "RUN_STARTED" }> = {
         type: "RUN_STARTED",
-        threadId: "t-new",
+        taskId: "t-new",
         orgId: "org-new",
         userId: "u-new",
         abortController: new AbortController(),
       };
       const result = project(existing, event, new Date());
       expect(result).not.toBeUndefined();
-      expect(result!.threadId).toBe("t-new");
+      expect(result!.taskId).toBe("t-new");
       expect(result!.orgId).toBe("org-new");
       expect(result!.userId).toBe("u-new");
       expect(result!.status.tag).toBe("running");
@@ -95,7 +95,7 @@ describe("project", () => {
         undefined,
         {
           type: "RUN_RESUMED",
-          threadId: "t1",
+          taskId: "t1",
           orgId: "org1",
           userId: "u1",
           abortController: ac,
@@ -104,7 +104,7 @@ describe("project", () => {
         now,
       );
       expect(state).toEqual({
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         userId: "u1",
         status: {
@@ -122,7 +122,7 @@ describe("project", () => {
       const state = makeRunningState(3);
       const result = project(state, {
         type: "STEP_COMPLETED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 4,
       });
@@ -135,7 +135,7 @@ describe("project", () => {
     it("undefined state → returns undefined (defensive)", () => {
       const result = project(undefined, {
         type: "STEP_COMPLETED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 4,
       });
@@ -148,7 +148,7 @@ describe("project", () => {
       const state = makeRunningState(3);
       const result = project(state, {
         type: "RUN_COMPLETED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 7,
       });
@@ -158,7 +158,7 @@ describe("project", () => {
     it("undefined state → undefined", () => {
       const result = project(undefined, {
         type: "RUN_COMPLETED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 7,
       });
@@ -171,7 +171,7 @@ describe("project", () => {
       const state = makeRunningState(2);
       const result = project(state, {
         type: "RUN_REQUIRES_ACTION",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 8,
       });
@@ -181,7 +181,7 @@ describe("project", () => {
     it("undefined state → undefined", () => {
       const result = project(undefined, {
         type: "RUN_REQUIRES_ACTION",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         stepCount: 8,
       });
@@ -194,7 +194,7 @@ describe("project", () => {
       const state = makeRunningState();
       const result = project(state, {
         type: "RUN_FAILED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         reason: "error",
       });
@@ -204,7 +204,7 @@ describe("project", () => {
     it("undefined state → undefined", () => {
       const result = project(undefined, {
         type: "RUN_FAILED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
         reason: "error",
       });
@@ -217,7 +217,7 @@ describe("project", () => {
       const state = makeRunningState();
       const result = project(state, {
         type: "PREVIOUS_RUN_ABORTED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
       });
       expect(result).toBeUndefined();
@@ -226,7 +226,7 @@ describe("project", () => {
     it("undefined state → undefined", () => {
       const result = project(undefined, {
         type: "PREVIOUS_RUN_ABORTED",
-        threadId: "t1",
+        taskId: "t1",
         orgId: "org1",
       });
       expect(result).toBeUndefined();

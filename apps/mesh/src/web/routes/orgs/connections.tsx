@@ -90,9 +90,9 @@ import {
   useMCPClient,
   useProjectContext,
   type ConnectionEntity,
+  useVirtualMCPs,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
-import { useAgents } from "@/web/hooks/use-agents";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -988,7 +988,7 @@ function OrgMcpsContent() {
   const [registryFilter, setRegistryFilter] = useState<string>("ALL");
 
   // Agents list (for Add to Agent dialog)
-  const agents = useAgents();
+  const agents = useVirtualMCPs();
 
   // Apply UI filters (VIRTUAL already excluded server-side)
   const filteredConnections = connections.filter((c) => {
@@ -1229,7 +1229,7 @@ function OrgMcpsContent() {
 
   const openCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: { action: "create" },
     });
@@ -1237,7 +1237,7 @@ function OrgMcpsContent() {
 
   const closeCreateDialog = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: {},
     });
@@ -1647,7 +1647,7 @@ function OrgMcpsContent() {
     closeCreateDialog();
     form.reset();
     navigate({
-      to: "/$org/mcps/$appSlug",
+      to: "/$org/settings/connections/$appSlug",
       params: {
         org: org.slug,
         appSlug: getConnectionSlug({
@@ -2387,7 +2387,7 @@ function OrgMcpsContent() {
                           group={item}
                           onOpen={() => {
                             navigate({
-                              to: "/$org/mcps/$appSlug",
+                              to: "/$org/settings/connections/$appSlug",
                               params: {
                                 org: org.slug,
                                 appSlug: item.key,
@@ -2412,7 +2412,7 @@ function OrgMcpsContent() {
                           selectionMode
                             ? toggleSelect(connection.id)
                             : navigate({
-                                to: "/$org/mcps/$appSlug",
+                                to: "/$org/settings/connections/$appSlug",
                                 params: {
                                   org: org.slug,
                                   appSlug: getConnectionSlug(connection),
@@ -2465,7 +2465,7 @@ function OrgMcpsContent() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       navigate({
-                                        to: "/$org/mcps/$appSlug",
+                                        to: "/$org/settings/connections/$appSlug",
                                         params: {
                                           org: org.slug,
                                           appSlug:
@@ -2514,7 +2514,7 @@ function OrgMcpsContent() {
                       connectingItemId={connectingItemId}
                       onNavigateConnected={(conn) =>
                         navigate({
-                          to: "/$org/mcps/$appSlug",
+                          to: "/$org/settings/connections/$appSlug",
                           params: {
                             org: org.slug,
                             appSlug: getConnectionSlug(conn),

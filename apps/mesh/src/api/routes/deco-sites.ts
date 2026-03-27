@@ -136,7 +136,7 @@ app.get("/", async (c) => {
 
   const config = getSupabaseConfig();
   if (!config) {
-    return c.json({ error: "Deco integration is not configured" }, 503);
+    return c.json({ sites: [] });
   }
   const { supabaseUrl, serviceKey } = config;
 
@@ -216,28 +216,34 @@ app.post("/connection", async (c) => {
   }
 
   const config = getSupabaseConfig();
-  if (!config) {
-    return c.json({ error: "Deco integration is not configured" }, 503);
-  }
-  const { supabaseUrl, serviceKey } = config;
+
+  // Local dev fallback: create a stub connection without an API key so the
+  // full import flow can be tested without Supabase credentials.
+  const apiKey = config
+    ? await (async () => {
+        const { supabaseUrl, serviceKey } = config;
+        const profileId = await resolveProfileId(
+          supabaseUrl,
+          serviceKey,
+          email,
+        );
+        if (!profileId) return null;
+        return fetchDecoApiKey(supabaseUrl, serviceKey, profileId);
+      })().catch(() => null)
+    : null;
 
   try {
-    const profileId = await resolveProfileId(supabaseUrl, serviceKey, email);
-    if (!profileId) {
-      return c.json({ error: "No deco.cx account found for this user" }, 404);
-    }
-
-    const apiKey = await fetchDecoApiKey(supabaseUrl, serviceKey, profileId);
-
     // Fetch tools and scopes from the MCP server before storing, mirroring
     // what COLLECTION_CONNECTIONS_CREATE does so the tools list isn't empty.
-    const fetchResult = await fetchToolsFromMCP({
-      id: `pending-${connId}`,
-      title: `deco.cx — ${siteName}`,
-      connection_type: "HTTP",
-      connection_url: ADMIN_MCP,
-      connection_token: apiKey,
-    }).catch(() => null);
+    const fetchResult = apiKey
+      ? await fetchToolsFromMCP({
+          id: `pending-${connId}`,
+          title: `deco.cx — ${siteName}`,
+          connection_type: "HTTP",
+          connection_url: ADMIN_MCP,
+          connection_token: apiKey,
+        }).catch(() => null)
+      : null;
     const tools = fetchResult?.tools?.length ? fetchResult.tools : null;
     const configuration_scopes = fetchResult?.scopes?.length
       ? fetchResult.scopes

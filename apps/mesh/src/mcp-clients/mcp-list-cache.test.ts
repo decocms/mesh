@@ -339,11 +339,11 @@ describe("withMcpCaching with TestMcpListCache", () => {
   });
 
   it("caches empty tool lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection({ tools: null });
     const client = {
       listTools: async () => {
-        callCount++;
+        _callCount++;
         return { tools: [] };
       },
     } as any as Client;
@@ -485,11 +485,11 @@ describe("withMcpCaching resources", () => {
   });
 
   it("caches empty resource lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection();
     const client = {
       listResources: async () => {
-        callCount++;
+        _callCount++;
         return { resources: [] };
       },
     } as any as Client;
@@ -573,11 +573,11 @@ describe("withMcpCaching prompts", () => {
   });
 
   it("caches empty prompt lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection();
     const client = {
       listPrompts: async () => {
-        callCount++;
+        _callCount++;
         return { prompts: [] };
       },
     } as any as Client;

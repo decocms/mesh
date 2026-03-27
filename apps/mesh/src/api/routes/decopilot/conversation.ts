@@ -184,7 +184,11 @@ export async function processConversation(
           .map((part) => {
             const p = part as Record<string, unknown>;
             if ("providerOptions" in p || "providerMetadata" in p) {
-              const { providerOptions, providerMetadata, ...rest } = p;
+              const {
+                providerOptions: _po,
+                providerMetadata: _pm,
+                ...rest
+              } = p;
               return rest as typeof part;
             }
             return part;

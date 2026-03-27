@@ -54,13 +54,13 @@ export const API_KEY_LIST = defineTool({
     // Filter to only show keys belonging to current organization
     // and map to our entity schema (ensuring no key values are exposed)
     const items: ApiKeyEntity[] = (result ?? [])
-      .filter((key) => {
+      .filter((key: NonNullable<typeof result>[number]) => {
         const metadata = key.metadata as ApiKeyMetadata | undefined;
         const keyOrgId = metadata?.organization?.id;
         // Only include keys that belong to the current organization
         return keyOrgId === currentOrgId;
       })
-      .map((key) => ({
+      .map((key: NonNullable<typeof result>[number]) => ({
         id: key.id,
         name: key.name ?? "Unnamed Key", // Fallback if name is null
         userId: key.userId,

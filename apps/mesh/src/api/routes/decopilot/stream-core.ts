@@ -81,7 +81,7 @@ export interface StreamCoreInput {
   toolApprovalLevel: ToolApprovalLevel;
   organizationId: string;
   userId: string;
-  threadId?: string;
+  taskId?: string;
   triggerId?: string;
   windowSize?: number;
   abortSignal?: AbortSignal;
@@ -95,7 +95,7 @@ export interface StreamCoreDeps {
 }
 
 export interface StreamCoreResult {
-  threadId: string;
+  taskId: string;
   stream: ReadableStream;
 }
 
@@ -117,7 +117,7 @@ export async function streamCore(
       "decopilot.credential.id": input.models.credentialId,
       "decopilot.organization.id": input.organizationId,
       "decopilot.user.id": input.userId,
-      "decopilot.thread.id": input.threadId,
+      "decopilot.thread.id": input.taskId,
     },
   );
 }
@@ -140,7 +140,7 @@ async function streamCoreInner(
 
   let closeClients: (() => void) | undefined;
   let runStarted = false;
-  let threadId: string | undefined;
+  let taskId: string | undefined;
   let llmCallStartTime: number | undefined;
   let llmCallLogged = false;
 
@@ -183,14 +183,15 @@ async function streamCoreInner(
           ),
       createMemory(ctx.storage.threads, {
         organization_id: input.organizationId,
-        thread_id: input.threadId,
+        thread_id: input.taskId,
         userId: input.userId,
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
+        virtualMcpId: input.agent.id,
       }),
     ]);
 
-    threadId = mem.thread.id;
+    taskId = mem.thread.id;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
@@ -227,7 +228,7 @@ async function streamCoreInner(
     if (input.isResume) {
       await runRegistry.execute({
         type: "RESUME",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
@@ -236,7 +237,7 @@ async function streamCoreInner(
     } else {
       await runRegistry.execute({
         type: "START",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
@@ -257,7 +258,7 @@ async function streamCoreInner(
     if (!registrySignal) {
       await runRegistry.execute({
         type: "FINISH",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         threadStatus: "failed",
       });
       throw new Error("Run was cancelled immediately after starting");
@@ -270,14 +271,14 @@ async function streamCoreInner(
       if (externalSignal.aborted) {
         await runRegistry.execute({
           type: "CANCEL",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
         });
       } else {
         externalSignal.addEventListener(
           "abort",
           () => {
             runRegistry
-              .execute({ type: "CANCEL", threadId: mem.thread.id })
+              .execute({ type: "CANCEL", taskId: mem.thread.id })
               .catch(() => {});
           },
           { once: true },
@@ -469,13 +470,14 @@ async function streamCoreInner(
         const shouldGenerateTitle =
           mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
         if (shouldGenerateTitle) {
+          const titleInput = JSON.stringify(processedMessages[0]?.content);
           const titleOp = genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
               provider!,
               input.models.fast ?? input.models.thinking,
             ),
-            userMessage: JSON.stringify(processedMessages[0]?.content),
+            userMessage: titleInput,
           })
             .then(async (title) => {
               if (!title) return;
@@ -495,6 +497,16 @@ async function streamCoreInner(
                   data: { title },
                   transient: true,
                 });
+                console.log(
+                  "[decopilot:title-debug] SSE title event sent threadId=%s",
+                  mem.thread.id,
+                );
+              } else {
+                console.warn(
+                  "[decopilot:title-debug] Stream already finished, title SSE NOT sent threadId=%s title=%j",
+                  mem.thread.id,
+                  title,
+                );
               }
             })
             .catch((error) => {
@@ -648,7 +660,7 @@ async function streamCoreInner(
                 modelTitle:
                   input.models.thinking.title ?? input.models.thinking.id,
                 credentialId: input.models.credentialId,
-                threadId: mem.thread.id,
+                taskId: mem.thread.id,
                 durationMs,
                 isError: false,
                 finishReason,
@@ -703,7 +715,7 @@ async function streamCoreInner(
                   modelTitle:
                     input.models.thinking.title ?? input.models.thinking.id,
                   credentialId: input.models.credentialId,
-                  threadId: mem.thread.id,
+                  taskId: mem.thread.id,
                   durationMs,
                   isError: true,
                   errorMessage:
@@ -815,6 +827,11 @@ async function streamCoreInner(
         }
       },
       onFinish: async ({ responseMessage, finishReason }) => {
+        console.log(
+          "[decopilot:title-debug] onFinish called, setting streamFinished=true threadId=%s pendingOps=%d",
+          mem.thread.id,
+          pendingOps.length,
+        );
         streamFinished = true;
         closeClients?.();
 
@@ -834,14 +851,14 @@ async function streamCoreInner(
 
         await runRegistry.execute({
           type: "FINISH",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
           threadStatus,
         });
       },
       onStepFinish: ({ responseMessage }) => {
         const transitions = runRegistry.dispatch({
           type: "STEP_DONE",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
         });
         pendingOps.push(
           runRegistry.react(transitions).catch((e) => {
@@ -872,7 +889,7 @@ async function streamCoreInner(
         runRegistry
           .execute({
             type: "FINISH",
-            threadId: mem.thread.id,
+            taskId: mem.thread.id,
             threadStatus: "failed",
           })
           .catch((e) => {
@@ -884,17 +901,17 @@ async function streamCoreInner(
     });
 
     return {
-      threadId: mem.thread.id,
+      taskId: mem.thread.id,
       stream: uiStream,
     };
   } catch (err) {
     closeClients?.();
 
-    if (runStarted && threadId) {
+    if (runStarted && taskId) {
       runRegistry
         .execute({
           type: "FINISH",
-          threadId,
+          taskId,
           threadStatus: "failed",
         })
         .catch((e) => {

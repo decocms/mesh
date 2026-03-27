@@ -51,8 +51,8 @@ export const AUTOMATION_RUN = defineTool({
       return { skipped: result.skipped };
     }
     if ("error" in result) {
-      return { threadId: result.threadId, error: result.error };
+      return { threadId: result.taskId, error: result.error };
     }
-    return { threadId: result.threadId };
+    return { threadId: result.taskId };
   },
 });

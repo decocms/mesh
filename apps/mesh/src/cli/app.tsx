@@ -13,7 +13,7 @@ import {
 import { skipTrack, toggleVibe } from "./vibe/vibe-player";
 
 const HEADER_HEIGHT = 15;
-const HEADER_HEIGHT_VIBE = 17;
+const HEADER_HEIGHT_VIBE = 19;
 
 export function App({ home }: { home: string }) {
   const state = useSyncExternalStore(subscribeCliState, getCliState);

@@ -329,8 +329,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   const runRegistry = new RunRegistry(cancelReactorDeps, POD_ID);
 
   cancelBroadcast
-    .start((threadId) => {
-      runRegistry.execute({ type: "CANCEL", threadId }).catch((err) => {
+    .start((taskId) => {
+      runRegistry.execute({ type: "CANCEL", taskId }).catch((err) => {
         console.error("[Decopilot] CancelBroadcast execute failed:", err);
       });
     })
@@ -986,7 +986,7 @@ export async function createApp(options: CreateAppOptions = {}) {
         toolApprovalLevel: config.toolApprovalLevel,
         organizationId: thread.organization_id,
         userId: thread.created_by,
-        threadId: thread.id,
+        taskId: thread.id,
         windowSize: config.windowSize,
         isResume: true,
       },

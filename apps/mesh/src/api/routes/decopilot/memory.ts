@@ -27,6 +27,9 @@ export interface MemoryConfig {
 
   /** Optional trigger ID for automation-created threads */
   triggerId?: string;
+
+  /** Virtual MCP ID to associate with the thread */
+  virtualMcpId?: string;
 }
 
 /**
@@ -84,8 +87,14 @@ export async function createMemory(
   storage: OrgScopedThreadStorage,
   config: MemoryConfig,
 ): Promise<Memory> {
-  const { thread_id, organization_id, userId, defaultWindowSize, triggerId } =
-    config;
+  const {
+    thread_id,
+    organization_id,
+    userId,
+    defaultWindowSize,
+    triggerId,
+    virtualMcpId,
+  } = config;
 
   let thread: Thread;
 
@@ -96,6 +105,7 @@ export async function createMemory(
       organization_id,
       created_by: userId,
       trigger_id: triggerId ?? null,
+      virtual_mcp_id: virtualMcpId ?? "",
     });
   } else {
     // Try to get existing thread scoped to this org
@@ -112,6 +122,7 @@ export async function createMemory(
         organization_id,
         created_by: userId,
         trigger_id: triggerId ?? null,
+        virtual_mcp_id: virtualMcpId ?? "",
       });
     }
   }
