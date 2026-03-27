@@ -1,6 +1,6 @@
 import { defineTool } from "@/core/define-tool";
 import { requireOrganization } from "@/core/mesh-context";
-import { RegistryGetInputSchema, RegistryGetOutputSchema } from "./schema";
+import { RegistryGetInputSchema, RegistryItemSchema } from "./schema";
 import {
   callRegistryTool,
   getEnabledRegistries,
@@ -14,7 +14,7 @@ export const REGISTRY_GET = defineTool({
   description:
     "Get detailed information about a specific MCP server from a registry. Requires the registry connection ID and item ID.",
   inputSchema: RegistryGetInputSchema,
-  outputSchema: RegistryGetOutputSchema,
+  outputSchema: RegistryItemSchema,
   annotations: {
     title: "Get Registry Item",
     readOnlyHint: true,

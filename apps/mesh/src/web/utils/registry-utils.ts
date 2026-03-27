@@ -3,7 +3,7 @@
  * Centralizes duplicated logic across store-related files
  */
 
-import { createMCPClient, WellKnownOrgMCPId } from "@decocms/mesh-sdk";
+import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 /**
  * Check if a connection ID belongs to a well-known (non-private) registry.
@@ -108,62 +108,4 @@ export function extractSchemaVersion(schemaUrl?: string): string | null {
   if (!schemaUrl) return null;
   const match = schemaUrl.match(/schemas\/([\d-]+)/);
   return match?.[1] ?? null;
-}
-
-/**
- * Extract items array from various response formats
- * Handles both direct array responses and nested array responses
- */
-export function extractItemsFromResponse<T>(response: unknown): T[] {
-  if (!response) return [];
-
-  // Direct array response
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  // Object with nested array
-  if (typeof response === "object" && response !== null) {
-    const itemsKey = Object.keys(response).find((key) =>
-      Array.isArray(response[key as keyof typeof response]),
-    );
-
-    if (itemsKey) {
-      return response[itemsKey as keyof typeof response] as T[];
-    }
-  }
-
-  return [];
-}
-
-/**
- * Call a tool on a registry connection.
- * Creates a client, calls the tool, and properly closes the client.
- *
- * @param registryId - The connection ID of the registry
- * @param orgId - The organization ID
- * @param toolName - The name of the tool to call
- * @param args - The tool arguments
- * @returns The tool result (with structuredContent extracted if available)
- */
-export async function callRegistryTool<TOutput>(
-  registryId: string,
-  orgId: string,
-  toolName: string,
-  args: Record<string, unknown>,
-): Promise<TOutput> {
-  const client = await createMCPClient({
-    connectionId: registryId,
-    orgId,
-  });
-
-  try {
-    const result = (await client.callTool({
-      name: toolName,
-      arguments: args,
-    })) as { structuredContent?: unknown };
-    return (result.structuredContent ?? result) as TOutput;
-  } finally {
-    await client.close().catch(console.error);
-  }
 }

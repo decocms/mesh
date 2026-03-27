@@ -151,8 +151,6 @@ export const RegistryGetInputSchema = z.object({
   itemId: z.string().describe("The unique identifier of the item to retrieve"),
 });
 
-export const RegistryGetOutputSchema = RegistryItemSchema;
-
 // ============================================================================
 // REGISTRY_GET_VERSIONS Schemas
 // ============================================================================
