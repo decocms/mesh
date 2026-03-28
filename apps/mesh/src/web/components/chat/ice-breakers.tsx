@@ -101,7 +101,7 @@ function IceBreakersUI({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-          "flex items-center gap-2 flex-wrap justify-center max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
+          "flex items-center gap-2 flex-wrap justify-center max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
           className,
         )}
       >

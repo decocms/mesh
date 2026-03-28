@@ -232,7 +232,7 @@ function AgentsListContent() {
   return (
     <>
       <div className="w-full">
-        <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           <AgentPreview
             key={SITE_EDITOR_AGENT.id}
             agent={SITE_EDITOR_AGENT}

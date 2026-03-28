@@ -130,6 +130,9 @@ function HomeEmptyState({
             <AgentsList />
             <Chat.IceBreakers className="w-full" />
             <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+            {isDecoUser && (
+              <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
+            )}
           </div>
         </div>
         <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
