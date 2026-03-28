@@ -1,8 +1,44 @@
+import { DEFAULT_LOGO, usePublicConfig } from "@/web/hooks/use-public-config";
+import {
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@deco/ui/components/sidebar.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
+import { SidebarCollapsibleGroup } from "./sidebar-group";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 
-function MobileNavItem({
+function MobileLogoHeader() {
+  const config = usePublicConfig();
+  const logo = config.logo ?? DEFAULT_LOGO;
+  const lightSrc = typeof logo === "string" ? logo : logo.light;
+  const darkSrc = typeof logo === "string" ? logo : logo.dark;
+
+  return (
+    <SidebarHeader className="flex items-center justify-center h-14 shrink-0 px-2">
+      <div className="flex w-full aspect-square items-center justify-center">
+        <img
+          src={lightSrc}
+          alt="Logo"
+          className="size-6 object-contain dark:hidden"
+        />
+        <img
+          src={darkSrc}
+          alt="Logo"
+          className="size-6 object-contain hidden dark:block"
+        />
+      </div>
+    </SidebarHeader>
+  );
+}
+
+function MobileNavigationItem({
   item,
   onClose,
 }: {
@@ -10,23 +46,66 @@ function MobileNavItem({
   onClose: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => {
-        item.onClick?.();
-        onClose();
-      }}
-      className={cn(
-        "flex size-10 items-center justify-center rounded-lg transition-colors",
-        item.isActive
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-      )}
-      title={item.label}
-    >
-      <span className="[&>svg]:size-5">{item.icon}</span>
-    </button>
+    <SidebarMenuItem className={cn(item.isActive && "z-10")}>
+      <SidebarMenuButton
+        onClick={() => {
+          item.onClick?.();
+          onClose();
+        }}
+        isActive={item.isActive}
+        tooltip={item.label}
+        className="bg-muted/75"
+      >
+        <span className="[&>svg]:size-8">{item.icon}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
+}
+
+function MobileSectionRenderer({
+  section,
+  onClose,
+}: {
+  section: SidebarSection;
+  onClose: () => void;
+}) {
+  switch (section.type) {
+    case "divider":
+      return <SidebarSeparator className="my-2" />;
+    case "spacer":
+      return <div className="flex-1" />;
+    case "group":
+      return (
+        <SidebarCollapsibleGroup
+          label={section.group.label}
+          defaultExpanded={section.group.defaultExpanded}
+        >
+          {section.group.items.map((item) => (
+            <MobileNavigationItem
+              key={item.key}
+              item={item}
+              onClose={onClose}
+            />
+          ))}
+        </SidebarCollapsibleGroup>
+      );
+    case "items":
+      return (
+        <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1.5">
+              {section.items.map((item) => (
+                <MobileNavigationItem
+                  key={item.key}
+                  item={item}
+                  onClose={onClose}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      );
+  }
 }
 
 interface MobileNavigationSidebarProps {
@@ -36,6 +115,11 @@ interface MobileNavigationSidebarProps {
   additionalContent?: ReactNode;
 }
 
+/**
+ * Mobile sidebar content — renders the same shadcn sidebar components as desktop
+ * but without the <Sidebar> wrapper. The parent must provide `group/sidebar` class
+ * and `data-state="collapsed"` for collapsed icon-only styling.
+ */
 export function MobileNavigationSidebar({
   sections,
   onClose,
@@ -43,33 +127,23 @@ export function MobileNavigationSidebar({
   additionalContent,
 }: MobileNavigationSidebarProps) {
   return (
-    <div className="flex flex-col h-full pt-4 pb-3 gap-1.5">
-      {sections.map((section, index) => {
-        switch (section.type) {
-          case "items":
-            return (
-              <div key={index} className="flex flex-col items-center gap-1.5">
-                {section.items.map((item) => (
-                  <MobileNavItem key={item.key} item={item} onClose={onClose} />
-                ))}
-              </div>
-            );
-          case "group":
-            return (
-              <div key={index} className="flex flex-col items-center gap-1.5">
-                {section.group.items.map((item) => (
-                  <MobileNavItem key={item.key} item={item} onClose={onClose} />
-                ))}
-              </div>
-            );
-          case "divider":
-            return <div key={index} className="h-px bg-border mx-2 my-1" />;
-          case "spacer":
-            return <div key={index} className="flex-1" />;
-        }
-      })}
-      {additionalContent}
-      <div className="flex-1" />
+    <div
+      className="bg-sidebar flex h-full w-full flex-col"
+      data-sidebar="sidebar"
+    >
+      <Suspense fallback={<div className="h-14 shrink-0" />}>
+        <MobileLogoHeader />
+      </Suspense>
+      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden px-2 pb-2 gap-0">
+        {sections.map((section, index) => (
+          <MobileSectionRenderer
+            key={index}
+            section={section}
+            onClose={onClose}
+          />
+        ))}
+        {additionalContent}
+      </SidebarContent>
       {footer}
     </div>
   );

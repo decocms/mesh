@@ -61,7 +61,7 @@ function PromptPill({
           onClick={() => onSelect(prompt)}
           disabled={isDisabled || isLoading}
           className={cn(
-            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer flex items-center gap-1.5",
+            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0",
             isSelected && "bg-accent/50 text-foreground",
             isLoading && "bg-accent/50 text-foreground",
             (isDisabled || isLoading) &&
@@ -101,7 +101,7 @@ function IceBreakersUI({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-          "flex flex-wrap items-center justify-center gap-2",
+          "flex items-center gap-2 flex-wrap justify-center max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
           className,
         )}
       >
@@ -121,7 +121,7 @@ function IceBreakersUI({
                 type="button"
                 disabled={isAnyLoading}
                 className={cn(
-                  "size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer",
+                  "size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer shrink-0",
                   isAnyLoading && "opacity-60 cursor-not-allowed",
                 )}
               >
@@ -340,7 +340,7 @@ export function IceBreakers({ className }: IceBreakersProps) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-center gap-2 min-h-[34px] mb-3",
+        "flex items-center gap-2 min-h-[34px] mb-3 flex-wrap justify-center max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
         className,
       )}
     >

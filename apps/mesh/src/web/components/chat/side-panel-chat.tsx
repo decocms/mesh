@@ -4,6 +4,7 @@ import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.t
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -97,10 +98,44 @@ function HomeEmptyState({
   const { selectedVirtualMcp } = useChatPrefs();
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
+  const isMobile = useIsMobile();
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
   const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="flex-1 flex flex-col items-center px-4">
+          {/* Centered greeting */}
+          <div className="flex-1 flex flex-col items-center justify-center w-full">
+            <div className="flex justify-center mb-4">
+              <AgentAvatar
+                icon={displayAgent.icon}
+                name={displayAgent.title}
+                size="md"
+                className={cn(
+                  "transition-opacity duration-200",
+                  !selectedVirtualMcp && "invisible",
+                )}
+              />
+            </div>
+            <p className="text-xl font-medium text-foreground text-center">
+              What's on your mind, {userName}?
+            </p>
+          </div>
+          {/* Agents above prompts, input at bottom */}
+          <div className="w-full flex flex-col gap-4 pb-4">
+            <AgentsList />
+            <Chat.IceBreakers className="w-full" />
+            <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+          </div>
+        </div>
+        <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
+      </>
+    );
+  }
 
   return (
     <>

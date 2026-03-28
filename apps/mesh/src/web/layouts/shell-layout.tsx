@@ -6,7 +6,10 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
-import { SettingsSidebar } from "@/web/layouts/settings-layout";
+import {
+  SettingsSidebar,
+  SettingsSidebarMobile,
+} from "@/web/layouts/settings-layout";
 import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import {
   PanelContextProvider,
@@ -26,6 +29,7 @@ import {
   SidebarInset,
   SidebarLayout,
   SidebarProvider,
+  useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
 import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import {
@@ -347,22 +351,22 @@ function AgentPanelGroup({
 }) {
   const entity = useVirtualMCP(agentVirtualMcpId);
 
-  // Resolve mainDisabled: no ?main AND no defaultMainView on entity
+  // Resolve mainDisabled: hide main panel when default view is "chat" or unset
   const agentHomeMatch = useMatch({
     from: "/shell/$org/$virtualMcpId/",
     shouldThrow: false,
   });
   const hasMainParam = !!agentHomeMatch?.search.main;
-  const hasDefaultMainView =
-    !!(entity?.metadata?.ui as Record<string, unknown> | null | undefined)
-      ?.layout &&
-    !!(
-      (entity?.metadata?.ui as Record<string, unknown>)?.layout as {
-        defaultMainView?: unknown;
-      }
-    )?.defaultMainView;
+  const layoutConfig = (
+    entity?.metadata?.ui as Record<string, unknown> | null | undefined
+  )?.layout as { defaultMainView?: { type: string } } | null | undefined;
+  const defaultMainViewType = layoutConfig?.defaultMainView?.type ?? null;
+  // Main panel is hidden when: no explicit ?main param AND (no default view OR default is "chat")
   const mainHidden =
-    isAgentRoute && !!agentHomeMatch && !hasMainParam && !hasDefaultMainView;
+    isAgentRoute &&
+    !!agentHomeMatch &&
+    !hasMainParam &&
+    (!defaultMainViewType || defaultMainViewType === "chat");
 
   return (
     <ResizablePanelGroup
@@ -553,7 +557,8 @@ function ShellLayoutInner({
     }
   };
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
+  const setMobileSidebarOpen = setOpenMobile;
 
   const onNewTask = useRef<(() => void) | null>(null);
 
@@ -588,12 +593,48 @@ function ShellLayoutInner({
   const providerVirtualMcpId =
     agentVirtualMcpId ?? (isOrgHome ? chatVirtualMcpId : undefined);
 
-  // --- Mobile layout: full-screen chat with hamburger toolbar ---
+  // --- Mobile layout: full-screen with hamburger toolbar ---
   if (isMobile) {
-    return (
-      <PanelContextProvider value={panelControls}>
-        <div className="flex flex-col flex-1 bg-background min-h-0">
-          {showThreePanels ? (
+    const mobileSidebarSheet = (
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent
+          side="left"
+          hideCloseButton
+          className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+        >
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          {isSettingsRoute ? (
+            <SettingsSidebarMobile
+              onClose={() => setMobileSidebarOpen(false)}
+            />
+          ) : (
+            <div className="flex h-full">
+              {/* Icon sidebar rail — mirrors desktop collapsed sidebar */}
+              <div
+                className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto group/sidebar"
+                data-state="collapsed"
+              >
+                <MeshSidebarMobile
+                  onClose={() => setMobileSidebarOpen(false)}
+                />
+              </div>
+              {/* Tasks / agent panel */}
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <TasksSidePanel
+                  virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
+                  hideProjectHeader={isOrgHome}
+                />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    );
+
+    if (showThreePanels) {
+      return (
+        <PanelContextProvider value={panelControls}>
+          <div className="flex flex-col flex-1 bg-background min-h-0">
             <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
@@ -604,68 +645,30 @@ function ShellLayoutInner({
                   onOpenSidebar={() => setMobileSidebarOpen(true)}
                 />
                 <div className="flex-1 min-h-0 overflow-hidden">
-                  <ActiveTaskBoundary
-                    variant={isOrgHome ? "home" : undefined}
-                  />
+                  {isOrgHome ? (
+                    <ActiveTaskBoundary variant="home" />
+                  ) : mainDisabled ? (
+                    <ActiveTaskBoundary />
+                  ) : (
+                    <Outlet />
+                  )}
                 </div>
-                {/* Mobile sidebar: icon rail + tasks panel */}
-                <Sheet
-                  open={mobileSidebarOpen}
-                  onOpenChange={setMobileSidebarOpen}
-                >
-                  <SheetContent
-                    side="left"
-                    className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
-                  >
-                    <SheetTitle className="sr-only">Navigation</SheetTitle>
-                    <div className="flex h-full">
-                      {/* Icon sidebar rail */}
-                      <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
-                        <MeshSidebarMobile
-                          onClose={() => setMobileSidebarOpen(false)}
-                        />
-                      </div>
-                      {/* Tasks / agent panel */}
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <TasksSidePanel
-                          virtualMcpId={tasksVirtualMcpId}
-                          hideProjectHeader={isOrgHome}
-                        />
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                {mobileSidebarSheet}
               </Chat.Provider>
             </VirtualMCPScope>
-          ) : (
-            <>
-              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-              <div className="flex-1 overflow-hidden">
-                <Outlet />
-              </div>
-              <Sheet
-                open={mobileSidebarOpen}
-                onOpenChange={setMobileSidebarOpen}
-              >
-                <SheetContent
-                  side="left"
-                  className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
-                >
-                  <SheetTitle className="sr-only">Navigation</SheetTitle>
-                  <div className="flex h-full">
-                    <div className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto">
-                      <MeshSidebarMobile
-                        onClose={() => setMobileSidebarOpen(false)}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <TasksSidePanel />
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          )}
+          </div>
+        </PanelContextProvider>
+      );
+    }
+
+    return (
+      <PanelContextProvider value={panelControls}>
+        <div className="flex flex-col flex-1 bg-background min-h-0">
+          <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+          <div className="flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+          {mobileSidebarSheet}
         </div>
       </PanelContextProvider>
     );
