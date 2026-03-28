@@ -10,7 +10,7 @@ import { Switch } from "@deco/ui/components/switch.tsx";
 import { toast } from "sonner";
 import { Container } from "@untitledui/icons";
 import { sourcePlugins } from "@/web/plugins";
-import { pluginSidebarGroups } from "@/web/index";
+import { pluginSidebarGroups, pluginSettingsSidebarItems } from "@/web/index";
 import type { AnyClientPlugin } from "@decocms/bindings/plugins";
 
 type ToolTextResponse = { type?: string; text?: string };
@@ -146,24 +146,32 @@ export function ProjectPluginsForm() {
     },
     onError: (error) => {
       toast.error(
-        "Failed to update plugins: " +
+        "Failed to update plugin: " +
           (error instanceof Error ? error.message : "Unknown error"),
       );
     },
   });
 
   const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
-    const updated = enabled
-      ? [...serverPlugins, pluginId]
-      : serverPlugins.filter((id) => id !== pluginId);
-    mutation.mutate({ enabledPlugins: updated });
+    const current = new Set(serverPlugins);
+    if (enabled) {
+      current.add(pluginId);
+    } else {
+      current.delete(pluginId);
+    }
+    mutation.mutate({ enabledPlugins: Array.from(current) });
   };
 
-  // Get plugin metadata from sidebar groups
+  // Get plugin metadata from sidebar groups or settings sidebar items
   const getPluginMeta = (pluginId: string) => {
     const group = pluginSidebarGroups.find((g) => g.pluginId === pluginId);
-    if (!group) return null;
-    return { label: group.label, icon: group.items[0]?.icon };
+    if (group) return { label: group.label, icon: group.items[0]?.icon };
+    const settingsItem = pluginSettingsSidebarItems.find(
+      (i) => i.pluginId === pluginId,
+    );
+    if (settingsItem)
+      return { label: settingsItem.label, icon: settingsItem.icon };
+    return null;
   };
 
   // Get plugin description from the source plugin

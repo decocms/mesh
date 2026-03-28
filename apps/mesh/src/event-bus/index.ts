@@ -54,6 +54,29 @@ export type { NotifyStrategy } from "./notify-strategy";
 
 export { sseHub, type SSEEvent } from "./sse-hub";
 
+async function startWithRetry(
+  label: string,
+  fn: () => Promise<void>,
+  maxRetries = 5,
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      if (attempt === maxRetries) {
+        console.error(`${label} Deferred start failed:`, err);
+        return;
+      }
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+      console.warn(
+        `${label} Start attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 /**
  * Create an EventBus instance and start the SSE hub with NATS broadcast.
  *
@@ -94,12 +117,8 @@ export function createEventBus(
 
   // Re-start NATS-dependent subscriptions when NATS connects
   natsProvider.onReady(() => {
-    natsNotify.start().catch((err) => {
-      console.error("[NatsNotify] Deferred start failed:", err);
-    });
-    sseBroadcast.start().catch((err) => {
-      console.error("[NatsSSEBroadcast] Deferred start failed:", err);
-    });
+    startWithRetry("[NatsNotify]", () => natsNotify.start());
+    startWithRetry("[NatsSSEBroadcast]", () => sseBroadcast.start());
   });
 
   return new EventBusImpl({

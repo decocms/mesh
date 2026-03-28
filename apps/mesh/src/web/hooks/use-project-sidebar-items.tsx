@@ -173,11 +173,11 @@ export function useProjectSidebarItems(): SidebarSection[] {
     key: "workflows",
     label: "Workflows",
     icon: <Dataflow03 className="size-4!" />,
-    isActive: isActiveRoute("workflows"),
+    isActive: pathname.startsWith(`/${org}/settings/workflows`),
     onClick: () =>
       navigate({
-        to: "/$org/$virtualMcpId/workflows",
-        params: { org, virtualMcpId: agentVirtualMcpId },
+        to: "/$org/settings/workflows",
+        params: { org },
       }),
   };
 

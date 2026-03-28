@@ -54,7 +54,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.211.0",
+      "version": "2.213.1",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -230,7 +230,7 @@
     },
     "packages/mesh-plugin-workflows": {
       "name": "mesh-plugin-workflows",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@decocms/bindings": "workspace:*",
         "@decocms/mesh-sdk": "workspace:*",
@@ -240,6 +240,7 @@
         "quickjs-emscripten-core": "^0.31.0",
         "sucrase": "^3.35.0",
         "zod": "^4.0.0",
+        "zod-from-json-schema": "^0.5.2",
       },
       "devDependencies": {
         "@electric-sql/pglite": "^0.3.15",

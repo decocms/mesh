@@ -348,6 +348,21 @@ const settingsRegistryRoute = createRoute({
   ),
 });
 
+const settingsWorkflowsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/workflows",
+  component: lazyRouteComponent(() => import("./routes/orgs/workflow.tsx")),
+});
+
+const settingsWorkflowDetailRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/workflows/$itemId",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/workflow-detail.tsx"),
+  ),
+});
+
+
 // Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => settingsLayout,
@@ -515,6 +530,8 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsSsoRoute,
   settingsProfileRoute,
   settingsRegistryRoute,
+  settingsWorkflowsRoute,
+  settingsWorkflowDetailRoute,
   storeDetailRoute,
 ]);
 

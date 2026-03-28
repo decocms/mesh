@@ -1,10 +1,14 @@
 import { useConnections } from "@decocms/mesh-sdk";
+import { useParams } from "@tanstack/react-router";
 
 export function useWorkflowBindingConnection() {
-  const connections = useConnections({ binding: "WORKFLOW" });
-  if (!connections || connections.length === 0 || !connections[0]) {
-    throw new Error("No workflow connection found");
-  }
+  const { appSlug } = useParams({
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
+  });
+  const connections = useConnections({ slug: appSlug });
+  const connection = connections[0] ?? null;
 
-  return connections[0];
+  // Return the matched connection, or synthesize a minimal object using
+  // appSlug as the connection ID (same fallback as useCollectionWorkflow).
+  return connection ?? { id: appSlug };
 }

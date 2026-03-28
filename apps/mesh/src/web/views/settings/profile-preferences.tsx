@@ -179,7 +179,6 @@ function PreferencesSection() {
     { key: "completed", label: "Task completed" },
     { key: "failed", label: "Task failed" },
     { key: "requires_action", label: "Awaiting input" },
-    { key: "in_progress", label: "Task started" },
   ];
 
   return (
