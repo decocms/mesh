@@ -6,20 +6,26 @@
  * Or: bun run src/index.ts
  */
 
-import {
-  createAssetHandler,
-  resolveClientDir,
-} from "@decocms/runtime/asset-server";
-import { createApp } from "./api/app";
-import { isServerPath } from "./api/utils/paths";
 import { getSettings } from "./settings";
-import { red } from "./fmt";
+import { initObservability } from "./observability";
 
 const settings = getSettings();
 
-// Initialize OpenTelemetry SDK (must be called after getSettings())
-import { initObservability } from "./observability";
+// Initialize OpenTelemetry SDK BEFORE importing any app modules.
+// Modules like database/index.ts and run-registry.ts create OTel instruments
+// (histograms, counters) at import time via `meter.createX()`. If the SDK
+// hasn't started yet, those calls hit the NoopMeter and silently discard all
+// data forever. Dynamic-importing the app tree after `initObservability()`
+// ensures every `meter.createX()` call hits the real MeterProvider.
 initObservability();
+
+const { createApp } = await import("./api/app");
+const { isServerPath } = await import("./api/utils/paths");
+const { createAssetHandler, resolveClientDir } = await import(
+  "@decocms/runtime/asset-server"
+);
+const { red } = await import("./fmt");
+
 const port = settings.port;
 
 // Refuse local mode in production — it disables authentication
