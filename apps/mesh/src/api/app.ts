@@ -851,7 +851,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     const cronPollIntervalMs = 10_000;
 
     const startJobStream = async () => {
+      const t0 = Date.now();
       await automationJobStream.init();
+      console.log(
+        `[AutomationJobStream] init completed in ${Date.now() - t0}ms`,
+      );
       await automationJobStream.startConsumer(async (payload) => {
         const automation = await automationsStorage.findById(
           payload.automationId,
@@ -872,7 +876,11 @@ export async function createApp(options: CreateAppOptions = {}) {
           deps: { runRegistry, cancelBroadcast },
         });
       });
+      const t1 = Date.now();
       await cronWorker.start();
+      console.log(
+        `[AutomationJobStream] cronWorker.start() completed in ${Date.now() - t1}ms`,
+      );
     };
 
     const startJobStreamWithRetry = async (maxRetries = 5) => {

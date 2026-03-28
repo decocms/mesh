@@ -49,8 +49,20 @@ export class AutomationJobStream {
 
   async init(): Promise<void> {
     const nc = this.options.getConnection();
-    if (!nc) return; // NATS not ready — job stream disabled until re-init
+    if (!nc) {
+      console.warn("[AutomationJobStream] init: getConnection() returned null");
+      return;
+    }
+    console.log(
+      "[AutomationJobStream] init: got connection to",
+      nc.getServer(),
+    );
+
+    const t0 = Date.now();
     const jsm = await nc.jetstreamManager();
+    console.log(
+      `[AutomationJobStream] init: jetstreamManager() took ${Date.now() - t0}ms`,
+    );
 
     const config = {
       name: STREAM_NAME,
@@ -63,8 +75,16 @@ export class AutomationJobStream {
     };
 
     try {
+      const t1 = Date.now();
       await jsm.streams.info(STREAM_NAME);
+      console.log(
+        `[AutomationJobStream] init: streams.info() took ${Date.now() - t1}ms`,
+      );
+      const t2 = Date.now();
       await jsm.streams.update(STREAM_NAME, config);
+      console.log(
+        `[AutomationJobStream] init: streams.update() took ${Date.now() - t2}ms`,
+      );
     } catch (err: unknown) {
       const isNotFound =
         err instanceof Error && err.message.includes("stream not found");
