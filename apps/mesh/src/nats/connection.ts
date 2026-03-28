@@ -61,6 +61,9 @@ export function createNatsConnectionProvider(
   }
 
   function fireReady(): void {
+    console.log(
+      `[NatsProvider] fireReady: ${readyCallbacks.length} callbacks queued`,
+    );
     for (const cb of readyCallbacks.splice(0)) {
       try {
         cb();
@@ -80,6 +83,9 @@ export function createNatsConnectionProvider(
           reconnect: true,
           maxReconnectAttempts: -1,
         });
+        console.log(
+          `[NatsProvider] Connected to ${nc.getServer()} after ${attempt} attempt(s)`,
+        );
         js = null; // invalidate cached JetStream client for fresh connection
         fireReady();
         return;
