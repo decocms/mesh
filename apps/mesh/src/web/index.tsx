@@ -362,7 +362,6 @@ const settingsWorkflowDetailRoute = createRoute({
   ),
 });
 
-
 // Store detail (the store list is part of the connections "All" tab)
 const storeDetailRoute = createRoute({
   getParentRoute: () => settingsLayout,
