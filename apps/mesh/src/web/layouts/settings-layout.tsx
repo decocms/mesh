@@ -21,6 +21,7 @@ import {
   Container,
   CpuChip01,
   Lock01,
+  PackageCheck,
   User01,
   Users03,
   Zap,
@@ -63,6 +64,12 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Connections",
           icon: <Container size={14} />,
           to: "/$org/settings/connections",
+        },
+        {
+          key: "store",
+          label: "Store",
+          icon: <PackageCheck size={14} />,
+          to: "/$org/settings/store",
         },
         {
           key: "ai-providers",

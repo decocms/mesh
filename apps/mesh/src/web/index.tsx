@@ -340,6 +340,14 @@ const settingsProfileRoute = createRoute({
   ),
 });
 
+const settingsStoreRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/store",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/store.tsx"),
+  ),
+});
+
 const settingsRegistryRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/registry",
@@ -528,6 +536,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   settingsMembersRoute,
   settingsSsoRoute,
   settingsProfileRoute,
+  settingsStoreRoute,
   settingsRegistryRoute,
   settingsWorkflowsRoute,
   settingsWorkflowDetailRoute,
