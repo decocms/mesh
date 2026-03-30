@@ -58,6 +58,7 @@ interface MockStorage extends AutomationsStorage {
   findAllCronTriggersForRecompute: ReturnType<typeof mock>;
   updateTriggerLastRunAt: ReturnType<typeof mock>;
   updateNextRunAt: ReturnType<typeof mock>;
+  failZombieAutomationRuns: ReturnType<typeof mock>;
 }
 
 function makeStorage(overrides?: Partial<MockStorage>): MockStorage {
@@ -70,6 +71,7 @@ function makeStorage(overrides?: Partial<MockStorage>): MockStorage {
     tryAcquireRunSlot: mock(() => Promise.resolve("thrd_1")),
     deactivateAutomation: mock(() => Promise.resolve()),
     markRunFailed: mock(() => Promise.resolve()),
+    failZombieAutomationRuns: mock(() => Promise.resolve(0)),
     ...overrides,
   } as unknown as MockStorage;
 }
@@ -361,6 +363,46 @@ describe("AutomationCronWorker", () => {
       await Promise.all([p1, p2, p3]);
 
       expect(processNowCallCount).toBe(2);
+    });
+  });
+
+  describe("zombie run cleanup", () => {
+    it("calls failZombieAutomationRuns before processing triggers", async () => {
+      const callOrder: string[] = [];
+      const storage = makeStorage({
+        failZombieAutomationRuns: mock(() => {
+          callOrder.push("zombieCleanup");
+          return Promise.resolve(0);
+        }),
+        findDueCronTriggers: mock(() => {
+          callOrder.push("findDueTriggers");
+          return Promise.resolve([]);
+        }),
+      });
+
+      const { worker } = makeWorker({ storage });
+      await worker.start();
+      await worker.processNow();
+
+      expect(storage.failZombieAutomationRuns).toHaveBeenCalled();
+      expect(callOrder.indexOf("zombieCleanup")).toBeLessThan(
+        callOrder.indexOf("findDueTriggers"),
+      );
+    });
+
+    it("continues processing triggers when zombie cleanup fails", async () => {
+      const storage = makeStorage({
+        failZombieAutomationRuns: mock(() =>
+          Promise.reject(new Error("db error")),
+        ),
+      });
+
+      const { worker } = makeWorker({ storage });
+      await worker.start();
+      await worker.processNow();
+
+      // Should still query for due triggers despite zombie cleanup failure
+      expect(storage.findDueCronTriggers).toHaveBeenCalled();
     });
   });
 

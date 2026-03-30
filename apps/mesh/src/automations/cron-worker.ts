@@ -24,6 +24,14 @@ import type { AutomationJobPayload } from "./job-stream";
 
 export type PublishFn = (payload: AutomationJobPayload) => Promise<void>;
 
+/**
+ * Zombie runs are threads created by tryAcquireRunSlot that never got picked
+ * up by streamCore (e.g. pod crashed between thread creation and RUN_STARTED).
+ * They have status=in_progress but no run_config, so orphan recovery cannot
+ * find them — they permanently block per-automation concurrency slots.
+ */
+const ZOMBIE_RUN_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
 export class AutomationCronWorker {
   private running = false;
   private processing = false;
@@ -128,6 +136,21 @@ export class AutomationCronWorker {
   }
 
   private async processDueTriggers(): Promise<void> {
+    // Sweep zombie runs before processing triggers so freed concurrency
+    // slots are immediately available for the current batch.
+    try {
+      const reaped = await this.storage.failZombieAutomationRuns(
+        ZOMBIE_RUN_MAX_AGE_MS,
+      );
+      if (reaped > 0) {
+        console.warn(
+          `[AutomationCronWorker] Force-failed ${reaped} zombie automation run(s)`,
+        );
+      }
+    } catch (err) {
+      console.error("[AutomationCronWorker] Zombie run cleanup failed:", err);
+    }
+
     const now = this.now();
     const batchSize = 20;
 
