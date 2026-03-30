@@ -9,10 +9,9 @@
 
 import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
-import { IntegrationIcon } from "../integration-icon";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
-import { Edit05, Loading01, Settings01 } from "@untitledui/icons";
+import { Browser, Edit05, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -85,16 +84,10 @@ function NewTaskButton({
 }
 
 // ────────────────────────────────────────
-// Pinned view icon — renders icon:// as plain stroke, falls back to IntegrationIcon
+// Pinned view icon — renders icon:// as plain stroke, falls back to Browser icon
 // ────────────────────────────────────────
 
-function PinnedViewIcon({
-  icon,
-  name,
-}: {
-  icon: string | null | undefined;
-  name: string;
-}) {
+function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
   const parsed = parseIconString(icon);
   if (parsed.type === "icon") {
     const IconComp = getIconComponent(parsed.name);
@@ -102,14 +95,7 @@ function PinnedViewIcon({
       return <IconComp size={16} className="shrink-0 text-muted-foreground" />;
     }
   }
-  return (
-    <IntegrationIcon
-      icon={icon ?? null}
-      name={name}
-      size="2xs"
-      className="shrink-0"
-    />
-  );
+  return <Browser size={16} className="shrink-0 text-muted-foreground" />;
 }
 
 // ────────────────────────────────────────
@@ -156,7 +142,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
             isExtAppActive(view) && "bg-accent text-foreground",
           )}
         >
-          <PinnedViewIcon icon={view.icon} name={view.label || view.toolName} />
+          <PinnedViewIcon icon={view.icon} />
           <span className="truncate text-foreground capitalize">
             {view.label || view.toolName}
           </span>

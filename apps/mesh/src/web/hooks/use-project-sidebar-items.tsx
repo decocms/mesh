@@ -4,9 +4,8 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Dataflow03, Home01 } from "@untitledui/icons";
+import { Browser, Dataflow03, Home01 } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../components/agent-icon";
-import { IntegrationIcon } from "../components/integration-icon";
 import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
@@ -131,11 +130,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
       icon: IconComp ? (
         <IconComp size={16} className="text-muted-foreground" />
       ) : (
-        <IntegrationIcon
-          icon={view.icon ?? null}
-          name={view.label || view.toolName}
-          size="2xs"
-        />
+        <Browser size={16} className="text-muted-foreground" />
       ),
       isActive: isActiveRoute(
         `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,
