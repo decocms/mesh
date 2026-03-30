@@ -3,6 +3,7 @@
  *
  * A lightweight icon-only picker — no color selection, no upload, no tabs.
  * Shows a searchable grid of @untitledui/icons in a popover.
+ * Stores the selection as "icon://<Name>" (no color).
  */
 
 import { Input } from "@deco/ui/components/input.tsx";
@@ -16,19 +17,39 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { SearchMd } from "@untitledui/icons";
 import { useState } from "react";
 import {
-  buildIconString,
   getIconComponent,
   getIconNames,
   humanizeIconName,
   parseIconString,
 } from "./agent-icon";
-import { IntegrationIcon } from "./integration-icon";
 
 interface SimpleIconPickerProps {
   value: string | null | undefined;
   onChange: (icon: string) => void;
   name: string;
   className?: string;
+}
+
+function CurrentIcon({
+  value,
+  name,
+}: {
+  value: string | null | undefined;
+  name: string;
+}) {
+  const parsed = parseIconString(value);
+  if (parsed.type === "icon") {
+    const IconComp = getIconComponent(parsed.name);
+    if (IconComp) {
+      return <IconComp size={16} className="text-muted-foreground" />;
+    }
+  }
+  // Fallback: first letter
+  return (
+    <span className="text-xs font-medium text-muted-foreground">
+      {(name[0] ?? "?").toUpperCase()}
+    </span>
+  );
 }
 
 export function SimpleIconPicker({
@@ -41,7 +62,7 @@ export function SimpleIconPicker({
   const [search, setSearch] = useState("");
 
   const parsed = parseIconString(value);
-  const color = parsed.type === "icon" ? parsed.color : "blue";
+  const currentIconName = parsed.type === "icon" ? parsed.name : null;
 
   const allNames = getIconNames();
   const filteredNames = search.trim()
@@ -54,19 +75,17 @@ export function SimpleIconPicker({
       })
     : allNames;
 
-  const currentIconName = parsed.type === "icon" ? parsed.name : null;
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           className={cn(
-            "shrink-0 cursor-pointer rounded-md hover:bg-accent transition-colors",
+            "size-7 shrink-0 cursor-pointer rounded-md hover:bg-accent transition-colors flex items-center justify-center",
             className,
           )}
         >
-          <IntegrationIcon icon={value ?? null} name={name} size="2xs" />
+          <CurrentIcon value={value} name={name} />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -99,7 +118,7 @@ export function SimpleIconPicker({
                     key={iconName}
                     type="button"
                     onClick={() => {
-                      onChange(buildIconString(iconName, color));
+                      onChange(`icon://${iconName}`);
                       setOpen(false);
                     }}
                     className={cn(
