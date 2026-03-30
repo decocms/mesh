@@ -2,19 +2,21 @@ import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { useMatch } from "@tanstack/react-router";
 
 /**
- * Determines which panel to show on the agent home route.
+ * Determines the initial collapsed state for main and chat panels on the agent
+ * home route.
  *
- * Main and chat are mutually exclusive on this route:
- * - Show main when `?main` param is set OR a non-chat default view is pinned
- * - Show chat otherwise (no default view, or default view is "chat")
- *
- * Returns `{ showMain }` — when true, main is initially expanded and chat collapsed,
- * and vice versa. Outside the agent home route, both panels show normally.
+ * Rules:
+ * - Non-agent-home routes: both panels start expanded.
+ * - `?main` param present: both panels start expanded.
+ * - Agent home, no `?main`:
+ *   - defaultMainView is chat/null → chat expanded, main collapsed.
+ *   - defaultMainView is non-chat  → main expanded, chat uses
+ *     `layout.chatDefaultOpen` (defaults to false).
  */
 export function usePinnedViewLayout(
   virtualMcpId: string | undefined,
   isAgentRoute: boolean,
-): { chatHidden: boolean; mainHidden: boolean } {
+): { chatDefaultCollapsed: boolean; mainDefaultCollapsed: boolean } {
   const entity = useVirtualMCP(virtualMcpId);
 
   const agentHomeMatch = useMatch({
@@ -24,18 +26,19 @@ export function usePinnedViewLayout(
 
   const isOnAgentHome = isAgentRoute && !!agentHomeMatch;
   if (!isOnAgentHome) {
-    return { chatHidden: false, mainHidden: false };
+    return { chatDefaultCollapsed: false, mainDefaultCollapsed: false };
   }
 
   const hasMainParam = !!agentHomeMatch?.search.main;
   if (hasMainParam) {
-    return { chatHidden: false, mainHidden: false };
+    return { chatDefaultCollapsed: false, mainDefaultCollapsed: false };
   }
 
   const layoutConfig = (
     entity?.metadata?.ui as Record<string, unknown> | null | undefined
   )?.layout as {
     defaultMainView?: { type: string };
+    chatDefaultOpen?: boolean | null;
   } | null;
 
   const defaultViewType = layoutConfig?.defaultMainView?.type ?? null;
@@ -44,8 +47,16 @@ export function usePinnedViewLayout(
     defaultViewType === "ext-apps" ||
     defaultViewType === "settings";
 
+  if (!showMain) {
+    // Default view is chat or unset — chat must be visible, main collapsed
+    return { chatDefaultCollapsed: false, mainDefaultCollapsed: true };
+  }
+
+  // Non-chat default view — respect chatDefaultOpen config (defaults to false)
+  const chatDefaultOpen = layoutConfig?.chatDefaultOpen ?? false;
+
   return {
-    chatHidden: showMain,
-    mainHidden: !showMain,
+    chatDefaultCollapsed: !chatDefaultOpen,
+    mainDefaultCollapsed: false,
   };
 }

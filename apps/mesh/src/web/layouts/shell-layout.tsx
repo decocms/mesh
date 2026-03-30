@@ -333,8 +333,8 @@ function AgentPanelGroup({
   tasksPanelRef,
   mainPanelRef,
   chatPanelRef,
-  chatHidden,
-  mainHidden,
+  chatDefaultCollapsed,
+  mainDefaultCollapsed,
   setTasksOpen,
   setMainOpen,
   setChatOpen,
@@ -347,15 +347,15 @@ function AgentPanelGroup({
   tasksPanelRef: React.RefObject<ImperativePanelHandle | null>;
   mainPanelRef: React.RefObject<ImperativePanelHandle | null>;
   chatPanelRef: React.RefObject<ImperativePanelHandle | null>;
-  chatHidden: boolean;
-  mainHidden: boolean;
+  chatDefaultCollapsed: boolean;
+  mainDefaultCollapsed: boolean;
   setTasksOpen: (open: boolean) => void;
   setMainOpen: (open: boolean) => void;
   setChatOpen: (open: boolean) => void;
 }) {
   return (
     <ResizablePanelGroup
-      key={`${agentVirtualMcpId ?? "none"}-${mainHidden}-${chatHidden}`}
+      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}`}
       direction="horizontal"
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
@@ -386,7 +386,7 @@ function AgentPanelGroup({
           ref={mainPanelRef}
           className="min-w-0 flex flex-col"
           order={2}
-          defaultSize={mainHidden ? 0 : undefined}
+          defaultSize={mainDefaultCollapsed ? 0 : undefined}
           style={{ overflow: "visible" }}
           collapsible={isAgentRoute}
           collapsedSize={0}
@@ -429,16 +429,16 @@ function AgentPanelGroup({
             key={
               isOrgHome
                 ? "chat-home"
-                : mainHidden
+                : mainDefaultCollapsed
                   ? "chat-no-main"
-                  : chatHidden
+                  : chatDefaultCollapsed
                     ? "chat-hidden"
                     : "chat-default"
             }
             panelRef={chatPanelRef}
-            defaultCollapsed={chatHidden}
+            defaultCollapsed={chatDefaultCollapsed}
             defaultFullWidth={isOrgHome}
-            defaultSizeOverride={mainHidden ? 78 : undefined}
+            defaultSizeOverride={mainDefaultCollapsed ? 78 : undefined}
             onCollapse={() => setChatOpen(false)}
             onExpand={() => setChatOpen(true)}
           >
@@ -479,7 +479,7 @@ function ShellLayoutInner({
   });
   const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
 
-  const { chatHidden, mainHidden } = usePinnedViewLayout(
+  const { chatDefaultCollapsed, mainDefaultCollapsed } = usePinnedViewLayout(
     agentVirtualMcpId,
     isAgentRoute,
   );
@@ -507,11 +507,7 @@ function ShellLayoutInner({
   // The onCollapse/onExpand callbacks on each panel sync the open state back.
 
   const playSwitchSound = useSound(switch005Sound);
-  const expandedCount = [
-    tasksOpen,
-    !mainHidden && mainOpen,
-    !chatHidden && chatOpen,
-  ].filter(Boolean).length;
+  const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;
 
   const toggleTasks = () => {
     if (tasksOpen && expandedCount <= 1) return;
@@ -523,7 +519,6 @@ function ShellLayoutInner({
     }
   };
   const toggleMain = () => {
-    if (mainHidden) return;
     if (mainOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (mainOpen) {
@@ -632,7 +627,7 @@ function ShellLayoutInner({
                 <div className="flex-1 min-h-0 overflow-hidden">
                   {isOrgHome ? (
                     <ActiveTaskBoundary variant="home" />
-                  ) : mainHidden ? (
+                  ) : mainDefaultCollapsed ? (
                     <ActiveTaskBoundary />
                   ) : (
                     <Outlet />
@@ -751,10 +746,10 @@ function ShellLayoutInner({
                   type="button"
                   onClick={toggleMain}
                   aria-pressed={mainOpen}
-                  disabled={isOrgHome || mainHidden}
+                  disabled={isOrgHome}
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome || mainHidden
+                    isOrgHome
                       ? "text-sidebar-foreground/30 cursor-not-allowed"
                       : mainOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
@@ -807,8 +802,8 @@ function ShellLayoutInner({
                   tasksPanelRef={tasksPanelRef}
                   mainPanelRef={mainPanelRef}
                   chatPanelRef={chatPanelRef}
-                  chatHidden={chatHidden}
-                  mainHidden={mainHidden}
+                  chatDefaultCollapsed={chatDefaultCollapsed}
+                  mainDefaultCollapsed={mainDefaultCollapsed}
                   setTasksOpen={setTasksOpen}
                   setMainOpen={setMainOpen}
                   setChatOpen={setChatOpen}

@@ -497,6 +497,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             id?: string;
             toolName?: string;
           } | null;
+          chatDefaultOpen?: boolean | null;
         } | null;
       }
     | null
@@ -504,6 +505,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const serverPinned: PinnedView[] = uiMeta?.pinnedViews ?? [];
   const serverDefaultMain = uiMeta?.layout?.defaultMainView ?? null;
+  const serverChatDefaultOpen = uiMeta?.layout?.chatDefaultOpen ?? false;
 
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
   const [defaultMainView, setDefaultMainView] = useState<string>(() => {
@@ -515,6 +517,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     }
     return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
   });
+  const [chatDefaultOpen, setChatDefaultOpen] = useState<boolean>(
+    serverChatDefaultOpen,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Parse default main view from composite key
@@ -528,7 +533,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   };
 
   // Auto-save helper that persists given state
-  const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
+  const saveLayout = (
+    nextPinned: PinnedView[],
+    nextDefaultMain: string,
+    nextChatDefaultOpen?: boolean,
+  ) => {
     setIsSaving(true);
     const doSave = async () => {
       try {
@@ -537,7 +546,10 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           arguments: {
             virtualMcpId,
             pinnedViews: nextPinned,
-            layout: { defaultMainView: parseDefaultMainView(nextDefaultMain) },
+            layout: {
+              defaultMainView: parseDefaultMainView(nextDefaultMain),
+              chatDefaultOpen: nextChatDefaultOpen ?? chatDefaultOpen,
+            },
           },
         });
         unwrapToolResult(result);
@@ -656,6 +668,38 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         </Select>
       </div>
 
+      {/* Chat panel default visibility — forced on when default view is chat */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">
+            Show chat by default
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Display the chat panel alongside the default view when opening this
+            space.
+          </p>
+        </div>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <span>
+              <Switch
+                checked={defaultMainView === "chat" ? true : chatDefaultOpen}
+                disabled={defaultMainView === "chat"}
+                onCheckedChange={(checked) => {
+                  setChatDefaultOpen(checked);
+                  saveLayout(pinnedViews, defaultMainView, checked);
+                }}
+              />
+            </span>
+          </TooltipTrigger>
+          {defaultMainView === "chat" && (
+            <TooltipContent side="top">
+              Chat is always shown when it is the default view
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </div>
+
       {/* Pinned views */}
       {noConnections && (
         <p className="text-sm text-muted-foreground">
@@ -754,6 +798,21 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           )}
         </div>
       ))}
+
+      <div className="flex justify-end">
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => {
+                window.location.href = `/shell/${org.slug}/${virtualMcpId}`;
+              }}
+            >
+              Test layout
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Test agent page layout</TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }
