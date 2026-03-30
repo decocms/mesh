@@ -41,24 +41,19 @@ export interface AutomationJobStreamOptions {
 
 // Module-level state (singleton)
 let js: JetStreamClient | null = null;
-let options: AutomationJobStreamOptions | null = null;
 let subscription: ConsumerMessages | null = null;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-export function configure(opts: AutomationJobStreamOptions): void {
-  options = opts;
-}
-
-export async function init(): Promise<void> {
+export async function init(opts: AutomationJobStreamOptions): Promise<void> {
   // Stop any existing consumer so we can re-create it after reconnection
   if (subscription) {
     subscription.stop();
     subscription = null;
   }
 
-  const nc = options?.getConnection();
+  const nc = opts.getConnection();
   if (!nc) {
     console.warn("[AutomationJobStream] init: getConnection() returned null");
     return;
@@ -109,7 +104,7 @@ export async function init(): Promise<void> {
     }
   }
 
-  js = options?.getJetStream() ?? null;
+  js = opts.getJetStream() ?? null;
 }
 
 export async function publish(payload: AutomationJobPayload): Promise<void> {

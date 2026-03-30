@@ -838,10 +838,10 @@ export async function createApp(options: CreateAppOptions = {}) {
   let cronTimer: ReturnType<typeof setInterval> | null = null;
 
   if (natsProvider) {
-    automationJobStream.configure({
+    const natsOpts = {
       getConnection: () => natsProvider!.getConnection(),
       getJetStream: () => natsProvider!.getJetStream(),
-    });
+    };
 
     const cronWorker = new AutomationCronWorker(
       automationsStorage,
@@ -852,7 +852,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
     const startJobStream = async () => {
       const t0 = Date.now();
-      await automationJobStream.init();
+      await automationJobStream.init(natsOpts);
       console.log(
         `[AutomationJobStream] init completed in ${Date.now() - t0}ms`,
       );
