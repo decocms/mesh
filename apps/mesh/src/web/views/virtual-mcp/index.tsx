@@ -419,6 +419,7 @@ interface PinnedView {
 }
 
 interface ConnectionWithTools {
+  fetchOk: boolean;
   id: string;
   title: string;
   icon: string | null;
@@ -465,6 +466,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
               .filter((t) => !!getUIResourceUri(t._meta))
               .map((t) => ({ name: t.name, description: t.description }));
             return {
+              fetchOk: true,
               id: connId,
               title: item?.title ?? connId,
               icon: item?.icon ?? null,
@@ -472,6 +474,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             };
           } catch {
             return {
+              fetchOk: false,
               id: connId,
               title: connId,
               icon: null,
@@ -480,12 +483,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           }
         }),
       );
-      // Only include connections that have interactive tools
-      return results.filter((c) => c.uiTools.length > 0);
+      return results;
     },
   });
 
-  const connectionsData: ConnectionWithTools[] = connectionsWithTools ?? [];
+  // Only show connections with interactive tools in the UI
+  const connectionsData: ConnectionWithTools[] = (
+    connectionsWithTools ?? []
+  ).filter((c) => c.uiTools.length > 0);
 
   // Current pinned views from virtual MCP metadata
   const uiMeta = virtualMcp?.metadata?.ui as
@@ -526,6 +531,80 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
     return null;
   };
+
+  // Reconcile orphaned pinned views once tool data is available.
+  // Only remove pins whose connection was successfully fetched but no longer
+  // exposes the pinned tool. Pins for connections that failed to fetch are
+  // kept to avoid permanent deletion from transient errors.
+  const reconciledRef = useRef(false);
+  if (
+    connectionsWithTools &&
+    connectionsWithTools.length > 0 &&
+    !reconciledRef.current
+  ) {
+    reconciledRef.current = true;
+
+    // Build set of connection IDs that were successfully fetched.
+    // Pins for connections that failed to fetch are kept to avoid
+    // permanent deletion from transient errors.
+    const fetchedOkIds = new Set(
+      (connectionsWithTools ?? []).filter((c) => c.fetchOk).map((c) => c.id),
+    );
+    const validKeys = new Set(
+      connectionsData.flatMap((c) => c.uiTools.map((t) => `${c.id}:${t.name}`)),
+    );
+
+    // Only filter pins for connections we successfully got data for
+    const validPinned = serverPinned.filter(
+      (pv) =>
+        !fetchedOkIds.has(pv.connectionId) ||
+        validKeys.has(`${pv.connectionId}:${pv.toolName}`),
+    );
+
+    if (validPinned.length !== serverPinned.length) {
+      setPinnedViews(validPinned);
+
+      // If the default view was an ext-app that got removed, reset to chat
+      let nextDefault = defaultMainView;
+      if (
+        serverDefaultMain?.type === "ext-apps" &&
+        !validPinned.some(
+          (pv) =>
+            pv.connectionId === serverDefaultMain.id &&
+            pv.toolName === serverDefaultMain.toolName,
+        )
+      ) {
+        nextDefault = "chat";
+        setDefaultMainView(nextDefault);
+      }
+
+      // Persist cleaned pins; revert local state on failure
+      client
+        .callTool({
+          name: "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
+          arguments: {
+            virtualMcpId,
+            pinnedViews: validPinned,
+            layout: {
+              defaultMainView: parseDefaultMainView(nextDefault),
+            },
+          },
+        })
+        .then((result) => {
+          unwrapToolResult(result);
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey.includes("collection") &&
+              query.queryKey.includes("VIRTUAL_MCP"),
+          });
+        })
+        .catch(() => {
+          // Revert to server state so UI stays consistent
+          setPinnedViews(serverPinned);
+        });
+    }
+  }
 
   // Auto-save helper that persists given state
   const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
