@@ -346,6 +346,9 @@ export interface MeshContext {
     key: string,
   ) => Promise<Client>;
 
+  // Invalidate cached member role (call after role mutations)
+  invalidateMemberRole?: (userId: string, organizationId: string) => void;
+
   // Revalidation promises from SWR cache — awaited in middleware before ctx goes out of scope
   pendingRevalidations: Promise<void>[];
 

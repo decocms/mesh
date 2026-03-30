@@ -18,6 +18,7 @@ import { getCookie } from "hono/cookie";
 import { cors } from "hono/cors";
 import { endTime, startTime, timing } from "hono/timing";
 import { auth } from "../auth";
+import { createMemberRoleCache } from "../auth/member-role-cache";
 import {
   ContextFactory,
   createMeshContextFactory,
@@ -752,6 +753,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Create context factory with the provided database and event bus
   // Context factory only needs the Kysely instance, not the full MeshDatabase
+  const memberRoleCache = createMemberRoleCache({ ttlMs: 2 * 60 * 1000 });
   const factory = await createMeshContextFactory({
     db: database.db,
     auth,
@@ -764,6 +766,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     },
     eventBus,
     modelListCache,
+    memberRoleCache,
   });
   ContextFactory.set(factory);
 
