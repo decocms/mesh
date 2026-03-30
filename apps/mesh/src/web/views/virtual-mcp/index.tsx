@@ -803,25 +803,18 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     className="flex items-center justify-between gap-3 py-1.5"
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
-                      {pinned && pinnedView ? (
-                        <Input
-                          value={pinnedView.label}
-                          onChange={(e) =>
-                            handleLabelChange(
-                              conn.id,
-                              tool.name,
-                              e.target.value,
-                            )
-                          }
-                          onBlur={handleLabelBlur}
-                          className="h-7 text-sm w-40"
-                          disabled={isSaving}
-                        />
-                      ) : (
-                        <span className="text-sm text-foreground">
-                          {tool.name}
-                        </span>
-                      )}
+                      <Input
+                        value={
+                          pinned && pinnedView ? pinnedView.label : tool.name
+                        }
+                        onChange={(e) =>
+                          handleLabelChange(conn.id, tool.name, e.target.value)
+                        }
+                        onBlur={handleLabelBlur}
+                        className="h-7 text-sm w-40"
+                        disabled={!pinned || isSaving}
+                        readOnly={!pinned}
+                      />
                     </div>
                     <Switch
                       checked={pinned}
