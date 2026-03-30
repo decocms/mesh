@@ -914,6 +914,18 @@ export interface AutomationTrigger {
   created_at: string;
 }
 
+// ============================================================================
+// GitHub Credentials
+// ============================================================================
+
+export interface GitHubCredentialTable {
+  user_id: string;
+  access_token: string | null; // Encrypted via vault (null when using installation-only flow)
+  installation_id: string | null; // GitHub App installation ID
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string>;
+}
+
 /**
  * Trigger callback token table - stores hashed tokens for external MCP callbacks
  */
@@ -995,4 +1007,7 @@ export interface Database {
 
   // Generic org-scoped KV store
   kv: KVTable;
+
+  // GitHub OAuth credentials (per user, encrypted)
+  github_credentials: GitHubCredentialTable;
 }

@@ -275,4 +275,10 @@ export const KEYS = {
 
   // Deco sites (scoped by user email)
   decoSites: (email: string | undefined) => ["deco-sites", email] as const,
+
+  // GitHub repos (scoped by user id)
+  githubStatus: (userId: string | undefined) =>
+    ["github-status", userId] as const,
+  githubRepos: (userId: string | undefined) =>
+    ["github-repos", userId] as const,
 } as const;

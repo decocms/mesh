@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useMatch } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Popover,
   PopoverContent,
@@ -41,6 +42,73 @@ import { authClient } from "@/web/lib/auth-client";
 import { CreateOrganizationDialog } from "@/web/components/create-organization-dialog";
 import { usePreferences, type ThemeMode } from "@/web/hooks/use-preferences.ts";
 import { toast } from "@deco/ui/components/sonner.js";
+import { KEYS } from "@/web/lib/query-keys";
+
+function GitHubConnectedControl({ userId }: { userId: string | undefined }) {
+  const queryClient = useQueryClient();
+
+  const { data: statusData, isLoading } = useQuery({
+    queryKey: KEYS.githubStatus(userId),
+    queryFn: async () => {
+      const res = await fetch("/api/github-repos/status");
+      if (!res.ok) throw new Error("Failed to check GitHub status");
+      return res.json() as Promise<{
+        connected: boolean;
+        configureUrl: string | null;
+      }>;
+    },
+    enabled: Boolean(userId),
+    staleTime: 30_000,
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/github-repos/auth/disconnect", {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to disconnect");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.githubStatus(userId) });
+      queryClient.invalidateQueries({ queryKey: KEYS.githubRepos(userId) });
+      toast.success("GitHub disconnected");
+    },
+    onError: () => {
+      toast.error("Failed to disconnect GitHub");
+    },
+  });
+
+  if (isLoading) {
+    return <span className="text-xs text-muted-foreground">Checking…</span>;
+  }
+
+  if (!statusData?.connected) {
+    return <span className="text-xs text-muted-foreground">Not connected</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {statusData.configureUrl && (
+        <a
+          href={statusData.configureUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Manage
+        </a>
+      )}
+      <button
+        type="button"
+        onClick={() => disconnectMutation.mutate()}
+        disabled={disconnectMutation.isPending}
+        className="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+      >
+        {disconnectMutation.isPending ? "Disconnecting…" : "Disconnect"}
+      </button>
+    </div>
+  );
+}
 
 function getOrgColorStyle(name: string): {
   backgroundColor: string;
@@ -297,6 +365,20 @@ function AccountPopoverContent({
             ))}
             <MenuItemButton item={signOutItem} onClose={close} />
           </nav>
+
+          {/* Connected accounts */}
+          <div className="px-4 py-2 border-t border-border/50">
+            <p className="text-xs font-medium text-muted-foreground/60 mb-1.5">
+              Connected accounts
+            </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GitHubIcon className="size-3.5" />
+                <span className="text-sm text-foreground">GitHub</span>
+              </div>
+              <GitHubConnectedControl userId={user?.id} />
+            </div>
+          </div>
         </div>
 
         {/* Bottom bar: theme + sound + version */}
@@ -408,6 +490,20 @@ function AccountPopoverContent({
           ))}
           <MenuItemButton item={signOutItem} onClose={close} />
         </nav>
+
+        {/* Connected accounts */}
+        <div className="px-3 py-2 border-t border-border/50">
+          <p className="text-xs font-medium text-muted-foreground/60 mb-1.5">
+            Connected accounts
+          </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <GitHubIcon className="size-3.5" />
+              <span className="text-sm text-foreground">GitHub</span>
+            </div>
+            <GitHubConnectedControl userId={user?.id} />
+          </div>
+        </div>
 
         {/* Bottom bar: theme toggles + sound + version */}
         <div className="flex items-center justify-between px-2 py-1.5 border-t border-border/50">

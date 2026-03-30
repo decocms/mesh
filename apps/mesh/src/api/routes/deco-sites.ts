@@ -14,6 +14,13 @@ import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
 import { getUserId } from "../../core/mesh-context";
 import { fetchToolsFromMCP } from "../../tools/connection/fetch-tools";
+import {
+  ADMIN_MCP,
+  getSupabaseConfig,
+  supabaseGet,
+  resolveProfileId,
+  getOrCreateDecoApiKey,
+} from "./deco-supabase";
 
 type Variables = { meshContext: MeshContext };
 
@@ -23,104 +30,6 @@ interface SupabaseSite {
   name: string;
   domains: { domain: string; production: boolean }[] | null;
   thumb_url: string | null;
-}
-
-async function supabaseGet<T>(
-  supabaseUrl: string,
-  serviceKey: string,
-  path: string,
-): Promise<T[]> {
-  const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    console.error(`[deco-sites] Supabase error (${res.status}): ${text}`);
-    throw new Error(`External service error (${res.status})`);
-  }
-  return res.json() as Promise<T[]>;
-}
-
-async function supabasePost<T>(
-  supabaseUrl: string,
-  serviceKey: string,
-  table: string,
-  body: Record<string, unknown>,
-): Promise<T> {
-  const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
-    method: "POST",
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    console.error(`[deco-sites] Supabase POST error (${res.status}): ${text}`);
-    throw new Error(`External service error (${res.status})`);
-  }
-  const rows = (await res.json()) as T[];
-  if (!rows[0]) {
-    throw new Error("Supabase POST returned no rows");
-  }
-  return rows[0];
-}
-
-import { getSettings } from "../../settings";
-
-function getSupabaseConfig(): {
-  supabaseUrl: string;
-  serviceKey: string;
-} | null {
-  const settings = getSettings();
-  const supabaseUrl = settings.decoSupabaseUrl;
-  const serviceKey = settings.decoSupabaseServiceKey;
-  if (!supabaseUrl || !serviceKey) return null;
-  return { supabaseUrl, serviceKey };
-}
-
-async function resolveProfileId(
-  supabaseUrl: string,
-  serviceKey: string,
-  email: string,
-): Promise<string | null> {
-  const profiles = await supabaseGet<{ user_id: string }>(
-    supabaseUrl,
-    serviceKey,
-    `profiles?email=eq.${encodeURIComponent(email)}&select=user_id`,
-  );
-  return profiles[0]?.user_id ?? null;
-}
-
-async function getOrCreateDecoApiKey(
-  supabaseUrl: string,
-  serviceKey: string,
-  profileId: string,
-): Promise<string> {
-  const existing = await supabaseGet<{ id: string }>(
-    supabaseUrl,
-    serviceKey,
-    `api_key?user_id=eq.${encodeURIComponent(profileId)}&select=id&limit=1`,
-  );
-  if (existing[0]?.id) {
-    return existing[0].id;
-  }
-
-  const created = await supabasePost<{ id: string }>(
-    supabaseUrl,
-    serviceKey,
-    "api_key",
-    { user_id: profileId },
-  );
-  return created.id;
 }
 
 // Require an authenticated user on every handler in this router.
@@ -211,8 +120,6 @@ app.get("/", async (c) => {
     return c.json({ error: "Failed to fetch sites" }, 502);
   }
 });
-
-const ADMIN_MCP = "https://sites-admin-mcp.decocache.com/api/mcp";
 
 async function fetchFaviconAsDataUrl(domain: string): Promise<string | null> {
   try {

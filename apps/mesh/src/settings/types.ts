@@ -62,6 +62,11 @@ export interface Settings {
   // External service credentials (optional)
   decoSupabaseUrl: string | undefined;
   decoSupabaseServiceKey: string | undefined;
+
+  // GitHub App (optional — enables GitHub import in onboarding)
+  githubAppSlug: string | undefined;
+  githubAppId: string | undefined;
+  githubAppPrivateKey: string | undefined;
 }
 
 export interface CliFlags {

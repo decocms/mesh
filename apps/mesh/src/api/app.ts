@@ -38,6 +38,7 @@ import orgSsoRoutes from "./routes/org-sso";
 import { createDecopilotRoutes } from "./routes/decopilot";
 import downstreamTokenRoutes from "./routes/downstream-token";
 import decoSitesRoutes from "./routes/deco-sites";
+import githubReposRoutes from "./routes/github-repos";
 import virtualMcpRoutes from "./routes/virtual-mcp";
 import oauthProxyRoutes, {
   fetchAuthorizationServerMetadata,
@@ -1390,6 +1391,9 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Deco.cx sites list (requires meshContext / auth)
   app.route("/api/deco-sites", decoSitesRoutes);
+
+  // GitHub repos OAuth + listing (requires meshContext / auth)
+  app.route("/api/github-repos", githubReposRoutes);
 
   // ============================================================================
   // Server Plugin Routes

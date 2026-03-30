@@ -25,6 +25,7 @@ import { Button } from "@deco/ui/components/button.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
+import { ImportFromGitHubDialog } from "@/web/components/import-from-github-dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 
 interface OnboardingCard {
@@ -46,8 +47,8 @@ const CARDS: OnboardingCard[] = [
   {
     id: "github",
     title: "Existing GitHub project",
-    buttonLabel: "Coming Soon",
-    comingSoon: true,
+    buttonLabel: "Import repository",
+    comingSoon: false,
     image: "/import-github.png",
   },
   {
@@ -145,13 +146,17 @@ export function SiteEditorOnboardingModal({
   open,
   onOpenChange,
 }: SiteEditorOnboardingModalProps) {
-  const [importOpen, setImportOpen] = useState(false);
+  const [importDecoOpen, setImportDecoOpen] = useState(false);
+  const [importGitHubOpen, setImportGitHubOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const handleCardAction = (cardId: string) => {
     if (cardId === "deco") {
       onOpenChange(false);
-      setImportOpen(true);
+      setImportDecoOpen(true);
+    } else if (cardId === "github") {
+      onOpenChange(false);
+      setImportGitHubOpen(true);
     }
   };
 
@@ -190,10 +195,19 @@ export function SiteEditorOnboardingModal({
       )}
 
       <ImportFromDecoDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
+        open={importDecoOpen}
+        onOpenChange={setImportDecoOpen}
         onBack={() => {
-          setImportOpen(false);
+          setImportDecoOpen(false);
+          onOpenChange(true);
+        }}
+      />
+
+      <ImportFromGitHubDialog
+        open={importGitHubOpen}
+        onOpenChange={setImportGitHubOpen}
+        onBack={() => {
+          setImportGitHubOpen(false);
           onOpenChange(true);
         }}
       />

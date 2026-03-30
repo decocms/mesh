@@ -61,6 +61,8 @@ import * as migration059kv from "./059-kv.ts";
 import * as migration060memberindex from "./060-member-index.ts";
 import * as migration061downstreamtokenconnectionindex from "./061-downstream-token-connection-index.ts";
 import * as migration062privateregistry from "./062-private-registry.ts";
+import * as migration063githubcredentials from "./063-github-credentials.ts";
+import * as migration064githubinstallationid from "./064-github-installation-id.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -135,6 +137,8 @@ const migrations: Record<string, Migration> = {
   "061-downstream-token-connection-index":
     migration061downstreamtokenconnectionindex,
   "062-private-registry": migration062privateregistry,
+  "063-github-credentials": migration063githubcredentials,
+  "064-github-installation-id": migration064githubinstallationid,
 };
 
 export default migrations;

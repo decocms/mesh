@@ -110,6 +110,11 @@ export function resolveConfig(
     // External service credentials
     decoSupabaseUrl: envVars.DECO_SUPABASE_URL,
     decoSupabaseServiceKey: envVars.DECO_SUPABASE_SERVICE_KEY,
+
+    // GitHub App
+    githubAppSlug: envVars.GITHUB_APP_SLUG,
+    githubAppId: envVars.GITHUB_APP_ID,
+    githubAppPrivateKey: envVars.GITHUB_APP_PRIVATE_KEY,
   };
 
   return {
