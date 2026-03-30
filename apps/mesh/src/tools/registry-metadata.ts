@@ -29,7 +29,8 @@ export type ToolCategory =
   | "Event Bus"
   | "Tags"
   | "AI Providers"
-  | "Automations";
+  | "Automations"
+  | "Registry";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -119,6 +120,40 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
+
+  // Registry tools
+  "COLLECTION_REGISTRY_APP_LIST",
+  "COLLECTION_REGISTRY_APP_GET",
+  "COLLECTION_REGISTRY_APP_VERSIONS",
+  "COLLECTION_REGISTRY_APP_FILTERS",
+  "REGISTRY_ITEM_LIST",
+  "REGISTRY_ITEM_SEARCH",
+  "REGISTRY_ITEM_GET",
+  "REGISTRY_ITEM_VERSIONS",
+  "REGISTRY_ITEM_CREATE",
+  "REGISTRY_ITEM_BULK_CREATE",
+  "REGISTRY_ITEM_UPDATE",
+  "REGISTRY_ITEM_DELETE",
+  "REGISTRY_ITEM_FILTERS",
+  "REGISTRY_DISCOVER_TOOLS",
+  "REGISTRY_AI_GENERATE",
+  "REGISTRY_PUBLISH_REQUEST_LIST",
+  "REGISTRY_PUBLISH_REQUEST_REVIEW",
+  "REGISTRY_PUBLISH_REQUEST_COUNT",
+  "REGISTRY_PUBLISH_REQUEST_DELETE",
+  "REGISTRY_PUBLISH_API_KEY_GENERATE",
+  "REGISTRY_PUBLISH_API_KEY_LIST",
+  "REGISTRY_PUBLISH_API_KEY_REVOKE",
+  "REGISTRY_MONITOR_RUN_START",
+  "REGISTRY_MONITOR_RUN_LIST",
+  "REGISTRY_MONITOR_RUN_GET",
+  "REGISTRY_MONITOR_RUN_CANCEL",
+  "REGISTRY_MONITOR_RESULT_LIST",
+  "REGISTRY_MONITOR_CONNECTION_LIST",
+  "REGISTRY_MONITOR_CONNECTION_SYNC",
+  "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
+  "REGISTRY_MONITOR_SCHEDULE_SET",
+  "REGISTRY_MONITOR_SCHEDULE_CANCEL",
 ] as const;
 
 /**
@@ -530,6 +565,170 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
+  // Registry tools
+  {
+    name: "COLLECTION_REGISTRY_APP_LIST",
+    description: "List registry apps",
+    category: "Registry",
+  },
+  {
+    name: "COLLECTION_REGISTRY_APP_GET",
+    description: "Get registry app details",
+    category: "Registry",
+  },
+  {
+    name: "COLLECTION_REGISTRY_APP_VERSIONS",
+    description: "List registry app versions",
+    category: "Registry",
+  },
+  {
+    name: "COLLECTION_REGISTRY_APP_FILTERS",
+    description: "Get registry app filters",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_LIST",
+    description: "List private registry items",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_SEARCH",
+    description: "Search registry items",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_GET",
+    description: "Get registry item details",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_VERSIONS",
+    description: "List registry item versions",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_CREATE",
+    description: "Create registry item",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_BULK_CREATE",
+    description: "Bulk create registry items",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_UPDATE",
+    description: "Update registry item",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_ITEM_DELETE",
+    description: "Delete registry item",
+    category: "Registry",
+    dangerous: true,
+  },
+  {
+    name: "REGISTRY_ITEM_FILTERS",
+    description: "Get registry item filters",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_DISCOVER_TOOLS",
+    description: "Discover tools from MCP server",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_AI_GENERATE",
+    description: "AI-generate registry content",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_REQUEST_LIST",
+    description: "List publish requests",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_REQUEST_REVIEW",
+    description: "Review publish request",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_REQUEST_COUNT",
+    description: "Count pending publish requests",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_REQUEST_DELETE",
+    description: "Delete publish request",
+    category: "Registry",
+    dangerous: true,
+  },
+  {
+    name: "REGISTRY_PUBLISH_API_KEY_GENERATE",
+    description: "Generate publish API key",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_API_KEY_LIST",
+    description: "List publish API keys",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_PUBLISH_API_KEY_REVOKE",
+    description: "Revoke publish API key",
+    category: "Registry",
+    dangerous: true,
+  },
+  {
+    name: "REGISTRY_MONITOR_RUN_START",
+    description: "Start monitor run",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_RUN_LIST",
+    description: "List monitor runs",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_RUN_GET",
+    description: "Get monitor run details",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_RUN_CANCEL",
+    description: "Cancel monitor run",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_RESULT_LIST",
+    description: "List monitor results",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_CONNECTION_LIST",
+    description: "List monitor connections",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_CONNECTION_SYNC",
+    description: "Sync monitor connections",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
+    description: "Update monitor connection auth",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_SCHEDULE_SET",
+    description: "Set monitor schedule",
+    category: "Registry",
+  },
+  {
+    name: "REGISTRY_MONITOR_SCHEDULE_CANCEL",
+    description: "Cancel monitor schedule",
+    category: "Registry",
+  },
 ];
 
 /**
@@ -608,6 +807,40 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
+
+  // Registry
+  COLLECTION_REGISTRY_APP_LIST: "List registry apps",
+  COLLECTION_REGISTRY_APP_GET: "Get registry app",
+  COLLECTION_REGISTRY_APP_VERSIONS: "List registry app versions",
+  COLLECTION_REGISTRY_APP_FILTERS: "Get registry filters",
+  REGISTRY_ITEM_LIST: "List registry items",
+  REGISTRY_ITEM_SEARCH: "Search registry",
+  REGISTRY_ITEM_GET: "Get registry item",
+  REGISTRY_ITEM_VERSIONS: "List item versions",
+  REGISTRY_ITEM_CREATE: "Create registry item",
+  REGISTRY_ITEM_BULK_CREATE: "Bulk create items",
+  REGISTRY_ITEM_UPDATE: "Update registry item",
+  REGISTRY_ITEM_DELETE: "Delete registry item",
+  REGISTRY_ITEM_FILTERS: "Get item filters",
+  REGISTRY_DISCOVER_TOOLS: "Discover tools",
+  REGISTRY_AI_GENERATE: "AI generate content",
+  REGISTRY_PUBLISH_REQUEST_LIST: "List publish requests",
+  REGISTRY_PUBLISH_REQUEST_REVIEW: "Review publish request",
+  REGISTRY_PUBLISH_REQUEST_COUNT: "Count publish requests",
+  REGISTRY_PUBLISH_REQUEST_DELETE: "Delete publish request",
+  REGISTRY_PUBLISH_API_KEY_GENERATE: "Generate API key",
+  REGISTRY_PUBLISH_API_KEY_LIST: "List API keys",
+  REGISTRY_PUBLISH_API_KEY_REVOKE: "Revoke API key",
+  REGISTRY_MONITOR_RUN_START: "Start monitor run",
+  REGISTRY_MONITOR_RUN_LIST: "List monitor runs",
+  REGISTRY_MONITOR_RUN_GET: "Get monitor run",
+  REGISTRY_MONITOR_RUN_CANCEL: "Cancel monitor run",
+  REGISTRY_MONITOR_RESULT_LIST: "List monitor results",
+  REGISTRY_MONITOR_CONNECTION_LIST: "List monitor connections",
+  REGISTRY_MONITOR_CONNECTION_SYNC: "Sync monitor connections",
+  REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH: "Update connection auth",
+  REGISTRY_MONITOR_SCHEDULE_SET: "Set monitor schedule",
+  REGISTRY_MONITOR_SCHEDULE_CANCEL: "Cancel monitor schedule",
 };
 
 // ============================================================================
@@ -630,6 +863,7 @@ export function getToolsByCategory() {
     Tags: [],
     "AI Providers": [],
     Automations: [],
+    Registry: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

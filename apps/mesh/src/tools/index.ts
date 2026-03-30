@@ -32,6 +32,7 @@ import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
 import * as RegistryTools from "./registry/index";
+import { ToolName } from "./registry-metadata";
 // Core tools - always available
 const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_CREATE,
@@ -131,7 +132,7 @@ const CORE_TOOLS = [
 
   // Registry tools
   ...RegistryTools.tools,
-] as const;
+] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
 const PLUGIN_TOOLS = collectPluginTools();
