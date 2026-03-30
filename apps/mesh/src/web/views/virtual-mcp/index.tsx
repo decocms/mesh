@@ -651,11 +651,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     doSave();
   };
 
-  const handleTogglePin = (
-    connectionId: string,
-    toolName: string,
-    connectionIcon: string | null,
-  ) => {
+  const handleTogglePin = (connectionId: string, toolName: string) => {
     const pinned = pinnedViews.some(
       (v) => v.connectionId === connectionId && v.toolName === toolName,
     );
@@ -678,7 +674,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           connectionId,
           toolName,
           label: toolName.replace(/_/g, " "),
-          icon: connectionIcon,
+          icon: null,
         },
       ];
     }
@@ -830,7 +826,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                       <SimpleIconPicker
-                        value={pinnedView?.icon ?? conn.icon}
+                        value={pinnedView?.icon ?? null}
                         onChange={(icon) =>
                           handleIconChange(conn.id, tool.name, icon)
                         }
@@ -854,7 +850,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     <Switch
                       checked={pinned}
                       onCheckedChange={() =>
-                        handleTogglePin(conn.id, tool.name, conn.icon)
+                        handleTogglePin(conn.id, tool.name)
                       }
                       disabled={isSaving}
                     />
