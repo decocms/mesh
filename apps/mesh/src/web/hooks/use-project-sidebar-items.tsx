@@ -4,7 +4,8 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Browser, Dataflow03, Home01 } from "@untitledui/icons";
+import { Dataflow03, Home01 } from "@untitledui/icons";
+import { IntegrationIcon } from "../components/integration-icon";
 import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
@@ -122,11 +123,12 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const pinnedViewItems: NavigationSidebarItem[] = pinnedViews.map((view) => ({
     key: `app-${view.connectionId}-${view.toolName}`,
     label: view.label || view.toolName,
-    icon: view.icon ? (
-      <img src={view.icon} alt="" className="size-4 rounded" />
-    ) : (
-      // Keep in sync with side-panel-tasks.tsx pinned view icon
-      <Browser />
+    icon: (
+      <IntegrationIcon
+        icon={view.icon ?? null}
+        name={view.label || view.toolName}
+        size="2xs"
+      />
     ),
     isActive: isActiveRoute(
       `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,
