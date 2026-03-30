@@ -4,7 +4,6 @@ import {
   PublishRequestReviewInputSchema,
   PublishRequestReviewOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_REQUEST_REVIEW = defineTool({
   name: "REGISTRY_PUBLISH_REQUEST_REVIEW" as const,
@@ -17,7 +16,7 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
 
     // When approving, verify the requested_id/title don't conflict with existing registry items
     if (input.status === "approved") {

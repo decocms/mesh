@@ -237,6 +237,7 @@ import type { AutomationsStorage } from "../storage/automations";
 import type { TriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
+import type { RegistryStorage } from "../storage/registry";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { AIProviderKeyStorage } from "@/storage/ai-provider-keys";
@@ -273,6 +274,7 @@ export interface MeshStorage {
   virtualMcpPluginConfigs: VirtualMcpPluginConfigStoragePort;
   orgSsoConfig: OrgSsoConfigStorage;
   orgSsoSessions: OrgSsoSessionStorage;
+  registry: RegistryStorage;
 }
 
 // ============================================================================

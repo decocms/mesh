@@ -31,6 +31,14 @@ import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
+import {
+  RegistryItemStorage,
+  PublishRequestStorage,
+  PublishApiKeyStorage,
+  MonitorRunStorage,
+  MonitorResultStorage,
+  MonitorConnectionStorage,
+} from "../storage/registry";
 import { TagStorage } from "../storage/tags";
 import type { Database, Permission } from "../storage/types";
 import { UserStorage } from "../storage/user";
@@ -876,6 +884,14 @@ export async function createMeshContextFactory(
     triggerCallbackTokens: new KyselyTriggerCallbackTokenStorage(config.db),
     orgSsoConfig: new OrgSsoConfigStorage(config.db, vault),
     orgSsoSessions: new OrgSsoSessionStorage(config.db),
+    registry: {
+      items: new RegistryItemStorage(config.db as any),
+      publishRequests: new PublishRequestStorage(config.db as any),
+      publishApiKeys: new PublishApiKeyStorage(config.db as any),
+      monitorRuns: new MonitorRunStorage(config.db as any),
+      monitorResults: new MonitorResultStorage(config.db as any),
+      monitorConnections: new MonitorConnectionStorage(config.db as any),
+    },
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

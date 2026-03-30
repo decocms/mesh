@@ -4,7 +4,6 @@ import {
   RegistryMonitorResultListInputSchema,
   RegistryMonitorResultListOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_MONITOR_RESULT_LIST = defineTool({
   name: "REGISTRY_MONITOR_RESULT_LIST" as const,
@@ -14,7 +13,7 @@ export const REGISTRY_MONITOR_RESULT_LIST = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     return storage.monitorResults.listByRun(organization.id, input.runId, {
       status: input.status,
       limit: input.limit,

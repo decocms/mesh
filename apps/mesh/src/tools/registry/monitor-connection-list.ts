@@ -5,7 +5,7 @@ import {
   RegistryMonitorConnectionListInputSchema,
   RegistryMonitorConnectionListOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage } from "./utils";
+
 import { PUBLISH_REQUEST_TARGET_PREFIX } from "./shared";
 
 export const REGISTRY_MONITOR_CONNECTION_LIST = defineTool({
@@ -17,7 +17,7 @@ export const REGISTRY_MONITOR_CONNECTION_LIST = defineTool({
   handler: async (_input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const mappings = await storage.monitorConnections.list(organization.id);
     const items = await Promise.all(
       mappings.map(async (mapping) => {

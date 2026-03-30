@@ -4,7 +4,6 @@ import {
   PublishRequestListInputSchema,
   PublishRequestListOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_REQUEST_LIST = defineTool({
   name: "REGISTRY_PUBLISH_REQUEST_LIST" as const,
@@ -17,7 +16,7 @@ export const REGISTRY_PUBLISH_REQUEST_LIST = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     return storage.publishRequests.list(organization.id, input);
   },
 });

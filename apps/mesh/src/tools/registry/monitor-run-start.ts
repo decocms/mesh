@@ -29,7 +29,6 @@ import {
   RegistryMonitorRunStartOutputSchema,
   type RegistryMonitorConfig,
 } from "./monitor-schemas";
-import { getPluginStorage } from "./utils";
 
 type MCPTool = {
   name: string;
@@ -761,7 +760,7 @@ export async function ensureMonitorConnection(
   ctx: MonitorToolContext,
   item: PrivateRegistryItemEntity,
 ): Promise<string> {
-  const storage = getPluginStorage();
+  const storage = ctx.storage.registry;
   const organizationId = ctx.organization.id;
 
   const existing = await storage.monitorConnections.findByItemId(
@@ -812,11 +811,12 @@ export async function ensureMonitorConnection(
 }
 
 async function applyFailureAction(args: {
+  ctx: MonitorToolContext;
   organizationId: string;
   item: PrivateRegistryItemEntity;
   action: RegistryMonitorConfig["onFailure"];
 }): Promise<string> {
-  const storage = getPluginStorage();
+  const storage = args.ctx.storage.registry;
   switch (args.action) {
     case "unlisted": {
       await storage.items.update(args.organizationId, args.item.id, {
@@ -1014,6 +1014,7 @@ async function testSingleItem(args: {
       args.monitorConfig.onFailure !== "none"
     ) {
       actionTaken = await applyFailureAction({
+        ctx: args.ctx,
         organizationId: args.organizationId,
         item: args.item,
         action: args.monitorConfig.onFailure,
@@ -1023,7 +1024,7 @@ async function testSingleItem(args: {
     errorMessage = error instanceof Error ? error.message : String(error);
     if (isAuthError(error)) {
       status = "needs_auth";
-      await getPluginStorage().monitorConnections.updateAuthStatus(
+      await args.ctx.storage.registry.monitorConnections.updateAuthStatus(
         args.organizationId,
         args.item.id,
         "needs_auth",
@@ -1055,7 +1056,7 @@ async function runMonitorLoop(args: {
   signal: AbortSignal;
 }): Promise<void> {
   const runStartedAt = Date.now();
-  const storage = getPluginStorage();
+  const storage = args.ctx.storage.registry;
 
   const allItems = await storage.items.list(args.organizationId, {
     includeUnlisted: true,
@@ -1276,7 +1277,7 @@ async function startMonitorRun(
   const monitorCtx = resolveContext(ctx);
   await monitorCtx.access.check();
 
-  const storage = getPluginStorage();
+  const storage = monitorCtx.storage.registry;
   const run = await storage.monitorRuns.create({
     organization_id: monitorCtx.organization.id,
     status: "pending",
@@ -1331,7 +1332,7 @@ export const REGISTRY_MONITOR_RUN_START = defineTool({
     await ctx.access.check();
     const monitorConfig = parseMonitorConfig(input.config ?? {});
     const { run } = await startMonitorRun(ctx, monitorConfig);
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const fullRun = await storage.monitorRuns.findById(organization.id, run.id);
     if (!fullRun) {
       throw new Error(`Failed to load monitor run ${run.id}`);

@@ -4,7 +4,6 @@ import {
   RegistryBulkCreateInputSchema,
   RegistryBulkCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_ITEM_BULK_CREATE = defineTool({
   name: "REGISTRY_ITEM_BULK_CREATE" as const,
@@ -15,7 +14,7 @@ export const REGISTRY_ITEM_BULK_CREATE = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const errors: Array<{ id: string; error: string }> = [];
     let created = 0;
 

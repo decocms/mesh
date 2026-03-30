@@ -1,7 +1,6 @@
 import { defineTool } from "@/core/define-tool";
 import { requireOrganization } from "@/core/mesh-context";
 import { RegistryGetInputSchema, RegistryGetOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_ITEM_GET = defineTool({
   name: "REGISTRY_ITEM_GET" as const,
@@ -17,7 +16,7 @@ export const REGISTRY_ITEM_GET = defineTool({
       throw new Error("Either 'id' or 'name' is required");
     }
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     return {
       item: await storage.items.findByIdOrName(organization.id, itemId),
     };

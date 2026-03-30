@@ -6,7 +6,6 @@ import {
   RegistryMonitorRunCancelOutputSchema,
 } from "./monitor-schemas";
 import { cancelMonitorRun } from "./monitor-run-start";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_MONITOR_RUN_CANCEL = defineTool({
   name: "REGISTRY_MONITOR_RUN_CANCEL" as const,
@@ -17,7 +16,7 @@ export const REGISTRY_MONITOR_RUN_CANCEL = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
     cancelMonitorRun(input.runId);
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const run = await storage.monitorRuns.update(organization.id, input.runId, {
       status: "cancelled",
       current_item_id: null,

@@ -780,19 +780,6 @@ export async function createApp(options: CreateAppOptions = {}) {
   const vault = new CredentialVault(getSettings().encryptionKey);
   initializePluginStorage(database.db, vault);
 
-  // Initialize private registry storage (first-class feature, not a plugin)
-  // db is typed as `any` to avoid Kysely version mismatch issues
-  const { createStorage: createRegistryStorage } = await import(
-    "@/storage/registry"
-  );
-  createRegistryStorage({
-    db: database.db as any,
-    vault: {
-      encrypt: (value: string) => vault.encrypt(value),
-      decrypt: (value: string) => vault.decrypt(value),
-    },
-  });
-
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
   // Random jitter (0-2s) prevents all pods from hitting the DB simultaneously

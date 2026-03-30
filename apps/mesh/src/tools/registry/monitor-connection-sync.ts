@@ -5,7 +5,7 @@ import {
   RegistryMonitorConnectionSyncOutputSchema,
 } from "./monitor-schemas";
 import { ensureMonitorConnection } from "./monitor-run-start";
-import { getPluginStorage } from "./utils";
+
 import { PUBLISH_REQUEST_TARGET_PREFIX } from "./shared";
 import type {
   PrivateRegistryItemEntity,
@@ -37,7 +37,7 @@ export const REGISTRY_MONITOR_CONNECTION_SYNC = defineTool({
   handler: async (_input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const storeItems = (
       await storage.items.list(organization.id, { includeUnlisted: true })
     ).items;

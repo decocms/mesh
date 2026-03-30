@@ -4,7 +4,6 @@ import {
   RegistryCreateInputSchema,
   RegistryCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_ITEM_CREATE = defineTool({
   name: "REGISTRY_ITEM_CREATE" as const,
@@ -15,7 +14,7 @@ export const REGISTRY_ITEM_CREATE = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const item = await storage.items.create({
       ...input.data,
       organization_id: organization.id,

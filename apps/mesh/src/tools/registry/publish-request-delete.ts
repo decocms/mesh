@@ -4,7 +4,6 @@ import {
   PublishRequestDeleteInputSchema,
   PublishRequestDeleteOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_REQUEST_DELETE = defineTool({
   name: "REGISTRY_PUBLISH_REQUEST_DELETE" as const,
@@ -17,7 +16,7 @@ export const REGISTRY_PUBLISH_REQUEST_DELETE = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const item = await storage.publishRequests.delete(
       organization.id,
       input.id,

@@ -5,7 +5,6 @@ import {
   RegistryMonitorRunGetInputSchema,
   RegistryMonitorRunGetOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_MONITOR_RUN_GET = defineTool({
   name: "REGISTRY_MONITOR_RUN_GET" as const,
@@ -15,7 +14,7 @@ export const REGISTRY_MONITOR_RUN_GET = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const run = await storage.monitorRuns.findById(
       organization.id,
       input.runId,

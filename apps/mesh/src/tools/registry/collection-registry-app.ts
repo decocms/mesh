@@ -9,7 +9,7 @@ import {
   RegistryListInputSchema,
   RegistryListOutputSchema,
 } from "./schema";
-import { getPluginStorage, getRegistryPluginSettings } from "./utils";
+import { getRegistryPluginSettings } from "./utils";
 import type { RegistryWhereExpression } from "@/storage/registry/types";
 
 function applyPrivateOnlyWhere(
@@ -67,7 +67,7 @@ export const COLLECTION_REGISTRY_APP_LIST = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const settings = await getRegistryPluginSettings(ctx, organization.id);
     return storage.items.list(organization.id, {
       ...input,
@@ -88,7 +88,7 @@ export const COLLECTION_REGISTRY_APP_GET = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const settings = await getRegistryPluginSettings(ctx, organization.id);
     const identifier = input.id ?? input.name;
     if (!identifier) return { item: null };
@@ -113,7 +113,7 @@ export const COLLECTION_REGISTRY_APP_VERSIONS = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const settings = await getRegistryPluginSettings(ctx, organization.id);
     const identifier = input.id ?? input.name;
     if (!identifier) return { versions: [] };
@@ -136,7 +136,7 @@ export const COLLECTION_REGISTRY_APP_FILTERS = defineTool({
   handler: async (_input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const settings = await getRegistryPluginSettings(ctx, organization.id);
     if (!settings.storePrivateOnly) {
       return storage.items.getFilters(organization.id);

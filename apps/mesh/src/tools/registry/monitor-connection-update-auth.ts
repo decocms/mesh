@@ -4,7 +4,6 @@ import {
   RegistryMonitorConnectionUpdateAuthInputSchema,
   RegistryMonitorConnectionUpdateAuthOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH = defineTool({
   name: "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH" as const,
@@ -15,7 +14,7 @@ export const REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH = defineTool({
   handler: async ({ connectionId, authStatus }, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const orgId = organization.id;
     const mapping = await storage.monitorConnections.findByConnectionId(
       orgId,

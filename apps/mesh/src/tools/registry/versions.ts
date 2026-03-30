@@ -2,7 +2,6 @@ import { defineTool } from "@/core/define-tool";
 import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import { RegistryGetInputSchema, RegistryItemSchema } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_ITEM_VERSIONS = defineTool({
   name: "REGISTRY_ITEM_VERSIONS" as const,
@@ -20,7 +19,7 @@ export const REGISTRY_ITEM_VERSIONS = defineTool({
       throw new Error("Either 'id' or 'name' is required");
     }
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const item = await storage.items.findByIdOrName(organization.id, itemId);
     return { versions: item ? [item] : [] };
   },

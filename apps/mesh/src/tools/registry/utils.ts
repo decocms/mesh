@@ -1,21 +1,5 @@
 import type { MeshContext } from "@/core/mesh-context";
 import { PLUGIN_ID } from "./shared";
-import type { PrivateRegistryPluginStorage } from "@/storage/registry";
-
-let pluginStorage: PrivateRegistryPluginStorage | null = null;
-
-export function setPluginStorage(storage: PrivateRegistryPluginStorage): void {
-  pluginStorage = storage;
-}
-
-export function getPluginStorage(): PrivateRegistryPluginStorage {
-  if (!pluginStorage) {
-    throw new Error(
-      `Plugin storage not initialized. Make sure the "${PLUGIN_ID}" plugin is enabled.`,
-    );
-  }
-  return pluginStorage;
-}
 
 export interface PrivateRegistryPluginSettings {
   acceptPublishRequests?: boolean;

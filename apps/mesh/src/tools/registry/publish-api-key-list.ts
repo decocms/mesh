@@ -2,7 +2,6 @@ import { defineTool } from "@/core/define-tool";
 import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import { PublishApiKeyListOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_API_KEY_LIST = defineTool({
   name: "REGISTRY_PUBLISH_API_KEY_LIST" as const,
@@ -14,7 +13,7 @@ export const REGISTRY_PUBLISH_API_KEY_LIST = defineTool({
   handler: async (_input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const items = await storage.publishApiKeys.list(organization.id);
 
     return {

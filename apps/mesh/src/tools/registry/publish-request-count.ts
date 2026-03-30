@@ -2,7 +2,6 @@ import { defineTool } from "@/core/define-tool";
 import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import { PublishRequestCountOutputSchema } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_REQUEST_COUNT = defineTool({
   name: "REGISTRY_PUBLISH_REQUEST_COUNT" as const,
@@ -15,7 +14,7 @@ export const REGISTRY_PUBLISH_REQUEST_COUNT = defineTool({
     const organization = requireOrganization(ctx);
     await ctx.access.check();
 
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const pending = await storage.publishRequests.countPending(organization.id);
     return { pending };
   },

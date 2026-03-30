@@ -4,7 +4,6 @@ import {
   PublishApiKeyRevokeInputSchema,
   PublishApiKeyRevokeOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_API_KEY_REVOKE = defineTool({
   name: "REGISTRY_PUBLISH_API_KEY_REVOKE" as const,
@@ -16,7 +15,7 @@ export const REGISTRY_PUBLISH_API_KEY_REVOKE = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const revoked = await storage.publishApiKeys.revoke(
       organization.id,
       input.keyId,

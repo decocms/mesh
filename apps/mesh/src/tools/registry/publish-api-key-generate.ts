@@ -4,7 +4,6 @@ import {
   PublishApiKeyGenerateInputSchema,
   PublishApiKeyGenerateOutputSchema,
 } from "./schema";
-import { getPluginStorage } from "./utils";
 
 export const REGISTRY_PUBLISH_API_KEY_GENERATE = defineTool({
   name: "REGISTRY_PUBLISH_API_KEY_GENERATE" as const,
@@ -16,7 +15,7 @@ export const REGISTRY_PUBLISH_API_KEY_GENERATE = defineTool({
   handler: async (input, ctx) => {
     const organization = requireOrganization(ctx);
     await ctx.access.check();
-    const storage = getPluginStorage();
+    const storage = ctx.storage.registry;
     const { entity, key } = await storage.publishApiKeys.generate(
       organization.id,
       input.name,
