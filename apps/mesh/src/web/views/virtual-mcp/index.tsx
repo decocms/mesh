@@ -676,7 +676,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         {
           connectionId,
           toolName,
-          label: toolName,
+          label: toolName.replace(/_/g, " "),
           icon: connectionIcon,
         },
       ];
@@ -809,10 +809,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                       <Input
-                        value={(pinned && pinnedView
-                          ? pinnedView.label
-                          : tool.name
-                        ).replace(/_/g, " ")}
+                        value={
+                          pinned && pinnedView
+                            ? pinnedView.label
+                            : tool.name.replace(/_/g, " ")
+                        }
                         onChange={(e) =>
                           handleLabelChange(conn.id, tool.name, e.target.value)
                         }
