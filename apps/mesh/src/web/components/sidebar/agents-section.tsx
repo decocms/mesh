@@ -7,6 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
@@ -14,6 +15,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@deco/ui/components/drawer.tsx";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { CollectionSearch } from "@deco/ui/components/collection-search.tsx";
 import { Plus, Settings01, X } from "@untitledui/icons";
 import {
@@ -57,6 +64,7 @@ function AgentListItem({
   onMarkSeen?: () => void;
 }) {
   const navigate = useNavigate();
+  const { isMobile, setOpenMobile } = useSidebar();
   const navigateToNewTask = useCreateTaskAndNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
@@ -100,6 +108,7 @@ function AgentListItem({
             onClick={() => {
               onMarkSeen?.();
               navigateToNewTask(agent.id);
+              if (isMobile) setOpenMobile(false);
             }}
             onMouseEnter={handleIconMouseEnter}
             onMouseLeave={handleIconMouseLeave}
@@ -365,41 +374,70 @@ function PinAgentPopoverContent({
 function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const { setOpenMobile } = useSidebar();
+
+  const handleClose = () => {
+    setOpen(false);
+    if (isMobile) setOpenMobile(false);
+  };
+
+  const popoverContent = open && (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-8">
+          <Skeleton className="h-4 w-24" />
+        </div>
+      }
+    >
+      <PinAgentPopoverContent
+        onClose={handleClose}
+        onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
+      />
+    </Suspense>
+  );
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <SidebarMenuItem>
-          <PopoverTrigger asChild>
+      {isMobile ? (
+        <>
+          <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Browse agents"
               className="bg-muted/75 hover:bg-sidebar-accent"
+              onClick={() => setOpen(true)}
             >
               <Plus className="!opacity-100" />
             </SidebarMenuButton>
-          </PopoverTrigger>
-        </SidebarMenuItem>
-        <PopoverContent
-          className="w-[380px] p-0 overflow-hidden"
-          side="right"
-          align="start"
-        >
-          {open && (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center py-8">
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              }
-            >
-              <PinAgentPopoverContent
-                onClose={() => setOpen(false)}
-                onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
-              />
-            </Suspense>
-          )}
-        </PopoverContent>
-      </Popover>
+          </SidebarMenuItem>
+          <Drawer open={open} onOpenChange={setOpen} direction="bottom">
+            <DrawerContent className="max-h-[85dvh] p-0">
+              <DrawerTitle className="sr-only">Browse agents</DrawerTitle>
+              {popoverContent}
+            </DrawerContent>
+          </Drawer>
+        </>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <SidebarMenuItem>
+            <PopoverTrigger asChild>
+              <SidebarMenuButton
+                tooltip="Browse agents"
+                className="bg-muted/75 hover:bg-sidebar-accent"
+              >
+                <Plus className="!opacity-100" />
+              </SidebarMenuButton>
+            </PopoverTrigger>
+          </SidebarMenuItem>
+          <PopoverContent
+            className="w-[380px] p-0 overflow-hidden"
+            side="right"
+            align="start"
+          >
+            {popoverContent}
+          </PopoverContent>
+        </Popover>
+      )}
       <SiteEditorOnboardingModal
         open={siteEditorModalOpen}
         onOpenChange={setSiteEditorModalOpen}

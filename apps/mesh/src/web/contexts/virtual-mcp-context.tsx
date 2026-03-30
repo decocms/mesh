@@ -11,9 +11,10 @@ import { createContext, use } from "react";
 // Types
 // ---------------------------------------------------------------------------
 
-export type MainViewType = "settings" | "automation" | "ext-apps";
+export type MainViewType = "chat" | "settings" | "automation" | "ext-apps";
 
 export type MainView =
+  | { type: "chat" }
   | { type: "settings" }
   | { type: "automation"; id: string }
   | {

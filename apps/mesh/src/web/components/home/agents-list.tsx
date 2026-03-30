@@ -73,7 +73,7 @@ function AgentPreview({
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px]",
+        "w-[88px] shrink-0",
         "group",
       )}
       aria-label={`Select agent ${agent.title}`}
@@ -120,7 +120,7 @@ function SeeAllButton({
             "flex flex-col items-center gap-3 p-2 rounded-lg",
             "transition-colors",
             "cursor-pointer",
-            "w-[88px]",
+            "w-[88px] shrink-0",
             "group",
           )}
           aria-label="See all agents"
@@ -181,7 +181,7 @@ function CreateAgentButton() {
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px]",
+        "w-[88px] shrink-0",
         "group",
         "disabled:opacity-50 disabled:cursor-not-allowed",
       )}
@@ -232,7 +232,7 @@ function AgentsListContent() {
   return (
     <>
       <div className="w-full">
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           <AgentPreview
             key={SITE_EDITOR_AGENT.id}
             agent={SITE_EDITOR_AGENT}
@@ -265,11 +265,11 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full">
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-3 p-2 w-[88px]"
+            className="flex flex-col items-center gap-3 p-2 w-[88px] shrink-0"
           >
             <Skeleton className="size-12 rounded-xl shrink-0" />
             <Skeleton className="h-3 sm:h-4 w-full" />

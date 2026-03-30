@@ -34,24 +34,31 @@ function useResolvedMainView(): MainView & {} {
   } | null;
 
   const def = layoutConfig?.defaultMainView;
-  if (!def) return { type: "settings" };
+  if (!def) return { type: "chat" };
 
   switch (def.type) {
+    case "chat":
+      return { type: "chat" };
     case "automation":
-      return def.id ? { type: "automation", id: def.id } : { type: "settings" };
+      return def.id ? { type: "automation", id: def.id } : { type: "chat" };
     case "ext-apps":
       return def.id
         ? { type: "ext-apps", id: def.id, toolName: def.toolName }
-        : { type: "settings" };
+        : { type: "chat" };
     case "settings":
-    default:
       return { type: "settings" };
+    default:
+      return { type: "chat" };
   }
 }
 
 function AgentHomeContent() {
   const { virtualMcpId } = useVirtualMCPContext();
   const resolved = useResolvedMainView();
+
+  if (resolved.type === "chat") {
+    return null;
+  }
 
   if (resolved.type === "automation") {
     return <AutomationInlineDetail automationId={resolved.id} />;
@@ -66,7 +73,7 @@ function AgentHomeContent() {
     );
   }
 
-  // Default: settings
+  // settings
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
   );
@@ -75,6 +82,8 @@ function AgentHomeContent() {
 function mainViewKey(view: MainView): string {
   if (!view) return "default";
   switch (view.type) {
+    case "chat":
+      return "chat";
     case "settings":
       return "settings";
     case "automation":

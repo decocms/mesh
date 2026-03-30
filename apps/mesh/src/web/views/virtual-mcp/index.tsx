@@ -507,7 +507,10 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const [pinnedViews, setPinnedViews] = useState<PinnedView[]>(serverPinned);
   const [defaultMainView, setDefaultMainView] = useState<string>(() => {
-    if (!serverDefaultMain || serverDefaultMain.type === "settings") {
+    if (!serverDefaultMain || serverDefaultMain.type === "chat") {
+      return "chat";
+    }
+    if (serverDefaultMain.type === "settings") {
       return "settings";
     }
     return `${serverDefaultMain.type}:${serverDefaultMain.id ?? ""}:${serverDefaultMain.toolName ?? ""}`;
@@ -517,6 +520,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   // Parse default main view from composite key
   const parseDefaultMainView = (value: string) => {
     const [type, id, toolName] = value.split(":");
+    if (type === "chat") return { type: "chat" as const };
     if (type === "settings") return { type: "settings" as const };
     if (type === "ext-apps" && id)
       return { type: "ext-apps" as const, id, toolName: toolName || undefined };
@@ -570,10 +574,10 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
       nextPinned = pinnedViews.filter(
         (v) => !(v.connectionId === connectionId && v.toolName === toolName),
       );
-      // If the unpinned view was the default, reset to settings
+      // If the unpinned view was the default, reset to chat
       const unpinnedKey = `ext-apps:${connectionId}:${toolName}`;
       if (defaultMainView === unpinnedKey) {
-        nextDefault = "settings";
+        nextDefault = "chat";
         setDefaultMainView(nextDefault);
       }
     } else {
@@ -615,6 +619,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   // Build options for default main view selector
   const defaultMainOptions: { value: string; label: string }[] = [
+    { value: "chat", label: "Chat" },
     { value: "settings", label: "Settings" },
   ];
   for (const pv of pinnedViews) {

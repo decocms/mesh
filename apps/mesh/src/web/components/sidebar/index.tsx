@@ -44,7 +44,7 @@ export function MeshSidebarMobile({ onClose }: { onClose: () => void }) {
     <MobileNavigationSidebar
       sections={sidebarSections}
       onClose={onClose}
-      footer={<SidebarInboxFooterMobile onClose={onClose} />}
+      footer={<SidebarInboxFooterMobile />}
       additionalContent={
         <ErrorBoundary>
           <Suspense fallback={null}>

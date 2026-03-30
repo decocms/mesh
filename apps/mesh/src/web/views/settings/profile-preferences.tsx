@@ -111,7 +111,7 @@ function ProfileSection() {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-6 p-0">
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col sm:flex-row items-start gap-6">
           <Avatar
             url={userImage}
             fallback={user?.name ?? "U"}
@@ -119,7 +119,7 @@ function ProfileSection() {
             size="lg"
             className="shrink-0 mt-0.5"
           />
-          <div className="flex-1 min-w-0 grid grid-cols-2 gap-5">
+          <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
             <div className="flex flex-col gap-1.5">
               <Label
                 htmlFor="display-name"
@@ -139,7 +139,7 @@ function ProfileSection() {
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs text-muted-foreground">Email</span>
-              <span className="text-sm text-foreground/80 pt-2">
+              <span className="text-sm text-foreground/80 pt-2 break-all">
                 {user?.email}
               </span>
             </div>
