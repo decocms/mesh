@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { DotsVertical, Settings01, Trash01 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
@@ -20,18 +20,16 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
 
   return (
-    <Card
-      className="cursor-pointer transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50"
-      onClick={() =>
-        navigate({
-          to: "/$org/$virtualMcpId",
-          params: { org: org.slug, virtualMcpId: project.id },
-        })
-      }
-    >
+    <Card className="relative transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50">
+      {/* Overlay link for keyboard/accessibility — sits below interactive elements */}
+      <Link
+        to="/$org/$virtualMcpId"
+        params={{ org: org.slug, virtualMcpId: project.id }}
+        className="absolute inset-0 z-0"
+        aria-label={project.title}
+      />
       <div className="flex flex-col flex-1">
         <div className="flex flex-col gap-3 p-4.5">
           {/* Header: Icon + Actions */}
@@ -42,10 +40,7 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
               size="sm"
               className="shrink-0 shadow-sm"
             />
-            <div
-              className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="relative z-10 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
