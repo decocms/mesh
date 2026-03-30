@@ -24,7 +24,6 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card, CardContent } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   Select,
@@ -1274,11 +1273,7 @@ Define step-by-step how the agent should handle requests.
             )}
 
             {activeTab === "layout" && (
-              <Card className="hover:bg-card">
-                <CardContent className="p-0">
-                  <LayoutTabContent virtualMcpId={virtualMcp.id} />
-                </CardContent>
-              </Card>
+              <LayoutTabContent virtualMcpId={virtualMcp.id} />
             )}
           </div>
         </Page.Body>
