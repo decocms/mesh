@@ -14,7 +14,7 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import { ScrollArea } from "@deco/ui/components/scroll-area.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { SearchMd } from "@untitledui/icons";
+import { LayoutLeft, SearchMd } from "@untitledui/icons";
 import { useState } from "react";
 import {
   getIconComponent,
@@ -26,18 +26,11 @@ import {
 interface SimpleIconPickerProps {
   value: string | null | undefined;
   onChange: (icon: string) => void;
-  name: string;
   className?: string;
   disabled?: boolean;
 }
 
-function CurrentIcon({
-  value,
-  name,
-}: {
-  value: string | null | undefined;
-  name: string;
-}) {
+function CurrentIcon({ value }: { value: string | null | undefined }) {
   const parsed = parseIconString(value);
   if (parsed.type === "icon") {
     const IconComp = getIconComponent(parsed.name);
@@ -45,18 +38,12 @@ function CurrentIcon({
       return <IconComp size={16} className="text-muted-foreground" />;
     }
   }
-  // Fallback: first letter
-  return (
-    <span className="text-xs font-medium text-muted-foreground">
-      {(name[0] ?? "?").toUpperCase()}
-    </span>
-  );
+  return <LayoutLeft size={16} className="text-muted-foreground" />;
 }
 
 export function SimpleIconPicker({
   value,
   onChange,
-  name,
   className,
   disabled,
 }: SimpleIconPickerProps) {
@@ -91,7 +78,7 @@ export function SimpleIconPicker({
             className,
           )}
         >
-          <CurrentIcon value={value} name={name} />
+          <CurrentIcon value={value} />
         </button>
       </PopoverTrigger>
       <PopoverContent

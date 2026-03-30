@@ -11,7 +11,7 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
-import { Browser, Edit05, Loading01, Settings01 } from "@untitledui/icons";
+import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -95,7 +95,7 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
       return <IconComp size={16} className="shrink-0 text-muted-foreground" />;
     }
   }
-  return <Browser size={16} className="shrink-0 text-muted-foreground" />;
+  return <LayoutLeft size={16} className="shrink-0 text-muted-foreground" />;
 }
 
 // ────────────────────────────────────────

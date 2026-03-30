@@ -4,7 +4,7 @@ import type {
   SidebarSection,
 } from "@/web/components/sidebar/types";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Browser, Dataflow03, Home01 } from "@untitledui/icons";
+import { Dataflow03, Home01, LayoutLeft } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../components/agent-icon";
 import { useTasksPanel } from "@/web/contexts/panel-context";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
@@ -130,7 +130,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
       icon: IconComp ? (
         <IconComp size={16} className="text-muted-foreground" />
       ) : (
-        <Browser size={16} className="text-muted-foreground" />
+        <LayoutLeft size={16} className="text-muted-foreground" />
       ),
       isActive: isActiveRoute(
         `apps/${view.connectionId}/${encodeURIComponent(view.toolName)}`,
