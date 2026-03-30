@@ -67,7 +67,7 @@ import {
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { IconPicker } from "../../components/icon-picker";
+import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
@@ -829,14 +829,12 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     className="flex items-center justify-between gap-3 py-1.5"
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
-                      <IconPicker
+                      <SimpleIconPicker
                         value={pinnedView?.icon ?? conn.icon}
                         onChange={(icon) =>
                           handleIconChange(conn.id, tool.name, icon)
                         }
                         name={pinnedView?.label || tool.name}
-                        size="xs"
-                        showHoverOverlay={false}
                       />
                       <Input
                         value={
