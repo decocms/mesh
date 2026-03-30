@@ -42,6 +42,7 @@ export interface AutomationJobStreamOptions {
 // Module-level state (singleton)
 let js: JetStreamClient | null = null;
 let subscription: ConsumerMessages | null = null;
+let starting = false;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -52,6 +53,7 @@ export async function init(opts: AutomationJobStreamOptions): Promise<void> {
     subscription.stop();
     subscription = null;
   }
+  starting = false;
 
   const nc = opts.getConnection();
   if (!nc) {
@@ -123,10 +125,15 @@ export async function startConsumer(
   handler: (payload: AutomationJobPayload) => Promise<void>,
 ): Promise<void> {
   if (!js) return;
-  if (subscription) return; // Already consuming
+  if (subscription || starting) return; // Already consuming or in progress
+  starting = true;
 
-  const consumer = await js.consumers.get(STREAM_NAME, CONSUMER_NAME);
-  subscription = await consumer.consume({ max_messages: PULL_BATCH_SIZE });
+  try {
+    const consumer = await js.consumers.get(STREAM_NAME, CONSUMER_NAME);
+    subscription = await consumer.consume({ max_messages: PULL_BATCH_SIZE });
+  } finally {
+    starting = false;
+  }
 
   (async () => {
     for await (const msg of subscription!) {
