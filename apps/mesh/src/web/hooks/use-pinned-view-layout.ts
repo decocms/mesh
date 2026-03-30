@@ -39,7 +39,10 @@ export function usePinnedViewLayout(
   } | null;
 
   const defaultViewType = layoutConfig?.defaultMainView?.type ?? null;
-  const showMain = defaultViewType !== null && defaultViewType !== "chat";
+  const showMain =
+    defaultViewType === "automation" ||
+    defaultViewType === "ext-apps" ||
+    defaultViewType === "settings";
 
   return {
     chatHidden: showMain,
