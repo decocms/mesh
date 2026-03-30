@@ -20,7 +20,9 @@
 import type { AutomationsStorage } from "@/storage/automations";
 import type { AutomationTrigger } from "@/storage/types";
 import { Cron } from "croner";
-import type { AutomationJobStream, AutomationJobPayload } from "./job-stream";
+import type { AutomationJobPayload } from "./job-stream";
+
+export type PublishFn = (payload: AutomationJobPayload) => Promise<void>;
 
 export class AutomationCronWorker {
   private running = false;
@@ -29,7 +31,7 @@ export class AutomationCronWorker {
 
   constructor(
     private storage: AutomationsStorage,
-    private jobStream: AutomationJobStream,
+    private publishJob: PublishFn,
     private now: () => Date = () => new Date(),
   ) {}
 
@@ -164,6 +166,6 @@ export class AutomationCronWorker {
     }
 
     // 3. Publish to JetStream for worker execution
-    await this.jobStream.publish(payload);
+    await this.publishJob(payload);
   }
 }

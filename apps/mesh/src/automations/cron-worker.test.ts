@@ -1,8 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { AutomationsStorage } from "@/storage/automations";
 import type { Automation, AutomationTrigger } from "@/storage/types";
-import { AutomationCronWorker } from "./cron-worker";
-import type { AutomationJobStream } from "./job-stream";
+import { AutomationCronWorker, type PublishFn } from "./cron-worker";
 
 // ============================================================================
 // Helpers
@@ -75,35 +74,21 @@ function makeStorage(overrides?: Partial<MockStorage>): MockStorage {
   } as unknown as MockStorage;
 }
 
-interface MockJobStream extends AutomationJobStream {
-  publish: ReturnType<typeof mock>;
-}
-
-function makeJobStream(overrides?: Partial<MockJobStream>): MockJobStream {
-  return {
-    publish: mock(() => Promise.resolve()),
-    init: mock(() => Promise.resolve()),
-    startConsumer: mock(() => Promise.resolve()),
-    stop: mock(() => {}),
-    ...overrides,
-  } as unknown as MockJobStream;
-}
-
 function makeWorker(opts?: {
   storage?: MockStorage;
-  jobStream?: MockJobStream;
+  publishJob?: ReturnType<typeof mock>;
   now?: () => Date;
 }) {
   const storage = opts?.storage ?? makeStorage();
-  const jobStream = opts?.jobStream ?? makeJobStream();
+  const publishJob = opts?.publishJob ?? mock(() => Promise.resolve());
 
   const worker = new AutomationCronWorker(
     storage,
-    jobStream,
+    publishJob as PublishFn,
     opts?.now ?? (() => FIXED_NOW),
   );
 
-  return { worker, storage, jobStream };
+  return { worker, storage, publishJob };
 }
 
 // ============================================================================
@@ -219,11 +204,11 @@ describe("AutomationCronWorker", () => {
         ),
       });
 
-      const { worker, jobStream } = makeWorker({ storage });
+      const { worker, publishJob } = makeWorker({ storage });
       await worker.start();
       await worker.processNow();
 
-      expect(jobStream.publish).toHaveBeenCalledWith({
+      expect(publishJob).toHaveBeenCalledWith({
         triggerId: "trig_1",
         automationId: "auto_1",
         organizationId: ORG_ID,
@@ -245,14 +230,12 @@ describe("AutomationCronWorker", () => {
         }),
       });
 
-      const jobStream = makeJobStream({
-        publish: mock(() => {
-          callOrder.push("publish");
-          return Promise.resolve();
-        }),
+      const publishJob = mock(() => {
+        callOrder.push("publish");
+        return Promise.resolve();
       });
 
-      const { worker } = makeWorker({ storage, jobStream });
+      const { worker } = makeWorker({ storage, publishJob });
       await worker.start();
       await worker.processNow();
 
@@ -304,11 +287,11 @@ describe("AutomationCronWorker", () => {
         ),
       });
 
-      const { worker, jobStream } = makeWorker({ storage });
+      const { worker, publishJob } = makeWorker({ storage });
       await worker.start();
       await worker.processNow();
 
-      expect((jobStream.publish as any).mock.calls.length).toBe(2);
+      expect(publishJob.mock.calls.length).toBe(2);
     });
 
     it("does not crash when one trigger fails", async () => {

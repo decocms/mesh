@@ -80,7 +80,7 @@ import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
 import { getLogsDir, getTracesDir, getMetricsDir } from "../monitoring/schema";
 import {
   AutomationCronWorker,
-  AutomationJobStream,
+  automationJobStream,
   EventTriggerEngine,
   Semaphore,
 } from "../automations";
@@ -838,14 +838,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   let cronTimer: ReturnType<typeof setInterval> | null = null;
 
   if (natsProvider) {
-    const automationJobStream = new AutomationJobStream({
+    automationJobStream.configure({
       getConnection: () => natsProvider!.getConnection(),
       getJetStream: () => natsProvider!.getJetStream(),
     });
 
     const cronWorker = new AutomationCronWorker(
       automationsStorage,
-      automationJobStream,
+      automationJobStream.publish,
     );
 
     const cronPollIntervalMs = 10_000;
