@@ -333,6 +333,8 @@ function AgentPanelGroup({
   tasksPanelRef,
   mainPanelRef,
   chatPanelRef,
+  chatHidden,
+  mainHidden,
   setTasksOpen,
   setMainOpen,
   setChatOpen,
@@ -345,15 +347,12 @@ function AgentPanelGroup({
   tasksPanelRef: React.RefObject<ImperativePanelHandle | null>;
   mainPanelRef: React.RefObject<ImperativePanelHandle | null>;
   chatPanelRef: React.RefObject<ImperativePanelHandle | null>;
+  chatHidden: boolean;
+  mainHidden: boolean;
   setTasksOpen: (open: boolean) => void;
   setMainOpen: (open: boolean) => void;
   setChatOpen: (open: boolean) => void;
 }) {
-  const { chatHidden, mainHidden } = usePinnedViewLayout(
-    agentVirtualMcpId,
-    isAgentRoute,
-  );
-
   return (
     <ResizablePanelGroup
       key={`${agentVirtualMcpId ?? "none"}-${mainHidden}-${chatHidden}`}
@@ -480,13 +479,10 @@ function ShellLayoutInner({
   });
   const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
 
-  // Check if we're on the agent home route with no ?main param
-  const agentHomeMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId/",
-    shouldThrow: false,
-  });
-  const mainDisabled =
-    isAgentRoute && !!agentHomeMatch && !agentHomeMatch.search.main;
+  const { chatHidden, mainHidden } = usePinnedViewLayout(
+    agentVirtualMcpId,
+    isAgentRoute,
+  );
 
   const showThreePanels = isAgentRoute || isOrgHome;
 
@@ -511,9 +507,11 @@ function ShellLayoutInner({
   // The onCollapse/onExpand callbacks on each panel sync the open state back.
 
   const playSwitchSound = useSound(switch005Sound);
-  const expandedCount = [tasksOpen, !mainDisabled && mainOpen, chatOpen].filter(
-    Boolean,
-  ).length;
+  const expandedCount = [
+    tasksOpen,
+    !mainHidden && mainOpen,
+    !chatHidden && chatOpen,
+  ].filter(Boolean).length;
 
   const toggleTasks = () => {
     if (tasksOpen && expandedCount <= 1) return;
@@ -525,7 +523,7 @@ function ShellLayoutInner({
     }
   };
   const toggleMain = () => {
-    if (mainDisabled) return;
+    if (mainHidden) return;
     if (mainOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (mainOpen) {
@@ -535,6 +533,7 @@ function ShellLayoutInner({
     }
   };
   const toggleChat = () => {
+    if (chatHidden) return;
     if (chatOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (chatOpen) {
@@ -634,7 +633,7 @@ function ShellLayoutInner({
                 <div className="flex-1 min-h-0 overflow-hidden">
                   {isOrgHome ? (
                     <ActiveTaskBoundary variant="home" />
-                  ) : mainDisabled ? (
+                  ) : mainHidden ? (
                     <ActiveTaskBoundary />
                   ) : (
                     <Outlet />
@@ -753,10 +752,10 @@ function ShellLayoutInner({
                   type="button"
                   onClick={toggleMain}
                   aria-pressed={mainOpen}
-                  disabled={isOrgHome || mainDisabled}
+                  disabled={isOrgHome || mainHidden}
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome || mainDisabled
+                    isOrgHome || mainHidden
                       ? "text-sidebar-foreground/30 cursor-not-allowed"
                       : mainOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
@@ -770,11 +769,14 @@ function ShellLayoutInner({
                   type="button"
                   onClick={toggleChat}
                   aria-pressed={chatOpen}
+                  disabled={chatHidden}
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md transition-colors",
-                    chatOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    chatHidden
+                      ? "text-sidebar-foreground/30 cursor-not-allowed"
+                      : chatOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
                   title="Toggle chat"
                 >
@@ -809,6 +811,8 @@ function ShellLayoutInner({
                   tasksPanelRef={tasksPanelRef}
                   mainPanelRef={mainPanelRef}
                   chatPanelRef={chatPanelRef}
+                  chatHidden={chatHidden}
+                  mainHidden={mainHidden}
                   setTasksOpen={setTasksOpen}
                   setMainOpen={setMainOpen}
                   setChatOpen={setChatOpen}
