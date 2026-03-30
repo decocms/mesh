@@ -673,7 +673,14 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     } else {
       nextPinned = [
         ...pinnedViews,
-        { connectionId, toolName, label: toolName, icon: connectionIcon },
+        {
+          connectionId,
+          toolName,
+          label: toolName
+            .replace(/[-_]/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          icon: connectionIcon,
+        },
       ];
     }
     setPinnedViews(nextPinned);
