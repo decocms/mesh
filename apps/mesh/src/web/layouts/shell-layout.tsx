@@ -373,6 +373,7 @@ function AgentPanelGroup({
                 <TasksSidePanel
                   virtualMcpId={tasksVirtualMcpId}
                   hideProjectHeader={isOrgHome}
+                  showAutomations={!isOrgHome}
                 />
               </div>
             </div>
@@ -603,6 +604,7 @@ function ShellLayoutInner({
                 <TasksSidePanel
                   virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
                   hideProjectHeader={isOrgHome}
+                  showAutomations={!isOrgHome}
                 />
               </div>
             </div>
