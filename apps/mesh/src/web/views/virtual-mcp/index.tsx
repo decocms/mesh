@@ -67,6 +67,7 @@ import {
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
@@ -650,11 +651,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     doSave();
   };
 
-  const handleTogglePin = (
-    connectionId: string,
-    toolName: string,
-    connectionIcon: string | null,
-  ) => {
+  const handleTogglePin = (connectionId: string, toolName: string) => {
     const pinned = pinnedViews.some(
       (v) => v.connectionId === connectionId && v.toolName === toolName,
     );
@@ -677,7 +674,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           connectionId,
           toolName,
           label: toolName.replace(/_/g, " "),
-          icon: connectionIcon,
+          icon: null,
         },
       ];
     }
@@ -701,6 +698,26 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   const handleLabelBlur = () => {
     saveLayout(pinnedViews, defaultMainView);
+  };
+
+  const handleIconChange = (
+    connectionId: string,
+    toolName: string,
+    icon: string | null,
+  ) => {
+    setPinnedViews((prev) =>
+      prev.map((v) =>
+        v.connectionId === connectionId && v.toolName === toolName
+          ? { ...v, icon }
+          : v,
+      ),
+    );
+    const nextPinned = pinnedViews.map((v) =>
+      v.connectionId === connectionId && v.toolName === toolName
+        ? { ...v, icon }
+        : v,
+    );
+    saveLayout(nextPinned, defaultMainView);
   };
 
   const handleDefaultMainViewChange = (value: string) => {
@@ -781,15 +798,15 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         </p>
       )}
       {connectionsData.map((conn) => (
-        <div key={conn.id}>
-          <div className="flex items-center gap-2 mb-1">
+        <div key={conn.id} className="mt-2">
+          <div className="flex items-center gap-2 mb-2">
             <IntegrationIcon
               icon={conn.icon}
               name={conn.title}
-              size="2xs"
+              size="xs"
               className="shrink-0"
             />
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               {conn.title}
             </span>
           </div>
@@ -808,6 +825,13 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     className="flex items-center justify-between gap-3 py-1.5"
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
+                      <SimpleIconPicker
+                        value={pinnedView?.icon ?? null}
+                        onChange={(icon) =>
+                          handleIconChange(conn.id, tool.name, icon)
+                        }
+                        disabled={!pinned || isSaving}
+                      />
                       <Input
                         value={
                           pinned && pinnedView
@@ -826,7 +850,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     <Switch
                       checked={pinned}
                       onCheckedChange={() =>
-                        handleTogglePin(conn.id, tool.name, conn.icon)
+                        handleTogglePin(conn.id, tool.name)
                       }
                       disabled={isSaving}
                     />
@@ -843,7 +867,13 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           <TooltipTrigger asChild>
             <Button
               onClick={() => {
-                window.location.href = `/shell/${org.slug}/${virtualMcpId}`;
+                const url = new URL(window.location.href);
+                const taskId = url.searchParams.get("taskId");
+                url.search = "";
+                if (taskId) {
+                  url.searchParams.set("taskId", taskId);
+                }
+                window.location.href = url.toString();
               }}
             >
               Test layout
