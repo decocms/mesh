@@ -259,9 +259,11 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
 function TasksPanelContent({
   virtualMcpId: virtualMcpIdProp,
   hideProjectHeader,
+  showAutomations,
 }: {
   virtualMcpId?: string;
   hideProjectHeader?: boolean;
+  showAutomations?: boolean;
 }) {
   const [chatOpen, setChatOpen] = useChatPanel();
   const { createTask, openTask } = useChatTask();
@@ -332,6 +334,7 @@ function TasksPanelContent({
       {/* Task list */}
       <TaskListContent
         virtualMcpId={virtualMcpId}
+        showAutomations={showAutomations}
         onTaskSelect={(taskId) => {
           openTask(taskId);
           setChatOpen(true);
@@ -381,9 +384,11 @@ function TasksPanelSkeleton() {
 export function TasksSidePanel({
   virtualMcpId,
   hideProjectHeader,
+  showAutomations,
 }: {
   virtualMcpId?: string;
   hideProjectHeader?: boolean;
+  showAutomations?: boolean;
 }) {
   return (
     <ErrorBoundary fallback={<Chat.Skeleton />}>
@@ -391,6 +396,7 @@ export function TasksSidePanel({
         <TasksPanelContent
           virtualMcpId={virtualMcpId}
           hideProjectHeader={hideProjectHeader}
+          showAutomations={showAutomations}
         />
       </Suspense>
     </ErrorBoundary>
