@@ -28,6 +28,7 @@ interface SimpleIconPickerProps {
   onChange: (icon: string) => void;
   name: string;
   className?: string;
+  disabled?: boolean;
 }
 
 function CurrentIcon({
@@ -57,6 +58,7 @@ export function SimpleIconPicker({
   onChange,
   name,
   className,
+  disabled,
 }: SimpleIconPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -76,12 +78,16 @@ export function SimpleIconPicker({
     : allNames;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={disabled ? false : open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={disabled}
           className={cn(
-            "size-7 shrink-0 cursor-pointer rounded-md hover:bg-accent transition-colors flex items-center justify-center",
+            "size-7 shrink-0 rounded-md transition-colors flex items-center justify-center",
+            disabled
+              ? "cursor-default opacity-50"
+              : "cursor-pointer hover:bg-accent",
             className,
           )}
         >

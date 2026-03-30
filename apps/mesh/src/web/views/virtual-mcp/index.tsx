@@ -835,6 +835,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                           handleIconChange(conn.id, tool.name, icon)
                         }
                         name={pinnedView?.label || tool.name}
+                        disabled={!pinned || isSaving}
                       />
                       <Input
                         value={
