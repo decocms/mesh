@@ -67,6 +67,7 @@ import {
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { IconPicker } from "../../components/icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
@@ -703,6 +704,26 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     saveLayout(pinnedViews, defaultMainView);
   };
 
+  const handleIconChange = (
+    connectionId: string,
+    toolName: string,
+    icon: string | null,
+  ) => {
+    setPinnedViews((prev) =>
+      prev.map((v) =>
+        v.connectionId === connectionId && v.toolName === toolName
+          ? { ...v, icon }
+          : v,
+      ),
+    );
+    const nextPinned = pinnedViews.map((v) =>
+      v.connectionId === connectionId && v.toolName === toolName
+        ? { ...v, icon }
+        : v,
+    );
+    saveLayout(nextPinned, defaultMainView);
+  };
+
   const handleDefaultMainViewChange = (value: string) => {
     setDefaultMainView(value);
     saveLayout(pinnedViews, value);
@@ -808,6 +829,17 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     className="flex items-center justify-between gap-3 py-1.5"
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
+                      {pinned && pinnedView && (
+                        <IconPicker
+                          value={pinnedView.icon}
+                          onChange={(icon) =>
+                            handleIconChange(conn.id, tool.name, icon)
+                          }
+                          name={pinnedView.label || tool.name}
+                          size="xs"
+                          showHoverOverlay={false}
+                        />
+                      )}
                       <Input
                         value={
                           pinned && pinnedView
@@ -843,7 +875,9 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
           <TooltipTrigger asChild>
             <Button
               onClick={() => {
-                window.location.href = `/shell/${org.slug}/${virtualMcpId}`;
+                const url = new URL(window.location.href);
+                url.search = "";
+                window.location.href = url.toString();
               }}
             >
               Test layout
