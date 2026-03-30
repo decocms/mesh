@@ -132,7 +132,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
             // Keep in sync with use-project-sidebar-items.tsx pinned view icon
             <Browser size={16} className="shrink-0" />
           )}
-          <span className="truncate text-foreground">
+          <span className="truncate text-foreground capitalize">
             {view.label || view.toolName}
           </span>
         </button>
