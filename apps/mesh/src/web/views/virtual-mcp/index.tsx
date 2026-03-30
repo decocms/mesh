@@ -527,6 +527,59 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
     return null;
   };
 
+  // Reconcile orphaned pinned views once tool data is available.
+  // If a pinned view references a connection or tool that no longer exists,
+  // remove it and persist the cleaned list.
+  const reconciledRef = useRef(false);
+  if (connectionsWithTools && !reconciledRef.current) {
+    reconciledRef.current = true;
+    const validKeys = new Set(
+      connectionsData.flatMap((c) => c.uiTools.map((t) => `${c.id}:${t.name}`)),
+    );
+    const validPinned = serverPinned.filter((pv) =>
+      validKeys.has(`${pv.connectionId}:${pv.toolName}`),
+    );
+    if (validPinned.length !== serverPinned.length) {
+      setPinnedViews(validPinned);
+
+      // If the default view was an ext-app that got removed, reset to chat
+      let nextDefault = defaultMainView;
+      if (
+        serverDefaultMain?.type === "ext-apps" &&
+        !validPinned.some(
+          (pv) =>
+            pv.connectionId === serverDefaultMain.id &&
+            pv.toolName === serverDefaultMain.toolName,
+        )
+      ) {
+        nextDefault = "chat";
+        setDefaultMainView(nextDefault);
+      }
+
+      // Auto-save cleaned pins (fire-and-forget)
+      client
+        .callTool({
+          name: "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
+          arguments: {
+            virtualMcpId,
+            pinnedViews: validPinned,
+            layout: {
+              defaultMainView: parseDefaultMainView(nextDefault),
+            },
+          },
+        })
+        .then(() => {
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey.includes("collection") &&
+              query.queryKey.includes("VIRTUAL_MCP"),
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
   // Auto-save helper that persists given state
   const saveLayout = (nextPinned: PinnedView[], nextDefaultMain: string) => {
     setIsSaving(true);
