@@ -8,9 +8,10 @@
  */
 
 import { Page } from "@/web/components/page";
+import { IntegrationIcon } from "../integration-icon";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
-import { Browser, Edit05, Loading01, Settings01 } from "@untitledui/icons";
+import { Edit05, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -126,12 +127,12 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
             isExtAppActive(view) && "bg-accent text-foreground",
           )}
         >
-          {view.icon ? (
-            <img src={view.icon} alt="" className="size-4 rounded shrink-0" />
-          ) : (
-            // Keep in sync with use-project-sidebar-items.tsx pinned view icon
-            <Browser size={16} className="shrink-0" />
-          )}
+          <IntegrationIcon
+            icon={view.icon ?? null}
+            name={view.label || view.toolName}
+            size="2xs"
+            className="shrink-0"
+          />
           <span className="truncate text-foreground capitalize">
             {view.label || view.toolName}
           </span>
