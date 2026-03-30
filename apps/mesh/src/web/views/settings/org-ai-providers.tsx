@@ -429,7 +429,7 @@ function CreditsBalance({ providerId }: { providerId: string }) {
   );
 }
 
-export function ProviderCard({
+function ProviderCard({
   provider,
   keys,
 }: {
