@@ -1,18 +1,21 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import { PublishApiKeyListOutputSchema } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_PUBLISH_API_KEY_LIST: ServerPluginToolDefinition = {
-  name: "REGISTRY_PUBLISH_API_KEY_LIST",
+export const REGISTRY_PUBLISH_API_KEY_LIST = defineTool({
+  name: "REGISTRY_PUBLISH_API_KEY_LIST" as const,
   description:
     "List all publish request API keys for the current organization (metadata only, no key values)",
   inputSchema: z.object({}),
   outputSchema: PublishApiKeyListOutputSchema,
 
-  handler: orgHandler(z.object({}), async (_input, ctx) => {
+  handler: async (_input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    const items = await storage.publishApiKeys.list(ctx.organization.id);
+    const items = await storage.publishApiKeys.list(organization.id);
 
     return {
       items: items.map((item) => ({
@@ -22,5 +25,5 @@ export const REGISTRY_PUBLISH_API_KEY_LIST: ServerPluginToolDefinition = {
         createdAt: item.created_at,
       })),
     };
-  }),
-};
+  },
+});

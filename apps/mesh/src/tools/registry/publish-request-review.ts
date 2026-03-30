@@ -1,46 +1,39 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
-import { z } from "zod";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   PublishRequestReviewInputSchema,
   PublishRequestReviewOutputSchema,
 } from "./schema";
 import { getPluginStorage } from "./utils";
 
-export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
-  name: "REGISTRY_PUBLISH_REQUEST_REVIEW",
+export const REGISTRY_PUBLISH_REQUEST_REVIEW = defineTool({
+  name: "REGISTRY_PUBLISH_REQUEST_REVIEW" as const,
   description:
     "Approve or reject a publish request for the private registry in the current organization",
   inputSchema: PublishRequestReviewInputSchema,
   outputSchema: PublishRequestReviewOutputSchema,
 
   handler: async (input, ctx) => {
-    const typedInput = input as z.infer<typeof PublishRequestReviewInputSchema>;
-    const meshCtx = ctx as {
-      organization: { id: string } | null;
-      access: { check: () => Promise<void> };
-    };
-    if (!meshCtx.organization) {
-      throw new Error("Organization context required");
-    }
-    await meshCtx.access.check();
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
 
     const storage = getPluginStorage();
 
     // When approving, verify the requested_id/title don't conflict with existing registry items
-    if (typedInput.status === "approved") {
+    if (input.status === "approved") {
       const request = await storage.publishRequests.findById(
-        meshCtx.organization.id,
-        typedInput.id,
+        organization.id,
+        input.id,
       );
       if (!request) {
-        throw new Error(`Publish request not found: ${typedInput.id}`);
+        throw new Error(`Publish request not found: ${input.id}`);
       }
 
       const targetId = request.requested_id ?? request.server?.name;
       // Check by id
       if (targetId) {
         const existing = await storage.items.findByIdOrName(
-          meshCtx.organization.id,
+          organization.id,
           targetId,
         );
         if (existing) {
@@ -52,7 +45,7 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
       // Check by title (it may differ from the id)
       if (request.title && request.title !== targetId) {
         const existingByTitle = await storage.items.findByIdOrName(
-          meshCtx.organization.id,
+          organization.id,
           request.title,
         );
         if (existingByTitle) {
@@ -64,11 +57,11 @@ export const REGISTRY_PUBLISH_REQUEST_REVIEW: ServerPluginToolDefinition = {
     }
 
     const item = await storage.publishRequests.updateStatus(
-      meshCtx.organization.id,
-      typedInput.id,
-      typedInput.status,
-      typedInput.reviewerNotes ?? null,
+      organization.id,
+      input.id,
+      input.status,
+      input.reviewerNotes ?? null,
     );
     return { item };
   },
-};
+});

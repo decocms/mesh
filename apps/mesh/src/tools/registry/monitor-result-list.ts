@@ -1,28 +1,24 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   RegistryMonitorResultListInputSchema,
   RegistryMonitorResultListOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_MONITOR_RESULT_LIST: ServerPluginToolDefinition = {
-  name: "REGISTRY_MONITOR_RESULT_LIST",
+export const REGISTRY_MONITOR_RESULT_LIST = defineTool({
+  name: "REGISTRY_MONITOR_RESULT_LIST" as const,
   description: "List results for a given MCP registry monitor run",
   inputSchema: RegistryMonitorResultListInputSchema,
   outputSchema: RegistryMonitorResultListOutputSchema,
-  handler: orgHandler(
-    RegistryMonitorResultListInputSchema,
-    async (typedInput, ctx) => {
-      const storage = getPluginStorage();
-      return storage.monitorResults.listByRun(
-        ctx.organization.id,
-        typedInput.runId,
-        {
-          status: typedInput.status,
-          limit: typedInput.limit,
-          offset: typedInput.offset,
-        },
-      );
-    },
-  ),
-};
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
+    const storage = getPluginStorage();
+    return storage.monitorResults.listByRun(organization.id, input.runId, {
+      status: input.status,
+      limit: input.limit,
+      offset: input.offset,
+    });
+  },
+});

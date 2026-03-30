@@ -1,15 +1,18 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { RegistryListInputSchema, RegistryListOutputSchema } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_LIST: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_LIST",
+export const REGISTRY_ITEM_LIST = defineTool({
+  name: "REGISTRY_ITEM_LIST" as const,
   description: "List private registry items for the current organization",
   inputSchema: RegistryListInputSchema,
   outputSchema: RegistryListOutputSchema,
 
-  handler: orgHandler(RegistryListInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    return storage.items.list(ctx.organization.id, input);
-  }),
-};
+    return storage.items.list(organization.id, input);
+  },
+});

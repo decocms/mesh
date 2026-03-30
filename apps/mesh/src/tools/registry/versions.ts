@@ -1,27 +1,27 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import { RegistryGetInputSchema, RegistryItemSchema } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_VERSIONS: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_VERSIONS",
+export const REGISTRY_ITEM_VERSIONS = defineTool({
+  name: "REGISTRY_ITEM_VERSIONS" as const,
   description: "Get available versions of a registry item",
   inputSchema: RegistryGetInputSchema,
   outputSchema: z.object({
     versions: z.array(RegistryItemSchema),
   }),
 
-  handler: orgHandler(RegistryGetInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const itemId = input.id ?? input.name;
     if (!itemId) {
       throw new Error("Either 'id' or 'name' is required");
     }
 
     const storage = getPluginStorage();
-    const item = await storage.items.findByIdOrName(
-      ctx.organization.id,
-      itemId,
-    );
+    const item = await storage.items.findByIdOrName(organization.id, itemId);
     return { versions: item ? [item] : [] };
-  }),
-};
+  },
+});

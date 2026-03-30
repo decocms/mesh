@@ -1,24 +1,25 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
+import type { z } from "zod";
 import {
   RegistryMonitorRunGetInputSchema,
   RegistryMonitorRunGetOutputSchema,
 } from "./monitor-schemas";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_MONITOR_RUN_GET: ServerPluginToolDefinition = {
-  name: "REGISTRY_MONITOR_RUN_GET",
+export const REGISTRY_MONITOR_RUN_GET = defineTool({
+  name: "REGISTRY_MONITOR_RUN_GET" as const,
   description: "Get details for one MCP registry monitor run",
   inputSchema: RegistryMonitorRunGetInputSchema,
   outputSchema: RegistryMonitorRunGetOutputSchema,
-  handler: orgHandler(
-    RegistryMonitorRunGetInputSchema,
-    async (typedInput, ctx) => {
-      const storage = getPluginStorage();
-      const run = await storage.monitorRuns.findById(
-        ctx.organization.id,
-        typedInput.runId,
-      );
-      return { run };
-    },
-  ),
-};
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
+    const storage = getPluginStorage();
+    const run = await storage.monitorRuns.findById(
+      organization.id,
+      input.runId,
+    );
+    return { run } as z.infer<typeof RegistryMonitorRunGetOutputSchema>;
+  },
+});

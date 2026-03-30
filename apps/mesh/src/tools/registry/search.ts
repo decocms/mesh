@@ -1,12 +1,13 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   RegistrySearchInputSchema,
   RegistrySearchOutputSchema,
 } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_SEARCH: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_SEARCH",
+export const REGISTRY_ITEM_SEARCH = defineTool({
+  name: "REGISTRY_ITEM_SEARCH" as const,
   description:
     "Search registry items returning minimal data (id, title, tags, categories, is_public, is_unlisted). " +
     "Use this instead of LIST when you need to find items efficiently without loading full details. " +
@@ -15,8 +16,10 @@ export const REGISTRY_ITEM_SEARCH: ServerPluginToolDefinition = {
   inputSchema: RegistrySearchInputSchema,
   outputSchema: RegistrySearchOutputSchema,
 
-  handler: orgHandler(RegistrySearchInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    return storage.items.search(ctx.organization.id, input);
-  }),
-};
+    return storage.items.search(organization.id, input);
+  },
+});

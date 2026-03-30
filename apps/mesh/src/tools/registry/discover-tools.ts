@@ -1,9 +1,9 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { z } from "zod";
-import { orgHandler } from "./utils";
 
 function isPrivateUrl(url: string): boolean {
   try {
@@ -159,14 +159,16 @@ async function tryRawToolsList(
   }
 }
 
-export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
-  name: "REGISTRY_DISCOVER_TOOLS",
+export const REGISTRY_DISCOVER_TOOLS = defineTool({
+  name: "REGISTRY_DISCOVER_TOOLS" as const,
   description:
     "Discover tools from a remote MCP server by connecting to it server-side (no CORS issues).",
   inputSchema: DiscoverToolsInputSchema,
   outputSchema: DiscoverToolsOutputSchema,
 
-  handler: orgHandler(DiscoverToolsInputSchema, async (input) => {
+  handler: async (input, ctx) => {
+    requireOrganization(ctx);
+    await ctx.access.check();
     const { url, type } = input;
 
     if (!url) {
@@ -281,5 +283,5 @@ export const REGISTRY_DISCOVER_TOOLS: ServerPluginToolDefinition = {
       `[REGISTRY_DISCOVER_TOOLS] All attempts failed for ${url}: ${lastError}`,
     );
     return { tools: [], error: lastError };
-  }),
-};
+  },
+});

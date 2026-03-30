@@ -1,23 +1,26 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   RegistryCreateInputSchema,
   RegistryCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_CREATE: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_CREATE",
+export const REGISTRY_ITEM_CREATE = defineTool({
+  name: "REGISTRY_ITEM_CREATE" as const,
   description: "Create a private registry item",
   inputSchema: RegistryCreateInputSchema,
   outputSchema: RegistryCreateOutputSchema,
 
-  handler: orgHandler(RegistryCreateInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
     const item = await storage.items.create({
       ...input.data,
-      organization_id: ctx.organization.id,
+      organization_id: organization.id,
       created_by: ctx.auth.user?.id ?? null,
     });
     return { item };
-  }),
-};
+  },
+});

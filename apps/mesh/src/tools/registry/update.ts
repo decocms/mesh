@@ -1,23 +1,26 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   RegistryUpdateInputSchema,
   RegistryUpdateOutputSchema,
 } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_UPDATE: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_UPDATE",
+export const REGISTRY_ITEM_UPDATE = defineTool({
+  name: "REGISTRY_ITEM_UPDATE" as const,
   description: "Update a private registry item",
   inputSchema: RegistryUpdateInputSchema,
   outputSchema: RegistryUpdateOutputSchema,
 
-  handler: orgHandler(RegistryUpdateInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
     const item = await storage.items.update(
-      ctx.organization.id,
+      organization.id,
       input.id,
       input.data,
     );
     return { item };
-  }),
-};
+  },
+});

@@ -1,17 +1,20 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   RegistryBulkCreateInputSchema,
   RegistryBulkCreateOutputSchema,
 } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_BULK_CREATE: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_BULK_CREATE",
+export const REGISTRY_ITEM_BULK_CREATE = defineTool({
+  name: "REGISTRY_ITEM_BULK_CREATE" as const,
   description: "Create many private registry items at once",
   inputSchema: RegistryBulkCreateInputSchema,
   outputSchema: RegistryBulkCreateOutputSchema,
 
-  handler: orgHandler(RegistryBulkCreateInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
     const errors: Array<{ id: string; error: string }> = [];
     let created = 0;
@@ -20,7 +23,7 @@ export const REGISTRY_ITEM_BULK_CREATE: ServerPluginToolDefinition = {
       try {
         await storage.items.create({
           ...item,
-          organization_id: ctx.organization.id,
+          organization_id: organization.id,
           created_by: ctx.auth.user?.id ?? null,
         });
         created += 1;
@@ -33,5 +36,5 @@ export const REGISTRY_ITEM_BULK_CREATE: ServerPluginToolDefinition = {
     }
 
     return { created, errors };
-  }),
-};
+  },
+});

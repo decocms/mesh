@@ -1,10 +1,10 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import {
   RegistryAIGenerateInputSchema,
   RegistryAIGenerateOutputSchema,
 } from "./schema";
-import { orgHandler } from "./utils";
 
 function normalizeList(values: string[]): string[] {
   return Array.from(
@@ -140,14 +140,16 @@ ${contextJson}`,
   };
 }
 
-export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
-  name: "REGISTRY_AI_GENERATE",
+export const REGISTRY_AI_GENERATE = defineTool({
+  name: "REGISTRY_AI_GENERATE" as const,
   description:
     "Generate MCP metadata (description, short description, tags, categories, README) using an LLM.",
   inputSchema: RegistryAIGenerateInputSchema,
   outputSchema: RegistryAIGenerateOutputSchema,
 
-  handler: orgHandler(RegistryAIGenerateInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    requireOrganization(ctx);
+    await ctx.access.check();
     const { system, user, maxOutputTokens } = buildPrompt(input);
     const proxy = await ctx.createMCPProxy(input.llmConnectionId);
 
@@ -168,13 +170,21 @@ export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
       });
 
       if (llmResult.isError) {
+        const content = llmResult.content as
+          | Array<{ type?: string; text?: string }>
+          | undefined;
         const message =
-          llmResult.content?.find((p) => p.type === "text")?.text ??
+          content?.find((p) => p.type === "text")?.text ??
           "Failed to generate content";
         throw new Error(message);
       }
 
-      const rawText = extractTextOutput(llmResult);
+      const rawText = extractTextOutput(
+        llmResult as {
+          structuredContent?: unknown;
+          content?: Array<{ type?: string; text?: string }>;
+        },
+      );
 
       if (input.type === "tags" || input.type === "categories") {
         const items = normalizeList(
@@ -193,5 +203,5 @@ export const REGISTRY_AI_GENERATE: ServerPluginToolDefinition = {
     } finally {
       await proxy.close?.().catch(() => {});
     }
-  }),
-};
+  },
+});

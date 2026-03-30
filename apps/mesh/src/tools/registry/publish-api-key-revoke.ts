@@ -1,21 +1,24 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import {
   PublishApiKeyRevokeInputSchema,
   PublishApiKeyRevokeOutputSchema,
 } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_PUBLISH_API_KEY_REVOKE: ServerPluginToolDefinition = {
-  name: "REGISTRY_PUBLISH_API_KEY_REVOKE",
+export const REGISTRY_PUBLISH_API_KEY_REVOKE = defineTool({
+  name: "REGISTRY_PUBLISH_API_KEY_REVOKE" as const,
   description:
     "Revoke a publish request API key. The key can no longer be used for authentication.",
   inputSchema: PublishApiKeyRevokeInputSchema,
   outputSchema: PublishApiKeyRevokeOutputSchema,
 
-  handler: orgHandler(PublishApiKeyRevokeInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
     const revoked = await storage.publishApiKeys.revoke(
-      ctx.organization.id,
+      organization.id,
       input.keyId,
     );
 
@@ -24,5 +27,5 @@ export const REGISTRY_PUBLISH_API_KEY_REVOKE: ServerPluginToolDefinition = {
     }
 
     return { success: true, keyId: input.keyId };
-  }),
-};
+  },
+});

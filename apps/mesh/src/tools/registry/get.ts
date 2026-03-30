@@ -1,14 +1,17 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { RegistryGetInputSchema, RegistryGetOutputSchema } from "./schema";
-import { getPluginStorage, orgHandler } from "./utils";
+import { getPluginStorage } from "./utils";
 
-export const REGISTRY_ITEM_GET: ServerPluginToolDefinition = {
-  name: "REGISTRY_ITEM_GET",
+export const REGISTRY_ITEM_GET = defineTool({
+  name: "REGISTRY_ITEM_GET" as const,
   description: "Get a private registry item by ID or name",
   inputSchema: RegistryGetInputSchema,
   outputSchema: RegistryGetOutputSchema,
 
-  handler: orgHandler(RegistryGetInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const itemId = input.id ?? input.name;
     if (!itemId) {
       throw new Error("Either 'id' or 'name' is required");
@@ -16,7 +19,7 @@ export const REGISTRY_ITEM_GET: ServerPluginToolDefinition = {
 
     const storage = getPluginStorage();
     return {
-      item: await storage.items.findByIdOrName(ctx.organization.id, itemId),
+      item: await storage.items.findByIdOrName(organization.id, itemId),
     };
-  }),
-};
+  },
+});

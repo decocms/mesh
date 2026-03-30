@@ -1,4 +1,5 @@
-import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization } from "@/core/mesh-context";
 import { z } from "zod";
 import {
   RegistryFiltersOutputSchema,
@@ -8,11 +9,7 @@ import {
   RegistryListInputSchema,
   RegistryListOutputSchema,
 } from "./schema";
-import {
-  getPluginStorage,
-  getRegistryPluginSettings,
-  orgHandler,
-} from "./utils";
+import { getPluginStorage, getRegistryPluginSettings } from "./utils";
 import type { RegistryWhereExpression } from "@/storage/registry/types";
 
 function applyPrivateOnlyWhere(
@@ -61,82 +58,90 @@ function buildFiltersFromItems(
   };
 }
 
-export const COLLECTION_REGISTRY_APP_LIST: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_LIST",
+export const COLLECTION_REGISTRY_APP_LIST = defineTool({
+  name: "COLLECTION_REGISTRY_APP_LIST" as const,
   description:
     "List registry items for Store discovery. Supports private-only mode from plugin settings.",
   inputSchema: RegistryListInputSchema,
   outputSchema: RegistryListOutputSchema,
-  handler: orgHandler(RegistryListInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    const settings = await getRegistryPluginSettings(ctx, ctx.organization.id);
-    return storage.items.list(ctx.organization.id, {
+    const settings = await getRegistryPluginSettings(ctx, organization.id);
+    return storage.items.list(organization.id, {
       ...input,
       where: applyPrivateOnlyWhere(
         input.where,
         settings.storePrivateOnly === true,
       ),
     });
-  }),
-};
+  },
+});
 
-export const COLLECTION_REGISTRY_APP_GET: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_GET",
+export const COLLECTION_REGISTRY_APP_GET = defineTool({
+  name: "COLLECTION_REGISTRY_APP_GET" as const,
   description:
     "Get a registry item for Store details. Respects private-only mode from plugin settings.",
   inputSchema: RegistryGetInputSchema,
   outputSchema: RegistryGetOutputSchema,
-  handler: orgHandler(RegistryGetInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    const settings = await getRegistryPluginSettings(ctx, ctx.organization.id);
+    const settings = await getRegistryPluginSettings(ctx, organization.id);
     const identifier = input.id ?? input.name;
     if (!identifier) return { item: null };
     const item = await storage.items.findByIdOrName(
-      ctx.organization.id,
+      organization.id,
       identifier,
     );
     if (!item) return { item: null };
     if (settings.storePrivateOnly && item.is_public) return { item: null };
     return { item };
-  }),
-};
+  },
+});
 
-export const COLLECTION_REGISTRY_APP_VERSIONS: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_VERSIONS",
+export const COLLECTION_REGISTRY_APP_VERSIONS = defineTool({
+  name: "COLLECTION_REGISTRY_APP_VERSIONS" as const,
   description:
     "Get registry item versions for Store details. Respects private-only mode from plugin settings.",
   inputSchema: RegistryGetInputSchema,
   outputSchema: z.object({
     versions: z.array(RegistryItemSchema),
   }),
-  handler: orgHandler(RegistryGetInputSchema, async (input, ctx) => {
+  handler: async (input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    const settings = await getRegistryPluginSettings(ctx, ctx.organization.id);
+    const settings = await getRegistryPluginSettings(ctx, organization.id);
     const identifier = input.id ?? input.name;
     if (!identifier) return { versions: [] };
     const item = await storage.items.findByIdOrName(
-      ctx.organization.id,
+      organization.id,
       identifier,
     );
     if (!item) return { versions: [] };
     if (settings.storePrivateOnly && item.is_public) return { versions: [] };
     return { versions: [item] };
-  }),
-};
+  },
+});
 
-export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
-  name: "COLLECTION_REGISTRY_APP_FILTERS",
+export const COLLECTION_REGISTRY_APP_FILTERS = defineTool({
+  name: "COLLECTION_REGISTRY_APP_FILTERS" as const,
   description:
     "List Store filter facets for registry items. Respects private-only mode from plugin settings.",
   inputSchema: z.object({}),
   outputSchema: RegistryFiltersOutputSchema,
-  handler: orgHandler(z.object({}), async (_input, ctx) => {
+  handler: async (_input, ctx) => {
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
     const storage = getPluginStorage();
-    const settings = await getRegistryPluginSettings(ctx, ctx.organization.id);
+    const settings = await getRegistryPluginSettings(ctx, organization.id);
     if (!settings.storePrivateOnly) {
-      return storage.items.getFilters(ctx.organization.id);
+      return storage.items.getFilters(organization.id);
     }
-    const items = await storage.items.list(ctx.organization.id, {
+    const items = await storage.items.list(organization.id, {
       limit: 10000,
       where: {
         field: ["is_public"],
@@ -145,5 +150,5 @@ export const COLLECTION_REGISTRY_APP_FILTERS: ServerPluginToolDefinition = {
       },
     });
     return buildFiltersFromItems(items.items);
-  }),
-};
+  },
+});

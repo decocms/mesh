@@ -1,7 +1,5 @@
-import type {
-  ServerPluginToolContext,
-  ServerPluginToolDefinition,
-} from "@decocms/bindings/server-plugin";
+import { defineTool } from "@/core/define-tool";
+import { requireOrganization, type MeshContext } from "@/core/mesh-context";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import {
   generateText,
@@ -61,7 +59,7 @@ type MCPClientLike = {
   close?: () => Promise<void>;
 };
 
-type MonitorToolContext = ServerPluginToolContext & {
+type MonitorToolContext = MeshContext & {
   organization: { id: string };
   storage: {
     connections: {
@@ -97,10 +95,8 @@ function logError(...msgParts: unknown[]): void {
   console.error(LOG_PREFIX, ...msgParts);
 }
 
-function resolveContext(ctx: ServerPluginToolContext): MonitorToolContext {
-  if (!ctx.organization) {
-    throw new Error("Organization context required");
-  }
+function resolveContext(ctx: MeshContext): MonitorToolContext {
+  requireOrganization(ctx);
   return ctx as unknown as MonitorToolContext;
 }
 
@@ -899,7 +895,7 @@ async function testSingleItem(args: {
 
   try {
     const connectionId = await ensureMonitorConnection(args.ctx, args.item);
-    proxy = await args.ctx.createMCPProxy(connectionId);
+    proxy = (await args.ctx.createMCPProxy(connectionId)) as MCPClientLike;
     connectionOk = true;
 
     const list = await withTimeout(
@@ -1274,7 +1270,7 @@ function publishRequestToMonitorTarget(
 }
 
 async function startMonitorRun(
-  ctx: ServerPluginToolContext,
+  ctx: MeshContext,
   config: RegistryMonitorConfig,
 ): Promise<{ run: { id: string } }> {
   const monitorCtx = resolveContext(ctx);
@@ -1324,26 +1320,24 @@ async function startMonitorRun(
   return { run: { id: run.id } };
 }
 
-export const REGISTRY_MONITOR_RUN_START: ServerPluginToolDefinition = {
-  name: "REGISTRY_MONITOR_RUN_START",
+export const REGISTRY_MONITOR_RUN_START = defineTool({
+  name: "REGISTRY_MONITOR_RUN_START" as const,
   description:
     "Start an MCP registry monitor run with an isolated set of monitor connections.",
   inputSchema: RegistryMonitorRunStartInputSchema,
   outputSchema: RegistryMonitorRunStartOutputSchema,
   handler: async (input, ctx) => {
-    const typedInput = input as z.infer<
-      typeof RegistryMonitorRunStartInputSchema
-    >;
-    const monitorConfig = parseMonitorConfig(typedInput.config ?? {});
+    const organization = requireOrganization(ctx);
+    await ctx.access.check();
+    const monitorConfig = parseMonitorConfig(input.config ?? {});
     const { run } = await startMonitorRun(ctx, monitorConfig);
     const storage = getPluginStorage();
-    const fullRun = await storage.monitorRuns.findById(
-      resolveContext(ctx).organization.id,
-      run.id,
-    );
+    const fullRun = await storage.monitorRuns.findById(organization.id, run.id);
     if (!fullRun) {
       throw new Error(`Failed to load monitor run ${run.id}`);
     }
-    return { run: fullRun };
+    return { run: fullRun } as z.infer<
+      typeof RegistryMonitorRunStartOutputSchema
+    >;
   },
-};
+});
