@@ -48,6 +48,9 @@ export class AutomationJobStream {
   constructor(private readonly options: AutomationJobStreamOptions) {}
 
   async init(): Promise<void> {
+    // Stop any running consumer loop so startConsumer() can start fresh after reconnect
+    this.running = false;
+
     const nc = this.options.getConnection();
     if (!nc) {
       console.warn("[AutomationJobStream] init: getConnection() returned null");
@@ -164,7 +167,16 @@ export class AutomationJobStream {
           }
         } catch (err) {
           if (this.running) {
-            console.error("[AutomationJobStream] Consumer fetch error:", err);
+            const isNoResponders =
+              err instanceof Error && "code" in err && err.code === "503";
+            if (isNoResponders) {
+              // Expected during NATS reconnection — will resolve when init() restarts the consumer
+              console.warn(
+                "[AutomationJobStream] No responders (NATS reconnecting), backing off",
+              );
+            } else {
+              console.error("[AutomationJobStream] Consumer fetch error:", err);
+            }
             await new Promise((r) => setTimeout(r, 1000));
           }
         }
