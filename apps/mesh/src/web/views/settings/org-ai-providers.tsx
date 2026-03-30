@@ -774,9 +774,6 @@ export function ProviderCardGrid() {
 function OrgAiProvidersContent() {
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
-        Set up AI model providers. Keys are stored encrypted in the vault.
-      </p>
       <ProviderCardGrid />
     </div>
   );
