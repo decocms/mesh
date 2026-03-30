@@ -8,6 +8,7 @@
  */
 
 import { Page } from "@/web/components/page";
+import { getIconComponent, parseIconString } from "../agent-icon";
 import { IntegrationIcon } from "../integration-icon";
 
 import { useChatPanel } from "@/web/contexts/panel-context";
@@ -84,6 +85,34 @@ function NewTaskButton({
 }
 
 // ────────────────────────────────────────
+// Pinned view icon — renders icon:// as plain stroke, falls back to IntegrationIcon
+// ────────────────────────────────────────
+
+function PinnedViewIcon({
+  icon,
+  name,
+}: {
+  icon: string | null | undefined;
+  name: string;
+}) {
+  const parsed = parseIconString(icon);
+  if (parsed.type === "icon") {
+    const IconComp = getIconComponent(parsed.name);
+    if (IconComp) {
+      return <IconComp size={16} className="shrink-0 text-muted-foreground" />;
+    }
+  }
+  return (
+    <IntegrationIcon
+      icon={icon ?? null}
+      name={name}
+      size="2xs"
+      className="shrink-0"
+    />
+  );
+}
+
+// ────────────────────────────────────────
 // Views section — pinned UIs for the project
 // ────────────────────────────────────────
 
@@ -127,12 +156,7 @@ function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
             isExtAppActive(view) && "bg-accent text-foreground",
           )}
         >
-          <IntegrationIcon
-            icon={view.icon ?? null}
-            name={view.label || view.toolName}
-            size="2xs"
-            className="shrink-0"
-          />
+          <PinnedViewIcon icon={view.icon} name={view.label || view.toolName} />
           <span className="truncate text-foreground capitalize">
             {view.label || view.toolName}
           </span>
