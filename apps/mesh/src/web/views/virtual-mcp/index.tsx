@@ -829,17 +829,15 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                     className="flex items-center justify-between gap-3 py-1.5"
                   >
                     <div className="min-w-0 flex-1 flex items-center gap-2">
-                      {pinned && pinnedView && (
-                        <IconPicker
-                          value={pinnedView.icon}
-                          onChange={(icon) =>
-                            handleIconChange(conn.id, tool.name, icon)
-                          }
-                          name={pinnedView.label || tool.name}
-                          size="xs"
-                          showHoverOverlay={false}
-                        />
-                      )}
+                      <IconPicker
+                        value={pinnedView?.icon ?? conn.icon}
+                        onChange={(icon) =>
+                          handleIconChange(conn.id, tool.name, icon)
+                        }
+                        name={pinnedView?.label || tool.name}
+                        size="xs"
+                        showHoverOverlay={false}
+                      />
                       <Input
                         value={
                           pinned && pinnedView
@@ -876,7 +874,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             <Button
               onClick={() => {
                 const url = new URL(window.location.href);
+                const taskId = url.searchParams.get("taskId");
                 url.search = "";
+                if (taskId) {
+                  url.searchParams.set("taskId", taskId);
+                }
                 window.location.href = url.toString();
               }}
             >
