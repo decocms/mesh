@@ -533,7 +533,6 @@ function ShellLayoutInner({
     }
   };
   const toggleChat = () => {
-    if (chatHidden) return;
     if (chatOpen && expandedCount <= 1) return;
     playSwitchSound();
     if (chatOpen) {
@@ -769,14 +768,11 @@ function ShellLayoutInner({
                   type="button"
                   onClick={toggleChat}
                   aria-pressed={chatOpen}
-                  disabled={chatHidden}
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md transition-colors",
-                    chatHidden
-                      ? "text-sidebar-foreground/30 cursor-not-allowed"
-                      : chatOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    chatOpen
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
                   title="Toggle chat"
                 >
