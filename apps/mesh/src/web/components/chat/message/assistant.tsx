@@ -448,8 +448,12 @@ export function MessageAssistant({
             }
 
             const part = message.parts[item.index]!;
-            const isLastRenderItem = renderIndex === renderOrder.length - 1;
-            const usage = isLastRenderItem
+            // Find the last visible "part" item (skipping reasoning groups
+            // which may be filtered out) to attach usage stats correctly.
+            const isLastVisiblePart =
+              renderOrder.findLastIndex((r) => r.kind === "part") ===
+              renderIndex;
+            const usage = isLastVisiblePart
               ? addUsage(emptyUsageStats(), message.metadata?.usage)
               : null;
 
@@ -459,7 +463,7 @@ export function MessageAssistant({
                 part={part}
                 id={message.id}
                 usageStats={
-                  isLastRenderItem && (
+                  isLastVisiblePart && (
                     <MessageStatsBar usage={usage} duration={totalDuration} />
                   )
                 }
