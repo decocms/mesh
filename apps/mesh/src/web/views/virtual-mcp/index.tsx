@@ -531,7 +531,11 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   // If a pinned view references a connection or tool that no longer exists,
   // remove it and persist the cleaned list.
   const reconciledRef = useRef(false);
-  if (connectionsWithTools && !reconciledRef.current) {
+  if (
+    connectionsWithTools &&
+    connectionsWithTools.length > 0 &&
+    !reconciledRef.current
+  ) {
     reconciledRef.current = true;
     const validKeys = new Set(
       connectionsData.flatMap((c) => c.uiTools.map((t) => `${c.id}:${t.name}`)),
