@@ -722,6 +722,25 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   return (
     <div className="px-6 py-4 space-y-4">
       <div className="flex items-center justify-between">
+        <span className="text-sm text-foreground">Default view</span>
+        <Select
+          value={defaultMainView}
+          onValueChange={handleDefaultMainViewChange}
+        >
+          <SelectTrigger className="w-48 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {defaultMainOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between">
         <span className="text-sm text-foreground">Show chat by default</span>
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
@@ -742,25 +761,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
             </TooltipContent>
           )}
         </Tooltip>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-foreground">Default view</span>
-        <Select
-          value={defaultMainView}
-          onValueChange={handleDefaultMainViewChange}
-        >
-          <SelectTrigger className="w-48 h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {defaultMainOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Pinned views */}
