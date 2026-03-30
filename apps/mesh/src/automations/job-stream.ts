@@ -42,14 +42,16 @@ export interface AutomationJobStreamOptions {
 export class AutomationJobStream {
   private js: JetStreamClient | null = null;
   private running = false;
+  private consumerGeneration = 0;
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder();
 
   constructor(private readonly options: AutomationJobStreamOptions) {}
 
   async init(): Promise<void> {
-    // Stop any running consumer loop so startConsumer() can start fresh after reconnect
+    // Invalidate any running consumer loop so it exits after its current iteration
     this.running = false;
+    this.consumerGeneration++;
 
     const nc = this.options.getConnection();
     if (!nc) {
@@ -140,10 +142,11 @@ export class AutomationJobStream {
     if (this.running) return; // Already running — prevent duplicate loops
     this.running = true;
 
+    const generation = this.consumerGeneration;
     const consumer = await this.js.consumers.get(STREAM_NAME, CONSUMER_NAME);
 
     (async () => {
-      while (this.running) {
+      while (this.running && this.consumerGeneration === generation) {
         try {
           const messages = await consumer.fetch({
             max_messages: PULL_BATCH_SIZE,
@@ -166,7 +169,7 @@ export class AutomationJobStream {
             }
           }
         } catch (err) {
-          if (this.running) {
+          if (this.running && this.consumerGeneration === generation) {
             const isNoResponders =
               err instanceof Error && "code" in err && err.code === "503";
             if (isNoResponders) {
