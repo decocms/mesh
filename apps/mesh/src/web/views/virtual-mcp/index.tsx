@@ -643,161 +643,141 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 
   return (
     <div className="px-6 py-4 space-y-6">
-      {/* Default main view */}
+      {/* Chat panel section */}
       <div>
-        <h3 className="text-sm font-medium text-foreground mb-2">
-          Default view
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          Chat panel
         </h3>
-        <p className="text-xs text-muted-foreground mb-3">
-          The view shown in the central panel when opening this space.
-        </p>
-        <Select
-          value={defaultMainView}
-          onValueChange={handleDefaultMainViewChange}
-        >
-          <SelectTrigger className="w-56 h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {defaultMainOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Chat panel default visibility — forced on when default view is chat */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">
-            Show chat by default
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Display the chat panel alongside the default view when opening this
-            space.
-          </p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-foreground">Show by default</span>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <span>
+                <Switch
+                  checked={defaultMainView === "chat" ? true : chatDefaultOpen}
+                  disabled={defaultMainView === "chat"}
+                  onCheckedChange={(checked) => {
+                    setChatDefaultOpen(checked);
+                    saveLayout(pinnedViews, defaultMainView, checked);
+                  }}
+                />
+              </span>
+            </TooltipTrigger>
+            {defaultMainView === "chat" && (
+              <TooltipContent side="top">
+                Chat is always shown when it is the default view
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span>
-              <Switch
-                checked={defaultMainView === "chat" ? true : chatDefaultOpen}
-                disabled={defaultMainView === "chat"}
-                onCheckedChange={(checked) => {
-                  setChatDefaultOpen(checked);
-                  saveLayout(pinnedViews, defaultMainView, checked);
-                }}
-              />
-            </span>
-          </TooltipTrigger>
-          {defaultMainView === "chat" && (
-            <TooltipContent side="top">
-              Chat is always shown when it is the default view
-            </TooltipContent>
-          )}
-        </Tooltip>
       </div>
 
-      {/* Pinned views */}
-      {noConnections && (
-        <p className="text-sm text-muted-foreground">
-          No connections yet. Add connections in the Connections tab to
-          configure pinned views.
-        </p>
-      )}
-      {noInteractiveTools && !noConnections && (
-        <p className="text-sm text-muted-foreground">
-          None of the connected servers have interactive tools available.
-        </p>
-      )}
-      {connectionsData.map((conn) => (
-        <div key={conn.id}>
-          <div className="flex items-center gap-2 mb-3">
-            <IntegrationIcon
-              icon={conn.icon}
-              name={conn.title}
-              size="2xs"
-              className="shrink-0"
-            />
-            <h3 className="text-sm font-medium text-foreground">
-              {conn.title}
-            </h3>
+      {/* Main panel section */}
+      <div className="space-y-4">
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Main panel
+        </h3>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-foreground">Default view</span>
+          <Select
+            value={defaultMainView}
+            onValueChange={handleDefaultMainViewChange}
+          >
+            <SelectTrigger className="w-48 h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {defaultMainOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Pinned views */}
+        {noConnections && (
+          <p className="text-sm text-muted-foreground">
+            No connections yet. Add connections in the Connections tab to
+            configure pinned views.
+          </p>
+        )}
+        {noInteractiveTools && !noConnections && (
+          <p className="text-sm text-muted-foreground">
+            None of the connected servers have interactive tools available.
+          </p>
+        )}
+        {connectionsData.length > 0 && (
+          <div>
+            <span className="text-sm text-foreground">Pinned views</span>
           </div>
-          {conn.uiTools.length > 0 && (
-            <div className="flex flex-col">
-              {conn.uiTools.map((tool) => {
-                const pinned = pinnedViews.some(
-                  (v) => v.connectionId === conn.id && v.toolName === tool.name,
-                );
-                const pinnedView = pinnedViews.find(
-                  (v) => v.connectionId === conn.id && v.toolName === tool.name,
-                );
-                return (
-                  <div
-                    key={tool.name}
-                    className="flex flex-col border-b border-border last:border-0"
-                  >
+        )}
+        {connectionsData.map((conn) => (
+          <div key={conn.id}>
+            <div className="flex items-center gap-2 mb-2">
+              <IntegrationIcon
+                icon={conn.icon}
+                name={conn.title}
+                size="2xs"
+                className="shrink-0"
+              />
+              <span className="text-xs font-medium text-muted-foreground">
+                {conn.title}
+              </span>
+            </div>
+            {conn.uiTools.length > 0 && (
+              <div className="flex flex-col">
+                {conn.uiTools.map((tool) => {
+                  const pinned = pinnedViews.some(
+                    (v) =>
+                      v.connectionId === conn.id && v.toolName === tool.name,
+                  );
+                  const pinnedView = pinnedViews.find(
+                    (v) =>
+                      v.connectionId === conn.id && v.toolName === tool.name,
+                  );
+                  return (
                     <div
-                      className="flex items-center justify-between gap-6 py-3 cursor-pointer"
-                      onClick={() =>
-                        handleTogglePin(conn.id, tool.name, conn.icon)
-                      }
+                      key={tool.name}
+                      className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {tool.name}
-                        </p>
-                        {tool.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {tool.description}
-                          </p>
+                      <div className="min-w-0 flex-1 flex items-center gap-2">
+                        {pinned && pinnedView ? (
+                          <Input
+                            value={pinnedView.label}
+                            onChange={(e) =>
+                              handleLabelChange(
+                                conn.id,
+                                tool.name,
+                                e.target.value,
+                              )
+                            }
+                            onBlur={handleLabelBlur}
+                            className="h-7 text-sm w-40"
+                            disabled={isSaving}
+                          />
+                        ) : (
+                          <span className="text-sm text-foreground">
+                            {tool.name}
+                          </span>
                         )}
                       </div>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="shrink-0"
-                      >
-                        <Switch
-                          checked={pinned}
-                          onCheckedChange={() =>
-                            handleTogglePin(conn.id, tool.name, conn.icon)
-                          }
-                          disabled={isSaving}
-                        />
-                      </div>
+                      <Switch
+                        checked={pinned}
+                        onCheckedChange={() =>
+                          handleTogglePin(conn.id, tool.name, conn.icon)
+                        }
+                        disabled={isSaving}
+                      />
                     </div>
-                    {pinned && pinnedView && (
-                      <div
-                        className="pb-3 pl-0 flex items-center gap-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <label className="text-xs text-muted-foreground w-12 shrink-0">
-                          Label
-                        </label>
-                        <Input
-                          value={pinnedView.label}
-                          onChange={(e) =>
-                            handleLabelChange(
-                              conn.id,
-                              tool.name,
-                              e.target.value,
-                            )
-                          }
-                          onBlur={handleLabelBlur}
-                          className="h-8 text-sm w-56"
-                          disabled={isSaving}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ))}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="flex justify-end">
         <Tooltip delayDuration={0}>
