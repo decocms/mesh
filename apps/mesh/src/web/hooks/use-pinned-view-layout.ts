@@ -2,10 +2,14 @@ import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { useMatch } from "@tanstack/react-router";
 
 /**
- * Derives layout panel visibility from the entity's pinned default view and URL params.
+ * Determines which panel to show on the agent home route.
  *
- * - `chatHidden`: true when the entity's pinned view is active (hide chat, show main)
- * - `mainHidden`: true when there's no view to show (hide main, show chat)
+ * Main and chat are mutually exclusive on this route:
+ * - Show main when `?main` param is set OR a non-chat default view is pinned
+ * - Show chat otherwise (no default view, or default view is "chat")
+ *
+ * Returns `{ showMain }` — when true, main is initially expanded and chat collapsed,
+ * and vice versa. Outside the agent home route, both panels show normally.
  */
 export function usePinnedViewLayout(
   virtualMcpId: string | undefined,
@@ -19,19 +23,26 @@ export function usePinnedViewLayout(
   });
 
   const isOnAgentHome = isAgentRoute && !!agentHomeMatch;
-  const hasMainParam = !!agentHomeMatch?.search.main;
+  if (!isOnAgentHome) {
+    return { chatHidden: false, mainHidden: false };
+  }
 
-  const hasDefaultMainView =
-    !!(entity?.metadata?.ui as Record<string, unknown> | null | undefined)
-      ?.layout &&
-    !!(
-      (entity?.metadata?.ui as Record<string, unknown>)?.layout as {
-        defaultMainView?: unknown;
-      }
-    )?.defaultMainView;
+  const hasMainParam = !!agentHomeMatch?.search.main;
+  if (hasMainParam) {
+    return { chatHidden: false, mainHidden: false };
+  }
+
+  const layoutConfig = (
+    entity?.metadata?.ui as Record<string, unknown> | null | undefined
+  )?.layout as {
+    defaultMainView?: { type: string };
+  } | null;
+
+  const defaultViewType = layoutConfig?.defaultMainView?.type ?? null;
+  const showMain = defaultViewType !== null && defaultViewType !== "chat";
 
   return {
-    chatHidden: isOnAgentHome && hasDefaultMainView && !hasMainParam,
-    mainHidden: isOnAgentHome && !hasDefaultMainView && !hasMainParam,
+    chatHidden: showMain,
+    mainHidden: !showMain,
   };
 }
