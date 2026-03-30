@@ -382,11 +382,12 @@ function AgentPanelGroup({
         </>
       )}
 
-      {!isOrgHome && !mainHidden && (
+      {!isOrgHome && (
         <ResizablePanel
           ref={mainPanelRef}
           className="min-w-0 flex flex-col"
           order={2}
+          defaultSize={mainHidden ? 0 : undefined}
           style={{ overflow: "visible" }}
           collapsible={isAgentRoute}
           collapsedSize={0}
@@ -422,21 +423,21 @@ function AgentPanelGroup({
         </ResizablePanel>
       )}
 
-      {showThreePanels && !chatHidden && (
+      {showThreePanels && (
         <>
-          {!isOrgHome && !mainHidden && (
-            <ResizableHandle className="bg-sidebar" />
-          )}
+          {!isOrgHome && <ResizableHandle className="bg-sidebar" />}
           <PersistentResizablePanel
             key={
               isOrgHome
                 ? "chat-home"
                 : mainHidden
                   ? "chat-no-main"
-                  : "chat-default"
+                  : chatHidden
+                    ? "chat-hidden"
+                    : "chat-default"
             }
             panelRef={chatPanelRef}
-            defaultCollapsed={false}
+            defaultCollapsed={chatHidden}
             defaultFullWidth={isOrgHome}
             defaultSizeOverride={mainHidden ? 78 : undefined}
             onCollapse={() => setChatOpen(false)}
