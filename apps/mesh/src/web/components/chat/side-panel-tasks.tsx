@@ -95,6 +95,9 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
       return <IconComp size={16} className="shrink-0 text-muted-foreground" />;
     }
   }
+  if (parsed.type === "url") {
+    return <img src={parsed.url} alt="" className="size-4 rounded shrink-0" />;
+  }
   return <LayoutLeft size={16} className="shrink-0 text-muted-foreground" />;
 }
 

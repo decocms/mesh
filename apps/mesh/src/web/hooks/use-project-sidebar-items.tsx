@@ -129,6 +129,8 @@ export function useProjectSidebarItems(): SidebarSection[] {
       label: view.label || view.toolName,
       icon: IconComp ? (
         <IconComp size={16} className="text-muted-foreground" />
+      ) : parsed.type === "url" ? (
+        <img src={parsed.url} alt="" className="size-4 rounded" />
       ) : (
         <LayoutLeft size={16} className="text-muted-foreground" />
       ),
