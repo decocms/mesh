@@ -31,7 +31,7 @@ import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
-import { tools as registryPluginTools } from "./registry/index";
+import { tools as registryToolDefs } from "./registry/index";
 import { ToolName } from "./registry-metadata";
 // Core tools - always available
 const CORE_TOOLS = [
@@ -146,8 +146,9 @@ interface CombinedTool {
   execute: (input: unknown, ctx: MeshContext) => Promise<unknown>;
 }
 
-// Registry tools - promoted from plugin to first-class, adapted to CombinedTool format
-const REGISTRY_TOOLS: CombinedTool[] = registryPluginTools.map((tool) => {
+// Registry tools — adapted from ServerPluginToolDefinition to CombinedTool
+// (adds the `execute` method that managementMCP expects)
+const REGISTRY_TOOLS: CombinedTool[] = registryToolDefs.map((tool) => {
   const handler = tool.handler as unknown as (
     input: unknown,
     ctx: MeshContext,
@@ -162,7 +163,7 @@ const REGISTRY_TOOLS: CombinedTool[] = registryPluginTools.map((tool) => {
   };
 });
 
-// All available tools - core + registry + plugin tools
+// All available tools — core + registry + plugin tools
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ALL_TOOLS: CombinedTool[] = [
   ...(CORE_TOOLS as unknown as CombinedTool[]),
