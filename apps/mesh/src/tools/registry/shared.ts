@@ -3,8 +3,6 @@
  */
 
 export const PLUGIN_ID = "private-registry";
-export const PLUGIN_DESCRIPTION =
-  "Organization private MCP registry with CRUD and Store integration";
 export const PUBLISH_REQUEST_TARGET_PREFIX = "publish-request:";
 
 export const MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT = `
