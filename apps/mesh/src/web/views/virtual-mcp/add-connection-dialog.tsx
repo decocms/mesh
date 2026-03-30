@@ -14,12 +14,8 @@ import { authClient } from "@/web/lib/auth-client";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { useRegistryConnections } from "@/web/hooks/use-registry-connections";
-import { useRegistrySettings } from "@/web/hooks/use-registry-settings";
-import {
-  useMergedStoreDiscovery,
-  type RegistrySource,
-} from "@/web/hooks/use-merged-store-discovery";
+import { useEnabledRegistries } from "@/web/hooks/use-enabled-registries";
+import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -258,24 +254,7 @@ function AddConnectionDialogContent({
   const grouped = groupConnections(allConnections);
 
   // Registry / catalog - merge all enabled registries (same as connections page)
-  const registryConnections = useRegistryConnections();
-  const { isRegistryEnabled } = useRegistrySettings();
-  const enabledRegistries: RegistrySource[] = registryConnections
-    .filter((c) => isRegistryEnabled(c.id))
-    .map((c) => ({ id: c.id, title: c.title, icon: c.icon }));
-
-  const enabledPlugins = useProjectContext().project.enabledPlugins ?? [];
-  if (
-    enabledPlugins.includes("private-registry") &&
-    isRegistryEnabled(SELF_MCP_ALIAS_ID)
-  ) {
-    enabledRegistries.push({
-      id: SELF_MCP_ALIAS_ID,
-      title: "Private Registry",
-      icon: null,
-    });
-  }
-
+  const enabledRegistries = useEnabledRegistries();
   const mergedDiscovery = useMergedStoreDiscovery(enabledRegistries);
 
   const catalogSentinelRef = useInfiniteScroll(
