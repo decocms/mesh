@@ -30,7 +30,8 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
         className="absolute inset-0 z-0"
         aria-label={project.title}
       />
-      <div className="flex flex-col flex-1">
+      {/* pointer-events-none lets clicks fall through to the overlay link */}
+      <div className="flex flex-col flex-1 pointer-events-none">
         <div className="flex flex-col gap-3 p-4.5">
           {/* Header: Icon + Actions */}
           <div className="flex items-start justify-between">
@@ -40,7 +41,8 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
               size="sm"
               className="shrink-0 shadow-sm"
             />
-            <div className="relative z-10 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            {/* pointer-events-auto re-enables the dropdown */}
+            <div className="relative z-10 pointer-events-auto transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
