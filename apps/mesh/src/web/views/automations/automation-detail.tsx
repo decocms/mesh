@@ -365,9 +365,9 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
-  const saveForm = async () => {
+  const saveForm = async (): Promise<boolean> => {
     const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
-    if (!hasDirtyFields && !tiptapDirtyRef.current) return;
+    if (!hasDirtyFields && !tiptapDirtyRef.current) return true;
     tiptapDirtyRef.current = false;
 
     const values = form.getValues();
@@ -399,8 +399,11 @@ export function SettingsTab({
         credential_id: coercedCredentialId,
         model_id: coercedModelId,
       });
+      return true;
     } catch {
+      tiptapDirtyRef.current = true;
       toast.error("Failed to save automation");
+      return false;
     }
   };
 
@@ -413,7 +416,7 @@ export function SettingsTab({
 
   const flushAndSave = async () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    await saveForm();
+    return saveForm();
   };
 
   const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
@@ -435,7 +438,8 @@ export function SettingsTab({
   }
 
   const handleRunClick = async () => {
-    await flushAndSave();
+    const saved = await flushAndSave();
+    if (!saved) return;
 
     if (!tiptapDoc) {
       toast.error("No instructions configured for this automation");
