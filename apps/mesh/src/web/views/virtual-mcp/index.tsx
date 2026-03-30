@@ -676,9 +676,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         {
           connectionId,
           toolName,
-          label: toolName
-            .replace(/[-_]/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          label: toolName.replace(/_/g, " "),
           icon: connectionIcon,
         },
       ];
@@ -818,7 +816,7 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
                           handleLabelChange(conn.id, tool.name, e.target.value)
                         }
                         onBlur={handleLabelBlur}
-                        className="h-7 text-sm w-40"
+                        className="h-7 text-sm w-40 capitalize"
                         disabled={!pinned || isSaving}
                         readOnly={!pinned}
                       />
