@@ -802,15 +802,15 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         </p>
       )}
       {connectionsData.map((conn) => (
-        <div key={conn.id}>
-          <div className="flex items-center gap-2 mb-1">
+        <div key={conn.id} className="mt-2">
+          <div className="flex items-center gap-2 mb-2">
             <IntegrationIcon
               icon={conn.icon}
               name={conn.title}
-              size="2xs"
+              size="xs"
               className="shrink-0"
             />
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               {conn.title}
             </span>
           </div>
