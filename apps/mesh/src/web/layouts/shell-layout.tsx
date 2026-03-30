@@ -55,7 +55,6 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
-  useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
@@ -67,6 +66,7 @@ import { useSound } from "../hooks/use-sound";
 import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
 import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
+import { usePinnedViewLayout } from "@/web/hooks/use-pinned-view-layout";
 
 /**
  * This component persists the width of the chat panel across reloads.
@@ -349,28 +349,14 @@ function AgentPanelGroup({
   setMainOpen: (open: boolean) => void;
   setChatOpen: (open: boolean) => void;
 }) {
-  const entity = useVirtualMCP(agentVirtualMcpId);
-
-  // Resolve mainDisabled: hide main panel when default view is "chat" or unset
-  const agentHomeMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId/",
-    shouldThrow: false,
-  });
-  const hasMainParam = !!agentHomeMatch?.search.main;
-  const layoutConfig = (
-    entity?.metadata?.ui as Record<string, unknown> | null | undefined
-  )?.layout as { defaultMainView?: { type: string } } | null | undefined;
-  const defaultMainViewType = layoutConfig?.defaultMainView?.type ?? null;
-  // Main panel is hidden when: no explicit ?main param AND (no default view OR default is "chat")
-  const mainHidden =
-    isAgentRoute &&
-    !!agentHomeMatch &&
-    !hasMainParam &&
-    (!defaultMainViewType || defaultMainViewType === "chat");
+  const { chatHidden, mainHidden } = usePinnedViewLayout(
+    agentVirtualMcpId,
+    isAgentRoute,
+  );
 
   return (
     <ResizablePanelGroup
-      key={`${agentVirtualMcpId ?? "none"}-${mainHidden}`}
+      key={`${agentVirtualMcpId ?? "none"}-${mainHidden}-${chatHidden}`}
       direction="horizontal"
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
@@ -436,7 +422,7 @@ function AgentPanelGroup({
         </ResizablePanel>
       )}
 
-      {showThreePanels && (
+      {showThreePanels && !chatHidden && (
         <>
           {!isOrgHome && !mainHidden && (
             <ResizableHandle className="bg-sidebar" />
