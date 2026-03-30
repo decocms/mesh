@@ -4,9 +4,6 @@
  * Settings and run history for a single automation on one page.
  */
 
-import { EmptyState } from "@/web/components/empty-state.tsx";
-import { Page } from "@/web/components/page";
-import { SaveActions } from "@/web/components/save-actions";
 import {
   useAiProviderModels,
   type AiProviderModel,
@@ -16,7 +13,6 @@ import { User } from "@/web/components/user/user.tsx";
 import {
   useAutomationDetail,
   useAutomationUpdate,
-  useAutomationDelete,
   useAutomationTriggerAdd,
   useTriggerList,
   type TriggerDefinition,
@@ -24,16 +20,6 @@ import {
 import { useChatTask, useChatPrefs } from "@/web/components/chat/context";
 import { useChatPanel } from "@/web/contexts/panel-context";
 import { usePreferences } from "@/web/hooks/use-preferences";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
@@ -47,7 +33,6 @@ import {
   useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowUp,
@@ -321,23 +306,14 @@ export function SettingsTab({
       ?.tiptapDoc ?? undefined;
   const [tiptapDoc, setTiptapDocRaw] =
     useState<Metadata["tiptapDoc"]>(initialTiptapDoc);
-  const [savedDoc, setSavedDoc] = useState(initialTiptapDoc);
   const [starterOpen, setStarterOpen] = useState(false);
   const [showCustomCron, setShowCustomCron] = useState(false);
   const [cronInput, setCronInput] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
   const addTrigger = useAutomationTriggerAdd();
   const editorInitializedRef = useRef(false);
-
-  const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
-    setTiptapDocRaw(doc);
-    if (!editorInitializedRef.current) {
-      editorInitializedRef.current = true;
-      if (!initialTiptapDoc) {
-        setSavedDoc(doc);
-      }
-    }
-  };
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tiptapDirtyRef = useRef(false);
 
   const handleImprovePrompt = () => {
     const parts = derivePartsFromTiptapDoc(tiptapDoc);
@@ -389,67 +365,81 @@ export function SettingsTab({
   const selectedModel: AiProviderModel | null =
     models.find((m) => m.modelId === watchModelId) ?? null;
 
-  const savePromiseRef = useRef<Promise<boolean> | null>(null);
-  const handleSave = (): Promise<boolean> => {
-    if (savePromiseRef.current) return savePromiseRef.current;
-    const promise = (async () => {
-      const values = form.getValues();
-      try {
-        const coercedCredentialId =
-          values.credential_id && values.model_id ? values.credential_id : "";
-        const coercedModelId =
-          values.credential_id && values.model_id ? values.model_id : "";
+  const saveForm = async (): Promise<boolean> => {
+    const hasDirtyFields = Object.keys(form.formState.dirtyFields).length > 0;
+    if (!hasDirtyFields && !tiptapDirtyRef.current) return true;
+    tiptapDirtyRef.current = false;
 
-        const updatePayload = {
-          id: automationId,
-          name: values.name,
-          active: values.active,
-          agent: {
-            id: fixedAgentId ?? values.agent_id,
+    const values = form.getValues();
+    try {
+      const coercedCredentialId =
+        values.credential_id && values.model_id ? values.credential_id : "";
+      const coercedModelId =
+        values.credential_id && values.model_id ? values.model_id : "";
+
+      const updatePayload = {
+        id: automationId,
+        name: values.name,
+        active: values.active,
+        agent: {
+          id: fixedAgentId ?? values.agent_id,
+        },
+        models: {
+          credentialId: coercedCredentialId,
+          thinking: {
+            id: coercedModelId,
           },
-          models: {
-            credentialId: coercedCredentialId,
-            thinking: {
-              id: coercedModelId,
-            },
-          },
-          messages: tiptapDocToMessages(tiptapDoc),
-          temperature: 0,
-        };
-        await updateMutation.mutateAsync(updatePayload);
-        form.reset({
-          ...values,
-          credential_id: coercedCredentialId,
-          model_id: coercedModelId,
-        });
-        setSavedDoc(tiptapDoc);
-        toast.success("Automation saved");
-        return true;
-      } catch {
-        toast.error("Failed to save automation");
-        return false;
-      } finally {
-        savePromiseRef.current = null;
-      }
-    })();
-    savePromiseRef.current = promise;
-    return promise;
+        },
+        messages: tiptapDocToMessages(tiptapDoc),
+        temperature: 0,
+      };
+      await updateMutation.mutateAsync(updatePayload);
+      form.reset({
+        ...values,
+        credential_id: coercedCredentialId,
+        model_id: coercedModelId,
+      });
+      return true;
+    } catch {
+      tiptapDirtyRef.current = true;
+      toast.error("Failed to save automation");
+      return false;
+    }
   };
 
-  const handleUndo = () => {
-    form.reset();
-    setTiptapDoc(savedDoc);
+  const debouncedSave = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveForm();
+    }, 1000);
   };
 
-  const isDirty =
-    form.formState.isDirty ||
-    JSON.stringify(tiptapDoc ?? null) !== JSON.stringify(savedDoc ?? null);
+  const flushAndSave = async () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    return saveForm();
+  };
+
+  const setTiptapDoc = (doc: Metadata["tiptapDoc"]) => {
+    setTiptapDocRaw(doc);
+    if (!editorInitializedRef.current) {
+      editorInitializedRef.current = true;
+      return;
+    }
+    tiptapDirtyRef.current = true;
+    debouncedSave();
+  };
+
+  const watchSubscribedRef = useRef(false);
+  if (!watchSubscribedRef.current) {
+    watchSubscribedRef.current = true;
+    form.watch(() => {
+      debouncedSave();
+    });
+  }
 
   const handleRunClick = async () => {
-    if (isDirty) {
-      const saved = await handleSave();
-      if (!saved) return;
-    }
+    const saved = await flushAndSave();
+    if (!saved) return;
 
     if (!tiptapDoc) {
       toast.error("No instructions configured for this automation");
@@ -475,21 +465,11 @@ export function SettingsTab({
   return (
     <>
       {onBack && (
-        <div className="flex items-center justify-between pb-4 shrink-0">
+        <div className="flex items-center pb-4 shrink-0">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft size={14} />
             Back to list
           </Button>
-          <div className="flex items-center gap-2">
-            <SaveActions
-              onSave={async () => {
-                await handleSave();
-              }}
-              onUndo={handleUndo}
-              isDirty={isDirty}
-              isSaving={updateMutation.isPending}
-            />
-          </div>
         </div>
       )}
 
@@ -499,34 +479,19 @@ export function SettingsTab({
           <div className="flex items-center justify-between gap-4">
             <Input
               {...form.register("name")}
-              onBlur={() => {
-                if (form.formState.isDirty) void handleSave();
-              }}
               placeholder="Automation name"
               className="border border-transparent shadow-none px-0 text-lg font-medium h-auto focus-visible:ring-0 focus-visible:border-border bg-transparent flex-1"
             />
-            <div className="flex items-center gap-2 shrink-0">
-              {!onBack && (
-                <SaveActions
-                  onSave={async () => {
-                    await handleSave();
-                  }}
-                  onUndo={handleUndo}
-                  isDirty={isDirty}
-                  isSaving={updateMutation.isPending}
-                />
-              )}
-              {onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={onDelete}
-                >
-                  <Trash01 size={14} />
-                </Button>
-              )}
-            </div>
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive shrink-0"
+                onClick={onDelete}
+              >
+                <Trash01 size={14} />
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Controller
@@ -537,7 +502,7 @@ export function SettingsTab({
                   checked={field.value}
                   onCheckedChange={(checked) => {
                     field.onChange(checked);
-                    setTimeout(() => handleSave(), 0);
+                    setTimeout(() => flushAndSave(), 0);
                   }}
                   className="cursor-pointer"
                 />
@@ -713,19 +678,7 @@ export function SettingsTab({
             setTiptapDoc={setTiptapDoc}
             placeholder="What should this automation do?"
           >
-            <div
-              className="rounded-xl border border-border min-h-[120px] flex flex-col"
-              onBlur={(e) => {
-                // Skip if focus moved to another element inside this container
-                if (e.currentTarget.contains(e.relatedTarget)) return;
-                const docChanged =
-                  JSON.stringify(tiptapDoc ?? null) !==
-                  JSON.stringify(savedDoc ?? null);
-                if (form.formState.isDirty || docChanged) {
-                  void handleSave();
-                }
-              }}
-            >
+            <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
               <TiptapInput
                 virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
               />
@@ -768,88 +721,5 @@ export function SettingsTab({
         </div>
       </div>
     </>
-  );
-}
-
-// ============================================================================
-// Main Component
-// ============================================================================
-
-export default function AutomationDetailPage() {
-  const { automationId } = useParams({
-    from: "/shell/$org/settings/automations/$automationId",
-  });
-  const navigate = useNavigate();
-  const { org } = useProjectContext();
-
-  const { data: automation, isLoading } = useAutomationDetail(automationId);
-  const deleteMutation = useAutomationDelete();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = async () => {
-    try {
-      await deleteMutation.mutateAsync(automationId);
-      toast.success("Automation deleted");
-      navigate({
-        to: "/$org/settings/automations",
-        params: { org: org.slug },
-      });
-    } catch {
-      toast.error("Failed to delete automation");
-    }
-    setConfirmDelete(false);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loading01 size={24} className="animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!automation) {
-    return (
-      <EmptyState
-        title="Automation not found"
-        description="This automation may have been deleted."
-      />
-    );
-  }
-
-  return (
-    <Page>
-      <Page.Content>
-        <Page.Body>
-          <SettingsTab
-            key={automationId}
-            automationId={automationId}
-            automation={automation}
-            onDelete={() => setConfirmDelete(true)}
-          />
-        </Page.Body>
-      </Page.Content>
-
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Automation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{automation.name}&quot;?
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Page>
   );
 }
