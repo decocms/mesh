@@ -31,7 +31,8 @@ import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
-import { ToolName } from "./registry";
+import { tools as registryPluginTools } from "./registry/index";
+import { ToolName } from "./registry-metadata";
 // Core tools - always available
 const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_CREATE,
@@ -145,10 +146,27 @@ interface CombinedTool {
   execute: (input: unknown, ctx: MeshContext) => Promise<unknown>;
 }
 
-// All available tools - core + plugin tools
+// Registry tools - promoted from plugin to first-class, adapted to CombinedTool format
+const REGISTRY_TOOLS: CombinedTool[] = registryPluginTools.map((tool) => {
+  const handler = tool.handler as unknown as (
+    input: unknown,
+    ctx: MeshContext,
+  ) => Promise<unknown>;
+  return {
+    name: tool.name,
+    description: tool.description ?? "",
+    inputSchema: tool.inputSchema as unknown,
+    outputSchema: tool.outputSchema as unknown,
+    handler,
+    execute: handler,
+  };
+});
+
+// All available tools - core + registry + plugin tools
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ALL_TOOLS: CombinedTool[] = [
   ...(CORE_TOOLS as unknown as CombinedTool[]),
+  ...REGISTRY_TOOLS,
   ...(PLUGIN_TOOLS as unknown as CombinedTool[]),
 ];
 

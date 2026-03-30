@@ -176,7 +176,10 @@ import {
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
 import { MiddlewareHandler } from "hono/types";
-import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
+import {
+  getToolsByCategory,
+  MANAGEMENT_TOOLS,
+} from "../tools/registry-metadata";
 import { Env } from "./hono-env";
 import { devLogger } from "./utils/dev-logger";
 import { streamSSE } from "hono/streaming";
@@ -776,6 +779,19 @@ export async function createApp(options: CreateAppOptions = {}) {
   // `await` between here and where initializePluginStorage used to live.
   const vault = new CredentialVault(getSettings().encryptionKey);
   initializePluginStorage(database.db, vault);
+
+  // Initialize private registry storage (first-class feature, not a plugin)
+  // db is typed as `any` to avoid Kysely version mismatch issues
+  const { createStorage: createRegistryStorage } = await import(
+    "@/storage/registry"
+  );
+  createRegistryStorage({
+    db: database.db as any,
+    vault: {
+      encrypt: (value: string) => vault.encrypt(value),
+      decrypt: (value: string) => vault.decrypt(value),
+    },
+  });
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
@@ -1400,6 +1416,22 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mountPluginRoutes(app, { db: database.db as any, vault });
+
+  // Private Registry public routes (first-class feature)
+  const { publicPublishRequestRoutes, publicMCPServerRoutes } = await import(
+    "@/api/routes/registry"
+  );
+  const registryRouteCtx = {
+    db: database.db as any,
+    vault: {
+      encrypt: (value: string) => vault.encrypt(value),
+      decrypt: (value: string) => vault.decrypt(value),
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  publicPublishRequestRoutes(app as any, registryRouteCtx);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  publicMCPServerRoutes(app as any, registryRouteCtx);
 
   // ============================================================================
   // 404 Handler

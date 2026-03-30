@@ -58,13 +58,17 @@ import * as migration056automationprojectscope from "./056-automation-project-sc
 import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
 import * as migration058triggercallbacktokens from "./058-trigger-callback-tokens.ts";
 import * as migration059kv from "./059-kv.ts";
+import * as migration062privateregistry from "./062-private-registry.ts";
+import * as migration063privateregistrypublishrequests from "./063-private-registry-publish-requests.ts";
+import * as migration064privateregistrypublishapikeys from "./064-private-registry-publish-api-keys.ts";
+import * as migration065privateregistrypublishrequestrequestedid from "./065-private-registry-publish-request-requested-id.ts";
+import * as migration066privateregistrymonitorruns from "./066-private-registry-monitor-runs.ts";
+import * as migration067privateregistryunlisted from "./067-private-registry-unlisted.ts";
 
 /**
  * Core migrations for the Mesh application.
  *
  * These are managed by Kysely's migrator and run in alphabetical order.
- * Plugin migrations are handled separately by the plugin migration system
- * (see src/database/migrate.ts) to avoid ordering conflicts.
  */
 const migrations: Record<string, Migration> = {
   "001-initial-schema": migration001initialschema,
@@ -130,6 +134,15 @@ const migrations: Record<string, Migration> = {
   "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
   "058-trigger-callback-tokens": migration058triggercallbacktokens,
   "059-kv": migration059kv,
+  "062-private-registry": migration062privateregistry,
+  "063-private-registry-publish-requests":
+    migration063privateregistrypublishrequests,
+  "064-private-registry-publish-api-keys":
+    migration064privateregistrypublishapikeys,
+  "065-private-registry-publish-request-requested-id":
+    migration065privateregistrypublishrequestrequestedid,
+  "066-private-registry-monitor-runs": migration066privateregistrymonitorruns,
+  "067-private-registry-unlisted": migration067privateregistryunlisted,
 };
 
 export default migrations;
