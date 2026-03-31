@@ -267,8 +267,9 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (createdBy) {
       query = query.where("created_by", "=", createdBy);
     }
-    if (options?.virtualMcpId) {
-      query = query.where("virtual_mcp_id", "=", options.virtualMcpId);
+    const virtualMcpFilter = options?.virtualMcpId ?? options?.agentId;
+    if (virtualMcpFilter) {
+      query = query.where("virtual_mcp_id", "=", virtualMcpFilter);
     }
     if (options?.startDate) {
       // updated_at is stored as ISO text — string comparison is correct for ISO dates
@@ -291,9 +292,6 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (options?.status) {
       query = query.where("status", "=", options.status as ThreadStatus);
     }
-    if (options?.agentId) {
-      query = query.where("virtual_mcp_id", "=", options.agentId);
-    }
 
     let countQuery = this.db
       .selectFrom("threads")
@@ -304,12 +302,8 @@ export class SqlThreadStorage implements ThreadStoragePort {
     if (createdBy) {
       countQuery = countQuery.where("created_by", "=", createdBy);
     }
-    if (options?.virtualMcpId) {
-      countQuery = countQuery.where(
-        "virtual_mcp_id",
-        "=",
-        options.virtualMcpId,
-      );
+    if (virtualMcpFilter) {
+      countQuery = countQuery.where("virtual_mcp_id", "=", virtualMcpFilter);
     }
     if (options?.startDate) {
       countQuery = countQuery.where(
@@ -334,9 +328,6 @@ export class SqlThreadStorage implements ThreadStoragePort {
         "=",
         options.status as ThreadStatus,
       );
-    }
-    if (options?.agentId) {
-      countQuery = countQuery.where("virtual_mcp_id", "=", options.agentId);
     }
 
     if (options?.limit) {

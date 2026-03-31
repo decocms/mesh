@@ -15,6 +15,7 @@ export {
   useChatStream,
   useOptionalChatStream,
   useChatPrefs,
+  useOptionalChatPrefs,
   useChatBridge,
   type ChatStreamContextValue,
   type ChatTaskContextValue,

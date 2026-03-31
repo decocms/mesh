@@ -261,7 +261,9 @@ const collectionDetailRoute = createRoute({
 const monitoringRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/monitor",
-  component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring/index.tsx"),
+  ),
   validateSearch: z.lazy(() =>
     z.object({
       tab: z.enum(["overview", "audit", "threads"]).default("overview"),

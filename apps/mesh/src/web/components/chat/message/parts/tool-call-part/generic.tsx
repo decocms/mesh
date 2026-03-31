@@ -3,7 +3,10 @@
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer as MCPAppIframeRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatStream, useChatPrefs } from "@/web/components/chat/context.tsx";
+import {
+  useOptionalChatStream,
+  useOptionalChatPrefs,
+} from "@/web/components/chat/context.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -29,9 +32,9 @@ import {
 } from "@untitledui/icons";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
-import { Suspense } from "react";
+import { Suspense, useContext } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useChatPanel } from "@/web/contexts/panel-context.tsx";
+import { PanelContext } from "@/web/contexts/panel-context.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -166,10 +169,24 @@ export function GenericToolCallPart({
         : part.type.replace("tool-", "") || "Tool";
   const friendlyName = getFriendlyToolName(toolName);
 
-  const { sendMessage } = useChatStream();
-  const { selectedVirtualMcp, setAppContext, clearAppContext } = useChatPrefs();
+  const chatStream = useOptionalChatStream();
+  const chatPrefs = useOptionalChatPrefs();
   const { org } = useProjectContext();
-  const [, setChatOpen] = useChatPanel();
+
+  // Panel context may not be available when rendering read-only thread history
+  // (e.g. monitoring Threads tab), so we read the context directly.
+  const panelControls = useContext(PanelContext);
+  const setChatOpen = panelControls
+    ? (open: boolean) => {
+        if (open) {
+          panelControls.chatPanelRef.current?.resize(
+            Math.min(panelControls.chatPanelWidth, 35),
+          );
+        } else {
+          panelControls.chatPanelRef.current?.collapse();
+        }
+      }
+    : undefined;
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 
@@ -181,7 +198,7 @@ export function GenericToolCallPart({
     toolMeta.connectionId != null &&
     toolMeta.connectionId !== ""
       ? String(toolMeta.connectionId)
-      : (selectedVirtualMcp?.id ?? null);
+      : (chatPrefs?.selectedVirtualMcp?.id ?? null);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${toolName}` : null;
@@ -189,8 +206,8 @@ export function GenericToolCallPart({
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
-      setChatOpen(true);
-      sendMessage(doc);
+      setChatOpen?.(true);
+      chatStream?.sendMessage(doc);
     }
   };
 
@@ -289,12 +306,14 @@ export function GenericToolCallPart({
               toolMeta={toolMeta as Record<string, unknown> | undefined}
               onMessage={handleAppMessage}
               onUpdateModelContext={
-                sourceId
-                  ? (params) => setAppContext(sourceId, params)
+                sourceId && chatPrefs
+                  ? (params) => chatPrefs.setAppContext(sourceId, params)
                   : undefined
               }
               onTeardown={
-                sourceId ? () => clearAppContext(sourceId) : undefined
+                sourceId && chatPrefs
+                  ? () => chatPrefs.clearAppContext(sourceId)
+                  : undefined
               }
             />
           </Suspense>

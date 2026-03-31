@@ -772,6 +772,10 @@ export function useChatPrefs(): ChatPrefsContextValue {
   return ctx;
 }
 
+export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
+  return useContext(ChatPrefsCtx);
+}
+
 export function useChatBridge(): ChatBridgeValue {
   return useContext(ChatBridgeCtx);
 }
