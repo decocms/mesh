@@ -20,7 +20,7 @@ describe("createNatsConnectionProvider (unit)", () => {
 
   it("drain is safe to call before init (no throw)", async () => {
     const provider = createNatsConnectionProvider();
-    await expect(provider.drain()).resolves.toBeUndefined();
+    expect(provider.drain()).resolves.toBeUndefined();
   });
 
   it("drain clears state so getConnection returns null after drain", async () => {
@@ -35,6 +35,7 @@ describe("createNatsConnectionProvider (unit)", () => {
       isClosed: () => false,
       isDraining: () => false,
       jetstream: () => ({ views: {} }),
+      getServer: () => "nats://fake:4222",
       status: () =>
         (async function* () {
           /* noop */
@@ -63,6 +64,7 @@ describe("createNatsConnectionProvider (unit)", () => {
       isClosed: () => false,
       isDraining: () => false,
       jetstream: () => ({ views: {} }),
+      getServer: () => "nats://fake:4222",
       status: () =>
         (async function* () {
           /* noop */
@@ -95,6 +97,7 @@ describe("createNatsConnectionProvider (unit)", () => {
       isClosed: () => closed,
       isDraining: () => false,
       jetstream: () => ({ views: {} }),
+      getServer: () => "nats://fake:4222",
       status: () =>
         (async function* () {
           /* noop */

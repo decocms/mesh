@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import {
-  createTestDatabase,
-  closeTestDatabase,
-  type TestDatabase,
-} from "../database/test-db";
+import { createTestDatabase, type TestDatabase } from "../database/test-db";
 import type { EventBus } from "../event-bus";
 import { createTestSchema } from "../storage/test-helpers";
 import { createApp } from "./app";
@@ -67,7 +63,19 @@ describe("Hono App", () => {
   });
 
   afterEach(async () => {
-    await closeTestDatabase(database);
+    // Shutdown the app first to stop all background tasks (RunRegistry,
+    // expired API key cleanup, monitoring retention, plugin hooks, etc.)
+    // before destroying the database. Without this, background tasks race
+    // against database teardown and produce "driver has already been
+    // destroyed" errors — which can cause timeouts in CI.
+    await app.shutdown();
+
+    // shutdown() already calls closeDatabase() which destroys the Kysely
+    // driver and ends the pool, but we still need to close the PGlite
+    // WASM instance which closeDatabase doesn't know about.
+    if (database.pglite && !database.pglite.closed) {
+      await database.pglite.close();
+    }
   });
   describe("liveness check", () => {
     it("should respond to liveness probe", async () => {
