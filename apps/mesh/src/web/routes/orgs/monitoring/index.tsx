@@ -67,6 +67,7 @@ import { Label } from "@deco/ui/components/label.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 
+import { usePublicConfig } from "@/web/hooks/use-public-config.ts";
 import { OverviewTabContent, OverviewTabSkeleton } from "./overview.tsx";
 import { AuditTabContent, MonitoringLogsTable } from "./audit.tsx";
 import { ThreadsTabContent, ThreadsFiltersPopover } from "./threads.tsx";
@@ -556,6 +557,9 @@ function MonitoringDashboardContent({
   onStreamingToggle,
   onTabChange,
 }: MonitoringDashboardContentProps) {
+  const publicConfig = usePublicConfig();
+  const monitoringQueryEnabled = publicConfig.monitoringQueryEnabled !== false;
+
   const allConnections = useConnections();
   const allVirtualMcps = useVirtualMCPs();
   const { data: membersData } = useMembers();
@@ -757,7 +761,23 @@ function MonitoringDashboardContent({
         </div>
       </Page.Body>
 
-      {tab === "threads" ? (
+      {!monitoringQueryEnabled ? (
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            image={
+              <img
+                src="/empty-state-logs.svg"
+                alt=""
+                width={336}
+                height={320}
+                aria-hidden="true"
+              />
+            }
+            title="Monitoring is not available"
+            description="Monitoring is not enabled for this instance. Contact your administrator for more information."
+          />
+        </div>
+      ) : tab === "threads" ? (
         <ThreadsTabContent
           client={client}
           locator={locator}

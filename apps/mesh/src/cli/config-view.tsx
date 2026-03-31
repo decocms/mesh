@@ -98,6 +98,7 @@ function getConfigSections(e: Settings): ConfigSection[] {
       entries: [
         { key: "clickhouseUrl", value: e.clickhouseUrl },
         { key: "otelServiceName", value: e.otelServiceName },
+        { key: "disableMonitoringQuery", value: e.disableMonitoringQuery },
       ],
     },
     {

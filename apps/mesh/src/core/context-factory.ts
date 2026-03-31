@@ -21,8 +21,11 @@ import {
   SqlMonitoringStorage,
   type SqlDialect,
 } from "../storage/monitoring-sql";
-import { createMonitoringEngine } from "../monitoring/query-engine";
-import { ClickHouseClientEngine } from "../monitoring/query-engine";
+import {
+  createMonitoringEngine,
+  ClickHouseClientEngine,
+  NoopEngine,
+} from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
 import { getLogsDir, getMetricsDir } from "../monitoring/schema";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
@@ -834,7 +837,10 @@ export async function createMeshContextFactory(
   let monitoringEngine: QueryEngine;
   let metricEngine: QueryEngine;
 
-  if (isClickHouse) {
+  if (getSettings().disableMonitoringQuery) {
+    monitoringEngine = new NoopEngine();
+    metricEngine = new NoopEngine();
+  } else if (isClickHouse) {
     monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
     metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {

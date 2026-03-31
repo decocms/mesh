@@ -74,6 +74,7 @@ export function resolveConfig(
     // Observability
     clickhouseUrl: envVars.CLICKHOUSE_URL,
     otelServiceName: envVars.OTEL_SERVICE_NAME || "mesh",
+    disableMonitoringQuery: toBool(envVars.DISABLE_MONITORING_QUERY),
 
     // Config files
     configPath: envVars.CONFIG_PATH || "./config.json",
