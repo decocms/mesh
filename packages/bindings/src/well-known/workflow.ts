@@ -115,9 +115,11 @@ export const StepConfigSchema = z.object({
     .number()
     .int()
     .min(100)
-    .max(600_000)
+    .max(86_400_000)
     .optional()
-    .describe("Max execution time in ms before step fails (default: 30000)"),
+    .describe(
+      "Max execution time in ms before step fails (default: 30000). Upper bound 24h.",
+    ),
   onError: z
     .enum(["fail", "continue"])
     .optional()
