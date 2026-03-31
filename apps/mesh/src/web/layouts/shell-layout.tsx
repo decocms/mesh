@@ -312,8 +312,6 @@ function AgentPanelGroup({
   tasksPanelRef,
   mainPanelRef,
   chatPanelRef,
-  chatDefaultCollapsed,
-  mainDefaultCollapsed,
   setTasksOpen,
   setMainOpen,
   setChatOpen,
@@ -326,12 +324,14 @@ function AgentPanelGroup({
   tasksPanelRef: React.RefObject<ImperativePanelHandle | null>;
   mainPanelRef: React.RefObject<ImperativePanelHandle | null>;
   chatPanelRef: React.RefObject<ImperativePanelHandle | null>;
-  chatDefaultCollapsed: boolean;
-  mainDefaultCollapsed: boolean;
   setTasksOpen: (open: boolean) => void;
   setMainOpen: (open: boolean) => void;
   setChatOpen: (open: boolean) => void;
 }) {
+  const { chatDefaultCollapsed, mainDefaultCollapsed } = usePinnedViewLayout(
+    agentVirtualMcpId,
+    isAgentRoute,
+  );
   return (
     <ResizablePanelGroup
       key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}`}
@@ -434,6 +434,33 @@ function AgentPanelGroup({
   );
 }
 
+function MobileAgentContent({
+  agentVirtualMcpId,
+  isAgentRoute,
+  isOrgHome,
+}: {
+  agentVirtualMcpId: string | undefined;
+  isAgentRoute: boolean;
+  isOrgHome: boolean;
+}) {
+  const { mainDefaultCollapsed } = usePinnedViewLayout(
+    agentVirtualMcpId,
+    isAgentRoute,
+  );
+
+  return (
+    <div className="flex-1 min-h-0 overflow-hidden">
+      {isOrgHome ? (
+        <ActiveTaskBoundary variant="home" />
+      ) : mainDefaultCollapsed ? (
+        <ActiveTaskBoundary />
+      ) : (
+        <Outlet />
+      )}
+    </div>
+  );
+}
+
 function ShellLayoutInner({
   isAgentRoute,
   isOrgHome,
@@ -458,11 +485,6 @@ function ShellLayoutInner({
     shouldThrow: false,
   });
   const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
-
-  const { chatDefaultCollapsed, mainDefaultCollapsed } = usePinnedViewLayout(
-    agentVirtualMcpId,
-    isAgentRoute,
-  );
 
   const showThreePanels = isAgentRoute || isOrgHome;
 
@@ -605,15 +627,11 @@ function ShellLayoutInner({
                 <MobileToolbar
                   onOpenSidebar={() => setMobileSidebarOpen(true)}
                 />
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {isOrgHome ? (
-                    <ActiveTaskBoundary variant="home" />
-                  ) : mainDefaultCollapsed ? (
-                    <ActiveTaskBoundary />
-                  ) : (
-                    <Outlet />
-                  )}
-                </div>
+                <MobileAgentContent
+                  agentVirtualMcpId={agentVirtualMcpId}
+                  isAgentRoute={isAgentRoute}
+                  isOrgHome={isOrgHome}
+                />
                 {mobileSidebarSheet}
               </Chat.Provider>
             </VirtualMCPScope>
@@ -782,8 +800,6 @@ function ShellLayoutInner({
                   tasksPanelRef={tasksPanelRef}
                   mainPanelRef={mainPanelRef}
                   chatPanelRef={chatPanelRef}
-                  chatDefaultCollapsed={chatDefaultCollapsed}
-                  mainDefaultCollapsed={mainDefaultCollapsed}
                   setTasksOpen={setTasksOpen}
                   setMainOpen={setMainOpen}
                   setChatOpen={setChatOpen}
