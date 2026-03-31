@@ -175,8 +175,6 @@ export interface RegistryMonitorConfig {
   testPrivateOnly: boolean;
   includePendingRequests: boolean;
   agentContext?: string;
-  llmConnectionId?: string;
-  llmModelId?: string;
 }
 
 export interface MonitorToolResult {

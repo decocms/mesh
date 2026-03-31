@@ -8,7 +8,9 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
+import { toast } from "sonner";
 import { KEYS } from "@/web/lib/registry/query-keys";
 import type {
   PublishApiKeyGenerateResult,
@@ -219,8 +221,6 @@ interface PluginConfigResponse {
 interface RegistryConfigSettings {
   registryName?: string;
   registryIcon?: string;
-  llmConnectionId?: string;
-  llmModelId?: string;
   acceptPublishRequests?: boolean;
   requireApiToken?: boolean;
   storePrivateOnly?: boolean;
@@ -230,56 +230,68 @@ interface RegistryConfigSettings {
 }
 
 export function useRegistryConfig(pluginId: string) {
-  const { org, project } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const queryClient = useQueryClient();
 
+  const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
+
   const configQuery = useQuery({
-    queryKey: KEYS.registryConfigByPlugin(project.id ?? "", pluginId),
+    queryKey: KEYS.registryConfigByPlugin(selfConnectionId, pluginId),
     queryFn: async () =>
       callTool<PluginConfigResponse>(client, "VIRTUAL_MCP_PLUGIN_CONFIG_GET", {
-        virtualMcpId: project.id,
+        virtualMcpId: selfConnectionId,
         pluginId,
       }),
-    enabled: Boolean(project.id),
     staleTime: 60_000,
   });
 
-  const saveRegistryConfigMutation = useMutation({
+  const queryKey = KEYS.registryConfigByPlugin(selfConnectionId, pluginId);
+
+  const configMutation = useMutation({
     mutationFn: async (settingsPatch: RegistryConfigSettings) => {
       const latestData = await callTool<PluginConfigResponse>(
         client,
         "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
         {
-          virtualMcpId: project.id,
+          virtualMcpId: selfConnectionId,
           pluginId,
         },
       );
-      const latestSettings =
+      const currentSettings =
         (latestData?.config?.settings as RegistryConfigSettings | null) ?? {};
 
       return callTool<PluginConfigResponse>(
         client,
         "VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE",
         {
-          virtualMcpId: project.id,
+          virtualMcpId: selfConnectionId,
           pluginId,
           settings: {
-            ...latestSettings,
+            ...currentSettings,
             ...settingsPatch,
           },
         },
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: KEYS.registryConfigByPlugin(project.id ?? "", pluginId),
-      });
+      await queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save registry settings",
+      );
     },
   });
+
+  const updateConfig = (patch: RegistryConfigSettings) => {
+    configMutation.mutate(patch);
+  };
 
   const registryName =
     (configQuery.data?.config?.settings?.registryName as string | undefined) ??
@@ -287,14 +299,6 @@ export function useRegistryConfig(pluginId: string) {
   const registryIcon =
     (configQuery.data?.config?.settings?.registryIcon as string | undefined) ??
     "";
-  const registryLLMConnectionId =
-    (configQuery.data?.config?.settings?.llmConnectionId as
-      | string
-      | undefined) ?? "";
-  const registryLLMModelId =
-    (configQuery.data?.config?.settings?.llmModelId as string | undefined) ??
-    "";
-
   const acceptPublishRequests =
     (configQuery.data?.config?.settings?.acceptPublishRequests as
       | boolean
@@ -329,8 +333,6 @@ export function useRegistryConfig(pluginId: string) {
   return {
     registryName,
     registryIcon,
-    registryLLMConnectionId,
-    registryLLMModelId,
     acceptPublishRequests,
     requireApiToken,
     storePrivateOnly,
@@ -338,7 +340,8 @@ export function useRegistryConfig(pluginId: string) {
     rateLimitWindow,
     rateLimitMax,
     isLoadingConfig: configQuery.isLoading,
-    saveRegistryConfigMutation,
+    isSaving: configMutation.isPending,
+    updateConfig,
   };
 }
 

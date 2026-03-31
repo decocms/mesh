@@ -14,6 +14,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 interface ImageUploadProps {
   value: string;
   onChange: (url: string) => void;
+  onBlur?: () => void;
   onFileUpload: (file: File) => void | Promise<void>;
   error?: string;
   isUploading?: boolean;
@@ -22,6 +23,7 @@ interface ImageUploadProps {
 export function ImageUpload({
   value,
   onChange,
+  onBlur,
   onFileUpload,
   error,
   isUploading = false,
@@ -178,6 +180,7 @@ export function ImageUpload({
                 value={value}
                 className="text-xs h-8"
                 onChange={(event) => onChange(event.target.value)}
+                onBlur={onBlur}
               />
             </div>
           )}

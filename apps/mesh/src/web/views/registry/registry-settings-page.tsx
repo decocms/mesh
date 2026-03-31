@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  useCollectionList,
-  useConnections,
-  useMCPClientOptional,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
@@ -21,18 +16,15 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Label } from "@deco/ui/components/label.tsx";
-import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Check,
   Copy01,
   Eye,
   EyeOff,
-  FlipBackward,
   Key01,
   Loading01,
   Plus,
-  Save01,
   Trash01,
 } from "@untitledui/icons";
 import { toast } from "sonner";
@@ -49,70 +41,58 @@ import { ImageUpload } from "./image-upload";
 /**
  * Settings page for the Private Registry plugin.
  *
- * Server values (`registryName`, etc.) are passed via `initialXxx` props and
- * used to seed the local draft state on mount.  The parent renders this
- * component with a `key` derived from the server state so that React
- * automatically re-mounts (and re-seeds) when the server config changes —
- * no useEffect synchronisation needed.
+ * Toggles and selects auto-save on change. Text inputs save on blur.
+ * All controls are disabled while a save is in flight to prevent
+ * concurrent mutations.
  */
 interface RegistrySettingsPageProps {
-  initialName: string;
-  initialIcon: string;
-  initialLLMConnectionId: string;
-  initialLLMModelId: string;
-  initialAcceptPublishRequests: boolean;
-  initialRequireApiToken: boolean;
-  initialStorePrivateOnly: boolean;
-  initialRateLimitEnabled: boolean;
-  initialRateLimitWindow: "minute" | "hour";
-  initialRateLimitMax: number;
   revealedKey: string | null;
   onRevealedKeyChange: (key: string | null) => void;
 }
 
 export default function RegistrySettingsPage({
-  initialName,
-  initialIcon,
-  initialLLMConnectionId,
-  initialLLMModelId,
-  initialAcceptPublishRequests,
-  initialRequireApiToken,
-  initialStorePrivateOnly,
-  initialRateLimitEnabled,
-  initialRateLimitWindow,
-  initialRateLimitMax,
   revealedKey,
   onRevealedKeyChange,
 }: RegistrySettingsPageProps) {
   const { org } = useProjectContext();
   const { uploadImage, isUploading: isUploadingIcon } = useImageUpload();
-  const { saveRegistryConfigMutation } = useRegistryConfig(PLUGIN_ID);
+  const {
+    registryName,
+    registryIcon,
+    acceptPublishRequests,
+    requireApiToken,
+    storePrivateOnly,
+    rateLimitEnabled,
+    rateLimitWindow,
+    rateLimitMax,
+    isSaving,
+    updateConfig,
+  } = useRegistryConfig(PLUGIN_ID);
 
-  // ── Draft state (seeded from initial props, reset via key) ──
-  const [nameDraft, setNameDraft] = useState(initialName);
-  const [iconDraft, setIconDraft] = useState(initialIcon);
-  const [llmConnectionDraft, setLLMConnectionDraft] = useState(
-    initialLLMConnectionId,
-  );
-  const [llmModelDraft, setLLMModelDraft] = useState(initialLLMModelId);
-  const [acceptPublishRequestsDraft, setAcceptPublishRequestsDraft] = useState(
-    initialAcceptPublishRequests,
-  );
-  const [requireApiTokenDraft, setRequireApiTokenDraft] = useState(
-    initialRequireApiToken,
-  );
-  const [storePrivateOnlyDraft, setStorePrivateOnlyDraft] = useState(
-    initialStorePrivateOnly,
-  );
-  const [rateLimitEnabledDraft, setRateLimitEnabledDraft] = useState(
-    initialRateLimitEnabled,
-  );
-  const [rateLimitWindowDraft, setRateLimitWindowDraft] = useState<
-    "minute" | "hour"
-  >(initialRateLimitWindow);
+  // ── Local state for text inputs (controlled input during typing, saved on blur) ──
+  // Sync drafts when server values change (e.g. after initial load completes).
+  const [nameDraft, setNameDraft] = useState(registryName);
+  const [prevName, setPrevName] = useState(registryName);
+  if (registryName !== prevName) {
+    setPrevName(registryName);
+    setNameDraft(registryName);
+  }
+
+  const [iconDraft, setIconDraft] = useState(registryIcon);
+  const [prevIcon, setPrevIcon] = useState(registryIcon);
+  if (registryIcon !== prevIcon) {
+    setPrevIcon(registryIcon);
+    setIconDraft(registryIcon);
+  }
+
   const [rateLimitMaxDraft, setRateLimitMaxDraft] = useState(
-    String(initialRateLimitMax),
+    String(rateLimitMax),
   );
+  const [prevRateLimitMax, setPrevRateLimitMax] = useState(rateLimitMax);
+  if (rateLimitMax !== prevRateLimitMax) {
+    setPrevRateLimitMax(rateLimitMax);
+    setRateLimitMaxDraft(String(rateLimitMax));
+  }
 
   // ── API key management ──
   const apiKeysQuery = usePublishApiKeys();
@@ -136,23 +116,6 @@ export default function RegistrySettingsPage({
     categories: [],
     limit: 50,
   });
-  const llmConnections = useConnections({ binding: "LLM" });
-  const effectiveLLMConnectionId =
-    llmConnectionDraft || initialLLMConnectionId || llmConnections[0]?.id || "";
-  const llmClient = useMCPClientOptional({
-    connectionId: effectiveLLMConnectionId || undefined,
-    orgId: org.id,
-  });
-  const llmModels = useCollectionList<{
-    id: string;
-    title: string;
-    created_at: string;
-    updated_at: string;
-    description?: string | null;
-    logo?: string | null;
-    capabilities?: string[];
-  }>(effectiveLLMConnectionId || "no-llm-connection", "LLM", llmClient);
-
   const publicStoreUrl = `${window.location.origin}/org/${org.slug}/registry/mcp`;
   const loadedItems =
     itemsQuery.data?.pages.flatMap((page) => page.items ?? []) ?? [];
@@ -167,19 +130,21 @@ export default function RegistrySettingsPage({
       ),
   );
 
-  const isDirty =
-    nameDraft.trim() !== initialName.trim() ||
-    iconDraft.trim() !== initialIcon.trim() ||
-    llmConnectionDraft.trim() !== initialLLMConnectionId.trim() ||
-    llmModelDraft.trim() !== initialLLMModelId.trim() ||
-    acceptPublishRequestsDraft !== initialAcceptPublishRequests ||
-    requireApiTokenDraft !== initialRequireApiToken ||
-    storePrivateOnlyDraft !== initialStorePrivateOnly ||
-    rateLimitEnabledDraft !== initialRateLimitEnabled ||
-    rateLimitWindowDraft !== initialRateLimitWindow ||
-    (Number.parseInt(rateLimitMaxDraft, 10) || 100) !== initialRateLimitMax;
+  const disabled = isSaving || isUploadingIcon;
 
-  const isSaving = saveRegistryConfigMutation.isPending;
+  const handleNameBlur = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === registryName) return;
+    updateConfig({ registryName: trimmed });
+  };
+
+  const handleRateLimitMaxBlur = () => {
+    const parsed = Number.parseInt(rateLimitMaxDraft, 10);
+    const clamped = Number.isFinite(parsed) && parsed >= 1 ? parsed : 100;
+    setRateLimitMaxDraft(String(clamped));
+    if (clamped === rateLimitMax) return;
+    updateConfig({ rateLimitMax: clamped });
+  };
 
   const handleIconFileUpload = async (file: File) => {
     if (!file) return;
@@ -189,59 +154,10 @@ export default function RegistrySettingsPage({
 
     if (url) {
       setIconDraft(url);
+      updateConfig({ registryIcon: url });
     } else {
       toast.error("Failed to upload icon. Please try again.");
     }
-  };
-
-  const handleSave = async () => {
-    const nextName = nameDraft.trim();
-    if (!nextName) return;
-
-    const nextModelId = llmModelDraft.trim();
-    const nextConnectionId = nextModelId
-      ? llmConnectionDraft.trim() || effectiveLLMConnectionId || ""
-      : llmConnectionDraft.trim();
-    const parsedRateLimitMax = Number.parseInt(rateLimitMaxDraft, 10);
-    const nextRateLimitMax =
-      Number.isFinite(parsedRateLimitMax) && parsedRateLimitMax >= 1
-        ? parsedRateLimitMax
-        : 100;
-
-    try {
-      await saveRegistryConfigMutation.mutateAsync({
-        registryName: nextName,
-        registryIcon: iconDraft.trim(),
-        llmConnectionId: nextConnectionId,
-        llmModelId: nextModelId,
-        acceptPublishRequests: acceptPublishRequestsDraft,
-        requireApiToken: requireApiTokenDraft,
-        storePrivateOnly: storePrivateOnlyDraft,
-        rateLimitEnabled: rateLimitEnabledDraft,
-        rateLimitWindow: rateLimitWindowDraft,
-        rateLimitMax: nextRateLimitMax,
-      });
-      toast.success("Registry settings updated");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to save registry settings",
-      );
-    }
-  };
-
-  const handleUndo = () => {
-    setNameDraft(initialName);
-    setIconDraft(initialIcon);
-    setLLMConnectionDraft(initialLLMConnectionId);
-    setLLMModelDraft(initialLLMModelId);
-    setAcceptPublishRequestsDraft(initialAcceptPublishRequests);
-    setRequireApiTokenDraft(initialRequireApiToken);
-    setStorePrivateOnlyDraft(initialStorePrivateOnly);
-    setRateLimitEnabledDraft(initialRateLimitEnabled);
-    setRateLimitWindowDraft(initialRateLimitWindow);
-    setRateLimitMaxDraft(String(initialRateLimitMax));
   };
 
   const handleGenerateKey = async () => {
@@ -279,34 +195,6 @@ export default function RegistrySettingsPage({
 
   return (
     <div className="h-full overflow-auto px-4 md:px-6 py-4">
-      {/* ── Save / Undo bar (sticky inside settings area) ── */}
-      <div className="flex items-center justify-end gap-2 mb-4 min-h-[32px]">
-        {isDirty && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleUndo}
-            disabled={isSaving}
-          >
-            <FlipBackward size={14} />
-            Undo
-          </Button>
-        )}
-        <Button
-          variant="default"
-          size="sm"
-          onClick={handleSave}
-          disabled={isSaving || !isDirty}
-        >
-          {isSaving ? (
-            <Loading01 size={14} className="animate-spin" />
-          ) : (
-            <Save01 size={14} />
-          )}
-          Save
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 items-start xl:grid-cols-2">
         <div className="grid gap-4 min-w-0 content-start">
           <Card className="min-w-0 p-4 grid gap-4 content-start">
@@ -323,6 +211,8 @@ export default function RegistrySettingsPage({
                 id="identity-name"
                 value={nameDraft}
                 onChange={(event) => setNameDraft(event.target.value)}
+                onBlur={handleNameBlur}
+                disabled={disabled}
                 placeholder="Private Registry"
               />
             </div>
@@ -330,37 +220,13 @@ export default function RegistrySettingsPage({
             <ImageUpload
               value={iconDraft}
               onChange={setIconDraft}
+              onBlur={() => {
+                const trimmed = iconDraft.trim();
+                if (trimmed === registryIcon) return;
+                updateConfig({ registryIcon: trimmed });
+              }}
               onFileUpload={handleIconFileUpload}
               isUploading={isUploadingIcon}
-            />
-          </Card>
-
-          <Card className="min-w-0 p-4 grid gap-3 content-start">
-            <div>
-              <h3 className="text-base font-semibold">AI Configuration</h3>
-              <p className="text-sm text-muted-foreground">
-                Set the default model used for AI suggestions.
-              </p>
-            </div>
-            <LLMModelSelector
-              connectionId={effectiveLLMConnectionId}
-              modelId={llmModelDraft}
-              connections={llmConnections.map((connection) => ({
-                id: connection.id,
-                title: connection.title,
-                icon: connection.icon ?? null,
-              }))}
-              models={llmModels.map((model) => ({
-                id: model.id,
-                title: model.title || model.id,
-                logo: model.logo ?? null,
-                capabilities: model.capabilities ?? [],
-              }))}
-              onConnectionChange={(value) => {
-                setLLMConnectionDraft(value);
-                setLLMModelDraft("");
-              }}
-              onModelChange={setLLMModelDraft}
             />
           </Card>
         </div>
@@ -404,19 +270,17 @@ export default function RegistrySettingsPage({
               </div>
               <Switch
                 id="store-private-only"
-                checked={storePrivateOnlyDraft}
-                onCheckedChange={setStorePrivateOnlyDraft}
+                checked={storePrivateOnly}
+                onCheckedChange={(checked) =>
+                  updateConfig({ storePrivateOnly: checked })
+                }
+                disabled={disabled}
               />
             </div>
             <p className="text-xs text-muted-foreground">
               Enabled: show only private apps. Disabled: show public and private
               apps together.
             </p>
-            {storePrivateOnlyDraft !== initialStorePrivateOnly && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Unsaved changes — click Save to apply.
-              </p>
-            )}
           </Card>
 
           <Card className="min-w-0 p-4 grid gap-3 content-start">
@@ -429,8 +293,11 @@ export default function RegistrySettingsPage({
               </div>
               <Switch
                 id="accept-publish-requests"
-                checked={acceptPublishRequestsDraft}
-                onCheckedChange={setAcceptPublishRequestsDraft}
+                checked={acceptPublishRequests}
+                onCheckedChange={(checked) =>
+                  updateConfig({ acceptPublishRequests: checked })
+                }
+                disabled={disabled}
               />
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-center gap-2 min-w-0">
@@ -457,8 +324,11 @@ export default function RegistrySettingsPage({
               </div>
               <Switch
                 id="require-api-token"
-                checked={requireApiTokenDraft}
-                onCheckedChange={setRequireApiTokenDraft}
+                checked={requireApiToken}
+                onCheckedChange={(checked) =>
+                  updateConfig({ requireApiToken: checked })
+                }
+                disabled={disabled}
               />
             </div>
 
@@ -471,11 +341,14 @@ export default function RegistrySettingsPage({
               </div>
               <Switch
                 id="publish-rate-limit"
-                checked={rateLimitEnabledDraft}
-                onCheckedChange={setRateLimitEnabledDraft}
+                checked={rateLimitEnabled}
+                onCheckedChange={(checked) =>
+                  updateConfig({ rateLimitEnabled: checked })
+                }
+                disabled={disabled}
               />
             </div>
-            {rateLimitEnabledDraft && (
+            {rateLimitEnabled && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label
@@ -493,6 +366,8 @@ export default function RegistrySettingsPage({
                     onChange={(event) =>
                       setRateLimitMaxDraft(event.target.value)
                     }
+                    onBlur={handleRateLimitMaxBlur}
+                    disabled={disabled}
                     placeholder="100"
                   />
                 </div>
@@ -505,13 +380,16 @@ export default function RegistrySettingsPage({
                   </Label>
                   <select
                     id="rate-limit-window"
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={rateLimitWindowDraft}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+                    value={rateLimitWindow}
                     onChange={(event) =>
-                      setRateLimitWindowDraft(
-                        event.target.value as "minute" | "hour",
-                      )
+                      updateConfig({
+                        rateLimitWindow: event.target.value as
+                          | "minute"
+                          | "hour",
+                      })
                     }
+                    disabled={disabled}
                   >
                     <option value="minute">Per minute</option>
                     <option value="hour">Per hour</option>
@@ -520,20 +398,8 @@ export default function RegistrySettingsPage({
               </div>
             )}
 
-            {/* ── Unsaved hint for toggles ── */}
-            {(acceptPublishRequestsDraft !== initialAcceptPublishRequests ||
-              requireApiTokenDraft !== initialRequireApiToken ||
-              rateLimitEnabledDraft !== initialRateLimitEnabled ||
-              rateLimitWindowDraft !== initialRateLimitWindow ||
-              (Number.parseInt(rateLimitMaxDraft, 10) || 100) !==
-                initialRateLimitMax) && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Unsaved changes — click Save to apply.
-              </p>
-            )}
-
             {/* ── API Keys (inline) ── */}
-            {acceptPublishRequestsDraft && requireApiTokenDraft && (
+            {acceptPublishRequests && requireApiToken && (
               <>
                 <div className="flex items-center gap-2 pt-2 border-t border-border">
                   <Key01 size={14} className="text-muted-foreground" />
