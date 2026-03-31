@@ -143,6 +143,7 @@ async function createMCPProxyDoNotUseDirectly(
     ctx,
     superUser,
     getMcpListCache() ?? undefined,
+    { circuitBreaker: true },
   );
 
   // Create server from lazy client with default capabilities
