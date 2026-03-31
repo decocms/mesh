@@ -822,7 +822,11 @@ export const createMCPServer = <
 
     const { instructions, ...serverInfoOverrides } = options.serverInfo ?? {};
     const server = new McpServer(
-      { name: "@deco/mcp-api", version: "1.0.0", ...serverInfoOverrides },
+      {
+        ...serverInfoOverrides,
+        name: serverInfoOverrides.name ?? "@deco/mcp-api",
+        version: serverInfoOverrides.version ?? "1.0.0",
+      },
       {
         capabilities: { tools: {}, prompts: {}, resources: {} },
         ...(instructions && { instructions }),
