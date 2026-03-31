@@ -10,6 +10,7 @@ import {
   useProjectContext,
   WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
+import { toast } from "sonner";
 import { KEYS } from "@/web/lib/registry/query-keys";
 import type {
   PublishApiKeyGenerateResult,
@@ -248,18 +249,13 @@ export function useRegistryConfig(pluginId: string) {
     staleTime: 60_000,
   });
 
-  const saveRegistryConfigMutation = useMutation({
+  const queryKey = KEYS.registryConfigByPlugin(selfConnectionId, pluginId);
+
+  const configMutation = useMutation({
     mutationFn: async (settingsPatch: RegistryConfigSettings) => {
-      const latestData = await callTool<PluginConfigResponse>(
-        client,
-        "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
-        {
-          virtualMcpId: selfConnectionId,
-          pluginId,
-        },
-      );
-      const latestSettings =
-        (latestData?.config?.settings as RegistryConfigSettings | null) ?? {};
+      const cached = queryClient.getQueryData<PluginConfigResponse>(queryKey);
+      const currentSettings =
+        (cached?.config?.settings as RegistryConfigSettings | null) ?? {};
 
       return callTool<PluginConfigResponse>(
         client,
@@ -268,18 +264,27 @@ export function useRegistryConfig(pluginId: string) {
           virtualMcpId: selfConnectionId,
           pluginId,
           settings: {
-            ...latestSettings,
+            ...currentSettings,
             ...settingsPatch,
           },
         },
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: KEYS.registryConfigByPlugin(selfConnectionId, pluginId),
-      });
+      await queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to save registry settings",
+      );
     },
   });
+
+  const updateConfig = (patch: RegistryConfigSettings) => {
+    configMutation.mutate(patch);
+  };
 
   const registryName =
     (configQuery.data?.config?.settings?.registryName as string | undefined) ??
@@ -328,7 +333,8 @@ export function useRegistryConfig(pluginId: string) {
     rateLimitWindow,
     rateLimitMax,
     isLoadingConfig: configQuery.isLoading,
-    saveRegistryConfigMutation,
+    isSaving: configMutation.isPending,
+    updateConfig,
   };
 }
 

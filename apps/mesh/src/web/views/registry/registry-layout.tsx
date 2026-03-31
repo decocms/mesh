@@ -69,22 +69,10 @@ function HeaderTabs({
 export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
   const [activeTab, setActiveTab] = useState<NavItem["tab"]>("items");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const {
-    registryName,
-    registryIcon,
-    acceptPublishRequests,
-    requireApiToken,
-    storePrivateOnly,
-    rateLimitEnabled,
-    rateLimitWindow,
-    rateLimitMax,
-  } = useRegistryConfig(PLUGIN_ID);
+  const { registryName, registryIcon, acceptPublishRequests } =
+    useRegistryConfig(PLUGIN_ID);
   const pendingQuery = usePublishRequestCount();
   const brokenMonitors = useBrokenMonitorsCount();
-
-  // Build a stable key from server config so SettingsPage re-mounts when
-  // the persisted values change (e.g. after save).
-  const settingsKey = `${registryName}|${registryIcon}|${acceptPublishRequests}|${requireApiToken}|${storePrivateOnly}|${rateLimitEnabled}|${rateLimitWindow}|${rateLimitMax}`;
 
   // If publish requests were disabled while viewing requests tab, redirect
   if (!acceptPublishRequests && activeTab === "requests") {
@@ -168,15 +156,6 @@ export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
         {activeTab === "qa" && <RegistryMonitorPage />}
         {activeTab === "settings" && (
           <RegistrySettingsPage
-            key={settingsKey}
-            initialName={registryName}
-            initialIcon={registryIcon}
-            initialAcceptPublishRequests={acceptPublishRequests}
-            initialRequireApiToken={requireApiToken}
-            initialStorePrivateOnly={storePrivateOnly}
-            initialRateLimitEnabled={rateLimitEnabled}
-            initialRateLimitWindow={rateLimitWindow}
-            initialRateLimitMax={rateLimitMax}
             revealedKey={revealedKey}
             onRevealedKeyChange={setRevealedKey}
           />
