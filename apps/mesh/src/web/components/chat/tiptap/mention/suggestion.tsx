@@ -130,31 +130,22 @@ const MentionItem = <T extends BaseItem>({
   isLoading,
   ref,
 }: MentionItemProps<T>) => {
+  const label =
+    item.description ?? (item.title || item.name).replace(/_/g, " ");
+
   return (
     <div
       ref={ref}
       onClick={onSelect}
       className={cn(
-        "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
-        "hover:bg-accent hover:text-accent-foreground",
-        "focus:bg-accent focus:text-accent-foreground",
-        isSelected && "bg-accent text-accent-foreground",
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm outline-none transition-colors",
+        "hover:bg-accent/50",
+        isSelected && "bg-accent/50",
         isLoading && "pointer-events-none opacity-50",
       )}
     >
-      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium flex items-center truncate">
-            {item.title || item.name.replace(/_/g, " ")}
-          </span>
-          {isLoading && <Spinner size="xs" />}
-        </div>
-        {item.description && (
-          <div className="text-xs text-muted-foreground line-clamp-1">
-            {item.description}
-          </div>
-        )}
-      </div>
+      <span className="flex-1 line-clamp-2 min-w-0">{label}</span>
+      {isLoading && <Spinner size="xs" />}
     </div>
   );
 };

@@ -125,10 +125,9 @@ function HomeEmptyState({
               What's on your mind, {userName}?
             </p>
           </div>
-          {/* Agents above prompts, input at bottom */}
+          {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
             <AgentsList />
-            <Chat.IceBreakers className="w-full" />
             <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             {isDecoUser && (
               <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
@@ -161,7 +160,6 @@ function HomeEmptyState({
                 What's on your mind, {userName}?
               </p>
             </div>
-            <Chat.IceBreakers className="w-full" />
             <div className="w-full">
               <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             </div>
