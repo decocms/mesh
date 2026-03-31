@@ -132,3 +132,11 @@ function evictIfNeeded(): void {
 export function resetAll(): void {
   circuits.clear();
 }
+
+/**
+ * Get raw circuit entry for a connection. Exposed for testing only.
+ * Allows tests to manipulate internal state (e.g., backdate lastFailureTime).
+ */
+export function _getCircuitForTest(connectionId: string) {
+  return circuits.get(connectionId);
+}

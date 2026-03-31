@@ -5,6 +5,7 @@ import {
   recordFailure,
   recordSuccess,
   resetAll,
+  _getCircuitForTest,
 } from "./circuit-breaker";
 
 // Use a fresh state for each test
@@ -52,12 +53,18 @@ describe("circuit-breaker", () => {
 
   it("transitions to HALF_OPEN after cooldown and allows one probe", () => {
     for (let i = 0; i < 3; i++) recordFailure("conn_a");
+    expect(() => assertCircuitClosed("conn_a")).toThrow(CircuitOpenError);
 
-    // Simulate cooldown elapsed by recording failure with old timestamp
-    // We can't easily mock Date.now, so we use a workaround:
-    // record failure, then manipulate time by calling the functions
-    // with a long-enough gap. Instead, let's test with a real short cooldown.
-    // Since we can't change the constant easily, we'll test the state transitions.
+    // Backdate lastFailureTime to simulate cooldown elapsed
+    const circuit = _getCircuitForTest("conn_a");
+    expect(circuit).toBeDefined();
+    circuit!.lastFailureTime = Date.now() - 60_000;
+
+    // Should now transition to HALF_OPEN and allow one probe
+    expect(() => assertCircuitClosed("conn_a")).not.toThrow();
+    expect(circuit!.state).toBe("HALF_OPEN");
+
+    // Second concurrent request while probing should be blocked
     expect(() => assertCircuitClosed("conn_a")).toThrow(CircuitOpenError);
   });
 
@@ -77,13 +84,15 @@ describe("circuit-breaker", () => {
 
   it("includes retry info in error message", () => {
     for (let i = 0; i < 3; i++) recordFailure("conn_a");
+    let thrown: unknown;
     try {
       assertCircuitClosed("conn_a");
     } catch (e) {
-      expect(e).toBeInstanceOf(CircuitOpenError);
-      expect((e as Error).message).toContain("conn_a");
-      expect((e as Error).message).toContain("circuit breaker is open");
-      expect((e as Error).message).toContain("Retry in");
+      thrown = e;
     }
+    expect(thrown).toBeInstanceOf(CircuitOpenError);
+    expect((thrown as Error).message).toContain("conn_a");
+    expect((thrown as Error).message).toContain("circuit breaker is open");
+    expect((thrown as Error).message).toContain("Retry in");
   });
 });
