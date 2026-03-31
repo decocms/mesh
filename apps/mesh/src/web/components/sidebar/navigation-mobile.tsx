@@ -21,7 +21,7 @@ function MobileLogoHeader() {
   const darkSrc = typeof logo === "string" ? logo : logo.dark;
 
   return (
-    <SidebarHeader className="flex items-center justify-center h-14 shrink-0 px-2">
+    <SidebarHeader className="flex items-center justify-center shrink-0 px-2 pb-0">
       <div className="flex w-full aspect-square items-center justify-center">
         <img
           src={lightSrc}
@@ -131,10 +131,10 @@ export function MobileNavigationSidebar({
       className="bg-sidebar flex h-full w-full flex-col"
       data-sidebar="sidebar"
     >
-      <Suspense fallback={<div className="h-14 shrink-0" />}>
+      <Suspense fallback={<div className="h-10 shrink-0" />}>
         <MobileLogoHeader />
       </Suspense>
-      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden px-2 pb-2 gap-0">
+      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden px-2 py-2 gap-0">
         {sections.map((section, index) => (
           <MobileSectionRenderer
             key={index}
