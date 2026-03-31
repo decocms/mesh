@@ -261,10 +261,12 @@ const collectionDetailRoute = createRoute({
 const monitoringRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/monitor",
-  component: lazyRouteComponent(() => import("./routes/orgs/monitoring.tsx")),
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/monitoring/index.tsx"),
+  ),
   validateSearch: z.lazy(() =>
     z.object({
-      tab: z.enum(["overview", "audit"]).default("overview"),
+      tab: z.enum(["overview", "audit", "threads"]).default("overview"),
       from: z.string().default("now-30m"),
       to: z.string().default("now"),
       connectionId: z.array(z.string()).optional().default([]),

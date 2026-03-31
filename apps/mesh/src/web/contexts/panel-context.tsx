@@ -12,7 +12,7 @@ export interface PanelControls {
   onNewTask: React.MutableRefObject<(() => void) | null>;
 }
 
-const PanelContext = createContext<PanelControls | null>(null);
+export const PanelContext = createContext<PanelControls | null>(null);
 
 export const PanelContextProvider = PanelContext.Provider;
 

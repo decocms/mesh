@@ -754,6 +754,10 @@ export function useChatStream(): ChatStreamContextValue {
   return ctx;
 }
 
+export function useOptionalChatStream(): ChatStreamContextValue | null {
+  return useContext(ChatStreamCtx);
+}
+
 export function useChatTask(): ChatTaskContextValue {
   const ctx = useContext(ChatTaskCtx);
   if (!ctx)
@@ -766,6 +770,10 @@ export function useChatPrefs(): ChatPrefsContextValue {
   if (!ctx)
     throw new Error("useChatPrefs must be used within ChatContextProvider");
   return ctx;
+}
+
+export function useOptionalChatPrefs(): ChatPrefsContextValue | null {
+  return useContext(ChatPrefsCtx);
 }
 
 export function useChatBridge(): ChatBridgeValue {

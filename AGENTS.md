@@ -59,6 +59,29 @@ bun run --cwd=apps/mesh migrate
 bun run --cwd=apps/mesh better-auth:migrate
 ```
 
+#### Querying local postgres during development
+The dev server uses embedded postgres on a **dynamic port**. To query it while `bun run dev` is running:
+
+1. Find the port:
+```bash
+ps aux | grep "postgres -D" | grep -v grep
+# Look for -p <PORT> at the end of the command
+```
+
+2. Run queries via a bun inline script (uses the `pg` package from apps/mesh):
+```bash
+cat << 'EOF' | bun run --cwd apps/mesh -
+import pg from "pg";
+const client = new pg.Client("postgresql://postgres:postgres@localhost:<PORT>/postgres");
+await client.connect();
+const { rows } = await client.query("SELECT * FROM <table> LIMIT 5");
+console.log(JSON.stringify(rows, null, 2));
+await client.end();
+EOF
+```
+
+Replace `<PORT>` with the port found in step 1. The `--cwd apps/mesh` is required so bun resolves the `pg` dependency from the mesh workspace.
+
 ### Build & Deploy
 ```bash
 # Build runtime package
