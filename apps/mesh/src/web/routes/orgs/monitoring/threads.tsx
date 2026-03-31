@@ -624,12 +624,12 @@ export function ThreadsFiltersPopover({
                 options={virtualMcpOptions}
                 defaultValue={filterAgentIds}
                 onValueChange={(values) =>
-                  onUpdateFilters({ filterAgentIds: values })
+                  onUpdateFilters({ filterAgentIds: values.slice(0, 1) })
                 }
                 placeholder="All agents"
                 variant="secondary"
                 className="w-full"
-                maxCount={2}
+                maxCount={1}
               />
             </div>
 
@@ -641,12 +641,12 @@ export function ThreadsFiltersPopover({
                 options={memberOptions}
                 defaultValue={filterUserIds}
                 onValueChange={(values) =>
-                  onUpdateFilters({ filterUserIds: values })
+                  onUpdateFilters({ filterUserIds: values.slice(0, 1) })
                 }
                 placeholder="All users"
                 variant="secondary"
                 className="w-full"
-                maxCount={2}
+                maxCount={1}
               />
             </div>
 
