@@ -1,12 +1,23 @@
+// CredentialVault requires a valid 32-byte base64 ENCRYPTION_KEY.
+// Must be set before any import triggers getSettings(), which freezes
+// the settings singleton on first access.
+process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString("base64");
+
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import {
-  createTestDatabase,
-  closeTestDatabase,
-  type TestDatabase,
-} from "../database/test-db";
+import { createTestDatabase, type TestDatabase } from "../database/test-db";
 import type { EventBus } from "../event-bus";
+import { setGlobalSettings, getSettings } from "../settings";
 import { createTestSchema } from "../storage/test-helpers";
 import { createApp } from "./app";
+
+// If settings were already frozen by a prior test file without
+// ENCRYPTION_KEY, re-initialize them now that the env var is set.
+if (!getSettings().encryptionKey) {
+  setGlobalSettings({
+    ...getSettings(),
+    encryptionKey: process.env.ENCRYPTION_KEY!,
+  });
+}
 
 /**
  * Create a no-op mock event bus for testing
@@ -67,7 +78,21 @@ describe("Hono App", () => {
   });
 
   afterEach(async () => {
-    await closeTestDatabase(database);
+    // Shutdown the app first to stop all background tasks (RunRegistry,
+    // expired API key cleanup, monitoring retention, plugin hooks, etc.)
+    // before destroying the database. Without this, background tasks race
+    // against database teardown and produce "driver has already been
+    // destroyed" errors — which can cause timeouts in CI.
+    if (app) {
+      await app.shutdown();
+    }
+
+    // shutdown() already calls closeDatabase() which destroys the Kysely
+    // driver and ends the pool, but we still need to close the PGlite
+    // WASM instance which closeDatabase doesn't know about.
+    if (database?.pglite && !database.pglite.closed) {
+      await database.pglite.close();
+    }
   });
   describe("liveness check", () => {
     it("should respond to liveness probe", async () => {
