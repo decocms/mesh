@@ -53,42 +53,13 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { authClient } from "@/web/lib/auth-client";
-import { useLocalStorage } from "@/web/hooks/use-local-storage";
+import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
-function usePinnedAgents(orgId: string, initialPinnedIds: string[]) {
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id ?? "anon";
-  const storageKey = `mesh:pinned-agents:${orgId}:${userId}`;
-
-  const [pinnedIds, setPinnedIds] = useLocalStorage<string[]>(
-    storageKey,
-    (existing) => existing ?? initialPinnedIds,
-  );
-
-  const pin = (id: string) => {
-    if (pinnedIds.includes(id)) return;
-    setPinnedIds([...pinnedIds, id]);
-  };
-
-  const unpin = (id: string) => {
-    setPinnedIds(pinnedIds.filter((x) => x !== id));
-  };
-
-  const reorder = (newOrder: string[]) => {
-    setPinnedIds(newOrder);
-  };
-
-  const isPinned = (id: string) => pinnedIds.includes(id);
-
-  return { pinnedIds, pin, unpin, reorder, isPinned };
-}
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -352,6 +323,7 @@ function PinAgentPopoverContent({
     }
     onClose();
     setSearch("");
+    navigateToNewTask(agent.id);
   };
 
   const handleDefaultAgentClick = (agentId: string) => {
