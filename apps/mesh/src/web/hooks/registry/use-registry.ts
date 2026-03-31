@@ -219,8 +219,6 @@ interface PluginConfigResponse {
 interface RegistryConfigSettings {
   registryName?: string;
   registryIcon?: string;
-  llmConnectionId?: string;
-  llmModelId?: string;
   acceptPublishRequests?: boolean;
   requireApiToken?: boolean;
   storePrivateOnly?: boolean;
@@ -287,14 +285,6 @@ export function useRegistryConfig(pluginId: string) {
   const registryIcon =
     (configQuery.data?.config?.settings?.registryIcon as string | undefined) ??
     "";
-  const registryLLMConnectionId =
-    (configQuery.data?.config?.settings?.llmConnectionId as
-      | string
-      | undefined) ?? "";
-  const registryLLMModelId =
-    (configQuery.data?.config?.settings?.llmModelId as string | undefined) ??
-    "";
-
   const acceptPublishRequests =
     (configQuery.data?.config?.settings?.acceptPublishRequests as
       | boolean
@@ -329,8 +319,6 @@ export function useRegistryConfig(pluginId: string) {
   return {
     registryName,
     registryIcon,
-    registryLLMConnectionId,
-    registryLLMModelId,
     acceptPublishRequests,
     requireApiToken,
     storePrivateOnly,

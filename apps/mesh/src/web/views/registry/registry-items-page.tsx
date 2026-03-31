@@ -33,13 +33,11 @@ import {
   Loading01,
   SearchMd,
 } from "@untitledui/icons";
-import { PLUGIN_ID } from "@/tools/registry/shared";
 import { CsvImportDialog } from "./csv-import-dialog";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { RegistryItemCard } from "./registry-item-card";
 import { RegistryItemDialog } from "./registry-item-dialog";
 import {
-  useRegistryConfig,
   useRegistryFilters,
   useRegistryItems,
   useRegistryMutations,
@@ -88,8 +86,6 @@ export default function RegistryItemsPage() {
     categories: selectedCategories,
   });
   const filtersQuery = useRegistryFilters();
-  const { registryLLMConnectionId, registryLLMModelId } =
-    useRegistryConfig(PLUGIN_ID);
   const { createMutation, updateMutation, deleteMutation, bulkCreateMutation } =
     useRegistryMutations();
 
@@ -557,8 +553,6 @@ export default function RegistryItemsPage() {
         item={editingItem}
         availableTags={tags.map((tag) => tag.value)}
         availableCategories={categories.map((category) => category.value)}
-        defaultLLMConnectionId={registryLLMConnectionId}
-        defaultLLMModelId={registryLLMModelId}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
         onSubmit={handleCreateOrEdit}
       />

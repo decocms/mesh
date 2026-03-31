@@ -250,8 +250,6 @@ const DEFAULT_MONITOR_SETTINGS: RegistryMonitorConfig = {
   testPrivateOnly: false,
   includePendingRequests: false,
   agentContext: "",
-  llmConnectionId: "",
-  llmModelId: "",
 };
 
 export function useRegistryMonitorConfig() {

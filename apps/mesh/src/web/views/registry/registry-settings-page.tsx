@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  useCollectionList,
-  useConnections,
-  useMCPClientOptional,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
@@ -21,7 +16,6 @@ import {
 } from "@deco/ui/components/alert-dialog.tsx";
 import { useCopy } from "@deco/ui/hooks/use-copy.ts";
 import { Label } from "@deco/ui/components/label.tsx";
-import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
 import {
   Check,
@@ -58,8 +52,6 @@ import { ImageUpload } from "./image-upload";
 interface RegistrySettingsPageProps {
   initialName: string;
   initialIcon: string;
-  initialLLMConnectionId: string;
-  initialLLMModelId: string;
   initialAcceptPublishRequests: boolean;
   initialRequireApiToken: boolean;
   initialStorePrivateOnly: boolean;
@@ -73,8 +65,6 @@ interface RegistrySettingsPageProps {
 export default function RegistrySettingsPage({
   initialName,
   initialIcon,
-  initialLLMConnectionId,
-  initialLLMModelId,
   initialAcceptPublishRequests,
   initialRequireApiToken,
   initialStorePrivateOnly,
@@ -91,10 +81,6 @@ export default function RegistrySettingsPage({
   // ── Draft state (seeded from initial props, reset via key) ──
   const [nameDraft, setNameDraft] = useState(initialName);
   const [iconDraft, setIconDraft] = useState(initialIcon);
-  const [llmConnectionDraft, setLLMConnectionDraft] = useState(
-    initialLLMConnectionId,
-  );
-  const [llmModelDraft, setLLMModelDraft] = useState(initialLLMModelId);
   const [acceptPublishRequestsDraft, setAcceptPublishRequestsDraft] = useState(
     initialAcceptPublishRequests,
   );
@@ -136,23 +122,6 @@ export default function RegistrySettingsPage({
     categories: [],
     limit: 50,
   });
-  const llmConnections = useConnections({ binding: "LLM" });
-  const effectiveLLMConnectionId =
-    llmConnectionDraft || initialLLMConnectionId || llmConnections[0]?.id || "";
-  const llmClient = useMCPClientOptional({
-    connectionId: effectiveLLMConnectionId || undefined,
-    orgId: org.id,
-  });
-  const llmModels = useCollectionList<{
-    id: string;
-    title: string;
-    created_at: string;
-    updated_at: string;
-    description?: string | null;
-    logo?: string | null;
-    capabilities?: string[];
-  }>(effectiveLLMConnectionId || "no-llm-connection", "LLM", llmClient);
-
   const publicStoreUrl = `${window.location.origin}/org/${org.slug}/registry/mcp`;
   const loadedItems =
     itemsQuery.data?.pages.flatMap((page) => page.items ?? []) ?? [];
@@ -170,8 +139,6 @@ export default function RegistrySettingsPage({
   const isDirty =
     nameDraft.trim() !== initialName.trim() ||
     iconDraft.trim() !== initialIcon.trim() ||
-    llmConnectionDraft.trim() !== initialLLMConnectionId.trim() ||
-    llmModelDraft.trim() !== initialLLMModelId.trim() ||
     acceptPublishRequestsDraft !== initialAcceptPublishRequests ||
     requireApiTokenDraft !== initialRequireApiToken ||
     storePrivateOnlyDraft !== initialStorePrivateOnly ||
@@ -198,10 +165,6 @@ export default function RegistrySettingsPage({
     const nextName = nameDraft.trim();
     if (!nextName) return;
 
-    const nextModelId = llmModelDraft.trim();
-    const nextConnectionId = nextModelId
-      ? llmConnectionDraft.trim() || effectiveLLMConnectionId || ""
-      : llmConnectionDraft.trim();
     const parsedRateLimitMax = Number.parseInt(rateLimitMaxDraft, 10);
     const nextRateLimitMax =
       Number.isFinite(parsedRateLimitMax) && parsedRateLimitMax >= 1
@@ -212,8 +175,6 @@ export default function RegistrySettingsPage({
       await saveRegistryConfigMutation.mutateAsync({
         registryName: nextName,
         registryIcon: iconDraft.trim(),
-        llmConnectionId: nextConnectionId,
-        llmModelId: nextModelId,
         acceptPublishRequests: acceptPublishRequestsDraft,
         requireApiToken: requireApiTokenDraft,
         storePrivateOnly: storePrivateOnlyDraft,
@@ -234,8 +195,6 @@ export default function RegistrySettingsPage({
   const handleUndo = () => {
     setNameDraft(initialName);
     setIconDraft(initialIcon);
-    setLLMConnectionDraft(initialLLMConnectionId);
-    setLLMModelDraft(initialLLMModelId);
     setAcceptPublishRequestsDraft(initialAcceptPublishRequests);
     setRequireApiTokenDraft(initialRequireApiToken);
     setStorePrivateOnlyDraft(initialStorePrivateOnly);
@@ -332,35 +291,6 @@ export default function RegistrySettingsPage({
               onChange={setIconDraft}
               onFileUpload={handleIconFileUpload}
               isUploading={isUploadingIcon}
-            />
-          </Card>
-
-          <Card className="min-w-0 p-4 grid gap-3 content-start">
-            <div>
-              <h3 className="text-base font-semibold">AI Configuration</h3>
-              <p className="text-sm text-muted-foreground">
-                Set the default model used for AI suggestions.
-              </p>
-            </div>
-            <LLMModelSelector
-              connectionId={effectiveLLMConnectionId}
-              modelId={llmModelDraft}
-              connections={llmConnections.map((connection) => ({
-                id: connection.id,
-                title: connection.title,
-                icon: connection.icon ?? null,
-              }))}
-              models={llmModels.map((model) => ({
-                id: model.id,
-                title: model.title || model.id,
-                logo: model.logo ?? null,
-                capabilities: model.capabilities ?? [],
-              }))}
-              onConnectionChange={(value) => {
-                setLLMConnectionDraft(value);
-                setLLMModelDraft("");
-              }}
-              onModelChange={setLLMModelDraft}
             />
           </Card>
         </div>

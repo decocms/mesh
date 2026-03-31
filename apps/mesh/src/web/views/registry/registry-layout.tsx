@@ -72,8 +72,6 @@ export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
   const {
     registryName,
     registryIcon,
-    registryLLMConnectionId,
-    registryLLMModelId,
     acceptPublishRequests,
     requireApiToken,
     storePrivateOnly,
@@ -86,7 +84,7 @@ export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
 
   // Build a stable key from server config so SettingsPage re-mounts when
   // the persisted values change (e.g. after save).
-  const settingsKey = `${registryName}|${registryIcon}|${registryLLMConnectionId}|${registryLLMModelId}|${acceptPublishRequests}|${requireApiToken}|${storePrivateOnly}|${rateLimitEnabled}|${rateLimitWindow}|${rateLimitMax}`;
+  const settingsKey = `${registryName}|${registryIcon}|${acceptPublishRequests}|${requireApiToken}|${storePrivateOnly}|${rateLimitEnabled}|${rateLimitWindow}|${rateLimitMax}`;
 
   // If publish requests were disabled while viewing requests tab, redirect
   if (!acceptPublishRequests && activeTab === "requests") {
@@ -173,8 +171,6 @@ export default function RegistryLayout({ onBack }: { onBack?: () => void }) {
             key={settingsKey}
             initialName={registryName}
             initialIcon={registryIcon}
-            initialLLMConnectionId={registryLLMConnectionId}
-            initialLLMModelId={registryLLMModelId}
             initialAcceptPublishRequests={acceptPublishRequests}
             initialRequireApiToken={requireApiToken}
             initialStorePrivateOnly={storePrivateOnly}

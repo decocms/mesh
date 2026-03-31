@@ -34,7 +34,6 @@ import { useProjectContext } from "@decocms/mesh-sdk";
 import { ImageUpload } from "./image-upload.tsx";
 import { ToolsEditor } from "./tools-editor.tsx";
 import { useImageUpload } from "@/web/hooks/registry/use-image-upload";
-import { useAIGenerate } from "@/web/hooks/registry/use-ai-generate";
 import { useDiscoverTools } from "@/web/hooks/registry/use-discover-tools";
 import type {
   RegistryCreateInput,
@@ -54,8 +53,6 @@ interface RegistryItemDialogProps {
   draft?: Partial<RegistryCreateInput> | null;
   availableTags?: string[];
   availableCategories?: string[];
-  defaultLLMConnectionId?: string;
-  defaultLLMModelId?: string;
   isSubmitting?: boolean;
   onSubmit: (payload: SubmitPayload) => Promise<void>;
 }
@@ -444,14 +441,11 @@ export function RegistryItemDialog({
   draft,
   availableTags = [],
   availableCategories = [],
-  defaultLLMConnectionId = "",
-  defaultLLMModelId = "",
   isSubmitting = false,
   onSubmit,
 }: RegistryItemDialogProps) {
   const { org } = useProjectContext();
   const { uploadImage, isUploading } = useImageUpload();
-  const { generate, loadingType } = useAIGenerate();
   const { discover, discoverStatus, discoverError, resetDiscover } =
     useDiscoverTools();
   const isEdit = Boolean(item);
@@ -509,7 +503,7 @@ export function RegistryItemDialog({
   const [repositoryUrl, setRepositoryUrl] = useState(initialRepositoryUrl);
   const [readme, setReadme] = useState(initialReadme);
   const [readmeUrl, setReadmeUrl] = useState(initialReadmeUrl);
-  const [readmeMode, setReadmeMode] = useState<"link" | "content" | "generate">(
+  const [readmeMode, setReadmeMode] = useState<"link" | "content">(
     initialReadme ? "content" : "link",
   );
   const [remoteHost, setRemoteHost] = useState(initialRemoteHost);
@@ -522,7 +516,6 @@ export function RegistryItemDialog({
   const [isVerified, setIsVerified] = useState(initialIsVerified);
   const [isOfficial, setIsOfficial] = useState(initialIsOfficial);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
-  const hasAIConfigured = Boolean(defaultLLMConnectionId && defaultLLMModelId);
 
   /* ── helpers ── */
   const resetForm = () => {
@@ -617,88 +610,6 @@ export function RegistryItemDialog({
         setTools(discovered);
       }
     }, 800);
-  };
-
-  /* ── AI helpers ── */
-  const ensureAIConfig = () => {
-    if (!hasAIConfigured) return null;
-    return {
-      llmConnectionId: defaultLLMConnectionId,
-      modelId: defaultLLMModelId,
-    };
-  };
-
-  const buildAIContext = () => ({
-    name: title.trim(),
-    provider: provider.trim(),
-    url: normalizeRemoteUrl(remoteHost),
-    owner: owner.trim(),
-    repositoryUrl: repositoryUrl.trim(),
-    description: description.trim(),
-    shortDescription: shortDescription.trim(),
-    tags,
-    categories: category ? [category] : [],
-    availableTags: [...DEFAULT_TAGS, ...availableTags],
-    availableCategories: [...DEFAULT_CATEGORIES, ...availableCategories],
-    tools,
-  });
-
-  const handleGenerateDescription = async () => {
-    const config = ensureAIConfig();
-    if (!config) return;
-    const output = await generate({
-      ...config,
-      type: "description",
-      context: buildAIContext(),
-    });
-    if (output.result) setDescription(output.result.slice(0, 1500));
-  };
-
-  const handleGenerateShortDescription = async () => {
-    const config = ensureAIConfig();
-    if (!config) return;
-    const output = await generate({
-      ...config,
-      type: "short_description",
-      context: buildAIContext(),
-    });
-    if (output.result) setShortDescription(output.result.slice(0, 160));
-  };
-
-  const handleSuggestTags = async () => {
-    const config = ensureAIConfig();
-    if (!config) return;
-    const output = await generate({
-      ...config,
-      type: "tags",
-      context: buildAIContext(),
-    });
-    if (output.items?.length) setTags(normalizeOptions(output.items));
-  };
-
-  const handleSuggestCategory = async () => {
-    const config = ensureAIConfig();
-    if (!config) return;
-    const output = await generate({
-      ...config,
-      type: "categories",
-      context: buildAIContext(),
-    });
-    if (output.items?.[0]) setCategory(normalizeOptionValue(output.items[0]));
-  };
-
-  const handleGenerateReadme = async () => {
-    const config = ensureAIConfig();
-    if (!config) return;
-    const output = await generate({
-      ...config,
-      type: "readme",
-      context: buildAIContext(),
-    });
-    if (output.result) {
-      setReadme(output.result.slice(0, 50000));
-      setReadmeMode("content");
-    }
   };
 
   /* ── per-step validation ── */
@@ -1055,25 +966,9 @@ export function RegistryItemDialog({
           <Label htmlFor="registry-item-short-description">
             Short Description
           </Label>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {shortDescription.length}/160
-            </span>
-            {hasAIConfigured && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={AI_BUTTON_CLASS}
-                disabled={loadingType === "short_description"}
-                onClick={handleGenerateShortDescription}
-              >
-                {loadingType === "short_description"
-                  ? "Generating..."
-                  : "AI Generate"}
-              </Button>
-            )}
-          </div>
+          <span className="text-xs text-muted-foreground">
+            {shortDescription.length}/160
+          </span>
         </div>
         <Input
           id="registry-item-short-description"
@@ -1092,25 +987,9 @@ export function RegistryItemDialog({
       <div className="grid gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="registry-item-description">Description</Label>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {description.length}/1500
-            </span>
-            {hasAIConfigured && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={AI_BUTTON_CLASS}
-                disabled={loadingType === "description"}
-                onClick={handleGenerateDescription}
-              >
-                {loadingType === "description"
-                  ? "Generating..."
-                  : "AI Generate"}
-              </Button>
-            )}
-          </div>
+          <span className="text-xs text-muted-foreground">
+            {description.length}/1500
+          </span>
         </div>
         <Textarea
           id="registry-item-description"
@@ -1136,18 +1015,6 @@ export function RegistryItemDialog({
             availableOptions={availableCategories}
             onChange={setCategory}
           />
-          {hasAIConfigured && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(AI_BUTTON_CLASS, "justify-self-start")}
-              disabled={loadingType === "categories"}
-              onClick={handleSuggestCategory}
-            >
-              {loadingType === "categories" ? "Suggesting..." : "AI Suggest"}
-            </Button>
-          )}
         </div>
         <div className="grid content-start gap-2">
           <TagSelector
@@ -1158,18 +1025,6 @@ export function RegistryItemDialog({
             placeholder="Type and press Enter or comma"
             onChange={setTags}
           />
-          {hasAIConfigured && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(AI_BUTTON_CLASS, "justify-self-start")}
-              disabled={loadingType === "tags"}
-              onClick={handleSuggestTags}
-            >
-              {loadingType === "tags" ? "Suggesting..." : "AI Suggest"}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -1266,10 +1121,7 @@ export function RegistryItemDialog({
           </span>
         </div>
         <div className="inline-flex rounded-lg border border-border p-0.5">
-          {(hasAIConfigured
-            ? (["link", "content", "generate"] as const)
-            : (["link", "content"] as const)
-          ).map((mode) => (
+          {(["link", "content"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -1281,11 +1133,7 @@ export function RegistryItemDialog({
               )}
               onClick={() => setReadmeMode(mode)}
             >
-              {mode === "link"
-                ? "Link"
-                : mode === "content"
-                  ? "Content"
-                  : "Generate"}
+              {mode === "link" ? "Link" : "Content"}
             </button>
           ))}
         </div>
@@ -1316,25 +1164,6 @@ export function RegistryItemDialog({
             {errors.readme && (
               <p className="text-xs text-destructive">{errors.readme}</p>
             )}
-          </div>
-        )}
-
-        {hasAIConfigured && readmeMode === "generate" && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3">
-            <p className="text-xs text-muted-foreground">
-              Generates a README using name, description, tools, category and
-              tags as context.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={AI_BUTTON_CLASS}
-              disabled={loadingType === "readme"}
-              onClick={handleGenerateReadme}
-            >
-              {loadingType === "readme" ? "Generating..." : "Generate with AI"}
-            </Button>
           </div>
         )}
       </div>

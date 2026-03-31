@@ -1,16 +1,9 @@
 import { useRef, useState } from "react";
-import {
-  useCollectionList,
-  useConnections,
-  useMCPClientOptional,
-  useProjectContext,
-} from "@decocms/mesh-sdk";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
-import { LLMModelSelector } from "@deco/ui/components/llm-model-selector.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   Tooltip,
@@ -18,7 +11,6 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { MessageQuestionCircle } from "@untitledui/icons";
-import { useRegistryConfig } from "@/web/hooks/registry/use-registry";
 import {
   useMonitorScheduleCancel,
   useMonitorScheduleSet,
@@ -28,10 +20,7 @@ import type {
   MonitorFailureAction,
   RegistryMonitorConfig,
 } from "@/web/lib/registry/types";
-import {
-  MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT,
-  PLUGIN_ID,
-} from "@/tools/registry/shared";
+import { MONITOR_AGENT_DEFAULT_SYSTEM_PROMPT } from "@/tools/registry/shared";
 import { CronScheduleSelector } from "./cron-schedule-selector";
 
 function hasChanges(
@@ -40,8 +29,6 @@ function hasChanges(
 ): boolean {
   return (
     a.onFailure !== b.onFailure ||
-    a.llmConnectionId !== b.llmConnectionId ||
-    a.llmModelId !== b.llmModelId ||
     a.perMcpTimeoutMs !== b.perMcpTimeoutMs ||
     a.perToolTimeoutMs !== b.perToolTimeoutMs ||
     a.maxAgentSteps !== b.maxAgentSteps ||
@@ -55,8 +42,6 @@ function hasChanges(
 }
 
 export function MonitorConfiguration() {
-  const { registryLLMConnectionId, registryLLMModelId } =
-    useRegistryConfig(PLUGIN_ID);
   const { settings, saveMutation } = useRegistryMonitorConfig();
   const scheduleSetMutation = useMonitorScheduleSet();
   const scheduleCancelMutation = useMonitorScheduleCancel();
@@ -64,26 +49,6 @@ export function MonitorConfiguration() {
   const [draft, setDraft] = useState<RegistryMonitorConfig>(settings);
   const [justSaved, setJustSaved] = useState(false);
   const [showDefaultPrompt, setShowDefaultPrompt] = useState(false);
-  const { org } = useProjectContext();
-  const llmConnections = useConnections({ binding: "LLM" });
-  const effectiveLLMConnectionId =
-    draft.llmConnectionId ||
-    registryLLMConnectionId ||
-    llmConnections[0]?.id ||
-    "";
-  const llmClient = useMCPClientOptional({
-    connectionId: effectiveLLMConnectionId || undefined,
-    orgId: org.id,
-  });
-  const llmModels = useCollectionList<{
-    id: string;
-    title: string;
-    created_at: string;
-    updated_at: string;
-    description?: string | null;
-    logo?: string | null;
-    capabilities?: string[];
-  }>(effectiveLLMConnectionId || "no-llm-connection", "LLM", llmClient);
 
   // Sync draft when external settings change (replaces useEffect)
   if (prevSettingsRef.current !== settings) {
@@ -119,18 +84,11 @@ export function MonitorConfiguration() {
       scheduleEventId = "";
     }
 
-    const normalizedModelId = (draft.llmModelId ?? "").trim();
-    const normalizedConnectionId = normalizedModelId
-      ? (draft.llmConnectionId || effectiveLLMConnectionId || "").trim()
-      : (draft.llmConnectionId ?? "").trim();
-
     const nextDraft: RegistryMonitorConfig = {
       ...draft,
       cronExpression: normalizedCron,
       scheduleEventId,
       agentContext: (draft.agentContext ?? "").trim(),
-      llmConnectionId: normalizedConnectionId,
-      llmModelId: normalizedModelId,
     };
     await saveMutation.mutateAsync(nextDraft);
     setDraft(nextDraft);
@@ -261,35 +219,6 @@ export function MonitorConfiguration() {
         </div>
 
         <div className="space-y-1 md:col-span-2">
-          <FieldLabel
-            label="Model (LLM binding)"
-            hint="Used only in Agentic mode to decide and chain tool calls."
-          />
-          <LLMModelSelector
-            connectionId={effectiveLLMConnectionId}
-            modelId={draft.llmModelId ?? ""}
-            connections={llmConnections.map((connection) => ({
-              id: connection.id,
-              title: connection.title,
-              icon: connection.icon ?? null,
-            }))}
-            models={llmModels.map((model) => ({
-              id: model.id,
-              title: model.title || model.id,
-              logo: model.logo ?? null,
-              capabilities: model.capabilities ?? [],
-            }))}
-            onConnectionChange={(value) =>
-              setPartial({
-                llmConnectionId: value,
-                llmModelId: "",
-              })
-            }
-            onModelChange={(value) => setPartial({ llmModelId: value })}
-          />
-        </div>
-
-        <div className="space-y-1 md:col-span-2">
           <div className="flex items-center justify-between gap-2">
             <FieldLabel
               label="Additional test context (prompt)"
@@ -389,13 +318,6 @@ export function MonitorConfiguration() {
             max={30}
           />
         </div>
-      </div>
-
-      <div className="text-xs text-muted-foreground">
-        LLM fallback from Settings:{" "}
-        <span className="font-mono">
-          {registryLLMConnectionId || "-"} / {registryLLMModelId || "-"}
-        </span>
       </div>
     </Card>
   );
