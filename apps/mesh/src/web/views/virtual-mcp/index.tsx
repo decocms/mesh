@@ -24,7 +24,9 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Card, CardContent, CardHeader } from "@deco/ui/components/card.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
+import { Label } from "@deco/ui/components/label.tsx";
 import {
   Select,
   SelectContent,
@@ -62,7 +64,6 @@ import {
   Stars01,
   Trash01,
   XClose,
-  ZapCircle,
 } from "@untitledui/icons";
 import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -742,125 +743,169 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
   }
 
   return (
-    <div className="px-6 py-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-foreground">Main view</span>
-        <Select
-          value={defaultMainView}
-          onValueChange={handleDefaultMainViewChange}
-        >
-          <SelectTrigger className="w-48 h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {defaultMainOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-foreground">Show chat</span>
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span>
-              <Switch
-                checked={defaultMainView === "chat" ? true : chatDefaultOpen}
-                disabled={defaultMainView === "chat"}
-                onCheckedChange={(checked) => {
-                  setChatDefaultOpen(checked);
-                  saveLayout(pinnedViews, defaultMainView, checked);
-                }}
-              />
-            </span>
-          </TooltipTrigger>
-          {defaultMainView === "chat" && (
-            <TooltipContent side="top">
-              Chat is always shown when it is the default view
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </div>
-
-      {/* Pinned views */}
-      {noConnections && (
-        <p className="text-sm text-muted-foreground">
-          No connections yet. Add connections in the Connections tab to
-          configure pinned views.
-        </p>
-      )}
-      {noInteractiveTools && !noConnections && (
-        <p className="text-sm text-muted-foreground">
-          None of the connected servers have interactive tools available.
-        </p>
-      )}
-      {connectionsData.map((conn) => (
-        <div key={conn.id} className="mt-2">
-          <div className="flex items-center gap-2 mb-2">
-            <IntegrationIcon
-              icon={conn.icon}
-              name={conn.title}
-              size="xs"
-              className="shrink-0"
-            />
-            <span className="text-sm font-medium text-muted-foreground">
-              {conn.title}
-            </span>
-          </div>
-          {conn.uiTools.length > 0 && (
-            <div className="flex flex-col">
-              {conn.uiTools.map((tool) => {
-                const pinned = pinnedViews.some(
-                  (v) => v.connectionId === conn.id && v.toolName === tool.name,
-                );
-                const pinnedView = pinnedViews.find(
-                  (v) => v.connectionId === conn.id && v.toolName === tool.name,
-                );
-                return (
-                  <div
-                    key={tool.name}
-                    className="flex items-center justify-between gap-3 py-1.5"
+    <div className="space-y-3">
+      {/* Default view card */}
+      <Card className="hover:bg-card p-6 gap-6">
+        <CardContent className="p-0 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label className="font-normal text-foreground">Main view</Label>
+              <p className="text-xs text-muted-foreground">
+                Configure what users see when they first open this agent.
+              </p>
+            </div>
+            <Select
+              value={defaultMainView}
+              onValueChange={handleDefaultMainViewChange}
+            >
+              <SelectTrigger className="w-44 h-8 text-sm capitalize">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {defaultMainOptions.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    className="capitalize"
                   >
-                    <div className="min-w-0 flex-1 flex items-center gap-2">
-                      <SimpleIconPicker
-                        value={pinnedView?.icon ?? null}
-                        onChange={(icon) =>
-                          handleIconChange(conn.id, tool.name, icon)
-                        }
-                        disabled={!pinned || isSaving}
-                      />
-                      <Input
-                        value={
-                          pinned && pinnedView
-                            ? pinnedView.label
-                            : tool.name.replace(/_/g, " ")
-                        }
-                        onChange={(e) =>
-                          handleLabelChange(conn.id, tool.name, e.target.value)
-                        }
-                        onBlur={handleLabelBlur}
-                        className="h-7 text-sm w-40 capitalize"
-                        disabled={!pinned || isSaving}
-                        readOnly={!pinned}
-                      />
-                    </div>
-                    <Switch
-                      checked={pinned}
-                      onCheckedChange={() =>
-                        handleTogglePin(conn.id, tool.name)
-                      }
-                      disabled={isSaving}
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label className="font-normal text-foreground">Show chat</Label>
+              <p className="text-xs text-muted-foreground">
+                Display the chat panel alongside the main view
+              </p>
+            </div>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span>
+                  <Switch
+                    checked={
+                      defaultMainView === "chat" ? true : chatDefaultOpen
+                    }
+                    disabled={defaultMainView === "chat"}
+                    onCheckedChange={(checked) => {
+                      setChatDefaultOpen(checked);
+                      saveLayout(pinnedViews, defaultMainView, checked);
+                    }}
+                  />
+                </span>
+              </TooltipTrigger>
+              {defaultMainView === "chat" && (
+                <TooltipContent side="top">
+                  Chat is always shown when it is the default view
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pinned views card */}
+      <Card className="hover:bg-card p-6 gap-4">
+        <CardHeader className="p-0">
+          <span className="text-sm font-normal">Pinned views</span>
+        </CardHeader>
+        <CardContent className="p-0">
+          {noConnections && (
+            <p className="text-sm text-muted-foreground">
+              No connections yet. Add connections in the Connections tab to
+              configure pinned views.
+            </p>
+          )}
+          {noInteractiveTools && !noConnections && (
+            <p className="text-sm text-muted-foreground">
+              None of the connected servers have interactive tools available.
+            </p>
+          )}
+          {connectionsData.length > 0 && (
+            <div className="space-y-4">
+              {connectionsData.map((conn, connIdx) => (
+                <div key={conn.id}>
+                  {connIdx > 0 && (
+                    <div className="border-t border-border -mx-6 mb-4" />
+                  )}
+                  <div className="flex items-center gap-2 mb-3">
+                    <IntegrationIcon
+                      icon={conn.icon}
+                      name={conn.title}
+                      size="xs"
+                      className="shrink-0"
                     />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {conn.title}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="space-y-2">
+                    {conn.uiTools.map((tool) => {
+                      const pinned = pinnedViews.some(
+                        (v) =>
+                          v.connectionId === conn.id &&
+                          v.toolName === tool.name,
+                      );
+                      const pinnedView = pinnedViews.find(
+                        (v) =>
+                          v.connectionId === conn.id &&
+                          v.toolName === tool.name,
+                      );
+                      return (
+                        <div
+                          key={tool.name}
+                          className={cn(
+                            "flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border transition-colors",
+                            pinned ? "bg-accent/30" : "bg-muted/20",
+                          )}
+                        >
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <SimpleIconPicker
+                              value={pinnedView?.icon ?? null}
+                              onChange={(icon) =>
+                                handleIconChange(conn.id, tool.name, icon)
+                              }
+                              disabled={!pinned || isSaving}
+                            />
+                            <Input
+                              value={
+                                pinned && pinnedView
+                                  ? pinnedView.label
+                                  : tool.name.replace(/_/g, " ")
+                              }
+                              onChange={(e) =>
+                                handleLabelChange(
+                                  conn.id,
+                                  tool.name,
+                                  e.target.value,
+                                )
+                              }
+                              onBlur={handleLabelBlur}
+                              className="h-7 text-sm w-40 capitalize"
+                              disabled={!pinned || isSaving}
+                              readOnly={!pinned}
+                            />
+                          </div>
+                          <Switch
+                            checked={pinned}
+                            onCheckedChange={() =>
+                              handleTogglePin(conn.id, tool.name)
+                            }
+                            disabled={isSaving}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-        </div>
-      ))}
+        </CardContent>
+      </Card>
 
       <div className="flex justify-end">
         <Tooltip delayDuration={0}>
@@ -1168,12 +1213,13 @@ Define step-by-step how the agent should handle requests.
             <Page.Title
               actions={
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={handleTestAgent}>
-                    <Play size={14} />
+                  <Button variant="outline" size="sm" onClick={handleTestAgent}>
+                    <Play size={14} className="!size-[14px]" />
                     Test Agent
                   </Button>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() =>
                       dispatch({
                         type: "SET_SHARE_DIALOG_OPEN",
@@ -1181,7 +1227,27 @@ Define step-by-step how the agent should handle requests.
                       })
                     }
                   >
-                    <ZapCircle size={14} />
+                    <span className="flex items-center -space-x-1.5 mr-0.5">
+                      {/* Cursor — behind */}
+                      <span className="inline-flex items-center justify-center size-4 rounded-full bg-black ring-1 ring-white/20 shrink-0">
+                        <img
+                          src="/logos/cursor.svg"
+                          alt="Cursor"
+                          className="size-2.5 brightness-0 invert"
+                        />
+                      </span>
+                      {/* Claude — on top */}
+                      <span
+                        className="relative z-10 inline-flex items-center justify-center size-4 rounded-full ring-1 ring-background shrink-0"
+                        style={{ backgroundColor: "#D97757" }}
+                      >
+                        <img
+                          src="/logos/Claude Code.svg"
+                          alt="Claude"
+                          className="size-2.5 brightness-0 invert"
+                        />
+                      </span>
+                    </span>
                     Connect
                   </Button>
                   <Button

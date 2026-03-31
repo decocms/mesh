@@ -2,6 +2,23 @@ import { Suspense, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
@@ -33,16 +50,45 @@ import {
 import {
   isDecopilot,
   useProjectContext,
-  useVirtualMCPActions,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
+import { authClient } from "@/web/lib/auth-client";
+import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
+
+function usePinnedAgents(orgId: string, initialPinnedIds: string[]) {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? "anon";
+  const storageKey = `mesh:pinned-agents:${orgId}:${userId}`;
+
+  const [pinnedIds, setPinnedIds] = useLocalStorage<string[]>(
+    storageKey,
+    (existing) => existing ?? initialPinnedIds,
+  );
+
+  const pin = (id: string) => {
+    if (pinnedIds.includes(id)) return;
+    setPinnedIds([...pinnedIds, id]);
+  };
+
+  const unpin = (id: string) => {
+    setPinnedIds(pinnedIds.filter((x) => x !== id));
+  };
+
+  const reorder = (newOrder: string[]) => {
+    setPinnedIds(newOrder);
+  };
+
+  const isPinned = (id: string) => pinnedIds.includes(id);
+
+  return { pinnedIds, pin, unpin, reorder, isPinned };
+}
 
 const SITE_EDITOR_AGENT = {
   id: "site-editor",
@@ -57,25 +103,40 @@ function AgentListItem({
   org,
   hasBadge,
   onMarkSeen,
+  onUnpin,
+  isDragging,
 }: {
   agent: VirtualMCPEntity;
   org: string;
   hasBadge?: boolean;
   onMarkSeen?: () => void;
+  onUnpin: () => void;
+  isDragging?: boolean;
 }) {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const navigateToNewTask = useCreateTaskAndNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = pathname.startsWith(`/${org}/${agent.id}`);
-  const actions = useVirtualMCPActions();
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const xRef = useRef<HTMLButtonElement>(null);
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDraggingRef = useRef(false);
+  isDraggingRef.current = !!isDragging;
+
+  if (isDragging && (buttonRect || showTimeoutRef.current)) {
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    }
+    if (buttonRect) setButtonRect(null);
+  }
 
   const handleIconMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isDraggingRef.current) return;
     const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
     showTimeoutRef.current = setTimeout(() => {
+      if (isDraggingRef.current) return;
       setButtonRect(rect);
     }, 550);
   };
@@ -141,7 +202,7 @@ function AgentListItem({
           <ContextMenuSeparator />
           <ContextMenuItem
             onClick={() => {
-              actions.update.mutate({ id: agent.id, data: { pinned: false } });
+              onUnpin();
               if (isActive) {
                 navigate({ to: "/$org", params: { org } });
               }
@@ -162,10 +223,7 @@ function AgentListItem({
               onClick={(e) => {
                 e.stopPropagation();
                 setButtonRect(null);
-                actions.update.mutate({
-                  id: agent.id,
-                  data: { pinned: false },
-                });
+                onUnpin();
                 navigate({ to: "/$org", params: { org } });
               }}
               className={cn(
@@ -194,6 +252,44 @@ function AgentListItem({
           )}
       </SidebarMenuItem>
     </ContextMenu>
+  );
+}
+
+function SortableAgentListItem(props: {
+  agent: VirtualMCPEntity;
+  org: string;
+  hasBadge?: boolean;
+  onMarkSeen?: () => void;
+  onUnpin: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.agent.id });
+
+  const style = {
+    transform: CSS.Transform.toString(
+      transform ? { ...transform, x: 0 } : null,
+    ),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 100 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="w-full"
+    >
+      <AgentListItem {...props} isDragging={isDragging} />
+    </div>
   );
 }
 
@@ -232,8 +328,9 @@ function PinAgentPopoverContent({
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
-  const actions = useVirtualMCPActions();
   const { org } = useProjectContext();
+  const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
+  const { pin, isPinned } = usePinnedAgents(org.id, serverPinnedIds);
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
   });
@@ -249,16 +346,12 @@ function PinAgentPopoverContent({
     (a) => !search || a.title.toLowerCase().includes(lowerSearch),
   );
 
-  const handleSelect = async (agent: VirtualMCPEntity) => {
-    if (!agent.pinned) {
-      await actions.update.mutateAsync({
-        id: agent.id,
-        data: { pinned: true },
-      });
+  const handleSelect = (agent: VirtualMCPEntity) => {
+    if (!isPinned(agent.id)) {
+      pin(agent.id);
     }
     onClose();
     setSearch("");
-    navigateToNewTask(agent.id);
   };
 
   const handleDefaultAgentClick = (agentId: string) => {
@@ -447,27 +540,66 @@ function PinAgentPopover() {
 }
 
 function AgentsSectionContent() {
-  const agents = useVirtualMCPs({
-    filters: [{ column: "pinned", value: true }],
-  });
+  const allAgents = useVirtualMCPs();
   const { org } = useProjectContext();
-  const { badges, markSeen } = useAgentBadges(agents.map((s) => s.id));
+  const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
+  const { pinnedIds, unpin, reorder } = usePinnedAgents(
+    org.id,
+    serverPinnedIds,
+  );
+
+  const agentMap = new Map(allAgents.map((a) => [a.id, a]));
+  const pinnedAgents = pinnedIds
+    .map((id) => agentMap.get(id))
+    .filter((a): a is VirtualMCPEntity => !!a);
+
+  const { badges, markSeen } = useAgentBadges(pinnedAgents.map((s) => s.id));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = pinnedIds.indexOf(active.id as string);
+    const newIndex = pinnedIds.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    reorder(arrayMove([...pinnedIds], oldIndex, newIndex));
+  };
 
   return (
-    <SidebarGroup className="py-0 px-0 mt-2">
+    <SidebarGroup className="py-0 px-0 mt-2 flex-1 min-h-0">
       <div className="h-px bg-border mx-2 mb-2" />
-      <SidebarGroupContent>
-        <SidebarMenu className="gap-2">
+      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col">
+        <SidebarMenu className="gap-2 flex-1 min-h-0 overflow-y-auto pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <PinAgentPopover />
-          {agents.map((agent) => (
-            <AgentListItem
-              key={agent.id}
-              agent={agent}
-              org={org.slug}
-              hasBadge={badges[agent.id]}
-              onMarkSeen={() => markSeen(agent.id)}
-            />
-          ))}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={pinnedIds}
+              strategy={verticalListSortingStrategy}
+            >
+              {pinnedAgents.map((agent) => (
+                <SortableAgentListItem
+                  key={agent.id}
+                  agent={agent}
+                  org={org.slug}
+                  hasBadge={badges[agent.id]}
+                  onMarkSeen={() => markSeen(agent.id)}
+                  onUnpin={() => unpin(agent.id)}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

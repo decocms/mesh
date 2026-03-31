@@ -247,27 +247,6 @@ function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   );
 }
 
-function ToolbarBreadcrumb() {
-  const routerState = useRouterState();
-  const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
-  const org = orgMatch?.params.org;
-
-  const isAgentsList =
-    org && routerState.location.pathname === `/${org}/agents`;
-
-  if (isAgentsList) {
-    return (
-      <div className="flex items-center min-w-0 ml-1.5">
-        <span className="text-sm font-medium text-sidebar-foreground">
-          Agents
-        </span>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 /**
  * Reads taskId from ChatTaskContext and wraps children in ActiveTaskProvider
  * inside a Suspense + ErrorBoundary boundary.
@@ -740,7 +719,6 @@ function ShellLayoutInner({
               >
                 <ChevronRight size={16} />
               </button>
-              <ToolbarBreadcrumb />
             </div>
             {showThreePanels && (
               <div className="flex items-center gap-0.5">
