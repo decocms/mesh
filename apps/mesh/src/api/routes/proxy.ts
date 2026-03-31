@@ -28,6 +28,7 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Context, Hono } from "hono";
+import { endTime, startTime } from "hono/timing";
 import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
@@ -255,10 +256,12 @@ app.all("/:connectionId", async (c) => {
   try {
     try {
       // Fetch connection
+      startTime(c, "mcp.find_connection");
       const connection = await ctx.storage.connections.findById(
         connectionId,
         ctx.organization?.id,
       );
+      endTime(c, "mcp.find_connection");
       if (!connection) {
         throw new Error("Connection not found");
       }
@@ -287,11 +290,15 @@ app.all("/:connectionId", async (c) => {
       // On success this also warms the per-request client pool, so the
       // lazy client reuses the same connection instead of double-connecting.
       if (connection.connection_url) {
+        startTime(c, "mcp.client_handshake");
         await clientFromConnection(connection, ctx, false);
+        endTime(c, "mcp.client_handshake");
       }
 
       // Create enhanced server directly (no need for bridge - server is used directly!)
+      startTime(c, "mcp.create_server");
       const server = serverFromConnection(connection, ctx, false);
+      endTime(c, "mcp.create_server");
 
       // Create HTTP transport
       const transport = new WebStandardStreamableHTTPServerTransport({
@@ -301,10 +308,15 @@ app.all("/:connectionId", async (c) => {
       });
 
       // Connect server to transport
+      startTime(c, "mcp.server_connect");
       await server.connect(transport);
+      endTime(c, "mcp.server_connect");
 
       // Handle request and cleanup
-      return await transport.handleRequest(c.req.raw);
+      startTime(c, "mcp.handle_request");
+      const response = await transport.handleRequest(c.req.raw);
+      endTime(c, "mcp.handle_request");
+      return response;
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections
