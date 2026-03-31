@@ -57,6 +57,10 @@ describe("Hono App", () => {
   let app: Awaited<ReturnType<typeof createApp>>;
 
   beforeEach(async () => {
+    // CredentialVault requires a 32-byte base64 encryption key
+    process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString(
+      "base64",
+    );
     database = await createTestDatabase();
     await createTestSchema(database.db);
     app = await createApp({ database, eventBus: createMockEventBus() });
@@ -68,12 +72,14 @@ describe("Hono App", () => {
     // before destroying the database. Without this, background tasks race
     // against database teardown and produce "driver has already been
     // destroyed" errors — which can cause timeouts in CI.
-    await app.shutdown();
+    if (app) {
+      await app.shutdown();
+    }
 
     // shutdown() already calls closeDatabase() which destroys the Kysely
     // driver and ends the pool, but we still need to close the PGlite
     // WASM instance which closeDatabase doesn't know about.
-    if (database.pglite && !database.pglite.closed) {
+    if (database?.pglite && !database.pglite.closed) {
       await database.pglite.close();
     }
   });
