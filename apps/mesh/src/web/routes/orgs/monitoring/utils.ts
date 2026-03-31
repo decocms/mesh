@@ -20,7 +20,7 @@ export type { DateRange, MonitoringStatsData };
 
 // ── Grafana-style auto-interval ─────────────────────────────────────────────
 
-export const NICE_INTERVALS: Array<{ ms: number; label: string }> = [
+const NICE_INTERVALS: Array<{ ms: number; label: string }> = [
   { ms: 60_000, label: "1m" },
   { ms: 120_000, label: "2m" },
   { ms: 300_000, label: "5m" },
@@ -44,7 +44,7 @@ export function getIntervalFromRange(range: DateRange): string {
   return nice?.label ?? "1d";
 }
 
-export function intervalToMs(interval: string): number {
+function intervalToMs(interval: string): number {
   const entry = NICE_INTERVALS.find((b) => b.label === interval);
   if (entry) return entry.ms;
   const match = /^(\d+)([mhd])$/.exec(interval);
@@ -56,10 +56,7 @@ export function intervalToMs(interval: string): number {
   return amount * 60_000;
 }
 
-export function formatTimestampLabel(
-  timestamp: string,
-  interval: string,
-): string {
+function formatTimestampLabel(timestamp: string, interval: string): string {
   const date = new Date(timestamp);
   const ms = intervalToMs(interval);
   if (ms >= 86_400_000) {
@@ -68,7 +65,7 @@ export function formatTimestampLabel(
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function floorToInterval(date: Date, interval: string): Date {
+function floorToInterval(date: Date, interval: string): Date {
   const ms = intervalToMs(interval);
   return new Date(Math.floor(date.getTime() / ms) * ms);
 }
@@ -208,14 +205,6 @@ export function getOrgMembers(
   data: ReturnType<typeof useMembers>["data"] | undefined,
 ): OrgMember[] {
   return ((data?.data?.members ?? []) as OrgMember[]) ?? [];
-}
-
-// ── Token formatting ────────────────────────────────────────────────────────
-
-export function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
 }
 
 export interface ThreadUsageDisplay {
