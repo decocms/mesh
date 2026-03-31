@@ -35,6 +35,7 @@ import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { Suspense, useRef, useState } from "react";
 
 /**
@@ -43,6 +44,7 @@ import { Suspense, useRef, useState } from "react";
 function AgentPreview({
   agent,
   onSpecialClick,
+  onPin,
 }: {
   agent: {
     id: string;
@@ -50,6 +52,7 @@ function AgentPreview({
     icon?: string | null;
   };
   onSpecialClick?: () => void;
+  onPin?: (id: string) => void;
 }) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
@@ -58,6 +61,7 @@ function AgentPreview({
     if (onSpecialClick) {
       onSpecialClick();
     } else {
+      onPin?.(agent.id);
       navigate({
         to: "/$org/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agent.id },
@@ -200,8 +204,12 @@ function CreateAgentButton() {
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
-  const { locator } = useProjectContext();
+  const { locator, org } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const serverPinnedIds = virtualMcps
+    .filter((a): a is typeof a & { id: string } => a.id !== null && !!a.pinned)
+    .map((a) => a.id);
+  const { pin } = usePinnedAgents(org.id, serverPinnedIds);
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -239,7 +247,11 @@ function AgentsListContent() {
             onSpecialClick={() => setSiteEditorModalOpen(true)}
           />
           {agents.map((agent) => (
-            <AgentPreview key={agent.id ?? "default"} agent={agent} />
+            <AgentPreview
+              key={agent.id ?? "default"}
+              agent={agent}
+              onPin={pin}
+            />
           ))}
           <CreateAgentButton />
           {hasAgents && (
