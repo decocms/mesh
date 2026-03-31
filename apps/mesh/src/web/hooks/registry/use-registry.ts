@@ -253,9 +253,16 @@ export function useRegistryConfig(pluginId: string) {
 
   const configMutation = useMutation({
     mutationFn: async (settingsPatch: RegistryConfigSettings) => {
-      const cached = queryClient.getQueryData<PluginConfigResponse>(queryKey);
+      const latestData = await callTool<PluginConfigResponse>(
+        client,
+        "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
+        {
+          virtualMcpId: selfConnectionId,
+          pluginId,
+        },
+      );
       const currentSettings =
-        (cached?.config?.settings as RegistryConfigSettings | null) ?? {};
+        (latestData?.config?.settings as RegistryConfigSettings | null) ?? {};
 
       return callTool<PluginConfigResponse>(
         client,

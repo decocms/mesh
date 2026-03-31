@@ -70,10 +70,29 @@ export default function RegistrySettingsPage({
   } = useRegistryConfig(PLUGIN_ID);
 
   // ── Local state for text inputs (controlled input during typing, saved on blur) ──
+  // Sync drafts when server values change (e.g. after initial load completes).
   const [nameDraft, setNameDraft] = useState(registryName);
+  const [prevName, setPrevName] = useState(registryName);
+  if (registryName !== prevName) {
+    setPrevName(registryName);
+    setNameDraft(registryName);
+  }
+
+  const [iconDraft, setIconDraft] = useState(registryIcon);
+  const [prevIcon, setPrevIcon] = useState(registryIcon);
+  if (registryIcon !== prevIcon) {
+    setPrevIcon(registryIcon);
+    setIconDraft(registryIcon);
+  }
+
   const [rateLimitMaxDraft, setRateLimitMaxDraft] = useState(
     String(rateLimitMax),
   );
+  const [prevRateLimitMax, setPrevRateLimitMax] = useState(rateLimitMax);
+  if (rateLimitMax !== prevRateLimitMax) {
+    setPrevRateLimitMax(rateLimitMax);
+    setRateLimitMaxDraft(String(rateLimitMax));
+  }
 
   // ── API key management ──
   const apiKeysQuery = usePublishApiKeys();
@@ -134,15 +153,11 @@ export default function RegistrySettingsPage({
     const url = await uploadImage(file, iconPath);
 
     if (url) {
+      setIconDraft(url);
       updateConfig({ registryIcon: url });
     } else {
       toast.error("Failed to upload icon. Please try again.");
     }
-  };
-
-  const handleIconUrlChange = (url: string) => {
-    if (url === registryIcon) return;
-    updateConfig({ registryIcon: url });
   };
 
   const handleGenerateKey = async () => {
@@ -203,8 +218,13 @@ export default function RegistrySettingsPage({
             </div>
 
             <ImageUpload
-              value={registryIcon}
-              onChange={handleIconUrlChange}
+              value={iconDraft}
+              onChange={setIconDraft}
+              onBlur={() => {
+                const trimmed = iconDraft.trim();
+                if (trimmed === registryIcon) return;
+                updateConfig({ registryIcon: trimmed });
+              }}
               onFileUpload={handleIconFileUpload}
               isUploading={isUploadingIcon}
             />
