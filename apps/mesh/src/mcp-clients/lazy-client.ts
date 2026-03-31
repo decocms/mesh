@@ -44,7 +44,6 @@ export function createLazyClient(
   ctx: MeshContext,
   superUser: boolean,
   cache?: McpListCache,
-  options?: { circuitBreaker?: boolean },
 ): Client {
   // Placeholder client — never connects to anything
   const placeholder = new Client(
@@ -55,16 +54,14 @@ export function createLazyClient(
   // Shared promise for the real client (single-flight)
   let realClientPromise: Promise<Client> | null = null;
 
-  const useCircuitBreaker = options?.circuitBreaker ?? false;
-
   function getRealClient(): Promise<Client> {
     // Fast-fail if the circuit breaker is open for this connection
-    if (useCircuitBreaker) assertCircuitClosed(connection.id);
+    assertCircuitClosed(connection.id);
 
     if (!realClientPromise) {
       realClientPromise = clientFromConnection(connection, ctx, superUser)
         .then((client) => {
-          if (useCircuitBreaker) recordSuccess(connection.id);
+          recordSuccess(connection.id);
           // Apply streaming support for HTTP connections so callStreamableTool
           // can stream responses via direct fetch instead of MCP transport
           if (
@@ -88,7 +85,7 @@ export function createLazyClient(
           // Clear cached promise so transient failures don't permanently
           // break the client — next call will retry the connection.
           realClientPromise = null;
-          if (useCircuitBreaker) recordFailure(connection.id);
+          recordFailure(connection.id);
           throw err;
         });
     }
