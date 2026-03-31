@@ -106,14 +106,6 @@ export function recordFailure(connectionId: string): void {
 function evictIfNeeded(): void {
   if (circuits.size < CIRCUIT_BREAKER_MAX_ENTRIES) return;
 
-  // First, remove any CLOSED circuits with 0 failures (no useful state)
-  for (const [id, entry] of circuits) {
-    if (entry.state === "CLOSED" && entry.consecutiveFailures === 0) {
-      circuits.delete(id);
-    }
-  }
-  if (circuits.size < CIRCUIT_BREAKER_MAX_ENTRIES) return;
-
   // Evict the entry with the oldest lastFailureTime
   let oldestId: string | null = null;
   let oldestTime = Infinity;
