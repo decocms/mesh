@@ -12,12 +12,11 @@ export function usePinnedAgents(orgId: string, initialPinnedIds: string[]) {
   );
 
   const pin = (id: string) => {
-    if (pinnedIds.includes(id)) return;
-    setPinnedIds([...pinnedIds, id]);
+    setPinnedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
   const unpin = (id: string) => {
-    setPinnedIds(pinnedIds.filter((x) => x !== id));
+    setPinnedIds((prev) => prev.filter((x) => x !== id));
   };
 
   const reorder = (newOrder: string[]) => {
