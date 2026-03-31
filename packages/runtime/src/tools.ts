@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type {
   GetPromptResult,
+  Implementation,
   ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -485,6 +486,7 @@ export interface CreateMCPServerOptions<
   State extends
     TEnv["MESH_REQUEST_CONTEXT"]["state"] = TEnv["MESH_REQUEST_CONTEXT"]["state"],
 > {
+  serverInfo?: Partial<Implementation> & { instructions?: string };
   before?: (env: TEnv) => Promise<void> | void;
   oauth?: OAuthConfig;
   events?: {
@@ -818,9 +820,17 @@ export const createMCPServer = <
   const createServer = async (bindings: TEnv) => {
     await options.before?.(bindings);
 
+    const { instructions, ...serverInfoOverrides } = options.serverInfo ?? {};
     const server = new McpServer(
-      { name: "@deco/mcp-api", version: "1.0.0" },
-      { capabilities: { tools: {}, prompts: {}, resources: {} } },
+      {
+        ...serverInfoOverrides,
+        name: serverInfoOverrides.name ?? "@deco/mcp-api",
+        version: serverInfoOverrides.version ?? "1.0.0",
+      },
+      {
+        capabilities: { tools: {}, prompts: {}, resources: {} },
+        ...(instructions && { instructions }),
+      },
     );
 
     const toolsFn =
