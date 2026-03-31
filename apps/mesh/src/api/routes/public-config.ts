@@ -38,6 +38,11 @@ export type PublicConfig = {
    * Controlled by the ENABLE_DECO_IMPORT environment variable.
    */
   enableDecoImport?: boolean;
+  /**
+   * Whether monitoring querying is enabled.
+   * When false, NDJSON data is still exported to disk but dashboard queries are skipped.
+   */
+  monitoringQueryEnabled?: boolean;
 };
 
 /**
@@ -55,6 +60,7 @@ app.get("/", (c) => {
     // Only expose internalUrl in local mode — production uses the public URL directly
     ...(isLocalMode() && { internalUrl: getInternalUrl() }),
     ...(getSettings().enableDecoImport && { enableDecoImport: true }),
+    monitoringQueryEnabled: !getSettings().disableMonitoringQuery,
   };
 
   return c.json({ success: true, config });
