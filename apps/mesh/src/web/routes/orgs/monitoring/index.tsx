@@ -761,7 +761,20 @@ function MonitoringDashboardContent({
         </div>
       </Page.Body>
 
-      {!monitoringQueryEnabled ? (
+      {tab === "threads" ? (
+        <ThreadsTabContent
+          client={client}
+          locator={locator}
+          membersData={membersData}
+          allConnections={allConnections}
+          allVirtualMcps={allVirtualMcps}
+          dateRange={dateRange}
+          searchQuery={searchQuery}
+          filterAgentIds={threadFilterAgentIds}
+          filterUserIds={threadFilterUserIds}
+          filterStatus={threadFilterStatus}
+        />
+      ) : !monitoringQueryEnabled ? (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             image={
@@ -777,19 +790,6 @@ function MonitoringDashboardContent({
             description="Monitoring is not enabled for this instance. Contact your administrator for more information."
           />
         </div>
-      ) : tab === "threads" ? (
-        <ThreadsTabContent
-          client={client}
-          locator={locator}
-          membersData={membersData}
-          allConnections={allConnections}
-          allVirtualMcps={allVirtualMcps}
-          dateRange={dateRange}
-          searchQuery={searchQuery}
-          filterAgentIds={threadFilterAgentIds}
-          filterUserIds={threadFilterUserIds}
-          filterStatus={threadFilterStatus}
-        />
       ) : tab === "audit" ? (
         <AuditTabContent
           client={client}
