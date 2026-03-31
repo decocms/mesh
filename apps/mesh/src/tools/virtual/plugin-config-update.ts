@@ -64,9 +64,10 @@ export const VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE = defineTool({
     const { virtualMcpId, pluginId, connectionId, settings } = input;
     const userId = getUserId(ctx);
 
-    const virtualMcp = await ctx.storage.virtualMcps.findById(virtualMcpId);
-    if (!virtualMcp) {
-      throw new Error(`Virtual MCP not found: ${virtualMcpId}`);
+    const parentConnection =
+      await ctx.storage.connections.findById(virtualMcpId);
+    if (!parentConnection) {
+      throw new Error(`Connection not found: ${virtualMcpId}`);
     }
 
     const connectionExists = connectionId
@@ -75,21 +76,23 @@ export const VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE = defineTool({
 
     if (
       connectionId &&
-      virtualMcp.organization_id &&
+      parentConnection.organization_id &&
       !connectionExists &&
       isDevMode()
     ) {
-      if (isDevAssetsConnection(connectionId, virtualMcp.organization_id)) {
+      if (
+        isDevAssetsConnection(connectionId, parentConnection.organization_id)
+      ) {
         if (!userId) {
           throw new Error("User ID required to create dev-assets connection");
         }
         const devAssetsConnection = createDevAssetsConnectionEntity(
-          virtualMcp.organization_id,
+          parentConnection.organization_id,
           getBaseUrl(),
         );
         await ctx.storage.connections.create({
           ...devAssetsConnection,
-          organization_id: virtualMcp.organization_id,
+          organization_id: parentConnection.organization_id,
           created_by: userId,
         });
       }

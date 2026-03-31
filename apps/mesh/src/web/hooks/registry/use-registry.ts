@@ -8,6 +8,7 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  WellKnownOrgMCPId,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/registry/query-keys";
 import type {
@@ -228,21 +229,22 @@ interface RegistryConfigSettings {
 }
 
 export function useRegistryConfig(pluginId: string) {
-  const { org, project } = useProjectContext();
+  const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const queryClient = useQueryClient();
 
+  const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
+
   const configQuery = useQuery({
-    queryKey: KEYS.registryConfigByPlugin(project.id ?? "", pluginId),
+    queryKey: KEYS.registryConfigByPlugin(selfConnectionId, pluginId),
     queryFn: async () =>
       callTool<PluginConfigResponse>(client, "VIRTUAL_MCP_PLUGIN_CONFIG_GET", {
-        virtualMcpId: project.id,
+        virtualMcpId: selfConnectionId,
         pluginId,
       }),
-    enabled: Boolean(project.id),
     staleTime: 60_000,
   });
 
@@ -252,7 +254,7 @@ export function useRegistryConfig(pluginId: string) {
         client,
         "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
         {
-          virtualMcpId: project.id,
+          virtualMcpId: selfConnectionId,
           pluginId,
         },
       );
@@ -263,7 +265,7 @@ export function useRegistryConfig(pluginId: string) {
         client,
         "VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE",
         {
-          virtualMcpId: project.id,
+          virtualMcpId: selfConnectionId,
           pluginId,
           settings: {
             ...latestSettings,
@@ -274,7 +276,7 @@ export function useRegistryConfig(pluginId: string) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: KEYS.registryConfigByPlugin(project.id ?? "", pluginId),
+        queryKey: KEYS.registryConfigByPlugin(selfConnectionId, pluginId),
       });
     },
   });
