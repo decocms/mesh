@@ -5,7 +5,6 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import { Page } from "@/web/components/page";
-import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
@@ -19,13 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
 
@@ -63,87 +57,84 @@ export default function AgentsListPage() {
 
   return (
     <Page>
-      <Page.Header>
-        <Page.Header.Left>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Agents</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </Page.Header.Left>
-        <Page.Header.Right>
-          <Button
-            onClick={() => createVirtualMCP()}
-            disabled={isCreating}
-            size="sm"
-          >
-            <Plus size={14} />
-            Create Agent
-          </Button>
-        </Page.Header.Right>
-      </Page.Header>
-
-      <CollectionSearch
-        value={search}
-        onChange={setSearch}
-        placeholder="Search for an agent..."
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setSearch("");
-            (event.target as HTMLInputElement).blur();
-          }
-        }}
-      />
-
-      <Page.Content className="@container">
-        {filteredAgents.length === 0 && (
-          <div className="flex items-center h-full">
-            <EmptyState
-              image={
-                <FolderClosed size={48} className="text-muted-foreground" />
-              }
-              title={search ? "No agents found" : "No agents yet"}
-              description={
-                search
-                  ? `No agents match "${search}"`
-                  : "Create an agent to get started."
-              }
+      <Page.Content>
+        <Page.Body>
+          <div className="flex flex-col gap-6">
+            <Page.Title
               actions={
-                !search && (
-                  <Button
-                    size="sm"
-                    onClick={() => createVirtualMCP()}
-                    disabled={isCreating}
-                  >
-                    <Plus size={14} />
-                    Create Agent
-                  </Button>
-                )
+                <Button
+                  onClick={() => createVirtualMCP()}
+                  disabled={isCreating}
+                  size="sm"
+                >
+                  <Plus size={14} />
+                  Create Agent
+                </Button>
               }
+            >
+              Agents
+            </Page.Title>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search for an agent..."
+              className="w-full md:w-[375px]"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setSearch("");
+                  (event.target as HTMLInputElement).blur();
+                }
+              }}
             />
           </div>
-        )}
 
-        {filteredAgents.length > 0 && (
-          <div className="p-5">
-            <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
-              {filteredAgents.map((agent) => (
-                <ProjectCard
-                  key={agent.id}
-                  project={agent}
-                  onDeleteClick={() =>
-                    setDeleteTarget({
-                      id: agent.id,
-                      title: agent.title,
-                    })
-                  }
-                />
-              ))}
+          {filteredAgents.length === 0 && (
+            <div className="flex items-center justify-center py-20">
+              <EmptyState
+                image={
+                  <FolderClosed size={48} className="text-muted-foreground" />
+                }
+                title={search ? "No agents found" : "No agents yet"}
+                description={
+                  search
+                    ? `No agents match "${search}"`
+                    : "Create an agent to get started."
+                }
+                actions={
+                  !search && (
+                    <Button
+                      size="sm"
+                      onClick={() => createVirtualMCP()}
+                      disabled={isCreating}
+                    >
+                      <Plus size={14} />
+                      Create Agent
+                    </Button>
+                  )
+                }
+              />
             </div>
-          </div>
-        )}
+          )}
+
+          {filteredAgents.length > 0 && (
+            <div className="mt-6 @container">
+              <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
+                {filteredAgents.map((agent) => (
+                  <ProjectCard
+                    key={agent.id}
+                    project={agent}
+                    onDeleteClick={() =>
+                      setDeleteTarget({
+                        id: agent.id,
+                        title: agent.title,
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </Page.Body>
       </Page.Content>
 
       <AlertDialog
