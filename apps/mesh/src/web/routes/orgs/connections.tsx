@@ -118,6 +118,9 @@ import {
   type EnvVar,
 } from "@/web/components/env-vars-editor";
 import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import { chatStore } from "@/web/components/chat/store/chat-store";
+import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
+import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
 import {
   isConnectionAuthenticated,
   authenticateMcp,
@@ -943,6 +946,7 @@ function OrgMcpsContent() {
   const { data: session } = authClient.useSession();
   const { stdioEnabled } = useAuthConfig();
   const isMobile = useIsMobile();
+  const [, setChatOpen] = useDecoChatOpen();
 
   // Consolidated list UI state (search, filters, sorting, view mode)
   const listState = useListState<ConnectionEntity>({
@@ -1186,6 +1190,62 @@ function OrgMcpsContent() {
       }
 
       toast.success("Connected successfully");
+
+      // Trigger the decopilot to create an agent for this connection
+      const MAX_TOOL_DESC_LEN = 120;
+      const MAX_TOOLS = 30;
+      const toolsSummary = (item.tools ?? [])
+        .slice(0, MAX_TOOLS)
+        .map((t) => {
+          const name = (t.name ?? t.id ?? "unknown").slice(0, 80);
+          const desc = t.description
+            ? `: ${t.description.slice(0, MAX_TOOL_DESC_LEN)}`
+            : "";
+          return `- ${name}${desc}`;
+        })
+        .join("\n");
+      const connectionTitle = (
+        connectionData.title ||
+        item.title ||
+        item.name ||
+        "Unknown"
+      ).slice(0, 120);
+
+      const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
+
+      // Inject detailed instructions as app context (invisible to user)
+      chatStore.setAppContext("connection-agent-wizard", {
+        content: [
+          {
+            type: "text",
+            text: `The user just installed the "${connectionTitle}" connection (ID: ${id}).${
+              toolsSummary ? `\nCapabilities:\n${toolsSummary}` : ""
+            }\n\nCreate a specialized agent for this connection right away using COLLECTION_VIRTUAL_MCP_CREATE. Call it in a single step — no schema checks needed. The tool takes a single "data" object: COLLECTION_VIRTUAL_MCP_CREATE({ data: { title, slug, description, icon, instructions, connectionIds, status, subtype } }). Use:\n- A specific, role-first name (not just "${connectionTitle} Agent")\n- A short description (1 sentence, max 2) of who it's for and what it does — keep it concise
+- An icon that matches the connection's purpose using the format icon://IconName?color=colorName. Pick from these icons: Star01, Zap, Heart, Globe01, Compass03, Lightbulb02, Rocket01, Flag01, BookOpen01, Shield01, Key01, Diamond01, Cube01, Target04, Award01, Briefcase01, Coffee, Feather, Hexagon01, Layers3_01, Map01, Palette, Package, Terminal. Pick from these colors: red, orange, amber, yellow, lime, green, emerald, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose. Choose an icon and color that reflect what the connection does.\n- Detailed XML-structured instructions with <role>, <capabilities>, <constraints>, and <workflows> sections that reference specific tool names\n- connectionIds containing "${id}"\n- status "inactive"\n- subtype "agent"\n\nThe user has already approved this action by installing the connection. Skip the safety confirmation — call COLLECTION_VIRTUAL_MCP_CREATE immediately without asking.`,
+          },
+        ],
+      });
+
+      setChatOpen(true);
+      chatStore.createThreadAndSend({
+        agent: {
+          id: decopilot.id,
+          title: decopilot.title,
+          description: decopilot.description,
+          icon: decopilot.icon,
+        },
+        toolApprovalLevel: "auto",
+        parts: [
+          {
+            type: "text",
+            text: `Create an agent for my new "${connectionTitle}" connection.`,
+          },
+        ],
+      });
+      // App context is consumed by sendMessage when the thread's chat bridge
+      // registers (async, after React re-render). Do NOT clear it synchronously
+      // here — the established pattern (see project-app-view.tsx) is to let
+      // the context persist until the next setAppContext or teardown.
     } catch (error) {
       toast.error(
         `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,

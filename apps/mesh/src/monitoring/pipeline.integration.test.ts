@@ -4,7 +4,7 @@
 import { describe, it, expect, afterAll } from "bun:test";
 import { NDJSONLogExporter } from "./ndjson-log-exporter";
 import { SqlMonitoringStorage } from "../storage/monitoring-sql";
-import { createMonitoringEngine } from "./query-engine";
+import { DuckDBEngine, createMonitoringEngine } from "./query-engine";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,11 +12,7 @@ import { ExportResultCode } from "@opentelemetry/core";
 import { MONITORING_LOG_ATTR } from "./schema";
 import { makeTestMonitoringLogRecord, findNDJSONFiles } from "./test-utils";
 
-let duckdbAvailable = false;
-try {
-  require("@duckdb/node-api");
-  duckdbAvailable = true;
-} catch {}
+const duckdbAvailable = await DuckDBEngine.isAvailable();
 
 describe.skipIf(!duckdbAvailable)("Monitoring Pipeline Integration", () => {
   let tmpDir: string;
