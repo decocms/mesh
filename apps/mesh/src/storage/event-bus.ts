@@ -413,7 +413,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: input.publisher ?? null,
         event_type: input.eventType,
         filter: input.filter ?? null,
-        enabled: 1 as never,
+        enabled: true as never,
         created_at: now,
         updated_at: now,
       })
@@ -426,7 +426,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: input.publisher ?? null,
       eventType: input.eventType,
       filter: input.filter ?? null,
-      enabled: 1 as never,
+      enabled: true as never,
       createdAt: now,
       updatedAt: now,
     };
@@ -486,7 +486,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
-      .where("enabled", "=", 1 as never)
+      .where("enabled", "=", true as never)
       .where("event_type", "=", event.type)
       .where((eb) =>
         eb.or([
@@ -544,7 +544,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           FROM event_deliveries d
           INNER JOIN event_subscriptions s ON s.id = d.subscription_id
           WHERE d.status = 'pending'
-            AND s.enabled = 1
+            AND s.enabled = true
             AND (d.next_retry_at IS NULL OR d.next_retry_at <= ${now})
           ORDER BY d.created_at ASC
           LIMIT ${limit}
@@ -1079,7 +1079,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       event_type: string;
       publisher: string | null;
       filter: string | null;
-      enabled: number;
+      enabled: boolean;
       created_at: string;
       updated_at: string;
     }> = [];
@@ -1100,7 +1100,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           event_type: desiredSub.eventType,
           publisher: desiredSub.publisher ?? null,
           filter: desiredSub.filter ?? null,
-          enabled: 1 as never,
+          enabled: true as never,
           created_at: now,
           updated_at: now,
         });
