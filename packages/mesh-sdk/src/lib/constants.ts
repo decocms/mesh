@@ -709,23 +709,37 @@ export function getWellKnownSiteDiagnosticsVirtualMCP(
     metadata: {
       instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
     },
-    connections: [],
+    connections: [
+      {
+        connection_id: getSiteDiagnosticsId(organizationId),
+        selected_tools: null,
+        selected_resources: null,
+        selected_prompts: null,
+      },
+    ],
   };
 }
 
 /**
  * Get well-known Site Diagnostics connection entity (for listing alongside other connections).
+ * Points to the standalone site-diagnostics MCP App deployed externally.
  */
 export function getWellKnownSiteDiagnosticsConnection(
   organizationId: string,
 ): ConnectionEntity {
-  const virtual = getWellKnownSiteDiagnosticsVirtualMCP(organizationId);
-
   return {
-    ...virtual,
-    id: virtual.id!,
-    connection_type: "VIRTUAL",
-    connection_url: `virtual://${virtual.id}`,
+    id: getSiteDiagnosticsId(organizationId),
+    organization_id: organizationId,
+    title: "Site Diagnostics",
+    description: SITE_DIAGNOSTICS_DESCRIPTION,
+    icon: SITE_DIAGNOSTICS_ICON,
+    status: "active",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    created_by: "system",
+    updated_by: undefined,
+    connection_type: "HTTP",
+    connection_url: "https://site-diagnostics.decocache.com/api/mcp",
     app_name: "site-diagnostics",
     app_id: "site-diagnostics",
     connection_token: null,

@@ -5,7 +5,6 @@
  * Creates the agent as a real virtual MCP and navigates to it with chat open.
  */
 
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,12 +22,9 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  SITE_DIAGNOSTICS_DESCRIPTION,
   SITE_DIAGNOSTICS_ICON,
-  SITE_DIAGNOSTICS_INSTRUCTIONS,
-  WellKnownOrgMCPId,
+  getSiteDiagnosticsId,
   useProjectContext,
-  useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 
 interface SiteDiagnosticsRecruitModalProps {
@@ -46,13 +42,7 @@ const CAPABILITIES = [
   "Deco-specific diagnostics (?__d debug mode)",
 ];
 
-function RecruitContent({
-  onRecruit,
-  isRecruiting,
-}: {
-  onRecruit: () => void;
-  isRecruiting: boolean;
-}) {
+function RecruitContent({ onRecruit }: { onRecruit: () => void }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
@@ -76,12 +66,8 @@ function RecruitContent({
         </ul>
       </div>
 
-      <Button
-        onClick={onRecruit}
-        disabled={isRecruiting}
-        className="w-full cursor-pointer"
-      >
-        {isRecruiting ? "Setting up..." : "Add Site Diagnostics"}
+      <Button onClick={onRecruit} className="w-full cursor-pointer">
+        {"Add Site Diagnostics"}
       </Button>
     </div>
   );
@@ -102,48 +88,14 @@ export function SiteDiagnosticsRecruitModal({
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { org } = useProjectContext();
-  const actions = useVirtualMCPActions();
-  const [isRecruiting, setIsRecruiting] = useState(false);
 
-  const handleRecruit = async () => {
-    setIsRecruiting(true);
-    try {
-      // Include the self MCP connection so Claude Code (and other providers)
-      // can discover diagnostics tools (capture_har, screenshot, fetch_page)
-      const selfConnectionId = WellKnownOrgMCPId.SELF(org.id);
-
-      const virtualMcp = await actions.create.mutateAsync({
-        title: "Site Diagnostics",
-        description: SITE_DIAGNOSTICS_DESCRIPTION,
-        icon: SITE_DIAGNOSTICS_ICON,
-        status: "active",
-        connections: [
-          {
-            connection_id: selfConnectionId,
-            selected_tools: null,
-            selected_resources: null,
-            selected_prompts: null,
-          },
-        ],
-        metadata: {
-          type: "site-diagnostics",
-          instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
-        },
-      });
-
-      onOpenChange(false);
-      navigate({
-        to: "/$org/$virtualMcpId",
-        params: {
-          org: org.slug,
-          virtualMcpId: virtualMcp.id!,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to create Site Diagnostics agent:", error);
-    } finally {
-      setIsRecruiting(false);
-    }
+  const handleRecruit = () => {
+    const virtualMcpId = getSiteDiagnosticsId(org.id);
+    onOpenChange(false);
+    navigate({
+      to: "/$org/$virtualMcpId",
+      params: { org: org.slug, virtualMcpId },
+    });
   };
 
   const title = "Add Site Diagnostics";
@@ -158,10 +110,7 @@ export function SiteDiagnosticsRecruitModal({
           </div>
         </DrawerHeader>
         <div className="flex flex-col flex-1 min-h-0 px-4 pb-8">
-          <RecruitContent
-            onRecruit={handleRecruit}
-            isRecruiting={isRecruiting}
-          />
+          <RecruitContent onRecruit={handleRecruit} />
         </div>
       </DrawerContent>
     </Drawer>
@@ -174,7 +123,7 @@ export function SiteDiagnosticsRecruitModal({
             <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
           </div>
         </DialogHeader>
-        <RecruitContent onRecruit={handleRecruit} isRecruiting={isRecruiting} />
+        <RecruitContent onRecruit={handleRecruit} />
       </DialogContent>
     </Dialog>
   );

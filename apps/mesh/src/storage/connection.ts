@@ -28,7 +28,9 @@ import { isStdioParameters } from "../tools/connection/schema";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import {
   getWellKnownDecopilotConnection,
+  getWellKnownSiteDiagnosticsConnection,
   isDecopilot,
+  isSiteDiagnostics,
 } from "@decocms/mesh-sdk";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import type { ConnectionStoragePort } from "./ports";
@@ -233,6 +235,13 @@ export class ConnectionStorage implements ConnectionStoragePort {
     if (decopilotOrgId) {
       const resolvedOrgId = organizationId ?? decopilotOrgId;
       return getWellKnownDecopilotConnection(resolvedOrgId);
+    }
+
+    // Handle Site Diagnostics ID - return well-known HTTP connection
+    const siteDiagOrgId = isSiteDiagnostics(id);
+    if (siteDiagOrgId) {
+      const resolvedOrgId = organizationId ?? siteDiagOrgId;
+      return getWellKnownSiteDiagnosticsConnection(resolvedOrgId);
     }
 
     let query = this.db
