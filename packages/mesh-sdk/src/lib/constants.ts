@@ -281,7 +281,7 @@ export function getSiteDiagnosticsId(organizationId: string): string {
  */
 export const WELL_KNOWN_APP_IDS = {
   SITE_DIAGNOSTICS: "deco/site-diagnostics",
-  SITE_EDITOR: "deco.cx",
+  SITE_EDITOR: "deco/site-editor",
 } as const;
 
 export function getWellKnownDecopilotConnection(
