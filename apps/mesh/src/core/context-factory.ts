@@ -838,8 +838,8 @@ export async function createMeshContextFactory(
   let metricEngine: QueryEngine;
 
   if (getSettings().disableMonitoringQuery) {
-    monitoringEngine = new NoopEngine();
-    metricEngine = new NoopEngine();
+    monitoringEngine = new NoopEngine({ silent: true });
+    metricEngine = new NoopEngine({ silent: true });
   } else if (isClickHouse) {
     monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
     metricEngine = new ClickHouseClientEngine(clickhouseUrl!);

@@ -130,9 +130,14 @@ export interface MonitoringEngineConfig {
  */
 export class NoopEngine implements QueryEngine {
   private warned = false;
+  private silent: boolean;
+
+  constructor(options?: { silent?: boolean }) {
+    this.silent = options?.silent ?? false;
+  }
 
   async query(): Promise<Record<string, unknown>[]> {
-    if (!this.warned) {
+    if (!this.warned && !this.silent) {
       this.warned = true;
       console.warn(
         "\n⚠️  WARNING: Monitoring query skipped — @duckdb/node-api native module is not available.\n" +
