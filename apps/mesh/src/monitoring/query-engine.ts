@@ -80,8 +80,15 @@ export class DuckDBEngine implements QueryEngine {
 export class ClickHouseClientEngine implements QueryEngine {
   private client: unknown;
   private initPromise: Promise<void>;
+  private maxMemoryUsage: string;
+  private maxExecutionTime: number;
 
-  constructor(url: string) {
+  constructor(
+    url: string,
+    options?: { maxMemoryUsage?: string; maxExecutionTime?: number },
+  ) {
+    this.maxMemoryUsage = options?.maxMemoryUsage ?? "200000000";
+    this.maxExecutionTime = options?.maxExecutionTime ?? 30;
     this.initPromise = import("@clickhouse/client").then(({ createClient }) => {
       this.client = createClient({ url });
     });
@@ -97,6 +104,10 @@ export class ClickHouseClientEngine implements QueryEngine {
       query: sql,
       query_params: params,
       format: "JSONEachRow",
+      clickhouse_settings: {
+        max_memory_usage: this.maxMemoryUsage,
+        max_execution_time: this.maxExecutionTime,
+      },
     });
     return await result.json<Record<string, unknown>>();
   }
