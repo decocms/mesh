@@ -172,38 +172,6 @@ export function getWellKnownDevAssetsConnection(
 }
 
 /**
- * Get well-known connection definition for OpenRouter.
- * Used by the chat UI to offer a one-click install when no model provider is connected.
- */
-export function getWellKnownOpenRouterConnection(
-  opts: { id?: string } = {},
-): ConnectionCreateData {
-  return {
-    id: opts.id,
-    title: "OpenRouter",
-    description: "Access hundreds of LLM models from a single API",
-    icon: "https://assets.decocache.com/decocms/b2e2f64f-6025-45f7-9e8c-3b3ebdd073d8/openrouter_logojpg.jpg",
-    app_name: "openrouter",
-    app_id: "openrouter",
-    connection_type: "HTTP",
-    connection_url: "https://sites-openrouter.decocache.com/mcp",
-    connection_token: null,
-    connection_headers: null,
-    oauth_config: null,
-    configuration_state: null,
-    configuration_scopes: null,
-    metadata: {
-      source: "chat",
-      verified: false,
-      scopeName: "deco",
-      toolsCount: 0,
-      publishedAt: null,
-      repository: null,
-    },
-  };
-}
-
-/**
  * Get well-known connection definition for MCP Studio.
  * Used by agents and workflows pages to offer installation when no provider is connected.
  */
@@ -308,120 +276,15 @@ export function getSiteDiagnosticsId(organizationId: string): string {
   return `${SITE_DIAGNOSTICS_PREFIX}${organizationId}`;
 }
 
-export const SITE_DIAGNOSTICS_DESCRIPTION =
-  "Blackbox diagnostics for storefronts — performance, cache, dead links, SEO, and e-commerce flows";
-
-export const SITE_DIAGNOSTICS_ICON = "icon://SearchRefraction?color=cyan";
-
-export const SITE_DIAGNOSTICS_MCP_URL =
-  "https://sites-sitediagnostics.decocache.com/api/mcp";
-
-export const SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION =
-  "Blackbox performance and SEO diagnostics for storefronts and high-traffic websites.";
-
-export const SITE_DIAGNOSTICS_MAIN_TOOL = "diagnose";
-
-export function getSiteDiagnosticsUiMetadata(connectionId: string) {
-  return {
-    pinnedViews: [
-      {
-        connectionId,
-        toolName: SITE_DIAGNOSTICS_MAIN_TOOL,
-        label: SITE_DIAGNOSTICS_MAIN_TOOL,
-        icon: null,
-      },
-    ],
-    layout: {
-      defaultMainView: {
-        type: "ext-apps",
-        id: connectionId,
-        toolName: SITE_DIAGNOSTICS_MAIN_TOOL,
-      },
-      chatDefaultOpen: false,
-    },
-  };
-}
-
-export const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-export const SITE_DIAGNOSTICS_AGENT = {
-  id: "site-diagnostics",
-  title: "Site Diagnostics",
-  icon: SITE_DIAGNOSTICS_ICON,
-} as const;
-
 /**
- * Get well-known Site Diagnostics Virtual MCP entity.
- * Blackbox diagnostics agent for storefronts — always available per org.
+ * Well-known first-class MCP app IDs (fetchable from deco registry).
+ * Only IDs are stored here — metadata (title, description, icon, URL)
+ * should be fetched from the registry at runtime.
  */
-export function getWellKnownSiteDiagnosticsVirtualMCP(
-  organizationId: string,
-): VirtualMCPEntity {
-  return {
-    id: getSiteDiagnosticsId(organizationId),
-    organization_id: organizationId,
-    title: "Site Diagnostics",
-    description: SITE_DIAGNOSTICS_DESCRIPTION,
-    icon: SITE_DIAGNOSTICS_ICON,
-    status: "active",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    created_by: "system",
-    updated_by: undefined,
-    pinned: false,
-    metadata: {
-      instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
-    },
-    connections: [
-      {
-        connection_id: getSiteDiagnosticsId(organizationId),
-        selected_tools: null,
-        selected_resources: null,
-        selected_prompts: null,
-      },
-    ],
-  };
-}
-
-/**
- * Get well-known Site Diagnostics connection entity (for listing alongside other connections).
- * Points to the standalone site-diagnostics MCP App deployed externally.
- */
-export function getWellKnownSiteDiagnosticsConnection(
-  organizationId: string,
-): ConnectionEntity {
-  return {
-    id: getSiteDiagnosticsId(organizationId),
-    organization_id: organizationId,
-    title: "Site Diagnostics",
-    description: SITE_DIAGNOSTICS_DESCRIPTION,
-    icon: SITE_DIAGNOSTICS_ICON,
-    status: "active",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    created_by: "system",
-    updated_by: undefined,
-    connection_type: "HTTP",
-    connection_url: "https://site-diagnostics.decocache.com/api/mcp",
-    app_name: "site-diagnostics",
-    app_id: "site-diagnostics",
-    connection_token: null,
-    connection_headers: null,
-    oauth_config: null,
-    configuration_state: null,
-    configuration_scopes: null,
-    metadata: {
-      isDefault: true,
-      type: "site-diagnostics",
-    },
-    tools: [],
-    bindings: [],
-  };
-}
+export const WELL_KNOWN_APP_IDS = {
+  SITE_DIAGNOSTICS: "deco/site-diagnostics",
+  SITE_EDITOR: "deco/site-editor",
+} as const;
 
 export function getWellKnownDecopilotConnection(
   organizationId: string,

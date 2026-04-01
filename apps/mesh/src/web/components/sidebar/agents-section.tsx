@@ -49,11 +49,14 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
-  SITE_DIAGNOSTICS_AGENT,
-  SITE_EDITOR_AGENT,
+  WELL_KNOWN_APP_IDS,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
+import {
+  useRegistryApp,
+  getRegistryAppDisplay,
+} from "@/web/hooks/use-registry-app";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
@@ -63,8 +66,6 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
-const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SITE_DIAGNOSTICS_AGENT];
 
 function AgentListItem({
   agent,
@@ -307,6 +308,28 @@ function PinAgentPopoverContent({
 
   const navigateToNewTask = useCreateTaskAndNavigate();
 
+  // Fetch agent template metadata from registry
+  const { data: siteEditorItem } = useRegistryApp(
+    WELL_KNOWN_APP_IDS.SITE_EDITOR,
+  );
+  const { data: siteDiagnosticsItem } = useRegistryApp(
+    WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
+  );
+  const siteEditorFallback = {
+    id: "site-editor",
+    title: "Site Editor",
+    icon: null as string | null,
+  };
+  const siteDiagnosticsFallback = {
+    id: "site-diagnostics",
+    title: "Site Diagnostics",
+    icon: null as string | null,
+  };
+  const defaultAgents = [
+    getRegistryAppDisplay(siteEditorItem) ?? siteEditorFallback,
+    getRegistryAppDisplay(siteDiagnosticsItem) ?? siteDiagnosticsFallback,
+  ];
+
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
     .filter((s) => !isDecopilot(s.id))
@@ -316,11 +339,11 @@ function PinAgentPopoverContent({
   const hasDiagnostics = allAgents.some(
     (a) =>
       (a as { metadata?: { type?: string } }).metadata?.type ===
-      SITE_DIAGNOSTICS_AGENT.id,
+      "site-diagnostics",
   );
-  const filteredDefaults = DEFAULT_AGENTS.filter(
-    (a) => !search || a.title.toLowerCase().includes(lowerSearch),
-  ).filter((a) => !(a.id === SITE_DIAGNOSTICS_AGENT.id && hasDiagnostics));
+  const filteredDefaults = defaultAgents
+    .filter((a) => !search || a.title.toLowerCase().includes(lowerSearch))
+    .filter((a) => !(a.id === "site-diagnostics" && hasDiagnostics));
 
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
@@ -334,9 +357,15 @@ function PinAgentPopoverContent({
   const handleDefaultAgentClick = (agentId: string) => {
     onClose();
     setSearch("");
-    if (agentId === SITE_EDITOR_AGENT.id) {
+    if (
+      agentId === "site-editor" ||
+      agentId === WELL_KNOWN_APP_IDS.SITE_EDITOR
+    ) {
       onOpenSiteEditorModal();
-    } else if (agentId === SITE_DIAGNOSTICS_AGENT.id) {
+    } else if (
+      agentId === "site-diagnostics" ||
+      agentId === WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS
+    ) {
       onOpenDiagnosticsModal();
     } else {
       navigateToNewTask(agentId);

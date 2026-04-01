@@ -17,11 +17,14 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   isDecopilot,
-  SITE_DIAGNOSTICS_AGENT,
-  SITE_EDITOR_AGENT,
+  WELL_KNOWN_APP_IDS,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
+import {
+  useRegistryApp,
+  getRegistryAppDisplay,
+} from "@/web/hooks/use-registry-app";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 
 function readRecentAgentIds(locator: ProjectLocator): string[] {
@@ -206,6 +209,24 @@ function AgentsListContent() {
   const { pin } = usePinnedAgents(org.id, serverPinnedIds);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
 
+  // Fetch agent template metadata from registry
+  const { data: siteEditorItem } = useRegistryApp(
+    WELL_KNOWN_APP_IDS.SITE_EDITOR,
+  );
+  const { data: siteDiagnosticsItem } = useRegistryApp(
+    WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
+  );
+  const siteEditorAgent = getRegistryAppDisplay(siteEditorItem) ?? {
+    id: "site-editor",
+    title: "Site Editor",
+    icon: null,
+  };
+  const siteDiagnosticsAgent = getRegistryAppDisplay(siteDiagnosticsItem) ?? {
+    id: "site-diagnostics",
+    title: "Site Diagnostics",
+    icon: null,
+  };
+
   const recentIds = readRecentAgentIds(locator);
 
   // Filter out Decopilot, sort by most recently used (from localStorage), then take top 5
@@ -235,8 +256,8 @@ function AgentsListContent() {
     (a): a is typeof a & { id: string } =>
       a.id !== null &&
       ((a as { metadata?: { type?: string } }).metadata?.type ===
-        SITE_DIAGNOSTICS_AGENT.id ||
-        a.title === SITE_DIAGNOSTICS_AGENT.title),
+        siteDiagnosticsAgent.id ||
+        a.title === siteDiagnosticsAgent.title),
   );
 
   const hasAgents = agents.length > 0;
@@ -246,13 +267,13 @@ function AgentsListContent() {
       <div className="w-full">
         <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           <AgentPreview
-            key={SITE_EDITOR_AGENT.id}
-            agent={SITE_EDITOR_AGENT}
+            key={siteEditorAgent.id}
+            agent={siteEditorAgent}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
           />
           <AgentPreview
-            key={SITE_DIAGNOSTICS_AGENT.id}
-            agent={existingDiagnostics ?? SITE_DIAGNOSTICS_AGENT}
+            key={siteDiagnosticsAgent.id}
+            agent={existingDiagnostics ?? siteDiagnosticsAgent}
             onSpecialClick={
               existingDiagnostics
                 ? undefined

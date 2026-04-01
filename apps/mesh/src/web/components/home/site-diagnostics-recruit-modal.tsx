@@ -4,6 +4,9 @@
  * Shown when the user clicks the Site Diagnostics agent on the home page.
  * Creates a real HTTP connection + virtual MCP via the existing APIs,
  * then navigates to the agent view.
+ *
+ * All MCP metadata (title, description, icon, URL) is fetched from the
+ * deco registry at runtime — no hardcoded constants.
  */
 
 import { useState } from "react";
@@ -24,12 +27,8 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  getSiteDiagnosticsUiMetadata,
   SELF_MCP_ALIAS_ID,
-  SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
-  SITE_DIAGNOSTICS_DESCRIPTION,
-  SITE_DIAGNOSTICS_ICON,
-  SITE_DIAGNOSTICS_MCP_URL,
+  WELL_KNOWN_APP_IDS,
   useConnectionActions,
   useMCPClient,
   useProjectContext,
@@ -37,6 +36,10 @@ import {
 } from "@decocms/mesh-sdk";
 import type { CollectionListOutput } from "@decocms/bindings/collections";
 import type { ConnectionEntity, VirtualMCPEntity } from "@decocms/mesh-sdk";
+import { useRegistryApp } from "@/web/hooks/use-registry-app";
+import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import { authClient } from "@/web/lib/auth-client";
+import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
@@ -56,9 +59,11 @@ const CAPABILITIES = [
 function RecruitContent({
   onRecruit,
   isRecruiting,
+  isLoading,
 }: {
   onRecruit: () => void;
   isRecruiting: boolean;
+  isLoading: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -85,7 +90,7 @@ function RecruitContent({
 
       <Button
         onClick={onRecruit}
-        disabled={isRecruiting}
+        disabled={isRecruiting || isLoading}
         className="w-full cursor-pointer"
       >
         {isRecruiting ? "Setting up..." : "Add Site Diagnostics"}
@@ -93,14 +98,6 @@ function RecruitContent({
     </div>
   );
 }
-
-const HEADER_ICON = (
-  <IntegrationIcon
-    icon={SITE_DIAGNOSTICS_ICON}
-    name="Site Diagnostics"
-    size="sm"
-  />
-);
 
 export function SiteDiagnosticsRecruitModal({
   open,
@@ -111,13 +108,36 @@ export function SiteDiagnosticsRecruitModal({
   const { org } = useProjectContext();
   const connectionActions = useConnectionActions();
   const virtualMcpActions = useVirtualMCPActions();
+  const { data: session } = authClient.useSession();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const [isRecruiting, setIsRecruiting] = useState(false);
 
+  const { data: registryItem, isLoading: isRegistryLoading } = useRegistryApp(
+    WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
+  );
+
+  const appTitle =
+    registryItem?.title ||
+    registryItem?.server?.title ||
+    registryItem?.server?.name ||
+    "Site Diagnostics";
+  const appIcon = registryItem?.server?.icons?.[0]?.src ?? null;
+  const appDescription = registryItem?.server?.description ?? null;
+
+  const headerIcon = (
+    <IntegrationIcon
+      icon={isRegistryLoading ? null : appIcon}
+      name={appTitle}
+      size="sm"
+    />
+  );
+
   const handleRecruit = async () => {
+    if (!registryItem || !session?.user?.id) return;
+
     setIsRecruiting(true);
     try {
       // 1. Check if a site-diagnostics virtual MCP already exists
@@ -164,7 +184,7 @@ export function SiteDiagnosticsRecruitModal({
           where: {
             field: ["app_id"],
             operator: "eq",
-            value: "deco/site-diagnostics",
+            value: WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
           },
           limit: 1,
           offset: 0,
@@ -185,29 +205,22 @@ export function SiteDiagnosticsRecruitModal({
       ) {
         connectionId = existingConnections[0].id;
       } else {
-        const connection = await connectionActions.create.mutateAsync({
-          title: "Site Diagnostics",
-          description: SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
-          icon: SITE_DIAGNOSTICS_ICON,
-          connection_type: "HTTP",
-          connection_url: SITE_DIAGNOSTICS_MCP_URL,
-          app_name: "site-diagnostics",
-          app_id: "deco/site-diagnostics",
-          metadata: {
-            type: "site-diagnostics",
-            source: "store",
-            registry_item_id: "deco/site-diagnostics",
-            verified: true,
-          },
-        });
+        // Use extractConnectionData to build connection from registry item
+        const connectionData = extractConnectionData(
+          registryItem,
+          org.id,
+          session.user.id,
+        );
+        const connection =
+          await connectionActions.create.mutateAsync(connectionData);
         connectionId = connection.id;
       }
 
       // 3. Create a virtual MCP (agent) with the connection attached
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
-        title: "Site Diagnostics",
-        description: SITE_DIAGNOSTICS_DESCRIPTION,
-        icon: SITE_DIAGNOSTICS_ICON,
+        title: appTitle,
+        description: appDescription,
+        icon: appIcon,
         status: "active",
         connections: [
           {
@@ -219,7 +232,7 @@ export function SiteDiagnosticsRecruitModal({
         ],
         metadata: {
           type: "site-diagnostics",
-          ui: getSiteDiagnosticsUiMetadata(connectionId),
+          instructions: null,
         },
       });
 
@@ -239,14 +252,18 @@ export function SiteDiagnosticsRecruitModal({
     }
   };
 
-  const title = "Add Site Diagnostics";
+  const title = `Add ${appTitle}`;
 
   return isMobile ? (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="h-[70dvh]">
         <DrawerHeader className="px-4 pt-4 pb-4 shrink-0">
           <div className="flex items-center gap-3">
-            {HEADER_ICON}
+            {isRegistryLoading ? (
+              <Skeleton className="size-6 rounded" />
+            ) : (
+              headerIcon
+            )}
             <DrawerTitle className="text-xl font-semibold">{title}</DrawerTitle>
           </div>
         </DrawerHeader>
@@ -254,6 +271,7 @@ export function SiteDiagnosticsRecruitModal({
           <RecruitContent
             onRecruit={handleRecruit}
             isRecruiting={isRecruiting}
+            isLoading={isRegistryLoading}
           />
         </div>
       </DrawerContent>
@@ -263,11 +281,19 @@ export function SiteDiagnosticsRecruitModal({
       <DialogContent className="sm:max-w-[500px] p-8">
         <DialogHeader className="mb-4">
           <div className="flex items-center gap-3">
-            {HEADER_ICON}
+            {isRegistryLoading ? (
+              <Skeleton className="size-6 rounded" />
+            ) : (
+              headerIcon
+            )}
             <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
           </div>
         </DialogHeader>
-        <RecruitContent onRecruit={handleRecruit} isRecruiting={isRecruiting} />
+        <RecruitContent
+          onRecruit={handleRecruit}
+          isRecruiting={isRecruiting}
+          isLoading={isRegistryLoading}
+        />
       </DialogContent>
     </Dialog>
   );

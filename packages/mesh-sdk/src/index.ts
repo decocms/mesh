@@ -195,25 +195,16 @@ export {
   getWellKnownCommunityRegistryConnection,
   getWellKnownSelfConnection,
   getWellKnownDevAssetsConnection,
-  getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
   getWellKnownDecopilotVirtualMCP,
   getWellKnownDecopilotConnection,
-  getWellKnownSiteDiagnosticsVirtualMCP,
-  getWellKnownSiteDiagnosticsConnection,
   // Decopilot utilities
   isDecopilot,
   getDecopilotId,
   // Site Diagnostics utilities
   isSiteDiagnostics,
   getSiteDiagnosticsId,
-  SITE_DIAGNOSTICS_DESCRIPTION,
-  SITE_DIAGNOSTICS_ICON,
-  SITE_DIAGNOSTICS_MCP_URL,
-  SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
-  SITE_DIAGNOSTICS_MAIN_TOOL,
-  getSiteDiagnosticsUiMetadata,
-  SITE_EDITOR_AGENT,
-  SITE_DIAGNOSTICS_AGENT,
+  // Well-known app IDs (metadata fetched from registry at runtime)
+  WELL_KNOWN_APP_IDS,
 } from "./lib/constants";
