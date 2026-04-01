@@ -30,10 +30,7 @@ function StoreInviteRedirect() {
 
   const org = organizations?.[0];
   if (!org) {
-    // Every user gets a default org on signup — if none exist yet, reload
-    // so the auth hooks can finish creating it.
-    window.location.reload();
-    return <SplashScreen />;
+    return <Navigate to="/login" replace />;
   }
 
   return (
