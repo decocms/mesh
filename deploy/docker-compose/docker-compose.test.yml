@@ -3,7 +3,7 @@
 # Usage (from repo root):
 #   docker compose -f deploy/docker-compose/docker-compose.test.yml up --build
 #
-# Then: curl http://localhost:3000/health
+# Then: curl http://localhost:8000/health
 
 services:
   postgres:
@@ -40,13 +40,13 @@ services:
     container_name: mesh-test-server
     platform: linux/amd64
     ports:
-      - "3000:3000"
+      - "8000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - NATS_URL=nats://nats:4222
-      - BASE_URL=http://localhost:3000
+      - BASE_URL=http://localhost:8000
     depends_on:
       postgres:
         condition: service_healthy

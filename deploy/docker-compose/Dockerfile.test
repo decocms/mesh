@@ -24,4 +24,5 @@ WORKDIR /app/apps/mesh
 
 # Run from TypeScript source directly (avoids bundler issues).
 # The CLI at src/cli.ts handles migrations, settings, and spawning workers.
+# Mirrors the prod Dockerfile CMD: ["bun", "run", "deco", "--no-local-mode"]
 CMD ["bun", "run", "src/cli.ts", "--no-tui", "--no-local-mode"]
