@@ -55,6 +55,23 @@ function isCommunityRegistry(registry: RegistrySource): boolean {
 }
 
 /**
+ * Build a where expression for server-side search on registry items.
+ */
+function buildRegistrySearchWhere(
+  search: string | undefined,
+): Record<string, unknown> | undefined {
+  const trimmed = search?.trim();
+  if (!trimmed) return undefined;
+  return {
+    operator: "or",
+    conditions: [
+      { field: ["title"], operator: "contains", value: trimmed },
+      { field: ["description"], operator: "contains", value: trimmed },
+    ],
+  };
+}
+
+/**
  * Fetches a page from a group of registries in parallel.
  * Each registry tracks its own cursor independently.
  */
@@ -62,15 +79,18 @@ function useRegistryGroupQuery(
   registries: RegistrySource[],
   orgId: string,
   enabled: boolean,
+  search?: string,
 ) {
   const groupKey = registries
     .map((r) => r.id)
     .sort()
     .join(",");
 
+  const where = buildRegistrySearchWhere(search);
+
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
-      queryKey: KEYS.storeDiscovery(orgId, groupKey),
+      queryKey: KEYS.storeDiscovery(orgId, `${groupKey}:${search ?? ""}`),
       queryFn: async ({ pageParam }): Promise<RegistryPageResult[]> => {
         const cursors: PageParam = pageParam ?? {};
 
@@ -103,6 +123,9 @@ function useRegistryGroupQuery(
                 const params: Record<string, unknown> = { limit: PAGE_SIZE };
                 if (cursor) {
                   params.cursor = cursor;
+                }
+                if (where) {
+                  params.where = where;
                 }
 
                 const result = (await client.callTool({
@@ -212,6 +235,7 @@ function useRegistryGroupQuery(
 
 export function useMergedStoreDiscovery(
   registries: RegistrySource[],
+  search?: string,
 ): MergedDiscoveryResult {
   const { org } = useProjectContext();
 
@@ -221,7 +245,12 @@ export function useMergedStoreDiscovery(
   const communityRegistries = registries.filter((r) => isCommunityRegistry(r));
 
   // Query 1: all non-community registries in parallel (always enabled)
-  const ncQuery = useRegistryGroupQuery(nonCommunityRegistries, org.id, true);
+  const ncQuery = useRegistryGroupQuery(
+    nonCommunityRegistries,
+    org.id,
+    true,
+    search,
+  );
 
   // Query 2: community registries, deferred until non-community is exhausted
   const allNonCommunityExhausted =
@@ -230,21 +259,22 @@ export function useMergedStoreDiscovery(
     communityRegistries,
     org.id,
     allNonCommunityExhausted,
+    search,
   );
 
-  // Stable key to detect registry list changes and reset committed items
-  const registryKey = registries
+  // Stable key to detect registry list or search changes and reset committed items
+  const stableKey = `${registries
     .map((r) => r.id)
     .sort()
-    .join(",");
-  const prevRegistryKeyRef = useRef(registryKey);
+    .join(",")}:${search ?? ""}`;
+  const prevStableKeyRef = useRef(stableKey);
   const committedItemsRef = useRef<RegistryItem[]>([]);
   const seenIdsRef = useRef<Set<string>>(new Set());
 
-  if (prevRegistryKeyRef.current !== registryKey) {
+  if (prevStableKeyRef.current !== stableKey) {
     committedItemsRef.current = [];
     seenIdsRef.current = new Set();
-    prevRegistryKeyRef.current = registryKey;
+    prevStableKeyRef.current = stableKey;
   }
 
   // Collect all available items in priority order

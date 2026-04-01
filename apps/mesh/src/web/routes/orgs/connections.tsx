@@ -1002,9 +1002,12 @@ function OrgMcpsContent() {
     setSelectedIds(new Set());
   };
 
-  // Registry / catalog - merge all enabled registries
+  // Registry / catalog - merge all enabled registries (server-side search)
   const enabledRegistries = useEnabledRegistries();
-  const mergedDiscovery = useMergedStoreDiscovery(enabledRegistries);
+  const mergedDiscovery = useMergedStoreDiscovery(
+    enabledRegistries,
+    listState.searchTerm,
+  );
   const registryItems = mergedDiscovery.items;
 
   const catalogSentinelRef = useInfiniteScroll(
@@ -1029,39 +1032,20 @@ function OrgMcpsContent() {
   const catalogItems =
     activeTab === "all" || searchLower
       ? registryItems.filter((item) => {
-          // Registry filter
+          // Registry source filter
           if (
             effectiveRegistryFilter !== "ALL" &&
             item._registryId !== effectiveRegistryFilter
           ) {
             return false;
           }
-          if (!searchLower) return true;
-          const meshMeta = item._meta?.["mcp.mesh"] as
-            | Record<string, string>
-            | undefined;
-          const title = [
-            meshMeta?.friendly_name,
-            item.server?.name,
-            item.server?.title,
-            item.name,
-            item.title,
-            item.id,
-          ]
-            .filter(Boolean)
-            .join(" ");
-          const desc = [
-            meshMeta?.short_description,
-            meshMeta?.mesh_description,
-            item.server?.description,
-            item.description,
-          ]
-            .filter(Boolean)
-            .join(" ");
-          return (
-            title.toLowerCase().includes(searchLower) ||
-            desc.toLowerCase().includes(searchLower)
-          );
+          // When searching, connected items are already shown via groupedForDisplay
+          // so exclude them from catalog results to avoid duplicates
+          if (searchLower) {
+            const appName = item.server?.name || item.name || item.id || "";
+            if (connectedAppNames.has(appName)) return false;
+          }
+          return true;
         })
       : [];
 
