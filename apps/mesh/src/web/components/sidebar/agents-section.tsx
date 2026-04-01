@@ -49,6 +49,8 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
+  SITE_DIAGNOSTICS_AGENT,
+  SITE_EDITOR_AGENT,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
@@ -61,18 +63,6 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-const SITE_DIAGNOSTICS_AGENT = {
-  id: "site-diagnostics",
-  title: "Site Diagnostics",
-  icon: "icon://SearchRefraction?color=cyan",
-} as const;
 
 const DEFAULT_AGENTS = [SITE_EDITOR_AGENT, SITE_DIAGNOSTICS_AGENT];
 

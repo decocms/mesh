@@ -687,6 +687,24 @@ export const SITE_DIAGNOSTICS_DESCRIPTION =
 
 export const SITE_DIAGNOSTICS_ICON = "icon://SearchRefraction?color=cyan";
 
+export const SITE_DIAGNOSTICS_MCP_URL =
+  "https://sites-sitediagnostics.decocache.com/api/mcp";
+
+export const SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION =
+  "Blackbox performance and SEO diagnostics for storefronts and high-traffic websites.";
+
+export const SITE_EDITOR_AGENT = {
+  id: "site-editor",
+  title: "Site Editor",
+  icon: "icon://Globe01?color=violet",
+} as const;
+
+export const SITE_DIAGNOSTICS_AGENT = {
+  id: "site-diagnostics",
+  title: "Site Diagnostics",
+  icon: SITE_DIAGNOSTICS_ICON,
+} as const;
+
 /**
  * Get well-known Site Diagnostics Virtual MCP entity.
  * Blackbox diagnostics agent for storefronts — always available per org.

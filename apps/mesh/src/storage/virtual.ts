@@ -206,35 +206,32 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
     const virtualMcpIds = rows.map((r) => r.id);
 
-    let dbVirtualMcps: VirtualMCPEntity[] = [];
-
-    if (virtualMcpIds.length > 0) {
-      // Fetch only 'direct' aggregations for all virtual MCPs in one query
-      const aggregationRows = await this.db
-        .selectFrom("connection_aggregations")
-        .selectAll()
-        .where("parent_connection_id", "in", virtualMcpIds)
-        .where("dependency_mode", "=", "direct")
-        .execute();
-
-      // Group aggregations by parent_connection_id
-      const aggregationsByParent = new Map<string, RawAggregationRow[]>();
-      for (const agg of aggregationRows as RawAggregationRow[]) {
-        const existing =
-          aggregationsByParent.get(agg.parent_connection_id) ?? [];
-        existing.push(agg);
-        aggregationsByParent.set(agg.parent_connection_id, existing);
-      }
-
-      dbVirtualMcps = rows.map((row) =>
-        this.deserializeVirtualMCPEntity(
-          row as unknown as RawConnectionRow,
-          aggregationsByParent.get(row.id) ?? [],
-        ),
-      );
+    if (virtualMcpIds.length === 0) {
+      return [];
     }
 
-    return dbVirtualMcps;
+    // Fetch only 'direct' aggregations for all virtual MCPs in one query
+    const aggregationRows = await this.db
+      .selectFrom("connection_aggregations")
+      .selectAll()
+      .where("parent_connection_id", "in", virtualMcpIds)
+      .where("dependency_mode", "=", "direct")
+      .execute();
+
+    // Group aggregations by parent_connection_id
+    const aggregationsByParent = new Map<string, RawAggregationRow[]>();
+    for (const agg of aggregationRows as RawAggregationRow[]) {
+      const existing = aggregationsByParent.get(agg.parent_connection_id) ?? [];
+      existing.push(agg);
+      aggregationsByParent.set(agg.parent_connection_id, existing);
+    }
+
+    return rows.map((row) =>
+      this.deserializeVirtualMCPEntity(
+        row as unknown as RawConnectionRow,
+        aggregationsByParent.get(row.id) ?? [],
+      ),
+    );
   }
 
   async listByConnectionId(

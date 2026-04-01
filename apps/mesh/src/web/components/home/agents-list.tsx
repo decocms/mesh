@@ -17,6 +17,8 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   isDecopilot,
+  SITE_DIAGNOSTICS_AGENT,
+  SITE_EDITOR_AGENT,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
@@ -159,21 +161,6 @@ function SeeAllButton({
     </Popover>
   );
 }
-
-/**
- * Hardcoded Site Editor agent shown first in the agents list for onboarding.
- */
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-const SITE_DIAGNOSTICS_AGENT = {
-  id: "site-diagnostics",
-  title: "Site Diagnostics",
-  icon: "icon://SearchRefraction?color=cyan",
-} as const;
 
 /**
  * Agents list content component

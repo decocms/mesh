@@ -11,6 +11,7 @@ import { getMcpListCache } from "../mcp-list-cache";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 import type { VirtualMCPEntity } from "../../tools/virtual/schema";
+import { getInternalUrl } from "@/core/server-constants";
 import { PassthroughClient } from "./passthrough-client";
 import { type VirtualClientOptions, type VirtualToolDefinition } from "./types";
 
@@ -129,7 +130,6 @@ export async function createVirtualClientFrom(
   // Rewrite self-MCP connection URLs to use the internal loopback URL.
   // The stored URL may use a proxy hostname (e.g. kyoto.localhost) that
   // doesn't resolve from the server process itself.
-  const { getInternalUrl } = await import("@/core/server-constants");
   const internalUrl = getInternalUrl();
   for (const conn of loadedConnections) {
     if (

@@ -24,9 +24,11 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
   SITE_DIAGNOSTICS_DESCRIPTION,
   SITE_DIAGNOSTICS_ICON,
   SITE_DIAGNOSTICS_INSTRUCTIONS,
+  SITE_DIAGNOSTICS_MCP_URL,
   useConnectionActions,
   useProjectContext,
   useVirtualMCPActions,
@@ -36,9 +38,6 @@ interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const SITE_DIAGNOSTICS_MCP_URL =
-  "https://site-diagnostics.decocache.com/api/mcp";
 
 const CAPABILITIES = [
   "Full HAR capture with cache, TTFB, and request analysis",
@@ -116,12 +115,18 @@ export function SiteDiagnosticsRecruitModal({
       // 1. Create the HTTP connection to the external site-diagnostics MCP
       const connection = await connectionActions.create.mutateAsync({
         title: "Site Diagnostics",
-        description: SITE_DIAGNOSTICS_DESCRIPTION,
+        description: SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
         icon: SITE_DIAGNOSTICS_ICON,
         connection_type: "HTTP",
         connection_url: SITE_DIAGNOSTICS_MCP_URL,
         app_name: "site-diagnostics",
-        metadata: { type: "site-diagnostics" },
+        app_id: "deco/site-diagnostics",
+        metadata: {
+          type: "site-diagnostics",
+          source: "store",
+          registry_item_id: "deco/site-diagnostics",
+          verified: true,
+        },
       });
 
       // 2. Create a virtual MCP (agent) with the connection attached
