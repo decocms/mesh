@@ -266,7 +266,10 @@ const serveOptions = {
   home: decoHome,
   skipMigrations: values["skip-migrations"] === true,
   localMode: values["no-local-mode"] !== true,
-  numThreads: Math.max(1, Number(values["num-threads"]) || 1),
+  numThreads: (() => {
+    const n = Number(values["num-threads"]);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+  })(),
 };
 
 const noTui = values["no-tui"] === true || !process.stdout.isTTY;

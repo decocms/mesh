@@ -179,7 +179,7 @@ export async function startServer(options: ServeOptions): Promise<void> {
 
     for (let i = 1; i < numThreads; i++) {
       const worker = Bun.spawn([process.execPath, serverEntry], {
-        env: { ...process.env, ...workerEnv },
+        env: workerEnv,
         stdio: [
           "inherit",
           useInherit ? "inherit" : "pipe",
