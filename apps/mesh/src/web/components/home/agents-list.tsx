@@ -230,12 +230,13 @@ function AgentsListContent() {
     })
     .slice(0, 5);
 
-  // Check if Site Diagnostics agent already exists (already recruited)
-  const hasDiagnostics = agents.some(
-    (a) =>
-      a.title === "Site Diagnostics" ||
-      (a as { metadata?: { type?: string } }).metadata?.type ===
-        "site-diagnostics",
+  // Check if Site Diagnostics agent already exists (search full list, not just top-5)
+  const existingDiagnostics = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        "site-diagnostics" ||
+        a.title === "Site Diagnostics"),
   );
 
   const hasAgents = agents.length > 0;
@@ -249,20 +250,24 @@ function AgentsListContent() {
             agent={SITE_EDITOR_AGENT}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
           />
-          {!hasDiagnostics && (
-            <AgentPreview
-              key={SITE_DIAGNOSTICS_AGENT.id}
-              agent={SITE_DIAGNOSTICS_AGENT}
-              onSpecialClick={() => setDiagnosticsModalOpen(true)}
-            />
-          )}
-          {agents.map((agent) => (
-            <AgentPreview
-              key={agent.id ?? "default"}
-              agent={agent}
-              onPin={pin}
-            />
-          ))}
+          <AgentPreview
+            key={SITE_DIAGNOSTICS_AGENT.id}
+            agent={existingDiagnostics ?? SITE_DIAGNOSTICS_AGENT}
+            onSpecialClick={
+              existingDiagnostics
+                ? undefined
+                : () => setDiagnosticsModalOpen(true)
+            }
+          />
+          {agents
+            .filter((a) => a.id !== existingDiagnostics?.id)
+            .map((agent) => (
+              <AgentPreview
+                key={agent.id ?? "default"}
+                agent={agent}
+                onPin={pin}
+              />
+            ))}
           <CreateAgentButton />
           {hasAgents && (
             <SeeAllButton

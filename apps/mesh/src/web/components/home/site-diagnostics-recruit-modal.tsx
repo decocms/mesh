@@ -25,15 +25,19 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
   getSiteDiagnosticsUiMetadata,
+  SELF_MCP_ALIAS_ID,
   SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
   SITE_DIAGNOSTICS_DESCRIPTION,
   SITE_DIAGNOSTICS_ICON,
   SITE_DIAGNOSTICS_INSTRUCTIONS,
   SITE_DIAGNOSTICS_MCP_URL,
   useConnectionActions,
+  useMCPClient,
   useProjectContext,
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
+import type { CollectionListOutput } from "@decocms/bindings/collections";
+import type { ConnectionEntity } from "@decocms/mesh-sdk";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
@@ -108,27 +112,60 @@ export function SiteDiagnosticsRecruitModal({
   const { org } = useProjectContext();
   const connectionActions = useConnectionActions();
   const virtualMcpActions = useVirtualMCPActions();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
   const [isRecruiting, setIsRecruiting] = useState(false);
 
   const handleRecruit = async () => {
     setIsRecruiting(true);
     try {
-      // 1. Create the HTTP connection to the external site-diagnostics MCP
-      const connection = await connectionActions.create.mutateAsync({
-        title: "Site Diagnostics",
-        description: SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
-        icon: SITE_DIAGNOSTICS_ICON,
-        connection_type: "HTTP",
-        connection_url: SITE_DIAGNOSTICS_MCP_URL,
-        app_name: "site-diagnostics",
-        app_id: "deco/site-diagnostics",
-        metadata: {
-          type: "site-diagnostics",
-          source: "store",
-          registry_item_id: "deco/site-diagnostics",
-          verified: true,
+      // 1. Find or create the HTTP connection to the external site-diagnostics MCP
+      const existingConnectionResult = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_LIST",
+        arguments: {
+          where: {
+            field: ["app_id"],
+            operator: "eq",
+            value: "deco/site-diagnostics",
+          },
+          limit: 1,
+          offset: 0,
         },
       });
+
+      let connectionId: string;
+      const existingConnections = (
+        existingConnectionResult as {
+          structuredContent?: CollectionListOutput<ConnectionEntity>;
+        }
+      )?.structuredContent?.items;
+
+      if (
+        existingConnections &&
+        existingConnections.length > 0 &&
+        existingConnections[0]?.id
+      ) {
+        connectionId = existingConnections[0].id;
+      } else {
+        const connection = await connectionActions.create.mutateAsync({
+          title: "Site Diagnostics",
+          description: SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
+          icon: SITE_DIAGNOSTICS_ICON,
+          connection_type: "HTTP",
+          connection_url: SITE_DIAGNOSTICS_MCP_URL,
+          app_name: "site-diagnostics",
+          app_id: "deco/site-diagnostics",
+          metadata: {
+            type: "site-diagnostics",
+            source: "store",
+            registry_item_id: "deco/site-diagnostics",
+            verified: true,
+          },
+        });
+        connectionId = connection.id;
+      }
 
       // 2. Create a virtual MCP (agent) with the connection attached
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
@@ -138,7 +175,7 @@ export function SiteDiagnosticsRecruitModal({
         status: "active",
         connections: [
           {
-            connection_id: connection.id,
+            connection_id: connectionId,
             selected_tools: null,
             selected_resources: null,
             selected_prompts: null,
@@ -147,7 +184,7 @@ export function SiteDiagnosticsRecruitModal({
         metadata: {
           type: "site-diagnostics",
           instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
-          ui: getSiteDiagnosticsUiMetadata(connection.id),
+          ui: getSiteDiagnosticsUiMetadata(connectionId),
         },
       });
 
