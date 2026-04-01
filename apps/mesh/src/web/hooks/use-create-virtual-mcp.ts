@@ -7,8 +7,10 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   useProjectContext,
   useVirtualMCPActions,
+  useVirtualMCPs,
   type VirtualMCPEntity,
 } from "@decocms/mesh-sdk";
+import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 
 interface CreateVirtualMCPResult {
   id: string;
@@ -43,6 +45,9 @@ export function useCreateVirtualMCP(
   const { org } = useProjectContext();
   const navigate = useNavigate();
   const actions = useVirtualMCPActions();
+  const allAgents = useVirtualMCPs();
+  const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
+  const { pin } = usePinnedAgents(org.id, serverPinnedIds);
 
   const createVirtualMCP = async (): Promise<CreateVirtualMCPResult> => {
     const virtualMcp = await actions.create.mutateAsync({
@@ -52,6 +57,8 @@ export function useCreateVirtualMCP(
       connections: [],
       pinned: true,
     });
+
+    pin(virtualMcp.id!);
 
     if (navigateOnCreate) {
       navigate({
