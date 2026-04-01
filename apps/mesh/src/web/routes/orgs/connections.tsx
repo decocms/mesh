@@ -1036,6 +1036,12 @@ function OrgMcpsContent() {
           ) {
             return false;
           }
+          // When searching, connected items are already shown via groupedForDisplay
+          // so exclude them from catalog results to avoid duplicates
+          if (searchLower) {
+            const appName = item.server?.name || item.name || item.id || "";
+            if (connectedAppNames.has(appName)) return false;
+          }
           if (!searchLower) return true;
           const meshMeta = item._meta?.["mcp.mesh"] as
             | Record<string, string>
