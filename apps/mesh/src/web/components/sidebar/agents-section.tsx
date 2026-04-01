@@ -315,10 +315,20 @@ function PinAgentPopoverContent({
   const { data: siteDiagnosticsItem } = useRegistryApp(
     WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
   );
+  const siteEditorFallback = {
+    id: "site-editor",
+    title: "Site Editor",
+    icon: null as string | null,
+  };
+  const siteDiagnosticsFallback = {
+    id: "site-diagnostics",
+    title: "Site Diagnostics",
+    icon: null as string | null,
+  };
   const defaultAgents = [
-    getRegistryAppDisplay(siteEditorItem),
-    getRegistryAppDisplay(siteDiagnosticsItem),
-  ].filter((a): a is NonNullable<typeof a> => a !== null);
+    getRegistryAppDisplay(siteEditorItem) ?? siteEditorFallback,
+    getRegistryAppDisplay(siteDiagnosticsItem) ?? siteDiagnosticsFallback,
+  ];
 
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
