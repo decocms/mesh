@@ -216,16 +216,8 @@ function AgentsListContent() {
   const { data: siteDiagnosticsItem } = useRegistryApp(
     WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
   );
-  const siteEditorAgent = getRegistryAppDisplay(siteEditorItem) ?? {
-    id: "site-editor",
-    title: "Site Editor",
-    icon: null,
-  };
-  const siteDiagnosticsAgent = getRegistryAppDisplay(siteDiagnosticsItem) ?? {
-    id: "site-diagnostics",
-    title: "Site Diagnostics",
-    icon: null,
-  };
+  const siteEditorAgent = getRegistryAppDisplay(siteEditorItem);
+  const siteDiagnosticsAgent = getRegistryAppDisplay(siteDiagnosticsItem);
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -252,13 +244,15 @@ function AgentsListContent() {
     .slice(0, 5);
 
   // Check if Site Diagnostics agent already exists (search full list, not just top-5)
-  const existingDiagnostics = virtualMcps.find(
-    (a): a is typeof a & { id: string } =>
-      a.id !== null &&
-      ((a as { metadata?: { type?: string } }).metadata?.type ===
-        siteDiagnosticsAgent.id ||
-        a.title === siteDiagnosticsAgent.title),
-  );
+  const existingDiagnostics = siteDiagnosticsAgent
+    ? virtualMcps.find(
+        (a): a is typeof a & { id: string } =>
+          a.id !== null &&
+          ((a as { metadata?: { type?: string } }).metadata?.type ===
+            siteDiagnosticsAgent.id ||
+            a.title === siteDiagnosticsAgent.title),
+      )
+    : undefined;
 
   const hasAgents = agents.length > 0;
 
@@ -266,20 +260,24 @@ function AgentsListContent() {
     <>
       <div className="w-full">
         <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-          <AgentPreview
-            key={siteEditorAgent.id}
-            agent={siteEditorAgent}
-            onSpecialClick={() => setSiteEditorModalOpen(true)}
-          />
-          <AgentPreview
-            key={siteDiagnosticsAgent.id}
-            agent={existingDiagnostics ?? siteDiagnosticsAgent}
-            onSpecialClick={
-              existingDiagnostics
-                ? undefined
-                : () => setDiagnosticsModalOpen(true)
-            }
-          />
+          {siteEditorAgent && (
+            <AgentPreview
+              key={siteEditorAgent.id}
+              agent={siteEditorAgent}
+              onSpecialClick={() => setSiteEditorModalOpen(true)}
+            />
+          )}
+          {siteDiagnosticsAgent && (
+            <AgentPreview
+              key={siteDiagnosticsAgent.id}
+              agent={existingDiagnostics ?? siteDiagnosticsAgent}
+              onSpecialClick={
+                existingDiagnostics
+                  ? undefined
+                  : () => setDiagnosticsModalOpen(true)
+              }
+            />
+          )}
           {agents
             .filter((a) => a.id !== existingDiagnostics?.id)
             .map((agent) => (
