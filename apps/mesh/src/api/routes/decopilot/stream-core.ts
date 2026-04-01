@@ -807,6 +807,8 @@ async function streamCoreInner(
                   credentialId: input.models.credentialId,
                   thinking: {
                     ...input.models.thinking,
+                    title:
+                      input.models.thinking.title ?? input.models.thinking.id,
                     provider: input.models.thinking.provider ?? undefined,
                   },
                 },
