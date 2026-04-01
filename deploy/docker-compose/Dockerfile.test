@@ -1,0 +1,27 @@
+# Development Dockerfile — builds mesh server from local source tree.
+# Used by docker-compose.test.yml to test features that require Linux
+# (e.g. SO_REUSEPORT / --num-threads).
+FROM oven/bun:1-slim
+
+# Runtime dependencies (unzip needed by embedded-postgres, curl for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends unzip curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy monorepo source
+COPY . .
+
+# Install all workspace dependencies
+RUN bun install --frozen-lockfile
+
+# Build just the client (needed for serving the UI)
+RUN bun run --cwd apps/mesh build:client
+
+EXPOSE 3000
+
+WORKDIR /app/apps/mesh
+
+# Run from TypeScript source directly (avoids bundler issues).
+# The CLI at src/cli.ts handles migrations, settings, and spawning workers.
+CMD ["bun", "run", "src/cli.ts", "--no-tui", "--no-local-mode"]
