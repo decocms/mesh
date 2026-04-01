@@ -878,14 +878,16 @@ function ShellLayoutContent() {
 
   if (!activeOrg) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="h-12 flex items-center justify-end px-4 border-b border-border">
-          <div className="w-fit">
-            <MeshUserMenu />
-          </div>
-        </header>
-        <Outlet />
-      </div>
+      <SidebarProvider>
+        <div className="min-h-screen bg-background">
+          <header className="h-12 flex items-center justify-end px-4 border-b border-border">
+            <div className="w-fit">
+              <MeshUserMenu />
+            </div>
+          </header>
+          <Outlet />
+        </div>
+      </SidebarProvider>
     );
   }
 
