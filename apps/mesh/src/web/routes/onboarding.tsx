@@ -3,9 +3,9 @@ import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  ArrowRight,
   Building02,
   CheckCircle,
   Globe04,
@@ -15,6 +15,8 @@ import {
 } from "@untitledui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+
+// --- Constants ---
 
 const GENERIC_EMAIL_DOMAINS = new Set([
   "gmail.com",
@@ -39,6 +41,15 @@ const GENERIC_EMAIL_DOMAINS = new Set([
   "fastmail.com",
 ]);
 
+const BRAND_STEPS = [
+  { icon: Building02, label: "Creating organization", delay: 0 },
+  { icon: Globe04, label: "Claiming email domain", delay: 1500 },
+  { icon: Users03, label: "Enabling auto-join for your team", delay: 3000 },
+  { icon: Palette, label: "Extracting brand context", delay: 4500 },
+];
+
+// --- Helpers ---
+
 function slugify(input: string): string {
   return input
     .toLowerCase()
@@ -47,6 +58,8 @@ function slugify(input: string): string {
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+// --- Types ---
 
 interface DomainLookupResult {
   found: boolean;
@@ -62,6 +75,8 @@ interface DomainSetupResult {
   error?: string;
 }
 
+// --- Entry ---
+
 export default function OnboardingRoute() {
   return (
     <RequiredAuthLayout>
@@ -69,6 +84,8 @@ export default function OnboardingRoute() {
     </RequiredAuthLayout>
   );
 }
+
+// --- Main page ---
 
 function OnboardingPage() {
   const { data: session, isPending: sessionLoading } = authClient.useSession();
@@ -131,7 +148,6 @@ function OnboardingPage() {
     mutationFn: async (name: string) => {
       const slug = slugify(name);
       if (!slug) throw new Error("Invalid organization name");
-
       const result = await authClient.organization.create({ name, slug });
       if (result?.error) {
         throw new Error(
@@ -144,7 +160,7 @@ function OnboardingPage() {
 
   if (sessionLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <Loading01 size={20} className="animate-spin text-muted-foreground" />
       </div>
     );
@@ -159,11 +175,13 @@ function OnboardingPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1.5">
-          <h1 className="text-lg font-medium">Get started</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Get started
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Create or join an organization to start using Studio.
           </p>
         </div>
@@ -179,12 +197,12 @@ function OnboardingPage() {
             </span>
           </div>
         ) : canAutoJoin ? (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border/60 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">
                 {domainLookup.organization!.name}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Your email matches this organization. Join to get started.
               </p>
             </div>
@@ -198,7 +216,10 @@ function OnboardingPage() {
                   <Loading01 size={14} className="animate-spin" /> Joining...
                 </span>
               ) : (
-                `Join ${domainLookup.organization!.name}`
+                <>
+                  Join {domainLookup.organization!.name}
+                  <ArrowRight size={16} className="ml-2" />
+                </>
               )}
             </Button>
             {joinOrgMutation.error && (
@@ -210,20 +231,22 @@ function OnboardingPage() {
             )}
           </div>
         ) : hasMatchingOrg ? (
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">
+          <div className="rounded-lg border border-border/60 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
               {domainLookup.organization!.name}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Your email domain matches this organization, but auto-join is not
               enabled. Contact an admin for an invitation.
             </p>
           </div>
         ) : isCorporateEmail ? (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Set up {domainLabel}</p>
-              <p className="text-xs text-muted-foreground">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border/60 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">
+                Set up {domainLabel}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Create your organization and claim {emailDomain}. Team members
                 with matching emails will be able to join automatically.
               </p>
@@ -233,6 +256,7 @@ function OnboardingPage() {
               onClick={() => domainSetupMutation.mutate()}
             >
               Set up {domainLabel}
+              <ArrowRight size={16} className="ml-2" />
             </Button>
             {domainSetupMutation.error && (
               <p className="text-xs text-destructive">
@@ -253,9 +277,9 @@ function OnboardingPage() {
           </div>
         )}
 
-        {/* Manual creation */}
+        {/* Manual creation — generic email flow */}
         <form
-          className="space-y-3"
+          className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (orgName.trim()) {
@@ -263,13 +287,21 @@ function OnboardingPage() {
             }
           }}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="org-name" className="text-xs text-muted-foreground">
-              Organization name
-            </Label>
+          {!isCorporateEmail && (
+            <div>
+              <h2 className="text-lg font-medium text-foreground">
+                What's your company?
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                We couldn't detect your company from your email. Tell us your
+                organization name and we'll set things up.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
             <Input
-              id="org-name"
-              placeholder={isCorporateEmail ? domainLabel : "My Organization"}
+              placeholder={isCorporateEmail ? domainLabel : "Organization name"}
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
               disabled={createOrgMutation.isPending}
@@ -291,7 +323,7 @@ function OnboardingPage() {
 
           <Button
             type="submit"
-            variant="outline"
+            variant={isCorporateEmail ? "outline" : "default"}
             className="w-full"
             disabled={
               !orgName.trim() ||
@@ -304,7 +336,10 @@ function OnboardingPage() {
                 <Loading01 size={14} className="animate-spin" /> Creating...
               </span>
             ) : (
-              "Create Organization"
+              <>
+                Create workspace
+                <ArrowRight size={16} className="ml-2" />
+              </>
             )}
           </Button>
         </form>
@@ -314,31 +349,8 @@ function OnboardingPage() {
 }
 
 // ============================================================================
-// Setup Workflow — animated step progression
+// Setup Workflow — animated step progression with brand context preview
 // ============================================================================
-
-const SETUP_STEPS = [
-  {
-    icon: Building02,
-    label: "Creating organization",
-    delay: 0,
-  },
-  {
-    icon: Globe04,
-    label: "Claiming email domain",
-    delay: 1500,
-  },
-  {
-    icon: Users03,
-    label: "Enabling auto-join for your team",
-    delay: 3000,
-  },
-  {
-    icon: Palette,
-    label: "Extracting brand context",
-    delay: 4500,
-  },
-];
 
 function SetupWorkflow({
   domainLabel,
@@ -350,28 +362,27 @@ function SetupWorkflow({
   const [activeStep, setActiveStep] = useState(0);
   const didSchedule = useRef(false);
 
-  // Schedule step progression once — useRef guard prevents double-fire
-  // in Strict Mode. Timers are short-lived and the component only unmounts
-  // on redirect, so cleanup is not critical.
   if (!didSchedule.current) {
     didSchedule.current = true;
-    for (let i = 1; i < SETUP_STEPS.length; i++) {
-      setTimeout(() => setActiveStep(i), SETUP_STEPS[i]!.delay);
+    for (let i = 1; i < BRAND_STEPS.length; i++) {
+      setTimeout(() => setActiveStep(i), BRAND_STEPS[i]!.delay);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="space-y-1.5">
-          <h1 className="text-lg font-medium">Setting up {domainLabel}</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Setting up {domainLabel}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Getting everything ready from {domain}
           </p>
         </div>
 
         <div className="space-y-4">
-          {SETUP_STEPS.map((step, i) => {
+          {BRAND_STEPS.map((step, i) => {
             const Icon = step.icon;
             const isActive = i === activeStep;
             const isDone = i < activeStep;
@@ -385,7 +396,7 @@ function SetupWorkflow({
                   isPending ? "opacity-30" : "opacity-100",
                 )}
               >
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
                   {isDone ? (
                     <CheckCircle
                       size={16}
@@ -404,7 +415,7 @@ function SetupWorkflow({
                   className={cn(
                     "text-sm transition-colors duration-300",
                     isActive
-                      ? "text-foreground font-medium"
+                      ? "font-medium text-foreground"
                       : "text-muted-foreground",
                   )}
                 >
