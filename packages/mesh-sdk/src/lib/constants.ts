@@ -26,6 +26,8 @@ export const WellKnownOrgMCPId = {
   COMMUNITY_REGISTRY: (org: string) => `${org}_community-registry`,
   /** Dev Assets MCP - local file storage for development */
   DEV_ASSETS: (org: string) => `${org}_dev-assets`,
+  /** Site Diagnostics agent (note: prefix-first format, not org-first) */
+  SITE_DIAGNOSTICS: (org: string) => `site-diagnostics_${org}`,
 };
 
 /**
