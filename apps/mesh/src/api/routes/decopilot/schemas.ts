@@ -36,7 +36,7 @@ const ProviderSchema = ProviderEnum.optional().nullable();
 
 const ModelInfoSchema = z.object({
   id: z.string(),
-  title: z.string(),
+  title: z.string().optional(),
   capabilities: z
     .object({
       vision: z.boolean().optional(),
