@@ -65,7 +65,6 @@ import { useStatusSounds } from "../hooks/use-status-sounds";
 import { useSound } from "../hooks/use-sound";
 import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
-import { SplashScreen } from "@/web/components/splash-screen";
 import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
 import { usePinnedViewLayout } from "@/web/hooks/use-pinned-view-layout";
 
@@ -776,7 +775,16 @@ function ShellLayoutInner({
             )}
           </div>
 
-          <Suspense fallback={<SplashScreen />}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
             <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
               <Chat.Provider
                 key={chatVirtualMcpId}
