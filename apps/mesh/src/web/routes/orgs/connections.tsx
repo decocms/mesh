@@ -117,7 +117,10 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
-import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import {
+  extractConnectionData,
+  getRegistryItemAppName,
+} from "@/web/utils/extract-connection-data";
 import {
   isConnectionAuthenticated,
   authenticateMcp,
@@ -805,7 +808,7 @@ function CatalogItemCard({
     "navigate" | "connect" | null
   >(null);
 
-  const appName = item.server?.name || item.name || item.id || "";
+  const appName = getRegistryItemAppName(item) ?? "";
   const isConnected = connectedAppNames.has(appName);
   const meshMeta = item._meta?.["mcp.mesh"] as
     | Record<string, string>
@@ -1040,13 +1043,9 @@ function OrgMcpsContent() {
             return false;
           }
           // When searching, connected items are already shown via groupedForDisplay
-          // so exclude them from catalog results to avoid duplicates.
-          // Must match extractConnectionData's app_name logic: meshMeta.appName || server.name
+          // so exclude them from catalog results to avoid duplicates
           if (searchLower) {
-            const meshMeta = item._meta?.["mcp.mesh"] as
-              | Record<string, string>
-              | undefined;
-            const appName = meshMeta?.appName || item.server?.name || "";
+            const appName = getRegistryItemAppName(item);
             if (appName && connectedAppNames.has(appName)) return false;
           }
           return true;

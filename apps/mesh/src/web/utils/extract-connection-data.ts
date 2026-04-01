@@ -14,6 +14,18 @@ import { getConnectionTypeLabel } from "@/web/utils/registry-utils";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 
 /**
+ * Get the app_name for a registry item — the canonical identifier used to
+ * match catalog items to installed connections.
+ * Must stay in sync with the app_name field set in extractConnectionData.
+ */
+export function getRegistryItemAppName(
+  item: Pick<RegistryItem, "_meta" | "server">,
+): string | null {
+  const meshMeta = item._meta?.["mcp.mesh"];
+  return meshMeta?.appName || item.server?.name || null;
+}
+
+/**
  * Get a display name for a remote endpoint
  * Uses the hostname (without common suffixes) as the display name
  * Example: "https://graphql.mcp.cloudflare.com/mcp" -> "graphql.mcp.cloudflare.com"
@@ -181,7 +193,7 @@ export function extractConnectionData(
     title,
     description,
     icon,
-    app_name: meshMeta?.appName || server?.name || null,
+    app_name: getRegistryItemAppName(item),
     app_id: meshMeta?.id || item.id || null,
     connection_type: connectionType,
     connection_url: connectionUrl,
