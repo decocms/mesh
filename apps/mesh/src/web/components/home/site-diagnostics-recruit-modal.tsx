@@ -37,7 +37,7 @@ import {
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import type { CollectionListOutput } from "@decocms/bindings/collections";
-import type { ConnectionEntity } from "@decocms/mesh-sdk";
+import type { ConnectionEntity, VirtualMCPEntity } from "@decocms/mesh-sdk";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
@@ -121,7 +121,44 @@ export function SiteDiagnosticsRecruitModal({
   const handleRecruit = async () => {
     setIsRecruiting(true);
     try {
-      // 1. Find or create the HTTP connection to the external site-diagnostics MCP
+      // 1. Check if a site-diagnostics virtual MCP already exists
+      const existingVirtualMcpResult = await client.callTool({
+        name: "COLLECTION_VIRTUAL_MCP_LIST",
+        arguments: {
+          where: {
+            field: ["metadata", "type"],
+            operator: "eq",
+            value: "site-diagnostics",
+          },
+          limit: 1,
+          offset: 0,
+        },
+      });
+
+      const existingVirtualMcps = (
+        existingVirtualMcpResult as {
+          structuredContent?: CollectionListOutput<VirtualMCPEntity>;
+        }
+      )?.structuredContent?.items;
+
+      if (
+        existingVirtualMcps &&
+        existingVirtualMcps.length > 0 &&
+        existingVirtualMcps[0]?.id
+      ) {
+        // Already exists — just navigate to it
+        onOpenChange(false);
+        navigate({
+          to: "/$org/$virtualMcpId",
+          params: {
+            org: org.slug,
+            virtualMcpId: existingVirtualMcps[0].id,
+          },
+        });
+        return;
+      }
+
+      // 2. Find or create the HTTP connection to the external site-diagnostics MCP
       const existingConnectionResult = await client.callTool({
         name: "COLLECTION_CONNECTIONS_LIST",
         arguments: {
@@ -167,7 +204,7 @@ export function SiteDiagnosticsRecruitModal({
         connectionId = connection.id;
       }
 
-      // 2. Create a virtual MCP (agent) with the connection attached
+      // 3. Create a virtual MCP (agent) with the connection attached
       const virtualMcp = await virtualMcpActions.create.mutateAsync({
         title: "Site Diagnostics",
         description: SITE_DIAGNOSTICS_DESCRIPTION,
@@ -188,7 +225,7 @@ export function SiteDiagnosticsRecruitModal({
         },
       });
 
-      // 3. Navigate to the new agent
+      // 4. Navigate to the new agent
       onOpenChange(false);
       navigate({
         to: "/$org/$virtualMcpId",
