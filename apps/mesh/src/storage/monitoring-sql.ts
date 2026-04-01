@@ -1047,7 +1047,10 @@ ORDER BY bucket ASC, tool_name ASC`;
           } else {
             const boundariesArr = parseGroupedArrays(row.boundaries_arr);
             const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
-            const merged = mergeHistogramBuckets(boundariesArr, bucketCountsArr);
+            const merged = mergeHistogramBuckets(
+              boundariesArr,
+              bucketCountsArr,
+            );
             boundaries = merged.boundaries;
             counts = merged.counts;
           }
@@ -1081,7 +1084,7 @@ ORDER BY bucket ASC, tool_name ASC`;
  * Parse a single pre-merged array from ClickHouse (anyIf / sumForEachIf result).
  * Returns a flat number[].
  */
-export function parseSingleArray(val: unknown): number[] {
+function parseSingleArray(val: unknown): number[] {
   if (!val) return [];
   if (Array.isArray(val)) return val.map(Number);
   if (typeof val === "string") {
