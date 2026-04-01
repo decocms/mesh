@@ -924,10 +924,7 @@ export const createMCPServer = <
     return inflightResolve;
   };
 
-  const registerAll = (
-    server: McpServer,
-    registrations: Registrations,
-  ) => {
+  const registerAll = (server: McpServer, registrations: Registrations) => {
     for (const tool of registrations.tools) {
       server.registerTool(
         tool.id,
@@ -1114,7 +1111,10 @@ export const createMCPServer = <
       // finishes (server sent the response) or the client disconnects
       // (cancel), the server and transport are always cleaned up.
       const { readable, writable } = new TransformStream();
-      response.body.pipeTo(writable).catch(() => {}).finally(cleanup);
+      response.body
+        .pipeTo(writable)
+        .catch(() => {})
+        .finally(cleanup);
 
       return new Response(readable, {
         status: response.status,
