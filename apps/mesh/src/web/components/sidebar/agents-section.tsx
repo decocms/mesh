@@ -316,7 +316,7 @@ function PinAgentPopoverContent({
   const hasDiagnostics = allAgents.some(
     (a) =>
       (a as { metadata?: { type?: string } }).metadata?.type ===
-      "site-diagnostics",
+      SITE_DIAGNOSTICS_AGENT.id,
   );
   const filteredDefaults = DEFAULT_AGENTS.filter(
     (a) => !search || a.title.toLowerCase().includes(lowerSearch),
