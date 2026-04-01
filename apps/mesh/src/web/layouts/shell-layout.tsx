@@ -3,6 +3,7 @@ import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
@@ -10,7 +11,6 @@ import {
   SettingsSidebar,
   SettingsSidebarMobile,
 } from "@/web/layouts/settings-layout";
-import { MeshUserMenu } from "@/web/components/user-menu.tsx";
 import {
   PanelContextProvider,
   useChatPanel,
@@ -877,18 +877,7 @@ function ShellLayoutContent() {
   const { data: ssoStatus } = useOrgSsoStatus(orgId);
 
   if (!activeOrg) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen bg-background">
-          <header className="h-12 flex items-center justify-end px-4 border-b border-border">
-            <div className="w-fit">
-              <MeshUserMenu />
-            </div>
-          </header>
-          <Outlet />
-        </div>
-      </SidebarProvider>
-    );
+    return <SplashScreen />;
   }
 
   if (ssoStatus?.ssoRequired && !ssoStatus.authenticated) {

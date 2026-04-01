@@ -58,7 +58,7 @@ function InvitationItem({ invitation }: { invitation: Invitation }) {
         });
         toast.success("Invitation accepted!");
         const slug = setActiveResult?.data?.slug;
-        window.location.href = slug ? `/${slug}` : "/";
+        window.location.href = slug ? `/${slug}` : window.location.href;
       }
     } catch {
       toast.error("Failed to accept invitation");
