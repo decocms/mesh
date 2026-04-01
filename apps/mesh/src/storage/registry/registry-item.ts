@@ -1,4 +1,11 @@
-import type { Insertable, Kysely, Updateable } from "kysely";
+import {
+  type Insertable,
+  type Kysely,
+  type RawBuilder,
+  sql,
+  type SqlBool,
+  type Updateable,
+} from "kysely";
 import type {
   MeshRegistryMeta,
   PrivateRegistryCreateInput,
@@ -49,99 +56,155 @@ function getMeshMeta(meta?: RegistryItemMeta): MeshRegistryMeta {
   return meta?.["mcp.mesh"] ?? {};
 }
 
-/**
- * Sort items so official items appear first, then verified, then the rest.
- * Within each group the original (created_at desc) order is preserved.
- */
-function sortByOfficialAndVerified(
-  items: PrivateRegistryItemEntity[],
-): PrivateRegistryItemEntity[] {
-  return [...items].sort((a, b) => {
-    const aM = getMeshMeta(a._meta);
-    const bM = getMeshMeta(b._meta);
-    const aScore = (aM.official ? 2 : 0) + (aM.verified ? 1 : 0);
-    const bScore = (bM.official ? 2 : 0) + (bM.verified ? 1 : 0);
-    return bScore - aScore;
-  });
-}
-
 function toCsv(values: string[]): string | null {
   return values.length ? values.join(",") : null;
 }
 
-function getPathValue(
-  item: PrivateRegistryItemEntity,
-  path?: string[],
-): unknown {
-  if (!path?.length) return undefined;
-  let current: unknown = item;
-  for (const key of path) {
-    if (current === null || current === undefined) return undefined;
-    if (typeof current !== "object") return undefined;
-    current = (current as Record<string, unknown>)[key];
+/** Top-level columns on private_registry_item safe for WHERE filtering */
+const REGISTRY_TOP_LEVEL_COLUMNS = new Set([
+  "id",
+  "title",
+  "description",
+  "is_public",
+  "is_unlisted",
+  "created_at",
+  "updated_at",
+  "created_by",
+]);
+
+/** Columns stored as integers in DB but exposed as booleans on the entity */
+const BOOLEAN_INT_COLUMNS = new Set(["is_public", "is_unlisted"]);
+
+/** Entity field prefixes that map to JSON text columns */
+const REGISTRY_JSON_COLUMNS: Record<string, string> = {
+  _meta: "meta_json",
+  server: "server_json",
+};
+
+/**
+ * Build a SQL reference for a registry entity field path.
+ */
+function registryFieldRef(fieldPath: string[]): RawBuilder<unknown> | null {
+  if (fieldPath.length === 0) return null;
+
+  const head = fieldPath[0]!;
+
+  if (fieldPath.length === 1 && REGISTRY_TOP_LEVEL_COLUMNS.has(head)) {
+    return sql.ref(head);
   }
-  return current;
+
+  // "name" is a virtual field derived from server_json->>'name'
+  if (fieldPath.length === 1 && head === "name") {
+    return sql`${sql.ref("server_json")}::jsonb->>'name'`;
+  }
+
+  const jsonColumn = REGISTRY_JSON_COLUMNS[head];
+  if (jsonColumn && fieldPath.length >= 2) {
+    const rest = fieldPath.slice(1);
+    let expr = sql`${sql.ref(jsonColumn)}::jsonb`;
+    for (let i = 0; i < rest.length; i++) {
+      const key = rest[i]!;
+      expr =
+        i === rest.length - 1
+          ? sql`${expr}->>${sql.lit(key)}`
+          : sql`${expr}->${sql.lit(key)}`;
+    }
+    return expr;
+  }
+
+  return null;
 }
 
-function compareExpression(
-  fieldValue: unknown,
-  operator?: string,
-  value?: unknown,
-) {
-  if (!operator) return false;
-
-  if (operator === "eq") {
-    return fieldValue === value;
+/**
+ * Convert a value for SQL comparison, handling boolean→integer columns.
+ */
+function registryValue(column: string, value: unknown): unknown {
+  if (!BOOLEAN_INT_COLUMNS.has(column)) return value;
+  if (Array.isArray(value)) {
+    return value.map((v) => (v === true ? 1 : v === false ? 0 : v));
   }
-
-  if (operator === "contains" || operator === "like") {
-    const text = String(fieldValue ?? "").toLowerCase();
-    const query = String(value ?? "").toLowerCase();
-    return text.includes(query);
-  }
-
-  if (operator === "in") {
-    if (!Array.isArray(value)) return false;
-    return value.includes(fieldValue);
-  }
-
-  if (operator === "gt") return Number(fieldValue) > Number(value);
-  if (operator === "gte") return Number(fieldValue) >= Number(value);
-  if (operator === "lt") return Number(fieldValue) < Number(value);
-  if (operator === "lte") return Number(fieldValue) <= Number(value);
-
-  return false;
+  if (value === true) return 1;
+  if (value === false) return 0;
+  return value;
 }
 
-function evaluateWhere(
-  item: PrivateRegistryItemEntity,
-  where?: RegistryWhereExpression,
-): boolean {
-  if (!where) return true;
-
+/**
+ * Translate a RegistryWhereExpression tree into a Kysely SQL expression.
+ */
+function applyRegistryWhereToSql(
+  where: RegistryWhereExpression,
+): RawBuilder<SqlBool> {
   if (Array.isArray(where.conditions) && where.conditions.length) {
-    if (where.operator === "and") {
-      return where.conditions.every((condition) =>
-        evaluateWhere(item, condition),
-      );
-    }
-    if (where.operator === "or") {
-      return where.conditions.some((condition) =>
-        evaluateWhere(item, condition),
-      );
-    }
-    if (where.operator === "not") {
-      return !where.conditions.some((condition) =>
-        evaluateWhere(item, condition),
-      );
+    const parts = where.conditions.map((c) => applyRegistryWhereToSql(c));
+    switch (where.operator) {
+      case "and":
+        return sql<SqlBool>`(${sql.join(parts, sql` AND `)})`;
+      case "or":
+        return sql<SqlBool>`(${sql.join(parts, sql` OR `)})`;
+      case "not":
+        return sql<SqlBool>`NOT (${sql.join(parts, sql` OR `)})`;
+      default:
+        return sql<SqlBool>`true`;
     }
   }
 
-  return compareExpression(
-    getPathValue(item, where.field),
-    where.operator,
-    where.value,
-  );
+  const { field, operator, value } = where;
+  if (!field || !operator) return sql<SqlBool>`true`;
+
+  const ref = registryFieldRef(field);
+  if (!ref) return sql<SqlBool>`true`;
+
+  const topColumn = field.length === 1 ? field[0]! : "";
+  const sqlValue = registryValue(topColumn, value);
+
+  switch (operator) {
+    case "eq":
+      return sqlValue === null
+        ? sql<SqlBool>`${ref} IS NULL`
+        : sql<SqlBool>`${ref} = ${sql.val(sqlValue)}`;
+    case "gt":
+      return sql<SqlBool>`${ref} > ${sql.val(sqlValue)}`;
+    case "gte":
+      return sql<SqlBool>`${ref} >= ${sql.val(sqlValue)}`;
+    case "lt":
+      return sql<SqlBool>`${ref} < ${sql.val(sqlValue)}`;
+    case "lte":
+      return sql<SqlBool>`${ref} <= ${sql.val(sqlValue)}`;
+    case "in":
+      if (!Array.isArray(sqlValue) || sqlValue.length === 0)
+        return sql<SqlBool>`false`;
+      return sql<SqlBool>`${ref} IN (${sql.join(sqlValue.map((v: unknown) => sql.val(v)))})`;
+    case "like":
+      return sql<SqlBool>`${ref} ILIKE ${sql.val(sqlValue)}`;
+    case "contains": {
+      const escaped = String(sqlValue).replace(/[%_\\]/g, "\\$&");
+      return sql<SqlBool>`${ref} ILIKE ${sql.val(`%${escaped}%`)}`;
+    }
+    default:
+      return sql<SqlBool>`true`;
+  }
+}
+
+/**
+ * Build SQL condition checking a CSV text column contains all requested values.
+ * Pattern: (',' || column || ',') LIKE '%,value,%' for each value (AND'd).
+ */
+function csvContainsAll(column: string, values: string[]): RawBuilder<SqlBool> {
+  const conditions = values.map((v) => {
+    const escaped = v.replace(/[%_\\]/g, "\\$&");
+    return sql<SqlBool>`(',' || ${sql.ref(column)} || ',') LIKE ${sql.val(`%,${escaped},%`)}`;
+  });
+  return sql<SqlBool>`(${sql.join(conditions, sql` AND `)})`;
+}
+
+/**
+ * ORDER BY expression: official (2) + verified (1) descending.
+ */
+function officialVerifiedOrderSql(): RawBuilder<unknown> {
+  return sql`(
+    CASE WHEN ${sql.ref("meta_json")}::jsonb->'mcp.mesh'->>'official' = 'true' THEN 2 ELSE 0 END +
+    CASE WHEN ${sql.ref("meta_json")}::jsonb->'mcp.mesh'->>'verified' = 'true' THEN 1 ELSE 0 END
+  ) desc`;
 }
 
 export class RegistryItemStorage {
@@ -285,48 +348,55 @@ export class RegistryItemStorage {
     let dbQuery = this.db
       .selectFrom("private_registry_item")
       .selectAll()
-      .where("organization_id", "=", organizationId)
-      .orderBy("created_at", "desc");
+      .where("organization_id", "=", organizationId);
 
     if (!query.includeUnlisted) {
       dbQuery = dbQuery.where("is_unlisted", "=", 0);
     }
 
-    const rows = await dbQuery.execute();
-
-    const items = rows.map((row) => this.deserialize(row as RawRow));
     const requestedTags = normalizeStringList(query.tags);
+    if (requestedTags.length > 0) {
+      dbQuery = dbQuery.where(csvContainsAll("tags", requestedTags));
+    }
+
     const requestedCategories = normalizeStringList(query.categories);
+    if (requestedCategories.length > 0) {
+      dbQuery = dbQuery.where(
+        csvContainsAll("categories", requestedCategories),
+      );
+    }
 
-    const filtered = items.filter((item) => {
-      const meshMeta = getMeshMeta(item._meta);
-      const itemTags = normalizeStringList(meshMeta.tags);
-      const itemCategories = normalizeStringList(meshMeta.categories);
+    if (query.where) {
+      dbQuery = dbQuery.where(applyRegistryWhereToSql(query.where));
+    }
 
-      const matchesTags =
-        requestedTags.length === 0 ||
-        requestedTags.every((tag) => itemTags.includes(tag));
-      const matchesCategories =
-        requestedCategories.length === 0 ||
-        requestedCategories.every((category) =>
-          itemCategories.includes(category),
-        );
-      const matchesWhere = evaluateWhere(item, query.where);
+    // Count before pagination
+    const countQuery = this.db
+      .selectFrom(dbQuery.as("filtered"))
+      .select(sql<number>`count(*)::int`.as("count"));
+    const countResult = await countQuery.executeTakeFirst();
+    const totalCount = countResult?.count ?? 0;
 
-      return matchesTags && matchesCategories && matchesWhere;
-    });
+    // Sort: official first, then verified, then by created_at desc
+    dbQuery = dbQuery
+      .orderBy(officialVerifiedOrderSql())
+      .orderBy("created_at", "desc");
 
-    const sorted = sortByOfficialAndVerified(filtered);
+    // Pagination
     const cursorOffset = decodeCursor(query.cursor);
     const offset = cursorOffset ?? query.offset ?? 0;
     const limit = query.limit ?? 24;
-    const page = sorted.slice(offset, offset + limit);
-    const hasMore = offset + limit < sorted.length;
+    dbQuery = dbQuery.limit(limit).offset(offset);
+
+    const rows = await dbQuery.execute();
+    const items = rows.map((row) => this.deserialize(row as RawRow));
+
+    const hasMore = offset + limit < totalCount;
     const nextCursor = hasMore ? encodeCursor(offset + limit) : undefined;
 
     return {
-      items: page,
-      totalCount: sorted.length,
+      items,
+      totalCount,
       hasMore,
       nextCursor,
     };
@@ -336,52 +406,56 @@ export class RegistryItemStorage {
     organizationId: string,
     query: PrivateRegistryListQuery = {},
   ): Promise<PrivateRegistryListResult> {
-    // Query only public AND non-unlisted items from database
-    const rows = await this.db
+    let dbQuery = this.db
       .selectFrom("private_registry_item")
       .selectAll()
       .where("organization_id", "=", organizationId)
       .where("is_public", "=", 1)
-      .where("is_unlisted", "=", 0)
-      .orderBy("created_at", "desc")
-      .execute();
+      .where("is_unlisted", "=", 0);
 
-    const items = rows.map((row) => this.deserialize(row as RawRow));
-
-    // Normalize requested tags/categories (same semantics as `list`)
     const requestedTags = normalizeStringList(query.tags);
+    if (requestedTags.length > 0) {
+      dbQuery = dbQuery.where(csvContainsAll("tags", requestedTags));
+    }
+
     const requestedCategories = normalizeStringList(query.categories);
+    if (requestedCategories.length > 0) {
+      dbQuery = dbQuery.where(
+        csvContainsAll("categories", requestedCategories),
+      );
+    }
 
-    // Apply in-memory filtering (AND semantics, consistent with `list`)
-    const filtered = items.filter((item) => {
-      const meshMeta = getMeshMeta(item._meta);
-      const itemTags = normalizeStringList(meshMeta.tags);
-      const itemCategories = normalizeStringList(meshMeta.categories);
+    if (query.where) {
+      dbQuery = dbQuery.where(applyRegistryWhereToSql(query.where));
+    }
 
-      const matchesTags =
-        requestedTags.length === 0 ||
-        requestedTags.every((tag) => itemTags.includes(tag));
-      const matchesCategories =
-        requestedCategories.length === 0 ||
-        requestedCategories.every((category) =>
-          itemCategories.includes(category),
-        );
-      const matchesWhere = evaluateWhere(item, query.where);
+    // Count before pagination
+    const countQuery = this.db
+      .selectFrom(dbQuery.as("filtered"))
+      .select(sql<number>`count(*)::int`.as("count"));
+    const countResult = await countQuery.executeTakeFirst();
+    const totalCount = countResult?.count ?? 0;
 
-      return matchesTags && matchesCategories && matchesWhere;
-    });
+    // Sort: official first, then verified, then by created_at desc
+    dbQuery = dbQuery
+      .orderBy(officialVerifiedOrderSql())
+      .orderBy("created_at", "desc");
 
-    const sorted = sortByOfficialAndVerified(filtered);
+    // Pagination
     const cursorOffset = decodeCursor(query.cursor);
     const offset = cursorOffset ?? query.offset ?? 0;
     const limit = query.limit ?? 24;
-    const page = sorted.slice(offset, offset + limit);
-    const hasMore = offset + limit < sorted.length;
+    dbQuery = dbQuery.limit(limit).offset(offset);
+
+    const rows = await dbQuery.execute();
+    const items = rows.map((row) => this.deserialize(row as RawRow));
+
+    const hasMore = offset + limit < totalCount;
     const nextCursor = hasMore ? encodeCursor(offset + limit) : undefined;
 
     return {
-      items: page,
-      totalCount: sorted.length,
+      items,
+      totalCount,
       hasMore,
       nextCursor,
     };
