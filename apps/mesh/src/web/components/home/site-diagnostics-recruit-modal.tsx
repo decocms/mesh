@@ -29,7 +29,6 @@ import {
   SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
   SITE_DIAGNOSTICS_DESCRIPTION,
   SITE_DIAGNOSTICS_ICON,
-  SITE_DIAGNOSTICS_INSTRUCTIONS,
   SITE_DIAGNOSTICS_MCP_URL,
   useConnectionActions,
   useMCPClient,
@@ -220,7 +219,6 @@ export function SiteDiagnosticsRecruitModal({
         ],
         metadata: {
           type: "site-diagnostics",
-          instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
           ui: getSiteDiagnosticsUiMetadata(connectionId),
         },
       });

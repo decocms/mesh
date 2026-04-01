@@ -235,8 +235,8 @@ function AgentsListContent() {
     (a): a is typeof a & { id: string } =>
       a.id !== null &&
       ((a as { metadata?: { type?: string } }).metadata?.type ===
-        "site-diagnostics" ||
-        a.title === "Site Diagnostics"),
+        SITE_DIAGNOSTICS_AGENT.id ||
+        a.title === SITE_DIAGNOSTICS_AGENT.title),
   );
 
   const hasAgents = agents.length > 0;
