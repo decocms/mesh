@@ -30,7 +30,7 @@ function StoreInviteRedirect() {
 
   const org = organizations?.[0];
   if (!org) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return (

@@ -126,18 +126,16 @@ const shellLayout = createRoute({
 const homeRoute = createRoute({
   getParentRoute: () => shellLayout,
   path: "/",
-  component: lazyRouteComponent(() => import("./routes/home.tsx")),
   beforeLoad: async () => {
-    // Fetch org list once — used for both slug validation and single-org redirect
+    // Fetch org list once — used for both slug validation and redirect
     const { data: orgs } = await authClient.organization.list();
 
-    // If the list call failed, skip all redirect logic to avoid clearing a
+    // If the list call failed, skip redirect logic to avoid clearing a
     // valid cached slug due to a transient API failure.
     if (!orgs) return;
 
     // Fast path: validate cached slug against current membership before redirecting.
-    // If stale (org deleted or user removed), clear it to prevent a redirect loop
-    // where an invalid slug → shell fails → back to "/" → same redirect → loop.
+    // If stale (org deleted or user removed), clear it to prevent a redirect loop.
     const lastOrgSlug = localStorage.getItem(LOCALSTORAGE_KEYS.lastOrgSlug());
     if (lastOrgSlug) {
       const slugIsValid = orgs.some(
@@ -153,12 +151,12 @@ const homeRoute = createRoute({
       localStorage.removeItem(LOCALSTORAGE_KEYS.lastOrgSlug());
     }
 
-    // Slow path: first-time user — redirect if they only have one org
-    const onlyOrg = orgs.length === 1 ? orgs[0] : undefined;
-    if (onlyOrg) {
+    // Redirect to first available org (every user gets a default org on signup)
+    const firstOrg = orgs[0];
+    if (firstOrg) {
       throw redirect({
         to: "/$org",
-        params: { org: onlyOrg.slug },
+        params: { org: firstOrg.slug },
       });
     }
   },
