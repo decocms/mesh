@@ -693,6 +693,29 @@ export const SITE_DIAGNOSTICS_MCP_URL =
 export const SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION =
   "Blackbox performance and SEO diagnostics for storefronts and high-traffic websites.";
 
+export const SITE_DIAGNOSTICS_MAIN_TOOL = "diagnose";
+
+export function getSiteDiagnosticsUiMetadata(connectionId: string) {
+  return {
+    pinnedViews: [
+      {
+        connectionId,
+        toolName: SITE_DIAGNOSTICS_MAIN_TOOL,
+        label: SITE_DIAGNOSTICS_MAIN_TOOL,
+        icon: null,
+      },
+    ],
+    layout: {
+      defaultMainView: {
+        type: "ext-apps",
+        id: connectionId,
+        toolName: SITE_DIAGNOSTICS_MAIN_TOOL,
+      },
+      chatDefaultOpen: false,
+    },
+  };
+}
+
 export const SITE_EDITOR_AGENT = {
   id: "site-editor",
   title: "Site Editor",

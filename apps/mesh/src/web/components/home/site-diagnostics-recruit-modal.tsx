@@ -24,6 +24,7 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  getSiteDiagnosticsUiMetadata,
   SITE_DIAGNOSTICS_CONNECTION_DESCRIPTION,
   SITE_DIAGNOSTICS_DESCRIPTION,
   SITE_DIAGNOSTICS_ICON,
@@ -146,6 +147,7 @@ export function SiteDiagnosticsRecruitModal({
         metadata: {
           type: "site-diagnostics",
           instructions: SITE_DIAGNOSTICS_INSTRUCTIONS,
+          ui: getSiteDiagnosticsUiMetadata(connection.id),
         },
       });
 
