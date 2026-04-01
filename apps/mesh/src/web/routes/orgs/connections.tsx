@@ -1040,10 +1040,14 @@ function OrgMcpsContent() {
             return false;
           }
           // When searching, connected items are already shown via groupedForDisplay
-          // so exclude them from catalog results to avoid duplicates
+          // so exclude them from catalog results to avoid duplicates.
+          // Must match extractConnectionData's app_name logic: meshMeta.appName || server.name
           if (searchLower) {
-            const appName = item.server?.name || item.name || item.id || "";
-            if (connectedAppNames.has(appName)) return false;
+            const meshMeta = item._meta?.["mcp.mesh"] as
+              | Record<string, string>
+              | undefined;
+            const appName = meshMeta?.appName || item.server?.name || "";
+            if (appName && connectedAppNames.has(appName)) return false;
           }
           return true;
         })

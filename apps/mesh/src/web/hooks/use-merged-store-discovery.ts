@@ -56,6 +56,7 @@ function isCommunityRegistry(registry: RegistrySource): boolean {
 
 /**
  * Build a where expression for server-side search on registry items.
+ * Searches title, description, name (server.name), and server.title.
  */
 function buildRegistrySearchWhere(
   search: string | undefined,
@@ -67,6 +68,8 @@ function buildRegistrySearchWhere(
     conditions: [
       { field: ["title"], operator: "contains", value: trimmed },
       { field: ["description"], operator: "contains", value: trimmed },
+      { field: ["name"], operator: "contains", value: trimmed },
+      { field: ["server", "title"], operator: "contains", value: trimmed },
     ],
   };
 }
