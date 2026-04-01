@@ -142,7 +142,7 @@ function applyRegistryWhereToSql(
       case "or":
         return sql<SqlBool>`(${sql.join(parts, sql` OR `)})`;
       case "not":
-        return sql<SqlBool>`NOT (${sql.join(parts, sql` AND `)})`;
+        return sql<SqlBool>`NOT (${sql.join(parts, sql` OR `)})`;
       default:
         return sql<SqlBool>`true`;
     }
