@@ -14,9 +14,7 @@ import type { Kysely } from "kysely";
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import {
   getWellKnownDecopilotVirtualMCP,
-  getWellKnownSiteDiagnosticsVirtualMCP,
   isDecopilot,
-  isSiteDiagnostics,
 } from "@decocms/mesh-sdk";
 import type {
   VirtualMCPCreateData,
@@ -157,13 +155,6 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       };
     }
 
-    // Handle Site Diagnostics ID - return well-known entity without DB lookup
-    const siteDiagOrgId = isSiteDiagnostics(id);
-    if (siteDiagOrgId) {
-      const resolvedOrgId = organizationId ?? siteDiagOrgId;
-      return getWellKnownSiteDiagnosticsVirtualMCP(resolvedOrgId);
-    }
-
     // Normal database lookup for string IDs
     return this.findByIdInternal(this.db, id);
   }
@@ -243,9 +234,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       );
     }
 
-    // Prepend well-known Site Diagnostics agent so it always appears
-    const siteDiag = getWellKnownSiteDiagnosticsVirtualMCP(organizationId);
-    return [siteDiag, ...dbVirtualMcps];
+    return dbVirtualMcps;
   }
 
   async listByConnectionId(
