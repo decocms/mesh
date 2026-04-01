@@ -11,7 +11,10 @@ import {
 } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { authClient } from "@/web/lib/auth-client";
-import { extractConnectionData } from "@/web/utils/extract-connection-data";
+import {
+  extractConnectionData,
+  getRegistryItemAppName,
+} from "@/web/utils/extract-connection-data";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { useEnabledRegistries } from "@/web/hooks/use-enabled-registries";
@@ -281,8 +284,8 @@ function AddConnectionDialogContent({
       ? mergedDiscovery.items.filter((item: RegistryItem) => {
           // When searching, connected items are already shown via groupedForDisplay
           if (searchLower) {
-            const appName = item.server?.name || item.name || item.id || "";
-            if (connectedAppNames.has(appName)) return false;
+            const appName = getRegistryItemAppName(item);
+            if (appName && connectedAppNames.has(appName)) return false;
           }
           return true;
         })
@@ -310,7 +313,7 @@ function AddConnectionDialogContent({
 
   // Render a catalog item card
   const renderCatalogItem = (item: RegistryItem) => {
-    const appName = item.server?.name || item.name || item.id || "";
+    const appName = getRegistryItemAppName(item) ?? "";
     const isConnected = connectedAppNames.has(appName);
     const meshMeta = item._meta?.["mcp.mesh"] as
       | Record<string, string>
