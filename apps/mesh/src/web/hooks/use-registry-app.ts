@@ -7,10 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { KEYS, useProjectContext, WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import type { RegistryItem } from "@/web/components/store/types";
-import {
-  callRegistryTool,
-  extractItemsFromResponse,
-} from "@/web/utils/registry-utils";
+import { callRegistryTool } from "@/web/utils/registry-utils";
 
 /**
  * Fetch an MCP app from the deco registry by its app name.
@@ -26,14 +23,13 @@ export function useRegistryApp(appId: string) {
   return useQuery<RegistryItem | null>({
     queryKey: KEYS.registryApp(org.id, appId),
     queryFn: async () => {
-      const result = await callRegistryTool(
+      const result = await callRegistryTool<{ item: RegistryItem | null }>(
         registryId,
         org.id,
-        "COLLECTION_REGISTRY_APP_LIST",
-        { where: { appName: appId } },
+        "COLLECTION_REGISTRY_APP_GET",
+        { name: appId },
       );
-      const items = extractItemsFromResponse<RegistryItem>(result ?? []);
-      return items[0] ?? null;
+      return result?.item ?? null;
     },
     staleTime: 5 * 60 * 1000,
   });
