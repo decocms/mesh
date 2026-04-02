@@ -420,6 +420,7 @@ import { AIProviderFactory } from "@/ai-providers/factory";
 import type { ModelListCache } from "@/ai-providers/model-list-cache";
 import { getObjectStorageS3Service } from "../object-storage/factory";
 import { createBoundObjectStorage } from "../object-storage/bound-object-storage";
+import { DevObjectStorage } from "../object-storage/dev-object-storage";
 
 /**
  * Fetch role permissions from the database
@@ -986,12 +987,15 @@ export async function createMeshContextFactory(
       config.modelListCache,
     );
 
-    // Create org-scoped object storage if S3 is configured and org is available
+    // Create org-scoped object storage if S3 is configured and org is available.
+    // In development without S3, fall back to DevObjectStorage (local filesystem).
     const s3Service = getObjectStorageS3Service();
     const objectStorage =
       s3Service && organization
         ? createBoundObjectStorage(s3Service, organization.id)
-        : null;
+        : getSettings().nodeEnv === "development" && organization
+          ? new DevObjectStorage(organization.id)
+          : null;
 
     const ctx: MeshContext = {
       timings,

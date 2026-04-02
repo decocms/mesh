@@ -14,16 +14,11 @@
  *   to downstream MCP tools.
  *
  * Storage backends:
- * - S3             : ctx.objectStorage (BoundObjectStorage) — used when configured
- * - Dev filesystem : ./data/assets/<orgId>/ + HMAC-signed URLs — development only
- * - Base64 inline  : data: URL kept as-is in message parts — production fallback when no storage
+ * - S3 / DevObjectStorage : ctx.objectStorage (BoundObjectStorage) — injected by context-factory
+ * - Base64 inline         : data: URL kept as-is in parts — when ctx.objectStorage is null
  */
 
-import { createHmac } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import type { MeshContext } from "@/core/mesh-context";
-import { getSettings } from "@/settings";
 import type { ChatMessage } from "./types";
 
 // ============================================================================
@@ -51,65 +46,6 @@ function toFileRedirectUrl(
   key: string,
 ): string {
   return `${baseUrl}/api/${orgId}/files/${key}`;
-}
-
-// ============================================================================
-// Dev-mode filesystem helpers (mirrors dev-assets-mcp.ts logic)
-// ============================================================================
-
-const DEV_ASSETS_BASE_DIR = "./data/assets";
-
-// SigV4 presigned URLs are capped at 7 days by the AWS spec.
-const S3_PRESIGNED_EXPIRES_IN = 7 * 24 * 3600; // 7 days (SigV4 max)
-// Dev HMAC URLs use our own signing so can be much longer.
-const DEV_PRESIGNED_EXPIRES_IN = 365 * 24 * 3600; // 1 year
-
-function devSanitizeKey(key: string): string {
-  return key.replace(/^\/+/, "").replace(/\.\./g, "");
-}
-
-function devGetOrgAssetsDir(orgId: string): string {
-  const sanitizedOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return join(DEV_ASSETS_BASE_DIR, sanitizedOrgId);
-}
-
-function devGenerateSignature(
-  orgId: string,
-  key: string,
-  expires: number,
-  method: "GET" | "PUT",
-): string {
-  const secret = getSettings().encryptionKey || "dev-secret";
-  const data = `${orgId}:${key}:${expires}:${method}`;
-  return createHmac("sha256", secret).update(data).digest("hex");
-}
-
-export function devGeneratePresignedGetUrl(
-  baseUrl: string,
-  orgId: string,
-  key: string,
-): string {
-  const expires = Math.floor(Date.now() / 1000) + DEV_PRESIGNED_EXPIRES_IN;
-  const signature = devGenerateSignature(orgId, key, expires, "GET");
-  const url = new URL(
-    `/api/dev-assets/${orgId}/${devSanitizeKey(key)}`,
-    baseUrl,
-  );
-  url.searchParams.set("expires", expires.toString());
-  url.searchParams.set("signature", signature);
-  url.searchParams.set("method", "GET");
-  return url.toString();
-}
-
-async function devWriteFile(
-  orgId: string,
-  key: string,
-  bytes: Uint8Array,
-): Promise<void> {
-  const baseDir = devGetOrgAssetsDir(orgId);
-  const filePath = join(baseDir, devSanitizeKey(key));
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, bytes);
 }
 
 // ============================================================================
@@ -158,60 +94,43 @@ function mimeTypeToExtension(mimeType: string): string {
 
 /**
  * Upload raw bytes to org storage.
- * Returns the storage key on success, null on failure.
- *
- * Storage selection:
- * - S3 (ctx.objectStorage present): always used when configured.
- * - Dev filesystem: only in development; never used as a prod fallback.
- * - No storage in production: returns null so callers keep the data: URL as-is (base64 inline).
+ * Returns the storage key on success, null when ctx.objectStorage is not available
+ * (callers keep the data: URL as-is for base64 inline delivery).
  */
 async function uploadBytes(
   bytes: Uint8Array,
   key: string,
   mimeType: string,
-  orgId: string,
   ctx: MeshContext,
 ): Promise<string | null> {
+  if (!ctx.objectStorage) return null;
   try {
-    if (ctx.objectStorage) {
-      await ctx.objectStorage.put(key, bytes, { contentType: mimeType });
-      return key;
-    }
-    if (getSettings().nodeEnv === "development") {
-      await devWriteFile(orgId, key, bytes);
-      return key;
-    }
-    // Production without object storage: signal to keep data: URL as-is.
-    return null;
+    await ctx.objectStorage.put(key, bytes, { contentType: mimeType });
+    return key;
   } catch (err) {
     console.error("[file-materializer] Failed to upload file:", err);
     return null;
   }
 }
 
+// SigV4 presigned URLs are capped at 7 days by the AWS spec.
+const S3_PRESIGNED_EXPIRES_IN = 7 * 24 * 3600; // 7 days (SigV4 max)
+
 /**
  * Generate a fresh presigned GET URL for an existing storage key.
  * Used by resolveStorageRefs on every turn.
- *
- * Returns null in production without object storage — those deployments never
- * persist mesh-storage: keys, so this path should not be reached.
+ * Returns null when ctx.objectStorage is not available.
  */
 export async function generatePresignedGetUrl(
   key: string,
-  orgId: string,
   ctx: MeshContext,
 ): Promise<string | null> {
+  if (!ctx.objectStorage) return null;
   try {
-    if (ctx.objectStorage) {
-      return await ctx.objectStorage.presignedGetUrl(
-        key,
-        S3_PRESIGNED_EXPIRES_IN,
-      );
-    }
-    if (getSettings().nodeEnv === "development") {
-      return devGeneratePresignedGetUrl(ctx.baseUrl, orgId, key);
-    }
-    return null;
+    return await ctx.objectStorage.presignedGetUrl(
+      key,
+      S3_PRESIGNED_EXPIRES_IN,
+    );
   } catch (err) {
     console.error("[file-materializer] Failed to generate presigned URL:", err);
     return null;
@@ -271,7 +190,6 @@ export async function uploadFileParts(
         parsed.bytes,
         key,
         parsed.mimeType,
-        orgId,
         ctx,
       );
       if (!uploadedKey) return null;
@@ -362,7 +280,6 @@ export async function resolveStorageRefs(
   ctx: MeshContext,
 ): Promise<ChatMessage[]> {
   if (!ctx.organization) return messages;
-  const orgId = ctx.organization.id;
 
   // Collect unique mesh-storage: keys from file parts only (not text)
   const keysToResolve = new Set<string>();
@@ -383,14 +300,14 @@ export async function resolveStorageRefs(
   const keyToPresigned = new Map<string, string>();
   await Promise.all(
     Array.from(keysToResolve).map(async (key) => {
-      const url = await generatePresignedGetUrl(key, orgId, ctx);
+      const url = await generatePresignedGetUrl(key, ctx);
       if (url) keyToPresigned.set(key, url);
     }),
   );
 
   if (keyToPresigned.size === 0) {
     // No mesh-storage: refs in file parts — safety net for legacy data: URLs
-    return legacyMaterialize(messages, ctx, orgId);
+    return legacyMaterialize(messages, ctx);
   }
 
   // Replace mesh-storage: in file part URLs only; leave text parts untouched
@@ -431,7 +348,6 @@ export async function resolveStorageRefs(
  */
 export async function resolveArgsStorageRefs(
   args: Record<string, unknown>,
-  orgId: string,
   ctx: MeshContext,
 ): Promise<Record<string, unknown>> {
   // Collect all mesh-storage: keys present anywhere in the args tree
@@ -443,7 +359,7 @@ export async function resolveArgsStorageRefs(
   const keyToPresigned = new Map<string, string>();
   await Promise.all(
     Array.from(keysFound).map(async (key) => {
-      const url = await generatePresignedGetUrl(key, orgId, ctx);
+      const url = await generatePresignedGetUrl(key, ctx);
       if (url) keyToPresigned.set(key, url);
     }),
   );
@@ -502,7 +418,6 @@ function substituteValues(
 async function legacyMaterialize(
   messages: ChatMessage[],
   ctx: MeshContext,
-  orgId: string,
 ): Promise<ChatMessage[]> {
   const lastUserIdx = messages.findLastIndex((m) => m.role === "user");
   if (lastUserIdx === -1) return messages;
@@ -535,12 +450,11 @@ async function legacyMaterialize(
         parsed.bytes,
         key,
         parsed.mimeType,
-        orgId,
         ctx,
       );
       if (!uploadedKey) return null;
 
-      const presigned = await generatePresignedGetUrl(uploadedKey, orgId, ctx);
+      const presigned = await generatePresignedGetUrl(uploadedKey, ctx);
       return presigned ? { dataUrl: part.url, presigned } : null;
     }),
   );

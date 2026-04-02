@@ -15,10 +15,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { MeshContext } from "@/core/mesh-context";
-import {
-  devGeneratePresignedGetUrl,
-  generatePresignedGetUrl,
-} from "./decopilot/file-materializer";
+import { generatePresignedGetUrl } from "./decopilot/file-materializer";
 
 type Variables = { meshContext: MeshContext };
 
@@ -39,14 +36,10 @@ app.get("/:org/files/*", async (c) => {
     throw new HTTPException(400, { message: "Missing file key" });
   }
 
-  const presignedUrl = await generatePresignedGetUrl(key, orgId, ctx);
+  const presignedUrl = await generatePresignedGetUrl(key, ctx);
 
   if (!presignedUrl) {
-    // Fallback for dev mode when generatePresignedGetUrl returns null
-    const url = new URL(c.req.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
-    const devUrl = devGeneratePresignedGetUrl(baseUrl, orgId, key);
-    return c.redirect(devUrl, 302);
+    throw new HTTPException(503, { message: "Object storage not configured" });
   }
 
   return c.redirect(presignedUrl, 302);

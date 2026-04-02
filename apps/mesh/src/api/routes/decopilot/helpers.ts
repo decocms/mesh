@@ -117,10 +117,9 @@ export async function toolsFromMCP(
           try {
             // Resolve any mesh-storage: URIs in tool arguments to fresh
             // presigned URLs before forwarding to the MCP client.
-            const resolvedInput = meshCtx?.organization
+            const resolvedInput = meshCtx
               ? await resolveArgsStorageRefs(
                   input as Record<string, unknown>,
-                  meshCtx.organization.id,
                   meshCtx,
                 )
               : (input as Record<string, unknown>);
