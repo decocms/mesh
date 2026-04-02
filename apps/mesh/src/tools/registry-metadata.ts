@@ -64,6 +64,7 @@ const ALL_TOOL_NAMES = [
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
+  "MONITORING_LOG_GET",
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
   // API Key tools
@@ -319,6 +320,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     dangerous: true,
   },
   // Monitoring tools
+  {
+    name: "MONITORING_LOG_GET",
+    description: "View monitoring log details",
+    category: "Monitoring",
+  },
   {
     name: "MONITORING_LOGS_LIST",
     description: "List monitoring logs",
@@ -758,6 +764,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_VIRTUAL_MCP_GET: "View virtual MCP details",
   COLLECTION_VIRTUAL_MCP_UPDATE: "Update virtual MCPs",
   COLLECTION_VIRTUAL_MCP_DELETE: "Delete virtual MCPs",
+  MONITORING_LOG_GET: "View monitoring log details",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
