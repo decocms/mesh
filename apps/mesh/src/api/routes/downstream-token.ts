@@ -94,7 +94,15 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
         connection.connection_url,
       );
       if (originEndpoint) {
-        resolvedTokenEndpoint = originEndpoint;
+        // Apply same URL/protocol validation as the user-supplied tokenEndpoint
+        try {
+          const u = new URL(originEndpoint);
+          if (u.protocol === "http:" || u.protocol === "https:") {
+            resolvedTokenEndpoint = originEndpoint;
+          }
+        } catch {
+          // Invalid URL from discovery — keep proxy URL as fallback
+        }
       }
     } catch {
       // Keep proxy URL as fallback
