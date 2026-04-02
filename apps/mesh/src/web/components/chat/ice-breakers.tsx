@@ -99,18 +99,20 @@ function usePromptsWithConnections(
 const VISIBLE_COUNT = 3;
 
 const CARD_BASE =
-  "h-[140px] flex flex-col p-3.5 rounded-xl border border-foreground/10 text-sm leading-snug transition-colors cursor-pointer";
+  "flex flex-col p-3.5 rounded-xl border border-foreground/10 text-sm leading-snug transition-colors cursor-pointer";
 
 function PromptCard({
   item,
   onSelect,
   isLoading,
   isDisabled,
+  tall,
 }: {
   item: PromptItem;
   onSelect: (prompt: Prompt) => void;
   isLoading: boolean;
   isDisabled: boolean;
+  tall?: boolean;
 }) {
   const { prompt, connection } = item;
   const label =
@@ -124,6 +126,7 @@ function PromptCard({
       disabled={isDisabled || isLoading}
       className={cn(
         CARD_BASE,
+        tall ? "h-[180px]" : "h-[140px]",
         "items-start justify-between text-left text-foreground hover:bg-accent/40",
         isLoading && "bg-accent/40",
         (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
@@ -138,7 +141,14 @@ function PromptCard({
       <div className="flex flex-col gap-0.5 w-full mt-auto">
         <span className="text-xs text-muted-foreground truncate">{name}</span>
         <div className="flex items-end gap-1.5">
-          <span className="flex-1 line-clamp-2 text-sm">{label}</span>
+          <span
+            className={cn(
+              "flex-1 text-sm",
+              tall ? "line-clamp-3" : "line-clamp-2",
+            )}
+          >
+            {label}
+          </span>
           {isLoading && <Spinner size="xs" />}
         </div>
       </div>
@@ -176,7 +186,7 @@ function AllPromptsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[900px] p-0 gap-0 overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>All prompts</DialogTitle>
         </DialogHeader>
@@ -191,7 +201,7 @@ function AllPromptsModal({
             if (e.key === "Escape") setSearch("");
           }}
         />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 max-h-[420px] overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
           {filtered.length === 0 && (
             <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
               No prompts match &ldquo;{search}&rdquo;
@@ -201,6 +211,7 @@ function AllPromptsModal({
             <PromptCard
               key={item.prompt.name}
               item={item}
+              tall
               onSelect={(prompt) => {
                 onOpenChange(false);
                 onSelect(prompt);
@@ -267,7 +278,7 @@ function IceBreakersUI({
             onClick={() => setModalOpen(true)}
             className={cn(
               CARD_BASE,
-              "items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
+              "h-[140px] items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
               isAnyLoading && "opacity-50 cursor-not-allowed",
             )}
           >
