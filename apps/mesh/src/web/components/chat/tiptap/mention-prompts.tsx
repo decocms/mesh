@@ -5,6 +5,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { usePromptConnectionMap } from "@/web/components/chat/use-prompt-connection-map";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
   ListPromptsResult,
@@ -12,7 +13,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   PromptArgsDialog,
@@ -65,6 +66,9 @@ export const PromptsMention = ({
     connectionId: virtualMcpId,
     orgId: org.id,
   });
+  const promptToConnection = usePromptConnectionMap(virtualMcpId, org.id);
+  const promptToConnectionRef = useRef(promptToConnection);
+  promptToConnectionRef.current = promptToConnection;
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.id);
   const [activePrompt, setActivePrompt] = useState<PromptSelectContext | null>(
@@ -140,7 +144,10 @@ export const PromptsMention = ({
       );
     }
 
-    return filteredPrompts;
+    return filteredPrompts.map((p) => ({
+      ...p,
+      icon: promptToConnectionRef.current.get(p.name)?.icon ?? null,
+    }));
   };
 
   return (

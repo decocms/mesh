@@ -66,6 +66,7 @@ const CORE_TOOLS = [
   DatabaseTools.DATABASES_RUN_SQL,
 
   // Monitoring tools
+  MonitoringTools.MONITORING_LOG_GET,
   MonitoringTools.MONITORING_LOGS_LIST,
   MonitoringTools.MONITORING_STATS,
 

@@ -158,6 +158,8 @@ export const KEYS = {
   }) => ["monitoring", "logs", filters] as const,
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
+  monitoringLogDetail: (logId: string) =>
+    ["monitoring", "log-detail", logId] as const,
 
   // Thread queries (scoped by locator)
   threadsInfinite: (locator: string, paramsKey: string) =>

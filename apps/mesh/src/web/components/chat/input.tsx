@@ -359,18 +359,25 @@ export function ChatInput({
   const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
     useChatStream();
   const { taskId, tasks } = useChatTask();
-  const {
-    selectedModel,
-    selectedVirtualMcp,
-    setVirtualMcpId,
-    isModelsLoading,
-    tiptapDocRef,
-  } = useChatPrefs();
+  const { selectedModel, selectedVirtualMcp, isModelsLoading, tiptapDocRef } =
+    useChatPrefs();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
+  const navigate = useNavigate();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+
+  // Navigate to the agent route (like the sidebar does) instead of only
+  // setting an ephemeral search-param override, so the thread list re-scopes.
+  const handleAgentChange = (virtualMcpId: string | null) => {
+    if (virtualMcpId) {
+      navigate({
+        to: "/$org/$virtualMcpId/",
+        params: { org: org.slug, virtualMcpId },
+      });
+    }
+  };
 
   const task = tasks.find((task) => task.id === taskId);
 
@@ -540,7 +547,7 @@ export function ChatInput({
             {badgeVirtualMcp && (
               <VirtualMCPBadge
                 virtualMcp={badgeVirtualMcp}
-                onVirtualMcpChange={setVirtualMcpId}
+                onVirtualMcpChange={handleAgentChange}
                 disabled={isStreaming}
               />
             )}
@@ -592,14 +599,14 @@ export function ChatInput({
                 <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
                   {!selectedVirtualMcp || isDecopilot(selectedVirtualMcp.id) ? (
                     <DecopilotIconButton
-                      onVirtualMcpChange={setVirtualMcpId}
+                      onVirtualMcpChange={handleAgentChange}
                       disabled={isStreaming}
                     />
                   ) : (
                     <VirtualMCPSelector
                       selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
                       selectedVirtualMcp={selectedVirtualMcp}
-                      onVirtualMcpChange={setVirtualMcpId}
+                      onVirtualMcpChange={handleAgentChange}
                       placeholder="Agent"
                       disabled={isStreaming}
                     />

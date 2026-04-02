@@ -28,6 +28,15 @@ const MAX_DELIVER = 3;
 const ACK_WAIT_NS = 6 * 60 * 1_000_000_000; // 6 min (> 5 min automation timeout)
 const PULL_BATCH_SIZE = 5;
 
+const CONSUMER_CONFIG = {
+  durable_name: CONSUMER_NAME,
+  ack_policy: AckPolicy.Explicit,
+  deliver_policy: DeliverPolicy.All,
+  max_deliver: MAX_DELIVER,
+  ack_wait: ACK_WAIT_NS,
+  filter_subject: `${SUBJECT_PREFIX}.>`,
+};
+
 export interface AutomationJobPayload {
   triggerId: string;
   automationId: string;
@@ -43,11 +52,23 @@ export interface AutomationJobStreamOptions {
 let js: JetStreamClient | null = null;
 let subscription: ConsumerMessages | null = null;
 let starting = false;
+let initPromise: Promise<void> | null = null;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 export async function init(opts: AutomationJobStreamOptions): Promise<void> {
+  // Concurrency guard: if init is already in flight, piggyback on the same promise
+  if (initPromise) return initPromise;
+  initPromise = doInit(opts);
+  try {
+    await initPromise;
+  } finally {
+    initPromise = null;
+  }
+}
+
+async function doInit(opts: AutomationJobStreamOptions): Promise<void> {
   // Stop any existing consumer so we can re-create it after reconnection
   if (subscription) {
     subscription.stop();
@@ -86,23 +107,27 @@ export async function init(opts: AutomationJobStreamOptions): Promise<void> {
     }
   }
 
-  // Ensure durable pull consumer exists
+  // Ensure durable pull consumer exists.
+  // If the consumer is corrupted/inaccessible (e.g. after NATS cluster restart),
+  // delete and recreate it rather than failing permanently.
   try {
     await jsm.consumers.info(STREAM_NAME, CONSUMER_NAME);
   } catch (err: unknown) {
     const isNotFound =
       err instanceof Error && err.message.includes("consumer not found");
     if (isNotFound) {
-      await jsm.consumers.add(STREAM_NAME, {
-        durable_name: CONSUMER_NAME,
-        ack_policy: AckPolicy.Explicit,
-        deliver_policy: DeliverPolicy.All,
-        max_deliver: MAX_DELIVER,
-        ack_wait: ACK_WAIT_NS,
-        filter_subject: `${SUBJECT_PREFIX}.>`,
-      });
+      await jsm.consumers.add(STREAM_NAME, CONSUMER_CONFIG);
     } else {
-      throw err;
+      console.warn(
+        "[AutomationJobStream] Consumer inaccessible, recreating:",
+        err instanceof Error ? ((err as any).code ?? err.message) : "unknown",
+      );
+      try {
+        await jsm.consumers.delete(STREAM_NAME, CONSUMER_NAME);
+      } catch {
+        // Ignore — consumer may already be gone
+      }
+      await jsm.consumers.add(STREAM_NAME, CONSUMER_CONFIG);
     }
   }
 
@@ -111,11 +136,7 @@ export async function init(opts: AutomationJobStreamOptions): Promise<void> {
 
 export async function publish(payload: AutomationJobPayload): Promise<void> {
   if (!js) {
-    console.warn(
-      "[AutomationJobStream] NATS not ready, dropping job:",
-      payload.triggerId,
-    );
-    return;
+    throw new Error("[AutomationJobStream] NATS not ready, cannot publish job");
   }
   const subj = `${SUBJECT_PREFIX}.${payload.triggerId}`;
   await js.publish(subj, encoder.encode(JSON.stringify(payload)));
@@ -151,6 +172,22 @@ export async function startConsumer(
   })().catch((err) => {
     console.error("[AutomationJobStream] Consumer loop crashed:", err);
   });
+}
+
+export async function isHealthy(
+  opts: AutomationJobStreamOptions,
+): Promise<boolean> {
+  if (!js) return false;
+  if (!subscription) return false;
+  try {
+    const nc = opts.getConnection();
+    if (!nc) return false;
+    const jsm = await nc.jetstreamManager();
+    await jsm.consumers.info(STREAM_NAME, CONSUMER_NAME);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function stop(): void {

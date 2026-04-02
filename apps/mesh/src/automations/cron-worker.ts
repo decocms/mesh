@@ -36,6 +36,7 @@ export class AutomationCronWorker {
   private running = false;
   private processing = false;
   private pendingNotify = false;
+  private started = false;
 
   constructor(
     private storage: AutomationsStorage,
@@ -45,7 +46,10 @@ export class AutomationCronWorker {
 
   async start(): Promise<void> {
     this.running = true;
-    await this.recomputeStaleNextRunAt();
+    if (!this.started) {
+      await this.recomputeStaleNextRunAt();
+      this.started = true;
+    }
   }
 
   async stop(): Promise<void> {

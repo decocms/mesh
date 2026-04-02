@@ -260,6 +260,27 @@ function buildPropertyFilterClauses(
 }
 
 // ---------------------------------------------------------------------------
+// ClickHouse column list — truncate large JSON blobs to cap memory usage
+// ---------------------------------------------------------------------------
+
+const LIST_COLUMNS = [
+  "id",
+  "organization_id",
+  "connection_id",
+  "connection_title",
+  "tool_name",
+  "is_error",
+  "error_message",
+  "duration_ms",
+  "timestamp",
+  "user_id",
+  "request_id",
+  "user_agent",
+  "virtual_mcp_id",
+  "properties",
+].join(", ");
+
+// ---------------------------------------------------------------------------
 // Timestamp filter helper (dialect-aware)
 // ---------------------------------------------------------------------------
 
@@ -306,14 +327,14 @@ function tsGte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp >= '${date.toISOString()}'`;
+  return `timestamp >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 function tsLte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp <= '${date.toISOString()}'`;
+  return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +413,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     const whereClause = where.join(" AND ");
 
     if (this.dialect === "duckdb") {
-      const sql = `SELECT *, count(*) OVER () AS _total FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const sql = `SELECT ${LIST_COLUMNS}, count(*) OVER () AS _total FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
       const rows = await this.engine.query(sql);
       if (rows.length === 0) {
         return { logs: [], total: 0 };
@@ -402,7 +423,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     }
 
     const countSql = `SELECT count(*) AS total FROM ${source} WHERE ${whereClause}`;
-    const dataSql = `SELECT * FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+    const dataSql = `SELECT ${LIST_COLUMNS} FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
 
     const [countRows, dataRows] = await Promise.all([
       this.engine.query(countSql),
@@ -411,6 +432,19 @@ export class SqlMonitoringStorage implements MonitoringStorage {
 
     const total = Number(countRows[0]?.total ?? 0);
     return { logs: dataRows.map(toMonitoringLog), total };
+  }
+
+  async getById(
+    organizationId: string,
+    id: string,
+  ): Promise<MonitoringLog | null> {
+    if (!organizationId || !id) return null;
+
+    const source = this.sourceFactory(organizationId);
+    const sql = `SELECT * FROM ${source} WHERE organization_id = '${esc(organizationId)}' AND id = '${esc(id)}' LIMIT 1`;
+    const rows = await this.engine.query(sql);
+    if (rows.length === 0) return null;
+    return toMonitoringLog(rows[0]!);
   }
 
   async getStats(filters: {
@@ -698,8 +732,8 @@ ORDER BY bucket ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  sumForEachIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause}
 GROUP BY bucket
@@ -1016,8 +1050,8 @@ ORDER BY bucket ASC, tool_name ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  sumForEachIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name

@@ -48,6 +48,7 @@ import proxyRoutes from "./routes/proxy";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
+import filesRoutes from "./routes/files";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -906,7 +907,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     };
 
     // Attempt immediate start
-    startJobStreamWithRetry().catch(() => {});
+    startJobStreamWithRetry().catch((err) => {
+      console.error("[AutomationJobStream] Immediate start failed:", err);
+    });
 
     // Re-start when NATS connects
     natsProvider.onReady(() => {
@@ -920,11 +923,33 @@ export async function createApp(options: CreateAppOptions = {}) {
       });
     }, cronPollIntervalMs);
 
+    // Periodic health check: detect dead consumer and reinitialize
+    const healthCheckIntervalMs = 60_000;
+    let reinitializing = false;
+    const healthCheckTimer = setInterval(async () => {
+      if (reinitializing) return;
+      try {
+        const healthy = await automationJobStream.isHealthy(natsOpts);
+        if (healthy) return;
+
+        reinitializing = true;
+        console.warn(
+          "[AutomationJobStream] Health check failed, reinitializing...",
+        );
+        await startJobStreamWithRetry();
+      } catch (err) {
+        console.error("[AutomationJobStream] Health re-init failed:", err);
+      } finally {
+        reinitializing = false;
+      }
+    }, healthCheckIntervalMs);
+
     currentCronWorkerCleanup = () => {
       if (cronTimer) {
         clearInterval(cronTimer);
         cronTimer = null;
       }
+      clearInterval(healthCheckTimer);
       automationJobStream.stop();
       cronWorker.stop().catch(() => {});
     };
@@ -1258,6 +1283,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     threadStorage,
   });
   app.route("/api", decopilotRoutes);
+
+  // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
+  app.route("/api", filesRoutes);
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
