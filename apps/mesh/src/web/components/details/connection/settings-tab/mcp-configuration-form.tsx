@@ -1,4 +1,8 @@
-import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  useConnection,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { resolveBindingType } from "@/web/hooks/use-binding";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { Loading01, Plus } from "@untitledui/icons";
@@ -151,19 +155,29 @@ function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  // Server-side filtering: binding (string or schema object) → filter by binding,
-  // bindingType (e.g. "@deco/database") → filter by app_name (stored without scope, e.g. "database")
-  const appName = !binding
-    ? bindingType?.replace(/^@[^/]+\//, "") || undefined
-    : undefined;
+  // Server-side filtering: use binding check when available,
+  // fall back to app_name filter using bindingType as-is
+  const appName = !binding ? bindingType || undefined : undefined;
 
-  const connections = useConnections(
+  const filteredConnections = useConnections(
     binding
       ? { binding }
       : appName
         ? { filters: [{ column: "app_name" as const, value: appName }] }
         : {},
   );
+
+  // Ensure the currently selected connection always appears in the dropdown,
+  // even if the app_name filter didn't match it
+  const selectedConnection = useConnection(
+    value && !filteredConnections.some((c) => c.id === value)
+      ? value
+      : undefined,
+  );
+
+  const connections = selectedConnection
+    ? [selectedConnection, ...filteredConnections]
+    : filteredConnections;
 
   const canInstallInline = bindingType?.startsWith("@");
 
