@@ -145,6 +145,26 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
 
           return true;
         },
+
+        handlePaste: (view, event) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+
+          const fileItems = Array.from(items).filter(
+            (item) => item.kind === "file",
+          );
+          if (fileItems.length === 0) return false;
+
+          event.preventDefault();
+
+          const { from } = view.state.selection;
+          for (const item of fileItems) {
+            const file = item.getAsFile();
+            if (file) void processFileRef.current?.(file, from);
+          }
+
+          return true;
+        },
       },
     });
 
