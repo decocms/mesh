@@ -47,8 +47,8 @@ export class AutomationCronWorker {
   async start(): Promise<void> {
     this.running = true;
     if (!this.started) {
-      this.started = true;
       await this.recomputeStaleNextRunAt();
+      this.started = true;
     }
   }
 
