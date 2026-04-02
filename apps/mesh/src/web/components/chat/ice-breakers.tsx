@@ -129,18 +129,18 @@ function PromptCard({
         (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
       )}
     >
-      <div className="flex items-center gap-2 w-full min-w-0">
-        <IntegrationIcon
-          icon={connection?.icon ?? null}
-          name={connection?.title ?? "Integration"}
-          size="xs"
-          className="shrink-0 rounded-lg!"
-        />
+      <IntegrationIcon
+        icon={connection?.icon ?? null}
+        name={connection?.title ?? "Integration"}
+        size="xs"
+        className="shrink-0 rounded-lg!"
+      />
+      <div className="flex flex-col gap-0.5 w-full mt-auto">
         <span className="text-xs text-muted-foreground truncate">{name}</span>
-      </div>
-      <div className="flex items-end gap-1.5 w-full mt-auto">
-        <span className="flex-1 line-clamp-3 text-sm">{label}</span>
-        {isLoading && <Spinner size="xs" />}
+        <div className="flex items-end gap-1.5">
+          <span className="flex-1 line-clamp-2 text-sm">{label}</span>
+          {isLoading && <Spinner size="xs" />}
+        </div>
       </div>
     </button>
   );
