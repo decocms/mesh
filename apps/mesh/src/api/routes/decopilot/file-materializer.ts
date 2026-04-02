@@ -14,8 +14,9 @@
  *   to downstream MCP tools.
  *
  * Storage backends:
- * - S3 (production): ctx.objectStorage (BoundObjectStorage)
- * - Dev fallback   : ./data/assets/<orgId>/ + HMAC-signed presigned URLs
+ * - S3             : ctx.objectStorage (BoundObjectStorage) — used when configured
+ * - Dev filesystem : ./data/assets/<orgId>/ + HMAC-signed URLs — development only
+ * - Base64 inline  : data: URL kept as-is in message parts — production fallback when no storage
  */
 
 import { createHmac } from "node:crypto";
@@ -158,6 +159,11 @@ function mimeTypeToExtension(mimeType: string): string {
 /**
  * Upload raw bytes to org storage.
  * Returns the storage key on success, null on failure.
+ *
+ * Storage selection:
+ * - S3 (ctx.objectStorage present): always used when configured.
+ * - Dev filesystem: only in development; never used as a prod fallback.
+ * - No storage in production: returns null so callers keep the data: URL as-is (base64 inline).
  */
 async function uploadBytes(
   bytes: Uint8Array,
@@ -169,10 +175,14 @@ async function uploadBytes(
   try {
     if (ctx.objectStorage) {
       await ctx.objectStorage.put(key, bytes, { contentType: mimeType });
-    } else {
-      await devWriteFile(orgId, key, bytes);
+      return key;
     }
-    return key;
+    if (getSettings().nodeEnv === "development") {
+      await devWriteFile(orgId, key, bytes);
+      return key;
+    }
+    // Production without object storage: signal to keep data: URL as-is.
+    return null;
   } catch (err) {
     console.error("[file-materializer] Failed to upload file:", err);
     return null;
@@ -182,6 +192,9 @@ async function uploadBytes(
 /**
  * Generate a fresh presigned GET URL for an existing storage key.
  * Used by resolveStorageRefs on every turn.
+ *
+ * Returns null in production without object storage — those deployments never
+ * persist mesh-storage: keys, so this path should not be reached.
  */
 export async function generatePresignedGetUrl(
   key: string,
@@ -195,7 +208,10 @@ export async function generatePresignedGetUrl(
         S3_PRESIGNED_EXPIRES_IN,
       );
     }
-    return devGeneratePresignedGetUrl(ctx.baseUrl, orgId, key);
+    if (getSettings().nodeEnv === "development") {
+      return devGeneratePresignedGetUrl(ctx.baseUrl, orgId, key);
+    }
+    return null;
   } catch (err) {
     console.error("[file-materializer] Failed to generate presigned URL:", err);
     return null;
