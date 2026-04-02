@@ -33,18 +33,18 @@ import type { ChatMessage } from "./types";
 const MESH_STORAGE_SCHEME = "mesh-storage:";
 
 /** Wrap a storage key in the stable URI scheme. */
-export function toMeshStorageUrl(key: string): string {
+function toMeshStorageUrl(key: string): string {
   return `${MESH_STORAGE_SCHEME}${key}`;
 }
 
 /** Extract the storage key from a mesh-storage: URI, or return null. */
-export function parseMeshStorageKey(url: string): string | null {
+function parseMeshStorageKey(url: string): string | null {
   if (!url.startsWith(MESH_STORAGE_SCHEME)) return null;
   return url.slice(MESH_STORAGE_SCHEME.length);
 }
 
 /** Build the stable redirect URL the UI / tools use to access a file. */
-export function toFileRedirectUrl(
+function toFileRedirectUrl(
   baseUrl: string,
   orgId: string,
   key: string,
