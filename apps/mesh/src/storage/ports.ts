@@ -210,6 +210,7 @@ export interface MonitoringStorage {
     offset?: number;
     propertyFilters?: PropertyFilters;
   }): Promise<{ logs: MonitoringLog[]; total: number }>;
+  getById(organizationId: string, id: string): Promise<MonitoringLog | null>;
   getStats(filters: {
     organizationId: string;
     startDate?: Date;
