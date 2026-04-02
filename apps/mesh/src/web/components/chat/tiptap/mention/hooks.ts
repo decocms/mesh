@@ -25,6 +25,7 @@ export interface BaseItem {
   title?: string;
   name: string;
   description?: string;
+  icon?: string | null;
 }
 
 export type OnSelectProps<T extends BaseItem = BaseItem> = {

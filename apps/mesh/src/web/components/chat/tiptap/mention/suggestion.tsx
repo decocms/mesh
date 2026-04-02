@@ -2,6 +2,7 @@
 
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   autoUpdate,
   flip,
@@ -144,6 +145,14 @@ const MentionItem = <T extends BaseItem>({
         isLoading && "pointer-events-none opacity-50",
       )}
     >
+      {item.icon !== undefined && (
+        <IntegrationIcon
+          icon={item.icon ?? null}
+          name={item.title ?? item.name}
+          size="xs"
+          className="shrink-0 rounded-lg!"
+        />
+      )}
       <span className="flex-1 line-clamp-2 min-w-0">{label}</span>
       {isLoading && <Spinner size="xs" />}
     </div>

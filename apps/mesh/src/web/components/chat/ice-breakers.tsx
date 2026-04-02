@@ -14,19 +14,14 @@ import {
 } from "@deco/ui/components/dialog.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import {
-  createMCPClient,
   getPrompt,
   getWellKnownDecopilotVirtualMCP,
-  listPrompts,
-  useConnections,
   useMCPClient,
   useMCPPromptsList,
   useProjectContext,
-  useVirtualMCP,
 } from "@decocms/mesh-sdk";
-import type { ConnectionEntity } from "@decocms/mesh-sdk";
+import { usePromptConnectionMap } from "./use-prompt-connection-map";
 import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
@@ -43,7 +38,7 @@ import { appendToTiptapDoc } from "./tiptap/utils";
 
 interface PromptItem {
   prompt: Prompt;
-  connection: ConnectionEntity | null;
+  connection: { icon: string | null; title: string } | null;
 }
 
 interface IceBreakersUIProps {
@@ -51,53 +46,6 @@ interface IceBreakersUIProps {
   onSelect: (prompt: Prompt) => void;
   loadingPrompt?: Prompt | null;
   className?: string;
-}
-
-// ---------- Prompt → Connection mapping ----------
-
-/**
- * Hook that fetches prompts per-connection to build an accurate prompt → connection map.
- * Creates an MCP client for each connection, lists its prompts, and returns enriched items.
- */
-function usePromptsWithConnections(
-  connectionIds: string[],
-  connectionMap: Map<string, ConnectionEntity>,
-  orgId: string,
-): Map<string, ConnectionEntity> {
-  const { data } = useSuspenseQuery({
-    queryKey: ["ice-breakers-prompt-map", orgId, ...connectionIds],
-    queryFn: async () => {
-      const map: Record<string, string> = {};
-      await Promise.all(
-        connectionIds.map(async (connId) => {
-          try {
-            const client = await createMCPClient({
-              connectionId: connId,
-              orgId,
-            });
-            const result = await listPrompts(client);
-            for (const p of result.prompts) {
-              // First connection to claim a prompt wins (matches server dedup)
-              if (!(p.name in map)) {
-                map[p.name] = connId;
-              }
-            }
-          } catch {
-            // Connection might be down — skip it
-          }
-        }),
-      );
-      return map;
-    },
-    staleTime: 60_000,
-  });
-
-  const result = new Map<string, ConnectionEntity>();
-  for (const [promptName, connId] of Object.entries(data)) {
-    const conn = connectionMap.get(connId);
-    if (conn) result.set(promptName, conn);
-  }
-  return result;
 }
 
 // ---------- UI ----------
@@ -379,20 +327,8 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   const { data } = useMCPPromptsList({ client, staleTime: 60000 });
   const prompts = data?.prompts ?? [];
 
-  // Fetch virtual MCP entity + all connections for icon mapping
-  const virtualMcp = useVirtualMCP(connectionId);
-  const allConnections = useConnections();
-  const connectionMap = new Map(allConnections.map((c) => [c.id, c]));
-  const connectionIds = (virtualMcp?.connections ?? []).map(
-    (c) => c.connection_id,
-  );
-
-  // Per-connection prompt fetching for accurate icon mapping
-  const promptToConnection = usePromptsWithConnections(
-    connectionIds,
-    connectionMap,
-    org.id,
-  );
+  // Per-connection prompt → connection icon mapping
+  const promptToConnection = usePromptConnectionMap(connectionId, org.id);
 
   const items: PromptItem[] = prompts.map((prompt) => ({
     prompt,
