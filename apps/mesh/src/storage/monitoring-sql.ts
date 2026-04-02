@@ -30,6 +30,21 @@ export type SqlDialect = "clickhouse" | "duckdb";
 // Validation helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalise a ClickHouse / DuckDB bucket timestamp to ISO 8601 UTC.
+ *
+ * ClickHouse JSONEachRow returns DateTime as "YYYY-MM-DD HH:MM:SS" (no TZ).
+ * Browsers parse that as *local* time, which shifts charts by the user's
+ * UTC offset and breaks the bucket-key lookup on the frontend.
+ */
+function toISOBucket(bucket: unknown): string {
+  const raw = String(bucket ?? "");
+  if (raw && !raw.includes("T")) {
+    return raw.replace(" ", "T") + "Z";
+  }
+  return raw;
+}
+
 /** Escape a string value for safe use in SQL single-quoted literals. */
 function esc(value: string): string {
   // oxlint-disable-next-line no-control-regex
@@ -849,7 +864,7 @@ LIMIT 1000`;
         );
 
         return {
-          timestamp: String(row.bucket ?? ""),
+          timestamp: toISOBucket(row.bucket),
           calls,
           errors,
           errorRate,
@@ -1090,7 +1105,7 @@ ORDER BY bucket ASC, tool_name ASC`;
           }
 
           return {
-            timestamp: String(row.bucket ?? ""),
+            timestamp: toISOBucket(row.bucket),
             toolName: String(row.tool_name ?? ""),
             calls,
             errors,
