@@ -25,16 +25,6 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { ConnectionInstancesPanel } from "./connection-instances-panel.tsx";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Sheet,
@@ -54,7 +44,6 @@ import {
 import { Input } from "@deco/ui/components/input.tsx";
 import {
   isStdioParameters,
-  SELF_MCP_ALIAS_ID,
   useConnectionActions,
   useConnections,
   useMCPClient,
@@ -75,6 +64,8 @@ import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
+import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -304,23 +295,16 @@ function ConnectionInspectorViewWithConnection({
 }) {
   const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
-  const { org: projectOrg } = useProjectContext();
   const connectionActions = useConnectionActions();
-  const selfClient = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: projectOrg.id,
+  const deleteConnection = useDeleteConnection({
+    onSuccess: () => {
+      if (siblings.length <= 1) {
+        navigate({ to: "/$org/settings/connections", params: { org } });
+      }
+    },
   });
   const [configureInstance, setConfigureInstance] =
     useState<ConnectionEntity | null>(null);
-  const [deleteState, setDeleteState] = useState<
-    | { mode: "idle" }
-    | { mode: "deleting"; instance: ConnectionEntity }
-    | {
-        mode: "force-deleting";
-        instance: ConnectionEntity;
-        agentNames: string;
-      }
-  >({ mode: "idle" });
   const [isAddingInstance, setIsAddingInstance] = useState(false);
 
   const authStatus = useMCPAuthStatus({
@@ -474,111 +458,6 @@ function ConnectionInspectorViewWithConnection({
     }
   };
 
-  const getMcpErrorText = (result: Record<string, unknown>): string => {
-    const content = result.content;
-    if (
-      Array.isArray(content) &&
-      content[0]?.type === "text" &&
-      typeof content[0].text === "string"
-    ) {
-      return content[0].text;
-    }
-    return "Unknown error";
-  };
-
-  const invalidateConnections = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return (
-          key[1] === projectOrg.id &&
-          key[3] === "collection" &&
-          key[4] === "CONNECTIONS"
-        );
-      },
-    });
-  };
-
-  const handleDeleteSuccess = () => {
-    invalidateConnections();
-    toast.success("Connection deleted successfully");
-    setDeleteState({ mode: "idle" });
-    if (siblings.length <= 1) {
-      navigate({
-        to: "/$org/settings/connections",
-        params: { org },
-      });
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (deleteState.mode !== "deleting") return;
-
-    const instance = deleteState.instance;
-    setDeleteState({ mode: "idle" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id: instance.id },
-      });
-
-      if (result.isError) {
-        const errorText = getMcpErrorText(result);
-
-        const jsonText = errorText.replace(/^Error:\s*/, "");
-        try {
-          const parsed = JSON.parse(jsonText) as {
-            code?: string;
-            agentNames?: string[];
-          };
-          if (parsed.code === "CONNECTION_IN_USE" && parsed.agentNames) {
-            setDeleteState({
-              mode: "force-deleting",
-              instance,
-              agentNames: parsed.agentNames.map((n) => `"${n}"`).join(", "),
-            });
-            return;
-          }
-        } catch {
-          // Not JSON — fall through to generic error toast
-        }
-
-        toast.error(`Failed to delete connection: ${errorText}`);
-        return;
-      }
-
-      handleDeleteSuccess();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
-  };
-
-  const confirmForceDelete = async () => {
-    if (deleteState.mode !== "force-deleting") return;
-
-    const id = deleteState.instance.id;
-    setDeleteState({ mode: "idle" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id, force: true },
-      });
-
-      if (result.isError) {
-        toast.error(`Failed to delete connection: ${getMcpErrorText(result)}`);
-        return;
-      }
-
-      handleDeleteSuccess();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
-  };
-
   const breadcrumb = (
     <Breadcrumb>
       <BreadcrumbList>
@@ -606,79 +485,7 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <>
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={deleteState.mode === "deleting"}
-        onOpenChange={(open) => {
-          if (!open) setDeleteState({ mode: "idle" });
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Connection?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete{" "}
-              <span className="font-medium text-foreground">
-                {deleteState.mode === "deleting" && deleteState.instance.title}
-              </span>
-              .
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Force Delete Confirmation Dialog */}
-      <AlertDialog
-        open={deleteState.mode === "force-deleting"}
-        onOpenChange={(open) => {
-          if (!open) setDeleteState({ mode: "idle" });
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Connection Used by Agents</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p>
-                  The connection{" "}
-                  <span className="font-medium text-foreground">
-                    {deleteState.mode === "force-deleting" &&
-                      deleteState.instance.title}
-                  </span>{" "}
-                  is currently used by the following agent(s):{" "}
-                  <span className="font-medium text-foreground">
-                    {deleteState.mode === "force-deleting" &&
-                      deleteState.agentNames}
-                  </span>
-                  .
-                </p>
-                <p className="mt-2">
-                  Deleting this connection will remove it from those agents,
-                  which may impact existing workflows that depend on them.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmForceDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConnectionDialogs {...deleteConnection} />
 
       {/* Settings Sheet */}
       <Sheet
@@ -786,7 +593,7 @@ function ConnectionInspectorViewWithConnection({
                 onClick={() => {
                   const inst = configureInstance ?? connection;
                   setConfigureInstance(null);
-                  setDeleteState({ mode: "deleting", instance: inst });
+                  deleteConnection.requestDelete(inst);
                 }}
               >
                 <Trash01 size={15} />
@@ -819,9 +626,7 @@ function ConnectionInspectorViewWithConnection({
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
-                  onDelete={(inst) =>
-                    setDeleteState({ mode: "deleting", instance: inst })
-                  }
+                  onDelete={(inst) => deleteConnection.requestDelete(inst)}
                   isAdding={isAddingInstance}
                   onAdd={async () => {
                     setIsAddingInstance(true);

@@ -8,6 +8,8 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Page } from "@/web/components/page";
 import type { RegistryItem } from "@/web/components/store/types";
+import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
+import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -99,7 +101,7 @@ import {
   Trash01,
   XClose,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useReducer, useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   connectionFormSchema,
@@ -110,11 +112,9 @@ import type {
   HttpConnectionParameters,
   StdioConnectionParameters,
 } from "@/tools/connection/schema";
-import { isStdioParameters } from "@/tools/connection/schema";
 import {
   EnvVarsEditor,
   envVarsToRecord,
-  recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
 import {
@@ -367,72 +367,6 @@ function buildCustomStdioParameters(
   }
 
   return params;
-}
-
-/**
- * Check if STDIO params look like an NPX command
- */
-function isNpxCommand(params: StdioConnectionParameters): boolean {
-  return params.command === "npx";
-}
-
-/**
- * Parse STDIO connection_headers back to NPX form fields
- */
-function parseStdioToNpx(params: StdioConnectionParameters): string {
-  return params.args?.find((a) => !a.startsWith("-")) ?? "";
-}
-
-/**
- * Parse STDIO connection_headers to custom command form fields
- */
-function parseStdioToCustom(params: StdioConnectionParameters): {
-  command: string;
-  args: string;
-  cwd: string;
-} {
-  return {
-    command: params.command,
-    args: params.args?.join(" ") ?? "",
-    cwd: params.cwd ?? "",
-  };
-}
-
-type DialogState =
-  | { mode: "idle" }
-  | { mode: "editing"; connection: ConnectionEntity }
-  | { mode: "deleting"; connection: ConnectionEntity }
-  | {
-      mode: "force-deleting";
-      connection: ConnectionEntity;
-      agentNames: string;
-    };
-
-type DialogAction =
-  | { type: "edit"; connection: ConnectionEntity }
-  | { type: "delete"; connection: ConnectionEntity }
-  | {
-      type: "force-delete";
-      connection: ConnectionEntity;
-      agentNames: string;
-    }
-  | { type: "close" };
-
-function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
-  switch (action.type) {
-    case "edit":
-      return { mode: "editing", connection: action.connection };
-    case "delete":
-      return { mode: "deleting", connection: action.connection };
-    case "force-delete":
-      return {
-        mode: "force-deleting",
-        connection: action.connection,
-        agentNames: action.agentNames,
-      };
-    case "close":
-      return { mode: "idle" };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -956,7 +890,7 @@ function OrgMcpsContent() {
   const actions = useConnectionActions();
   const connections = useConnections(listState);
 
-  const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
+  const deleteConnection = useDeleteConnection();
 
   // Selection / bulk-action state — no explicit mode; selection is implicit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1236,92 +1170,6 @@ function OrgMcpsContent() {
       registryItems,
     });
 
-  // Reset form when editing connection changes
-  const editingConnection =
-    dialogState.mode === "editing" ? dialogState.connection : null;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (editingConnection) {
-      // Check if it's an STDIO connection
-      const stdioParams = isStdioParameters(
-        editingConnection.connection_headers,
-      )
-        ? editingConnection.connection_headers
-        : null;
-
-      if (stdioParams && editingConnection.connection_type === "STDIO") {
-        const envVars = recordToEnvVars(stdioParams.envVars);
-
-        if (isNpxCommand(stdioParams)) {
-          // NPX connection
-          const npxPackage = parseStdioToNpx(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "NPX",
-            connection_url: "",
-            connection_token: null,
-            npx_package: npxPackage,
-            stdio_command: "",
-            stdio_args: "",
-            stdio_cwd: "",
-            env_vars: envVars,
-          });
-        } else {
-          // Custom STDIO connection
-          const customData = parseStdioToCustom(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "STDIO",
-            connection_url: "",
-            connection_token: null,
-            npx_package: "",
-            stdio_command: customData.command,
-            stdio_args: customData.args,
-            stdio_cwd: customData.cwd,
-            env_vars: envVars,
-          });
-        }
-      } else {
-        // HTTP/SSE/Websocket connection
-        form.reset({
-          title: editingConnection.title,
-          description: editingConnection.description,
-          icon: editingConnection.icon ?? null,
-          ui_type: editingConnection.connection_type as
-            | "HTTP"
-            | "SSE"
-            | "Websocket",
-          connection_url: editingConnection.connection_url ?? "",
-          connection_token: null,
-          npx_package: "",
-          stdio_command: "",
-          stdio_args: "",
-          stdio_cwd: "",
-          env_vars: [],
-        });
-      }
-    } else {
-      form.reset({
-        title: "",
-        description: null,
-        icon: null,
-        ui_type: "HTTP",
-        connection_url: "",
-        connection_token: null,
-        npx_package: "",
-        stdio_command: "",
-        stdio_args: "",
-        stdio_cwd: "",
-        env_vars: [],
-      });
-    }
-  }, [editingConnection, form]);
-
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -1436,91 +1284,6 @@ function OrgMcpsContent() {
     }
   };
 
-  /** Extract error text from an MCP tool result's content array */
-  const getMcpErrorText = (result: Record<string, unknown>): string => {
-    const content = result.content;
-    if (
-      Array.isArray(content) &&
-      content[0]?.type === "text" &&
-      typeof content[0].text === "string"
-    ) {
-      return content[0].text;
-    }
-    return "Unknown error";
-  };
-
-  const confirmDelete = async () => {
-    if (dialogState.mode !== "deleting") return;
-
-    const connection = dialogState.connection;
-    dispatch({ type: "close" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id: connection.id },
-      });
-
-      if (result.isError) {
-        const errorText = getMcpErrorText(result);
-
-        // Try to parse structured error for "connection in use" case
-        // The MCP error text may be prefixed with "Error: " — strip it
-        const jsonText = errorText.replace(/^Error:\s*/, "");
-        try {
-          const parsed = JSON.parse(jsonText) as {
-            code?: string;
-            agentNames?: string[];
-          };
-          if (parsed.code === "CONNECTION_IN_USE" && parsed.agentNames) {
-            dispatch({
-              type: "force-delete",
-              connection,
-              agentNames: parsed.agentNames.map((n) => `"${n}"`).join(", "),
-            });
-            return;
-          }
-        } catch {
-          // Not JSON — fall through to generic error toast
-        }
-
-        toast.error(`Failed to delete connection: ${errorText}`);
-        return;
-      }
-
-      invalidateConnections();
-      toast.success("Connection deleted successfully");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
-  };
-
-  const confirmForceDelete = async () => {
-    if (dialogState.mode !== "force-deleting") return;
-
-    const id = dialogState.connection.id;
-    dispatch({ type: "close" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id, force: true },
-      });
-
-      if (result.isError) {
-        toast.error(`Failed to delete connection: ${getMcpErrorText(result)}`);
-        return;
-      }
-
-      invalidateConnections();
-      toast.success("Connection deleted successfully");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
-  };
-
   const onSubmit = async (data: ConnectionFormData) => {
     // Determine actual connection_type, connection_url, and connection_headers based on ui_type
     let connectionType: "HTTP" | "SSE" | "Websocket" | "STDIO";
@@ -1553,28 +1316,6 @@ function OrgMcpsContent() {
       connectionType = data.ui_type;
       connectionUrl = data.connection_url || "";
       connectionToken = data.connection_token || null;
-    }
-
-    if (editingConnection) {
-      // Update existing connection
-      await actions.update.mutateAsync({
-        id: editingConnection.id,
-        data: {
-          title: data.title,
-          description: data.description || null,
-          icon: data.icon ?? null,
-          connection_type: connectionType,
-          connection_url: connectionUrl,
-          ...(connectionToken && { connection_token: connectionToken }),
-          ...(connectionParameters && {
-            connection_headers: connectionParameters,
-          }),
-        },
-      });
-
-      dispatch({ type: "close" });
-      form.reset();
-      return;
     }
 
     const newId = generatePrefixedId("conn");
@@ -1622,8 +1363,6 @@ function OrgMcpsContent() {
     if (!open) {
       if (isCreating) {
         closeCreateDialog();
-      } else {
-        dispatch({ type: "close" });
       }
       form.reset();
     }
@@ -1729,17 +1468,12 @@ function OrgMcpsContent() {
     <>
       <Page>
         {(() => {
-          const dialogTitle = editingConnection
-            ? "Edit Connection"
-            : "Create Connection";
-          const dialogDescription = editingConnection
-            ? "Update the connection details below."
-            : "Create a custom connection in your organization. Fill in the details below.";
+          const dialogTitle = "Create Connection";
+          const dialogDescription =
+            "Create a custom connection in your organization. Fill in the details below.";
           const submitLabel = form.formState.isSubmitting
             ? "Saving..."
-            : editingConnection
-              ? "Update Connection"
-              : "Create Connection";
+            : "Create Connection";
 
           const formFields = (
             <div className="grid gap-4">
@@ -2030,7 +1764,7 @@ function OrgMcpsContent() {
             </div>
           );
 
-          const isOpen = isCreating || dialogState.mode === "editing";
+          const isOpen = isCreating;
 
           if (isMobile) {
             return (
@@ -2109,76 +1843,7 @@ function OrgMcpsContent() {
           );
         })()}
 
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog
-          open={dialogState.mode === "deleting"}
-          onOpenChange={(open) => !open && dispatch({ type: "close" })}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Connection?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete{" "}
-                <span className="font-medium text-foreground">
-                  {dialogState.mode === "deleting" &&
-                    dialogState.connection.title}
-                </span>
-                .
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Force Delete Confirmation Dialog */}
-        <AlertDialog
-          open={dialogState.mode === "force-deleting"}
-          onOpenChange={(open) => !open && dispatch({ type: "close" })}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Connection Used by Agents</AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div>
-                  <p>
-                    The connection{" "}
-                    <span className="font-medium text-foreground">
-                      {dialogState.mode === "force-deleting" &&
-                        dialogState.connection.title}
-                    </span>{" "}
-                    is currently used by the following agent(s):{" "}
-                    <span className="font-medium text-foreground">
-                      {dialogState.mode === "force-deleting" &&
-                        dialogState.agentNames}
-                    </span>
-                    .
-                  </p>
-                  <p className="mt-2">
-                    Deleting this connection will remove it from those agents,
-                    which may impact existing workflows that depend on them.
-                  </p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmForceDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete Anyway
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DeleteConnectionDialogs {...deleteConnection} />
 
         {/* Bulk action dialogs */}
         <BulkDeleteDialog
@@ -2432,10 +2097,9 @@ function OrgMcpsContent() {
                                         variant="destructive"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          dispatch({
-                                            type: "delete",
+                                          deleteConnection.requestDelete(
                                             connection,
-                                          });
+                                          );
                                         }}
                                       >
                                         <Trash01 size={16} />
