@@ -9,6 +9,7 @@ import { extractConnectionPermissions } from "@/auth/configuration-scopes";
 import { issueMeshToken } from "@/auth/jwt";
 import type { MeshContext } from "@/core/mesh-context";
 import { refreshAccessToken } from "@/oauth/token-refresh";
+import { resolveOriginTokenEndpoint } from "@/oauth/resolve-token-endpoint";
 import { DownstreamTokenStorage } from "@/storage/downstream-token";
 import type { ConnectionEntity } from "@/tools/connection/schema";
 
@@ -128,10 +129,28 @@ export async function buildRequestHeaders(
     if (isExpired) {
       // Try to refresh if we have refresh capability
       if (canRefresh) {
-        const refreshResult = await refreshAccessToken(cachedToken);
+        // If tokenEndpoint is a proxy URL, resolve the origin's actual endpoint
+        // to avoid a self-referential call through the proxy during refresh
+        let tokenEndpointForRefresh = cachedToken.tokenEndpoint;
+        if (
+          connection.connection_url &&
+          cachedToken.tokenEndpoint?.includes("/oauth-proxy/")
+        ) {
+          const originEndpoint = await resolveOriginTokenEndpoint(
+            connection.connection_url,
+          );
+          if (originEndpoint) {
+            tokenEndpointForRefresh = originEndpoint;
+          }
+        }
+
+        const refreshResult = await refreshAccessToken({
+          ...cachedToken,
+          tokenEndpoint: tokenEndpointForRefresh,
+        });
 
         if (refreshResult.success && refreshResult.accessToken) {
-          // Save refreshed token
+          // Save refreshed token (with resolved origin endpoint for future refreshes)
           await tokenStorage.upsert({
             connectionId,
             accessToken: refreshResult.accessToken,
@@ -143,7 +162,7 @@ export async function buildRequestHeaders(
               : null,
             clientId: cachedToken.clientId,
             clientSecret: cachedToken.clientSecret,
-            tokenEndpoint: cachedToken.tokenEndpoint,
+            tokenEndpoint: tokenEndpointForRefresh,
           });
 
           accessToken = refreshResult.accessToken;
@@ -158,6 +177,10 @@ export async function buildRequestHeaders(
       } else {
         // Token expired but no refresh capability - delete it
         await tokenStorage.delete(connectionId);
+        console.warn(
+          `[Proxy] Token expired for ${connectionId} with no refresh capability ` +
+            `(refreshToken: ${!!cachedToken.refreshToken}, tokenEndpoint: ${!!cachedToken.tokenEndpoint})`,
+        );
       }
     } else {
       // Token is still valid
