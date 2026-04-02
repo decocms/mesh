@@ -186,7 +186,7 @@ function AllPromptsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[1100px] p-0 gap-0 overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>All prompts</DialogTitle>
         </DialogHeader>
@@ -201,7 +201,7 @@ function AllPromptsModal({
             if (e.key === "Escape") setSearch("");
           }}
         />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
           {filtered.length === 0 && (
             <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
               No prompts match &ldquo;{search}&rdquo;
@@ -254,8 +254,8 @@ function IceBreakersUI({
       : totalSlots === 2
         ? "grid-cols-2"
         : totalSlots === 3
-          ? "grid-cols-3"
-          : "grid-cols-4";
+          ? "grid-cols-2 @lg:grid-cols-3"
+          : "grid-cols-2 @lg:grid-cols-4";
 
   return (
     <>
