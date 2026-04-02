@@ -1,4 +1,10 @@
 import { Spinner } from "@deco/ui/components/spinner.tsx";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Dialog,
@@ -120,41 +126,48 @@ function PromptCard({
   const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(prompt)}
-      disabled={isDisabled || isLoading}
-      className={cn(
-        CARD_BASE,
-        tall ? "h-[180px]" : "h-[140px]",
-        "items-start justify-between text-left text-foreground hover:bg-accent/40",
-        isLoading && "bg-accent/40",
-        (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
-      )}
-    >
-      <IntegrationIcon
-        icon={connection?.icon ?? null}
-        name={connection?.title ?? "Integration"}
-        size="xs"
-        className="shrink-0 rounded-lg!"
-      />
-      <div className="flex flex-col gap-0.5 w-full mt-auto">
-        <span className="text-xs text-muted-foreground/60 truncate">
-          {name}
-        </span>
-        <div className="flex items-end gap-1.5">
-          <span
-            className={cn(
-              "flex-1 text-sm",
-              tall ? "line-clamp-3" : "line-clamp-2",
-            )}
-          >
-            {label}
-          </span>
-          {isLoading && <Spinner size="xs" />}
-        </div>
-      </div>
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => onSelect(prompt)}
+          disabled={isDisabled || isLoading}
+          className={cn(
+            CARD_BASE,
+            tall ? "h-[180px]" : "h-[140px]",
+            "items-start justify-between text-left text-foreground hover:bg-accent/40",
+            isLoading && "bg-accent/40",
+            (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
+          )}
+        >
+          <IntegrationIcon
+            icon={connection?.icon ?? null}
+            name={connection?.title ?? "Integration"}
+            size="xs"
+            className="shrink-0 rounded-lg!"
+          />
+          <div className="flex flex-col gap-0.5 w-full mt-auto">
+            <span className="text-xs text-muted-foreground/60 truncate">
+              {name}
+            </span>
+            <div className="flex items-end gap-1.5">
+              <span
+                className={cn(
+                  "flex-1 text-sm",
+                  tall ? "line-clamp-3" : "line-clamp-2",
+                )}
+              >
+                {label}
+              </span>
+              {isLoading && <Spinner size="xs" />}
+            </div>
+          </div>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">{label}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -187,46 +200,48 @@ function AllPromptsModal({
     : items;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1100px] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="sr-only">
-          <DialogTitle>All prompts</DialogTitle>
-        </DialogHeader>
-        <div className="flex items-center h-12 border-b border-border px-4">
-          <span className="text-sm font-medium text-foreground">Prompts</span>
-        </div>
-        <CollectionSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search prompts..."
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setSearch("");
-          }}
-        />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
-          {filtered.length === 0 && (
-            <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
-              No prompts match &ldquo;{search}&rdquo;
-            </p>
-          )}
-          {filtered.map((item) => (
-            <PromptCard
-              key={item.prompt.name}
-              item={item}
-              tall
-              onSelect={(prompt) => {
-                onOpenChange(false);
-                onSelect(prompt);
-              }}
-              isLoading={loadingPrompt?.name === item.prompt.name}
-              isDisabled={
-                isAnyLoading && loadingPrompt?.name !== item.prompt.name
-              }
-            />
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <TooltipProvider delayDuration={400}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[1100px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>All prompts</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center h-12 border-b border-border px-4">
+            <span className="text-sm font-medium text-foreground">Prompts</span>
+          </div>
+          <CollectionSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search prompts..."
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearch("");
+            }}
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
+            {filtered.length === 0 && (
+              <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
+                No prompts match &ldquo;{search}&rdquo;
+              </p>
+            )}
+            {filtered.map((item) => (
+              <PromptCard
+                key={item.prompt.name}
+                item={item}
+                tall
+                onSelect={(prompt) => {
+                  onOpenChange(false);
+                  onSelect(prompt);
+                }}
+                isLoading={loadingPrompt?.name === item.prompt.name}
+                isDisabled={
+                  isAnyLoading && loadingPrompt?.name !== item.prompt.name
+                }
+              />
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
   );
 }
 
@@ -260,7 +275,7 @@ function IceBreakersUI({
           : "grid-cols-2 @lg:grid-cols-4";
 
   return (
-    <>
+    <TooltipProvider delayDuration={400}>
       <div className={cn("w-full mx-auto grid gap-2", colsClass, className)}>
         {visible.map((item) => (
           <PromptCard
@@ -295,7 +310,7 @@ function IceBreakersUI({
         onSelect={onSelect}
         loadingPrompt={loadingPrompt}
       />
-    </>
+    </TooltipProvider>
   );
 }
 
