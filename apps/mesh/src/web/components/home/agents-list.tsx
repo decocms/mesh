@@ -17,14 +17,10 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   isDecopilot,
-  WELL_KNOWN_APP_IDS,
+  WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
-import {
-  useRegistryApp,
-  getRegistryAppDisplay,
-} from "@/web/hooks/use-registry-app";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 
 function readRecentAgentIds(locator: ProjectLocator): string[] {
@@ -41,7 +37,7 @@ import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useRef, useState } from "react";
 
 /**
@@ -50,7 +46,6 @@ import { Suspense, useRef, useState } from "react";
 function AgentPreview({
   agent,
   onSpecialClick,
-  onPin,
 }: {
   agent: {
     id: string;
@@ -58,7 +53,6 @@ function AgentPreview({
     icon?: string | null;
   };
   onSpecialClick?: () => void;
-  onPin?: (id: string) => void;
 }) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
@@ -67,7 +61,6 @@ function AgentPreview({
     if (onSpecialClick) {
       onSpecialClick();
     } else {
-      onPin?.(agent.id);
       navigate({
         to: "/$org/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agent.id },
@@ -201,31 +194,17 @@ function CreateAgentButton() {
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
-  const { locator, org } = useProjectContext();
+  const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
-  const serverPinnedIds = virtualMcps
-    .filter((a): a is typeof a & { id: string } => a.id !== null && !!a.pinned)
-    .map((a) => a.id);
-  const { pin } = usePinnedAgents(org.id, serverPinnedIds);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const navigateToAgent = useNavigateToAgent();
 
-  // Fetch agent template metadata from registry
-  const { data: siteEditorItem } = useRegistryApp(
-    WELL_KNOWN_APP_IDS.SITE_EDITOR,
-  );
-  const { data: siteDiagnosticsItem } = useRegistryApp(
-    WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
-  );
-  const siteEditorAgent = getRegistryAppDisplay(siteEditorItem) ?? {
-    id: "site-editor",
-    title: "Site Editor",
-    icon: null,
-  };
-  const siteDiagnosticsAgent = getRegistryAppDisplay(siteDiagnosticsItem) ?? {
-    id: "site-diagnostics",
-    title: "Site Diagnostics",
-    icon: null,
-  };
+  const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-editor",
+  )!;
+  const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  )!;
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -238,13 +217,9 @@ function AgentsListContent() {
     .sort((a, b) => {
       const aIdx = recentIds.indexOf(a.id);
       const bIdx = recentIds.indexOf(b.id);
-      // Both in recents: lower index = more recent
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      // Only a in recents: a comes first
       if (aIdx !== -1) return -1;
-      // Only b in recents: b comes first
       if (bIdx !== -1) return 1;
-      // Neither in recents: fall back to most recently updated
       return (
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
@@ -276,7 +251,7 @@ function AgentsListContent() {
             agent={existingDiagnostics ?? siteDiagnosticsAgent}
             onSpecialClick={
               existingDiagnostics
-                ? undefined
+                ? () => navigateToAgent(existingDiagnostics.id)
                 : () => setDiagnosticsModalOpen(true)
             }
           />
@@ -286,7 +261,7 @@ function AgentsListContent() {
               <AgentPreview
                 key={agent.id ?? "default"}
                 agent={agent}
-                onPin={pin}
+                onSpecialClick={() => navigateToAgent(agent.id)}
               />
             ))}
           <CreateAgentButton />

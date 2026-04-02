@@ -1,7 +1,7 @@
 /**
  * Hook to fetch an MCP app's metadata from the deco registry by app ID.
- * Used for well-known first-class MCPs whose metadata lives in the registry
- * rather than being hardcoded in constants.
+ * Used at CTA time (e.g., recruit modal) to get full connection details.
+ * Display metadata (title, icon) comes from WELL_KNOWN_AGENT_TEMPLATES constants.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -14,9 +14,9 @@ import { callRegistryTool } from "@/web/utils/registry-utils";
  * Results are cached via React Query with a 5-minute stale time.
  *
  * @param appId - The app name to look up (e.g., "deco/site-diagnostics")
- * @returns The registry item with title, description, icon, URL, etc.
+ * @param options.enabled - Whether to fetch (default: true). Pass `false` to defer.
  */
-export function useRegistryApp(appId: string) {
+export function useRegistryApp(appId: string, options?: { enabled?: boolean }) {
   const { org } = useProjectContext();
   const registryId = WellKnownOrgMCPId.REGISTRY(org.id);
 
@@ -32,22 +32,6 @@ export function useRegistryApp(appId: string) {
       return result?.item ?? null;
     },
     staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled ?? true,
   });
-}
-
-/**
- * Extract display metadata from a registry item for use in agent templates.
- */
-export function getRegistryAppDisplay(item: RegistryItem | null | undefined): {
-  id: string;
-  title: string;
-  icon: string | null;
-} | null {
-  if (!item) return null;
-  return {
-    id: item.id,
-    title:
-      item.title || item.server?.title || item.server?.name || "Unknown App",
-    icon: item.server?.icons?.[0]?.src ?? null,
-  };
 }

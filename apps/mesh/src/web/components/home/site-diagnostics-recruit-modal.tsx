@@ -28,7 +28,7 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import {
   SELF_MCP_ALIAS_ID,
-  WELL_KNOWN_APP_IDS,
+  WELL_KNOWN_AGENT_TEMPLATES,
   useConnectionActions,
   useMCPClient,
   useProjectContext,
@@ -37,9 +37,6 @@ import {
 import type { CollectionListOutput } from "@decocms/bindings/collections";
 import type { ConnectionEntity, VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { useRegistryApp } from "@/web/hooks/use-registry-app";
-import { extractConnectionData } from "@/web/utils/extract-connection-data";
-import { authClient } from "@/web/lib/auth-client";
-import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
@@ -108,35 +105,36 @@ export function SiteDiagnosticsRecruitModal({
   const { org } = useProjectContext();
   const connectionActions = useConnectionActions();
   const virtualMcpActions = useVirtualMCPActions();
-  const { data: session } = authClient.useSession();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
   const [isRecruiting, setIsRecruiting] = useState(false);
 
+  const template = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  )!;
+
+  // Only fetch from registry when the modal is open (CTA time)
   const { data: registryItem, isLoading: isRegistryLoading } = useRegistryApp(
-    WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
+    template.appId,
+    { enabled: open },
   );
 
   const appTitle =
     registryItem?.title ||
     registryItem?.server?.title ||
     registryItem?.server?.name ||
-    "Site Diagnostics";
-  const appIcon = registryItem?.server?.icons?.[0]?.src ?? null;
+    template.title;
+  const appIcon = registryItem?.server?.icons?.[0]?.src ?? template.icon;
   const appDescription = registryItem?.server?.description ?? null;
 
   const headerIcon = (
-    <IntegrationIcon
-      icon={isRegistryLoading ? null : appIcon}
-      name={appTitle}
-      size="sm"
-    />
+    <IntegrationIcon icon={appIcon} name={appTitle} size="sm" />
   );
 
   const handleRecruit = async () => {
-    if (!registryItem || !session?.user?.id) return;
+    if (!registryItem) return;
 
     setIsRecruiting(true);
     try {
@@ -184,7 +182,7 @@ export function SiteDiagnosticsRecruitModal({
           where: {
             field: ["app_id"],
             operator: "eq",
-            value: WELL_KNOWN_APP_IDS.SITE_DIAGNOSTICS,
+            value: template.appId,
           },
           limit: 1,
           offset: 0,
@@ -198,21 +196,29 @@ export function SiteDiagnosticsRecruitModal({
         }
       )?.structuredContent?.items;
 
-      if (
-        existingConnections &&
-        existingConnections.length > 0 &&
-        existingConnections[0]?.id
-      ) {
-        connectionId = existingConnections[0].id;
+      const matchingConnection = existingConnections?.find(
+        (c) => c.app_id === template.appId,
+      );
+
+      if (matchingConnection) {
+        connectionId = matchingConnection.id;
       } else {
-        // Use extractConnectionData to build connection from registry item
-        const connectionData = extractConnectionData(
-          registryItem,
-          org.id,
-          session.user.id,
-        );
-        const connection =
-          await connectionActions.create.mutateAsync(connectionData);
+        const remoteUrl = registryItem.server?.remotes?.[0]?.url;
+        const connection = await connectionActions.create.mutateAsync({
+          title: appTitle,
+          description: appDescription,
+          icon: registryItem.server?.icons?.[0]?.src ?? template.icon,
+          connection_type: "HTTP",
+          connection_url: remoteUrl ?? "",
+          app_name: registryItem.server?.name ?? "site-diagnostics",
+          app_id: template.appId,
+          metadata: {
+            type: "site-diagnostics",
+            source: "store",
+            registry_item_id: template.appId,
+            verified: true,
+          },
+        });
         connectionId = connection.id;
       }
 
@@ -259,11 +265,7 @@ export function SiteDiagnosticsRecruitModal({
       <DrawerContent className="h-[70dvh]">
         <DrawerHeader className="px-4 pt-4 pb-4 shrink-0">
           <div className="flex items-center gap-3">
-            {isRegistryLoading ? (
-              <Skeleton className="size-6 rounded" />
-            ) : (
-              headerIcon
-            )}
+            {headerIcon}
             <DrawerTitle className="text-xl font-semibold">{title}</DrawerTitle>
           </div>
         </DrawerHeader>
@@ -281,11 +283,7 @@ export function SiteDiagnosticsRecruitModal({
       <DialogContent className="sm:max-w-[500px] p-8">
         <DialogHeader className="mb-4">
           <div className="flex items-center gap-3">
-            {isRegistryLoading ? (
-              <Skeleton className="size-6 rounded" />
-            ) : (
-              headerIcon
-            )}
+            {headerIcon}
             <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
           </div>
         </DialogHeader>

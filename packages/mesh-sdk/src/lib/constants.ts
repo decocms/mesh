@@ -277,14 +277,29 @@ export function getSiteDiagnosticsId(organizationId: string): string {
 }
 
 /**
- * Well-known first-class MCP app IDs (fetchable from deco registry).
- * Only IDs are stored here — metadata (title, description, icon, URL)
- * should be fetched from the registry at runtime.
+ * Well-known agent templates.
+ *
+ * Display metadata (id, title, icon) is stored here for immediate rendering.
+ * Full metadata (description, URL, connection details) should be fetched
+ * from the deco registry at CTA time using the `appId`.
  */
-export const WELL_KNOWN_APP_IDS = {
-  SITE_DIAGNOSTICS: "deco/site-diagnostics",
-  SITE_EDITOR: "deco/site-editor",
-} as const;
+export const WELL_KNOWN_AGENT_TEMPLATES = [
+  {
+    id: "site-editor",
+    appId: "deco/site-editor",
+    title: "Site Editor",
+    icon: "icon://Globe01?color=violet",
+  },
+  {
+    id: "site-diagnostics",
+    appId: "deco/site-diagnostics",
+    title: "Site Diagnostics",
+    icon: "icon://SearchRefraction?color=cyan",
+  },
+] as const;
+
+export type WellKnownAgentTemplate =
+  (typeof WELL_KNOWN_AGENT_TEMPLATES)[number];
 
 export function getWellKnownDecopilotConnection(
   organizationId: string,

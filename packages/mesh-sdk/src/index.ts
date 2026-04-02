@@ -205,6 +205,7 @@ export {
   // Site Diagnostics utilities
   isSiteDiagnostics,
   getSiteDiagnosticsId,
-  // Well-known app IDs (metadata fetched from registry at runtime)
-  WELL_KNOWN_APP_IDS,
+  // Well-known agent templates (display data + registry appId)
+  WELL_KNOWN_AGENT_TEMPLATES,
+  type WellKnownAgentTemplate,
 } from "./lib/constants";

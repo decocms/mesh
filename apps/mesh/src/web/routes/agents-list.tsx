@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPActions,
   useVirtualMCPs,
@@ -8,6 +9,10 @@ import { Page } from "@/web/components/page";
 import { ProjectCard } from "@/web/components/project-card";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { AgentAvatar } from "@/web/components/agent-icon";
+import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
+import { Card } from "@deco/ui/components/card.tsx";
 import { SearchInput } from "@deco/ui/components/search-input.tsx";
 import { FolderClosed, Plus } from "@untitledui/icons";
 import { toast } from "sonner";
@@ -27,6 +33,7 @@ export default function AgentsListPage() {
   const { org } = useProjectContext();
   const agents = useVirtualMCPs();
   const actions = useVirtualMCPActions();
+  const navigateToAgent = useNavigateToAgent();
   const [search, setSearch] = useState("");
   const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
     navigateOnCreate: true,
@@ -35,13 +42,42 @@ export default function AgentsListPage() {
     id: string;
     title: string;
   } | null>(null);
+  const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+
+  const lowerSearch = search.toLowerCase();
+
   // Filter out org-admin and apply search
   const filteredAgents = agents.filter(
     (s) =>
       s.id !== org.id &&
-      (s.title.toLowerCase().includes(search.toLowerCase()) ||
-        s.description?.toLowerCase().includes(search.toLowerCase())),
+      (s.title.toLowerCase().includes(lowerSearch) ||
+        s.description?.toLowerCase().includes(lowerSearch)),
   );
+
+  // Filter templates by search only (always render all templates)
+  const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
+    (t) => !search || t.title.toLowerCase().includes(lowerSearch),
+  );
+
+  // Find existing recruited Site Diagnostics agent
+  const existingDiagnostics = agents.find(
+    (a) =>
+      (a as { metadata?: { type?: string } }).metadata?.type ===
+      "site-diagnostics",
+  );
+
+  const handleTemplateClick = (templateId: string) => {
+    if (templateId === "site-editor") {
+      setSiteEditorModalOpen(true);
+    } else if (templateId === "site-diagnostics") {
+      if (existingDiagnostics) {
+        navigateToAgent(existingDiagnostics.id);
+      } else {
+        setDiagnosticsModalOpen(true);
+      }
+    }
+  };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -88,7 +124,7 @@ export default function AgentsListPage() {
             />
           </div>
 
-          {filteredAgents.length === 0 && (
+          {filteredAgents.length === 0 && filteredTemplates.length === 0 && (
             <div className="flex items-center justify-center py-20">
               <EmptyState
                 image={
@@ -118,6 +154,9 @@ export default function AgentsListPage() {
 
           {filteredAgents.length > 0 && (
             <div className="mt-6 @container">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                Agents
+              </h3>
               <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
                 {filteredAgents.map((agent) => (
                   <ProjectCard
@@ -134,8 +173,53 @@ export default function AgentsListPage() {
               </div>
             </div>
           )}
+
+          {filteredTemplates.length > 0 && (
+            <div className="mt-6 @container">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                Agent Templates
+              </h3>
+              <div className="grid grid-cols-1 @lg:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-4 gap-4">
+                {filteredTemplates.map((template) => (
+                  <Card
+                    key={template.id}
+                    className="relative transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleTemplateClick(template.id)}
+                  >
+                    <div className="flex flex-col flex-1">
+                      <div className="flex flex-col gap-3 p-4.5">
+                        <AgentAvatar
+                          icon={template.icon}
+                          name={template.title}
+                          size="sm"
+                          className="shrink-0 shadow-sm"
+                        />
+                        <div className="flex flex-col gap-1">
+                          <h3 className="text-sm font-medium text-foreground truncate">
+                            {template.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Click to set up
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </Page.Body>
       </Page.Content>
+
+      <SiteEditorOnboardingModal
+        open={siteEditorModalOpen}
+        onOpenChange={setSiteEditorModalOpen}
+      />
+      <SiteDiagnosticsRecruitModal
+        open={diagnosticsModalOpen}
+        onOpenChange={setDiagnosticsModalOpen}
+      />
 
       <AlertDialog
         open={!!deleteTarget}
