@@ -131,15 +131,15 @@ const MentionItem = <T extends BaseItem>({
   isLoading,
   ref,
 }: MentionItemProps<T>) => {
-  const label =
-    item.description || (item.title || item.name).replace(/_/g, " ");
+  const name = (item.title || item.name).replace(/_/g, " ");
+  const description = item.description || null;
 
   return (
     <div
       ref={ref}
       onClick={onSelect}
       className={cn(
-        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm outline-none transition-colors",
+        "relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-3 text-sm outline-none transition-colors",
         "hover:bg-accent/50",
         isSelected && "bg-accent/50",
         isLoading && "pointer-events-none opacity-50",
@@ -150,10 +150,19 @@ const MentionItem = <T extends BaseItem>({
           icon={item.icon ?? null}
           name={item.title ?? item.name}
           size="xs"
-          className="shrink-0 rounded-lg!"
+          className="shrink-0 rounded-lg! self-start mt-0.5"
         />
       )}
-      <span className="flex-1 line-clamp-2 min-w-0">{label}</span>
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        <span className="text-xs text-muted-foreground/60 truncate">
+          {name}
+        </span>
+        {description && (
+          <span className="line-clamp-2 text-sm leading-snug">
+            {description}
+          </span>
+        )}
+      </div>
       {isLoading && <Spinner size="xs" />}
     </div>
   );
@@ -190,7 +199,7 @@ const MentionItemList = <T extends BaseItem>({
       className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
       style={{
         maxHeight:
-          "min(217px, var(--radix-popover-content-available-height, 217px))",
+          "min(320px, var(--radix-popover-content-available-height, 320px))",
       }}
     >
       <div className="p-1">
