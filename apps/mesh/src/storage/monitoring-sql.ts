@@ -306,14 +306,14 @@ function tsGte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp >= '${date.toISOString()}'`;
+  return `timestamp >= toDateTime64('${date.toISOString()}', 9)`;
 }
 
 function tsLte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp <= '${date.toISOString()}'`;
+  return `timestamp <= toDateTime64('${date.toISOString()}', 9)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -698,8 +698,8 @@ ORDER BY bucket ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  sumForEachIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause}
 GROUP BY bucket
@@ -1016,8 +1016,8 @@ ORDER BY bucket ASC, tool_name ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  anyIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  sumForEachIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name
