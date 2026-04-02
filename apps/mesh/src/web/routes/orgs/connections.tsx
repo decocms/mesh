@@ -101,7 +101,7 @@ import {
   Trash01,
   XClose,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   connectionFormSchema,
@@ -112,11 +112,9 @@ import type {
   HttpConnectionParameters,
   StdioConnectionParameters,
 } from "@/tools/connection/schema";
-import { isStdioParameters } from "@/tools/connection/schema";
 import {
   EnvVarsEditor,
   envVarsToRecord,
-  recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
 import {
@@ -369,35 +367,6 @@ function buildCustomStdioParameters(
   }
 
   return params;
-}
-
-/**
- * Check if STDIO params look like an NPX command
- */
-function isNpxCommand(params: StdioConnectionParameters): boolean {
-  return params.command === "npx";
-}
-
-/**
- * Parse STDIO connection_headers back to NPX form fields
- */
-function parseStdioToNpx(params: StdioConnectionParameters): string {
-  return params.args?.find((a) => !a.startsWith("-")) ?? "";
-}
-
-/**
- * Parse STDIO connection_headers to custom command form fields
- */
-function parseStdioToCustom(params: StdioConnectionParameters): {
-  command: string;
-  args: string;
-  cwd: string;
-} {
-  return {
-    command: params.command,
-    args: params.args?.join(" ") ?? "",
-    cwd: params.cwd ?? "",
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1201,92 +1170,6 @@ function OrgMcpsContent() {
       registryItems,
     });
 
-  // editingConnection is always null — editing is handled via the detail page.
-  // Kept for form reset logic compatibility.
-  const editingConnection = null as ConnectionEntity | null;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (editingConnection) {
-      // Check if it's an STDIO connection
-      const stdioParams = isStdioParameters(
-        editingConnection.connection_headers,
-      )
-        ? editingConnection.connection_headers
-        : null;
-
-      if (stdioParams && editingConnection.connection_type === "STDIO") {
-        const envVars = recordToEnvVars(stdioParams.envVars);
-
-        if (isNpxCommand(stdioParams)) {
-          // NPX connection
-          const npxPackage = parseStdioToNpx(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "NPX",
-            connection_url: "",
-            connection_token: null,
-            npx_package: npxPackage,
-            stdio_command: "",
-            stdio_args: "",
-            stdio_cwd: "",
-            env_vars: envVars,
-          });
-        } else {
-          // Custom STDIO connection
-          const customData = parseStdioToCustom(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "STDIO",
-            connection_url: "",
-            connection_token: null,
-            npx_package: "",
-            stdio_command: customData.command,
-            stdio_args: customData.args,
-            stdio_cwd: customData.cwd,
-            env_vars: envVars,
-          });
-        }
-      } else {
-        // HTTP/SSE/Websocket connection
-        form.reset({
-          title: editingConnection.title,
-          description: editingConnection.description,
-          icon: editingConnection.icon ?? null,
-          ui_type: editingConnection.connection_type as
-            | "HTTP"
-            | "SSE"
-            | "Websocket",
-          connection_url: editingConnection.connection_url ?? "",
-          connection_token: null,
-          npx_package: "",
-          stdio_command: "",
-          stdio_args: "",
-          stdio_cwd: "",
-          env_vars: [],
-        });
-      }
-    } else {
-      form.reset({
-        title: "",
-        description: null,
-        icon: null,
-        ui_type: "HTTP",
-        connection_url: "",
-        connection_token: null,
-        npx_package: "",
-        stdio_command: "",
-        stdio_args: "",
-        stdio_cwd: "",
-        env_vars: [],
-      });
-    }
-  }, [editingConnection, form]);
-
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -1433,27 +1316,6 @@ function OrgMcpsContent() {
       connectionType = data.ui_type;
       connectionUrl = data.connection_url || "";
       connectionToken = data.connection_token || null;
-    }
-
-    if (editingConnection) {
-      // Update existing connection
-      await actions.update.mutateAsync({
-        id: editingConnection.id,
-        data: {
-          title: data.title,
-          description: data.description || null,
-          icon: data.icon ?? null,
-          connection_type: connectionType,
-          connection_url: connectionUrl,
-          ...(connectionToken && { connection_token: connectionToken }),
-          ...(connectionParameters && {
-            connection_headers: connectionParameters,
-          }),
-        },
-      });
-
-      form.reset();
-      return;
     }
 
     const newId = generatePrefixedId("conn");
@@ -1606,17 +1468,12 @@ function OrgMcpsContent() {
     <>
       <Page>
         {(() => {
-          const dialogTitle = editingConnection
-            ? "Edit Connection"
-            : "Create Connection";
-          const dialogDescription = editingConnection
-            ? "Update the connection details below."
-            : "Create a custom connection in your organization. Fill in the details below.";
+          const dialogTitle = "Create Connection";
+          const dialogDescription =
+            "Create a custom connection in your organization. Fill in the details below.";
           const submitLabel = form.formState.isSubmitting
             ? "Saving..."
-            : editingConnection
-              ? "Update Connection"
-              : "Create Connection";
+            : "Create Connection";
 
           const formFields = (
             <div className="grid gap-4">
