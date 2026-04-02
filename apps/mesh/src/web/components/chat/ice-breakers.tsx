@@ -126,7 +126,7 @@ function PromptCard({
   const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
 
   return (
-    <Tooltip>
+    <Tooltip delayDuration={400}>
       <TooltipTrigger asChild>
         <button
           type="button"
