@@ -364,7 +364,7 @@ export function ChatInput({
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
-  const navigate = useNavigate();
+  const navigateToAgent = useNavigateToAgent();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
 
@@ -372,10 +372,7 @@ export function ChatInput({
   // setting an ephemeral search-param override, so the thread list re-scopes.
   const handleAgentChange = (virtualMcpId: string | null) => {
     if (virtualMcpId) {
-      navigate({
-        to: "/$org/$virtualMcpId/",
-        params: { org: org.slug, virtualMcpId },
-      });
+      navigateToAgent(virtualMcpId);
     }
   };
 
