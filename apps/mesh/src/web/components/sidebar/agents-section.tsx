@@ -316,11 +316,16 @@ function PinAgentPopoverContent({
   );
 
   // Find existing recruited Site Diagnostics agent
-  const existingDiagnostics = allAgents.find(
-    (a) =>
-      (a as { metadata?: { type?: string } }).metadata?.type ===
-      "site-diagnostics",
+  const siteDiagnosticsTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
   );
+  const existingDiagnostics = siteDiagnosticsTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          siteDiagnosticsTemplate.id,
+      )
+    : undefined;
 
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
