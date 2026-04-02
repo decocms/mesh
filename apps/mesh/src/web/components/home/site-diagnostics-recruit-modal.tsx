@@ -178,12 +178,17 @@ export function SiteDiagnosticsRecruitModal({
         connectionId = matchingConnection.id;
       } else {
         const remoteUrl = registryItem.server?.remotes?.[0]?.url;
+        if (!remoteUrl) {
+          throw new Error(
+            "Registry item is missing a remote URL for site-diagnostics",
+          );
+        }
         const connection = await connectionActions.create.mutateAsync({
           title: appTitle,
           description: appDescription,
           icon: registryItem.server?.icons?.[0]?.src ?? template.icon,
           connection_type: "HTTP",
-          connection_url: remoteUrl ?? "",
+          connection_url: remoteUrl,
           app_name: registryItem.server?.name ?? "site-diagnostics",
           app_id: template.appId,
           metadata: {
