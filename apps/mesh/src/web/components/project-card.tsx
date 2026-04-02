@@ -62,11 +62,11 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
                   </DropdownMenuItem>
                   {onDeleteClick && (
                     <DropdownMenuItem
+                      variant="destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteClick(e);
                       }}
-                      className="text-destructive focus:text-destructive"
                     >
                       <Trash01 size={16} />
                       Delete
