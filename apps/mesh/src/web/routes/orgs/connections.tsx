@@ -921,9 +921,7 @@ function OrgMcpsContent() {
   const actions = useConnectionActions();
   const connections = useConnections(listState);
 
-  const deleteConnection = useDeleteConnection({
-    onSuccess: () => invalidateConnections(),
-  });
+  const deleteConnection = useDeleteConnection();
 
   // Selection / bulk-action state — no explicit mode; selection is implicit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
