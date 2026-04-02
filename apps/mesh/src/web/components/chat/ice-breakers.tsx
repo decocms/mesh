@@ -218,14 +218,12 @@ function IceBreakersUI({
                       "cursor-not-allowed opacity-50",
                   )}
                 >
-                  {item.connection?.icon && (
-                    <IntegrationIcon
-                      icon={item.connection.icon}
-                      name={item.connection.title}
-                      size="xs"
-                      className="shrink-0 rounded-lg!"
-                    />
-                  )}
+                  <IntegrationIcon
+                    icon={item.connection?.icon ?? null}
+                    name={item.connection?.title ?? "Integration"}
+                    size="xs"
+                    className="shrink-0 rounded-lg!"
+                  />
                   <span className="flex-1 line-clamp-2">{label}</span>
                   {isLoading && <Spinner size="xs" />}
                 </button>

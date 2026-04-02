@@ -131,7 +131,7 @@ const MentionItem = <T extends BaseItem>({
   ref,
 }: MentionItemProps<T>) => {
   const label =
-    item.description ?? (item.title || item.name).replace(/_/g, " ");
+    item.description || (item.title || item.name).replace(/_/g, " ");
 
   return (
     <div
