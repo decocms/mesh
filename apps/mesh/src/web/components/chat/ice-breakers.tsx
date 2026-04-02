@@ -139,7 +139,9 @@ function PromptCard({
         className="shrink-0 rounded-lg!"
       />
       <div className="flex flex-col gap-0.5 w-full mt-auto">
-        <span className="text-xs text-muted-foreground truncate">{name}</span>
+        <span className="text-xs text-muted-foreground/60 truncate">
+          {name}
+        </span>
         <div className="flex items-end gap-1.5">
           <span
             className={cn(
