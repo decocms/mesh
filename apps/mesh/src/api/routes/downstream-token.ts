@@ -7,6 +7,7 @@
 
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import { resolveOriginTokenEndpoint } from "../../oauth/resolve-token-endpoint";
 import {
   DownstreamTokenStorage,
   type DownstreamTokenData,
@@ -80,6 +81,26 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
     ? new Date(Date.now() + body.expiresIn * 1000)
     : null;
 
+  // If tokenEndpoint is a proxy URL (goes through /oauth-proxy/), resolve the
+  // origin's actual token endpoint so server-side refresh calls origin directly
+  // instead of making a self-referential call through the proxy.
+  let resolvedTokenEndpoint = body.tokenEndpoint ?? null;
+  if (
+    resolvedTokenEndpoint?.includes("/oauth-proxy/") &&
+    connection.connection_url
+  ) {
+    try {
+      const originEndpoint = await resolveOriginTokenEndpoint(
+        connection.connection_url,
+      );
+      if (originEndpoint) {
+        resolvedTokenEndpoint = originEndpoint;
+      }
+    } catch {
+      // Keep proxy URL as fallback
+    }
+  }
+
   // Create storage instance
   const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
 
@@ -92,7 +113,7 @@ app.post("/connections/:connectionId/oauth-token", async (c) => {
     expiresAt,
     clientId: body.clientId ?? null,
     clientSecret: body.clientSecret ?? null,
-    tokenEndpoint: body.tokenEndpoint ?? null,
+    tokenEndpoint: resolvedTokenEndpoint,
   };
 
   const token = await tokenStorage.upsert(tokenData);
