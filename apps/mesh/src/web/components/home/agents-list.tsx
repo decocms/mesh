@@ -282,6 +282,7 @@ function AgentsListContent() {
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
+        existingAgent={existingDiagnostics}
       />
     </>
   );

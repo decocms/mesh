@@ -25,22 +25,24 @@ import {
 import { Button } from "@deco/ui/components/button.tsx";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useNavigate } from "@tanstack/react-router";
 import {
   SELF_MCP_ALIAS_ID,
   WELL_KNOWN_AGENT_TEMPLATES,
   useConnectionActions,
   useMCPClient,
+  useMCPToolCallMutation,
   useProjectContext,
   useVirtualMCPActions,
 } from "@decocms/mesh-sdk";
 import type { CollectionListOutput } from "@decocms/bindings/collections";
-import type { ConnectionEntity, VirtualMCPEntity } from "@decocms/mesh-sdk";
+import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { useRegistryApp } from "@/web/hooks/use-registry-app";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 
 interface SiteDiagnosticsRecruitModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  existingAgent?: { id: string } | null;
 }
 
 const CAPABILITIES = [
@@ -99,16 +101,18 @@ function RecruitContent({
 export function SiteDiagnosticsRecruitModal({
   open,
   onOpenChange,
+  existingAgent,
 }: SiteDiagnosticsRecruitModalProps) {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
   const { org } = useProjectContext();
+  const navigateToAgent = useNavigateToAgent();
   const connectionActions = useConnectionActions();
   const virtualMcpActions = useVirtualMCPActions();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
+  const connectionQuery = useMCPToolCallMutation({ client });
   const [isRecruiting, setIsRecruiting] = useState(false);
 
   const template = WELL_KNOWN_AGENT_TEMPLATES.find(
@@ -136,47 +140,17 @@ export function SiteDiagnosticsRecruitModal({
   const handleRecruit = async () => {
     if (!registryItem) return;
 
+    // If agent already exists, just navigate to it
+    if (existingAgent) {
+      onOpenChange(false);
+      navigateToAgent(existingAgent.id);
+      return;
+    }
+
     setIsRecruiting(true);
     try {
-      // 1. Check if a site-diagnostics virtual MCP already exists
-      const existingVirtualMcpResult = await client.callTool({
-        name: "COLLECTION_VIRTUAL_MCP_LIST",
-        arguments: {
-          where: {
-            field: ["metadata", "type"],
-            operator: "eq",
-            value: "site-diagnostics",
-          },
-          limit: 1,
-          offset: 0,
-        },
-      });
-
-      const existingVirtualMcps = (
-        existingVirtualMcpResult as {
-          structuredContent?: CollectionListOutput<VirtualMCPEntity>;
-        }
-      )?.structuredContent?.items;
-
-      if (
-        existingVirtualMcps &&
-        existingVirtualMcps.length > 0 &&
-        existingVirtualMcps[0]?.id
-      ) {
-        // Already exists — just navigate to it
-        onOpenChange(false);
-        navigate({
-          to: "/$org/$virtualMcpId",
-          params: {
-            org: org.slug,
-            virtualMcpId: existingVirtualMcps[0].id,
-          },
-        });
-        return;
-      }
-
-      // 2. Find or create the HTTP connection to the external site-diagnostics MCP
-      const existingConnectionResult = await client.callTool({
+      // 1. Find or create the HTTP connection to the external site-diagnostics MCP
+      const existingConnectionResult = await connectionQuery.mutateAsync({
         name: "COLLECTION_CONNECTIONS_LIST",
         arguments: {
           where: {
@@ -262,13 +236,7 @@ export function SiteDiagnosticsRecruitModal({
 
       // 4. Navigate to the new agent
       onOpenChange(false);
-      navigate({
-        to: "/$org/$virtualMcpId",
-        params: {
-          org: org.slug,
-          virtualMcpId: virtualMcp.id!,
-        },
-      });
+      navigateToAgent(virtualMcp.id!);
     } catch (error) {
       console.error("Failed to create Site Diagnostics agent:", error);
     } finally {

@@ -18,7 +18,7 @@ import {
   isDecopilot,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
   BookOpen01,
@@ -178,7 +178,7 @@ function VirtualMCPBadge({
 }: VirtualMCPBadgeProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
+  const navigateToAgent = useNavigateToAgent();
   const { org } = useProjectContext();
   const isMobile = useIsMobile();
 
@@ -213,14 +213,7 @@ function VirtualMCPBadge({
 
   const handleEdit = (e: MouseEvent) => {
     e.stopPropagation();
-    navigate({
-      to: "/$org/$virtualMcpId",
-      params: {
-        org: org.slug,
-        virtualMcpId: virtualMcp.id!,
-      },
-      search: { main: "settings" },
-    });
+    navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
   };
 
   const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
