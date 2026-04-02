@@ -125,10 +125,9 @@ function HomeEmptyState({
               What's on your mind, {userName}?
             </p>
           </div>
-          {/* Agents above prompts, input at bottom */}
+          {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
             <AgentsList />
-            <Chat.IceBreakers className="w-full" />
             <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             {isDecoUser && (
               <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
@@ -161,7 +160,6 @@ function HomeEmptyState({
                 What's on your mind, {userName}?
               </p>
             </div>
-            <Chat.IceBreakers className="w-full" />
             <div className="w-full">
               <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             </div>
@@ -191,27 +189,27 @@ function SidebarEmptyState() {
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   return (
-    <Chat.EmptyState>
-      <div className="flex flex-col items-center gap-3 md:gap-6 w-full px-4">
-        <div className="flex flex-col items-center justify-center gap-2 md:gap-4 p-0 text-center">
-          <IntegrationIcon
-            icon={displayAgent.icon}
-            name={displayAgent.title}
-            size="lg"
-            fallbackIcon={<Users03 size={32} />}
-            className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
-          />
-          <h3 className="text-base md:text-xl font-medium text-foreground">
-            {displayAgent.title}
-          </h3>
-          <div className="text-muted-foreground text-center text-xs md:text-sm max-w-md line-clamp-2">
-            {displayAgent.description ??
-              "Ask anything about configuring model providers or using MCP Mesh."}
-          </div>
+    <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
+      <div className="flex flex-col items-center justify-center gap-2 md:gap-4 text-center">
+        <IntegrationIcon
+          icon={displayAgent.icon}
+          name={displayAgent.title}
+          size="lg"
+          fallbackIcon={<Users03 size={32} />}
+          className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
+        />
+        <h3 className="text-base md:text-xl font-medium text-foreground">
+          {displayAgent.title}
+        </h3>
+        <div className="text-muted-foreground text-center text-xs md:text-sm max-w-md line-clamp-2">
+          {displayAgent.description ??
+            "Ask anything about configuring model providers or using MCP Mesh."}
         </div>
+      </div>
+      <div className="w-full max-w-3xl mx-auto">
         <Chat.IceBreakers />
       </div>
-    </Chat.EmptyState>
+    </div>
   );
 }
 
