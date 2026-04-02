@@ -47,6 +47,7 @@ export const MONITORING_LOG_GET = defineTool({
       .describe("The monitoring log, or null if not found"),
   }),
   handler: async (input, ctx) => {
+    await ctx.access.check();
     await flushMonitoringData();
 
     const org = requireOrganization(ctx);

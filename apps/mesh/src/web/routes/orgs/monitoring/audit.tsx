@@ -287,6 +287,17 @@ function MonitoringLogsTableContent({
                   <div className="flex items-center justify-center py-12">
                     <div className="size-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                   </div>
+                ) : detailQuery.isError ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-sm text-muted-foreground">
+                    <p>Failed to load log details</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => detailQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 ) : (
                   <ExpandedLogContent log={fullSelectedLog!} />
                 )}
