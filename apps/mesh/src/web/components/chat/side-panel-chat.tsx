@@ -206,7 +206,7 @@ function SidebarEmptyState() {
             "Ask anything about configuring model providers or using MCP Mesh."}
         </div>
       </div>
-      <div className="w-full max-w-4xl mx-auto">
+      <div className="w-full max-w-3xl mx-auto">
         <Chat.IceBreakers />
       </div>
     </div>
