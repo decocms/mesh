@@ -82,7 +82,7 @@ function PromptCard({
           disabled={isDisabled || isLoading}
           className={cn(
             CARD_BASE,
-            tall ? "h-[180px]" : "h-[140px]",
+            tall ? "min-h-[180px]" : "min-h-[160px]",
             "items-start justify-between text-left text-foreground hover:bg-accent/40",
             isLoading && "bg-accent/40",
             (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
@@ -243,7 +243,7 @@ function IceBreakersUI({
             onClick={() => setModalOpen(true)}
             className={cn(
               CARD_BASE,
-              "h-[140px] items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
+              "min-h-[160px] items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
               isAnyLoading && "opacity-50 cursor-not-allowed",
             )}
           >
