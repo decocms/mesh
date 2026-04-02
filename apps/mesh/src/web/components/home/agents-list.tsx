@@ -17,6 +17,7 @@ import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   isDecopilot,
+  WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
@@ -34,8 +35,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Suspense, useRef, useState } from "react";
 
 /**
@@ -44,7 +46,6 @@ import { Suspense, useRef, useState } from "react";
 function AgentPreview({
   agent,
   onSpecialClick,
-  onPin,
 }: {
   agent: {
     id: string;
@@ -52,7 +53,6 @@ function AgentPreview({
     icon?: string | null;
   };
   onSpecialClick?: () => void;
-  onPin?: (id: string) => void;
 }) {
   const { org } = useProjectContext();
   const navigate = useNavigate();
@@ -61,7 +61,6 @@ function AgentPreview({
     if (onSpecialClick) {
       onSpecialClick();
     } else {
-      onPin?.(agent.id);
       navigate({
         to: "/$org/$virtualMcpId",
         params: { org: org.slug, virtualMcpId: agent.id },
@@ -160,15 +159,6 @@ function SeeAllButton({
 }
 
 /**
- * Hardcoded Site Editor agent shown first in the agents list for onboarding.
- */
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-/**
  * Agents list content component
  */
 function CreateAgentButton() {
@@ -204,12 +194,17 @@ function CreateAgentButton() {
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
-  const { locator, org } = useProjectContext();
+  const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
-  const serverPinnedIds = virtualMcps
-    .filter((a): a is typeof a & { id: string } => a.id !== null && !!a.pinned)
-    .map((a) => a.id);
-  const { pin } = usePinnedAgents(org.id, serverPinnedIds);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const navigateToAgent = useNavigateToAgent();
+
+  const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-editor",
+  )!;
+  const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  )!;
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -222,18 +217,23 @@ function AgentsListContent() {
     .sort((a, b) => {
       const aIdx = recentIds.indexOf(a.id);
       const bIdx = recentIds.indexOf(b.id);
-      // Both in recents: lower index = more recent
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      // Only a in recents: a comes first
       if (aIdx !== -1) return -1;
-      // Only b in recents: b comes first
       if (bIdx !== -1) return 1;
-      // Neither in recents: fall back to most recently updated
       return (
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
     })
     .slice(0, 5);
+
+  // Check if Site Diagnostics agent already exists (search full list, not just top-5)
+  const existingDiagnostics = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        siteDiagnosticsAgent.id ||
+        a.title === siteDiagnosticsAgent.title),
+  );
 
   const hasAgents = agents.length > 0;
 
@@ -242,17 +242,28 @@ function AgentsListContent() {
       <div className="w-full">
         <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           <AgentPreview
-            key={SITE_EDITOR_AGENT.id}
-            agent={SITE_EDITOR_AGENT}
+            key={siteEditorAgent.id}
+            agent={siteEditorAgent}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
           />
-          {agents.map((agent) => (
-            <AgentPreview
-              key={agent.id ?? "default"}
-              agent={agent}
-              onPin={pin}
-            />
-          ))}
+          <AgentPreview
+            key={siteDiagnosticsAgent.id}
+            agent={existingDiagnostics ?? siteDiagnosticsAgent}
+            onSpecialClick={
+              existingDiagnostics
+                ? () => navigateToAgent(existingDiagnostics.id)
+                : () => setDiagnosticsModalOpen(true)
+            }
+          />
+          {agents
+            .filter((a) => a.id !== existingDiagnostics?.id)
+            .map((agent) => (
+              <AgentPreview
+                key={agent.id ?? "default"}
+                agent={agent}
+                onSpecialClick={() => navigateToAgent(agent.id)}
+              />
+            ))}
           <CreateAgentButton />
           {hasAgents && (
             <SeeAllButton
@@ -266,6 +277,12 @@ function AgentsListContent() {
       <SiteEditorOnboardingModal
         open={siteEditorModalOpen}
         onOpenChange={setSiteEditorModalOpen}
+      />
+
+      <SiteDiagnosticsRecruitModal
+        open={diagnosticsModalOpen}
+        onOpenChange={setDiagnosticsModalOpen}
+        existingAgent={existingDiagnostics}
       />
     </>
   );

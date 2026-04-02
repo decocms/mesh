@@ -26,6 +26,8 @@ export const WellKnownOrgMCPId = {
   COMMUNITY_REGISTRY: (org: string) => `${org}_community-registry`,
   /** Dev Assets MCP - local file storage for development */
   DEV_ASSETS: (org: string) => `${org}_dev-assets`,
+  /** Site Diagnostics agent (note: prefix-first format, not org-first) */
+  SITE_DIAGNOSTICS: (org: string) => `site-diagnostics_${org}`,
 };
 
 /**
@@ -170,38 +172,6 @@ export function getWellKnownDevAssetsConnection(
 }
 
 /**
- * Get well-known connection definition for OpenRouter.
- * Used by the chat UI to offer a one-click install when no model provider is connected.
- */
-export function getWellKnownOpenRouterConnection(
-  opts: { id?: string } = {},
-): ConnectionCreateData {
-  return {
-    id: opts.id,
-    title: "OpenRouter",
-    description: "Access hundreds of LLM models from a single API",
-    icon: "https://assets.decocache.com/decocms/b2e2f64f-6025-45f7-9e8c-3b3ebdd073d8/openrouter_logojpg.jpg",
-    app_name: "openrouter",
-    app_id: "openrouter",
-    connection_type: "HTTP",
-    connection_url: "https://sites-openrouter.decocache.com/mcp",
-    connection_token: null,
-    connection_headers: null,
-    oauth_config: null,
-    configuration_state: null,
-    configuration_scopes: null,
-    metadata: {
-      source: "chat",
-      verified: false,
-      scopeName: "deco",
-      toolsCount: 0,
-      publishedAt: null,
-      repository: null,
-    },
-  };
-}
-
-/**
  * Get well-known connection definition for MCP Studio.
  * Used by agents and workflows pages to offer installation when no provider is connected.
  */
@@ -279,6 +249,57 @@ export function isDecopilot(id: string | null | undefined): string | null {
 export function getDecopilotId(organizationId: string): string {
   return `${DECOPILOT_PREFIX}${organizationId}`;
 }
+
+/**
+ * Site Diagnostics agent ID prefix
+ */
+const SITE_DIAGNOSTICS_PREFIX = "site-diagnostics_";
+
+/**
+ * Check if a connection or virtual MCP ID is the Site Diagnostics agent.
+ *
+ * @param id - Connection or virtual MCP ID to check
+ * @returns The organization ID if the ID matches the Site Diagnostics pattern, null otherwise
+ */
+export function isSiteDiagnostics(
+  id: string | null | undefined,
+): string | null {
+  if (!id) return null;
+  if (!id.startsWith(SITE_DIAGNOSTICS_PREFIX)) return null;
+  return id.slice(SITE_DIAGNOSTICS_PREFIX.length) || null;
+}
+
+/**
+ * Get the Site Diagnostics agent ID for a given organization.
+ */
+export function getSiteDiagnosticsId(organizationId: string): string {
+  return `${SITE_DIAGNOSTICS_PREFIX}${organizationId}`;
+}
+
+/**
+ * Well-known agent templates.
+ *
+ * Display metadata (id, title, icon) is stored here for immediate rendering.
+ * Full metadata (description, URL, connection details) should be fetched
+ * from the deco registry at CTA time using the `appId`.
+ */
+export const WELL_KNOWN_AGENT_TEMPLATES = [
+  {
+    id: "site-editor",
+    appId: "deco/site-editor",
+    title: "Site Editor",
+    icon: "icon://Globe01?color=violet",
+  },
+  {
+    id: "site-diagnostics",
+    appId: "deco/site-diagnostics",
+    title: "Site Diagnostics",
+    icon: "icon://SearchRefraction?color=cyan",
+  },
+] as const;
+
+export type WellKnownAgentTemplate =
+  (typeof WELL_KNOWN_AGENT_TEMPLATES)[number];
 
 export function getWellKnownDecopilotConnection(
   organizationId: string,

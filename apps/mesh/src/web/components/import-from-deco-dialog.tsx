@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   Dialog,
   DialogContent,
@@ -65,7 +65,7 @@ export function ImportFromDecoDialog({
   onBack,
 }: ImportFromDecoDialogProps) {
   const { org } = useProjectContext();
-  const navigate = useNavigate();
+  const navigateToAgent = useNavigateToAgent();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
 
@@ -221,13 +221,7 @@ export function ImportFromDecoDialog({
       toast.success(`Imported ${slug} from deco.cx`);
       handleClose(false);
       localStorage.setItem("mesh:sidebar-open", JSON.stringify(false));
-      navigate({
-        to: "/$org/$virtualMcpId",
-        params: {
-          org: org.slug,
-          virtualMcpId,
-        },
-      });
+      navigateToAgent(virtualMcpId);
     },
     onError: (err) => {
       toast.error(

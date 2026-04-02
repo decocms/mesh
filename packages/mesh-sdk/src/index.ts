@@ -195,7 +195,6 @@ export {
   getWellKnownCommunityRegistryConnection,
   getWellKnownSelfConnection,
   getWellKnownDevAssetsConnection,
-  getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
   getWellKnownDecopilotVirtualMCP,
@@ -203,4 +202,10 @@ export {
   // Decopilot utilities
   isDecopilot,
   getDecopilotId,
+  // Site Diagnostics utilities
+  isSiteDiagnostics,
+  getSiteDiagnosticsId,
+  // Well-known agent templates (display data + registry appId)
+  WELL_KNOWN_AGENT_TEMPLATES,
+  type WellKnownAgentTemplate,
 } from "./lib/constants";

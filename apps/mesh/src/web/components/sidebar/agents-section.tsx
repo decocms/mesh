@@ -49,6 +49,7 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
+  WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
@@ -56,18 +57,12 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-const DEFAULT_AGENTS = [SITE_EDITOR_AGENT];
 
 function AgentListItem({
   agent,
@@ -293,9 +288,11 @@ function AgentGridItem({
 function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
+  onOpenDiagnosticsModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
+  onOpenDiagnosticsModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -307,15 +304,28 @@ function PinAgentPopoverContent({
   });
 
   const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
     .filter((s) => !isDecopilot(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
-  const filteredDefaults = DEFAULT_AGENTS.filter(
-    (a) => !search || a.title.toLowerCase().includes(lowerSearch),
+  const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
+    (t) => !search || t.title.toLowerCase().includes(lowerSearch),
   );
+
+  // Find existing recruited Site Diagnostics agent
+  const siteDiagnosticsTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  );
+  const existingDiagnostics = siteDiagnosticsTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          siteDiagnosticsTemplate.id,
+      )
+    : undefined;
 
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
@@ -326,13 +336,19 @@ function PinAgentPopoverContent({
     navigateToNewTask(agent.id);
   };
 
-  const handleDefaultAgentClick = (agentId: string) => {
+  const handleTemplateClick = (templateId: string) => {
     onClose();
     setSearch("");
-    if (agentId === SITE_EDITOR_AGENT.id) {
+    if (templateId === "site-editor") {
       onOpenSiteEditorModal();
+    } else if (templateId === "site-diagnostics") {
+      if (existingDiagnostics) {
+        navigateToAgent(existingDiagnostics.id);
+      } else {
+        onOpenDiagnosticsModal();
+      }
     } else {
-      navigateToNewTask(agentId);
+      navigateToNewTask(templateId);
     }
   };
 
@@ -382,7 +398,7 @@ function PinAgentPopoverContent({
         </div>
 
         {/* Agent templates section */}
-        {filteredDefaults.length > 0 && (
+        {filteredTemplates.length > 0 && (
           <>
             <div className="px-1 pt-4 pb-2">
               <span className="text-xs font-medium text-muted-foreground">
@@ -390,21 +406,21 @@ function PinAgentPopoverContent({
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1">
-              {filteredDefaults.map((agent) => (
+              {filteredTemplates.map((template) => (
                 <button
-                  key={agent.id}
+                  key={template.id}
                   type="button"
-                  onClick={() => handleDefaultAgentClick(agent.id)}
+                  onClick={() => handleTemplateClick(template.id)}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <AgentAvatar
-                    icon={agent.icon}
-                    name={agent.title}
+                    icon={template.icon}
+                    name={template.title}
                     size="md"
                     className="transition-transform group-hover:scale-105"
                   />
                   <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
-                    {agent.title}
+                    {template.title}
                   </span>
                 </button>
               ))}
@@ -413,7 +429,7 @@ function PinAgentPopoverContent({
         )}
 
         {userAgents.length === 0 &&
-          filteredDefaults.length === 0 &&
+          filteredTemplates.length === 0 &&
           !isCreating && (
             <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
               {search ? "No agents found" : "No agents yet"}
@@ -439,6 +455,7 @@ function PinAgentPopoverContent({
 function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -458,6 +475,7 @@ function PinAgentPopover() {
       <PinAgentPopoverContent
         onClose={handleClose}
         onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
+        onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
       />
     </Suspense>
   );
@@ -506,6 +524,10 @@ function PinAgentPopover() {
       <SiteEditorOnboardingModal
         open={siteEditorModalOpen}
         onOpenChange={setSiteEditorModalOpen}
+      />
+      <SiteDiagnosticsRecruitModal
+        open={diagnosticsModalOpen}
+        onOpenChange={setDiagnosticsModalOpen}
       />
     </>
   );
