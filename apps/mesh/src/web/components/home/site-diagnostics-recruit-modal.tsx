@@ -239,6 +239,24 @@ export function SiteDiagnosticsRecruitModal({
         metadata: {
           type: "site-diagnostics",
           instructions: null,
+          ui: {
+            pinnedViews: [
+              {
+                connectionId,
+                toolName: "diagnose",
+                label: "diagnose",
+                icon: null,
+              },
+            ],
+            layout: {
+              defaultMainView: {
+                type: "ext-apps",
+                id: connectionId,
+                toolName: "diagnose",
+              },
+              chatDefaultOpen: false,
+            },
+          },
         },
       });
 
