@@ -12,7 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@deco/ui/components/drawer.tsx";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   getPrompt,
   getWellKnownDecopilotVirtualMCP,
@@ -147,46 +154,79 @@ function AllPromptsModal({
       })
     : items;
 
+  const isMobile = useIsMobile();
+
+  const gridContent = (
+    <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+        {filtered.length === 0 && (
+          <p className="col-span-4 text-sm text-muted-foreground text-center py-8">
+            No prompts match &ldquo;{search}&rdquo;
+          </p>
+        )}
+        {filtered.map((item) => (
+          <PromptCard
+            key={item.prompt.name}
+            item={item}
+            tall
+            onSelect={(prompt) => {
+              onOpenChange(false);
+              onSelect(prompt);
+            }}
+            isLoading={loadingPrompt?.name === item.prompt.name}
+            isDisabled={
+              isAnyLoading && loadingPrompt?.name !== item.prompt.name
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const searchBar = (
+    <CollectionSearch
+      value={search}
+      onChange={setSearch}
+      placeholder="Search prompts..."
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setSearch("");
+      }}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <TooltipProvider delayDuration={400}>
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerContent className="h-[85vh] flex flex-col p-0 gap-0">
+            <DrawerHeader className="sr-only">
+              <DrawerTitle>All prompts</DrawerTitle>
+            </DrawerHeader>
+            <div className="flex items-center h-12 border-b border-border px-4 shrink-0">
+              <span className="text-sm font-medium text-foreground">
+                Prompts
+              </span>
+            </div>
+            {searchBar}
+            {gridContent}
+          </DrawerContent>
+        </Drawer>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider delayDuration={400}>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[1100px] p-0 gap-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[1100px] h-[680px] p-0 gap-0 overflow-hidden flex flex-col">
           <DialogHeader className="sr-only">
             <DialogTitle>All prompts</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center h-12 border-b border-border px-4">
+          <div className="flex items-center h-12 border-b border-border px-4 shrink-0">
             <span className="text-sm font-medium text-foreground">Prompts</span>
           </div>
-          <CollectionSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search prompts..."
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setSearch("");
-            }}
-          />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5 max-h-[560px] overflow-y-auto [scrollbar-gutter:stable]">
-            {filtered.length === 0 && (
-              <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
-                No prompts match &ldquo;{search}&rdquo;
-              </p>
-            )}
-            {filtered.map((item) => (
-              <PromptCard
-                key={item.prompt.name}
-                item={item}
-                tall
-                onSelect={(prompt) => {
-                  onOpenChange(false);
-                  onSelect(prompt);
-                }}
-                isLoading={loadingPrompt?.name === item.prompt.name}
-                isDisabled={
-                  isAnyLoading && loadingPrompt?.name !== item.prompt.name
-                }
-              />
-            ))}
-          </div>
+          {searchBar}
+          {gridContent}
         </DialogContent>
       </Dialog>
     </TooltipProvider>
