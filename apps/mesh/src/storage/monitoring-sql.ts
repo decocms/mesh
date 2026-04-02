@@ -306,14 +306,14 @@ function tsGte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp >= toDateTime64('${date.toISOString()}', 9)`;
+  return `timestamp >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 function tsLte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `timestamp <= toDateTime64('${date.toISOString()}', 9)`;
+  return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 // ---------------------------------------------------------------------------
