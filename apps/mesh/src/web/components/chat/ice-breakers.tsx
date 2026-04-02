@@ -1,10 +1,12 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import {
   createMCPClient,
   getPrompt,
@@ -113,6 +115,7 @@ function PromptCard({
   const { prompt, connection } = item;
   const label =
     prompt.description ?? (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
 
   return (
     <button
@@ -126,17 +129,91 @@ function PromptCard({
         (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
       )}
     >
-      <IntegrationIcon
-        icon={connection?.icon ?? null}
-        name={connection?.title ?? "Integration"}
-        size="xs"
-        className="shrink-0 rounded-lg!"
-      />
+      <div className="flex items-center gap-2 w-full min-w-0">
+        <IntegrationIcon
+          icon={connection?.icon ?? null}
+          name={connection?.title ?? "Integration"}
+          size="xs"
+          className="shrink-0 rounded-lg!"
+        />
+        <span className="text-xs text-muted-foreground truncate">{name}</span>
+      </div>
       <div className="flex items-end gap-1.5 w-full mt-auto">
         <span className="flex-1 line-clamp-3 text-sm">{label}</span>
         {isLoading && <Spinner size="xs" />}
       </div>
     </button>
+  );
+}
+
+function AllPromptsModal({
+  items,
+  open,
+  onOpenChange,
+  onSelect,
+  loadingPrompt,
+}: {
+  items: PromptItem[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (prompt: Prompt) => void;
+  loadingPrompt: Prompt | null | undefined;
+}) {
+  const [search, setSearch] = useState("");
+  const isAnyLoading = !!loadingPrompt;
+
+  const filtered = search.trim()
+    ? items.filter((item) => {
+        const q = search.toLowerCase();
+        return (
+          item.prompt.name.toLowerCase().includes(q) ||
+          (item.prompt.title ?? "").toLowerCase().includes(q) ||
+          (item.prompt.description ?? "").toLowerCase().includes(q) ||
+          (item.connection?.title ?? "").toLowerCase().includes(q)
+        );
+      })
+    : items;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden">
+        <DialogHeader className="sr-only">
+          <DialogTitle>All prompts</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center h-12 border-b border-border px-4">
+          <span className="text-sm font-medium text-foreground">Prompts</span>
+        </div>
+        <CollectionSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search prompts..."
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setSearch("");
+          }}
+        />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 max-h-[420px] overflow-y-auto [scrollbar-gutter:stable]">
+          {filtered.length === 0 && (
+            <p className="col-span-3 text-sm text-muted-foreground text-center py-8">
+              No prompts match &ldquo;{search}&rdquo;
+            </p>
+          )}
+          {filtered.map((item) => (
+            <PromptCard
+              key={item.prompt.name}
+              item={item}
+              onSelect={(prompt) => {
+                onOpenChange(false);
+                onSelect(prompt);
+              }}
+              isLoading={loadingPrompt?.name === item.prompt.name}
+              isDisabled={
+                isAnyLoading && loadingPrompt?.name !== item.prompt.name
+              }
+            />
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -150,6 +227,8 @@ function IceBreakersUI({
   loadingPrompt,
   className,
 }: IceBreakersUIProps) {
+  const [modalOpen, setModalOpen] = useState(false);
+
   if (items.length === 0) return null;
 
   const visible = items.slice(0, VISIBLE_COUNT);
@@ -168,71 +247,42 @@ function IceBreakersUI({
           : "grid-cols-2 @lg:grid-cols-4";
 
   return (
-    <div className={cn("w-full mx-auto grid gap-2", colsClass, className)}>
-      {visible.map((item) => (
-        <PromptCard
-          key={item.prompt.name}
-          item={item}
-          onSelect={onSelect}
-          isLoading={loadingPrompt?.name === item.prompt.name}
-          isDisabled={isAnyLoading && loadingPrompt?.name !== item.prompt.name}
-        />
-      ))}
-      {hidden.length > 0 && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={isAnyLoading}
-              className={cn(
-                CARD_BASE,
-                "items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
-                isAnyLoading && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              +{hidden.length} more
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="end"
-            className="w-[280px] max-h-[320px] overflow-y-auto p-2 flex flex-col gap-1"
+    <>
+      <div className={cn("w-full mx-auto grid gap-2", colsClass, className)}>
+        {visible.map((item) => (
+          <PromptCard
+            key={item.prompt.name}
+            item={item}
+            onSelect={onSelect}
+            isLoading={loadingPrompt?.name === item.prompt.name}
+            isDisabled={
+              isAnyLoading && loadingPrompt?.name !== item.prompt.name
+            }
+          />
+        ))}
+        {hidden.length > 0 && (
+          <button
+            type="button"
+            disabled={isAnyLoading}
+            onClick={() => setModalOpen(true)}
+            className={cn(
+              CARD_BASE,
+              "items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
+              isAnyLoading && "opacity-50 cursor-not-allowed",
+            )}
           >
-            {hidden.map((item) => {
-              const label =
-                item.prompt.description ??
-                (item.prompt.title ?? item.prompt.name).replace(/_/g, " ");
-              const isLoading = loadingPrompt?.name === item.prompt.name;
-              const isDisabled = isAnyLoading && !isLoading;
-
-              return (
-                <button
-                  key={item.prompt.name}
-                  type="button"
-                  onClick={() => onSelect(item.prompt)}
-                  disabled={isDisabled || isLoading}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground rounded-lg transition-colors cursor-pointer hover:bg-accent/50",
-                    isLoading && "bg-accent/50",
-                    (isDisabled || isLoading) &&
-                      "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  <IntegrationIcon
-                    icon={item.connection?.icon ?? null}
-                    name={item.connection?.title ?? "Integration"}
-                    size="xs"
-                    className="shrink-0 rounded-lg!"
-                  />
-                  <span className="flex-1 line-clamp-2">{label}</span>
-                  {isLoading && <Spinner size="xs" />}
-                </button>
-              );
-            })}
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+            +{hidden.length} more
+          </button>
+        )}
+      </div>
+      <AllPromptsModal
+        items={items}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onSelect={onSelect}
+        loadingPrompt={loadingPrompt}
+      />
+    </>
   );
 }
 
