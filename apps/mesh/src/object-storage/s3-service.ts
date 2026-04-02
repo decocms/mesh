@@ -211,4 +211,17 @@ export class S3Service {
       etag: response.ETag,
     };
   }
+
+  async presignedGetUrl(
+    orgId: string,
+    key: string,
+    expiresIn = 3600,
+  ): Promise<string> {
+    const s3Key = buildS3Key(orgId, key);
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucket, Key: s3Key }),
+      { expiresIn },
+    );
+  }
 }

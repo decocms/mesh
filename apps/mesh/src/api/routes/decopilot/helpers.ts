@@ -20,6 +20,7 @@ import type { Context } from "hono";
 import type { MeshContext, OrganizationScope } from "@/core/mesh-context";
 import { HTTPException } from "hono/http-exception";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
+import { resolveArgsStorageRefs } from "./file-materializer";
 import {
   MAX_RESULT_TOKENS,
   createOutputPreview,
@@ -91,9 +92,10 @@ export async function toolsFromMCP(
   toolOutputMap: Map<string, string>,
   writer?: UIMessageStreamWriter,
   toolApprovalLevel: ToolApprovalLevel = "readonly",
-  options?: { disableOutputTruncation?: boolean },
+  options?: { disableOutputTruncation?: boolean; ctx?: MeshContext },
 ): Promise<ToolSet> {
   const truncate = !options?.disableOutputTruncation;
+  const meshCtx = options?.ctx;
   const list = await client.listTools();
   const visibleTools = list.tools.filter(isToolVisibleToModel);
 
@@ -110,17 +112,25 @@ export async function toolsFromMCP(
         needsApproval:
           toolNeedsApproval(toolApprovalLevel, annotations?.readOnlyHint) !==
           false,
-        execute: async (input, options) => {
+        execute: async (input, callOptions) => {
           const startTime = performance.now();
           try {
+            // Resolve any mesh-storage: URIs in tool arguments to fresh
+            // presigned URLs before forwarding to the MCP client.
+            const resolvedInput = meshCtx
+              ? await resolveArgsStorageRefs(
+                  input as Record<string, unknown>,
+                  meshCtx,
+                )
+              : (input as Record<string, unknown>);
             const result = await client.callTool(
               {
                 name: t.name,
-                arguments: input as Record<string, unknown>,
+                arguments: resolvedInput,
               },
               CallToolResultSchema,
               {
-                signal: options.abortSignal,
+                signal: callOptions.abortSignal,
                 timeout: MCP_TOOL_CALL_TIMEOUT_MS,
               },
             );
@@ -130,7 +140,7 @@ export async function toolsFromMCP(
               const latencyMs = performance.now() - startTime;
               writer.write({
                 type: "data-tool-metadata",
-                id: options.toolCallId,
+                id: callOptions.toolCallId,
                 data: {
                   _meta,
                   annotations,

@@ -48,6 +48,7 @@ import proxyRoutes from "./routes/proxy";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
+import filesRoutes from "./routes/files";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -1282,6 +1283,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     threadStorage,
   });
   app.route("/api", decopilotRoutes);
+
+  // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
+  app.route("/api", filesRoutes);
 
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
