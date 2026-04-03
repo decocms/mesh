@@ -68,7 +68,6 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@inkjs/ui": "^2.0.0",
-        "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
         "@modelcontextprotocol/ext-apps": "^1.2.2",
         "@openrouter/ai-sdk-provider": "^2.2.5",
         "@opentelemetry/core": "^2.6.0",
@@ -80,7 +79,6 @@
         "ink": "^6.8.0",
         "kysely": "^0.28.12",
         "nats": "^2.29.3",
-        "quickjs-emscripten-core": "^0.31.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
       },
@@ -214,14 +212,8 @@
         "quickjs-emscripten-core": "0.31.0",
       },
       "peerDependencies": {
-        "@jitl/quickjs-wasmfile-release-sync": ">=0.31.0",
         "@modelcontextprotocol/sdk": ">=1.27.0",
-        "quickjs-emscripten-core": ">=0.31.0",
       },
-      "optionalPeers": [
-        "@jitl/quickjs-wasmfile-release-sync",
-        "quickjs-emscripten-core",
-      ],
     },
     "packages/mesh-plugin-workflows": {
       "name": "mesh-plugin-workflows",
