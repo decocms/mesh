@@ -51,6 +51,8 @@ export interface RunCodeOptions {
   tools: Record<string, ToolHandler>;
   code: string;
   timeoutMs: number;
+  memoryLimitBytes?: number;
+  stackSizeBytes?: number;
 }
 
 export interface RunCodeResult {
@@ -65,10 +67,12 @@ export async function runCode({
   tools,
   code,
   timeoutMs,
+  memoryLimitBytes,
+  stackSizeBytes,
 }: RunCodeOptions): Promise<RunCodeResult> {
   using runtime = await createSandboxRuntime({
-    memoryLimitBytes: 32 * 1024 * 1024,
-    stackSizeBytes: 512 * 1024,
+    memoryLimitBytes: memoryLimitBytes ?? 32 * 1024 * 1024,
+    stackSizeBytes: stackSizeBytes ?? 512 * 1024,
   });
 
   using ctx = runtime.newContext({ interruptAfterMs: timeoutMs });

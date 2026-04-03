@@ -1,6 +1,6 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import { runCode, type ToolHandler } from "@/sandbox";
+import { runCode, type ToolHandler } from "@decocms/mcp-utils/sandbox";
 import type {
   CallToolRequest,
   GetPromptRequest,

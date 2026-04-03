@@ -25,7 +25,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { lazy } from "../../common";
 import type { MeshContext } from "../../core/mesh-context";
-import { runCode, type ToolHandler } from "../../sandbox/run-code";
+import { runCode, type ToolHandler } from "@decocms/mcp-utils/sandbox";
 import type { ConnectionEntity } from "../../tools/connection/schema";
 
 /** Tool with connection metadata for routing */
