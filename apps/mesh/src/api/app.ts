@@ -8,7 +8,6 @@
  * - CORS support
  */
 
-import { sql } from "kysely";
 import { getSettings } from "../settings";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
@@ -482,16 +481,33 @@ export async function createApp(options: CreateAppOptions = {}) {
     const services: Record<string, { status: "up" | "down" }> = {};
 
     // Check PostgreSQL (hard dependency — determines readiness)
-    // Race against a timeout so that stale pooled connections don't cause
-    // the health endpoint to hang when Postgres is unreachable.
+    // Use pool.connect() directly so we can destroy the client on timeout,
+    // preventing hung connections from leaking back into the pool.
     try {
-      await Promise.race([
-        sql`SELECT 1`.execute(database.db),
+      const client = await Promise.race([
+        database.pool.connect(),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("pg health-check timeout")), 5_000),
         ),
       ]);
-      services.postgres = { status: "up" };
+      try {
+        await Promise.race([
+          client.query("SELECT 1"),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("pg health-check timeout")),
+              5_000,
+            ),
+          ),
+        ]);
+        client.release();
+        services.postgres = { status: "up" };
+      } catch {
+        // Query timed out or failed — destroy the client so the hung
+        // connection is not returned to the pool.
+        client.release(true);
+        services.postgres = { status: "down" };
+      }
     } catch {
       services.postgres = { status: "down" };
     }
