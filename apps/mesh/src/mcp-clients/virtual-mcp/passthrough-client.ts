@@ -74,7 +74,7 @@ export class PassthroughClient extends GatewayClient {
   ): Promise<Response> {
     console.warn(
       `[DEPRECATED] callStreamableTool called — tool: ${name}, org: ${this.ctx.organization?.id ?? "unknown"}, virtualMcp: ${this.options.virtualMcp.id}`,
-      { tool: name, args },
+      { tool: name },
     );
     const tools = await super.listTools();
     const tool = tools.tools.find((t) => t.name === name);
