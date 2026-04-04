@@ -8,7 +8,6 @@
  * - CORS support
  */
 
-import { sql } from "kysely";
 import { getSettings } from "../settings";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
@@ -98,6 +97,47 @@ import { createAutomationsStorage } from "../storage/automations";
 import { KyselyKVStorage } from "../storage/kv";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { createAutomationContextFactory } from "./routes/decopilot/automation-context";
+
+import type { Pool, PoolClient } from "pg";
+
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * Acquire a client from the pool, run SELECT 1, and release it.
+ * Destroys the connection (instead of returning it to the pool) on any
+ * failure or timeout so stale connections don't accumulate.
+ */
+async function checkPostgres(pool: Pool): Promise<boolean> {
+  const connectPromise = pool.connect();
+  let client: PoolClient;
+  try {
+    client = await Promise.race([
+      connectPromise,
+      rejectAfter(HEALTH_CHECK_TIMEOUT_MS),
+    ]);
+  } catch {
+    // Clean up a client that arrives after the timeout.
+    void connectPromise.then((c) => c.release(true)).catch(() => {});
+    return false;
+  }
+  try {
+    await Promise.race([
+      client.query("SELECT 1"),
+      rejectAfter(HEALTH_CHECK_TIMEOUT_MS),
+    ]);
+    client.release();
+    return true;
+  } catch {
+    client.release(true);
+    return false;
+  }
+}
+
+function rejectAfter(ms: number): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("pg health-check timeout")), ms),
+  );
+}
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -482,12 +522,9 @@ export async function createApp(options: CreateAppOptions = {}) {
     const services: Record<string, { status: "up" | "down" }> = {};
 
     // Check PostgreSQL (hard dependency — determines readiness)
-    try {
-      await sql`SELECT 1`.execute(database.db);
-      services.postgres = { status: "up" };
-    } catch {
-      services.postgres = { status: "down" };
-    }
+    services.postgres = {
+      status: (await checkPostgres(database.pool)) ? "up" : "down",
+    };
 
     // Check NATS (soft dependency — reported but does not block readiness)
     if (natsProvider) {
