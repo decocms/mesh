@@ -28,7 +28,6 @@ import {
 interface MonitoringTransportOptions {
   ctx: MeshContext;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string;
 }
 
@@ -197,7 +196,6 @@ export class MonitoringTransport extends WrapperTransport {
         {
           organizationId: ctx.organization?.id ?? "",
           connectionId,
-          connectionTitle: this.options.connectionTitle,
           toolName,
           toolArguments,
           result: callToolResult,

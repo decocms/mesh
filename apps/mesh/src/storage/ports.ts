@@ -166,7 +166,6 @@ export type AggregationFunction =
 
 export type GroupByColumn =
   | "connection_id"
-  | "connection_title"
   | "user_id"
   | "tool_name"
   | "virtual_mcp_id";

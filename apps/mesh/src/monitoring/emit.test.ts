@@ -19,7 +19,6 @@ function makeParams(
   return {
     organizationId: "org_123",
     connectionId: "conn_456",
-    connectionTitle: "My MCP Server",
     toolName: "EXAMPLE_TOOL",
     toolArguments: { query: "test" },
     result: { content: [{ type: "text", text: "ok" }] },
@@ -49,7 +48,7 @@ describe("emitMonitoringLog", () => {
     expect(attrs[MONITORING_LOG_ATTR.TYPE]).toBe(MONITORING_LOG_TYPE_VALUE);
     expect(attrs[MONITORING_LOG_ATTR.ORGANIZATION_ID]).toBe("org_123");
     expect(attrs[MONITORING_LOG_ATTR.CONNECTION_ID]).toBe("conn_456");
-    expect(attrs[MONITORING_LOG_ATTR.CONNECTION_TITLE]).toBe("My MCP Server");
+    expect(attrs[MONITORING_LOG_ATTR.CONNECTION_TITLE]).toBe("");
     expect(attrs[MONITORING_LOG_ATTR.TOOL_NAME]).toBe("EXAMPLE_TOOL");
     expect(attrs[MONITORING_LOG_ATTR.IS_ERROR]).toBe(false);
     expect(attrs[MONITORING_LOG_ATTR.DURATION_MS]).toBe(150);

@@ -23,7 +23,6 @@ const redactor = new RegexRedactor();
 export interface EmitMonitoringLogParams {
   organizationId: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   toolArguments: Record<string, unknown> | undefined;
   result: unknown;
@@ -69,7 +68,7 @@ export function emitMonitoringLog(
         [MONITORING_LOG_ATTR.TYPE]: params.type ?? MONITORING_LOG_TYPE_VALUE,
         [MONITORING_LOG_ATTR.ORGANIZATION_ID]: params.organizationId,
         [MONITORING_LOG_ATTR.CONNECTION_ID]: params.connectionId,
-        [MONITORING_LOG_ATTR.CONNECTION_TITLE]: params.connectionTitle,
+        [MONITORING_LOG_ATTR.CONNECTION_TITLE]: "",
         [MONITORING_LOG_ATTR.TOOL_NAME]: params.toolName,
         [MONITORING_LOG_ATTR.INPUT]: JSON.stringify(redactedInput),
         [MONITORING_LOG_ATTR.OUTPUT]: JSON.stringify(redactedOutput),

@@ -54,7 +54,6 @@ function esc(value: string): string {
 /** Allowed groupByColumn values. */
 const ALLOWED_GROUP_BY_COLUMNS = new Set<GroupByColumn>([
   "connection_id",
-  "connection_title",
   "user_id",
   "tool_name",
   "virtual_mcp_id",
@@ -177,7 +176,6 @@ function toMonitoringLog(row: Record<string, unknown>): MonitoringLog {
     id: String(row.id ?? ""),
     organizationId: String(row.organization_id ?? ""),
     connectionId: String(row.connection_id ?? ""),
-    connectionTitle: String(row.connection_title ?? ""),
     toolName: String(row.tool_name ?? ""),
     input: safeJsonParse(row.input),
     output: safeJsonParse(row.output),
@@ -282,7 +280,6 @@ const LIST_COLUMNS = [
   "id",
   "organization_id",
   "connection_id",
-  "connection_title",
   "tool_name",
   "is_error",
   "error_message",

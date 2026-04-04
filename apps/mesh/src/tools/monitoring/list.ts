@@ -13,7 +13,6 @@ const monitoringLogSchema = z.object({
   id: z.string().optional().describe("Unique log identifier"),
   organizationId: z.string().describe("Organization ID"),
   connectionId: z.string().describe("Connection ID"),
-  connectionTitle: z.string().describe("Connection display name"),
   toolName: z.string().describe("Name of the tool that was called"),
   isError: z.boolean().describe("Whether the call resulted in an error"),
   errorMessage: z.string().nullish().describe("Error message if applicable"),

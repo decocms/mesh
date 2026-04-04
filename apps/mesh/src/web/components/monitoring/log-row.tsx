@@ -64,7 +64,7 @@ export function LogRow({
         <div className="flex items-center justify-center">
           <IntegrationIcon
             icon={connection?.icon || null}
-            name={log.connectionTitle}
+            name={connection?.title ?? log.connectionId}
             size="xs"
             className="shadow-sm"
           />
@@ -77,7 +77,7 @@ export function LogRow({
           {log.toolName}
         </div>
         <div className="text-muted-foreground truncate block text-xs">
-          {log.connectionTitle}
+          {connection?.title ?? log.connectionId}
         </div>
       </TableCell>
 

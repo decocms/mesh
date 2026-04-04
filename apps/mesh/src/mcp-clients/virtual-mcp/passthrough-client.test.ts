@@ -175,30 +175,6 @@ describe("PassthroughClient", () => {
     });
   });
 
-  describe("metadata", () => {
-    it("listTools includes connectionId and connectionTitle in _meta", async () => {
-      const conn = makeConnection("conn_abc", "My Server");
-      const client = makeMockClient([{ name: "doStuff" }]);
-
-      mockCreateLazyClient.mockReturnValue(client as any);
-
-      const pt = new PassthroughClient(
-        {
-          connections: [conn],
-          virtualMcp: makeVirtualMcp([makeVmcpConn("conn_abc")]),
-        },
-        mockCtx,
-      );
-
-      const result = await pt.listTools();
-      const meta = result.tools[0]!._meta as Record<string, unknown>;
-
-      expect(meta.connectionId).toBe("conn_abc");
-      expect(meta.connectionTitle).toBe("My Server");
-      expect(meta.gatewayClientId).toBe("conn_abc");
-    });
-  });
-
   describe("routing", () => {
     it("callTool routes to correct upstream client with original name", async () => {
       const conn = makeConnection("conn_xyz", "XYZ");
