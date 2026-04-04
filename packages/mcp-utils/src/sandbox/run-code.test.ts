@@ -117,8 +117,8 @@ describe("runCode", () => {
         timeoutMs: 5000,
       });
 
-      // The error may be caught in sandbox or propagated
-      expect(result.consoleLogs).toBeDefined();
+      expect(result.error).toBeUndefined();
+      expect(result.returnValue).toBe("caught error");
     });
   });
 

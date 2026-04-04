@@ -277,7 +277,12 @@ export class GatewayClient implements IClient {
       const selectedSet = selected ? new Set(selected) : null;
 
       for (const resource of clientResources) {
-        if (selectedSet && !selectedSet.has(resource.uri)) continue;
+        if (
+          selectedSet &&
+          !selectedSet.has(resource.uri) &&
+          !(resource.name && selectedSet.has(resource.name))
+        )
+          continue;
 
         if (seen.has(resource.uri)) {
           console.warn(

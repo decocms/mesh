@@ -82,8 +82,6 @@ export function toQuickJS(
                       ctx,
                       resolvedValue,
                       maxDepth,
-                      _depth + 1,
-                      _seen,
                     );
                     deferredPromise.resolve(quickJSValue);
                     quickJSValue.dispose();
@@ -111,7 +109,7 @@ export function toQuickJS(
               return deferredPromise.handle;
             }
 
-            return toQuickJS(ctx, result, maxDepth, _depth + 1, _seen);
+            return toQuickJS(ctx, result, maxDepth);
           } catch (e) {
             const msg = inspect(e);
             return ctx.newString(`HostFunctionError: ${msg}`);

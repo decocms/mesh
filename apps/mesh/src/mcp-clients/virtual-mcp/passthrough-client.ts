@@ -157,8 +157,11 @@ export class PassthroughClient extends Client {
           "callStreamableTool" in client &&
           typeof (client as any).callStreamableTool === "function"
         ) {
+          // Strip namespace prefix — tool names are "slug_originalName"
+          const sep = name.indexOf("_");
+          const originalName = sep !== -1 ? name.slice(sep + 1) : name;
           return (client as StreamableMCPProxyClient).callStreamableTool(
-            name,
+            originalName,
             args,
           );
         }

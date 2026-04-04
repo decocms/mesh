@@ -217,41 +217,46 @@ describe("splice-based drain", () => {
     expect((received[1] as any).id).toBe(2);
   });
 
-  it("start() flushes messages queued before start when onmessage is set", async () => {
+  it("start() flushes messages queued before start when onmessage is set before start()", async () => {
+    // flush() returns early when transport is not started yet, leaving messages in queue.
+    // start() calls flush() again once started=true, delivering the queued messages.
     const { client, server } = createBridgeTransportPair();
     const received: JSONRPCMessage[] = [];
 
-    // Send messages before server starts (send doesn't check started)
-    // Messages queue in channel's serverQueue
+    // Send before server starts; the scheduled microtask flush will leave
+    // messages in queue because started=false at flush time.
     client.send(makeMessage(1));
     client.send(makeMessage(2));
 
-    // Set onmessage before start
+    // Set onmessage then start — start() calls flush() which now delivers.
     server.onmessage = (msg) => received.push(msg);
-    // start() triggers flush if onmessage is set
     await server.start();
 
-    // Let microtasks run (the flush from send was scheduled, but deliverMessage
-    // returned early because started was false. start() calls flush again.)
     await new Promise<void>((r) => queueMicrotask(r));
 
-    // Messages were already drained by the microtask flush before start.
-    // start() flushes again but queue is empty. So messages are lost.
-    // This is expected behavior - messages sent before the receiver starts
-    // and before the first flush runs will be delivered by the scheduled
-    // microtask, but deliverMessage checks started=false and drops them.
-    // This is a known design choice. Test that post-start messages work.
-    const postStartReceived: JSONRPCMessage[] = [];
-    const { client: c2, server: s2 } = createBridgeTransportPair();
-    s2.onmessage = (msg) => postStartReceived.push(msg);
-    await s2.start();
-    await c2.start();
+    expect(received).toHaveLength(2);
+    expect((received[0] as any).id).toBe(1);
+    expect((received[1] as any).id).toBe(2);
+  });
 
-    c2.send(makeMessage(3));
+  it("messages queued before start() are silently lost when onmessage is set after awaiting start()", async () => {
+    // awaiting start() drains the microtask queue; the scheduled flush runs with
+    // started=true but onmessage=undefined, so deliverMessage no-ops and the
+    // messages are consumed. Setting onmessage afterwards finds an empty queue.
+    const { client, server } = createBridgeTransportPair();
+    const received: JSONRPCMessage[] = [];
+
+    client.send(makeMessage(1));
+    client.send(makeMessage(2));
+
+    // Awaiting start() lets the microtask flush run; messages are delivered to
+    // a no-op handler (onmessage not yet set) and permanently lost.
+    await server.start();
+    server.onmessage = (msg) => received.push(msg);
+
     await new Promise<void>((r) => queueMicrotask(r));
 
-    expect(postStartReceived).toHaveLength(1);
-    expect((postStartReceived[0] as any).id).toBe(3);
+    expect(received).toHaveLength(0);
   });
 });
 

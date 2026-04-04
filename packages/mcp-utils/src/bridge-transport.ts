@@ -55,8 +55,14 @@ class BridgeChannel {
   private serverFlushScheduled = false;
 
   // Use type-only forward reference to avoid circular dependency
-  private clientTransport?: { deliverMessage(message: JSONRPCMessage): void };
-  private serverTransport?: { deliverMessage(message: JSONRPCMessage): void };
+  private clientTransport?: {
+    started: boolean;
+    deliverMessage(message: JSONRPCMessage): void;
+  };
+  private serverTransport?: {
+    started: boolean;
+    deliverMessage(message: JSONRPCMessage): void;
+  };
 
   /**
    * Register transports with the channel and link them to each other.
@@ -175,8 +181,13 @@ class BridgeChannel {
       return;
     }
 
+    if (!transport.started) {
+      // Transport not started yet — leave messages in queue so start() / onmessage setter
+      // can flush them once the transport is ready to receive.
+      return;
+    }
+
     // Drain queue in FIFO order and deliver to transport
-    // Continue draining even if transport isn't ready yet - deliverMessage will check
     const batch = queue.splice(0);
     for (const message of batch) {
       transport.deliverMessage(message);
@@ -198,7 +209,7 @@ class BridgeChannel {
 abstract class BaseBridgeTransport implements Transport {
   protected channel: BridgeChannel;
   protected side: TransportSide;
-  protected started = false;
+  started = false;
   protected closed = false;
   private _onmessage?: (message: JSONRPCMessage) => void;
   private _onerror?: (error: Error) => void;

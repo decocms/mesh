@@ -34,6 +34,9 @@ export async function runCodeWithTools({
           .filter((c: any) => c.type === "text")
           .map((c: any) => c.text);
         const text = textParts.join("\n");
+        if (result.isError) {
+          throw new Error(text || `Tool "${tool.name}" returned an error`);
+        }
         try {
           return JSON.parse(text);
         } catch {

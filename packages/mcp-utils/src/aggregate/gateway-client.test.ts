@@ -300,6 +300,24 @@ describe("GatewayClient", () => {
       expect(result.resources[0].uri).toBe("file:///a.txt");
     });
 
+    it("filters resources by selected names (name-first IDs)", async () => {
+      const client = createMockClient(
+        [],
+        [
+          { uri: "file:///a.txt", name: "a" },
+          { uri: "file:///b.txt", name: "b" },
+        ],
+      );
+
+      const gw = new GatewayClient({
+        c: { client, resources: ["a"] },
+      });
+
+      const result = await gw.listResources();
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].uri).toBe("file:///a.txt");
+    });
+
     it("filters prompts by selected names", async () => {
       const client = createMockClient([], [], [{ name: "p1" }, { name: "p2" }]);
 
