@@ -22,7 +22,6 @@ const SCRIPT_DIR =
 const SERVER_ENTRY_POINT = join(SCRIPT_DIR, "../src/index.ts");
 const CLI_ENTRY_POINT = join(SCRIPT_DIR, "../src/cli.ts");
 const ALWAYS_INCLUDE = [
-  "@jitl/quickjs-wasmfile-release-sync",
   "@anthropic-ai/claude-agent-sdk",
   "embedded-postgres",
   "ink",
@@ -55,6 +54,14 @@ function parseArgs() {
 // Script is at apps/mesh/scripts, so we need to go up three levels to the repo root
 const WORKSPACE_ROOT = resolve(SCRIPT_DIR, "../../..");
 const MESH_APP_ROOT = resolve(SCRIPT_DIR, "..");
+// Packages that live in workspace packages (not apps/mesh) but whose native/WASM
+// assets need to be included in the bundle. Resolved from their owning workspace.
+const WORKSPACE_INCLUDES: Array<{ pkg: string; from: string }> = [
+  {
+    pkg: "@jitl/quickjs-wasmfile-release-sync",
+    from: resolve(WORKSPACE_ROOT, "packages/mcp-utils"),
+  },
+];
 
 // Get dist path from args or use default
 const { distPath } = parseArgs();
@@ -136,6 +143,16 @@ async function pruneNodeModules(): Promise<Set<string>> {
       console.log(`📦 Migration entry point: ${entryPoint} -> ${resolved}`);
     } catch (error) {
       console.error(`❌ Failed to resolve ${entryPoint}:`, error);
+      process.exit(1);
+    }
+  }
+  for (const { pkg, from } of WORKSPACE_INCLUDES) {
+    try {
+      const resolved = Bun.resolveSync(pkg, from);
+      migrateEntryPointPaths.push(resolved);
+      console.log(`📦 Workspace entry point: ${pkg} -> ${resolved}`);
+    } catch (error) {
+      console.error(`❌ Failed to resolve ${pkg} from ${from}:`, error);
       process.exit(1);
     }
   }
