@@ -1,6 +1,6 @@
 /**
  * GatewayClient — Aggregates tools, resources, and prompts from multiple
- * MCP clients into a single unified IClient.
+ * MCP clients into a single unified Client.
  *
  * Key features:
  * - Lazy client resolution (factory functions called on first use, cached)
@@ -10,12 +10,16 @@
  * - Metadata tagging (_meta.gatewayClientId on every item)
  */
 
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
   CallToolRequest,
   CallToolResult,
+  ClientCapabilities,
   CompatibilityCallToolResult,
   GetPromptRequest,
   GetPromptResult,
+  Implementation,
   ListPromptsResult,
   ListResourcesResult,
   ListResourceTemplatesResult,
@@ -59,7 +63,12 @@ export function slugify(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export class GatewayClient implements IClient {
+export interface GatewayClientOptions {
+  clientInfo?: Implementation;
+  capabilities?: ClientCapabilities;
+}
+
+export class GatewayClient extends Client {
   private readonly clients: Record<string, ClientEntry>;
   private readonly slugToKey = new Map<string, string>();
 
@@ -76,7 +85,13 @@ export class GatewayClient implements IClient {
   /** Route map for resources (URIs aren't namespaced). */
   private resourceRouteMap = new Map<string, string>();
 
-  constructor(clients: Record<string, ClientEntry>) {
+  constructor(
+    clients: Record<string, ClientEntry>,
+    options?: GatewayClientOptions,
+  ) {
+    super(options?.clientInfo ?? { name: "gateway-client", version: "1.0.0" }, {
+      capabilities: options?.capabilities,
+    });
     this.clients = clients;
     for (const key of Object.keys(clients)) {
       const slug = slugify(key);
@@ -223,7 +238,10 @@ export class GatewayClient implements IClient {
   // List methods (cached, namespaced, filtered)
   // ---------------------------------------------------------------------------
 
-  listTools(): Promise<ListToolsResult> {
+  override listTools(
+    _params?: unknown,
+    _options?: RequestOptions,
+  ): Promise<ListToolsResult> {
     if (!this.toolsCache) {
       this.toolsCache = this.aggregateTools();
     }
@@ -257,7 +275,10 @@ export class GatewayClient implements IClient {
     return { tools };
   }
 
-  listResources(): Promise<ListResourcesResult> {
+  override listResources(
+    _params?: unknown,
+    _options?: RequestOptions,
+  ): Promise<ListResourcesResult> {
     if (!this.resourcesCache) {
       this.resourcesCache = this.aggregateResources();
     }
@@ -307,7 +328,10 @@ export class GatewayClient implements IClient {
     return { resources };
   }
 
-  listResourceTemplates(): Promise<ListResourceTemplatesResult> {
+  override listResourceTemplates(
+    _params?: unknown,
+    _options?: RequestOptions,
+  ): Promise<ListResourceTemplatesResult> {
     if (!this.resourceTemplatesCache) {
       this.resourceTemplatesCache = this.aggregateResourceTemplates();
     }
@@ -344,7 +368,10 @@ export class GatewayClient implements IClient {
     return { resourceTemplates };
   }
 
-  listPrompts(): Promise<ListPromptsResult> {
+  override listPrompts(
+    _params?: unknown,
+    _options?: RequestOptions,
+  ): Promise<ListPromptsResult> {
     if (!this.promptsCache) {
       this.promptsCache = this.aggregatePrompts();
     }
@@ -382,10 +409,10 @@ export class GatewayClient implements IClient {
   // Routing: callTool / readResource / getPrompt
   // ---------------------------------------------------------------------------
 
-  async callTool(
+  override async callTool(
     params: CallToolRequest["params"],
     resultSchema?: unknown,
-    options?: { timeout?: number },
+    options?: RequestOptions,
   ): Promise<CallToolResult | CompatibilityCallToolResult> {
     const [clientKey, originalName] = this.parseNamespace(params.name);
     const client = await this.resolveClient(clientKey);
@@ -396,16 +423,18 @@ export class GatewayClient implements IClient {
     );
   }
 
-  async readResource(
+  override async readResource(
     params: ReadResourceRequest["params"],
+    _options?: RequestOptions,
   ): Promise<ReadResourceResult> {
     const clientKey = await this.resolveResourceRoute(params.uri);
     const client = await this.resolveClient(clientKey);
     return client.readResource(params);
   }
 
-  async getPrompt(
+  override async getPrompt(
     params: GetPromptRequest["params"],
+    _options?: RequestOptions,
   ): Promise<GetPromptResult> {
     const [clientKey, originalName] = this.parseNamespace(params.name);
     const client = await this.resolveClient(clientKey);
@@ -435,11 +464,11 @@ export class GatewayClient implements IClient {
   // Capabilities & instructions
   // ---------------------------------------------------------------------------
 
-  getServerCapabilities(): ServerCapabilities {
+  override getServerCapabilities(): ServerCapabilities {
     return { tools: {}, resources: {}, prompts: {} };
   }
 
-  getInstructions(): undefined {
+  override getInstructions(): string | undefined {
     return undefined;
   }
 
@@ -462,7 +491,7 @@ export class GatewayClient implements IClient {
    * Close all resolved (materialized) clients. Uses Promise.allSettled so
    * a failure in one client does not prevent closing others.
    */
-  async close(): Promise<void> {
+  override async close(): Promise<void> {
     const closePromises = [...this.resolvedClients.values()].map((p) =>
       p
         .then((client) => client.close())
@@ -471,5 +500,6 @@ export class GatewayClient implements IClient {
         }),
     );
     await Promise.allSettled(closePromises);
+    await super.close();
   }
 }

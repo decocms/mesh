@@ -1,23 +1,12 @@
 /**
  * PassthroughClient
  *
- * Thin wrapper around GatewayClient that aggregates tools, resources, and prompts
- * from multiple connections. Extends the MCP SDK Client class for backward compatibility.
+ * Extends GatewayClient with mesh-specific concerns: connection metadata
+ * enrichment on tools, streaming tool calls, and VirtualMCP instructions.
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type {
-  CallToolRequest,
-  CallToolResult,
-  GetPromptRequest,
-  GetPromptResult,
-  ListPromptsResult,
-  ListResourcesResult,
-  ListToolsResult,
-  ReadResourceRequest,
-  ReadResourceResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 import { GatewayClient, type ClientEntry } from "@decocms/mcp-utils/aggregate";
 import type { MeshContext } from "../../core/mesh-context";
 import type { ConnectionEntity } from "../../tools/connection/schema";
@@ -28,34 +17,16 @@ import type { VirtualClientOptions } from "./types";
  * Aggregates MCP resources from multiple connections via GatewayClient.
  * Tool/prompt names are namespaced with slugified connection IDs.
  */
-export class PassthroughClient extends Client {
-  private _gateway: GatewayClient;
+export class PassthroughClient extends GatewayClient {
   private _connections: Map<string, ConnectionEntity>;
 
   constructor(
     protected options: VirtualClientOptions,
     protected ctx: MeshContext,
   ) {
-    super(
-      { name: "virtual-mcp-passthrough", version: "1.0.0" },
-      {
-        capabilities: {
-          tasks: {
-            list: {},
-            cancel: {},
-            requests: {
-              tool: {
-                call: {},
-              },
-            },
-          },
-        },
-      },
-    );
-
-    this._connections = new Map();
+    const connections = new Map<string, ConnectionEntity>();
     for (const connection of options.connections) {
-      this._connections.set(connection.id, connection);
+      connections.set(connection.id, connection);
     }
 
     // Build VirtualMCP connection lookup for per-client selection
@@ -89,11 +60,26 @@ export class PassthroughClient extends Client {
       };
     }
 
-    this._gateway = new GatewayClient(clients);
+    super(clients, {
+      clientInfo: { name: "virtual-mcp-passthrough", version: "1.0.0" },
+      capabilities: {
+        tasks: {
+          list: {},
+          cancel: {},
+          requests: {
+            tool: {
+              call: {},
+            },
+          },
+        },
+      },
+    });
+
+    this._connections = connections;
   }
 
   override async listTools(): Promise<ListToolsResult> {
-    const result = await this._gateway.listTools();
+    const result = await super.listTools();
     return {
       tools: result.tools.map((tool) => {
         const meta = tool._meta as Record<string, unknown> | undefined;
@@ -111,48 +97,18 @@ export class PassthroughClient extends Client {
     };
   }
 
-  override async callTool(
-    params: CallToolRequest["params"],
-  ): Promise<CallToolResult> {
-    return (await this._gateway.callTool(params)) as CallToolResult;
-  }
-
-  override async listResources(): Promise<ListResourcesResult> {
-    return this._gateway.listResources();
-  }
-
-  override async readResource(
-    params: ReadResourceRequest["params"],
-  ): Promise<ReadResourceResult> {
-    return this._gateway.readResource(params);
-  }
-
-  override async listResourceTemplates() {
-    return this._gateway.listResourceTemplates();
-  }
-
-  override async listPrompts(): Promise<ListPromptsResult> {
-    return this._gateway.listPrompts();
-  }
-
-  override async getPrompt(
-    params: GetPromptRequest["params"],
-  ): Promise<GetPromptResult> {
-    return this._gateway.getPrompt(params);
-  }
-
   async callStreamableTool(
     name: string,
     args: Record<string, unknown>,
   ): Promise<Response> {
-    const tools = await this._gateway.listTools();
+    const tools = await super.listTools();
     const tool = tools.tools.find((t) => t.name === name);
     const clientKey = (tool?._meta as Record<string, unknown> | undefined)
       ?.gatewayClientId as string | undefined;
 
     if (clientKey) {
       try {
-        const client = await this._gateway.getResolvedClient(clientKey);
+        const client = await this.getResolvedClient(clientKey);
         if (
           "callStreamableTool" in client &&
           typeof (client as any).callStreamableTool === "function"
@@ -171,19 +127,14 @@ export class PassthroughClient extends Client {
     }
 
     // Fallback: non-streaming
-    const result = await this._gateway.callTool({ name, arguments: args });
+    const result = await this.callTool({ name, arguments: args });
     return new Response(JSON.stringify(result), {
       headers: { "Content-Type": "application/json" },
     });
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
-    await this._gateway.close();
-  }
-
-  override async close(): Promise<void> {
-    await this._gateway.close();
-    await super.close();
+    await this.close();
   }
 
   override getInstructions(): string | undefined {
