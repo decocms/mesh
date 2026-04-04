@@ -20,7 +20,7 @@
         "src/api/routes/dev-only.ts"
       ],
       "ignore": ["src/api/index.ts"],
-      // Used in bundle script's ALWAYS_INCLUDE for QuickJS WASM resolution
+      // Resolved at bundle-time by scripts/bundle-server-script.ts ALWAYS_INCLUDE
       "ignoreDependencies": ["@jitl/quickjs-wasmfile-release-sync"]
     },
     "packages/mesh-sdk": {
