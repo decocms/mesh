@@ -6,10 +6,8 @@
  */
 
 import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
-import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 import { GatewayClient, type ClientEntry } from "@decocms/mcp-utils/aggregate";
 import type { MeshContext } from "../../core/mesh-context";
-import type { ConnectionEntity } from "../../tools/connection/schema";
 import { createLazyClient } from "../lazy-client";
 import type { VirtualClientOptions } from "./types";
 
@@ -18,17 +16,10 @@ import type { VirtualClientOptions } from "./types";
  * Tool/prompt names are namespaced with slugified connection IDs.
  */
 export class PassthroughClient extends GatewayClient {
-  private _connections: Map<string, ConnectionEntity>;
-
   constructor(
     protected options: VirtualClientOptions,
     protected ctx: MeshContext,
   ) {
-    const connections = new Map<string, ConnectionEntity>();
-    for (const connection of options.connections) {
-      connections.set(connection.id, connection);
-    }
-
     // Build VirtualMCP connection lookup for per-client selection
     const vmcpConnMap = new Map(
       options.virtualMcp.connections.map((c) => [c.connection_id, c]),
@@ -74,27 +65,6 @@ export class PassthroughClient extends GatewayClient {
         },
       },
     });
-
-    this._connections = connections;
-  }
-
-  override async listTools(): Promise<ListToolsResult> {
-    const result = await super.listTools();
-    return {
-      tools: result.tools.map((tool) => {
-        const meta = tool._meta as Record<string, unknown> | undefined;
-        const connId = meta?.gatewayClientId as string | undefined;
-        const conn = connId ? this._connections.get(connId) : undefined;
-        return {
-          ...tool,
-          _meta: {
-            ...meta,
-            connectionId: connId ?? "",
-            connectionTitle: conn?.title ?? "",
-          },
-        };
-      }),
-    };
   }
 
   /** @deprecated Use standard callTool instead. */
@@ -103,7 +73,7 @@ export class PassthroughClient extends GatewayClient {
     args: Record<string, unknown>,
   ): Promise<Response> {
     console.warn(
-      `[DEPRECATED] callStreamableTool called — tool: ${name}, org: ${this.ctx.auth?.session?.activeOrganizationId ?? "unknown"}, virtualMcp: ${this.options.virtualMcp.id}`,
+      `[DEPRECATED] callStreamableTool called — tool: ${name}, org: ${this.ctx.organization?.id ?? "unknown"}, virtualMcp: ${this.options.virtualMcp.id}`,
       { tool: name, args },
     );
     const tools = await super.listTools();
