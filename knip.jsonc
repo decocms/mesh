@@ -19,7 +19,9 @@
         // Dev-only module loaded via require() - needs explicit entry
         "src/api/routes/dev-only.ts"
       ],
-      "ignore": ["src/api/index.ts"]
+      "ignore": ["src/api/index.ts"],
+      // Used in bundle script's ALWAYS_INCLUDE for QuickJS WASM resolution
+      "ignoreDependencies": ["@jitl/quickjs-wasmfile-release-sync"]
     },
     "packages/mesh-sdk": {
       "ignoreDependencies": ["sonner"]
