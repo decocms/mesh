@@ -97,10 +97,15 @@ export class PassthroughClient extends GatewayClient {
     };
   }
 
+  /** @deprecated Use standard callTool instead. */
   async callStreamableTool(
     name: string,
     args: Record<string, unknown>,
   ): Promise<Response> {
+    console.warn(
+      `[DEPRECATED] callStreamableTool called — tool: ${name}, org: ${this.ctx.auth?.session?.activeOrganizationId ?? "unknown"}, virtualMcp: ${this.options.virtualMcp.id}`,
+      { tool: name, args },
+    );
     const tools = await super.listTools();
     const tool = tools.tools.find((t) => t.name === name);
     const clientKey = (tool?._meta as Record<string, unknown> | undefined)
