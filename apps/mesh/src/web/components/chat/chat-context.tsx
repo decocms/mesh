@@ -43,6 +43,7 @@ import {
 import { useContext as useContextHook } from "../../hooks/use-context";
 import {
   usePreferences,
+  readToolApprovalLevel,
   type ToolApprovalLevel,
 } from "../../hooks/use-preferences";
 import { useInvalidateCollectionsOnToolCall } from "../../hooks/use-invalidate-collections-on-tool-call";
@@ -298,12 +299,6 @@ export function ChatContextProvider({
   const tiptapDocRef = useRef<Metadata["tiptapDoc"]>(tiptapDoc);
   tiptapDocRef.current = tiptapDoc;
 
-  // Refs for transport closure (avoid stale captures)
-  const prefsRef = useRef({
-    toolApprovalLevel: preferences.toolApprovalLevel,
-  });
-  prefsRef.current = { toolApprovalLevel: preferences.toolApprovalLevel };
-
   // Transport (created once per provider mount via ref)
   const transportRef = useRef<DefaultChatTransport<UIMessage<Metadata>> | null>(
     null,
@@ -346,9 +341,7 @@ export function ChatContextProvider({
           body: {
             messages: allMessages,
             ...mergedMetadata,
-            ...(prefsRef.current.toolApprovalLevel && {
-              toolApprovalLevel: prefsRef.current.toolApprovalLevel,
-            }),
+            toolApprovalLevel: readToolApprovalLevel(),
           },
         };
       },

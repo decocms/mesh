@@ -35,6 +35,22 @@ const VALID_TOOL_APPROVAL_LEVELS: ToolApprovalLevel[] = [
 
 const VALID_THEME_MODES: ThemeMode[] = ["light", "dark", "system"];
 
+/**
+ * Read toolApprovalLevel directly from localStorage (no React state).
+ * Useful when the value must be fresh outside the React render cycle.
+ */
+export function readToolApprovalLevel(): ToolApprovalLevel {
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(LOCALSTORAGE_KEYS.preferences()) ?? "{}",
+    );
+    if (VALID_TOOL_APPROVAL_LEVELS.includes(raw.toolApprovalLevel)) {
+      return raw.toolApprovalLevel;
+    }
+  } catch {}
+  return "readonly";
+}
+
 export function usePreferences() {
   return useLocalStorage<Preferences>(
     LOCALSTORAGE_KEYS.preferences(),
