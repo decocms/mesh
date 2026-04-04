@@ -484,12 +484,20 @@ export async function createApp(options: CreateAppOptions = {}) {
     // Use pool.connect() directly so we can destroy the client on timeout,
     // preventing hung connections from leaking back into the pool.
     try {
-      const client = await Promise.race([
-        database.pool.connect(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("pg health-check timeout")), 5_000),
-        ),
-      ]);
+      const connectPromise = database.pool.connect();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("pg health-check timeout")), 5_000),
+      );
+      const client = await Promise.race([connectPromise, timeoutPromise]).catch(
+        async (error) => {
+          // If connect() resolves after the timeout won the race, release
+          // the late-acquired client so it doesn't leak from the pool.
+          void connectPromise
+            .then((lateClient) => lateClient.release(true))
+            .catch(() => {});
+          throw error;
+        },
+      );
       try {
         await Promise.race([
           client.query("SELECT 1"),
