@@ -1,5 +1,6 @@
 export {
   GatewayClient,
+  slugify,
   type ClientOrFactory,
-  type GatewayClientOptions,
+  type ClientEntry,
 } from "./gateway-client.ts";
