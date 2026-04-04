@@ -482,8 +482,15 @@ export async function createApp(options: CreateAppOptions = {}) {
     const services: Record<string, { status: "up" | "down" }> = {};
 
     // Check PostgreSQL (hard dependency — determines readiness)
+    // Race against a timeout so that stale pooled connections don't cause
+    // the health endpoint to hang when Postgres is unreachable.
     try {
-      await sql`SELECT 1`.execute(database.db);
+      await Promise.race([
+        sql`SELECT 1`.execute(database.db),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("pg health-check timeout")), 5_000),
+        ),
+      ]);
       services.postgres = { status: "up" };
     } catch {
       services.postgres = { status: "down" };
