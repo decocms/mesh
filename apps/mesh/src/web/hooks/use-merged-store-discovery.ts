@@ -91,120 +91,127 @@ function useRegistryGroupQuery(
 
   const where = buildRegistrySearchWhere(search);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useInfiniteQuery({
-      queryKey: KEYS.storeDiscovery(orgId, `${groupKey}:${search ?? ""}`),
-      queryFn: async ({ pageParam }): Promise<RegistryPageResult[]> => {
-        const cursors: PageParam = pageParam ?? {};
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isPlaceholderData,
+  } = useInfiniteQuery({
+    queryKey: KEYS.storeDiscovery(orgId, `${groupKey}:${search ?? ""}`),
+    queryFn: async ({ pageParam, signal }): Promise<RegistryPageResult[]> => {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      const cursors: PageParam = pageParam ?? {};
 
-        const results = await Promise.all(
-          registries.map(async (registry): Promise<RegistryPageResult> => {
-            const cursor = cursors[registry.id];
-            if (cursor === "EXHAUSTED") {
-              return {
-                registryId: registry.id,
-                registryTitle: registry.title,
-                registryIcon: registry.icon,
-                items: [],
-              };
-            }
-
-            const listToolName = inferRegistryListToolName(registry.id, orgId);
-
-            // Per-registry retry (2 attempts) since Promise.all would
-            // otherwise let one failure reject the entire group
-            let lastError: unknown;
-            for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-              let client: Awaited<ReturnType<typeof createMCPClient>> | null =
-                null;
-              try {
-                client = await createMCPClient({
-                  connectionId: registry.id,
-                  orgId,
-                });
-
-                const params: Record<string, unknown> = { limit: PAGE_SIZE };
-                if (cursor) {
-                  params.cursor = cursor;
-                }
-                if (where) {
-                  params.where = where;
-                }
-
-                const result = (await client.callTool({
-                  name: listToolName,
-                  arguments: params,
-                })) as { structuredContent?: unknown };
-
-                const payload = (result.structuredContent ?? result) as Record<
-                  string,
-                  unknown
-                >;
-
-                const nextCursor =
-                  (payload as { nextCursor?: string; cursor?: string })
-                    .nextCursor ||
-                  (payload as { nextCursor?: string; cursor?: string })
-                    .cursor ||
-                  undefined;
-
-                const items = flattenPaginatedItems<RegistryItem>(
-                  payload ? [payload] : [],
-                );
-
-                return {
-                  registryId: registry.id,
-                  registryTitle: registry.title,
-                  registryIcon: registry.icon,
-                  items,
-                  nextCursor,
-                };
-              } catch (err) {
-                lastError = err;
-              } finally {
-                await client?.close().catch(() => {});
-              }
-            }
-
-            // All retries exhausted — log and return empty so other registries
-            // in the group are not affected
-            console.warn(
-              `[useMergedStoreDiscovery] Registry "${registry.title}" (${registry.id}) failed after ${RETRY_ATTEMPTS} attempts:`,
-              lastError,
-            );
+      const results = await Promise.all(
+        registries.map(async (registry): Promise<RegistryPageResult> => {
+          const cursor = cursors[registry.id];
+          if (cursor === "EXHAUSTED") {
             return {
               registryId: registry.id,
               registryTitle: registry.title,
               registryIcon: registry.icon,
               items: [],
             };
-          }),
-        );
-
-        return results;
-      },
-      initialPageParam: {} as PageParam,
-      getNextPageParam: (lastPage) => {
-        const nextCursors: PageParam = {};
-        let anyHasMore = false;
-
-        for (const result of lastPage) {
-          if (!result.registryId) continue;
-          if (result.nextCursor) {
-            nextCursors[result.registryId] = result.nextCursor;
-            anyHasMore = true;
-          } else {
-            nextCursors[result.registryId] = "EXHAUSTED";
           }
-        }
 
-        return anyHasMore ? nextCursors : undefined;
-      },
-      staleTime: 60 * 60 * 1000,
-      placeholderData: keepPreviousData,
-      retry: false,
-      enabled: enabled && registries.length > 0,
-    });
+          const listToolName = inferRegistryListToolName(registry.id, orgId);
+
+          // Per-registry retry (2 attempts) since Promise.all would
+          // otherwise let one failure reject the entire group
+          let lastError: unknown;
+          for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+            if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+            let client: Awaited<ReturnType<typeof createMCPClient>> | null =
+              null;
+            try {
+              client = await createMCPClient({
+                connectionId: registry.id,
+                orgId,
+              });
+
+              const params: Record<string, unknown> = { limit: PAGE_SIZE };
+              if (cursor) {
+                params.cursor = cursor;
+              }
+              if (where) {
+                params.where = where;
+              }
+
+              const result = (await client.callTool({
+                name: listToolName,
+                arguments: params,
+              })) as { structuredContent?: unknown };
+
+              const payload = (result.structuredContent ?? result) as Record<
+                string,
+                unknown
+              >;
+
+              const nextCursor =
+                (payload as { nextCursor?: string; cursor?: string })
+                  .nextCursor ||
+                (payload as { nextCursor?: string; cursor?: string }).cursor ||
+                undefined;
+
+              const items = flattenPaginatedItems<RegistryItem>(
+                payload ? [payload] : [],
+              );
+
+              return {
+                registryId: registry.id,
+                registryTitle: registry.title,
+                registryIcon: registry.icon,
+                items,
+                nextCursor,
+              };
+            } catch (err) {
+              lastError = err;
+            } finally {
+              await client?.close().catch(() => {});
+            }
+          }
+
+          // All retries exhausted — log and return empty so other registries
+          // in the group are not affected
+          console.warn(
+            `[useMergedStoreDiscovery] Registry "${registry.title}" (${registry.id}) failed after ${RETRY_ATTEMPTS} attempts:`,
+            lastError,
+          );
+          return {
+            registryId: registry.id,
+            registryTitle: registry.title,
+            registryIcon: registry.icon,
+            items: [],
+          };
+        }),
+      );
+
+      return results;
+    },
+    initialPageParam: {} as PageParam,
+    getNextPageParam: (lastPage) => {
+      const nextCursors: PageParam = {};
+      let anyHasMore = false;
+
+      for (const result of lastPage) {
+        if (!result.registryId) continue;
+        if (result.nextCursor) {
+          nextCursors[result.registryId] = result.nextCursor;
+          anyHasMore = true;
+        } else {
+          nextCursors[result.registryId] = "EXHAUSTED";
+        }
+      }
+
+      return anyHasMore ? nextCursors : undefined;
+    },
+    staleTime: 60 * 60 * 1000,
+    placeholderData: keepPreviousData,
+    retry: false,
+    enabled: enabled && registries.length > 0,
+  });
 
   // Flatten all pages, stamp source metadata
   const items: RegistryItem[] = [];
@@ -228,6 +235,7 @@ function useRegistryGroupQuery(
     hasMore: hasNextPage ?? false,
     isLoadingMore: isFetchingNextPage,
     isInitialLoading: isLoading,
+    isPlaceholderData: isPlaceholderData ?? false,
     fetchNextPage: () => {
       if (hasNextPage && !isFetchingNextPage) {
         fetchNextPage();
@@ -286,12 +294,20 @@ export function useMergedStoreDiscovery(
     allAvailable.push(...cQuery.items);
   }
 
-  // Append only new items (preserves position of existing items)
-  for (const item of allAvailable) {
-    const itemKey = `${item._registryId}:${item.id}`;
-    if (!seenIdsRef.current.has(itemKey)) {
-      seenIdsRef.current.add(itemKey);
-      committedItemsRef.current.push(item);
+  // Append only new items (preserves position of existing items).
+  // Skip when data is placeholder (stale from previous search via keepPreviousData)
+  // to avoid mixing old and new search results in the committed list.
+  const isPlaceholder =
+    ncQuery.isPlaceholderData ||
+    (allNonCommunityExhausted && cQuery.isPlaceholderData);
+
+  if (!isPlaceholder) {
+    for (const item of allAvailable) {
+      const itemKey = `${item._registryId}:${item.id}`;
+      if (!seenIdsRef.current.has(itemKey)) {
+        seenIdsRef.current.add(itemKey);
+        committedItemsRef.current.push(item);
+      }
     }
   }
 
