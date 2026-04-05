@@ -728,7 +728,6 @@ interface ConnectionResultsProps {
   statusFilter: ConnectionStatusFilter;
   registryFilter: string;
   enabledRegistries: Array<{ id: string; title: string; icon: string | null }>;
-  isStale: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -899,7 +898,6 @@ function ConnectionResults({
   statusFilter,
   registryFilter,
   enabledRegistries,
-  isStale: _isStale,
 }: ConnectionResultsProps) {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
@@ -2226,6 +2224,7 @@ function OrgMcpsContent() {
                     transition: isStale
                       ? "opacity 0.2s 0.2s linear"
                       : "opacity 0s 0s linear",
+                    pointerEvents: isStale ? "none" : "auto",
                   }}
                 >
                   <ConnectionResults
@@ -2235,7 +2234,6 @@ function OrgMcpsContent() {
                     statusFilter={statusFilter}
                     registryFilter={registryFilter}
                     enabledRegistries={enabledRegistries}
-                    isStale={isStale}
                   />
                 </div>
               </Suspense>
