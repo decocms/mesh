@@ -288,16 +288,14 @@ export function useCollectionList<T extends CollectionEntity>(
 
   const { data } = useSuspenseQuery({
     queryKey,
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       if (!client) {
         return EMPTY_COLLECTION_LIST_RESULT;
       }
-      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       const result = await client.callTool({
         name: listToolName,
         arguments: toolArguments,
       });
-      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       return result;
     },
     staleTime: 30_000,

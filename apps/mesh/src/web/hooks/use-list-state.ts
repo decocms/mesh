@@ -3,7 +3,7 @@ import { usePersistedFilters } from "@deco/ui/hooks/use-persisted-filters.ts";
 import { useSortable } from "@deco/ui/hooks/use-sortable.ts";
 import { useViewMode } from "@deco/ui/hooks/use-view-mode.ts";
 import type { BaseCollectionEntity } from "@decocms/bindings/collections";
-import { useRef, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 // Custom collection entity type that allows nullable IDs
 export type ListStateEntity = Omit<BaseCollectionEntity, "id"> & {
@@ -58,16 +58,9 @@ export function useListState<T extends ListStateEntity>(
     defaultViewMode = "table",
   } = options;
 
-  // Search state — debounce network requests (300ms) while keeping input responsive
-  const [search, setSearchRaw] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setSearch = (value: string) => {
-    setSearchRaw(value);
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => setSearchTerm(value), 300);
-  };
+  // Search state
+  const [search, setSearch] = useState("");
+  const searchTerm = useDeferredValue(search);
 
   // Filters (persisted)
   const filterPersistKey = `${namespace}-${resource}`;
