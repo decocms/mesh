@@ -30,7 +30,9 @@ describe("MCP server latency", () => {
     expect(result).toBeTruthy();
     expect(result.content?.[0]?.text).toContain("latency-test");
     expect(durationMs).toBeGreaterThanOrEqual(9_000);
-    console.log(`  → Moderate latency call completed in ${Math.round(durationMs)}ms`);
+    console.log(
+      `  → Moderate latency call completed in ${Math.round(durationMs)}ms`,
+    );
   }, 90_000);
 
   test("tool call times out with extreme latency (120s)", async () => {
@@ -51,7 +53,9 @@ describe("MCP server latency", () => {
       throw new Error("Expected timeout but call succeeded");
     } catch (error: any) {
       const durationMs = performance.now() - start;
-      console.log(`  → Extreme latency call aborted in ${Math.round(durationMs)}ms: ${error.name || error.message}`);
+      console.log(
+        `  → Extreme latency call aborted in ${Math.round(durationMs)}ms: ${error.name || error.message}`,
+      );
       // Should have timed out around 30s, not hung forever
       expect(durationMs).toBeLessThan(45_000);
       expect(durationMs).toBeGreaterThanOrEqual(25_000);
@@ -75,7 +79,9 @@ describe("MCP server latency", () => {
       console.log("  → WARNING: call succeeded despite connection hang toxic");
     } catch (error: any) {
       const durationMs = performance.now() - start;
-      console.log(`  → Connection hang: failed in ${Math.round(durationMs)}ms: ${error.message.slice(0, 100)}`);
+      console.log(
+        `  → Connection hang: failed in ${Math.round(durationMs)}ms: ${error.message.slice(0, 100)}`,
+      );
       // Should fail, not hang indefinitely
       expect(durationMs).toBeLessThan(60_000);
     }

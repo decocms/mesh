@@ -119,7 +119,9 @@ describe("NATS outage", () => {
     // Check health when NATS is up
     const healthyRes = await fetch("http://127.0.0.1:13000/health/ready");
     const healthyData = (await healthyRes.json()) as any;
-    console.log(`  → NATS status when up: ${healthyData.services?.nats?.status}`);
+    console.log(
+      `  → NATS status when up: ${healthyData.services?.nats?.status}`,
+    );
     expect(healthyRes.ok).toBe(true);
 
     // Disable NATS
@@ -144,7 +146,9 @@ describe("NATS outage", () => {
       );
     } catch {
       // If NATS status doesn't change, that's a finding
-      console.log("  → FINDING: Health endpoint does not report NATS as down after 45s");
+      console.log(
+        "  → FINDING: Health endpoint does not report NATS as down after 45s",
+      );
     }
 
     // App should still be ready regardless

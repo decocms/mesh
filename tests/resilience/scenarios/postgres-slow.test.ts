@@ -28,7 +28,9 @@ describe("Postgres slowdown", () => {
 
     expect(result).toBeTruthy();
     expect(durationMs).toBeGreaterThanOrEqual(4_000);
-    console.log(`  → Moderate DB latency: tool call completed in ${Math.round(durationMs)}ms`);
+    console.log(
+      `  → Moderate DB latency: tool call completed in ${Math.round(durationMs)}ms`,
+    );
   }, 150_000);
 
   test("health endpoint behavior with high DB latency (15s)", async () => {
@@ -44,13 +46,19 @@ describe("Postgres slowdown", () => {
 
       if (res.ok) {
         expect(durationMs).toBeGreaterThanOrEqual(14_000);
-        console.log(`  → High DB latency: health check succeeded in ${Math.round(durationMs)}ms`);
+        console.log(
+          `  → High DB latency: health check succeeded in ${Math.round(durationMs)}ms`,
+        );
       } else {
-        console.log(`  → High DB latency: health check returned ${res.status} in ${Math.round(durationMs)}ms`);
+        console.log(
+          `  → High DB latency: health check returned ${res.status} in ${Math.round(durationMs)}ms`,
+        );
       }
     } catch (error: any) {
       const durationMs = performance.now() - start;
-      console.log(`  → High DB latency: health check failed in ${Math.round(durationMs)}ms: ${error.name}`);
+      console.log(
+        `  → High DB latency: health check failed in ${Math.round(durationMs)}ms: ${error.name}`,
+      );
     }
   }, 90_000);
 

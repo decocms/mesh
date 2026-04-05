@@ -54,7 +54,9 @@ export function registerTestHooks() {
     testState.cookie = session.cookie;
     testState.orgId = session.orgId;
 
-    console.log(`[setup] Step 5: Creating API key (orgId: ${testState.orgId})...`);
+    console.log(
+      `[setup] Step 5: Creating API key (orgId: ${testState.orgId})...`,
+    );
     // 5. Create API key for subsequent calls
     const { key } = await createApiKey(session.cookie, session.orgId);
     testState.apiKey = key;
