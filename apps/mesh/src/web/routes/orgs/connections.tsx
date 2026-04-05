@@ -713,6 +713,24 @@ function BulkDeleteDialog({
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
+// ListState import type alias (re-exported for convenience)
+// ---------------------------------------------------------------------------
+import type { ListState } from "@/web/hooks/use-list-state";
+
+// ---------------------------------------------------------------------------
+// ConnectionResults props
+// ---------------------------------------------------------------------------
+
+interface ConnectionResultsProps {
+  listState: ListState<ConnectionEntity>;
+  activeTab: "connected" | "all";
+  typeFilter: ConnectionTypeFilter;
+  statusFilter: ConnectionStatusFilter;
+  registryFilter: string;
+  enabledRegistries: Array<{ id: string; title: string; icon: string | null }>;
+}
+
+// ---------------------------------------------------------------------------
 // Catalog item card (used in "All" tab for registry items)
 // ---------------------------------------------------------------------------
 
@@ -869,50 +887,36 @@ function CatalogItemCard({
   );
 }
 
-function OrgMcpsContent() {
+// ---------------------------------------------------------------------------
+// ConnectionResults — inner component wrapped in Suspense
+// ---------------------------------------------------------------------------
+
+function ConnectionResults({
+  listState,
+  activeTab,
+  typeFilter,
+  statusFilter,
+  registryFilter,
+  enabledRegistries,
+}: ConnectionResultsProps) {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as {
-    action?: "create";
-    tab?: "all" | "connected";
-  };
   const { data: session } = authClient.useSession();
-  const { stdioEnabled } = useAuthConfig();
-  const isMobile = useIsMobile();
-
-  // Consolidated list UI state (search, filters, sorting, view mode)
-  const listState = useListState<ConnectionEntity>({
-    namespace: org.slug,
-    resource: "connections",
-  });
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
 
   const deleteConnection = useDeleteConnection();
 
-  // Selection / bulk-action state — no explicit mode; selection is implicit
+  // Selection / bulk-action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [addToAgentOpen, setAddToAgentOpen] = useState(false);
 
-  // Tab state
-  type ConnectionTab = "connected" | "all";
-  const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
-    LOCALSTORAGE_KEYS.connectionsTab(org.slug),
-    (existing) =>
-      search.tab === "all" || search.tab === "connected"
-        ? search.tab
-        : (existing ?? "all"),
-  );
-
-  // Type, status & registry filters
-  const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
-  const [statusFilter, setStatusFilter] =
-    useState<ConnectionStatusFilter>("ALL");
-  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
+  // Inline connect state
+  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
 
   // Agents list (for Add to Agent dialog)
   const agents = useVirtualMCPs();
@@ -940,7 +944,6 @@ function OrgMcpsContent() {
   };
 
   // Registry / catalog - merge all enabled registries (server-side search)
-  const enabledRegistries = useEnabledRegistries();
   const mergedDiscovery = useMergedStoreDiscovery(
     enabledRegistries,
     listState.searchTerm,
@@ -965,20 +968,20 @@ function OrgMcpsContent() {
       ? registryFilter
       : "ALL";
 
-  const searchLower = listState.search.toLowerCase();
+  const isSearching = listState.search.length > 0;
+
+  // Catalog items: show on "All" tab always, or on "Connected" tab when searching
   const catalogItems =
-    activeTab === "all" || searchLower
+    activeTab === "all" || isSearching
       ? registryItems.filter((item) => {
-          // Registry source filter
           if (
             effectiveRegistryFilter !== "ALL" &&
             item._registryId !== effectiveRegistryFilter
           ) {
             return false;
           }
-          // When searching, connected items are already shown via groupedForDisplay
-          // so exclude them from catalog results to avoid duplicates
-          if (searchLower) {
+          // Exclude already-connected items to avoid duplicates with groupedForDisplay
+          if (isSearching) {
             const appName = getRegistryItemAppName(item);
             if (appName && connectedAppNames.has(appName)) return false;
           }
@@ -986,9 +989,10 @@ function OrgMcpsContent() {
         })
       : [];
 
-  // In "All" tab, don't show connected items at top — they belong in the Connected tab
-  // But when searching, show connected items regardless of tab so results appear across both
-  const groupedForDisplay = activeTab === "all" && !searchLower ? [] : grouped;
+  // Connected items: show on "Connected" tab always, or on "All" tab when searching
+  // When both show, connected always appear first in the grid
+  const groupedForDisplay =
+    activeTab === "connected" || isSearching ? grouped : [];
 
   const navigateToCatalogItem = (item: RegistryItem) => {
     const serverSlug = slugify(
@@ -1010,9 +1014,6 @@ function OrgMcpsContent() {
       search: { registryId: item._registryId, serverName },
     });
   };
-
-  // Inline connect state
-  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
 
   const handleInlineConnect = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
@@ -1116,60 +1117,6 @@ function OrgMcpsContent() {
     }
   };
 
-  // Create dialog state is derived from search params
-  const isCreating = search.action === "create";
-
-  const openCreateDialog = () => {
-    navigate({
-      to: "/$org/settings/connections",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
-
-  const closeCreateDialog = () => {
-    navigate({
-      to: "/$org/settings/connections",
-      params: { org: org.slug },
-      search: {},
-    });
-  };
-
-  // React Hook Form setup
-  const form = useForm<ConnectionFormData>({
-    resolver: zodResolver(connectionFormSchema),
-    defaultValues: {
-      title: "",
-      description: null,
-      icon: null,
-      ui_type: "HTTP",
-      connection_url: "",
-      connection_token: null,
-      npx_package: "",
-      stdio_command: "",
-      stdio_args: "",
-      stdio_cwd: "",
-      env_vars: [],
-    },
-  });
-
-  // Watch the ui_type to conditionally render fields
-  const uiType = form.watch("ui_type");
-  const connectionUrl = form.watch("connection_url");
-  const npxPackage = form.watch("npx_package");
-
-  const providerHint =
-    inferHardcodedProviderHint({
-      uiType,
-      connectionUrl: connectionUrl ?? "",
-      npxPackage: npxPackage ?? "",
-    }) ??
-    inferRegistryProviderHint({
-      uiType,
-      connectionUrl: connectionUrl ?? "",
-      registryItems,
-    });
-
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -1179,7 +1126,6 @@ function OrgMcpsContent() {
     queryClient.invalidateQueries({
       predicate: (query) => {
         const key = query.queryKey;
-        // Match collectionList/collectionItem keys: [client, scopeKey, "", "collection", collectionName, ...]
         return (
           key[1] === org.id &&
           key[3] === "collection" &&
@@ -1282,6 +1228,336 @@ function OrgMcpsContent() {
     } catch {
       toast.error("Failed to add connections to agent");
     }
+  };
+
+  return (
+    <>
+      <DeleteConnectionDialogs {...deleteConnection} />
+
+      {/* Bulk action dialogs */}
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        count={selectedIds.size}
+        onConfirm={handleBulkDelete}
+      />
+      <AddToAgentDialog
+        open={addToAgentOpen}
+        onOpenChange={setAddToAgentOpen}
+        agents={agents}
+        onConfirm={handleAddToAgent}
+      />
+
+      {/* Cards */}
+      {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
+        <div className="flex h-full items-center justify-center">
+          <Loading01 size={32} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div>
+          {(
+            isSearching
+              ? catalogItems.length === 0 && filteredConnections.length === 0
+              : activeTab === "all"
+                ? catalogItems.length === 0
+                : filteredConnections.length === 0
+          ) ? (
+            <EmptyState
+              image={
+                <img
+                  src="/emptystate-mcp.svg"
+                  alt=""
+                  width={336}
+                  height={320}
+                  aria-hidden="true"
+                />
+              }
+              title="No Connections found"
+              description={
+                listState.search
+                  ? `No Connections match "${listState.search}"`
+                  : "Create a connection to get started."
+              }
+            />
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {groupedForDisplay.map((item) => {
+                if (item.type === "group") {
+                  return (
+                    <ConnectionGroupCard
+                      key={item.key}
+                      group={item}
+                      onOpen={() => {
+                        navigate({
+                          to: "/$org/settings/connections/$appSlug",
+                          params: {
+                            org: org.slug,
+                            appSlug: item.key,
+                          },
+                        });
+                      }}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  );
+                }
+
+                const connection = item.connection;
+                const isSelected = selectedIds.has(connection.id);
+                return (
+                  <ConnectionCard
+                    key={connection.id}
+                    connection={connection}
+                    fallbackIcon={<Container />}
+                    onClick={() =>
+                      selectionMode
+                        ? toggleSelect(connection.id)
+                        : navigate({
+                            to: "/$org/settings/connections/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: getConnectionSlug(connection),
+                            },
+                          })
+                    }
+                    className={cn(
+                      isSelected && "ring-2 ring-primary bg-primary/5",
+                    )}
+                    headerActionsAlwaysVisible
+                    headerActions={
+                      <div className="flex items-center gap-1">
+                        {selectionMode ? (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelect(connection.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-normal">
+                            Connected
+                          </span>
+                        )}
+                        <div
+                          className={cn(
+                            "overflow-hidden transition-all duration-150 ease-out",
+                            selectionMode
+                              ? "w-8 opacity-100"
+                              : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
+                          )}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <DotsVertical size={20} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate({
+                                    to: "/$org/settings/connections/$appSlug",
+                                    params: {
+                                      org: org.slug,
+                                      appSlug: getConnectionSlug(connection),
+                                    },
+                                  });
+                                }}
+                              >
+                                <Eye size={16} />
+                                Open
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelect(connection.id);
+                                }}
+                              >
+                                <CheckSquare size={16} />
+                                Select
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteConnection.requestDelete(connection);
+                                }}
+                              >
+                                <Trash01 size={16} />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    }
+                  />
+                );
+              })}
+              {/* Catalog items (uninstalled) — only on "All" tab */}
+              {catalogItems.map((item) => (
+                <CatalogItemCard
+                  key={`catalog-${item._registryId}:${item.id}`}
+                  item={item}
+                  allConnections={connections}
+                  connectedAppNames={connectedAppNames}
+                  connectingItemId={connectingItemId}
+                  onNavigateConnected={(conn) =>
+                    navigate({
+                      to: "/$org/settings/connections/$appSlug",
+                      params: {
+                        org: org.slug,
+                        appSlug: getConnectionSlug(conn),
+                      },
+                    })
+                  }
+                  onNavigateCatalog={navigateToCatalogItem}
+                  onConnect={handleInlineConnect}
+                />
+              ))}
+              {(activeTab === "all" || isSearching) &&
+                enabledRegistries.length > 0 && (
+                  <div ref={catalogSentinelRef} className="col-span-full h-4" />
+                )}
+              {(activeTab === "all" || isSearching) &&
+                mergedDiscovery.isLoadingMore && (
+                  <div className="col-span-full flex justify-center py-6">
+                    <Loading01
+                      size={24}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Floating bulk action bar */}
+      {selectionMode && (
+        <BulkActionBar
+          count={selectedIds.size}
+          total={filteredConnections.length}
+          onSelectAll={() => {
+            setSelectedIds(new Set(filteredConnections.map((c) => c.id)));
+          }}
+          onDeselectAll={() => setSelectedIds(new Set())}
+          onDelete={() => setBulkDeleteOpen(true)}
+          onAddToAgent={() => setAddToAgentOpen(true)}
+          onToggleStatus={handleBulkToggleStatus}
+          onCancel={exitSelectionMode}
+        />
+      )}
+    </>
+  );
+}
+
+function OrgMcpsContent() {
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as {
+    action?: "create";
+    tab?: "all" | "connected";
+  };
+  const { data: session } = authClient.useSession();
+  const { stdioEnabled } = useAuthConfig();
+  const isMobile = useIsMobile();
+
+  // Consolidated list UI state (search, filters, sorting, view mode)
+  const listState = useListState<ConnectionEntity>({
+    namespace: org.slug,
+    resource: "connections",
+  });
+
+  const actions = useConnectionActions();
+
+  // Tab state
+  type ConnectionTab = "connected" | "all";
+  const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
+    LOCALSTORAGE_KEYS.connectionsTab(org.slug),
+    (existing) =>
+      search.tab === "all" || search.tab === "connected"
+        ? search.tab
+        : (existing ?? "all"),
+  );
+
+  // Type, status & registry filters
+  const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
+  const [statusFilter, setStatusFilter] =
+    useState<ConnectionStatusFilter>("ALL");
+  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
+
+  // Registry / catalog - merge all enabled registries (needed for create dialog provider hints)
+  const enabledRegistries = useEnabledRegistries();
+  const mergedDiscovery = useMergedStoreDiscovery(
+    enabledRegistries,
+    listState.searchTerm,
+  );
+  const registryItems = mergedDiscovery.items;
+
+  const isStale = listState.search !== listState.searchTerm;
+
+  // React Hook Form setup
+  const form = useForm<ConnectionFormData>({
+    resolver: zodResolver(connectionFormSchema),
+    defaultValues: {
+      title: "",
+      description: null,
+      icon: null,
+      ui_type: "HTTP",
+      connection_url: "",
+      connection_token: null,
+      npx_package: "",
+      stdio_command: "",
+      stdio_args: "",
+      stdio_cwd: "",
+      env_vars: [],
+    },
+  });
+
+  // Watch the ui_type to conditionally render fields
+  const uiType = form.watch("ui_type");
+  const connectionUrl = form.watch("connection_url");
+  const npxPackage = form.watch("npx_package");
+
+  const providerHint =
+    inferHardcodedProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      npxPackage: npxPackage ?? "",
+    }) ??
+    inferRegistryProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      registryItems,
+    });
+
+  // Create dialog state is derived from search params
+  const isCreating = search.action === "create";
+
+  const openCreateDialog = () => {
+    navigate({
+      to: "/$org/settings/connections",
+      params: { org: org.slug },
+      search: { action: "create" },
+    });
+  };
+
+  const closeCreateDialog = () => {
+    navigate({
+      to: "/$org/settings/connections",
+      params: { org: org.slug },
+      search: {},
+    });
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
@@ -1843,22 +2119,6 @@ function OrgMcpsContent() {
           );
         })()}
 
-        <DeleteConnectionDialogs {...deleteConnection} />
-
-        {/* Bulk action dialogs */}
-        <BulkDeleteDialog
-          open={bulkDeleteOpen}
-          onOpenChange={setBulkDeleteOpen}
-          count={selectedIds.size}
-          onConfirm={handleBulkDelete}
-        />
-        <AddToAgentDialog
-          open={addToAgentOpen}
-          onOpenChange={setAddToAgentOpen}
-          agents={agents}
-          onConfirm={handleAddToAgent}
-        />
-
         <Page.Content>
           {/* Title + Toolbar */}
           <Page.Body>
@@ -1949,230 +2209,38 @@ function OrgMcpsContent() {
                 activeTab={activeTab}
                 onTabChange={(id) => setActiveTab(id as ConnectionTab)}
               />
-              {/* Cards */}
-              {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
-                <div className="flex h-full items-center justify-center">
-                  <Loading01
-                    size={32}
-                    className="animate-spin text-muted-foreground"
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading01
+                      size={32}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                <div
+                  style={{
+                    opacity: isStale ? 0.5 : 1,
+                    transition: isStale
+                      ? "opacity 0.2s 0.2s linear"
+                      : "opacity 0s 0s linear",
+                    pointerEvents: isStale ? "none" : "auto",
+                  }}
+                >
+                  <ConnectionResults
+                    listState={listState}
+                    activeTab={activeTab}
+                    typeFilter={typeFilter}
+                    statusFilter={statusFilter}
+                    registryFilter={registryFilter}
+                    enabledRegistries={enabledRegistries}
                   />
                 </div>
-              ) : (
-                <div>
-                  {(
-                    searchLower
-                      ? catalogItems.length === 0 &&
-                        filteredConnections.length === 0
-                      : activeTab === "all"
-                        ? catalogItems.length === 0
-                        : filteredConnections.length === 0
-                  ) ? (
-                    <EmptyState
-                      image={
-                        <img
-                          src="/emptystate-mcp.svg"
-                          alt=""
-                          width={336}
-                          height={320}
-                          aria-hidden="true"
-                        />
-                      }
-                      title="No Connections found"
-                      description={
-                        listState.search
-                          ? `No Connections match "${listState.search}"`
-                          : "Create a connection to get started."
-                      }
-                    />
-                  ) : (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                      {groupedForDisplay.map((item) => {
-                        if (item.type === "group") {
-                          return (
-                            <ConnectionGroupCard
-                              key={item.key}
-                              group={item}
-                              onOpen={() => {
-                                navigate({
-                                  to: "/$org/settings/connections/$appSlug",
-                                  params: {
-                                    org: org.slug,
-                                    appSlug: item.key,
-                                  },
-                                });
-                              }}
-                              selectionMode={selectionMode}
-                              selectedIds={selectedIds}
-                              onToggleSelect={toggleSelect}
-                            />
-                          );
-                        }
-
-                        const connection = item.connection;
-                        const isSelected = selectedIds.has(connection.id);
-                        return (
-                          <ConnectionCard
-                            key={connection.id}
-                            connection={connection}
-                            fallbackIcon={<Container />}
-                            onClick={() =>
-                              selectionMode
-                                ? toggleSelect(connection.id)
-                                : navigate({
-                                    to: "/$org/settings/connections/$appSlug",
-                                    params: {
-                                      org: org.slug,
-                                      appSlug: getConnectionSlug(connection),
-                                    },
-                                  })
-                            }
-                            className={cn(
-                              isSelected && "ring-2 ring-primary bg-primary/5",
-                            )}
-                            headerActionsAlwaysVisible
-                            headerActions={
-                              <div className="flex items-center gap-1">
-                                {selectionMode ? (
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={() =>
-                                      toggleSelect(connection.id)
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                ) : (
-                                  <span className="text-xs text-muted-foreground font-normal">
-                                    Connected
-                                  </span>
-                                )}
-                                <div
-                                  className={cn(
-                                    "overflow-hidden transition-all duration-150 ease-out",
-                                    selectionMode
-                                      ? "w-8 opacity-100"
-                                      : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
-                                  )}
-                                >
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <DotsVertical size={20} />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="end"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate({
-                                            to: "/$org/settings/connections/$appSlug",
-                                            params: {
-                                              org: org.slug,
-                                              appSlug:
-                                                getConnectionSlug(connection),
-                                            },
-                                          });
-                                        }}
-                                      >
-                                        <Eye size={16} />
-                                        Open
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleSelect(connection.id);
-                                        }}
-                                      >
-                                        <CheckSquare size={16} />
-                                        Select
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        variant="destructive"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          deleteConnection.requestDelete(
-                                            connection,
-                                          );
-                                        }}
-                                      >
-                                        <Trash01 size={16} />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </div>
-                            }
-                          />
-                        );
-                      })}
-                      {/* Catalog items (uninstalled) — only on "All" tab */}
-                      {catalogItems.map((item) => (
-                        <CatalogItemCard
-                          key={`catalog-${item._registryId}:${item.id}`}
-                          item={item}
-                          allConnections={connections}
-                          connectedAppNames={connectedAppNames}
-                          connectingItemId={connectingItemId}
-                          onNavigateConnected={(conn) =>
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(conn),
-                              },
-                            })
-                          }
-                          onNavigateCatalog={navigateToCatalogItem}
-                          onConnect={handleInlineConnect}
-                        />
-                      ))}
-                      {(activeTab === "all" || searchLower) &&
-                        enabledRegistries.length > 0 && (
-                          <div
-                            ref={catalogSentinelRef}
-                            className="col-span-full h-4"
-                          />
-                        )}
-                      {(activeTab === "all" || searchLower) &&
-                        mergedDiscovery.isLoadingMore && (
-                          <div className="col-span-full flex justify-center py-6">
-                            <Loading01
-                              size={24}
-                              className="animate-spin text-muted-foreground"
-                            />
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-              )}
+              </Suspense>
             </div>
           </Page.Body>
         </Page.Content>
-
-        {/* Floating bulk action bar */}
-        {selectionMode && (
-          <BulkActionBar
-            count={selectedIds.size}
-            total={filteredConnections.length}
-            onSelectAll={() => {
-              setSelectedIds(new Set(filteredConnections.map((c) => c.id)));
-            }}
-            onDeselectAll={() => setSelectedIds(new Set())}
-            onDelete={() => setBulkDeleteOpen(true)}
-            onAddToAgent={() => setAddToAgentOpen(true)}
-            onToggleStatus={handleBulkToggleStatus}
-            onCancel={exitSelectionMode}
-          />
-        )}
       </Page>
     </>
   );
