@@ -968,30 +968,21 @@ function ConnectionResults({
       ? registryFilter
       : "ALL";
 
-  const searchLower = listState.search.toLowerCase();
   const catalogItems =
-    activeTab === "all" || searchLower
+    activeTab === "all"
       ? registryItems.filter((item) => {
-          // Registry source filter
           if (
             effectiveRegistryFilter !== "ALL" &&
             item._registryId !== effectiveRegistryFilter
           ) {
             return false;
           }
-          // When searching, connected items are already shown via groupedForDisplay
-          // so exclude them from catalog results to avoid duplicates
-          if (searchLower) {
-            const appName = getRegistryItemAppName(item);
-            if (appName && connectedAppNames.has(appName)) return false;
-          }
           return true;
         })
       : [];
 
   // In "All" tab, don't show connected items at top — they belong in the Connected tab
-  // But when searching, show connected items regardless of tab so results appear across both
-  const groupedForDisplay = activeTab === "all" && !searchLower ? [] : grouped;
+  const groupedForDisplay = activeTab === "all" ? [] : grouped;
 
   const navigateToCatalogItem = (item: RegistryItem) => {
     const serverSlug = slugify(
@@ -1255,11 +1246,9 @@ function ConnectionResults({
       ) : (
         <div>
           {(
-            searchLower
-              ? catalogItems.length === 0 && filteredConnections.length === 0
-              : activeTab === "all"
-                ? catalogItems.length === 0
-                : filteredConnections.length === 0
+            activeTab === "all"
+              ? catalogItems.length === 0
+              : filteredConnections.length === 0
           ) ? (
             <EmptyState
               image={
@@ -1423,19 +1412,17 @@ function ConnectionResults({
                   onConnect={handleInlineConnect}
                 />
               ))}
-              {(activeTab === "all" || searchLower) &&
-                enabledRegistries.length > 0 && (
-                  <div ref={catalogSentinelRef} className="col-span-full h-4" />
-                )}
-              {(activeTab === "all" || searchLower) &&
-                mergedDiscovery.isLoadingMore && (
-                  <div className="col-span-full flex justify-center py-6">
-                    <Loading01
-                      size={24}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                )}
+              {activeTab === "all" && enabledRegistries.length > 0 && (
+                <div ref={catalogSentinelRef} className="col-span-full h-4" />
+              )}
+              {activeTab === "all" && mergedDiscovery.isLoadingMore && (
+                <div className="col-span-full flex justify-center py-6">
+                  <Loading01
+                    size={24}
+                    className="animate-spin text-muted-foreground"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
