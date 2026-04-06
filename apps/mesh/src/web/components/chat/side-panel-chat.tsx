@@ -201,7 +201,7 @@ function SidebarEmptyState() {
         <h3 className="text-base md:text-xl font-medium text-foreground">
           {displayAgent.title}
         </h3>
-        <div className="text-muted-foreground text-center text-xs md:text-sm max-w-md line-clamp-2">
+        <div className="text-muted-foreground text-center text-base max-w-md line-clamp-2">
           {displayAgent.description ??
             "Ask anything about configuring model providers or using MCP Mesh."}
         </div>

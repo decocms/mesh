@@ -56,24 +56,54 @@ interface IceBreakersUIProps {
 
 const VISIBLE_COUNT = 3;
 
+const PILL_BASE =
+  "inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-muted text-muted-foreground text-sm font-medium transition-colors cursor-pointer";
+
 const CARD_BASE =
-  "flex flex-col p-3.5 rounded-xl bg-accent/40 text-sm leading-snug transition-colors cursor-pointer";
+  "flex flex-col gap-1.5 p-4 rounded-xl bg-accent/40 text-sm leading-snug transition-colors cursor-pointer text-left";
 
 function PromptCard({
   item,
   onSelect,
   isLoading,
   isDisabled,
+  variant = "pill",
 }: {
   item: PromptItem;
   onSelect: (prompt: Prompt) => void;
   isLoading: boolean;
   isDisabled: boolean;
+  variant?: "pill" | "card";
 }) {
   const { prompt } = item;
-  const label =
-    prompt.description ?? (prompt.title ?? prompt.name).replace(/_/g, " ");
-  const name = (prompt.title ?? prompt.name).replace(/_/g, " ").toLowerCase();
+  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const description = prompt.description || null;
+
+  if (variant === "card") {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(prompt)}
+        disabled={isDisabled || isLoading}
+        className={cn(
+          CARD_BASE,
+          "hover:bg-accent/60 text-foreground",
+          isLoading && "bg-accent/40",
+          (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium truncate">{name}</span>
+          {isLoading && <Spinner size="xs" />}
+        </div>
+        {description && (
+          <span className="text-xs text-muted-foreground line-clamp-2">
+            {description}
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
     <Tooltip delayDuration={400}>
@@ -83,27 +113,18 @@ function PromptCard({
           onClick={() => onSelect(prompt)}
           disabled={isDisabled || isLoading}
           className={cn(
-            CARD_BASE,
-            "items-start justify-between text-left text-foreground hover:bg-accent/40",
-            isLoading && "bg-accent/40",
+            PILL_BASE,
+            "hover:bg-muted/70 hover:text-foreground",
+            isLoading && "bg-muted/50",
             (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
           )}
         >
-          <div className="flex flex-col gap-0.5 w-full">
-            <span className="text-sm font-medium truncate capitalize">
-              {name}
-            </span>
-            <div className="flex items-end gap-1.5">
-              <span className="flex-1 text-xs text-muted-foreground line-clamp-3">
-                {label}
-              </span>
-              {isLoading && <Spinner size="xs" />}
-            </div>
-          </div>
+          <span>{name}</span>
+          {isLoading && <Spinner size="xs" />}
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">
-        <p className="text-xs">{label}</p>
+        <p className="text-xs">{description ?? name}</p>
       </TooltipContent>
     </Tooltip>
   );
@@ -140,7 +161,7 @@ function AllPromptsModal({
 
   const gridContent = (
     <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-5">
         {filtered.length === 0 && (
           <p className="col-span-4 text-sm text-muted-foreground text-center py-8">
             No prompts match &ldquo;{search}&rdquo;
@@ -150,6 +171,7 @@ function AllPromptsModal({
           <PromptCard
             key={item.prompt.name}
             item={item}
+            variant="card"
             onSelect={(prompt) => {
               onOpenChange(false);
               onSelect(prompt);
@@ -241,42 +263,25 @@ function IceBreakersUI({
 
   return (
     <TooltipProvider delayDuration={400}>
-      {hidden.length > 0 ? (
-        <div
-          className={cn(
-            "w-full grid grid-cols-2 @lg:grid-cols-[1fr_1fr_1fr_auto] gap-2",
-            className,
-          )}
-        >
-          {cards}
+      <div
+        className={cn("w-full flex flex-wrap gap-2 justify-center", className)}
+      >
+        {cards}
+        {hidden.length > 0 && (
           <button
             type="button"
             disabled={isAnyLoading}
             onClick={() => setModalOpen(true)}
             className={cn(
-              CARD_BASE,
-              "items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
+              PILL_BASE,
+              "hover:bg-muted/70 hover:text-foreground",
               isAnyLoading && "opacity-50 cursor-not-allowed",
             )}
           >
-            +{hidden.length}
+            +{hidden.length} more
           </button>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "w-full grid gap-2 place-content-center",
-            visible.length === 1
-              ? "grid-cols-1 max-w-[260px] mx-auto"
-              : visible.length === 2
-                ? "grid-cols-2 max-w-[520px] mx-auto"
-                : "grid-cols-2 @lg:grid-cols-3",
-            className,
-          )}
-        >
-          {cards}
-        </div>
-      )}
+        )}
+      </div>
       <AllPromptsModal
         items={items}
         open={modalOpen}
