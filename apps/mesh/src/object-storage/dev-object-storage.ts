@@ -9,6 +9,7 @@
  * Presigned URLs are HMAC-signed and served by the /api/dev-assets route.
  */
 
+import type { Dirent } from "node:fs";
 import {
   mkdir,
   readdir,
@@ -17,6 +18,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
+import { createHmac } from "node:crypto";
 import { dirname, join } from "node:path";
 import type {
   GetObjectResult,
@@ -27,6 +29,7 @@ import type {
 } from "./s3-service";
 import type { BoundObjectStorage } from "./bound-object-storage";
 import { detectContentType, isTextContentType, sanitizeKey } from "./key-utils";
+import { getSettings } from "../settings";
 
 const DEV_ASSETS_BASE_DIR = "./data/assets";
 
@@ -40,7 +43,10 @@ function filePath(orgId: string, key: string): string {
 }
 
 export class DevObjectStorage implements BoundObjectStorage {
-  constructor(private readonly orgId: string) {}
+  constructor(
+    private readonly orgId: string,
+    private readonly baseUrl?: string,
+  ) {}
 
   async get(key: string): Promise<GetObjectResult | GetObjectTooLargeResult> {
     const path = filePath(this.orgId, key);
@@ -77,31 +83,75 @@ export class DevObjectStorage implements BoundObjectStorage {
   async list(options?: {
     prefix?: string;
     maxKeys?: number;
+    delimiter?: string;
   }): Promise<ListObjectsResult> {
     const baseDir = options?.prefix
       ? join(orgAssetsDir(this.orgId), sanitizeKey(options.prefix))
       : orgAssetsDir(this.orgId);
 
-    let entries: string[];
+    let entries: Dirent[];
     try {
-      entries = await readdir(baseDir);
+      entries = await readdir(baseDir, { withFileTypes: true });
     } catch {
       return { objects: [], isTruncated: false };
     }
 
     const max = options?.maxKeys ?? 1000;
+    const prefix = options?.prefix;
+
+    // Filter to files only — directories are only relevant as commonPrefixes
+    // when a delimiter is set (mirrors S3 behavior).
+    const fileEntries = entries.filter((e) => e.isFile());
+
+    if (options?.delimiter) {
+      // S3 maxKeys caps the combined count of objects + commonPrefixes.
+      const commonPrefixes: string[] = [];
+      const dirEntries = entries.filter((e) => e.isDirectory());
+      for (const entry of dirEntries) {
+        const dirKey = prefix ? `${prefix}/${entry.name}/` : `${entry.name}/`;
+        commonPrefixes.push(dirKey);
+      }
+      commonPrefixes.sort();
+
+      // Cap combined results at maxKeys
+      let remaining = max;
+      const cappedPrefixes = commonPrefixes.slice(0, remaining);
+      remaining -= cappedPrefixes.length;
+
+      const cappedFiles = fileEntries.slice(0, remaining);
+      const totalItems = commonPrefixes.length + fileEntries.length;
+
+      const objects = await Promise.all(
+        cappedFiles.map(async (entry) => {
+          const info = await stat(join(baseDir, entry.name));
+          return {
+            key: prefix ? `${prefix}/${entry.name}` : entry.name,
+            size: info.size,
+            lastModified: info.mtime,
+          };
+        }),
+      );
+
+      return {
+        objects,
+        isTruncated: totalItems > max,
+        commonPrefixes: cappedPrefixes.length > 0 ? cappedPrefixes : undefined,
+      };
+    }
+
+    // No delimiter: flat listing of files only
     const objects = await Promise.all(
-      entries.slice(0, max).map(async (name) => {
-        const info = await stat(join(baseDir, name));
+      fileEntries.slice(0, max).map(async (entry) => {
+        const info = await stat(join(baseDir, entry.name));
         return {
-          key: options?.prefix ? `${options.prefix}/${name}` : name,
+          key: prefix ? `${prefix}/${entry.name}` : entry.name,
           size: info.size,
           lastModified: info.mtime,
         };
       }),
     );
 
-    return { objects, isTruncated: entries.length > max };
+    return { objects, isTruncated: fileEntries.length > max };
   }
 
   async delete(key: string): Promise<void> {
@@ -131,5 +181,25 @@ export class DevObjectStorage implements BoundObjectStorage {
     const contentType = detectContentType(key);
     const base64 = Buffer.from(bytes).toString("base64");
     return `data:${contentType};base64,${base64}`;
+  }
+
+  async presignedPutUrl(key: string, expiresIn = 3600): Promise<string> {
+    if (!this.baseUrl) {
+      throw new Error("baseUrl required for presigned PUT URLs in dev mode");
+    }
+    const sanitized = sanitizeKey(key);
+    const expires = Math.floor(Date.now() / 1000) + expiresIn;
+    const secret = getSettings().encryptionKey || "dev-secret";
+    const data = `${this.orgId}:${sanitized}:${expires}:PUT`;
+    const signature = createHmac("sha256", secret).update(data).digest("hex");
+
+    const url = new URL(
+      `/api/dev-assets/${this.orgId}/${sanitized}`,
+      this.baseUrl,
+    );
+    url.searchParams.set("expires", expires.toString());
+    url.searchParams.set("signature", signature);
+    url.searchParams.set("method", "PUT");
+    return url.toString();
   }
 }

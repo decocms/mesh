@@ -993,7 +993,7 @@ export async function createMeshContextFactory(
       s3Service && organization
         ? createBoundObjectStorage(s3Service, organization.id)
         : getSettings().nodeEnv === "development" && organization
-          ? new DevObjectStorage(organization.id)
+          ? new DevObjectStorage(organization.id, baseUrl)
           : null;
 
     const ctx: MeshContext = {

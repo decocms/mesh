@@ -61,6 +61,7 @@ export interface ListObjectsResult {
   objects: ListObjectEntry[];
   isTruncated: boolean;
   nextContinuationToken?: string;
+  commonPrefixes?: string[];
 }
 
 export interface HeadObjectResult {
@@ -166,6 +167,7 @@ export class S3Service {
       prefix?: string;
       maxKeys?: number;
       continuationToken?: string;
+      delimiter?: string;
     },
   ): Promise<ListObjectsResult> {
     const s3Prefix = buildS3Prefix(orgId, options?.prefix);
@@ -176,8 +178,13 @@ export class S3Service {
         Prefix: s3Prefix,
         MaxKeys: options?.maxKeys ?? 1000,
         ContinuationToken: options?.continuationToken,
+        Delimiter: options?.delimiter,
       }),
     );
+
+    const commonPrefixes = response.CommonPrefixes?.map((cp) =>
+      stripOrgPrefix(orgId, cp.Prefix ?? ""),
+    ).filter(Boolean);
 
     return {
       objects: (response.Contents ?? []).map((obj) => ({
@@ -188,6 +195,10 @@ export class S3Service {
       })),
       isTruncated: response.IsTruncated ?? false,
       nextContinuationToken: response.NextContinuationToken,
+      commonPrefixes:
+        commonPrefixes && commonPrefixes.length > 0
+          ? commonPrefixes
+          : undefined,
     };
   }
 
@@ -221,6 +232,24 @@ export class S3Service {
     return getSignedUrl(
       this.client,
       new GetObjectCommand({ Bucket: this.bucket, Key: s3Key }),
+      { expiresIn },
+    );
+  }
+
+  async presignedPutUrl(
+    orgId: string,
+    key: string,
+    expiresIn = 3600,
+    contentType?: string,
+  ): Promise<string> {
+    const s3Key = buildS3Key(orgId, key);
+    return getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        ContentType: contentType,
+      }),
       { expiresIn },
     );
   }
