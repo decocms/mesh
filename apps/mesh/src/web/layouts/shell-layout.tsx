@@ -7,6 +7,7 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
+import { InboxPopover } from "@/web/components/sidebar/footer/inbox";
 import {
   SettingsSidebar,
   SettingsSidebarMobile,
@@ -738,41 +739,44 @@ function ShellLayoutInner({
                 <ChevronRight size={16} />
               </button>
             </div>
-            {showThreePanels && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={toggleMain}
-                  aria-pressed={mainOpen}
-                  disabled={isOrgHome}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome
-                      ? "text-sidebar-foreground/30 cursor-not-allowed"
-                      : mainOpen
+            <div className="flex items-center gap-0.5">
+              {showThreePanels && (
+                <>
+                  <button
+                    type="button"
+                    onClick={toggleMain}
+                    aria-pressed={mainOpen}
+                    disabled={isOrgHome}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-md transition-colors",
+                      isOrgHome
+                        ? "text-sidebar-foreground/30 cursor-not-allowed"
+                        : mainOpen
+                          ? "bg-sidebar-accent text-sidebar-foreground"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                    title="Toggle content"
+                  >
+                    <Browser size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleChat}
+                    aria-pressed={chatOpen}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-md transition-colors",
+                      chatOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle content"
-                >
-                  <Browser size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleChat}
-                  aria-pressed={chatOpen}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    chatOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle chat"
-                >
-                  <MessageTextCircle02 size={16} />
-                </button>
-              </div>
-            )}
+                    )}
+                    title="Toggle chat"
+                  >
+                    <MessageTextCircle02 size={16} />
+                  </button>
+                </>
+              )}
+              <InboxPopover />
+            </div>
           </div>
 
           <Suspense
