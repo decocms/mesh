@@ -52,6 +52,9 @@ describe("MCP server latency", () => {
       // If it somehow succeeds, that's unexpected with 120s latency and 30s timeout
       throw new Error("Expected timeout but call succeeded");
     } catch (error: any) {
+      if (error.message?.includes("Expected timeout but call succeeded")) {
+        throw error;
+      }
       const durationMs = performance.now() - start;
       console.log(
         `  → Extreme latency call aborted in ${Math.round(durationMs)}ms: ${error.name || error.message}`,
@@ -80,6 +83,10 @@ describe("MCP server latency", () => {
         "Expected failure but call succeeded despite connection hang toxic",
       );
     } catch (error: any) {
+      // Rethrow our own assertion error — the call should not have succeeded
+      if (error.message?.includes("Expected failure but call succeeded")) {
+        throw error;
+      }
       const durationMs = performance.now() - start;
       console.log(
         `  → Connection hang: failed in ${Math.round(durationMs)}ms: ${error.message.slice(0, 100)}`,
