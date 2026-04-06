@@ -44,6 +44,7 @@ export const BRAND_CONTEXT_CREATE = defineTool({
       fonts: (input.fonts as Record<string, unknown>[] | null) ?? null,
       colors: (input.colors as Record<string, unknown> | null) ?? null,
       images: (input.images as Record<string, unknown>[] | null) ?? null,
+      metadata: (input.metadata as Record<string, unknown> | null) ?? null,
     });
 
     return {
@@ -97,6 +98,10 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
       images:
         data.images !== undefined
           ? ((data.images as Record<string, unknown>[] | null) ?? null)
+          : undefined,
+      metadata:
+        data.metadata !== undefined
+          ? ((data.metadata as Record<string, unknown> | null) ?? null)
           : undefined,
     });
 

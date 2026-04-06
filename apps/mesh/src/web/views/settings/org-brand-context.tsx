@@ -33,6 +33,7 @@ interface BrandContextData {
   fonts?: Record<string, unknown>[] | null;
   colors?: Record<string, unknown> | null;
   images?: Record<string, unknown>[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface FontEntry {
@@ -232,6 +233,7 @@ function BrandCard({
           fonts: entriesToFonts(args.fonts),
           colors: entriesToColors(args.colors),
           images: brand.images ?? null,
+          metadata: brand.metadata ?? null,
         },
       });
     },

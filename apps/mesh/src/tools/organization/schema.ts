@@ -63,6 +63,13 @@ export const BrandContextSchema = z.object({
     .nullable()
     .optional()
     .describe("Brand images"),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .optional()
+    .describe(
+      "Extra design tokens (typography, components, spacing, layout, tone, etc.)",
+    ),
 });
 
 export type BrandContextInput = z.infer<typeof BrandContextSchema>;

@@ -947,6 +947,7 @@ export interface BrandContextTable {
   fonts: string | null;
   colors: string | null;
   images: string | null;
+  metadata: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -963,6 +964,7 @@ export interface BrandContext {
   fonts: Record<string, unknown>[] | null;
   colors: Record<string, unknown> | null;
   images: Record<string, unknown>[] | null;
+  metadata: Record<string, unknown> | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

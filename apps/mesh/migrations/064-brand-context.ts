@@ -16,6 +16,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("fonts", "text")
     .addColumn("colors", "text")
     .addColumn("images", "text")
+    .addColumn("metadata", "text")
     .addColumn("created_at", "timestamptz", (col) =>
       col.notNull().defaultTo("now()"),
     )

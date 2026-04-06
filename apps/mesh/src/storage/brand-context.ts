@@ -24,6 +24,7 @@ function toEntity(
     fonts: string | null;
     colors: string | null;
     images: string | null;
+    metadata: string | null;
     created_at: Date;
     updated_at: Date;
   },
@@ -40,6 +41,7 @@ function toEntity(
     fonts: parseJson(record.fonts),
     colors: parseJson(record.colors),
     images: parseJson(record.images),
+    metadata: parseJson(record.metadata),
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };
@@ -94,6 +96,7 @@ export class BrandContextStorage implements BrandContextStoragePort {
         fonts: data.fonts ? JSON.stringify(data.fonts) : null,
         colors: data.colors ? JSON.stringify(data.colors) : null,
         images: data.images ? JSON.stringify(data.images) : null,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
         created_at: now,
         updated_at: now,
       })
@@ -124,6 +127,8 @@ export class BrandContextStorage implements BrandContextStoragePort {
       updates.colors = data.colors ? JSON.stringify(data.colors) : null;
     if (data.images !== undefined)
       updates.images = data.images ? JSON.stringify(data.images) : null;
+    if (data.metadata !== undefined)
+      updates.metadata = data.metadata ? JSON.stringify(data.metadata) : null;
 
     await this.db
       .updateTable("brand_context")
