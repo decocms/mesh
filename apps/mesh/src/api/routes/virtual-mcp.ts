@@ -17,7 +17,7 @@
 import { createServerFromClient, getDecopilotId } from "@decocms/mesh-sdk";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
-import type { MeshContext } from "../../core/mesh-context";
+import { type MeshContext, getUserId } from "../../core/mesh-context";
 import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { createVirtualClientFrom } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../hono-env";
@@ -92,14 +92,24 @@ export async function handleVirtualMcpRequest(
       );
     }
 
-    if (
-      ctx.organization?.id &&
-      virtualMcp.organization_id !== ctx.organization.id
-    ) {
-      return c.json(
-        { error: "Forbidden: Agent does not belong to your organization" },
-        403,
-      );
+    // Validate that the authenticated user is a member of the virtual MCP's
+    // organization. This uses the entity's organization_id as the
+    // authoritative source, covering header-based (x-org-id / x-org-slug)
+    // and direct virtualMcpId access paths.
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return c.json({ error: "Authentication required" }, 401);
+    }
+
+    const membership = await ctx.db
+      .selectFrom("member")
+      .select("member.id")
+      .where("member.userId", "=", userId)
+      .where("member.organizationId", "=", virtualMcp.organization_id)
+      .executeTakeFirst();
+
+    if (!membership) {
+      return c.json({ error: "Agent not found" }, 404);
     }
 
     // Set connection context (Virtual MCPs are now connections)
