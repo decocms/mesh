@@ -48,6 +48,19 @@ bun run fmt
 bun run fmt:check
 ```
 
+### Resilience Tests (Docker required)
+```bash
+# Run full resilience suite (builds containers, runs tests, tears down)
+./tests/resilience/run.sh
+
+# Or step by step:
+docker compose -f tests/resilience/docker-compose.yml up -d --build --wait
+bun test tests/resilience/scenarios/ --serial --timeout 900000
+docker compose -f tests/resilience/docker-compose.yml down -v
+```
+
+Resilience tests use Docker Compose with Toxiproxy to simulate infrastructure failures (DB outages, NATS disconnections, high-latency MCP servers). See `tests/resilience/` for scenario files and configuration.
+
 **IMPORTANT**: Always run `bun run fmt` after making code changes to ensure consistent formatting. A lefthook pre-commit hook is configured to run this automatically. Install with `npx lefthook install`.
 
 ### Database

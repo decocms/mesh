@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nats:
+    image: nats:2.10.22
+    command: -js -m 8222
+    healthcheck:
+      test: ["CMD", "nats-server", "--help"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-config", "/config/toxiproxy.json", "-host=0.0.0.0"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "127.0.0.1:18474:8474"
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+
+  everything-server:
+    build:
+      context: ./everything-server
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3002"
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"await fetch('http://localhost:3002/mcp').catch(() => process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  subscriber-mock:
+    build:
+      context: ./subscriber-mock
+    command: ["bun", "run", "/app/server.ts"]
+    ports:
+      - "127.0.0.1:13003:3003"
+    environment:
+      PORT: "3003"
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"const r = await fetch('http://localhost:3003/health'); if(!r.ok) process.exit(1)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  mesh:
+    build:
+      context: ../../
+      dockerfile: tests/resilience/Dockerfile.mesh
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://postgres:postgres@toxiproxy:5433/postgres
+      NATS_URL: nats://toxiproxy:4223
+      BETTER_AUTH_SECRET: test-secret-for-resilience-tests
+      BETTER_AUTH_URL: http://localhost:3000
+      BASE_URL: http://localhost:3000
+      DECOCMS_LOCAL_MODE: "true"
+      DECOCMS_ALLOW_LOCAL_PROD: "true"
+      ENCRYPTION_KEY: test-encryption-key-32chars-long!
+      DATA_DIR: /app/data
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      toxiproxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"const r = await fetch('http://localhost:3000/health'); if(!r.ok) process.exit(1)\""]
+      interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
+    volumes:
+      - ./auth-config.test.json:/app/apps/mesh/auth-config.json:ro
