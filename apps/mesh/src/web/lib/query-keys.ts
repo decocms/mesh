@@ -280,6 +280,10 @@ export const KEYS = {
   storeDiscovery: (orgId: string, registryId: string) =>
     ["store-discovery", orgId, registryId] as const,
 
+  // Prompt → connection map (scoped by org + connections)
+  promptConnectionMap: (orgId: string, connectionIds: string[]) =>
+    ["prompt-connection-map", orgId, ...connectionIds] as const,
+
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,
 

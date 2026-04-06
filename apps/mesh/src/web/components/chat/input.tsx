@@ -56,8 +56,7 @@ import { isTiptapDocEmpty } from "./tiptap/utils";
 import { SessionStats } from "./usage-stats";
 import { authClient } from "@/web/lib/auth-client.ts";
 import { useSound } from "@/web/hooks/use-sound.ts";
-import { clickSoftSound } from "@deco/ui/lib/click-soft.ts";
-import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
+import { question004Sound } from "@deco/ui/lib/question-004.ts";
 
 // ============================================================================
 // DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
@@ -305,7 +304,7 @@ function VirtualMCPBadge({
 function PlanModeToggle({ disabled }: { disabled?: boolean }) {
   const [preferences, setPreferences] = usePreferences();
   const isPlanMode = preferences.toolApprovalLevel === "plan";
-  const playSwitchSound = useSound(switch005Sound);
+  const playSwitchSound = useSound(question004Sound);
 
   const handleToggle = () => {
     playSwitchSound();
@@ -542,7 +541,7 @@ export function ChatInput({
   const lastTotalTokens =
     (lastUsage?.totalTokens ?? 0) - (lastUsage?.reasoningTokens ?? 0);
 
-  const playClickSound = useSound(clickSoftSound);
+  const playClickSound = useSound(question004Sound);
 
   const canSubmit =
     !isStreaming &&
