@@ -7,6 +7,7 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
+import { InboxPopover } from "@/web/components/sidebar/footer/inbox";
 import {
   SettingsSidebar,
   SettingsSidebarMobile,
@@ -47,7 +48,7 @@ import {
   Edit05,
   Loading01,
   Menu01,
-  MessageTextCircle02,
+  LayoutRight,
 } from "@untitledui/icons";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -671,22 +672,26 @@ function ShellLayoutInner({
         >
           <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-0.5">
               {showThreePanels && (
                 <>
-                  <button
-                    type="button"
-                    onClick={toggleTasks}
-                    aria-pressed={tasksOpen}
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                      tasksOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle tasks"
-                  >
-                    <LayoutLeft size={16} />
-                  </button>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -719,60 +724,56 @@ function ShellLayoutInner({
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go back"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.forward()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go forward"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-            {showThreePanels && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={toggleMain}
-                  aria-pressed={mainOpen}
-                  disabled={isOrgHome}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    isOrgHome
-                      ? "text-sidebar-foreground/30 cursor-not-allowed"
-                      : mainOpen
+                  <InboxPopover />
+                  <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
+                  <button
+                    type="button"
+                    onClick={toggleTasks}
+                    aria-pressed={tasksOpen}
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                      tasksOpen
                         ? "bg-sidebar-accent text-sidebar-foreground"
                         : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle content"
-                >
-                  <Browser size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleChat}
-                  aria-pressed={chatOpen}
-                  className={cn(
-                    "flex size-7 items-center justify-center rounded-md transition-colors",
-                    chatOpen
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                  title="Toggle chat"
-                >
-                  <MessageTextCircle02 size={16} />
-                </button>
-              </div>
-            )}
+                    )}
+                    title="Toggle tasks"
+                  >
+                    <LayoutLeft size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleMain}
+                    aria-pressed={mainOpen}
+                    disabled={isOrgHome}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-md transition-colors",
+                      isOrgHome
+                        ? "text-sidebar-foreground/30 cursor-not-allowed"
+                        : mainOpen
+                          ? "bg-sidebar-accent text-sidebar-foreground"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                    title="Toggle content"
+                  >
+                    <Browser size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleChat}
+                    aria-pressed={chatOpen}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-md transition-colors",
+                      chatOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                    title="Toggle chat"
+                  >
+                    <LayoutRight size={16} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <Suspense
