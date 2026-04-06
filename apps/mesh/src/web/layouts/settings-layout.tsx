@@ -75,7 +75,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         },
         {
           key: "brand-context",
-          label: "Context",
+          label: "Brand Context",
           icon: <BookOpen01 size={14} />,
           to: "/$org/settings/brand-context",
         },
