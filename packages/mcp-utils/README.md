@@ -14,7 +14,7 @@ Extracted from [DECO CMS](https://github.com/decocms/mesh), an open-source MCP c
   - [Turn any Client into a Server (proxy pattern)](#turn-any-client-into-a-server-proxy-pattern)
   - [Add middleware to a transport](#add-middleware-to-a-transport)
   - [Aggregate multiple MCP servers into one](#aggregate-multiple-mcp-servers-into-one)
-  - [Run code in a sandbox with MCP tools](#run-code-in-a-sandbox-with-mcp-tools)
+  - [Run code in a sandbox with an MCP client](#run-code-in-a-sandbox-with-an-mcp-client)
 - [Types](#types)
 - [Peer Dependencies](#peer-dependencies)
 - [License](#license)
@@ -182,52 +182,34 @@ const server = createServerFromClient(gateway, {
 await server.connect(transport); // now serves aggregated tools over any transport
 ```
 
-### Run code in a sandbox with MCP tools
+### Run code in a sandbox with an MCP client
 
-Execute untrusted JavaScript in a QuickJS sandbox with automatic MCP tool injection. The sandbox is memory-limited, time-limited, and fully isolated.
-
-```typescript
-import { runCodeWithTools } from "@decocms/mcp-utils/sandbox";
-
-const result = await runCodeWithTools({
-  code: `export default async (tools) => {
-    const items = await tools.list_items({});
-    return items.filter(i => i.status === "active");
-  }`,
-  client: mcpClient,
-  timeoutMs: 5000,
-});
-
-console.log(result.returnValue);  // filtered items
-console.log(result.consoleLogs);  // captured console.log/warn/error calls
-```
-
-The code must `export default` an async function that receives a `tools` object. Each tool is an async function matching the MCP tools available on the client.
-
-For lower-level control, use `runCode` directly:
+Execute untrusted JavaScript in a QuickJS sandbox with an MCP client injected. The sandbox is memory-limited, time-limited, and fully isolated.
 
 ```typescript
 import { runCode } from "@decocms/mcp-utils/sandbox";
 
 const result = await runCode({
-  code: `export default async (tools) => {
-    const data = await tools.fetch_data({ query: "active" });
-    console.log("Found", data.length, "items");
+  code: `export default async (client) => {
+    const { tools } = await client.listTools();
+    const data = await client.callTool({ name: "list_items", arguments: {} });
+    console.log("Found tools:", tools.length);
     return data;
   }`,
-  tools: {
-    fetch_data: async (args) => fetchFromDatabase(args.query),
-  },
-  timeoutMs: 10_000,
-  memoryLimitBytes: 16 * 1024 * 1024, // 16 MB
-  stackSizeBytes: 256 * 1024,          // 256 KB
+  client: mcpClient,
+  timeoutMs: 5000,
 });
+
+console.log(result.returnValue);  // tool call result
+console.log(result.consoleLogs);  // captured console.log/warn/error calls
 ```
 
+The code must `export default` an async function that receives a `client` object. The client exposes standard MCP methods: `callTool`, `listTools`, `listResources`, `readResource`, `listPrompts`, and `getPrompt`.
+
 Options:
-- `code` — JavaScript source (must `export default async (tools) => { ... }`)
-- `client` (runCodeWithTools) or `tools` (runCode) — tool source
-- `timeoutMs` — execution timeout (default: 30s)
+- `code` — JavaScript source (must `export default async (client) => { ... }`)
+- `client` — an `IClient`-compatible MCP client
+- `timeoutMs` — execution timeout
 - `memoryLimitBytes` — QuickJS memory limit (default: 32 MB)
 - `stackSizeBytes` — QuickJS stack limit (default: 512 KB)
 

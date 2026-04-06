@@ -3,6 +3,7 @@ import { installConsole, type SandboxLog } from "./builtins/console.ts";
 import { createSandboxRuntime } from "./runtime.ts";
 import { inspect } from "./utils/error-handling.ts";
 import { toQuickJS } from "./utils/to-quickjs.ts";
+import type { IClient } from "../client-like.ts";
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -48,7 +49,7 @@ async function resolvePromiseWithJobPump(
 }
 
 export interface RunCodeOptions {
-  tools: Record<string, ToolHandler>;
+  client: IClient;
   code: string;
   timeoutMs: number;
   memoryLimitBytes?: number;
@@ -61,10 +62,8 @@ export interface RunCodeResult {
   consoleLogs: SandboxLog[];
 }
 
-export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
-
 export async function runCode({
-  tools,
+  client,
   code,
   timeoutMs,
   memoryLimitBytes,
@@ -86,8 +85,36 @@ export async function runCode({
     });
     const exportsOrPromiseHandle = ctx.unwrapResult(moduleRes);
 
-    const toolsHandle = toQuickJS(ctx, tools);
-    ctx.setProp(ctx.global, "tools", toolsHandle);
+    // Build a plain object so toQuickJS sees own enumerable properties
+    // (IClient methods live on the prototype and would be invisible).
+    const sandboxClient = {
+      callTool: (params: unknown) =>
+        client.callTool(
+          params as Parameters<IClient["callTool"]>[0],
+        ),
+      listTools: (params?: unknown) =>
+        client.listTools(
+          params as Parameters<IClient["listTools"]>[0],
+        ),
+      listResources: (params?: unknown) =>
+        client.listResources(
+          params as Parameters<IClient["listResources"]>[0],
+        ),
+      readResource: (params: unknown) =>
+        client.readResource(
+          params as Parameters<IClient["readResource"]>[0],
+        ),
+      listPrompts: (params?: unknown) =>
+        client.listPrompts(
+          params as Parameters<IClient["listPrompts"]>[0],
+        ),
+      getPrompt: (params: unknown) =>
+        client.getPrompt(
+          params as Parameters<IClient["getPrompt"]>[0],
+        ),
+    };
+
+    const clientHandle = toQuickJS(ctx, sandboxClient);
 
     // When evaluating ES modules, QuickJS can return either:
     // - the module exports object, or
@@ -112,15 +139,15 @@ export async function runCode({
     if (userFnType !== "function") {
       userFnHandle.dispose();
       exportsHandle.dispose();
-      toolsHandle.dispose();
+      clientHandle.dispose();
       return {
-        error: `Code must export default a function (tools). Got ${userFnType}. Example: export default async (tools) => { /* ... */ }`,
+        error: `Code must export default a function (client). Got ${userFnType}. Example: export default async (client) => { /* ... */ }`,
         consoleLogs: consoleBuiltin.logs,
       };
     }
 
-    const callRes = ctx.callFunction(userFnHandle, ctx.undefined, toolsHandle);
-    toolsHandle.dispose();
+    const callRes = ctx.callFunction(userFnHandle, ctx.undefined, clientHandle);
+    clientHandle.dispose();
     userFnHandle.dispose();
     exportsHandle.dispose();
 
