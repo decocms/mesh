@@ -144,9 +144,9 @@ const MentionItem = <T extends BaseItem>({
         isLoading && "pointer-events-none opacity-50",
       )}
     >
-      <span className="shrink-0 truncate">{name}</span>
+      <span className="min-w-0 shrink truncate">{name}</span>
       {description && (
-        <span className="truncate text-muted-foreground/60 text-xs">
+        <span className="min-w-0 flex-1 truncate text-muted-foreground/60 text-xs">
           {description}
         </span>
       )}
