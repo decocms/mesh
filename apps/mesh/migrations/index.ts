@@ -63,6 +63,7 @@ import * as migration061downstreamtokenconnectionindex from "./061-downstream-to
 import * as migration062privateregistry from "./062-private-registry.ts";
 import * as migration063eventsubscriptionsenabledboolean from "./063-event-subscriptions-enabled-boolean.ts";
 import * as migration064brandcontext from "./064-brand-context.ts";
+import * as migration065brandcontextmulti from "./065-brand-context-multi.ts";
 
 /**
  * Core migrations for the Mesh application.
@@ -140,6 +141,7 @@ const migrations: Record<string, Migration> = {
   "063-event-subscriptions-enabled-boolean":
     migration063eventsubscriptionsenabledboolean,
   "064-brand-context": migration064brandcontext,
+  "065-brand-context-multi": migration065brandcontextmulti,
 };
 
 export default migrations;
