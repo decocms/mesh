@@ -24,6 +24,7 @@ import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   AlertCircle,
   Atom02,
+  Expand06,
   Eye,
   Globe02,
   LayersTwo01,
@@ -35,6 +36,7 @@ import type React from "react";
 import { Suspense, useContext } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { PanelContext } from "@/web/contexts/panel-context.tsx";
+import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context.tsx";
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -203,6 +205,21 @@ export function GenericToolCallPart({
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${toolName}` : null;
 
+  const virtualMcpCtx = useVirtualMCPURLContext();
+  const isDestructive = !!annotations?.destructiveHint;
+  const canOpenInPanel = hasMCPApp && !!virtualMcpCtx && !isDestructive;
+
+  const handleOpenInPanel = () => {
+    if (!connectionId || !virtualMcpCtx) return;
+    virtualMcpCtx.openMainView("ext-apps", {
+      id: connectionId,
+      toolName,
+    });
+    if (panelControls && !panelControls.mainOpen) {
+      panelControls.mainPanelRef.current?.expand();
+    }
+  };
+
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
@@ -266,58 +283,72 @@ export function GenericToolCallPart({
         detail={detail || null}
       />
       {hasMCPApp && uiResourceUri && connectionId && org?.id && (
-        <ErrorBoundary
-          fallback={({ resetError }) => (
-            <div className="mt-2 flex items-center gap-2 px-3 py-2.5 border border-dashed border-destructive/30 bg-destructive/5 rounded-lg">
-              <AlertCircle size={16} className="shrink-0 text-destructive" />
-              <span className="flex-1 text-xs text-destructive font-medium">
-                Failed to load <span className="font-mono">{friendlyName}</span>{" "}
-                app
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1.5 shrink-0"
-                onClick={resetError}
+        <>
+          {canOpenInPanel && (
+            <div className="flex justify-end mt-1.5 mb-1">
+              <button
+                type="button"
+                onClick={handleOpenInPanel}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground rounded-md [@media(hover:hover)]:hover:bg-accent/50 [@media(hover:hover)]:hover:text-foreground transition-colors"
               >
-                <RefreshCw01 className="size-3.5" />
-                Retry
-              </Button>
+                <Expand06 className="size-3.5" />
+                Open in panel
+              </button>
             </div>
           )}
-        >
-          <Suspense
-            fallback={
-              <div className="mt-2 flex items-center justify-center h-12 border border-border/75 rounded-lg overflow-hidden p-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Loading app...</span>
-                </div>
+          <ErrorBoundary
+            fallback={({ resetError }) => (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2.5 border border-dashed border-destructive/30 bg-destructive/5 rounded-lg">
+                <AlertCircle size={16} className="shrink-0 text-destructive" />
+                <span className="flex-1 text-xs text-destructive font-medium">
+                  Failed to load{" "}
+                  <span className="font-mono">{friendlyName}</span> app
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5 shrink-0"
+                  onClick={resetError}
+                >
+                  <RefreshCw01 className="size-3.5" />
+                  Retry
+                </Button>
               </div>
-            }
+            )}
           >
-            <MCPAppRenderer
-              uiResourceUri={uiResourceUri}
-              connectionId={connectionId}
-              orgId={org.id}
-              toolName={toolName}
-              toolInput={part.input}
-              toolResult={part.output}
-              toolMeta={toolMeta as Record<string, unknown> | undefined}
-              onMessage={handleAppMessage}
-              onUpdateModelContext={
-                sourceId && chatPrefs
-                  ? (params) => chatPrefs.setAppContext(sourceId, params)
-                  : undefined
+            <Suspense
+              fallback={
+                <div className="mt-2 flex items-center justify-center h-12 border border-border/75 rounded-lg overflow-hidden p-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Loading app...</span>
+                  </div>
+                </div>
               }
-              onTeardown={
-                sourceId && chatPrefs
-                  ? () => chatPrefs.clearAppContext(sourceId)
-                  : undefined
-              }
-            />
-          </Suspense>
-        </ErrorBoundary>
+            >
+              <MCPAppRenderer
+                uiResourceUri={uiResourceUri}
+                connectionId={connectionId}
+                orgId={org.id}
+                toolName={toolName}
+                toolInput={part.input}
+                toolResult={part.output}
+                toolMeta={toolMeta as Record<string, unknown> | undefined}
+                onMessage={handleAppMessage}
+                onUpdateModelContext={
+                  sourceId && chatPrefs
+                    ? (params) => chatPrefs.setAppContext(sourceId, params)
+                    : undefined
+                }
+                onTeardown={
+                  sourceId && chatPrefs
+                    ? () => chatPrefs.clearAppContext(sourceId)
+                    : undefined
+                }
+              />
+            </Suspense>
+          </ErrorBoundary>
+        </>
       )}
     </div>
   );
