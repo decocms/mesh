@@ -31,6 +31,7 @@ import { Context, Hono } from "hono";
 import { endTime, startTime } from "hono/timing";
 import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
+import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
 
 // Define Hono variables type
@@ -326,9 +327,6 @@ app.all("/:connectionId", async (c) => {
         ctx.organization?.id,
       );
       if (connection?.connection_url) {
-        // Dynamic import to break circular dependency:
-        // proxy.ts → oauth-proxy.ts → context-factory.ts → proxy.ts
-        const { handleAuthError } = await import("./oauth-proxy");
         const authResponse = await handleAuthError({
           error: error as Error & { status?: number },
           reqUrl: new URL(c.req.raw.url),

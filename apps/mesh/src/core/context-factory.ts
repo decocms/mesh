@@ -409,7 +409,6 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
 }
 
 // Import built-in roles from separate module to avoid circular dependency
-import { createMCPProxy } from "@/api/routes/proxy";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { OrgScopedThreadStorage, SqlThreadStorage } from "@/storage/threads";
@@ -1035,6 +1034,9 @@ export async function createMeshContextFactory(
       eventBus: config.eventBus,
       aiProviders: aiProviderFactory,
       createMCPProxy: async (conn: string | ConnectionEntity) => {
+        // Dynamic import to break circular dependency:
+        // context-factory → proxy → oauth-proxy → context-factory
+        const { createMCPProxy } = await import("@/api/routes/proxy");
         return await createMCPProxy(conn, ctx);
       },
       invalidateMemberRole: config.memberRoleCache
