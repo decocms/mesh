@@ -220,7 +220,7 @@ export interface RequestMetadata {
 // ============================================================================
 
 // Forward declare storage types
-import type { createMCPProxy } from "@/api/routes/proxy";
+import type { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import type { BetterAuthInstance } from "@/auth";
 import type { OrgScopedThreadStorage } from "@/storage/threads";
 import type { EventBus } from "../event-bus/interface";
