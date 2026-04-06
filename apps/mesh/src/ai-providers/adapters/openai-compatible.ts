@@ -16,15 +16,16 @@ function parseCredential(raw: string): { baseUrl: string; apiKey: string } {
   return { baseUrl: url, apiKey: parsed.apiKey ?? "" };
 }
 
-// Minimalist "brackets + slash" icon representing a generic API endpoint.
-const OPENAI_COMPAT_LOGO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 8 4"/><polyline points="20 7 20 4 16 4"/><polyline points="4 17 4 20 8 20"/><polyline points="20 17 20 20 16 20"/><line x1="9" y1="17" x2="15" y2="7"/></svg>')}`;
+// OpenAI logo – the hexagonal "flower" mark.
+const OPENAI_LOGO =
+  "https://cdn.openai.com/API/logo-assets/openai-logomark.svg";
 
 export const openaiCompatibleAdapter: ProviderAdapter = {
   info: {
     id: "openai-compatible",
     name: "OpenAI Compatible",
     description: "Custom OpenAI-compatible endpoint",
-    logo: OPENAI_COMPAT_LOGO,
+    logo: OPENAI_LOGO,
   },
 
   supportedMethods: ["api-key"],
