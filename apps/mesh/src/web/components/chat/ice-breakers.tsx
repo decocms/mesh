@@ -77,7 +77,7 @@ function PromptCard({
 }) {
   const { prompt } = item;
   const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
-  const label = prompt.description ?? name;
+  const description = prompt.description || null;
 
   if (variant === "card") {
     return (
@@ -96,9 +96,9 @@ function PromptCard({
           <span className="font-medium truncate">{name}</span>
           {isLoading && <Spinner size="xs" />}
         </div>
-        {label !== name && (
+        {description && (
           <span className="text-xs text-muted-foreground line-clamp-2">
-            {label}
+            {description}
           </span>
         )}
       </button>
@@ -124,7 +124,7 @@ function PromptCard({
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">
-        <p className="text-xs">{label}</p>
+        <p className="text-xs">{description ?? name}</p>
       </TooltipContent>
     </Tooltip>
   );

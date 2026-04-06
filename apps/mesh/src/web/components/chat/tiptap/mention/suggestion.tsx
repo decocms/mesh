@@ -130,6 +130,9 @@ const MentionItem = <T extends BaseItem>({
   isLoading,
   ref,
 }: MentionItemProps<T>) => {
+  const name = (item.title || item.name).replace(/_/g, " ");
+  const description = item.description || null;
+
   return (
     <div
       ref={ref}
@@ -144,14 +147,12 @@ const MentionItem = <T extends BaseItem>({
     >
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium flex items-center truncate">
-            {item.title || item.name.replace(/_/g, " ")}
-          </span>
+          <span className="font-medium flex items-center truncate">{name}</span>
           {isLoading && <Spinner size="xs" />}
         </div>
-        {item.description && (
+        {description && (
           <div className="text-xs text-muted-foreground line-clamp-1">
-            {item.description}
+            {description}
           </div>
         )}
       </div>
