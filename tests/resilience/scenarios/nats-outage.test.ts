@@ -128,28 +128,19 @@ describe("NATS outage", () => {
     await disableProxy(PROXY_NAMES.NATS);
 
     // Poll for NATS status change — give more time for reconnect detection
-    let natsDown = false;
-    try {
-      await pollUntil(
-        async () => {
-          const res = await fetch("http://127.0.0.1:13000/health/ready");
-          const health = (await res.json()) as any;
-          const status = health.services?.nats?.status;
-          if (status && status !== "up") {
-            console.log(`  → NATS status changed to: ${status}`);
-            natsDown = true;
-            return true;
-          }
-          return false;
-        },
-        { timeoutMs: 45_000, intervalMs: 2_000, label: "nats-health-down" },
-      );
-    } catch {
-      // If NATS status doesn't change, that's a finding
-      console.log(
-        "  → FINDING: Health endpoint does not report NATS as down after 45s",
-      );
-    }
+    await pollUntil(
+      async () => {
+        const res = await fetch("http://127.0.0.1:13000/health/ready");
+        const health = (await res.json()) as any;
+        const status = health.services?.nats?.status;
+        if (status && status !== "up") {
+          console.log(`  → NATS status changed to: ${status}`);
+          return true;
+        }
+        return false;
+      },
+      { timeoutMs: 45_000, intervalMs: 2_000, label: "nats-health-down" },
+    );
 
     // App should still be ready regardless
     const res = await fetch("http://127.0.0.1:13000/health/ready");

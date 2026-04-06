@@ -47,8 +47,14 @@ describe("Postgres outage", () => {
         { apiKey: testState.apiKey },
         { timeoutMs: 35_000 },
       );
-      // If it succeeds (unlikely with DB down), that's fine too
+      throw new Error(
+        "Expected mcpCall to fail with DB down, but it succeeded",
+      );
     } catch (error: any) {
+      // Rethrow our own assertion error
+      if (error.message?.includes("Expected mcpCall to fail")) {
+        throw error;
+      }
       const durationMs = performance.now() - start;
       // Should fail with an error, not hang for the full timeout
       expect(durationMs).toBeLessThan(35_000);
