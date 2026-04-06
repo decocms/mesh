@@ -76,7 +76,9 @@ describe("MCP server latency", () => {
         { timeoutMs: 30_000 },
       );
       // If it succeeds, the toxic didn't work as expected
-      console.log("  → WARNING: call succeeded despite connection hang toxic");
+      throw new Error(
+        "Expected failure but call succeeded despite connection hang toxic",
+      );
     } catch (error: any) {
       const durationMs = performance.now() - start;
       console.log(
