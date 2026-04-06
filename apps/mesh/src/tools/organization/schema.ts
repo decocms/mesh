@@ -41,6 +41,7 @@ export type RegistryConfig = z.infer<typeof RegistryConfigSchema>;
  * Brand context schema - org-scoped company profile
  */
 export const BrandContextSchema = z.object({
+  id: z.string().describe("Brand context ID"),
   name: z.string().describe("Company name"),
   domain: z.string().describe("Company domain (e.g. example.com)"),
   overview: z.string().describe("Company overview / description"),

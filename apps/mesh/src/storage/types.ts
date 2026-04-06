@@ -936,6 +936,7 @@ export interface KVTable {
 // ============================================================================
 
 export interface BrandContextTable {
+  id: string;
   organization_id: string;
   name: string;
   domain: string;
@@ -951,6 +952,7 @@ export interface BrandContextTable {
 }
 
 export interface BrandContext {
+  id: string;
   organizationId: string;
   name: string;
   domain: string;

@@ -3,12 +3,9 @@ import type { Kysely } from "kysely";
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable("brand_context")
+    .addColumn("id", "text", (col) => col.primaryKey().notNull())
     .addColumn("organization_id", "text", (col) =>
-      col
-        .primaryKey()
-        .notNull()
-        .references("organization.id")
-        .onDelete("cascade"),
+      col.notNull().references("organization.id").onDelete("cascade"),
     )
     .addColumn("name", "text", (col) => col.notNull())
     .addColumn("domain", "text", (col) => col.notNull())
@@ -25,6 +22,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("updated_at", "timestamptz", (col) =>
       col.notNull().defaultTo("now()"),
     )
+    .execute();
+
+  await db.schema
+    .createIndex("brand_context_organization_id_idx")
+    .on("brand_context")
+    .column("organization_id")
     .execute();
 }
 

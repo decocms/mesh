@@ -414,10 +414,20 @@ export interface TagStoragePort {
 // ============================================================================
 
 export interface BrandContextStoragePort {
-  get(organizationId: string): Promise<BrandContext | null>;
-  upsert(
+  get(id: string): Promise<BrandContext | null>;
+  list(organizationId: string): Promise<BrandContext[]>;
+  create(
     organizationId: string,
-    data: Omit<BrandContext, "organizationId" | "createdAt" | "updatedAt">,
+    data: Omit<
+      BrandContext,
+      "id" | "organizationId" | "createdAt" | "updatedAt"
+    >,
   ): Promise<BrandContext>;
-  delete(organizationId: string): Promise<void>;
+  update(
+    id: string,
+    data: Partial<
+      Omit<BrandContext, "id" | "organizationId" | "createdAt" | "updatedAt">
+    >,
+  ): Promise<BrandContext>;
+  delete(id: string): Promise<void>;
 }

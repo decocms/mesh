@@ -43,8 +43,11 @@ const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_DELETE,
   OrganizationTools.ORGANIZATION_SETTINGS_GET,
   OrganizationTools.ORGANIZATION_SETTINGS_UPDATE,
+  OrganizationTools.BRAND_CONTEXT_LIST,
   OrganizationTools.BRAND_CONTEXT_GET,
+  OrganizationTools.BRAND_CONTEXT_CREATE,
   OrganizationTools.BRAND_CONTEXT_UPDATE,
+  OrganizationTools.BRAND_CONTEXT_DELETE,
   OrganizationTools.ORGANIZATION_MEMBER_ADD,
   OrganizationTools.ORGANIZATION_MEMBER_REMOVE,
   OrganizationTools.ORGANIZATION_MEMBER_LIST,
@@ -283,9 +286,9 @@ export const managementMCP = async (ctx: MeshContext) => {
         };
       }
 
-      const brand = await ctx.storage.brandContext.get(ctx.organization.id);
+      const brands = await ctx.storage.brandContext.list(ctx.organization.id);
 
-      if (!brand) {
+      if (brands.length === 0) {
         return {
           messages: [
             {
@@ -299,50 +302,56 @@ export const managementMCP = async (ctx: MeshContext) => {
         };
       }
 
-      const lines: string[] = [
-        `# Brand Context: ${brand.name}`,
-        "",
-        `**Domain:** ${brand.domain}`,
-        "",
-        "## Overview",
-        brand.overview,
-      ];
+      const sections: string[] = [];
 
-      if (brand.colors && Object.keys(brand.colors).length > 0) {
-        lines.push("", "## Colors");
-        for (const [key, value] of Object.entries(brand.colors)) {
-          lines.push(`- **${key}:** ${value}`);
+      for (const brand of brands) {
+        const lines: string[] = [
+          `# Brand: ${brand.name}`,
+          "",
+          `**Domain:** ${brand.domain}`,
+          "",
+          "## Overview",
+          brand.overview,
+        ];
+
+        if (brand.colors && Object.keys(brand.colors).length > 0) {
+          lines.push("", "## Colors");
+          for (const [key, value] of Object.entries(brand.colors)) {
+            lines.push(`- **${key}:** ${value}`);
+          }
         }
-      }
 
-      if (brand.fonts && brand.fonts.length > 0) {
-        lines.push("", "## Fonts");
-        for (const font of brand.fonts) {
-          const parts = Object.entries(font)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(", ");
-          lines.push(`- ${parts}`);
+        if (brand.fonts && brand.fonts.length > 0) {
+          lines.push("", "## Fonts");
+          for (const font of brand.fonts) {
+            const parts = Object.entries(font)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ");
+            lines.push(`- ${parts}`);
+          }
         }
-      }
 
-      if (brand.logo) {
-        lines.push("", `**Logo:** ${brand.logo}`);
-      }
-      if (brand.favicon) {
-        lines.push(`**Favicon:** ${brand.favicon}`);
-      }
-      if (brand.ogImage) {
-        lines.push(`**OG Image:** ${brand.ogImage}`);
-      }
-
-      if (brand.images && brand.images.length > 0) {
-        lines.push("", "## Images");
-        for (const img of brand.images) {
-          const parts = Object.entries(img)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(", ");
-          lines.push(`- ${parts}`);
+        if (brand.logo) {
+          lines.push("", `**Logo:** ${brand.logo}`);
         }
+        if (brand.favicon) {
+          lines.push(`**Favicon:** ${brand.favicon}`);
+        }
+        if (brand.ogImage) {
+          lines.push(`**OG Image:** ${brand.ogImage}`);
+        }
+
+        if (brand.images && brand.images.length > 0) {
+          lines.push("", "## Images");
+          for (const img of brand.images) {
+            const parts = Object.entries(img)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ");
+            lines.push(`- ${parts}`);
+          }
+        }
+
+        sections.push(lines.join("\n"));
       }
 
       return {
@@ -351,7 +360,7 @@ export const managementMCP = async (ctx: MeshContext) => {
             role: "user" as const,
             content: {
               type: "text" as const,
-              text: lines.join("\n"),
+              text: sections.join("\n\n---\n\n"),
             },
           },
         ],
