@@ -45,7 +45,7 @@ export function createSandboxTool(params: SandboxToolParams) {
     inputExamples: [
       {
         input: {
-          code: 'export default async (client) => { const { tools } = await client.listTools(); return tools.map(t => t.name); }',
+          code: "export default async (client) => { const { tools } = await client.listTools(); return tools.map(t => t.name); }",
           timeoutMs: 5000,
         },
       },

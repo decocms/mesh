@@ -89,29 +89,17 @@ export async function runCode({
     // (IClient methods live on the prototype and would be invisible).
     const sandboxClient = {
       callTool: (params: unknown) =>
-        client.callTool(
-          params as Parameters<IClient["callTool"]>[0],
-        ),
+        client.callTool(params as Parameters<IClient["callTool"]>[0]),
       listTools: (params?: unknown) =>
-        client.listTools(
-          params as Parameters<IClient["listTools"]>[0],
-        ),
+        client.listTools(params as Parameters<IClient["listTools"]>[0]),
       listResources: (params?: unknown) =>
-        client.listResources(
-          params as Parameters<IClient["listResources"]>[0],
-        ),
+        client.listResources(params as Parameters<IClient["listResources"]>[0]),
       readResource: (params: unknown) =>
-        client.readResource(
-          params as Parameters<IClient["readResource"]>[0],
-        ),
+        client.readResource(params as Parameters<IClient["readResource"]>[0]),
       listPrompts: (params?: unknown) =>
-        client.listPrompts(
-          params as Parameters<IClient["listPrompts"]>[0],
-        ),
+        client.listPrompts(params as Parameters<IClient["listPrompts"]>[0]),
       getPrompt: (params: unknown) =>
-        client.getPrompt(
-          params as Parameters<IClient["getPrompt"]>[0],
-        ),
+        client.getPrompt(params as Parameters<IClient["getPrompt"]>[0]),
     };
 
     const clientHandle = toQuickJS(ctx, sandboxClient);
