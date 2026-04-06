@@ -130,7 +130,12 @@ const MentionItem = <T extends BaseItem>({
   isLoading,
   ref,
 }: MentionItemProps<T>) => {
-  const name = (item.title || item.name).replace(/_/g, " ");
+  // Strip gateway namespace prefix (e.g. "conn-abc_web_search_help" → "web search help")
+  const sep = item.name.indexOf("_");
+  const baseName = sep !== -1 ? item.name.slice(sep + 1) : item.name;
+  const name = baseName
+    .replace(/_/g, " ")
+    .replace(/(^|[\s-])(\w)/g, (_, s, c) => s + c.toUpperCase());
   const description = item.description || null;
 
   return (
