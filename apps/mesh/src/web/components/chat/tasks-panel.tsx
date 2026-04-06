@@ -54,6 +54,8 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Trash01 } from "@untitledui/icons";
+import { useSound } from "@/web/hooks/use-sound.ts";
+import { question004Sound } from "@deco/ui/lib/question-004.ts";
 
 // ────────────────────────────────────────
 
@@ -144,6 +146,7 @@ function TaskRow({
   onClick: () => void;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
+  const playSound = useSound(question004Sound);
   const status = task.status;
   const config = getStatusConfig(status);
   const StatusIcon = config.icon;
@@ -220,6 +223,7 @@ function TaskRow({
         className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground opacity-0 group-hover/row:opacity-100 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
+          playSound();
           hideTask(task.id);
         }}
         title="Archive"
