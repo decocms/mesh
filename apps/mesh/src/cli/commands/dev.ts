@@ -25,6 +25,7 @@ export interface DevOptions {
   skipMigrations: boolean;
   noTui?: boolean;
   localMode: boolean;
+  projectDir?: string;
 }
 
 // Strip ANSI escape codes from a string
@@ -102,6 +103,7 @@ export async function startDevServer(
     skipMigrations: options.skipMigrations,
     noTui: options.noTui,
     vitePort: options.vitePort,
+    projectDir: options.projectDir,
   });
 
   for (const s of services) {
@@ -130,6 +132,9 @@ export async function startDevServer(
       DECOCMS_HOME: settings.dataDir,
       DATA_DIR: settings.dataDir,
       DECO_CLI: "1",
+      ...(settings.projectDir
+        ? { DECOCMS_PROJECT_DIR: settings.projectDir }
+        : {}),
       ...(settings.baseUrl ? { BASE_URL: settings.baseUrl } : {}),
     },
     stdio: [

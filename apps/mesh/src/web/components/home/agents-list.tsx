@@ -15,6 +15,7 @@ import {
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
 
 function readRecentAgentIds(locator: ProjectLocator): string[] {
   try {
@@ -153,6 +154,10 @@ function CreateAgentButton() {
   );
 }
 
+function isProjectAgent(agent: { metadata?: Record<string, unknown> | null }) {
+  return !!(agent.metadata as Record<string, unknown> | null)?.projectAgentType;
+}
+
 function AgentsListContent() {
   const virtualMcps = useVirtualMCPs();
   const { locator } = useProjectContext();
@@ -160,6 +165,8 @@ function AgentsListContent() {
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
   const [leanCanvasModalOpen, setLeanCanvasModalOpen] = useState(false);
   const navigateToAgent = useNavigateToAgent();
+  const config = usePublicConfig();
+  const isProjectMode = !!config.projectDir;
 
   const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-editor",
@@ -173,12 +180,17 @@ function AgentsListContent() {
 
   const recentIds = readRecentAgentIds(locator);
 
-  // Filter out Decopilot, sort by most recently used (from localStorage), then take top 5
-  const agents = virtualMcps
-    .filter(
-      (agent): agent is typeof agent & { id: string } =>
-        agent.id !== null && !isDecopilot(agent.id),
-    )
+  // Separate project agents from regular agents
+  const allAgents = virtualMcps.filter(
+    (agent): agent is typeof agent & { id: string } =>
+      agent.id !== null && !isDecopilot(agent.id),
+  );
+
+  const projectAgents = allAgents.filter(isProjectAgent);
+  const regularAgents = allAgents.filter((a) => !isProjectAgent(a));
+
+  // Sort regular agents by most recently used, then take top 5
+  const sortedRegular = regularAgents
     .sort((a, b) => {
       const aIdx = recentIds.indexOf(a.id);
       const bIdx = recentIds.indexOf(b.id);
@@ -209,36 +221,50 @@ function AgentsListContent() {
         a.title === leanCanvasAgent.title),
   );
 
-  const hasAgents = agents.length > 0;
+  const hasAgents = sortedRegular.length > 0 || projectAgents.length > 0;
 
   return (
     <>
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
-          <AgentPreview
-            key={siteEditorAgent.id}
-            agent={siteEditorAgent}
-            onSpecialClick={() => setImportDecoOpen(true)}
-          />
-          <AgentPreview
-            key={siteDiagnosticsAgent.id}
-            agent={existingDiagnostics ?? siteDiagnosticsAgent}
-            onSpecialClick={
-              existingDiagnostics
-                ? () => navigateToAgent(existingDiagnostics.id)
-                : () => setDiagnosticsModalOpen(true)
-            }
-          />
-          <AgentPreview
-            key={leanCanvasAgent.id}
-            agent={existingLeanCanvas ?? leanCanvasAgent}
-            onSpecialClick={
-              existingLeanCanvas
-                ? () => navigateToAgent(existingLeanCanvas.id)
-                : () => setLeanCanvasModalOpen(true)
-            }
-          />
-          {agents
+          {/* Show project agents first when in project mode */}
+          {isProjectMode &&
+            projectAgents.map((agent) => (
+              <AgentPreview
+                key={agent.id}
+                agent={agent}
+                onSpecialClick={() => navigateToAgent(agent.id)}
+              />
+            ))}
+          {/* Well-known agents (only show when not in project mode) */}
+          {!isProjectMode && (
+            <>
+              <AgentPreview
+                key={siteEditorAgent.id}
+                agent={siteEditorAgent}
+                onSpecialClick={() => setImportDecoOpen(true)}
+              />
+              <AgentPreview
+                key={siteDiagnosticsAgent.id}
+                agent={existingDiagnostics ?? siteDiagnosticsAgent}
+                onSpecialClick={
+                  existingDiagnostics
+                    ? () => navigateToAgent(existingDiagnostics.id)
+                    : () => setDiagnosticsModalOpen(true)
+                }
+              />
+              <AgentPreview
+                key={leanCanvasAgent.id}
+                agent={existingLeanCanvas ?? leanCanvasAgent}
+                onSpecialClick={
+                  existingLeanCanvas
+                    ? () => navigateToAgent(existingLeanCanvas.id)
+                    : () => setLeanCanvasModalOpen(true)
+                }
+              />
+            </>
+          )}
+          {sortedRegular
             .filter(
               (a) =>
                 a.id !== existingDiagnostics?.id &&

@@ -13,6 +13,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { useQuery } from "@tanstack/react-query";
 import type { BrandContext } from "@/storage/types";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
 
 interface NoAiProviderEmptyStateProps {
   title?: string;
@@ -75,15 +76,19 @@ export function NoAiProviderEmptyState({
   const { org } = useProjectContext();
   const { localMode } = useAuthConfig();
   const brand = useDefaultBrand();
+  const config = usePublicConfig();
 
-  const orgName = org.name;
+  // Prefer project name (from local dev `bunx decocms`) over org name.
+  // When running locally against a specific project, we want the subject to
+  // be the project, not the seeded local org.
+  const subject = config.projectName ?? org.name;
   const primaryColor = brand ? extractPrimaryColor(brand) : null;
   const brandIcon = brand?.favicon ?? brand?.logo ?? null;
 
   const heading =
     title ??
-    (orgName
-      ? `${orgName} is ready for agents`
+    (subject
+      ? `${subject} is ready for agents`
       : "Your agents are almost ready");
   const subtitle = description ?? "Choose how to power your AI team.";
 

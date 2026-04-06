@@ -54,6 +54,9 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
+import { useNavigate } from "@tanstack/react-router";
+import { useVirtualMCPs } from "@decocms/mesh-sdk";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -407,9 +410,11 @@ export type AiProvider = {
 function ProviderCard({
   provider,
   keys,
+  onActivated,
 }: {
   provider: AiProvider;
   keys: AiProviderKey[];
+  onActivated?: () => void;
 }) {
   const { org } = useProjectContext();
   const client = useMCPClient({
@@ -507,6 +512,7 @@ function ProviderCard({
         queryKey: KEYS.aiProviders(org.id),
       });
       toast.success(`${provider.name} activated`);
+      onActivated?.();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -750,12 +756,36 @@ export function ProviderCardGrid({
   const providers: AiProvider[] = (aiProviders?.providers ?? []).filter(
     (p) => p.id !== hideProviderId,
   );
+  const config = usePublicConfig();
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
+  const virtualMcps = useVirtualMCPs();
+
   const localProviders = providers.filter((p) =>
     p.supportedMethods.includes("cli-activate"),
   );
   const cloudProviders = providers.filter(
     (p) => !p.supportedMethods.includes("cli-activate"),
   );
+
+  const handleActivated = () => {
+    if (!config.projectDir) return;
+    // Find the hub agent (project-overview) and navigate to it
+    const hubAgent = virtualMcps.find(
+      (a) =>
+        a.id !== null &&
+        (a.metadata as Record<string, unknown> | null)?.projectAgentType ===
+          "project-overview",
+    );
+    if (hubAgent?.id) {
+      navigate({
+        to: "/$org/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: hubAgent.id },
+      });
+    } else {
+      navigate({ to: "/$org", params: { org: org.slug } });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5 w-full">
@@ -771,6 +801,7 @@ export function ProviderCardGrid({
                 key={provider.id}
                 provider={provider}
                 keys={allKeys.filter((k) => k.providerId === provider.id)}
+                onActivated={handleActivated}
               />
             ))}
           </div>
@@ -782,6 +813,7 @@ export function ProviderCardGrid({
             key={provider.id}
             provider={provider}
             keys={allKeys.filter((k) => k.providerId === provider.id)}
+            onActivated={handleActivated}
           />
         ))}
       </div>

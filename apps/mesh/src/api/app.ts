@@ -47,6 +47,7 @@ import proxyRoutes from "./routes/proxy";
 import { createKVRoutes } from "./routes/kv";
 import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
+import projectRoutes from "./routes/project";
 import filesRoutes from "./routes/files";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
@@ -566,6 +567,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Public Configuration (no auth required)
   // ============================================================================
   app.route("/api/config", publicConfigRoutes);
+  app.route("/api/project", projectRoutes);
 
   // ============================================================================
   // Better Auth Routes

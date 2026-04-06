@@ -25,6 +25,7 @@ export interface ServeOptions {
   localMode: boolean;
   noTui?: boolean;
   numThreads?: number;
+  projectDir?: string;
 }
 
 // Strip ANSI escape codes from a string
@@ -143,6 +144,7 @@ export async function startServer(options: ServeOptions): Promise<void> {
     skipMigrations: options.skipMigrations,
     noTui: options.noTui,
     nodeEnv: "production",
+    projectDir: options.projectDir,
   });
 
   for (const s of services) {

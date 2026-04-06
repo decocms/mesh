@@ -6,11 +6,19 @@
  * This layout wraps all agent and org-home routes via a pathless id route.
  */
 
-import { createContext, use, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  createContext,
+  Suspense as ReactSuspense,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { TopbarProjectInfo } from "@/web/components/topbar-project-info";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
@@ -659,6 +667,11 @@ function AgentInsetProvider() {
                 </>
               );
             })()}
+        </div>
+        <div className="flex-1 flex items-center justify-center min-w-0">
+          <ReactSuspense fallback={null}>
+            <TopbarProjectInfo />
+          </ReactSuspense>
         </div>
         <div className="flex items-center gap-0.5">
           {showThreePanels && (
