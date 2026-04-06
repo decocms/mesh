@@ -255,11 +255,17 @@ app.all("/:connectionId", async (c) => {
 
   try {
     try {
-      // Fetch connection
+      // Organization context is required — without it the ownership
+      // check below would be skipped, allowing cross-tenant access.
+      if (!ctx.organization?.id) {
+        return c.json({ error: "Organization context is required" }, 403);
+      }
+
+      // Fetch connection scoped to the caller's organization
       startTime(c, "mcp.find_connection");
       const connection = await ctx.storage.connections.findById(
         connectionId,
-        ctx.organization?.id,
+        ctx.organization.id,
       );
       endTime(c, "mcp.find_connection");
       if (!connection) {
@@ -267,15 +273,11 @@ app.all("/:connectionId", async (c) => {
       }
 
       // Validate organization ownership
-      if (
-        ctx.organization &&
-        connection.organization_id !== ctx.organization.id
-      ) {
+      if (connection.organization_id !== ctx.organization.id) {
         throw new Error(
           "Connection does not belong to the active organization",
         );
       }
-      ctx.organization ??= { id: connection.organization_id };
 
       // Check connection status
       if (connection.status !== "active") {
