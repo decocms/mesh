@@ -1,4 +1,3 @@
-import type { ThreadStatus } from "@decocms/mesh-sdk";
 import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
@@ -22,19 +21,6 @@ function playSoundForStatus(
       console.warn("[status-sounds] playback failed:", err);
     });
   }
-}
-
-/**
- * Play a sound for a given thread status, respecting the user's sound preferences.
- * Can be used imperatively (e.g. on "Mark as done" click).
- */
-export function usePlayStatusSound() {
-  const [preferences] = usePreferences();
-
-  return (status: ThreadStatus) => {
-    if (!preferences.enableSounds) return;
-    playSoundForStatus(status, preferences.soundToggles);
-  };
 }
 
 /**
