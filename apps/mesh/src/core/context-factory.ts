@@ -408,8 +408,7 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
   };
 }
 
-// Import built-in roles from separate module to avoid circular dependency
-import { createMCPProxy } from "@/api/routes/proxy";
+import { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { OrgScopedThreadStorage, SqlThreadStorage } from "@/storage/threads";
