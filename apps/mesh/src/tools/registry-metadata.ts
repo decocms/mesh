@@ -45,6 +45,8 @@ const ALL_TOOL_NAMES = [
   "ORGANIZATION_DELETE",
   "ORGANIZATION_SETTINGS_GET",
   "ORGANIZATION_SETTINGS_UPDATE",
+  "BRAND_CONTEXT_GET",
+  "BRAND_CONTEXT_UPDATE",
   "ORGANIZATION_MEMBER_ADD",
   "ORGANIZATION_MEMBER_REMOVE",
   "ORGANIZATION_MEMBER_LIST",
@@ -240,6 +242,16 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
   {
     name: "ORGANIZATION_SETTINGS_UPDATE",
     description: "Update organization settings",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_GET",
+    description: "View brand context",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_UPDATE",
+    description: "Update brand context",
     category: "Organizations",
   },
   {
@@ -790,6 +802,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   ORGANIZATION_DELETE: "Delete organization",
   ORGANIZATION_SETTINGS_GET: "View organization settings",
   ORGANIZATION_SETTINGS_UPDATE: "Update organization settings",
+  BRAND_CONTEXT_GET: "View brand context",
+  BRAND_CONTEXT_UPDATE: "Update brand context",
   ORGANIZATION_MEMBER_LIST: "List members",
   ORGANIZATION_MEMBER_ADD: "Add members",
   ORGANIZATION_MEMBER_REMOVE: "Remove members",

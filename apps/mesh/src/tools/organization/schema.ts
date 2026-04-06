@@ -36,3 +36,32 @@ export const RegistryConfigSchema = z.object({
 });
 
 export type RegistryConfig = z.infer<typeof RegistryConfigSchema>;
+
+/**
+ * Brand context schema - org-scoped company profile
+ */
+export const BrandContextSchema = z.object({
+  name: z.string().describe("Company name"),
+  domain: z.string().describe("Company domain (e.g. example.com)"),
+  overview: z.string().describe("Company overview / description"),
+  logo: z.string().nullable().optional().describe("Logo URL"),
+  favicon: z.string().nullable().optional().describe("Favicon URL"),
+  ogImage: z.string().nullable().optional().describe("OG image URL"),
+  fonts: z
+    .array(z.record(z.string(), z.unknown()))
+    .nullable()
+    .optional()
+    .describe("Font configuration"),
+  colors: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .optional()
+    .describe("Color palette"),
+  images: z
+    .array(z.record(z.string(), z.unknown()))
+    .nullable()
+    .optional()
+    .describe("Brand images"),
+});
+
+export type BrandContextInput = z.infer<typeof BrandContextSchema>;

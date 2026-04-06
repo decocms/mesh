@@ -931,6 +931,40 @@ export interface KVTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
+// ============================================================================
+// Brand Context Table Definition
+// ============================================================================
+
+export interface BrandContextTable {
+  organization_id: string;
+  name: string;
+  domain: string;
+  overview: string;
+  logo: string | null;
+  favicon: string | null;
+  og_image: string | null;
+  fonts: string | null;
+  colors: string | null;
+  images: string | null;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+export interface BrandContext {
+  organizationId: string;
+  name: string;
+  domain: string;
+  overview: string;
+  logo: string | null;
+  favicon: string | null;
+  ogImage: string | null;
+  fonts: Record<string, unknown>[] | null;
+  colors: Record<string, unknown> | null;
+  images: Record<string, unknown>[] | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -994,4 +1028,7 @@ export interface Database {
 
   // Generic org-scoped KV store
   kv: KVTable;
+
+  // Brand context (org-scoped company profile)
+  brand_context: BrandContextTable;
 }

@@ -18,6 +18,7 @@ import { PageContentClassNameProvider } from "@/web/components/page";
 import {
   ArrowNarrowLeft,
   BarChart10,
+  BookOpen01,
   Building02,
   Container,
   CpuChip01,
@@ -71,6 +72,12 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           label: "Store",
           icon: <PackageCheck size={14} />,
           to: "/$org/settings/store",
+        },
+        {
+          key: "brand-context",
+          label: "Context",
+          icon: <BookOpen01 size={14} />,
+          to: "/$org/settings/brand-context",
         },
         {
           key: "ai-providers",

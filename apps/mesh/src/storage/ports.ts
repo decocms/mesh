@@ -16,6 +16,7 @@ import type {
   VirtualMCPUpdateData,
 } from "../tools/virtual/schema";
 import type {
+  BrandContext,
   MonitoringLog,
   OrganizationSettings,
   OrganizationTag,
@@ -406,4 +407,17 @@ export interface TagStoragePort {
     organizationId: string,
   ): Promise<OrganizationTag[]>;
   getMembersWithTags(organizationId: string): Promise<Map<string, string[]>>;
+}
+
+// ============================================================================
+// Brand Context Storage Port
+// ============================================================================
+
+export interface BrandContextStoragePort {
+  get(organizationId: string): Promise<BrandContext | null>;
+  upsert(
+    organizationId: string,
+    data: Omit<BrandContext, "organizationId" | "createdAt" | "updatedAt">,
+  ): Promise<BrandContext>;
+  delete(organizationId: string): Promise<void>;
 }

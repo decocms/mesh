@@ -289,6 +289,10 @@ export const KEYS = {
   promptConnectionMap: (orgId: string, connectionIds: string[]) =>
     ["prompt-connection-map", orgId, ...connectionIds] as const,
 
+  // Brand context (scoped by organization)
+  brandContext: (organizationId: string) =>
+    ["brand-context", organizationId] as const,
+
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,
 
