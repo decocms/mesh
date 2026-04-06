@@ -87,7 +87,7 @@ export async function runCode({
 
     // Build a plain object so toQuickJS sees own enumerable properties
     // (IClient methods live on the prototype and would be invisible).
-    const sandboxClient = {
+    const sandboxClient: IClient = {
       callTool: (params: unknown) =>
         client.callTool(params as Parameters<IClient["callTool"]>[0]),
       listTools: (params?: unknown) =>
@@ -96,10 +96,17 @@ export async function runCode({
         client.listResources(params as Parameters<IClient["listResources"]>[0]),
       readResource: (params: unknown) =>
         client.readResource(params as Parameters<IClient["readResource"]>[0]),
+      listResourceTemplates: (params?: unknown) =>
+        client.listResourceTemplates(
+          params as Parameters<IClient["listResourceTemplates"]>[0],
+        ),
       listPrompts: (params?: unknown) =>
         client.listPrompts(params as Parameters<IClient["listPrompts"]>[0]),
       getPrompt: (params: unknown) =>
         client.getPrompt(params as Parameters<IClient["getPrompt"]>[0]),
+      getServerCapabilities: () => client.getServerCapabilities(),
+      getInstructions: () => client.getInstructions(),
+      close: () => client.close(),
     };
 
     const clientHandle = toQuickJS(ctx, sandboxClient);
