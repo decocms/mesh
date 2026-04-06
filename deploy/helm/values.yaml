@@ -13,6 +13,13 @@ strategy:
 image:
   repository: ghcr.io/decocms/studio/studio
   pullPolicy: Always
+  command:
+    - bun
+    - run
+    - deco
+    - --no-local-mode
+    - --num-threads
+    - "4"
 
 service:
   type: ClusterIP

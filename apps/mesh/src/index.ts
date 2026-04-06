@@ -87,11 +87,23 @@ if (!settings.isCli) {
   }
 }
 
+// REUSE_PORT is an internal coordination signal set by serve.ts when
+// numThreads > 1 on Linux. It intentionally bypasses the Settings pipeline
+// because it is not a user-facing config — it is set programmatically by the
+// CLI layer immediately before importing this module.
+const reusePort =
+  process.platform === "linux" && process.env.REUSE_PORT === "true";
+
+// DECOCMS_IS_WORKER is set by serve.ts on spawned worker processes.
+// Workers skip local-mode seeding to avoid concurrent DB races.
+const isWorker = process.env.DECOCMS_IS_WORKER === "1";
+
 const server = Bun.serve({
   // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
   idleTimeout: 0,
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
+  reusePort,
   fetch: async (request, server) => {
     // Try assets first (static files or dev proxy), then API
     // Pass server as env so Hono's getConnInfo can access requestIP
@@ -104,8 +116,10 @@ const server = Bun.serve({
 
 // Local mode: seed admin user + organization after server is listening
 // This must run after Bun.serve() so that the org seed can fetch tools
-// from the self MCP endpoint (http://localhost:PORT/mcp/self)
-if (settings.localMode) {
+// from the self MCP endpoint (http://localhost:PORT/mcp/self).
+// Worker processes skip seeding — only the primary process seeds to avoid
+// concurrent DB races across workers.
+if (settings.localMode && !isWorker) {
   import("./auth/local-mode")
     .then(async ({ seedLocalMode, markSeedComplete }) => {
       try {
