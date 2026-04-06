@@ -11,7 +11,6 @@
 export interface RawMonitoringEvent {
   organizationId: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   input: unknown; // Not yet redacted
   output: unknown; // Not yet redacted

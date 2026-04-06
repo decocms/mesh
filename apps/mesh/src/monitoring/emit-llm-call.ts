@@ -19,8 +19,6 @@ import {
   MONITORING_SPAN_NAME,
 } from "./schema";
 
-const DECOPILOT_CONNECTION_TITLE = "Decopilot";
-
 export interface LlmCallUsage {
   inputTokens: number;
   outputTokens: number;
@@ -86,7 +84,6 @@ function emitLlmCallLog(params: EmitLlmCallLogParams): void {
         type: MONITORING_LOG_TYPE_LLM_CALL,
         organizationId: params.organizationId,
         connectionId: DECOPILOT_CONNECTION_ID,
-        connectionTitle: DECOPILOT_CONNECTION_TITLE,
         toolName: params.modelId,
         toolArguments: {
           model: params.modelId,

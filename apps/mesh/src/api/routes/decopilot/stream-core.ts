@@ -1109,7 +1109,7 @@ async function buildToolCatalog(
     if (!isToolVisibleToModel(t)) continue;
 
     const connId = (t._meta?.connectionId as string) ?? "unknown";
-    const connName = (t._meta?.connectionTitle as string) || connId;
+    const connName = connId;
     const desc = trimToolDescription(t.description ?? "");
 
     let group = connections.get(connId);

@@ -81,7 +81,6 @@ function createMockTransportAndCtx() {
   const transport = new MonitoringTransport(innerTransport, {
     ctx,
     connectionId: "conn_1",
-    connectionTitle: "Test Server",
   });
 
   return {
@@ -132,7 +131,6 @@ describe("MonitoringTransport emitMonitoringLog", () => {
     const [params] = mockEmitMonitoringLog.mock.calls[0]!;
     expect(params.organizationId).toBe("org_test");
     expect(params.connectionId).toBe("conn_1");
-    expect(params.connectionTitle).toBe("Test Server");
     expect(params.toolName).toBe("MY_TOOL");
     expect(params.isError).toBe(false);
     expect(params.userId).toBe("user_1");

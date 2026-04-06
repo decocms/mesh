@@ -515,7 +515,6 @@ export interface MonitoringLog {
   id?: string;
   organizationId: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   input: Record<string, unknown>;
   output: Record<string, unknown>;

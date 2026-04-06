@@ -24,6 +24,10 @@ export type TransportMiddleware = (transport: Transport) => Transport;
 export abstract class WrapperTransport implements Transport {
   constructor(protected innerTransport: Transport) {}
 
+  get sessionId(): string | undefined {
+    return (this.innerTransport as any).sessionId;
+  }
+
   async start(): Promise<void> {
     // Set up message forwarding before starting
     this.innerTransport.onmessage = (message: JSONRPCMessage) => {

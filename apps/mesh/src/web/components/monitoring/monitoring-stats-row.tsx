@@ -25,7 +25,6 @@ import {
 export interface MonitoringLog {
   id: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   isError: boolean;
   errorMessage: string | null;

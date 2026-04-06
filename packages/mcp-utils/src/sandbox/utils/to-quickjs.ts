@@ -1,7 +1,17 @@
 import type { QuickJSContext, QuickJSHandle } from "quickjs-emscripten-core";
 import { inspect } from "./error-handling.ts";
 
-export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
+export function toQuickJS(
+  ctx: QuickJSContext,
+  value: unknown,
+  maxDepth: number = 50,
+  _depth: number = 0,
+  _seen: WeakSet<object> = new WeakSet(),
+): QuickJSHandle {
+  if (_depth > maxDepth) {
+    return ctx.newString("[max depth exceeded]");
+  }
+
   switch (typeof value) {
     case "string":
       return ctx.newString(value);
@@ -13,10 +23,16 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
       return ctx.undefined;
     case "object": {
       if (value === null) return ctx.null;
+
+      if (_seen.has(value as object)) {
+        return ctx.newString("[circular reference]");
+      }
+      _seen.add(value as object);
+
       if (Array.isArray(value)) {
         const arr = ctx.newArray();
         value.forEach((v, i) => {
-          const hv = toQuickJS(ctx, v);
+          const hv = toQuickJS(ctx, v, maxDepth, _depth + 1, _seen);
           try {
             ctx.setProp(arr, String(i), hv);
           } finally {
@@ -30,7 +46,7 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
 
       const obj = ctx.newObject();
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-        const hv = toQuickJS(ctx, v);
+        const hv = toQuickJS(ctx, v, maxDepth, _depth + 1, _seen);
         try {
           ctx.setProp(obj, k, hv);
         } finally {
@@ -62,7 +78,11 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
               (result as Promise<unknown>)
                 .then((resolvedValue: unknown) => {
                   try {
-                    const quickJSValue = toQuickJS(ctx, resolvedValue);
+                    const quickJSValue = toQuickJS(
+                      ctx,
+                      resolvedValue,
+                      maxDepth,
+                    );
                     deferredPromise.resolve(quickJSValue);
                     quickJSValue.dispose();
                   } catch (e) {
@@ -89,7 +109,7 @@ export function toQuickJS(ctx: QuickJSContext, value: unknown): QuickJSHandle {
               return deferredPromise.handle;
             }
 
-            return toQuickJS(ctx, result);
+            return toQuickJS(ctx, result, maxDepth);
           } catch (e) {
             const msg = inspect(e);
             return ctx.newString(`HostFunctionError: ${msg}`);

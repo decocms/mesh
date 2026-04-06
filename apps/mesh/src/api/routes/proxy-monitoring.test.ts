@@ -73,7 +73,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: true,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {
@@ -109,7 +108,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: true,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {
@@ -152,7 +150,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: false,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {
@@ -174,7 +171,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: true,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {

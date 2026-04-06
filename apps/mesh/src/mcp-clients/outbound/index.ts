@@ -85,7 +85,6 @@ export async function createOutboundClient(
           new MonitoringTransport(t, {
             ctx,
             connectionId,
-            connectionTitle: connection.title,
             virtualMcpId,
           }),
       );
@@ -121,7 +120,6 @@ export async function createOutboundClient(
           new MonitoringTransport(t, {
             ctx,
             connectionId,
-            connectionTitle: connection.title,
             virtualMcpId,
           }),
       );
@@ -154,7 +152,6 @@ export async function createOutboundClient(
           new MonitoringTransport(t, {
             ctx,
             connectionId,
-            connectionTitle: connection.title,
             virtualMcpId,
           }),
       );

@@ -174,7 +174,6 @@ export function withStreamingSupport(
       ctx,
       enabled: getMonitoringConfig().enabled,
       connectionId,
-      connectionTitle: connection.title,
       virtualMcpId,
     });
 

@@ -113,7 +113,9 @@ function MonitoringLogsTableContent({
     filteredLogs = filteredLogs.filter(
       (log) =>
         log.toolName.toLowerCase().includes(lowerQuery) ||
-        log.connectionTitle.toLowerCase().includes(lowerQuery) ||
+        (connectionMap.get(log.connectionId)?.title ?? log.connectionId)
+          .toLowerCase()
+          .includes(lowerQuery) ||
         log.errorMessage?.toLowerCase().includes(lowerQuery),
     );
   }
@@ -237,7 +239,10 @@ function MonitoringLogsTableContent({
                         connectionMap.get(selectedLog.connectionId)?.icon ||
                         null
                       }
-                      name={selectedLog.connectionTitle}
+                      name={
+                        connectionMap.get(selectedLog.connectionId)?.title ??
+                        selectedLog.connectionId
+                      }
                       size="sm"
                       className="shadow-sm shrink-0"
                     />
@@ -246,7 +251,8 @@ function MonitoringLogsTableContent({
                         {selectedLog.toolName}
                       </SheetTitle>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {selectedLog.connectionTitle}
+                        {connectionMap.get(selectedLog.connectionId)?.title ??
+                          selectedLog.connectionId}
                       </p>
                     </div>
                   </div>

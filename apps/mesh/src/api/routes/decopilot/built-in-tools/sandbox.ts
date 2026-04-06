@@ -1,6 +1,6 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import { runCode, type ToolHandler } from "@/sandbox";
+import { runCode } from "@decocms/mcp-utils/sandbox";
 import type {
   CallToolRequest,
   GetPromptRequest,
@@ -40,18 +40,18 @@ export function createSandboxTool(params: SandboxToolParams) {
   return tool({
     needsApproval,
     description:
-      "Execute JavaScript code in a sandbox with access to the MCP tools available in the current agent context. " +
+      "Execute JavaScript code in a sandbox with access to an MCP client for the current agent context. " +
       "Use this for multi-step workflows, data transformations, or orchestrating multiple tool calls programmatically.",
     inputExamples: [
       {
         input: {
-          code: "export default async (tools) => { const result = await tools.list_items({}); return result; }",
+          code: "export default async (client) => { const { tools } = await client.listTools(); return tools.map(t => t.name); }",
           timeoutMs: 5000,
         },
       },
       {
         input: {
-          code: 'export default async (tools) => { const items = await tools.search({ query: "test" }); return items.filter(i => i.status === "active"); }',
+          code: 'export default async (client) => { const result = await client.callTool({ name: "search", arguments: { query: "test" } }); return result; }',
         },
       },
     ],
@@ -61,8 +61,8 @@ export function createSandboxTool(params: SandboxToolParams) {
           .string()
           .min(1)
           .describe(
-            "JavaScript ES module code. Must export a default async function: `export default async (tools) => { ... }`. " +
-              "The `tools` parameter is an object where keys are tool names and values are async functions that accept an arguments object.",
+            "JavaScript ES module code. Must export a default async function: `export default async (client) => { ... }`. " +
+              "The `client` parameter is an MCP client with methods like `callTool({ name, arguments })`, `listTools()`, `listResources()`, `readResource({ uri })`, `listPrompts()`, and `getPrompt({ name })`.",
           ),
         timeoutMs: z
           .number()
@@ -72,39 +72,12 @@ export function createSandboxTool(params: SandboxToolParams) {
     ),
     execute: async ({ code, timeoutMs: rawTimeout }) => {
       const timeoutMs = rawTimeout ?? 5000;
-      const { tools: mcpTools } = await passthroughClient.listTools();
 
-      const toolsRecord: Record<string, ToolHandler> = {};
-      for (const t of mcpTools) {
-        toolsRecord[t.name] = async (args: Record<string, unknown>) => {
-          const result = await passthroughClient.callTool({
-            name: t.name,
-            arguments: args,
-          });
-
-          if (result.structuredContent) {
-            return result.structuredContent;
-          }
-
-          const content = result.content as
-            | Array<{ type: string; text?: string }>
-            | undefined;
-          const textParts = content
-            ?.filter(
-              (c): c is { type: "text"; text: string } => c.type === "text",
-            )
-            .map((c) => c.text);
-
-          const text = textParts?.join("\n") ?? "";
-          try {
-            return JSON.parse(text);
-          } catch {
-            return text;
-          }
-        };
-      }
-
-      const result = await runCode({ tools: toolsRecord, code, timeoutMs });
+      const result = await runCode({
+        client: passthroughClient as Parameters<typeof runCode>[0]["client"],
+        code,
+        timeoutMs,
+      });
 
       // Store result in toolOutputMap for potential read_tool_output usage
       if (result.returnValue !== undefined) {

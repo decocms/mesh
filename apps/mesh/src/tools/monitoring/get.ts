@@ -29,7 +29,6 @@ export const MONITORING_LOG_GET = defineTool({
         id: z.string().optional(),
         organizationId: z.string(),
         connectionId: z.string(),
-        connectionTitle: z.string(),
         toolName: z.string(),
         input: z.record(z.string(), z.unknown()),
         output: z.record(z.string(), z.unknown()),
