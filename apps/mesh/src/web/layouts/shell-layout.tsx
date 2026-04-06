@@ -48,7 +48,7 @@ import {
   Edit05,
   Loading01,
   Menu01,
-  MessageTextCircle02,
+  LayoutRight,
 } from "@untitledui/icons";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -672,22 +672,26 @@ function ShellLayoutInner({
         >
           <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
             <div className="flex items-center gap-0.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.history.forward()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title="Go forward"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-0.5">
               {showThreePanels && (
                 <>
-                  <button
-                    type="button"
-                    onClick={toggleTasks}
-                    aria-pressed={tasksOpen}
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                      tasksOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle tasks"
-                  >
-                    <LayoutLeft size={16} />
-                  </button>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -720,28 +724,22 @@ function ShellLayoutInner({
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go back"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.forward()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go forward"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-            <div className="flex items-center gap-0.5">
-              {showThreePanels && (
-                <>
+                  <InboxPopover />
+                  <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
+                  <button
+                    type="button"
+                    onClick={toggleTasks}
+                    aria-pressed={tasksOpen}
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                      tasksOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                    title="Toggle tasks"
+                  >
+                    <LayoutLeft size={16} />
+                  </button>
                   <button
                     type="button"
                     onClick={toggleMain}
@@ -771,11 +769,10 @@ function ShellLayoutInner({
                     )}
                     title="Toggle chat"
                   >
-                    <MessageTextCircle02 size={16} />
+                    <LayoutRight size={16} />
                   </button>
                 </>
               )}
-              <InboxPopover />
             </div>
           </div>
 
