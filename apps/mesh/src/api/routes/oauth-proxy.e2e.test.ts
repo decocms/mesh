@@ -8,8 +8,6 @@
  */
 
 // CredentialVault requires a valid 32-byte base64 ENCRYPTION_KEY.
-// Must be set before any import triggers getSettings(), which freezes
-// the settings singleton on first access.
 process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString("base64");
 
 import {
@@ -34,15 +32,6 @@ import { createApp } from "../app";
 import type { EventBus } from "../../event-bus";
 import { auth } from "../../auth";
 import { setGlobalSettings, getSettings } from "../../settings";
-
-// If settings were already frozen by a prior test file without
-// ENCRYPTION_KEY, re-initialize them now that the env var is set.
-if (!getSettings().encryptionKey) {
-  setGlobalSettings({
-    ...getSettings(),
-    encryptionKey: process.env.ENCRYPTION_KEY!,
-  });
-}
 
 // =============================================================================
 // Test Data
@@ -119,6 +108,15 @@ describe("MCP OAuth Proxy E2E", () => {
   beforeAll(async () => {
     // Restore all mocks in case other tests mocked global.fetch
     mock.restore();
+
+    // Ensure encryptionKey is set — another test file may have overwritten
+    // the settings singleton with a partial object.
+    if (!getSettings().encryptionKey) {
+      setGlobalSettings({
+        ...getSettings(),
+        encryptionKey: process.env.ENCRYPTION_KEY!,
+      });
+    }
 
     database = await createTestDatabase();
     await createTestSchema(database.db);

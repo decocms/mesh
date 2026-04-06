@@ -7,8 +7,6 @@
  */
 
 // CredentialVault requires a valid 32-byte base64 ENCRYPTION_KEY.
-// Must be set before any import triggers getSettings(), which freezes
-// the settings singleton on first access.
 process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString("base64");
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
@@ -23,13 +21,16 @@ import { setGlobalSettings, getSettings } from "../../settings";
 import { createTestSchema } from "../../storage/test-helpers";
 import { createApp } from "../app";
 
-// If settings were already frozen by a prior test file without
-// ENCRYPTION_KEY, re-initialize them now that the env var is set.
-if (!getSettings().encryptionKey) {
-  setGlobalSettings({
-    ...getSettings(),
-    encryptionKey: process.env.ENCRYPTION_KEY!,
-  });
+/** Ensure the settings singleton has a valid encryptionKey.
+ *  Must be called right before createApp() because another test file
+ *  (monitoring/schema.test.ts) may overwrite the singleton at any point. */
+function ensureEncryptionKey() {
+  if (!getSettings().encryptionKey) {
+    setGlobalSettings({
+      ...getSettings(),
+      encryptionKey: process.env.ENCRYPTION_KEY!,
+    });
+  }
 }
 
 function createMockEventBus(): EventBus {
@@ -65,6 +66,7 @@ describe("Virtual MCP cross-tenant isolation", () => {
   const attackerOrgId = "org_attacker";
 
   beforeEach(async () => {
+    ensureEncryptionKey();
     database = await createTestDatabase();
     await createTestSchema(database.db);
     app = await createApp({ database, eventBus: createMockEventBus() });
