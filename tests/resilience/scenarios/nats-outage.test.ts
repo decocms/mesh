@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mcpCall, getReceivedEvents } from "../lib/mesh-client";
+import { mcpCall, getReceivedEvents } from "../lib/studio-client";
 import { pollUntil } from "../lib/poll-until";
 import { registerTestHooks, testState } from "../lib/setup";
 import { PROXY_NAMES } from "../lib/toxic-presets";

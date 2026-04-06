@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { registerTestHooks, testState } from "../lib/setup";
 import { disableProxy, enableProxy } from "../lib/toxiproxy";
 import { PROXY_NAMES } from "../lib/toxic-presets";
-import { mcpCall } from "../lib/mesh-client";
+import { mcpCall } from "../lib/studio-client";
 import { pollUntil } from "../lib/poll-until";
 
 registerTestHooks();
@@ -12,7 +12,7 @@ describe("Postgres outage", () => {
     await disableProxy(PROXY_NAMES.POSTGRES);
 
     // Poll until /health/ready returns non-200 (503 or fetch error)
-    // When the proxy is disabled, mesh may hang briefly (HTTP 000 / connection error)
+    // When the proxy is disabled, studio may hang briefly (HTTP 000 / connection error)
     // before recovering and returning 503
     await pollUntil(
       async () => {
@@ -20,7 +20,7 @@ describe("Postgres outage", () => {
           const res = await fetch("http://127.0.0.1:13000/health/ready");
           return res.status === 503;
         } catch {
-          // fetch threw — mesh is unreachable, which also counts as "not ready"
+          // fetch threw — studio is unreachable, which also counts as "not ready"
           return true;
         }
       },

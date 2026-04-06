@@ -28,6 +28,10 @@ jobs:
       - name: Run resilience tests
         run: bun test tests/resilience/scenarios/ --serial --timeout 900000
 
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f tests/resilience/docker-compose.yml logs studio
+
       - name: Tear down infrastructure
         if: always()
         run: docker compose -f tests/resilience/docker-compose.yml down -v
