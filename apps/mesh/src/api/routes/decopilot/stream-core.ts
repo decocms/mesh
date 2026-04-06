@@ -373,7 +373,7 @@ async function streamCoreInner(
           ctx,
           "passthrough",
           false,
-          { listTimeoutMs: 2_000 },
+          { listTimeoutMs: 1_000 },
         );
 
         // Declared here (before closeClients) to avoid Temporal Dead Zone
