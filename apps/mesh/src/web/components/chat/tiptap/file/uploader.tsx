@@ -1,9 +1,9 @@
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCurrentEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef, type ChangeEvent } from "react";
@@ -237,19 +237,16 @@ export function FileUploadButton({
       />
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
+          <Button
             type="button"
-            className={cn(
-              "flex items-center justify-center size-8 rounded-lg text-muted-foreground/75 transition-colors shrink-0 hover:bg-accent",
-              isStreaming || !modelSupportsFilesValue
-                ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:text-muted-foreground",
-            )}
-            disabled={isStreaming}
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground/75"
+            disabled={isStreaming || !modelSupportsFilesValue}
             onClick={() => fileInputRef.current?.click()}
           >
             {icon ?? <Attachment01 size={16} />}
-          </button>
+          </Button>
         </TooltipTrigger>
         <TooltipContent side="top">Add file</TooltipContent>
       </Tooltip>

@@ -44,13 +44,10 @@ export function ToolsPopover({
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="ghost"
+          size="default"
           disabled={disabled}
-          className={cn(
-            "h-8 gap-1.5 rounded-lg px-2 text-sm font-medium",
-            "border-none text-muted-foreground hover:text-foreground hover:bg-accent",
-          )}
+          className="text-muted-foreground hover:text-foreground"
         >
           <Settings04 size={14} />
           Tools
