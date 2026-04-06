@@ -6,6 +6,11 @@
  * to an org they are not a member of.
  */
 
+// CredentialVault requires a valid 32-byte base64 ENCRYPTION_KEY.
+// Must be set before any import triggers getSettings(), which freezes
+// the settings singleton on first access.
+process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString("base64");
+
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { auth } from "../../auth";
 import {
@@ -14,8 +19,18 @@ import {
   type TestDatabase,
 } from "../../database/test-db";
 import type { EventBus } from "../../event-bus";
+import { setGlobalSettings, getSettings } from "../../settings";
 import { createTestSchema } from "../../storage/test-helpers";
 import { createApp } from "../app";
+
+// If settings were already frozen by a prior test file without
+// ENCRYPTION_KEY, re-initialize them now that the env var is set.
+if (!getSettings().encryptionKey) {
+  setGlobalSettings({
+    ...getSettings(),
+    encryptionKey: process.env.ENCRYPTION_KEY!,
+  });
+}
 
 function createMockEventBus(): EventBus {
   return {
