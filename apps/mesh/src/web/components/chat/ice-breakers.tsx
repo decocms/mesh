@@ -88,7 +88,7 @@ function PromptCard({
   const sep = prompt.name.indexOf("_");
   const baseName = sep !== -1 ? prompt.name.slice(sep + 1) : prompt.name;
   const name = toTitleCase(baseName.replace(/_/g, " "));
-  const label = prompt.description ?? name;
+  const label = prompt.title || name;
 
   if (variant === "card") {
     return (
