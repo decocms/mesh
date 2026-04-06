@@ -17,7 +17,7 @@ import { Label } from "@deco/ui/components/label.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash01 } from "@untitledui/icons";
+import { ChevronDown, ChevronRight, Plus, Trash01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -193,6 +193,7 @@ function BrandCard({
   client: ReturnType<typeof useMCPClient>;
   onChanged: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState(brand.name);
   const [domain, setDomain] = useState(brand.domain);
   const [overview, setOverview] = useState(brand.overview);
@@ -297,247 +298,332 @@ function BrandCard({
     onError: (err) => toast.error(err.message),
   });
 
+  const colorEntries = colorsToEntries(brand.colors);
+  const fontEntries = fontsToEntries(brand.fonts);
+
   return (
     <Card className="p-6">
-      <CardHeader className="flex flex-row items-center justify-between p-0">
-        <CardTitle className="text-sm">
-          {brand.name || "Untitled Brand"}
-          {isPending && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              Saving...
-            </span>
-          )}
-        </CardTitle>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => deleteBrand()}
-            disabled={isDeleting}
-          >
-            <Trash01 size={14} />
-          </Button>
+      {/* Header — always visible, clickable to toggle */}
+      <CardHeader
+        className="flex cursor-pointer flex-row items-center gap-3 p-0"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="shrink-0 text-muted-foreground">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+
+        {/* Logo thumbnail */}
+        {brand.logo && (
+          <img
+            src={brand.logo}
+            alt=""
+            className="h-8 w-8 shrink-0 rounded object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        )}
+
+        <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+          <CardTitle className="text-sm">
+            {brand.name || "Untitled Brand"}
+            {isPending && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                Saving...
+              </span>
+            )}
+          </CardTitle>
+          <span className="truncate text-xs text-muted-foreground">
+            {brand.domain}
+          </span>
         </div>
+
+        {/* Color swatches preview */}
+        {colorEntries.length > 0 && (
+          <div className="flex shrink-0 gap-1">
+            {colorEntries.slice(0, 6).map((c) => (
+              <div
+                key={c.name}
+                className="h-5 w-5 rounded-full border border-border"
+                style={{
+                  backgroundColor: /^#[0-9a-fA-F]{3,8}$/.test(c.value)
+                    ? c.value
+                    : "#ccc",
+                }}
+                title={`${c.name}: ${c.value}`}
+              />
+            ))}
+            {colorEntries.length > 6 && (
+              <span className="flex h-5 items-center text-xs text-muted-foreground">
+                +{colorEntries.length - 6}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Font names preview */}
+        {fontEntries.length > 0 && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {fontEntries
+              .slice(0, 3)
+              .map((f) => f.family)
+              .filter(Boolean)
+              .join(", ")}
+            {fontEntries.length > 3 && ` +${fontEntries.length - 3}`}
+          </span>
+        )}
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteBrand();
+          }}
+          disabled={isDeleting}
+        >
+          <Trash01 size={14} />
+        </Button>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-6 p-0 pt-4">
-        {/* Overview */}
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">Name</Label>
-              <Input
-                value={name}
-                onChange={(e) => update(setName, "name", e.target.value)}
-                placeholder="Brand name"
-              />
+      {/* Expanded editor */}
+      {expanded && (
+        <CardContent className="flex flex-col gap-6 p-0 pt-4">
+          {/* Overview */}
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">Name</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => update(setName, "name", e.target.value)}
+                  placeholder="Brand name"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">Domain</Label>
+                <Input
+                  value={domain}
+                  onChange={(e) => update(setDomain, "domain", e.target.value)}
+                  placeholder="example.com"
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">Domain</Label>
-              <Input
-                value={domain}
-                onChange={(e) => update(setDomain, "domain", e.target.value)}
-                placeholder="example.com"
+              <Label className="text-xs text-muted-foreground">Overview</Label>
+              <Textarea
+                value={overview}
+                onChange={(e) =>
+                  update(setOverview, "overview", e.target.value)
+                }
+                placeholder="What does this brand represent?"
+                rows={3}
               />
             </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Overview</Label>
-            <Textarea
-              value={overview}
-              onChange={(e) => update(setOverview, "overview", e.target.value)}
-              placeholder="What does this brand represent?"
-              rows={3}
-            />
-          </div>
-        </div>
 
-        {/* Logos */}
-        <div className="flex flex-col gap-3">
-          <p className="text-xs font-medium text-muted-foreground">Logos</p>
-          <div className="grid grid-cols-3 gap-3">
-            <ImageField
-              label="Logo"
-              value={logo}
-              onChange={(v) => update(setLogo, "logo", v)}
-            />
-            <ImageField
-              label="Favicon"
-              value={favicon}
-              onChange={(v) => update(setFavicon, "favicon", v)}
-            />
-            <ImageField
-              label="OG Image"
-              value={ogImage}
-              onChange={(v) => update(setOgImage, "ogImage", v)}
-            />
+          {/* Logos */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-medium text-muted-foreground">Logos</p>
+            <div className="grid grid-cols-3 gap-3">
+              <ImageField
+                label="Logo"
+                value={logo}
+                onChange={(v) => update(setLogo, "logo", v)}
+              />
+              <ImageField
+                label="Favicon"
+                value={favicon}
+                onChange={(v) => update(setFavicon, "favicon", v)}
+              />
+              <ImageField
+                label="OG Image"
+                value={ogImage}
+                onChange={(v) => update(setOgImage, "ogImage", v)}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Fonts */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Fonts</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                updateFonts([...fonts, { family: "", weight: "", style: "" }])
-              }
-            >
-              <Plus size={14} className="mr-1" />
-              Add
-            </Button>
-          </div>
-          {fonts.length === 0 && (
-            <p className="text-xs text-muted-foreground">No fonts configured</p>
-          )}
-          {fonts.map((font, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex flex-1 flex-col gap-1">
-                {i === 0 && (
-                  <Label className="text-xs text-muted-foreground">
-                    Family
-                  </Label>
-                )}
-                <Input
-                  value={font.family}
-                  onChange={(e) => {
-                    const next = [...fonts];
-                    next[i] = { ...font, family: e.target.value };
-                    updateFonts(next);
-                  }}
-                  placeholder="Inter"
-                />
-              </div>
-              <div className="flex w-24 flex-col gap-1">
-                {i === 0 && (
-                  <Label className="text-xs text-muted-foreground">
-                    Weight
-                  </Label>
-                )}
-                <Input
-                  value={font.weight}
-                  onChange={(e) => {
-                    const next = [...fonts];
-                    next[i] = { ...font, weight: e.target.value };
-                    updateFonts(next);
-                  }}
-                  placeholder="400"
-                />
-              </div>
-              <div className="flex w-24 flex-col gap-1">
-                {i === 0 && (
-                  <Label className="text-xs text-muted-foreground">Style</Label>
-                )}
-                <Input
-                  value={font.style}
-                  onChange={(e) => {
-                    const next = [...fonts];
-                    next[i] = { ...font, style: e.target.value };
-                    updateFonts(next);
-                  }}
-                  placeholder="normal"
-                />
-              </div>
+          {/* Fonts */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Fonts</p>
               <Button
                 variant="ghost"
-                size="icon"
-                className="shrink-0"
-                onClick={() => updateFonts(fonts.filter((_, j) => j !== i))}
+                size="sm"
+                onClick={() =>
+                  updateFonts([...fonts, { family: "", weight: "", style: "" }])
+                }
               >
-                <Trash01 size={14} />
+                <Plus size={14} className="mr-1" />
+                Add
               </Button>
             </div>
-          ))}
-        </div>
-
-        {/* Colors */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Colors</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => updateColors([...colors, { name: "", value: "" }])}
-            >
-              <Plus size={14} className="mr-1" />
-              Add
-            </Button>
-          </div>
-          {colors.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              No colors configured
-            </p>
-          )}
-          {colors.map((color, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex flex-1 flex-col gap-1">
-                {i === 0 && (
-                  <Label className="text-xs text-muted-foreground">Name</Label>
-                )}
-                <Input
-                  value={color.name}
-                  onChange={(e) => {
-                    const next = [...colors];
-                    next[i] = { ...color, name: e.target.value };
-                    updateColors(next);
-                  }}
-                  placeholder="primary"
-                />
-              </div>
-              <div className="flex w-36 flex-col gap-1">
-                {i === 0 && (
-                  <Label className="text-xs text-muted-foreground">Value</Label>
-                )}
-                <div className="flex items-center gap-2">
+            {fonts.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No fonts configured
+              </p>
+            )}
+            {fonts.map((font, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex flex-1 flex-col gap-1">
+                  {i === 0 && (
+                    <Label className="text-xs text-muted-foreground">
+                      Family
+                    </Label>
+                  )}
                   <Input
-                    value={color.value}
+                    value={font.family}
+                    onChange={(e) => {
+                      const next = [...fonts];
+                      next[i] = { ...font, family: e.target.value };
+                      updateFonts(next);
+                    }}
+                    placeholder="Inter"
+                  />
+                </div>
+                <div className="flex w-24 flex-col gap-1">
+                  {i === 0 && (
+                    <Label className="text-xs text-muted-foreground">
+                      Weight
+                    </Label>
+                  )}
+                  <Input
+                    value={font.weight}
+                    onChange={(e) => {
+                      const next = [...fonts];
+                      next[i] = { ...font, weight: e.target.value };
+                      updateFonts(next);
+                    }}
+                    placeholder="400"
+                  />
+                </div>
+                <div className="flex w-24 flex-col gap-1">
+                  {i === 0 && (
+                    <Label className="text-xs text-muted-foreground">
+                      Style
+                    </Label>
+                  )}
+                  <Input
+                    value={font.style}
+                    onChange={(e) => {
+                      const next = [...fonts];
+                      next[i] = { ...font, style: e.target.value };
+                      updateFonts(next);
+                    }}
+                    placeholder="normal"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => updateFonts(fonts.filter((_, j) => j !== i))}
+                >
+                  <Trash01 size={14} />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {/* Colors */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">
+                Colors
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  updateColors([...colors, { name: "", value: "" }])
+                }
+              >
+                <Plus size={14} className="mr-1" />
+                Add
+              </Button>
+            </div>
+            {colors.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No colors configured
+              </p>
+            )}
+            {colors.map((color, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex flex-1 flex-col gap-1">
+                  {i === 0 && (
+                    <Label className="text-xs text-muted-foreground">
+                      Name
+                    </Label>
+                  )}
+                  <Input
+                    value={color.name}
                     onChange={(e) => {
                       const next = [...colors];
-                      next[i] = { ...color, value: e.target.value };
+                      next[i] = { ...color, name: e.target.value };
                       updateColors(next);
                     }}
-                    placeholder="#0066FF"
+                    placeholder="primary"
                   />
-                  <label className="relative h-8 w-8 shrink-0 cursor-pointer rounded border border-border">
-                    <input
-                      type="color"
-                      value={
-                        /^#[0-9a-fA-F]{6}$/.test(color.value)
-                          ? color.value
-                          : "#000000"
-                      }
+                </div>
+                <div className="flex w-36 flex-col gap-1">
+                  {i === 0 && (
+                    <Label className="text-xs text-muted-foreground">
+                      Value
+                    </Label>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={color.value}
                       onChange={(e) => {
                         const next = [...colors];
                         next[i] = { ...color, value: e.target.value };
                         updateColors(next);
                       }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      placeholder="#0066FF"
                     />
-                    <div
-                      className="h-full w-full rounded"
-                      style={{
-                        backgroundColor: /^#[0-9a-fA-F]{3,8}$/.test(color.value)
-                          ? color.value
-                          : "#ffffff",
-                      }}
-                    />
-                  </label>
+                    <label className="relative h-8 w-8 shrink-0 cursor-pointer rounded border border-border">
+                      <input
+                        type="color"
+                        value={
+                          /^#[0-9a-fA-F]{6}$/.test(color.value)
+                            ? color.value
+                            : "#000000"
+                        }
+                        onChange={(e) => {
+                          const next = [...colors];
+                          next[i] = { ...color, value: e.target.value };
+                          updateColors(next);
+                        }}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      />
+                      <div
+                        className="h-full w-full rounded"
+                        style={{
+                          backgroundColor: /^#[0-9a-fA-F]{3,8}$/.test(
+                            color.value,
+                          )
+                            ? color.value
+                            : "#ffffff",
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => updateColors(colors.filter((_, j) => j !== i))}
+                >
+                  <Trash01 size={14} />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                onClick={() => updateColors(colors.filter((_, j) => j !== i))}
-              >
-                <Trash01 size={14} />
-              </Button>
-            </div>
-          ))}
-        </div>
-      </CardContent>
+            ))}
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }
