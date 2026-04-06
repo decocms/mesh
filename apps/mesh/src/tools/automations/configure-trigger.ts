@@ -8,7 +8,6 @@
 
 import type { MeshContext } from "@/core/mesh-context";
 import { clientFromConnection } from "@/mcp-clients";
-import { toServerClient } from "@/api/routes/proxy";
 import type { AutomationTrigger } from "@/storage/types";
 import type { TriggerCallbackTokenStorage } from "@/storage/trigger-callback-tokens";
 import { TriggerBinding } from "@decocms/bindings/trigger";
@@ -31,6 +30,9 @@ export async function configureTriggerOnMcp(
 
   try {
     const mcpClient = await clientFromConnection(connection, ctx, true);
+    // Dynamic import to break circular dependency:
+    // proxy.ts → tools/index.ts → automations → configure-trigger.ts → proxy.ts
+    const { toServerClient } = await import("@/api/routes/proxy");
     const client = TriggerBinding.forClient(toServerClient(mcpClient));
 
     // Generate token pair (plaintext + hash) without persisting to DB
