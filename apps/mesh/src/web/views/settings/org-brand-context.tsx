@@ -16,6 +16,7 @@ import {
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
+import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash01 } from "@untitledui/icons";
 import { useState } from "react";
@@ -103,13 +104,13 @@ export function OrgBrandContextPage() {
   const { data: brands } = useQuery({
     queryKey: KEYS.brandContext(org.id),
     queryFn: async () => {
-      const result = (await client.callTool({
+      const result = await client.callTool({
         name: "BRAND_CONTEXT_LIST",
         arguments: {},
-      })) as { structuredContent?: { items: BrandContextData[] } };
-      return result.structuredContent?.items ?? [];
+      });
+      const data = unwrapToolResult<{ items: BrandContextData[] }>(result);
+      return data.items ?? [];
     },
-    staleTime: 30_000,
   });
 
   const invalidate = () =>
