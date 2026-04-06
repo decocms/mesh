@@ -13,17 +13,35 @@ import { type Kysely, sql } from "kysely";
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`
     ALTER TABLE event_subscriptions
-      ALTER COLUMN enabled DROP DEFAULT,
-      ALTER COLUMN enabled TYPE boolean USING enabled::boolean,
-      ALTER COLUMN enabled SET DEFAULT true
+    ALTER COLUMN enabled DROP DEFAULT
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE event_subscriptions
+    ALTER COLUMN enabled TYPE boolean
+    USING enabled::boolean
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE event_subscriptions
+    ALTER COLUMN enabled SET DEFAULT true
   `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
   await sql`
     ALTER TABLE event_subscriptions
-      ALTER COLUMN enabled DROP DEFAULT,
-      ALTER COLUMN enabled TYPE integer USING enabled::integer,
-      ALTER COLUMN enabled SET DEFAULT 1
+    ALTER COLUMN enabled DROP DEFAULT
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE event_subscriptions
+    ALTER COLUMN enabled TYPE integer
+    USING enabled::integer
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE event_subscriptions
+    ALTER COLUMN enabled SET DEFAULT 1
   `.execute(db);
 }
