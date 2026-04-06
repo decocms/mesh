@@ -16,7 +16,7 @@ WORKDIR /app/apps/mesh
 RUN mkdir -p /app/data
 
 # Create entrypoint that runs migrations then starts server
-RUN printf '#!/bin/bash\nset -e\ncd /app/apps/mesh\necho "Running migrations..."\nbun run migrate 2>&1\nbun run better-auth:migrate 2>&1\necho "Starting server..."\nexec bun run src/index.ts\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+RUN printf '#!/bin/bash\nset -e\ncd /app/apps/mesh\necho "Running migrations..."\nbun run migrate 2>&1\necho "Starting server..."\nexec bun run src/index.ts\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 3000
 

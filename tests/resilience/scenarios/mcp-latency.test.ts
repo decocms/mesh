@@ -7,7 +7,7 @@ import {
   EXTREME_LATENCY,
   CONNECTION_HANG,
 } from "../lib/toxic-presets";
-import { mcpCall } from "../lib/mesh-client";
+import { mcpCall } from "../lib/studio-client";
 import { pollUntil } from "../lib/poll-until";
 
 registerTestHooks();
@@ -17,7 +17,7 @@ describe("MCP server latency", () => {
     // Add 10s latency toxic to everything proxy
     await addToxic(PROXY_NAMES.EVERYTHING, MODERATE_LATENCY);
 
-    // Call echo tool through mesh — allow enough time for the latency
+    // Call echo tool through studio — allow enough time for the latency
     const { result, durationMs } = await mcpCall(
       testState.everythingConnectionId,
       "tools/call",

@@ -1,7 +1,7 @@
 import { pollUntil } from "./poll-until";
 
-const MESH_URL = "http://127.0.0.1:13000";
-const MESH_ORIGIN = "http://localhost:3000"; // Must match BETTER_AUTH_URL for CSRF
+const STUDIO_URL = "http://127.0.0.1:13000";
+const STUDIO_ORIGIN = "http://localhost:3000"; // Must match BETTER_AUTH_URL for CSRF
 const SUBSCRIBER_MOCK_URL = "http://127.0.0.1:13003";
 
 // ---------------------------------------------------------------------------
@@ -9,11 +9,11 @@ const SUBSCRIBER_MOCK_URL = "http://127.0.0.1:13003";
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch from the Mesh server. Prepends `MESH_URL` to the given path and
+ * Fetch from Studio server. Prepends `STUDIO_URL` to the given path and
  * optionally attaches an `Authorization: Bearer` header when `apiKey` is
  * supplied, or a `Cookie` header when `cookie` is supplied.
  */
-export async function fetchMesh(
+export async function fetchStudio(
   path: string,
   opts?: RequestInit & { apiKey?: string; cookie?: string },
 ): Promise<Response> {
@@ -22,7 +22,7 @@ export async function fetchMesh(
   const headers = new Headers(extraHeaders);
   // Better Auth requires Origin header matching BETTER_AUTH_URL for CSRF
   if (!headers.has("Origin")) {
-    headers.set("Origin", MESH_ORIGIN);
+    headers.set("Origin", STUDIO_ORIGIN);
   }
   if (apiKey) {
     headers.set("Authorization", `Bearer ${apiKey}`);
@@ -31,7 +31,7 @@ export async function fetchMesh(
     headers.set("Cookie", cookie);
   }
 
-  return fetch(`${MESH_URL}${path}`, { ...init, headers });
+  return fetch(`${STUDIO_URL}${path}`, { ...init, headers });
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ export interface HealthResponse {
  * Single health-check call. Returns the parsed JSON response.
  */
 export async function healthCheck(): Promise<HealthResponse> {
-  const res = await fetchMesh("/health/ready");
+  const res = await fetchStudio("/health/ready");
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
     throw new Error(`healthCheck failed: HTTP ${res.status} — ${body}`);
@@ -110,7 +110,7 @@ interface McpCallResult {
 }
 
 /**
- * Send a JSON-RPC 2.0 request to an MCP endpoint exposed by the Mesh.
+ * Send a JSON-RPC 2.0 request to an MCP endpoint exposed by Studio.
  *
  * @param endpoint  The MCP route segment, e.g. `"{orgId}_self"` or a
  *                  connection identifier such as `"conn_abc123"`.
@@ -155,7 +155,7 @@ export async function mcpCall(
 
   const start = performance.now();
   try {
-    const res = await fetch(`${MESH_URL}/mcp/${endpoint}`, {
+    const res = await fetch(`${STUDIO_URL}/mcp/${endpoint}`, {
       method: "POST",
       headers,
       body,
@@ -189,7 +189,7 @@ export async function mcpCall(
 // ---------------------------------------------------------------------------
 
 /**
- * Call a tool on a connection via the Mesh MCP proxy using HTTP.
+ * Call a tool on a connection via Studio MCP proxy using HTTP.
  *
  * This wraps `mcpCall` with the `tools/call` method and the conventional
  * `{orgId}_{connectionId}` endpoint format.
@@ -228,7 +228,7 @@ export async function getTestSession(): Promise<{
   const name = "Resilience Test User";
 
   // 1. Sign up
-  const signUpRes = await fetchMesh("/api/auth/sign-up/email", {
+  const signUpRes = await fetchStudio("/api/auth/sign-up/email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, name }),
@@ -249,7 +249,7 @@ export async function getTestSession(): Promise<{
 
   // If sign-up didn't return cookies, sign in explicitly
   if (!cookie) {
-    const signInRes = await fetchMesh("/api/auth/sign-in/email", {
+    const signInRes = await fetchStudio("/api/auth/sign-in/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -270,7 +270,7 @@ export async function getTestSession(): Promise<{
   }
 
   // 2. Create an organization
-  const createOrgRes = await fetchMesh("/api/auth/organization/create", {
+  const createOrgRes = await fetchStudio("/api/auth/organization/create", {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
     body: JSON.stringify({
@@ -289,7 +289,7 @@ export async function getTestSession(): Promise<{
 
   if (!orgId) {
     // Try to list organizations to find one
-    const listRes = await fetchMesh(
+    const listRes = await fetchStudio(
       "/api/auth/organization/list-organizations",
       {
         method: "GET",
@@ -308,14 +308,14 @@ export async function getTestSession(): Promise<{
   }
 
   // 3. Set active organization
-  await fetchMesh("/api/auth/organization/set-active", {
+  await fetchStudio("/api/auth/organization/set-active", {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
     body: JSON.stringify({ organizationId: orgId }),
   });
 
   // Re-extract cookies after setting active org
-  const refreshRes = await fetchMesh("/api/auth/session", {
+  const refreshRes = await fetchStudio("/api/auth/session", {
     method: "GET",
     headers: { Cookie: cookie },
   });

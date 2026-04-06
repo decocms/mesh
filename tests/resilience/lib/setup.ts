@@ -4,7 +4,7 @@ import {
   createApiKey,
   getTestSession,
   mcpCall,
-} from "./mesh-client";
+} from "./studio-client";
 import { pollUntil } from "./poll-until";
 import { PROXY_NAMES } from "./toxic-presets";
 import { resetAll } from "./toxiproxy";
@@ -19,14 +19,18 @@ export const testState = {
 
 export function registerTestHooks() {
   beforeAll(async () => {
-    console.log("[setup] Step 1: Waiting for mesh health...");
-    // 1. Wait for mesh to be healthy (120s timeout)
+    console.log("[setup] Step 1: Waiting for studio health...");
+    // 1. Wait for studio to be healthy (120s timeout)
     await pollUntil(
       async () => {
         const res = await fetch("http://127.0.0.1:13000/health/ready");
         return res.ok;
       },
-      { timeoutMs: 120_000, intervalMs: 2000, label: "wait-for-mesh-healthy" },
+      {
+        timeoutMs: 120_000,
+        intervalMs: 2000,
+        label: "wait-for-studio-healthy",
+      },
     );
 
     // 2. Verify Toxiproxy is reachable
@@ -118,7 +122,7 @@ export function registerTestHooks() {
     );
     if (!baseline.result) {
       throw new Error(
-        "Baseline tool call failed — everything-server not reachable through mesh",
+        "Baseline tool call failed — everything-server not reachable through studio",
       );
     }
     console.log("✓ Setup complete — baseline tool call succeeded");

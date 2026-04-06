@@ -6,7 +6,7 @@ import {
   DB_MODERATE_LATENCY,
   DB_HIGH_LATENCY,
 } from "../lib/toxic-presets";
-import { mcpCall, healthCheck } from "../lib/mesh-client";
+import { mcpCall, healthCheck } from "../lib/studio-client";
 import { pollUntil } from "../lib/poll-until";
 
 registerTestHooks();
