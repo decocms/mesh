@@ -267,106 +267,75 @@ export const managementMCP = async (ctx: MeshContext) => {
     }));
   }
 
-  // Register dynamic company-context prompt
-  server.prompt(
-    "company-context",
-    "Company brand context — identity, colors, fonts, and overview",
-    async () => {
-      if (!ctx.organization?.id) {
-        return {
-          messages: [
-            {
-              role: "user" as const,
-              content: {
-                type: "text" as const,
-                text: "No organization context available.",
-              },
-            },
-          ],
-        };
+  // Register one prompt per brand context (e.g. /brand-acme-corp)
+  if (ctx.organization?.id) {
+    const brands = await ctx.storage.brandContext.list(ctx.organization.id);
+
+    for (const brand of brands) {
+      const slug = brand.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const promptName = `brand-${slug || brand.id}`;
+
+      const lines: string[] = [
+        `# Brand: ${brand.name}`,
+        "",
+        `**Domain:** ${brand.domain}`,
+        "",
+        "## Overview",
+        brand.overview,
+      ];
+
+      if (brand.colors && Object.keys(brand.colors).length > 0) {
+        lines.push("", "## Colors");
+        for (const [key, value] of Object.entries(brand.colors)) {
+          lines.push(`- **${key}:** ${value}`);
+        }
       }
 
-      const brands = await ctx.storage.brandContext.list(ctx.organization.id);
-
-      if (brands.length === 0) {
-        return {
-          messages: [
-            {
-              role: "user" as const,
-              content: {
-                type: "text" as const,
-                text: "No brand context configured for this organization.",
-              },
-            },
-          ],
-        };
+      if (brand.fonts && brand.fonts.length > 0) {
+        lines.push("", "## Fonts");
+        for (const font of brand.fonts) {
+          const parts = Object.entries(font)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          lines.push(`- ${parts}`);
+        }
       }
 
-      const sections: string[] = [];
-
-      for (const brand of brands) {
-        const lines: string[] = [
-          `# Brand: ${brand.name}`,
-          "",
-          `**Domain:** ${brand.domain}`,
-          "",
-          "## Overview",
-          brand.overview,
-        ];
-
-        if (brand.colors && Object.keys(brand.colors).length > 0) {
-          lines.push("", "## Colors");
-          for (const [key, value] of Object.entries(brand.colors)) {
-            lines.push(`- **${key}:** ${value}`);
-          }
-        }
-
-        if (brand.fonts && brand.fonts.length > 0) {
-          lines.push("", "## Fonts");
-          for (const font of brand.fonts) {
-            const parts = Object.entries(font)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(", ");
-            lines.push(`- ${parts}`);
-          }
-        }
-
-        if (brand.logo) {
-          lines.push("", `**Logo:** ${brand.logo}`);
-        }
-        if (brand.favicon) {
-          lines.push(`**Favicon:** ${brand.favicon}`);
-        }
-        if (brand.ogImage) {
-          lines.push(`**OG Image:** ${brand.ogImage}`);
-        }
-
-        if (brand.images && brand.images.length > 0) {
-          lines.push("", "## Images");
-          for (const img of brand.images) {
-            const parts = Object.entries(img)
-              .map(([k, v]) => `${k}: ${v}`)
-              .join(", ");
-            lines.push(`- ${parts}`);
-          }
-        }
-
-        sections.push(lines.join("\n"));
+      if (brand.logo) {
+        lines.push("", `**Logo:** ${brand.logo}`);
+      }
+      if (brand.favicon) {
+        lines.push(`**Favicon:** ${brand.favicon}`);
+      }
+      if (brand.ogImage) {
+        lines.push(`**OG Image:** ${brand.ogImage}`);
       }
 
-      return {
+      if (brand.images && brand.images.length > 0) {
+        lines.push("", "## Images");
+        for (const img of brand.images) {
+          const parts = Object.entries(img)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          lines.push(`- ${parts}`);
+        }
+      }
+
+      const text = lines.join("\n");
+
+      server.prompt(promptName, `Brand context for ${brand.name}`, () => ({
         messages: [
           {
             role: "user" as const,
-            content: {
-              type: "text" as const,
-              text: sections.join("\n\n---\n\n"),
-            },
+            content: { type: "text" as const, text },
           },
         ],
-      };
-    },
-  );
+      }));
+    }
+  }
 
   // Register reference resources
   const resources = getResources();
