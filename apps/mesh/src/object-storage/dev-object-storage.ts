@@ -17,6 +17,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
+import { createHmac } from "node:crypto";
 import { dirname, join } from "node:path";
 import type {
   GetObjectResult,
@@ -27,6 +28,7 @@ import type {
 } from "./s3-service";
 import type { BoundObjectStorage } from "./bound-object-storage";
 import { detectContentType, isTextContentType, sanitizeKey } from "./key-utils";
+import { getSettings } from "../settings";
 
 const DEV_ASSETS_BASE_DIR = "./data/assets";
 
@@ -40,7 +42,10 @@ function filePath(orgId: string, key: string): string {
 }
 
 export class DevObjectStorage implements BoundObjectStorage {
-  constructor(private readonly orgId: string) {}
+  constructor(
+    private readonly orgId: string,
+    private readonly baseUrl?: string,
+  ) {}
 
   async get(key: string): Promise<GetObjectResult | GetObjectTooLargeResult> {
     const path = filePath(this.orgId, key);
@@ -77,6 +82,7 @@ export class DevObjectStorage implements BoundObjectStorage {
   async list(options?: {
     prefix?: string;
     maxKeys?: number;
+    delimiter?: string;
   }): Promise<ListObjectsResult> {
     const baseDir = options?.prefix
       ? join(orgAssetsDir(this.orgId), sanitizeKey(options.prefix))
@@ -131,5 +137,25 @@ export class DevObjectStorage implements BoundObjectStorage {
     const contentType = detectContentType(key);
     const base64 = Buffer.from(bytes).toString("base64");
     return `data:${contentType};base64,${base64}`;
+  }
+
+  async presignedPutUrl(key: string, expiresIn = 3600): Promise<string> {
+    if (!this.baseUrl) {
+      throw new Error("baseUrl required for presigned PUT URLs in dev mode");
+    }
+    const sanitized = sanitizeKey(key);
+    const expires = Math.floor(Date.now() / 1000) + expiresIn;
+    const secret = getSettings().encryptionKey || "dev-secret";
+    const data = `${this.orgId}:${sanitized}:${expires}:PUT`;
+    const signature = createHmac("sha256", secret).update(data).digest("hex");
+
+    const url = new URL(
+      `/api/dev-assets/${this.orgId}/${sanitized}`,
+      this.baseUrl,
+    );
+    url.searchParams.set("expires", expires.toString());
+    url.searchParams.set("signature", signature);
+    url.searchParams.set("method", "PUT");
+    return url.toString();
   }
 }

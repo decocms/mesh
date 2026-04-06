@@ -30,6 +30,7 @@ export type ToolCategory =
   | "Tags"
   | "AI Providers"
   | "Automations"
+  | "Object Storage"
   | "Registry";
 
 /**
@@ -121,6 +122,14 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
+
+  // Object Storage tools
+  "LIST_OBJECTS",
+  "GET_OBJECT_METADATA",
+  "GET_PRESIGNED_URL",
+  "PUT_PRESIGNED_URL",
+  "DELETE_OBJECT",
+  "DELETE_OBJECTS",
 
   // Registry tools
   "COLLECTION_REGISTRY_APP_LIST",
@@ -571,6 +580,39 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
+  // Object Storage tools
+  {
+    name: "LIST_OBJECTS",
+    description: "List objects in storage",
+    category: "Object Storage",
+  },
+  {
+    name: "GET_OBJECT_METADATA",
+    description: "Get object metadata",
+    category: "Object Storage",
+  },
+  {
+    name: "GET_PRESIGNED_URL",
+    description: "Generate download URL",
+    category: "Object Storage",
+  },
+  {
+    name: "PUT_PRESIGNED_URL",
+    description: "Generate upload URL",
+    category: "Object Storage",
+  },
+  {
+    name: "DELETE_OBJECT",
+    description: "Delete object",
+    category: "Object Storage",
+    dangerous: true,
+  },
+  {
+    name: "DELETE_OBJECTS",
+    description: "Delete multiple objects",
+    category: "Object Storage",
+    dangerous: true,
+  },
   // Registry tools
   {
     name: "COLLECTION_REGISTRY_APP_LIST",
@@ -815,6 +857,14 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
 
+  // Object Storage
+  LIST_OBJECTS: "List objects",
+  GET_OBJECT_METADATA: "Get object metadata",
+  GET_PRESIGNED_URL: "Generate download URL",
+  PUT_PRESIGNED_URL: "Generate upload URL",
+  DELETE_OBJECT: "Delete object",
+  DELETE_OBJECTS: "Delete multiple objects",
+
   // Registry
   COLLECTION_REGISTRY_APP_LIST: "List registry apps",
   COLLECTION_REGISTRY_APP_GET: "Get registry app",
@@ -870,6 +920,7 @@ export function getToolsByCategory() {
     Tags: [],
     "AI Providers": [],
     Automations: [],
+    "Object Storage": [],
     Registry: [],
   };
 

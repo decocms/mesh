@@ -22,11 +22,18 @@ export interface BoundObjectStorage {
     prefix?: string;
     maxKeys?: number;
     continuationToken?: string;
+    delimiter?: string;
   }): Promise<ListObjectsResult>;
   delete(key: string): Promise<void>;
   head(key: string): Promise<HeadObjectResult>;
   /** Generate a presigned GET URL for the given key. */
   presignedGetUrl(key: string, expiresIn?: number): Promise<string>;
+  /** Generate a presigned PUT URL for the given key. */
+  presignedPutUrl(
+    key: string,
+    expiresIn?: number,
+    contentType?: string,
+  ): Promise<string>;
 }
 
 /**
@@ -44,5 +51,7 @@ export function createBoundObjectStorage(
     head: (key) => s3.head(orgId, key),
     presignedGetUrl: (key, expiresIn) =>
       s3.presignedGetUrl(orgId, key, expiresIn),
+    presignedPutUrl: (key, expiresIn, contentType) =>
+      s3.presignedPutUrl(orgId, key, expiresIn, contentType),
   };
 }
