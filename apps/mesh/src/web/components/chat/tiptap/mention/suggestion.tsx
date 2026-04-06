@@ -2,7 +2,6 @@
 
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { IntegrationIcon } from "@/web/components/integration-icon";
 import {
   autoUpdate,
   flip,
@@ -116,7 +115,7 @@ function MentionAnchor({ children }: PropsWithChildren) {
         ref={refs.setFloating}
         style={floatingStyles}
         {...getFloatingProps()}
-        className="z-50 w-auto min-w-[280px] max-w-[400px] rounded-lg border bg-popover p-0 text-popover-foreground shadow-md outline-hidden overflow-hidden"
+        className="z-50 w-auto min-w-[360px] max-w-[520px] rounded-lg border bg-popover p-0 text-popover-foreground shadow-md outline-hidden overflow-hidden"
       >
         {children}
       </div>
@@ -139,31 +138,19 @@ const MentionItem = <T extends BaseItem>({
       ref={ref}
       onClick={onSelect}
       className={cn(
-        "relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-3 text-sm outline-none transition-colors",
+        "relative flex w-full cursor-pointer select-none items-center gap-3 rounded-md px-2 py-2 text-sm outline-none transition-colors",
         "hover:bg-accent/50",
         isSelected && "bg-accent/50",
         isLoading && "pointer-events-none opacity-50",
       )}
     >
-      {item.icon !== undefined && (
-        <IntegrationIcon
-          icon={item.icon ?? null}
-          name={item.title ?? item.name}
-          size="xs"
-          className="shrink-0 rounded-lg! self-start mt-0.5"
-        />
-      )}
-      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-        <span className="text-xs text-muted-foreground/60 truncate">
-          {name}
+      <span className="shrink-0 truncate">{name}</span>
+      {description && (
+        <span className="truncate text-muted-foreground/60 text-xs">
+          {description}
         </span>
-        {description && (
-          <span className="line-clamp-2 text-sm leading-snug">
-            {description}
-          </span>
-        )}
-      </div>
-      {isLoading && <Spinner size="xs" />}
+      )}
+      {isLoading && <Spinner size="xs" className="shrink-0" />}
     </div>
   );
 };
@@ -188,7 +175,7 @@ const MentionItemList = <T extends BaseItem>({
 
   if (!items.length) {
     return (
-      <div className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md border shadow-md p-3 text-sm">
+      <div className="min-w-[360px] max-w-[520px] bg-popover text-popover-foreground rounded-md border shadow-md p-3 text-sm">
         No items found
       </div>
     );
@@ -196,7 +183,7 @@ const MentionItemList = <T extends BaseItem>({
 
   return (
     <div
-      className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
+      className="min-w-[360px] max-w-[520px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
       style={{
         maxHeight:
           "min(320px, var(--radix-popover-content-available-height, 320px))",
@@ -235,8 +222,11 @@ function SuggestionItemListSkeleton() {
   return (
     <div className="p-1">
       {[...Array(3)].map((_, i) => (
-        <div key={i} className="px-2 py-1.5 h-[44px] animate-pulse">
-          <div className="h-4 w-24 bg-muted rounded mb-1" />
+        <div
+          key={i}
+          className="flex items-center gap-1.5 px-2 py-1.5 animate-pulse"
+        >
+          <div className="h-4 w-24 bg-muted rounded" />
           <div className="h-3 w-32 bg-muted rounded" />
         </div>
       ))}
