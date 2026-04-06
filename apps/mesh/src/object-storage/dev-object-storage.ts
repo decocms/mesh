@@ -9,6 +9,7 @@
  * Presigned URLs are HMAC-signed and served by the /api/dev-assets route.
  */
 
+import type { Dirent } from "node:fs";
 import {
   mkdir,
   readdir,
@@ -88,19 +89,56 @@ export class DevObjectStorage implements BoundObjectStorage {
       ? join(orgAssetsDir(this.orgId), sanitizeKey(options.prefix))
       : orgAssetsDir(this.orgId);
 
-    let entries: string[];
+    let entries: Dirent[];
     try {
-      entries = await readdir(baseDir);
+      entries = await readdir(baseDir, { withFileTypes: true });
     } catch {
       return { objects: [], isTruncated: false };
     }
 
     const max = options?.maxKeys ?? 1000;
+    const prefix = options?.prefix;
+
+    if (options?.delimiter) {
+      // When delimiter is set, directories become commonPrefixes and
+      // only files at this level are returned as objects (mirrors S3).
+      const commonPrefixes: string[] = [];
+      const fileEntries: Dirent[] = [];
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const dirKey = prefix ? `${prefix}/${entry.name}/` : `${entry.name}/`;
+          commonPrefixes.push(dirKey);
+        } else {
+          fileEntries.push(entry);
+        }
+      }
+
+      const objects = await Promise.all(
+        fileEntries.slice(0, max).map(async (entry) => {
+          const info = await stat(join(baseDir, entry.name));
+          return {
+            key: prefix ? `${prefix}/${entry.name}` : entry.name,
+            size: info.size,
+            lastModified: info.mtime,
+          };
+        }),
+      );
+
+      return {
+        objects,
+        isTruncated: fileEntries.length > max,
+        commonPrefixes:
+          commonPrefixes.length > 0 ? commonPrefixes.sort() : undefined,
+      };
+    }
+
+    // No delimiter: flat listing of all entries
     const objects = await Promise.all(
-      entries.slice(0, max).map(async (name) => {
-        const info = await stat(join(baseDir, name));
+      entries.slice(0, max).map(async (entry) => {
+        const info = await stat(join(baseDir, entry.name));
         return {
-          key: options?.prefix ? `${options.prefix}/${name}` : name,
+          key: prefix ? `${prefix}/${entry.name}` : entry.name,
           size: info.size,
           lastModified: info.mtime,
         };
