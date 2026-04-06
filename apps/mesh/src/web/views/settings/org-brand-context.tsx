@@ -356,30 +356,21 @@ function BrandCard({
         <div className="flex flex-col gap-3">
           <p className="text-xs font-medium text-muted-foreground">Logos</p>
           <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Logo</Label>
-              <Input
-                value={logo}
-                onChange={(e) => update(setLogo, "logo", e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Favicon</Label>
-              <Input
-                value={favicon}
-                onChange={(e) => update(setFavicon, "favicon", e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">OG Image</Label>
-              <Input
-                value={ogImage}
-                onChange={(e) => update(setOgImage, "ogImage", e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
+            <ImageField
+              label="Logo"
+              value={logo}
+              onChange={(v) => update(setLogo, "logo", v)}
+            />
+            <ImageField
+              label="Favicon"
+              value={favicon}
+              onChange={(v) => update(setFavicon, "favicon", v)}
+            />
+            <ImageField
+              label="OG Image"
+              value={ogImage}
+              onChange={(v) => update(setOgImage, "ogImage", v)}
+            />
           </div>
         </div>
 
@@ -520,7 +511,7 @@ function BrandCard({
                       onChange={(e) => {
                         const next = [...colors];
                         next[i] = { ...color, value: e.target.value };
-                        setColors(next);
+                        updateColors(next);
                       }}
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />
@@ -548,5 +539,38 @@ function BrandCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ImageField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {value && (
+        <div className="flex h-16 items-center justify-center rounded border border-border bg-muted/30 p-1">
+          <img
+            src={value}
+            alt={label}
+            className="max-h-full max-w-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
+      )}
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://..."
+      />
+    </div>
   );
 }
