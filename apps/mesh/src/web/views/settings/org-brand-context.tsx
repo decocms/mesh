@@ -9,7 +9,6 @@ import { Button } from "@deco/ui/components/button.tsx";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@deco/ui/components/card.tsx";
@@ -19,7 +18,7 @@ import { Textarea } from "@deco/ui/components/textarea.tsx";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash01 } from "@untitledui/icons";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface BrandContextData {
@@ -205,33 +204,84 @@ function BrandCard({
     colorsToEntries(brand.colors),
   );
 
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { mutate: save, isPending } = useMutation({
-    mutationFn: async () => {
-      if (!name || !domain) {
-        throw new Error("Name and domain are required");
-      }
+    mutationFn: async (args: {
+      name: string;
+      domain: string;
+      overview: string;
+      logo: string;
+      favicon: string;
+      ogImage: string;
+      fonts: FontEntry[];
+      colors: ColorEntry[];
+    }) => {
+      if (!args.name || !args.domain) return;
       await client.callTool({
         name: "BRAND_CONTEXT_UPDATE",
         arguments: {
           id: brand.id,
-          name,
-          domain,
-          overview,
-          logo: logo || null,
-          favicon: favicon || null,
-          ogImage: ogImage || null,
-          fonts: entriesToFonts(fonts),
-          colors: entriesToColors(colors),
+          name: args.name,
+          domain: args.domain,
+          overview: args.overview,
+          logo: args.logo || null,
+          favicon: args.favicon || null,
+          ogImage: args.ogImage || null,
+          fonts: entriesToFonts(args.fonts),
+          colors: entriesToColors(args.colors),
           images: brand.images ?? null,
         },
       });
     },
-    onSuccess: () => {
-      onChanged();
-      toast.success("Brand updated");
-    },
+    onSuccess: () => onChanged(),
     onError: (err) => toast.error(err.message),
   });
+
+  const scheduleAutoSave = (
+    overrides: Partial<{
+      name: string;
+      domain: string;
+      overview: string;
+      logo: string;
+      favicon: string;
+      ogImage: string;
+      fonts: FontEntry[];
+      colors: ColorEntry[];
+    }>,
+  ) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const snapshot = {
+      name: overrides.name ?? name,
+      domain: overrides.domain ?? domain,
+      overview: overrides.overview ?? overview,
+      logo: overrides.logo ?? logo,
+      favicon: overrides.favicon ?? favicon,
+      ogImage: overrides.ogImage ?? ogImage,
+      fonts: overrides.fonts ?? fonts,
+      colors: overrides.colors ?? colors,
+    };
+    timerRef.current = setTimeout(() => save(snapshot), 1000);
+  };
+
+  const update = <K extends string>(
+    setter: (v: string) => void,
+    field: K,
+    value: string,
+  ) => {
+    setter(value);
+    scheduleAutoSave({ [field]: value } as Record<string, unknown> as never);
+  };
+
+  const updateFonts = (next: FontEntry[]) => {
+    setFonts(next);
+    scheduleAutoSave({ fonts: next });
+  };
+
+  const updateColors = (next: ColorEntry[]) => {
+    setColors(next);
+    scheduleAutoSave({ colors: next });
+  };
 
   const { mutate: deleteBrand, isPending: isDeleting } = useMutation({
     mutationFn: async () => {
@@ -252,6 +302,11 @@ function BrandCard({
       <CardHeader className="flex flex-row items-center justify-between p-0">
         <CardTitle className="text-sm">
           {brand.name || "Untitled Brand"}
+          {isPending && (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              Saving...
+            </span>
+          )}
         </CardTitle>
         <div className="flex items-center gap-1">
           <Button
@@ -273,7 +328,7 @@ function BrandCard({
               <Label className="text-xs text-muted-foreground">Name</Label>
               <Input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => update(setName, "name", e.target.value)}
                 placeholder="Brand name"
               />
             </div>
@@ -281,7 +336,7 @@ function BrandCard({
               <Label className="text-xs text-muted-foreground">Domain</Label>
               <Input
                 value={domain}
-                onChange={(e) => setDomain(e.target.value)}
+                onChange={(e) => update(setDomain, "domain", e.target.value)}
                 placeholder="example.com"
               />
             </div>
@@ -290,7 +345,7 @@ function BrandCard({
             <Label className="text-xs text-muted-foreground">Overview</Label>
             <Textarea
               value={overview}
-              onChange={(e) => setOverview(e.target.value)}
+              onChange={(e) => update(setOverview, "overview", e.target.value)}
               placeholder="What does this brand represent?"
               rows={3}
             />
@@ -305,7 +360,7 @@ function BrandCard({
               <Label className="text-xs text-muted-foreground">Logo</Label>
               <Input
                 value={logo}
-                onChange={(e) => setLogo(e.target.value)}
+                onChange={(e) => update(setLogo, "logo", e.target.value)}
                 placeholder="https://..."
               />
             </div>
@@ -313,7 +368,7 @@ function BrandCard({
               <Label className="text-xs text-muted-foreground">Favicon</Label>
               <Input
                 value={favicon}
-                onChange={(e) => setFavicon(e.target.value)}
+                onChange={(e) => update(setFavicon, "favicon", e.target.value)}
                 placeholder="https://..."
               />
             </div>
@@ -321,7 +376,7 @@ function BrandCard({
               <Label className="text-xs text-muted-foreground">OG Image</Label>
               <Input
                 value={ogImage}
-                onChange={(e) => setOgImage(e.target.value)}
+                onChange={(e) => update(setOgImage, "ogImage", e.target.value)}
                 placeholder="https://..."
               />
             </div>
@@ -336,7 +391,7 @@ function BrandCard({
               variant="ghost"
               size="sm"
               onClick={() =>
-                setFonts([...fonts, { family: "", weight: "", style: "" }])
+                updateFonts([...fonts, { family: "", weight: "", style: "" }])
               }
             >
               <Plus size={14} className="mr-1" />
@@ -359,7 +414,7 @@ function BrandCard({
                   onChange={(e) => {
                     const next = [...fonts];
                     next[i] = { ...font, family: e.target.value };
-                    setFonts(next);
+                    updateFonts(next);
                   }}
                   placeholder="Inter"
                 />
@@ -375,7 +430,7 @@ function BrandCard({
                   onChange={(e) => {
                     const next = [...fonts];
                     next[i] = { ...font, weight: e.target.value };
-                    setFonts(next);
+                    updateFonts(next);
                   }}
                   placeholder="400"
                 />
@@ -389,7 +444,7 @@ function BrandCard({
                   onChange={(e) => {
                     const next = [...fonts];
                     next[i] = { ...font, style: e.target.value };
-                    setFonts(next);
+                    updateFonts(next);
                   }}
                   placeholder="normal"
                 />
@@ -398,7 +453,7 @@ function BrandCard({
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                onClick={() => setFonts(fonts.filter((_, j) => j !== i))}
+                onClick={() => updateFonts(fonts.filter((_, j) => j !== i))}
               >
                 <Trash01 size={14} />
               </Button>
@@ -413,7 +468,7 @@ function BrandCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setColors([...colors, { name: "", value: "" }])}
+              onClick={() => updateColors([...colors, { name: "", value: "" }])}
             >
               <Plus size={14} className="mr-1" />
               Add
@@ -435,7 +490,7 @@ function BrandCard({
                   onChange={(e) => {
                     const next = [...colors];
                     next[i] = { ...color, name: e.target.value };
-                    setColors(next);
+                    updateColors(next);
                   }}
                   placeholder="primary"
                 />
@@ -450,7 +505,7 @@ function BrandCard({
                     onChange={(e) => {
                       const next = [...colors];
                       next[i] = { ...color, value: e.target.value };
-                      setColors(next);
+                      updateColors(next);
                     }}
                     placeholder="#0066FF"
                   />
@@ -484,7 +539,7 @@ function BrandCard({
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                onClick={() => setColors(colors.filter((_, j) => j !== i))}
+                onClick={() => updateColors(colors.filter((_, j) => j !== i))}
               >
                 <Trash01 size={14} />
               </Button>
@@ -492,12 +547,6 @@ function BrandCard({
           ))}
         </div>
       </CardContent>
-
-      <CardFooter className="p-0 pt-4">
-        <Button onClick={() => save()} disabled={isPending}>
-          {isPending ? "Saving..." : "Save"}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
