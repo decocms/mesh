@@ -4,14 +4,15 @@ export async function pollUntil(
 ): Promise<void> {
   const { timeoutMs, intervalMs = 1000, label = "pollUntil" } = opts;
   const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
 
   while (Date.now() < deadline) {
     try {
       if (await condition()) {
         return;
       }
-    } catch {
-      // Condition threw — treat as "not yet satisfied" and keep polling.
+    } catch (err) {
+      lastError = err;
     }
 
     const remaining = deadline - Date.now();
@@ -19,7 +20,8 @@ export async function pollUntil(
     await Bun.sleep(Math.min(intervalMs, remaining));
   }
 
-  throw new Error(
-    `[${label}] Condition not met within ${timeoutMs}ms (polled every ${intervalMs}ms)`,
-  );
+  const base = `[${label}] Condition not met within ${timeoutMs}ms (polled every ${intervalMs}ms)`;
+  const cause =
+    lastError instanceof Error ? lastError.message : String(lastError ?? "");
+  throw new Error(cause ? `${base}: ${cause}` : base);
 }
