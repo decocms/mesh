@@ -56,14 +56,6 @@ interface IceBreakersUIProps {
 
 const VISIBLE_COUNT = 3;
 
-/** Capitalizes the first letter after spaces and hyphens (e.g. "fix-bug" → "Fix-Bug"). */
-function toTitleCase(str: string): string {
-  return str.replace(
-    /(^|[\s-])(\w)/g,
-    (_, sep, char) => sep + char.toUpperCase(),
-  );
-}
-
 const PILL_BASE =
   "inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-muted text-muted-foreground text-sm font-medium transition-colors cursor-pointer";
 
@@ -84,11 +76,8 @@ function PromptCard({
   variant?: "pill" | "card";
 }) {
   const { prompt } = item;
-  // Strip gateway namespace prefix (e.g. "conn-abc_web_search_help" → "web_search_help")
-  const sep = prompt.name.indexOf("_");
-  const baseName = sep !== -1 ? prompt.name.slice(sep + 1) : prompt.name;
-  const name = toTitleCase(baseName.replace(/_/g, " "));
-  const label = prompt.title || name;
+  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const label = prompt.description ?? name;
 
   if (variant === "card") {
     return (
