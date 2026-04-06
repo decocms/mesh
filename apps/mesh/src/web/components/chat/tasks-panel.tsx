@@ -24,7 +24,13 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { ChevronRight, Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
+import {
+  CheckCircle,
+  ChevronRight,
+  Loading01,
+  Plus,
+  RefreshCcw01,
+} from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
@@ -447,12 +453,14 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
+  onTaskCreate?: () => void;
   virtualMcpId?: string | null;
   showAutomations?: boolean;
 }
 
 export function TaskListContent({
   onTaskSelect,
+  onTaskCreate,
   virtualMcpId,
   showAutomations = true,
 }: TaskListContentProps) {
@@ -479,6 +487,9 @@ export function TaskListContent({
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
     );
 
+  const [tasksOpen, setTasksOpen] = useState(true);
+  const hasAccordion = !!(virtualMcpId && showAutomations);
+
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
@@ -489,35 +500,76 @@ export function TaskListContent({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Tasks header */}
-      <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
-        <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-          Tasks
-        </span>
-      </div>
-
-      {/* Flat list: automations first, then tasks */}
       <div className="flex-1 overflow-y-auto">
+        {/* Automations accordion */}
         {virtualMcpId && showAutomations && (
-          <div className="mb-3">
-            <IncomingSection virtualMcpId={virtualMcpId} />
+          <IncomingSection virtualMcpId={virtualMcpId} />
+        )}
+
+        {/* Tasks accordion header (only when automations are shown) */}
+        {hasAccordion ? (
+          <button
+            type="button"
+            onClick={() => setTasksOpen((prev) => !prev)}
+            className="group/tasks flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          >
+            <span className="shrink-0 flex items-center justify-center size-6">
+              <CheckCircle size={16} className="text-muted-foreground/50" />
+            </span>
+            <span className="text-sm font-medium text-muted-foreground">
+              Tasks
+            </span>
+            {!tasksOpen && (
+              <span className="text-xs text-muted-foreground/60 tabular-nums">
+                {visible.length}
+              </span>
+            )}
+            <ChevronRight
+              size={12}
+              className={cn(
+                "text-muted-foreground/40 opacity-0 group-hover/tasks:opacity-100 transition-all duration-150",
+                tasksOpen && "rotate-90",
+              )}
+            />
+            <span className="flex-1" />
+            {onTaskCreate && (
+              <span
+                role="button"
+                className="flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground opacity-0 group-hover/tasks:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTaskCreate();
+                }}
+                title="New task"
+              >
+                <Plus size={16} />
+              </span>
+            )}
+          </button>
+        ) : (
+          <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
+            <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
+              Tasks
+            </span>
           </div>
         )}
 
-        {visible.length > 0 ? (
-          visible.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              isActive={task.id === taskId}
-              onClick={() => handleSelect(task)}
-            />
-          ))
-        ) : (
-          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
-            No tasks
-          </div>
-        )}
+        {/* Task rows */}
+        {(!hasAccordion || tasksOpen) &&
+          (visible.length > 0 ? (
+            visible.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                isActive={task.id === taskId}
+                onClick={() => handleSelect(task)}
+              />
+            ))
+          ) : (
+            <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+              No tasks
+            </div>
+          ))}
       </div>
     </div>
   );

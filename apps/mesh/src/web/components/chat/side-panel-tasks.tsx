@@ -335,6 +335,7 @@ function TasksPanelContent({
       <TaskListContent
         virtualMcpId={virtualMcpId}
         showAutomations={showAutomations}
+        onTaskCreate={handleNewTask}
         onTaskSelect={(taskId) => {
           openTask(taskId);
           setChatOpen(true);
