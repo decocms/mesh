@@ -1,18 +1,18 @@
 /**
  * Tasks Panel — Sidebar + Compact List
  *
- * Status-grouped list with 3 sections: Needs input, In progress, Done.
- * Dense, scannable rows. Collapsible groups with counts.
+ * Flat list sorted by updated_at with inline status icons.
+ * Dense, scannable rows. Automations section above tasks.
  */
 
 import { useChatTask } from "@/web/components/chat/context";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
-  buildDisplayGroups,
+  getStatusConfig,
   getTaskVerb,
+  SETTABLE_STATUSES,
   STATUS_CONFIG,
-  toDisplayGroupKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
 import { useTasks } from "./task";
@@ -24,32 +24,17 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  CheckDone01,
-  ChevronRight,
-  Loading01,
-  Plus,
-  RefreshCcw01,
-} from "@untitledui/icons";
+import { ChevronRight, Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.js";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@deco/ui/components/context-menu.tsx";
 import type { TaskOwnerFilter } from "./task";
 import {
   useAutomationsList,
@@ -69,7 +54,6 @@ import {
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
 import { Trash01 } from "@untitledui/icons";
-import { usePlayStatusSound } from "@/web/hooks/use-status-sounds";
 
 // ────────────────────────────────────────
 
@@ -147,65 +131,6 @@ export function OwnerFilter() {
 }
 
 // ────────────────────────────────────────
-// Multi-agent avatar stack
-// ────────────────────────────────────────
-
-// ────────────────────────────────────────
-// Section empty state
-// ────────────────────────────────────────
-
-function SectionEmptyState() {
-  return (
-    <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
-      No items
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
-// Group header
-// ────────────────────────────────────────
-
-function GroupHeader({
-  label,
-  icon: Icon,
-  iconClassName,
-  count,
-  isOpen,
-  onToggle,
-}: {
-  label: string;
-  icon: typeof Loading01;
-  iconClassName: string;
-  count: number;
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="group flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-    >
-      <Icon size={16} className={iconClassName} />
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      {!isOpen && (
-        <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {count}
-        </span>
-      )}
-      <ChevronRight
-        size={12}
-        className={cn(
-          "text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-all duration-150",
-          isOpen && "rotate-90",
-        )}
-      />
-    </button>
-  );
-}
-
-// ────────────────────────────────────────
 // Task row
 // ────────────────────────────────────────
 
@@ -219,94 +144,89 @@ function TaskRow({
   onClick: () => void;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
-  const playStatusSound = usePlayStatusSound();
   const status = task.status;
+  const config = getStatusConfig(status);
+  const StatusIcon = config.icon;
   const taskVerb = getTaskVerb(task, undefined);
+  const tooltipText = taskVerb?.verb ?? config.label;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            "group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
-            isActive ? "bg-accent" : "hover:bg-accent/50",
-          )}
-          onClick={onClick}
-        >
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            {/* Line 1: Title + time */}
-            <div className="flex items-center gap-1.5">
-              <TruncatedText
-                text={task.title || "Untitled"}
-                className="text-sm text-muted-foreground flex-1 min-w-0"
-              />
-              <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
-                {task.updated_at
-                  ? formatTimeAgo(new Date(task.updated_at))
-                  : ""}
-              </span>
-            </div>
-            {/* Line 2: status verb (only when actionable) */}
-            {taskVerb && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span className={cn("shrink-0", taskVerb.labelColor)}>
-                  {taskVerb.verb}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Mark done button — shown on hover for non-completed tasks */}
-          {status !== "completed" && (
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                playStatusSound("completed");
-                void setTaskStatus(task.id, "completed");
-              }}
-              title="Mark as done"
-            >
-              <CheckDone01 size={14} className="text-muted-foreground" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>Set status</ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-44">
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-              const Icon = cfg.icon;
-              return (
-                <ContextMenuItem
-                  key={key}
-                  className={cn("gap-2", status === key && "font-medium")}
-                  onSelect={() => void setTaskStatus(task.id, key)}
-                >
-                  <Icon size={14} className={cfg.iconClassName} />
-                  <span>{cfg.label}</span>
-                  {status === key && (
-                    <span className="ml-auto text-[10px] text-muted-foreground">
-                      current
-                    </span>
+    <div
+      className={cn(
+        "group/row relative flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
+        isActive ? "bg-accent" : "hover:bg-accent/50",
+      )}
+      onClick={onClick}
+    >
+      {/* Status icon — click to change status */}
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-accent/80 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <StatusIcon
+                  size={16}
+                  className={cn(
+                    config.iconClassName,
+                    status === "in_progress" && "animate-spin",
                   )}
-                </ContextMenuItem>
-              );
-            })}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          variant="destructive"
-          onSelect={() => hideTask(task.id)}
-        >
-          Archive
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+                />
+              </button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipText}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent className="w-48">
+          {SETTABLE_STATUSES.map((key) => {
+            const cfg = STATUS_CONFIG[key];
+            const Icon = cfg.icon;
+            return (
+              <DropdownMenuItem
+                key={key}
+                className={cn("gap-2", status === key && "font-medium")}
+                onSelect={() => void setTaskStatus(task.id, key)}
+              >
+                <Icon size={14} className={cfg.iconClassName} />
+                <span>{cfg.label}</span>
+                {status === key && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    current
+                  </span>
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Title + time */}
+      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        <TruncatedText
+          text={task.title || "Untitled"}
+          className="text-sm text-muted-foreground flex-1 min-w-0"
+        />
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
+          {task.updated_at ? formatTimeAgo(new Date(task.updated_at)) : ""}
+        </span>
+      </div>
+
+      {/* Archive button — shown on hover */}
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground opacity-0 group-hover/row:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          hideTask(task.id);
+        }}
+        title="Archive"
+      >
+        <Trash01 size={14} />
+      </button>
+    </div>
   );
 }
 
@@ -430,9 +350,11 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="group/incoming flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+        className="group/incoming flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
       >
-        <RefreshCcw01 size={14} className="text-purple-500" />
+        <span className="shrink-0 flex items-center justify-center size-6">
+          <RefreshCcw01 size={16} className="text-purple-500" />
+        </span>
         <span className="text-sm font-medium text-muted-foreground">
           Automations
         </span>
@@ -484,7 +406,9 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
             />
           ))
         ) : (
-          <SectionEmptyState />
+          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+            No items
+          </div>
         ))}
 
       <AlertDialog
@@ -521,115 +445,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
-// ────────────────────────────────────────
-// Grouped task list — keyed by activeGroupKey so expanded state resets
-// when the active task moves between groups
-// ────────────────────────────────────────
-
-function GroupedTaskList({
-  groups,
-  activeGroupKey,
-  activeTaskId,
-  virtualMcpId,
-  showAutomations = true,
-  onTaskSelect,
-}: {
-  groups: ReturnType<typeof buildDisplayGroups>;
-  activeGroupKey: string | null;
-  activeTaskId: string | null;
-  virtualMcpId?: string | null;
-  showAutomations?: boolean;
-  onTaskSelect: (task: Task) => void;
-}) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    // Default: auto-open the group containing the active task
-    if (activeGroupKey) return { [activeGroupKey]: true };
-    return {};
-  });
-
-  const toggleGroup = (key: string) => {
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      {groups
-        .filter((g) => g.key !== "done")
-        .map((group, index) => {
-          const isOpen = !!expanded[group.key];
-          return (
-            <div key={group.key} className={cn(index > 0 && "mt-3")}>
-              <GroupHeader
-                label={group.label}
-                icon={group.icon}
-                iconClassName={group.iconClassName}
-                count={group.tasks.length}
-                isOpen={isOpen}
-                onToggle={() => toggleGroup(group.key)}
-              />
-              {isOpen && (
-                <div className="mt-1">
-                  {group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === activeTaskId}
-                        onClick={() => onTaskSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      {virtualMcpId && showAutomations && (
-        <div className="mt-3">
-          <IncomingSection virtualMcpId={virtualMcpId} />
-        </div>
-      )}
-      {groups
-        .filter((g) => g.key === "done")
-        .map((group) => {
-          const isOpen = !!expanded[group.key];
-          return (
-            <div key={group.key} className="mt-3">
-              <GroupHeader
-                label={group.label}
-                icon={group.icon}
-                iconClassName={group.iconClassName}
-                count={group.tasks.length}
-                isOpen={isOpen}
-                onToggle={() => toggleGroup(group.key)}
-              />
-              {isOpen && (
-                <div className="mt-1">
-                  {group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === activeTaskId}
-                        onClick={() => onTaskSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
-
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
   virtualMcpId?: string | null;
@@ -656,14 +471,13 @@ export function TaskListContent({
     virtualMcpId ?? "",
   );
 
-  const visible = tasks.filter((t) => !t.hidden);
-  const groups = buildDisplayGroups(visible);
-
-  // Find which group the active task belongs to so we can auto-open it
-  const activeTask = taskId ? visible.find((t) => t.id === taskId) : null;
-  const activeGroupKey = activeTask
-    ? toDisplayGroupKey(activeTask.status)
-    : null;
+  const visible = tasks
+    .filter((t) => !t.hidden)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
 
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
@@ -682,16 +496,29 @@ export function TaskListContent({
         </span>
       </div>
 
-      {/* Grouped list — key resets expanded state when active task moves groups */}
-      <GroupedTaskList
-        key={activeGroupKey ?? "none"}
-        groups={groups}
-        activeGroupKey={activeGroupKey}
-        activeTaskId={taskId}
-        virtualMcpId={virtualMcpId}
-        showAutomations={showAutomations}
-        onTaskSelect={handleSelect}
-      />
+      {/* Flat list: automations first, then tasks */}
+      <div className="flex-1 overflow-y-auto">
+        {virtualMcpId && showAutomations && (
+          <div className="mb-3">
+            <IncomingSection virtualMcpId={virtualMcpId} />
+          </div>
+        )}
+
+        {visible.length > 0 ? (
+          visible.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              isActive={task.id === taskId}
+              onClick={() => handleSelect(task)}
+            />
+          ))
+        ) : (
+          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+            No tasks
+          </div>
+        )}
+      </div>
     </div>
   );
 }
