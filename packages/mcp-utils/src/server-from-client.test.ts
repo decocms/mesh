@@ -29,7 +29,7 @@ function createMockClient(
   const instructions = overrides.instructions;
 
   return {
-    listTools: mock(async (params) => ({
+    listTools: mock(async (_params) => ({
       tools: [
         {
           name: "tool_a",
@@ -39,10 +39,10 @@ function createMockClient(
         },
       ] as Tool[],
     })),
-    callTool: mock(async (params, _resultSchema, _options) => ({
+    callTool: mock(async (_params, _resultSchema, _options) => ({
       content: [{ type: "text" as const, text: "result" }],
     })),
-    listResources: mock(async (params) => ({
+    listResources: mock(async (_params) => ({
       resources: [
         {
           uri: "file:///test.txt",
@@ -60,7 +60,7 @@ function createMockClient(
         },
       ],
     })),
-    listResourceTemplates: mock(async (params) => ({
+    listResourceTemplates: mock(async (_params) => ({
       resourceTemplates: [
         {
           uriTemplate: "file:///{path}",
@@ -68,7 +68,7 @@ function createMockClient(
         },
       ],
     })),
-    listPrompts: mock(async (params) => ({
+    listPrompts: mock(async (_params) => ({
       prompts: [{ name: "greet", description: "A greeting" }],
     })),
     getPrompt: mock(async (params) => ({

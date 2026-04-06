@@ -370,7 +370,7 @@ export async function resolveArgsStorageRefs(
 
 function collectMeshStorageKeys(value: unknown, out: Set<string>): void {
   if (typeof value === "string") {
-    for (const match of value.matchAll(/mesh-storage:([^\s"'<>\[\]]+)/g)) {
+    for (const match of value.matchAll(/mesh-storage:([^\s"'<>[\]]+)/g)) {
       out.add(match[1]!);
     }
   } else if (Array.isArray(value)) {
@@ -388,7 +388,7 @@ function substituteValues(
 ): unknown {
   if (typeof value === "string") {
     return value.replace(
-      /mesh-storage:([^\s"'<>\[\]]+)/g,
+      /mesh-storage:([^\s"'<>[\]]+)/g,
       (_, key: string) => keyToPresigned.get(key) ?? `mesh-storage:${key}`,
     );
   }

@@ -211,7 +211,7 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
       actions.update.mutate({ id: project.id, data: { title: trimmed } });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [title]);
+  }, [title, actions.update, project.title, project.id]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — debounced description sync
   useEffect(() => {
@@ -224,7 +224,7 @@ function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
       });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [description]);
+  }, [description, actions.update, project.description, project.id]);
 
   // oxlint-disable-next-line ban-use-effect/ban-use-effect — skip initial render for debounce effects
   useEffect(() => {

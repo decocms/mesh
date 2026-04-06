@@ -6,7 +6,7 @@ import {
   DB_MODERATE_LATENCY,
   DB_HIGH_LATENCY,
 } from "../lib/toxic-presets";
-import { mcpCall, healthCheck } from "../lib/studio-client";
+import { mcpCall } from "../lib/studio-client";
 import { pollUntil } from "../lib/poll-until";
 
 registerTestHooks();
@@ -17,7 +17,6 @@ describe("Postgres slowdown", () => {
 
     // A single MCP tool call may issue multiple DB queries (auth, permission, tool logic).
     // With 5s latency per TCP segment, total time can be 30-60s+.
-    const start = performance.now();
     const { result, durationMs } = await mcpCall(
       `${testState.orgId}_self`,
       "tools/call",

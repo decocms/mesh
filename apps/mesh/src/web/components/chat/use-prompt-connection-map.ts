@@ -6,6 +6,7 @@ import {
 } from "@decocms/mesh-sdk";
 import type { ConnectionEntity } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
+import { KEYS } from "@/web/lib/query-keys";
 
 /**
  * Builds a prompt-name → ConnectionEntity map by fetching prompts per-connection.
@@ -24,7 +25,7 @@ export function usePromptConnectionMap(
   );
 
   const { data } = useQuery({
-    queryKey: ["prompt-connection-map", orgId, ...connectionIds],
+    queryKey: KEYS.promptConnectionMap(orgId, connectionIds),
     queryFn: async () => {
       const map: Record<string, string> = {};
       await Promise.all(
