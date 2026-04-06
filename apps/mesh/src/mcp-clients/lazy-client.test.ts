@@ -164,14 +164,14 @@ describe("lazy-client with circuit breaker", () => {
     // Trip the circuit
     for (let i = 0; i < 3; i++) {
       const lazy = createLazyClient(fakeConnection, fakeCtx, false);
-      expect(
+      await expect(
         lazy.callTool({ name: "echo", arguments: { message: "hi" } }),
       ).rejects.toThrow("timeout");
     }
 
     // callTool should fail fast too
     const lazy = createLazyClient(fakeConnection, fakeCtx, false);
-    expect(
+    await expect(
       lazy.callTool({ name: "echo", arguments: { message: "hi" } }),
     ).rejects.toThrow(CircuitOpenError);
   });
