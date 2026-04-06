@@ -24,13 +24,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  CheckCircle,
-  ChevronRight,
-  Loading01,
-  Plus,
-  RefreshCcw01,
-} from "@untitledui/icons";
+import { Loading01, Plus } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
@@ -300,7 +294,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
-  const [isOpen, setIsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -336,7 +329,6 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      // If we're currently viewing the deleted automation, navigate away
       const currentView = virtualMcpCtx?.mainView;
       if (
         currentView?.type === "automation" &&
@@ -353,69 +345,49 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="group/incoming flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-      >
-        <span className="shrink-0 flex items-center justify-center size-6">
-          <RefreshCcw01 size={16} className="text-purple-500" />
-        </span>
-        <span className="text-sm font-medium text-muted-foreground">
+      {/* Section header */}
+      <div className="group/incoming flex items-center gap-2 mx-2 px-3 h-10 w-[calc(100%-1rem)]">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
           Automations
         </span>
-        {!isOpen && (
-          <span className="text-xs text-muted-foreground/60 tabular-nums">
-            {automations.filter((a) => a.active && a.trigger_count > 0).length}/
-            {automations.length}
-          </span>
-        )}
-        <ChevronRight
-          size={12}
-          className={cn(
-            "text-muted-foreground/40 opacity-0 group-hover/incoming:opacity-100 transition-all duration-150",
-            isOpen && "rotate-90",
-          )}
-        />
         <span className="flex-1" />
-        <span
-          role="button"
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground",
-            createMutation.isPending
-              ? "opacity-100"
-              : "opacity-0 group-hover/incoming:opacity-100",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCreate();
-          }}
-          title="Create automation"
-        >
-          {createMutation.isPending ? (
-            <Loading01 size={16} className="animate-spin" />
-          ) : (
-            <Plus size={16} />
-          )}
-        </span>
-      </button>
-      {isOpen &&
-        (automations.length > 0 ? (
-          automations.map((automation) => (
-            <AutomationRow
-              key={automation.id}
-              automation={automation}
-              onClick={() => navigateToAutomation(automation.id)}
-              onDelete={() =>
-                setDeleteTarget({ id: automation.id, name: automation.name })
-              }
-            />
-          ))
-        ) : (
-          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
-            No items
-          </div>
-        ))}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="button"
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer",
+              )}
+              onClick={handleCreate}
+            >
+              {createMutation.isPending ? (
+                <Loading01 size={16} className="animate-spin" />
+              ) : (
+                <Plus size={16} />
+              )}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>New automation</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Automation rows — always visible */}
+      {automations.length > 0 ? (
+        automations.map((automation) => (
+          <AutomationRow
+            key={automation.id}
+            automation={automation}
+            onClick={() => navigateToAutomation(automation.id)}
+            onDelete={() =>
+              setDeleteTarget({ id: automation.id, name: automation.name })
+            }
+          />
+        ))
+      ) : (
+        <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+          No automations
+        </div>
+      )}
 
       <AlertDialog
         open={!!deleteTarget}
@@ -487,9 +459,6 @@ export function TaskListContent({
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
     );
 
-  const [tasksOpen, setTasksOpen] = useState(true);
-  const hasAccordion = !!(virtualMcpId && showAutomations);
-
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
@@ -501,75 +470,48 @@ export function TaskListContent({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto">
-        {/* Automations accordion */}
+        {/* Automations section */}
         {virtualMcpId && showAutomations && (
           <IncomingSection virtualMcpId={virtualMcpId} />
         )}
 
-        {/* Tasks accordion header (only when automations are shown) */}
-        {hasAccordion ? (
-          <button
-            type="button"
-            onClick={() => setTasksOpen((prev) => !prev)}
-            className="group/tasks flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-          >
-            <span className="shrink-0 flex items-center justify-center size-6">
-              <CheckCircle size={16} className="text-muted-foreground/50" />
-            </span>
-            <span className="text-sm font-medium text-muted-foreground">
-              Tasks
-            </span>
-            {!tasksOpen && (
-              <span className="text-xs text-muted-foreground/60 tabular-nums">
-                {visible.length}
-              </span>
-            )}
-            <ChevronRight
-              size={12}
-              className={cn(
-                "text-muted-foreground/40 opacity-0 group-hover/tasks:opacity-100 transition-all duration-150",
-                tasksOpen && "rotate-90",
-              )}
+        {/* Tasks section header */}
+        <div className="group/tasks flex items-center gap-2 mx-2 px-3 h-10 w-[calc(100%-1rem)]">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
+            Tasks
+          </span>
+          <span className="flex-1" />
+          {onTaskCreate && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  role="button"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                  onClick={onTaskCreate}
+                >
+                  <Plus size={16} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>New task</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* Task rows — always visible */}
+        {visible.length > 0 ? (
+          visible.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              isActive={task.id === taskId}
+              onClick={() => handleSelect(task)}
             />
-            <span className="flex-1" />
-            {onTaskCreate && (
-              <span
-                role="button"
-                className="flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground opacity-0 group-hover/tasks:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTaskCreate();
-                }}
-                title="New task"
-              >
-                <Plus size={16} />
-              </span>
-            )}
-          </button>
+          ))
         ) : (
-          <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
-            <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-              Tasks
-            </span>
+          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+            No tasks
           </div>
         )}
-
-        {/* Task rows */}
-        {(!hasAccordion || tasksOpen) &&
-          (visible.length > 0 ? (
-            visible.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                isActive={task.id === taskId}
-                onClick={() => handleSelect(task)}
-              />
-            ))
-          ) : (
-            <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
-              No tasks
-            </div>
-          ))}
       </div>
     </div>
   );
