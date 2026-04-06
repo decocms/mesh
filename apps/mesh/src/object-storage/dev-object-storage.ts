@@ -99,23 +99,30 @@ export class DevObjectStorage implements BoundObjectStorage {
     const max = options?.maxKeys ?? 1000;
     const prefix = options?.prefix;
 
-    if (options?.delimiter) {
-      // When delimiter is set, directories become commonPrefixes and
-      // only files at this level are returned as objects (mirrors S3).
-      const commonPrefixes: string[] = [];
-      const fileEntries: Dirent[] = [];
+    // Filter to files only — directories are only relevant as commonPrefixes
+    // when a delimiter is set (mirrors S3 behavior).
+    const fileEntries = entries.filter((e) => e.isFile());
 
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const dirKey = prefix ? `${prefix}/${entry.name}/` : `${entry.name}/`;
-          commonPrefixes.push(dirKey);
-        } else {
-          fileEntries.push(entry);
-        }
+    if (options?.delimiter) {
+      // S3 maxKeys caps the combined count of objects + commonPrefixes.
+      const commonPrefixes: string[] = [];
+      const dirEntries = entries.filter((e) => e.isDirectory());
+      for (const entry of dirEntries) {
+        const dirKey = prefix ? `${prefix}/${entry.name}/` : `${entry.name}/`;
+        commonPrefixes.push(dirKey);
       }
+      commonPrefixes.sort();
+
+      // Cap combined results at maxKeys
+      let remaining = max;
+      const cappedPrefixes = commonPrefixes.slice(0, remaining);
+      remaining -= cappedPrefixes.length;
+
+      const cappedFiles = fileEntries.slice(0, remaining);
+      const totalItems = commonPrefixes.length + fileEntries.length;
 
       const objects = await Promise.all(
-        fileEntries.slice(0, max).map(async (entry) => {
+        cappedFiles.map(async (entry) => {
           const info = await stat(join(baseDir, entry.name));
           return {
             key: prefix ? `${prefix}/${entry.name}` : entry.name,
@@ -127,15 +134,14 @@ export class DevObjectStorage implements BoundObjectStorage {
 
       return {
         objects,
-        isTruncated: fileEntries.length > max,
-        commonPrefixes:
-          commonPrefixes.length > 0 ? commonPrefixes.sort() : undefined,
+        isTruncated: totalItems > max,
+        commonPrefixes: cappedPrefixes.length > 0 ? cappedPrefixes : undefined,
       };
     }
 
-    // No delimiter: flat listing of all entries
+    // No delimiter: flat listing of files only
     const objects = await Promise.all(
-      entries.slice(0, max).map(async (entry) => {
+      fileEntries.slice(0, max).map(async (entry) => {
         const info = await stat(join(baseDir, entry.name));
         return {
           key: prefix ? `${prefix}/${entry.name}` : entry.name,
@@ -145,7 +151,7 @@ export class DevObjectStorage implements BoundObjectStorage {
       }),
     );
 
-    return { objects, isTruncated: entries.length > max };
+    return { objects, isTruncated: fileEntries.length > max };
   }
 
   async delete(key: string): Promise<void> {
