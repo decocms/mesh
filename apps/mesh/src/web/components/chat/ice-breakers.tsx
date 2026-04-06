@@ -73,7 +73,7 @@ function PromptCard({
   const { prompt } = item;
   const label =
     prompt.description ?? (prompt.title ?? prompt.name).replace(/_/g, " ");
-  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const name = (prompt.title ?? prompt.name).replace(/_/g, " ").toLowerCase();
 
   return (
     <Tooltip delayDuration={400}>
@@ -90,7 +90,7 @@ function PromptCard({
           )}
         >
           <div className="flex flex-col gap-0.5 w-full">
-            <span className="text-sm font-medium truncate">{name}</span>
+            <span className="text-sm font-medium truncate capitalize">{name}</span>
             <div className="flex items-end gap-1.5">
               <span className="flex-1 text-xs text-muted-foreground line-clamp-3">
                 {label}
