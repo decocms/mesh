@@ -90,7 +90,13 @@ async function createMCPProxyDoNotUseDirectly(
   ctx: MeshContext,
   { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
 ): Promise<MCPProxyClient> {
-  // Get connection details
+  // Non-superUser callers (user-facing tools) must have org context;
+  // without it the ownership check would be skipped, enabling cross-tenant access.
+  if (!superUser && !ctx.organization?.id) {
+    throw new Error("Organization context is required");
+  }
+
+  // Get connection details — scope the lookup to the caller's org when available
   const connection =
     typeof connectionIdOrConnection === "string"
       ? await ctx.storage.connections.findById(
@@ -106,6 +112,8 @@ async function createMCPProxyDoNotUseDirectly(
   if (ctx.organization && connection.organization_id !== ctx.organization.id) {
     throw new Error("Connection does not belong to the active organization");
   }
+
+  // Super-user background workers may lack org context; populate it from the connection.
   if (!ctx.organization) {
     const org = await ctx.db
       .selectFrom("organization")
