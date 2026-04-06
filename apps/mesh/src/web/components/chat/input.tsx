@@ -503,7 +503,7 @@ export function ChatInput({
     };
     const onDragLeave = (e: DragEvent) => {
       e.preventDefault();
-      dragCounterRef.current--;
+      dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
       if (dragCounterRef.current === 0) {
         setIsDraggingOver(false);
       }
