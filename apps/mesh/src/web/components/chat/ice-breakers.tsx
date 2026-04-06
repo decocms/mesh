@@ -27,12 +27,10 @@ import {
   useMCPPromptsList,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { usePromptConnectionMap } from "./use-prompt-connection-map";
 import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
-import { IntegrationIcon } from "../integration-icon";
 import { useChatStream, useChatPrefs } from "./context";
 import {
   PromptArgsDialog,
@@ -45,7 +43,6 @@ import { appendToTiptapDoc } from "./tiptap/utils";
 
 interface PromptItem {
   prompt: Prompt;
-  connection: { icon: string | null; title: string } | null;
 }
 
 interface IceBreakersUIProps {
@@ -60,25 +57,23 @@ interface IceBreakersUIProps {
 const VISIBLE_COUNT = 3;
 
 const CARD_BASE =
-  "flex flex-col p-3.5 rounded-xl border border-foreground/10 text-sm leading-snug transition-colors cursor-pointer";
+  "flex flex-col p-3.5 rounded-xl bg-accent/40 text-sm leading-snug transition-colors cursor-pointer";
 
 function PromptCard({
   item,
   onSelect,
   isLoading,
   isDisabled,
-  tall,
 }: {
   item: PromptItem;
   onSelect: (prompt: Prompt) => void;
   isLoading: boolean;
   isDisabled: boolean;
-  tall?: boolean;
 }) {
-  const { prompt, connection } = item;
+  const { prompt } = item;
   const label =
     prompt.description ?? (prompt.title ?? prompt.name).replace(/_/g, " ");
-  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const name = (prompt.title ?? prompt.name).replace(/_/g, " ").toLowerCase();
 
   return (
     <Tooltip delayDuration={400}>
@@ -89,29 +84,17 @@ function PromptCard({
           disabled={isDisabled || isLoading}
           className={cn(
             CARD_BASE,
-            tall ? "min-h-[180px]" : "min-h-[160px]",
             "items-start justify-between text-left text-foreground hover:bg-accent/40",
             isLoading && "bg-accent/40",
             (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
           )}
         >
-          <IntegrationIcon
-            icon={connection?.icon ?? null}
-            name={connection?.title ?? "Integration"}
-            size="xs"
-            className="shrink-0 rounded-lg!"
-          />
-          <div className="flex flex-col gap-0.5 w-full mt-auto">
-            <span className="text-xs text-muted-foreground/60 truncate">
+          <div className="flex flex-col gap-0.5 w-full">
+            <span className="text-sm font-medium truncate capitalize">
               {name}
             </span>
             <div className="flex items-end gap-1.5">
-              <span
-                className={cn(
-                  "flex-1 text-sm",
-                  tall ? "line-clamp-3" : "line-clamp-2",
-                )}
-              >
+              <span className="flex-1 text-xs text-muted-foreground line-clamp-3">
                 {label}
               </span>
               {isLoading && <Spinner size="xs" />}
@@ -148,8 +131,7 @@ function AllPromptsModal({
         return (
           item.prompt.name.toLowerCase().includes(q) ||
           (item.prompt.title ?? "").toLowerCase().includes(q) ||
-          (item.prompt.description ?? "").toLowerCase().includes(q) ||
-          (item.connection?.title ?? "").toLowerCase().includes(q)
+          (item.prompt.description ?? "").toLowerCase().includes(q)
         );
       })
     : items;
@@ -168,7 +150,6 @@ function AllPromptsModal({
           <PromptCard
             key={item.prompt.name}
             item={item}
-            tall
             onSelect={(prompt) => {
               onOpenChange(false);
               onSelect(prompt);
@@ -233,10 +214,7 @@ function AllPromptsModal({
   );
 }
 
-/**
- * IceBreakersUI — 2×2 grid: 3 prompt cards + "+N" overflow card.
- * Each card shows the connection icon (top-left) and prompt description (bottom-left).
- */
+/** Compact icebreakers: up to 3 prompt cards (centered) or 3 cards + "+N" overflow. */
 function IceBreakersUI({
   items,
   onSelect,
@@ -251,46 +229,54 @@ function IceBreakersUI({
   const hidden = items.slice(VISIBLE_COUNT);
   const isAnyLoading = !!loadingPrompt;
 
-  // Total visible slots: prompt cards + overflow card (if any)
-  const totalSlots = visible.length + (hidden.length > 0 ? 1 : 0);
-  const colsClass =
-    totalSlots === 1
-      ? "grid-cols-1"
-      : totalSlots === 2
-        ? "grid-cols-2"
-        : totalSlots === 3
-          ? "grid-cols-2 @lg:grid-cols-3"
-          : "grid-cols-2 @lg:grid-cols-4";
+  const cards = visible.map((item) => (
+    <PromptCard
+      key={item.prompt.name}
+      item={item}
+      onSelect={onSelect}
+      isLoading={loadingPrompt?.name === item.prompt.name}
+      isDisabled={isAnyLoading && loadingPrompt?.name !== item.prompt.name}
+    />
+  ));
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className={cn("w-full mx-auto grid gap-2", colsClass, className)}>
-        {visible.map((item) => (
-          <PromptCard
-            key={item.prompt.name}
-            item={item}
-            onSelect={onSelect}
-            isLoading={loadingPrompt?.name === item.prompt.name}
-            isDisabled={
-              isAnyLoading && loadingPrompt?.name !== item.prompt.name
-            }
-          />
-        ))}
-        {hidden.length > 0 && (
+      {hidden.length > 0 ? (
+        <div
+          className={cn(
+            "w-full grid grid-cols-2 @lg:grid-cols-[1fr_1fr_1fr_auto] gap-2",
+            className,
+          )}
+        >
+          {cards}
           <button
             type="button"
             disabled={isAnyLoading}
             onClick={() => setModalOpen(true)}
             className={cn(
               CARD_BASE,
-              "min-h-[160px] items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
+              "items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40",
               isAnyLoading && "opacity-50 cursor-not-allowed",
             )}
           >
-            +{hidden.length} more
+            +{hidden.length}
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "w-full grid gap-2 place-content-center",
+            visible.length === 1
+              ? "grid-cols-1 max-w-[260px] mx-auto"
+              : visible.length === 2
+                ? "grid-cols-2 max-w-[520px] mx-auto"
+                : "grid-cols-2 @lg:grid-cols-3",
+            className,
+          )}
+        >
+          {cards}
+        </div>
+      )}
       <AllPromptsModal
         items={items}
         open={modalOpen}
@@ -367,13 +353,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   const { data } = useMCPPromptsList({ client, staleTime: 60000 });
   const prompts = data?.prompts ?? [];
 
-  // Per-connection prompt → connection icon mapping
-  const promptToConnection = usePromptConnectionMap(connectionId, org.id);
-
-  const items: PromptItem[] = prompts.map((prompt) => ({
-    prompt,
-    connection: promptToConnection.get(prompt.name) ?? null,
-  }));
+  const items: PromptItem[] = prompts.map((prompt) => ({ prompt }));
 
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
   const [dialogPrompt, setDialogPrompt] = useState<Prompt | null>(null);
