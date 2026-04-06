@@ -20,8 +20,6 @@ import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
 export {
-  createMCPProxy,
-  dangerouslyCreateSuperUserMCPProxy,
   toServerClient,
   type MCPProxyClient,
   type StreamableMCPProxyClient,
