@@ -60,6 +60,24 @@ export async function handleVirtualMcpRequest(
             .then((org) => org?.id)
         : null;
 
+    // Validate that the authenticated user is a member of the requested organization
+    // to prevent cross-tenant access via header manipulation
+    if (organizationId && ctx.auth.user?.id) {
+      const membership = await ctx.db
+        .selectFrom("member")
+        .select("id")
+        .where("organizationId", "=", organizationId)
+        .where("userId", "=", ctx.auth.user.id)
+        .executeTakeFirst();
+
+      if (!membership) {
+        return c.json(
+          { error: "Forbidden: you are not a member of this organization" },
+          403,
+        );
+      }
+    }
+
     const virtualId = virtualMcpId
       ? virtualMcpId
       : organizationId
