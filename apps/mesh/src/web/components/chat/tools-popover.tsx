@@ -65,16 +65,16 @@ export function ToolsPopover({
           className={cn(
             "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
             "hover:bg-accent",
-            isPlanMode && "text-purple-600 dark:text-purple-400",
+            isPlanMode && "text-violet-600 dark:text-violet-400",
           )}
         >
           <BookOpen01
             size={16}
-            className={cn(isPlanMode && "text-purple-500")}
+            className={cn(isPlanMode && "text-violet-500")}
           />
           <span className="flex-1 text-left">Plan mode</span>
           {isPlanMode && (
-            <span className="text-xs text-purple-500 font-medium">On</span>
+            <span className="text-xs text-violet-500 font-medium">On</span>
           )}
         </button>
 

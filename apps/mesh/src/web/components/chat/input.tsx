@@ -575,7 +575,7 @@ export function ChatInput({
               className={cn(
                 "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border border-[1px]",
                 isPlanMode
-                  ? "border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
+                  ? "border-dashed border-violet-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
                   : "border-border shadow-[0px_4px_12px_0px_rgba(0,0,0,0.03)]",
               )}
             >
@@ -624,7 +624,7 @@ export function ChatInput({
                           toolApprovalLevel: "auto",
                         });
                       }}
-                      className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                      className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
                     >
                       <BookOpen01 size={14} className="shrink-0" />
                       Plan mode
