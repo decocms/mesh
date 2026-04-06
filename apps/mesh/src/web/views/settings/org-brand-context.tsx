@@ -149,6 +149,7 @@ export function OrgBrandContextPage() {
           ogImage: ogImage || null,
           fonts: entriesToFonts(fonts),
           colors: entriesToColors(colors),
+          images: brandContext?.images ?? null,
         },
       });
     },
