@@ -150,7 +150,7 @@ const MentionItem = <T extends BaseItem>({
           {description}
         </span>
       )}
-      {isLoading && <Spinner size="xs" className="shrink-0" />}
+      {isLoading && <Spinner size="xs" />}
     </div>
   );
 };
