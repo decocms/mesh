@@ -14,13 +14,7 @@ import {
   useMainViewActions,
   useTaskActions,
 } from "@/web/contexts/panel-context";
-import {
-  Edit05,
-  LayoutLeft,
-  Loading01,
-  RefreshCcw01,
-  Settings01,
-} from "@untitledui/icons";
+import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -37,10 +31,6 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
-import {
-  useAutomationCreate,
-  buildDefaultAutomationInput,
-} from "@/web/hooks/use-automations";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -92,33 +82,6 @@ function NewTaskButton({
         </span>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-function NewAutomationButton({
-  onClick,
-  isPending,
-}: {
-  onClick: () => void;
-  isPending: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isPending}
-      className={cn(
-        navItemClass,
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-      )}
-    >
-      {isPending ? (
-        <Loading01 size={16} className="shrink-0 animate-spin" />
-      ) : (
-        <RefreshCcw01 size={16} className="shrink-0" />
-      )}
-      <span className="text-foreground">New automation</span>
-    </button>
   );
 }
 
@@ -309,8 +272,6 @@ function TasksPanelContent({
   const { openMainView } = useMainViewActions();
   const { createNewTask, setTaskId } = useTaskActions();
   const [isPending, startTransition] = useTransition();
-  const createAutomation = useAutomationCreate();
-
   const virtualMcpId = virtualMcpIdProp ?? null;
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
@@ -319,18 +280,6 @@ function TasksPanelContent({
     startTransition(() => {
       createNewTask();
     });
-  };
-
-  const handleNewAutomation = async () => {
-    if (!virtualMcpId) return;
-    try {
-      const result = await createAutomation.mutateAsync(
-        buildDefaultAutomationInput(virtualMcpId),
-      );
-      openMainView("automation", { id: result.id });
-    } catch {
-      // silently fail
-    }
   };
 
   const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
@@ -361,13 +310,7 @@ function TasksPanelContent({
           isPending={isPending}
           label="New task"
         />
-        {virtualMcpId && showAutomations && (
-          <NewAutomationButton
-            onClick={handleNewAutomation}
-            isPending={createAutomation.isPending}
-          />
-        )}
-        {virtualMcp && !hideProjectHeader && (
+        {virtualMcp && virtualMcpCtx && !hideProjectHeader && (
           <button
             type="button"
             onClick={() =>
@@ -393,7 +336,6 @@ function TasksPanelContent({
       <TaskListContent
         virtualMcpId={virtualMcpId}
         showAutomations={showAutomations}
-        onTaskCreate={handleNewTask}
         onTaskSelect={(taskId) => {
           setTaskId(taskId);
         }}
