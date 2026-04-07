@@ -797,8 +797,8 @@ export function OrgBrandContextPage() {
         name: "BRAND_CONTEXT_LIST",
         arguments: {},
       });
-      const data = unwrapToolResult<{ items: BrandContext[] }>(result);
-      return data.items ?? [];
+      const data = unwrapToolResult<{ items?: BrandContext[] }>(result);
+      return Array.isArray(data?.items) ? data.items : [];
     },
     staleTime: 60_000,
   });
