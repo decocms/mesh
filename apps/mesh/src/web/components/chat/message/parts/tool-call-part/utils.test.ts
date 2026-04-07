@@ -14,8 +14,8 @@ describe("getFriendlyToolName", () => {
     );
   });
 
-  test("preserves snake_case name without clientId", () => {
-    expect(getFriendlyToolName("some_tool")).toBe("Some Tool");
+  test("strips slug prefix via regex fallback without clientId", () => {
+    expect(getFriendlyToolName("conn-abc123_some_tool")).toBe("Some Tool");
   });
 
   test("returns empty string for empty input", () => {

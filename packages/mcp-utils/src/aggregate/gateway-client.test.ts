@@ -96,6 +96,13 @@ describe("stripToolNamespace", () => {
     );
   });
 
+  it("falls back to regex when no clientId provided", () => {
+    expect(stripToolNamespace("conn-abc123_hello_world")).toBe("hello_world");
+    expect(
+      stripToolNamespace("mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world"),
+    ).toBe("hello_world");
+  });
+
   it("returns unchanged when no prefix matches", () => {
     expect(stripToolNamespace("SOME_TOOL")).toBe("SOME_TOOL");
   });

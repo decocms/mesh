@@ -82,8 +82,8 @@ export function getGatewayClientId(meta: unknown): string | undefined {
 /**
  * Strip the gateway namespace prefix from a tool/prompt name.
  * First removes any MCP client prefix (e.g. "mcp__cms__toolName" → "toolName"),
- * then strips the gateway `slugify(clientId)_` prefix when `clientId` is provided.
- * Returns the input unchanged when no prefix matches.
+ * then strips the gateway `slugify(clientId)_` prefix. When `clientId` is not
+ * provided, falls back to a regex that strips a leading slug prefix (`[a-z0-9-]+_`).
  */
 export function stripToolNamespace(
   namespacedName: string,
@@ -92,9 +92,16 @@ export function stripToolNamespace(
   // Strip MCP server prefix (e.g. "mcp__cms__toolName" → "toolName")
   const stripped = namespacedName.replace(/^mcp__[a-zA-Z0-9_-]+__/, "");
 
-  if (!clientId) return stripped;
-  const prefix = `${slugify(clientId)}_`;
-  return stripped.startsWith(prefix) ? stripped.slice(prefix.length) : stripped;
+  if (clientId) {
+    const prefix = `${slugify(clientId)}_`;
+    return stripped.startsWith(prefix)
+      ? stripped.slice(prefix.length)
+      : stripped;
+  }
+
+  // Fallback: strip leading slug prefix (e.g. "conn-abc123_hello_world" → "hello_world")
+  const match = stripped.match(/^[a-z0-9-]+_(.+)$/);
+  return match?.[1] ?? stripped;
 }
 
 /**
