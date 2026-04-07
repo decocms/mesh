@@ -15,7 +15,6 @@ import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
-import { createGetBrandContextTool } from "./get-brand-context";
 import { proposePlanTool } from "./propose-plan";
 import type { ModelsConfig } from "../types";
 import { MeshProvider } from "@/ai-providers/types";
@@ -53,7 +52,6 @@ function buildAllTools(
   const tools: Record<string, unknown> = {
     user_ask: userAskTool,
     propose_plan: proposePlanTool,
-    get_brand_context: createGetBrandContextTool({ organization }, ctx),
     agent_search: createAgentSearchTool(
       writer,
       {
@@ -95,7 +93,6 @@ function buildAllTools(
   return tools as {
     user_ask: typeof userAskTool;
     propose_plan: typeof proposePlanTool;
-    get_brand_context: ReturnType<typeof createGetBrandContextTool>;
     subtask: ReturnType<typeof createSubtaskTool>;
     agent_search: ReturnType<typeof createAgentSearchTool>;
     read_tool_output: ReturnType<typeof createReadToolOutputTool>;
