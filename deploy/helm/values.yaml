@@ -29,9 +29,9 @@ service:
 resources:
   requests:
     memory: "300Mi"
-    cpu: "500m"
+    cpu: "2000m"
   limits:
-    cpu: "4000m"
+    memory: "300Mi"
 
 database:
   engine: sqlite # sqlite | postgresql
@@ -62,6 +62,7 @@ configMap:
     BASE_URL: "http://localhost:8080"
     DATA_DIR: "/app/data"
     # NATS_URL: ""  # Optional: overrides auto-derived URL when nats.enabled=true (e.g. nats://my-nats:4222)
+    DATABASE_POOL_MAX: "83"
     DECO_AI_GATEWAY_ENABLED: "false"
   authConfig:
     emailAndPassword:
@@ -193,8 +194,7 @@ otel:
         memory: "128Mi"
         cpu: "100m"
       limits:
-        memory: "256Mi"
-        cpu: "250m"
+        memory: "128Mi"
 
 # S3 file sync sidecar — syncs /app/data/{logs,traces,metrics} to S3
 s3Sync:
@@ -217,8 +217,7 @@ s3Sync:
       memory: "64Mi"
       cpu: "100m"
     limits:
-      memory: "128Mi"
-      cpu: "250m"
+      memory: "64Mi"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
