@@ -415,12 +415,15 @@ export interface TagStoragePort {
 
 export interface BrandContextStoragePort {
   get(id: string, organizationId: string): Promise<BrandContext | null>;
-  list(organizationId: string): Promise<BrandContext[]>;
+  list(
+    organizationId: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<BrandContext[]>;
   create(
     organizationId: string,
     data: Omit<
       BrandContext,
-      "id" | "organizationId" | "createdAt" | "updatedAt"
+      "id" | "organizationId" | "archivedAt" | "createdAt" | "updatedAt"
     >,
   ): Promise<BrandContext>;
   update(

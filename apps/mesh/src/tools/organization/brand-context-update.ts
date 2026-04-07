@@ -136,11 +136,11 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
 
 export const BRAND_CONTEXT_DELETE = defineTool({
   name: "BRAND_CONTEXT_DELETE",
-  description: "Delete a brand context by ID.",
+  description: "Archive a brand context by ID (soft delete).",
   annotations: {
-    title: "Delete Brand Context",
+    title: "Archive Brand Context",
     readOnlyHint: false,
-    destructiveHint: true,
+    destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false,
   },
@@ -162,7 +162,6 @@ export const BRAND_CONTEXT_DELETE = defineTool({
       );
     }
 
-    // Verify ownership before deleting
     const existing = await ctx.storage.brandContext.get(
       input.id,
       organizationId,
@@ -171,7 +170,9 @@ export const BRAND_CONTEXT_DELETE = defineTool({
       throw new Error("Brand context not found");
     }
 
-    await ctx.storage.brandContext.delete(input.id, organizationId);
+    await ctx.storage.brandContext.update(input.id, organizationId, {
+      archivedAt: new Date().toISOString(),
+    });
     return { success: true };
   },
 });

@@ -644,7 +644,7 @@ function ExpandableBrandEntry({
     onError: () => toast.error("Failed to save brand context"),
   });
 
-  const { mutate: deleteBrand, isPending: isDeleting } = useMutation({
+  const { mutate: archiveBrand, isPending: isArchiving } = useMutation({
     mutationFn: async () => {
       await client.callTool({
         name: "BRAND_CONTEXT_DELETE",
@@ -653,9 +653,9 @@ function ExpandableBrandEntry({
     },
     onSuccess: () => {
       onChanged();
-      toast.success("Brand deleted");
+      toast.success("Brand archived");
     },
-    onError: () => toast.error("Failed to delete brand"),
+    onError: () => toast.error("Failed to archive brand"),
   });
 
   return (
@@ -748,16 +748,16 @@ function ExpandableBrandEntry({
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
-            deleteBrand();
+            archiveBrand();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.stopPropagation();
-              deleteBrand();
+              archiveBrand();
             }
           }}
         >
-          {isDeleting ? (
+          {isArchiving ? (
             <span className="text-[10px] text-muted-foreground">...</span>
           ) : (
             <Trash01 size={13} className="text-muted-foreground" />

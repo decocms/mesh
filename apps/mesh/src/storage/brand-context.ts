@@ -25,6 +25,7 @@ function toEntity(
     colors: string | null;
     images: string | null;
     metadata: string | null;
+    archived_at: Date | null;
     created_at: Date;
     updated_at: Date;
   },
@@ -42,6 +43,7 @@ function toEntity(
     colors: parseJson(record.colors),
     images: parseJson(record.images),
     metadata: parseJson(record.metadata),
+    archivedAt: record.archived_at,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };
@@ -62,14 +64,20 @@ export class BrandContextStorage implements BrandContextStoragePort {
     return toEntity(record);
   }
 
-  async list(organizationId: string): Promise<BrandContext[]> {
-    const records = await this.db
+  async list(
+    organizationId: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<BrandContext[]> {
+    let query = this.db
       .selectFrom("brand_context")
       .selectAll()
-      .where("organization_id", "=", organizationId)
-      .orderBy("created_at", "asc")
-      .execute();
+      .where("organization_id", "=", organizationId);
 
+    if (!options?.includeArchived) {
+      query = query.where("archived_at", "is", null);
+    }
+
+    const records = await query.orderBy("created_at", "asc").execute();
     return records.map(toEntity);
   }
 
@@ -77,7 +85,7 @@ export class BrandContextStorage implements BrandContextStoragePort {
     organizationId: string,
     data: Omit<
       BrandContext,
-      "id" | "organizationId" | "createdAt" | "updatedAt"
+      "id" | "organizationId" | "archivedAt" | "createdAt" | "updatedAt"
     >,
   ): Promise<BrandContext> {
     const id = crypto.randomUUID();
@@ -98,6 +106,7 @@ export class BrandContextStorage implements BrandContextStoragePort {
         colors: data.colors ? JSON.stringify(data.colors) : null,
         images: data.images ? JSON.stringify(data.images) : null,
         metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+        archived_at: null,
         created_at: now,
         updated_at: now,
       })
@@ -131,6 +140,8 @@ export class BrandContextStorage implements BrandContextStoragePort {
       updates.images = data.images ? JSON.stringify(data.images) : null;
     if (data.metadata !== undefined)
       updates.metadata = data.metadata ? JSON.stringify(data.metadata) : null;
+    if (data.archivedAt !== undefined)
+      updates.archived_at = data.archivedAt ?? null;
 
     await this.db
       .updateTable("brand_context")
