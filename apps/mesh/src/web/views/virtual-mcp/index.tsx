@@ -1,3 +1,4 @@
+import { generatePrefixedId } from "@/shared/utils/generate-id";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import { useChatTask } from "@/web/components/chat/context";
@@ -8,7 +9,10 @@ import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { useTaskActions } from "@/web/contexts/panel-context";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
-import { authenticateMcp } from "@/web/lib/mcp-oauth";
+import {
+  authenticateMcp,
+  isConnectionAuthenticated,
+} from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
@@ -43,6 +47,7 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
+  type ConnectionEntity,
   getDecopilotId,
   SELF_MCP_ALIAS_ID,
   useConnection,
@@ -72,7 +77,7 @@ import { SimpleIconPicker } from "../../components/simple-icon-picker";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
-import { ALL_ITEMS_SELECTED, getSelectionSummary } from "./selection-utils";
+import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 
@@ -119,22 +124,20 @@ function dialogReducer(state: DialogState, action: DialogAction): DialogState {
  */
 function ConnectionItem({
   connection_id,
-  selected_tools,
-  selected_resources,
-  selected_prompts,
+  usedConnectionIds,
   onOpenSettings,
   onRemove,
   onAuthenticate,
   onSwitchInstance,
+  onNewInstance,
 }: {
   connection_id: string;
-  selected_tools: string[] | null;
-  selected_resources: string[] | null;
-  selected_prompts: string[] | null;
+  usedConnectionIds: Set<string>;
   onOpenSettings: () => void;
   onRemove: () => void;
   onAuthenticate: (connectionId: string) => void;
   onSwitchInstance: (oldId: string, newId: string) => void;
+  onNewInstance?: () => void;
 }) {
   const connection = useConnection(connection_id);
   const { org } = useProjectContext();
@@ -156,26 +159,92 @@ function ConnectionItem({
         slug={slug}
         orgSlug={org.slug}
         appName={connection.app_name}
-        selected_tools={selected_tools}
-        selected_resources={selected_resources}
-        selected_prompts={selected_prompts}
+        usedConnectionIds={usedConnectionIds}
         onOpenSettings={onOpenSettings}
         onRemove={onRemove}
         onAuthenticate={onAuthenticate}
         onSwitchInstance={onSwitchInstance}
+        onNewInstance={onNewInstance}
       />
     </Suspense>
   );
 }
 
+const NEW_INSTANCE_VALUE = "__new_instance__";
+
+async function extractEmailFromTokenInfo(
+  tokenInfo: {
+    idToken: string | null;
+    userinfoEndpoint: string | null;
+    accessToken: string;
+  } | null,
+  accessToken: string,
+): Promise<string | null> {
+  // 1. Try to decode the OIDC id_token JWT (fastest, no extra request)
+  const jwtToTry = tokenInfo?.idToken ?? null;
+  if (jwtToTry) {
+    const email = decodeJwtEmail(jwtToTry);
+    if (email) return email;
+  }
+
+  // 2. Call the OIDC userinfo endpoint if available (works for Google Drive which returns opaque access tokens)
+  const userinfoEndpoint = tokenInfo?.userinfoEndpoint ?? null;
+  if (userinfoEndpoint) {
+    try {
+      const res = await fetch(userinfoEndpoint, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const userinfo = (await res.json()) as Record<string, unknown>;
+        const email =
+          typeof userinfo.email === "string"
+            ? userinfo.email
+            : typeof userinfo.upn === "string"
+              ? userinfo.upn
+              : typeof userinfo.preferred_username === "string"
+                ? userinfo.preferred_username
+                : null;
+        if (email) return email;
+      }
+    } catch {
+      // Ignore — userinfo endpoint unavailable or CORS blocked
+    }
+  }
+
+  // 3. Last resort: try to decode the access token itself as a JWT
+  return decodeJwtEmail(accessToken);
+}
+
+function decodeJwtEmail(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length === 3 && parts[1]) {
+      const payload = JSON.parse(
+        atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
+      ) as Record<string, unknown>;
+      if (typeof payload.email === "string") return payload.email;
+      if (typeof payload.upn === "string") return payload.upn;
+      if (typeof payload.preferred_username === "string")
+        return payload.preferred_username;
+    }
+  } catch {
+    // Not a decodable JWT
+  }
+  return null;
+}
+
 function SiblingInstanceSelector({
   appName,
   connectionId,
+  usedConnectionIds,
   onSwitchInstance,
+  onNewInstance,
 }: {
   appName: string;
   connectionId: string;
+  usedConnectionIds: Set<string>;
   onSwitchInstance: (oldId: string, newId: string) => void;
+  onNewInstance?: () => void;
 }) {
   const siblings = useConnections({
     filters: [{ column: "app_name", value: appName }],
@@ -186,7 +255,13 @@ function SiblingInstanceSelector({
   return (
     <Select
       value={connectionId}
-      onValueChange={(newId) => onSwitchInstance(connectionId, newId)}
+      onValueChange={(newId) => {
+        if (newId === NEW_INSTANCE_VALUE) {
+          onNewInstance?.();
+        } else {
+          onSwitchInstance(connectionId, newId);
+        }
+      }}
     >
       <SelectTrigger
         size="sm"
@@ -196,10 +271,23 @@ function SiblingInstanceSelector({
       </SelectTrigger>
       <SelectContent>
         {siblings.map((s) => (
-          <SelectItem key={s.id} value={s.id} className="text-xs">
+          <SelectItem
+            key={s.id}
+            value={s.id}
+            className="text-xs"
+            disabled={s.id !== connectionId && usedConnectionIds.has(s.id)}
+          >
             {s.title}
           </SelectItem>
         ))}
+        {onNewInstance && (
+          <SelectItem
+            value={NEW_INSTANCE_VALUE}
+            className="text-xs text-muted-foreground"
+          >
+            + New instance
+          </SelectItem>
+        )}
       </SelectContent>
     </Select>
   );
@@ -214,13 +302,12 @@ function ConnectionItemWithAuth({
   slug,
   orgSlug,
   appName,
-  selected_tools,
-  selected_resources,
-  selected_prompts,
+  usedConnectionIds,
   onOpenSettings,
   onRemove,
   onAuthenticate,
   onSwitchInstance,
+  onNewInstance,
 }: {
   connection_id: string;
   connectionTitle: string;
@@ -230,13 +317,12 @@ function ConnectionItemWithAuth({
   slug: string;
   orgSlug: string;
   appName?: string | null;
-  selected_tools: string[] | null;
-  selected_resources: string[] | null;
-  selected_prompts: string[] | null;
+  usedConnectionIds: Set<string>;
   onOpenSettings: () => void;
   onRemove: () => void;
   onAuthenticate: (connectionId: string) => void;
   onSwitchInstance: (oldId: string, newId: string) => void;
+  onNewInstance?: () => void;
 }) {
   const authStatus = useMCPAuthStatus({ connectionId: connection_id });
   const isVirtual = connectionType === "VIRTUAL";
@@ -304,19 +390,11 @@ function ConnectionItemWithAuth({
           <SiblingInstanceSelector
             appName={appName}
             connectionId={connection_id}
+            usedConnectionIds={usedConnectionIds}
             onSwitchInstance={onSwitchInstance}
+            onNewInstance={onNewInstance}
           />
         )}
-
-        {/* Resources summary */}
-        <span className="text-xs text-muted-foreground">
-          {getSelectionSummary({
-            connection_id,
-            selected_tools,
-            selected_resources,
-            selected_prompts,
-          })}
-        </span>
 
         <div className="flex items-center gap-0.5 ml-auto">
           <Tooltip delayDuration={0}>
@@ -945,6 +1023,10 @@ function VirtualMcpDetailViewWithData({
   const actions = useVirtualMCPActions();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   // Form setup
   const form = useForm<VirtualMcpFormData>({
@@ -1051,6 +1133,7 @@ function VirtualMcpDetailViewWithData({
       ],
       { shouldDirty: true },
     );
+    dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: false });
   };
 
   const handleRemoveConnection = (connectionId: string) => {
@@ -1061,6 +1144,11 @@ function VirtualMcpDetailViewWithData({
 
   const handleSwitchInstance = (oldId: string, newId: string) => {
     const current = form.getValues("connections");
+    // Prevent switching to an instance already used in this agent
+    if (current.some((c) => c.connection_id === newId)) {
+      toast.error("This instance is already added to the agent");
+      return;
+    }
     form.setValue(
       "connections",
       current.map((c) =>
@@ -1070,17 +1158,82 @@ function VirtualMcpDetailViewWithData({
     );
   };
 
+  const handleNewInstance = async (connectionId: string) => {
+    const connection = form
+      .getValues("connections")
+      .find((c) => c.connection_id === connectionId);
+    if (!connection) return;
+
+    // We need the full connection entity to clone from
+    try {
+      const result = await client.callTool({
+        name: "COLLECTION_CONNECTIONS_GET",
+        arguments: { id: connectionId },
+      });
+      const { item: base } = (result.structuredContent ?? {}) as {
+        item: ConnectionEntity | null;
+      };
+      if (!base) return;
+
+      const baseName = base.title.replace(/\s*\(.*?\)\s*$/, "");
+      const newId = generatePrefixedId("conn");
+      // Temporary title — will be updated with email suffix after OAuth if available
+      const tempTitle = `${baseName} (${Date.now().toString(36).slice(-4)})`;
+
+      await connectionActions.create.mutateAsync({
+        id: newId,
+        title: tempTitle,
+        description: base.description ?? null,
+        connection_type: base.connection_type,
+        connection_url: base.connection_url ?? null,
+        connection_token: null,
+        icon: base.icon ?? null,
+        app_name: base.app_name ?? null,
+        app_id: base.app_id ?? null,
+        connection_headers: base.connection_headers ?? null,
+      });
+
+      // Handle OAuth if needed
+      const mcpProxyUrl = new URL(`/mcp/${newId}`, window.location.origin);
+      const authStatus = await isConnectionAuthenticated({
+        url: mcpProxyUrl.href,
+        token: null,
+      });
+      if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+        const email = await handleAuthenticate(newId);
+        if (!email) {
+          // Auth failed or cancelled — clean up the orphaned connection
+          await connectionActions.delete.mutateAsync(newId);
+          return;
+        }
+        await connectionActions.update.mutateAsync({
+          id: newId,
+          data: { title: `${baseName} (${email})` },
+        });
+      }
+
+      // Switch to the new instance
+      handleSwitchInstance(connectionId, newId);
+      toast.success("New instance created");
+    } catch (err) {
+      console.error("Failed to create instance:", err);
+      toast.error("Failed to create instance");
+    }
+  };
+
   const handleOpenSettings = (connectionId: string) => {
     dispatch({ type: "OPEN_SETTINGS", payload: connectionId });
   };
 
-  const handleAuthenticate = async (connectionId: string) => {
+  const handleAuthenticate = async (
+    connectionId: string,
+  ): Promise<string | null> => {
     const { token, tokenInfo, error } = await authenticateMcp({
       connectionId,
     });
     if (error || !token) {
       toast.error(`Authentication failed: ${error}`);
-      return;
+      return null;
     }
 
     if (tokenInfo) {
@@ -1141,6 +1294,8 @@ function VirtualMcpDetailViewWithData({
     });
 
     toast.success("Authentication successful");
+
+    return extractEmailFromTokenInfo(tokenInfo, token);
   };
 
   const handleInsertTemplate = () => {
@@ -1347,9 +1502,7 @@ Define step-by-step how the agent should handle requests.
                       <Suspense fallback={<ConnectionItemSkeleton />}>
                         <ConnectionItem
                           connection_id={conn.connection_id}
-                          selected_tools={conn.selected_tools}
-                          selected_resources={conn.selected_resources}
-                          selected_prompts={conn.selected_prompts}
+                          usedConnectionIds={addedConnectionIds}
                           onOpenSettings={() =>
                             handleOpenSettings(conn.connection_id)
                           }
@@ -1358,6 +1511,9 @@ Define step-by-step how the agent should handle requests.
                           }
                           onAuthenticate={handleAuthenticate}
                           onSwitchInstance={handleSwitchInstance}
+                          onNewInstance={() =>
+                            handleNewInstance(conn.connection_id)
+                          }
                         />
                       </Suspense>
                     </ErrorBoundary>

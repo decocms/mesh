@@ -128,66 +128,13 @@ import {
 import { KEYS } from "@/web/lib/query-keys";
 
 // ---------------------------------------------------------------------------
-// Grouping helpers
+// Grouping helpers (shared with agent add-connection dialog)
 // ---------------------------------------------------------------------------
 
-interface ConnectionGroup {
-  type: "group";
-  key: string;
-  icon: string | null;
-  title: string;
-  connections: ConnectionEntity[];
-}
-
-interface SingleConnection {
-  type: "single";
-  connection: ConnectionEntity;
-}
-
-type GroupedItem = SingleConnection | ConnectionGroup;
-
-function getGroupKey(c: ConnectionEntity): string {
-  return getConnectionSlug(c);
-}
-
-function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
-  const buckets = new Map<string, ConnectionEntity[]>();
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    const list = buckets.get(key);
-    if (list) {
-      list.push(c);
-    } else {
-      buckets.set(key, [c]);
-    }
-  }
-
-  const items: GroupedItem[] = [];
-  const seen = new Set<string>();
-
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const bucket = buckets.get(key)!;
-    const first = bucket[0]!;
-    if (bucket.length === 1) {
-      items.push({ type: "single", connection: first });
-    } else {
-      items.push({
-        type: "group",
-        key,
-        icon: first.icon,
-        title: first.app_name
-          ? first.title.replace(/\s*\(\d+\)\s*$/, "")
-          : first.title,
-        connections: bucket,
-      });
-    }
-  }
-  return items;
-}
+import {
+  groupConnections,
+  type ConnectionGroup,
+} from "@/shared/utils/group-connections";
 
 // ---------------------------------------------------------------------------
 // Connection type / status filter types
