@@ -7,7 +7,6 @@ import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
-import { InboxPopover } from "@/web/components/sidebar/footer/inbox";
 import {
   SettingsSidebar,
   SettingsSidebarMobile,
@@ -598,7 +597,6 @@ function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                  <InboxPopover />
                   <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
                   <button
                     type="button"

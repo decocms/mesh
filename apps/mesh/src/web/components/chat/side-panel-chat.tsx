@@ -139,7 +139,7 @@ function HomeEmptyState({
               <Chat.Input onOpenContextPanel={onOpenContextPanel} />
             </div>
           </div>
-          <div className="w-full max-w-[800px] mt-10 mx-auto">
+          <div className="w-full mt-10 mx-auto">
             <AgentsList />
           </div>
         </div>

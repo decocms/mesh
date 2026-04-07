@@ -217,6 +217,55 @@ function CreditChipConditional() {
   return <CreditChip />;
 }
 
+function InboxButton() {
+  const pendingInvitations = usePendingInvitations();
+
+  return (
+    <Popover>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <PopoverTrigger asChild>
+            <SidebarMenuButton tooltip="Inbox" className="relative">
+              <Inbox01 size={24} />
+              {pendingInvitations.length > 0 && (
+                <span className="absolute top-1 right-1 size-2 rounded-full bg-red-500 pointer-events-none" />
+              )}
+            </SidebarMenuButton>
+          </PopoverTrigger>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <PopoverContent
+        side="right"
+        align="start"
+        sideOffset={16}
+        collisionPadding={16}
+        className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
+      >
+        <div className="px-4 py-3 border-b border-border shrink-0">
+          <h3 className="text-sm font-medium">Inbox</h3>
+        </div>
+        {pendingInvitations.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+            <Inbox01 size={24} className="text-muted-foreground/50" />
+            <p className="text-sm font-medium text-foreground">
+              No invites pending
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Organization invitations will appear here
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto flex-1">
+            {pendingInvitations.map((inv) => (
+              <InvitationItem key={inv.id} invitation={inv} />
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SettingsButton() {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -297,6 +346,7 @@ export function SidebarInboxFooter() {
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
+      <InboxButton />
       <SettingsButton />
       <SidebarMenu>
         <SidebarMenuItem>

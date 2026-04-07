@@ -1,4 +1,4 @@
-import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
+import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { getAgentWrapperColor } from "@/web/components/agent-icon";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -590,10 +590,6 @@ export function ChatInput({
                   showFileUploader={true}
                   selectedModel={selectedModel}
                 />
-                {/* Focus hint — hidden when editor is focused */}
-                <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
-                  {isMac ? "⌘" : "Ctrl+"}L to focus
-                </span>
               </div>
 
               {/* Bottom Actions Row */}

@@ -184,7 +184,7 @@ function AgentsListContent() {
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
     })
-    .slice(0, 5);
+    .slice(0, 4);
 
   // Check if Site Diagnostics agent already exists (search full list, not just top-5)
   const existingDiagnostics = virtualMcps.find(
@@ -200,7 +200,7 @@ function AgentsListContent() {
   return (
     <>
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-        <div className="flex flex-nowrap justify-center gap-4 max-md:justify-start">
+        <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start">
           <AgentPreview
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
@@ -249,7 +249,7 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-      <div className="flex flex-nowrap justify-center gap-4 max-md:justify-start">
+      <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
