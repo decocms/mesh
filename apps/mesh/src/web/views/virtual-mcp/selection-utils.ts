@@ -37,4 +37,3 @@ export const ALL_ITEMS_SELECTED: ConnectionFormValue = {
   resources: null,
   prompts: null,
 } as const;
-
