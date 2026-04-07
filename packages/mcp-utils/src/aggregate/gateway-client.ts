@@ -81,23 +81,18 @@ export function getGatewayClientId(meta: unknown): string | undefined {
 
 /**
  * Strip the gateway namespace prefix from a tool/prompt name.
- * When `clientId` is provided, strips the exact `slugify(clientId)_` prefix.
- * Otherwise uses `_meta.gatewayClientId` embedded in the name pattern
- * (slug contains only [a-z0-9-], followed by `_`).
- * Returns the original name, or the input unchanged if no namespace is detected.
+ * Requires `clientId` to compute the exact prefix to remove.
+ * Returns the input unchanged when no `clientId` is provided or the prefix doesn't match.
  */
 export function stripToolNamespace(
   namespacedName: string,
   clientId?: string,
 ): string {
-  if (clientId) {
-    const prefix = `${slugify(clientId)}_`;
-    return namespacedName.startsWith(prefix)
-      ? namespacedName.slice(prefix.length)
-      : namespacedName;
-  }
-  const match = namespacedName.match(/^[a-z0-9-]+_(.+)$/);
-  return match?.[1] ?? namespacedName;
+  if (!clientId) return namespacedName;
+  const prefix = `${slugify(clientId)}_`;
+  return namespacedName.startsWith(prefix)
+    ? namespacedName.slice(prefix.length)
+    : namespacedName;
 }
 
 /**

@@ -14,8 +14,8 @@ describe("getFriendlyToolName", () => {
     );
   });
 
-  test("converts snake_case to Title Case without namespace (regex fallback)", () => {
-    expect(getFriendlyToolName("some_tool")).toBe("Tool");
+  test("preserves snake_case name without clientId", () => {
+    expect(getFriendlyToolName("some_tool")).toBe("Some Tool");
   });
 
   test("returns empty string for empty input", () => {
