@@ -12,7 +12,7 @@ strategy:
 
 image:
   repository: ghcr.io/decocms/studio/studio
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   command:
     - bun
     - run
