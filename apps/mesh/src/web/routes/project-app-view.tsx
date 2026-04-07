@@ -1,3 +1,4 @@
+import { stripToolNamespace } from "@decocms/mcp-utils/aggregate";
 import { Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -81,7 +82,10 @@ export function AppViewContent({
   const client = useMCPClient({ connectionId, orgId: org.id });
   const connection = useConnection(connectionId);
 
-  const decodedToolName = decodeURIComponent(toolName);
+  const decodedToolName = stripToolNamespace(
+    decodeURIComponent(toolName),
+    connectionId,
+  );
 
   const tool = (connection?.tools ?? []).find(
     (t: { name: string }) => t.name === decodedToolName,
