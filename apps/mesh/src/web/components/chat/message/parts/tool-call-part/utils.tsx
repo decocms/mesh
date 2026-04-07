@@ -1,4 +1,5 @@
 import { displayToolName } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 
 export type ToolPartStatus =
   | "input-streaming"
@@ -45,7 +46,7 @@ export function getFriendlyToolName(
   clientId?: string,
 ): string {
   if (!toolName) return "";
-  return displayToolName(toolName, clientId)
+  return displayToolName(toolName, clientId, TOOL_NAMESPACE_PREFIXES)
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");

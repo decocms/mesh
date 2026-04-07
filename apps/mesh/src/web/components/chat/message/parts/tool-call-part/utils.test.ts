@@ -26,9 +26,9 @@ describe("getFriendlyToolName", () => {
     expect(getFriendlyToolName("SINGLE")).toBe("Single");
   });
 
-  test("preserves full name when clientId does not match", () => {
+  test("strips slug prefix even when clientId does not match", () => {
     expect(getFriendlyToolName("conn-abc123_some_tool", "other_client")).toBe(
-      "Conn Abc123 Some Tool",
+      "Some Tool",
     );
   });
 

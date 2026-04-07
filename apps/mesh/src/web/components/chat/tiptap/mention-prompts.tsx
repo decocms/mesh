@@ -2,6 +2,7 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import { KEYS } from "@/web/lib/query-keys";
 import {
   getPrompt,
@@ -51,7 +52,7 @@ async function fetchAndInsertPrompt(
 
     insertMention(editor, range, {
       id: promptName,
-      name: stripToolNamespace(promptName, clientId),
+      name: stripToolNamespace(promptName, clientId, TOOL_NAMESPACE_PREFIXES),
       metadata: result.messages,
       char: "/",
     });

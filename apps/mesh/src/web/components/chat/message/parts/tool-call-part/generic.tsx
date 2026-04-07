@@ -20,6 +20,7 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import type {
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
@@ -174,7 +175,11 @@ export function GenericToolCallPart({
         ? "Dynamic Tool"
         : part.type.replace("tool-", "") || "Tool";
   const gatewayClientId = getGatewayClientId(toolMeta);
-  const toolName = stripToolNamespace(rawToolName, gatewayClientId);
+  const toolName = stripToolNamespace(
+    rawToolName,
+    gatewayClientId,
+    TOOL_NAMESPACE_PREFIXES,
+  );
   const friendlyName = getFriendlyToolName(rawToolName, gatewayClientId);
 
   const chatStream = useOptionalChatStream();

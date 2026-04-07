@@ -2,6 +2,7 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import { Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -49,7 +50,11 @@ function AppRenderer({
   });
 
   const clientId = getGatewayClientId(tool._meta);
-  const strippedName = stripToolNamespace(tool.name, clientId);
+  const strippedName = stripToolNamespace(
+    tool.name,
+    clientId,
+    TOOL_NAMESPACE_PREFIXES,
+  );
   const strippedTool: Tool = {
     ...tool,
     name: strippedName,

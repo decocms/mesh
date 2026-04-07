@@ -3,6 +3,7 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
   Tooltip,
@@ -82,7 +83,9 @@ function PromptCard({
 }) {
   const { prompt } = item;
   const clientId = getGatewayClientId(prompt._meta);
-  const name = prompt.title ?? displayToolName(prompt.name, clientId);
+  const name =
+    prompt.title ??
+    displayToolName(prompt.name, clientId, TOOL_NAMESPACE_PREFIXES);
   const description = prompt.description || null;
 
   if (variant === "card") {
@@ -389,6 +392,7 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
             name: stripToolNamespace(
               prompt.name,
               getGatewayClientId(prompt._meta),
+              TOOL_NAMESPACE_PREFIXES,
             ),
             metadata: result.messages,
             char: "/",

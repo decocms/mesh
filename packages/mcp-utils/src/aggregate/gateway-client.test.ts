@@ -73,37 +73,15 @@ describe("slugify", () => {
 });
 
 describe("stripToolNamespace", () => {
-  it("strips MCP server prefix", () => {
-    expect(stripToolNamespace("mcp__cms__SOME_TOOL")).toBe("SOME_TOOL");
-    expect(stripToolNamespace("mcp__mesh__SOME_TOOL")).toBe("SOME_TOOL");
-  });
+  const PREFIXES = [/^mcp__[a-zA-Z0-9_-]+__/, /^[a-z0-9-]+_/];
 
-  it("strips MCP prefix then gateway clientId prefix", () => {
-    expect(stripToolNamespace("mcp__cms__my-conn_SOME_TOOL", "my-conn")).toBe(
-      "SOME_TOOL",
-    );
-    expect(
-      stripToolNamespace(
-        "mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world",
-        "conn-dvitqc2ooobdzmrd5ky24",
-      ),
-    ).toBe("hello_world");
-  });
-
-  it("strips gateway clientId prefix without MCP prefix", () => {
+  it("strips clientId prefix", () => {
     expect(stripToolNamespace("my-conn_SOME_TOOL", "my-conn")).toBe(
       "SOME_TOOL",
     );
   });
 
-  it("falls back to regex when no clientId provided", () => {
-    expect(stripToolNamespace("conn-abc123_hello_world")).toBe("hello_world");
-    expect(
-      stripToolNamespace("mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world"),
-    ).toBe("hello_world");
-  });
-
-  it("returns unchanged when no prefix matches", () => {
+  it("returns unchanged when no clientId and no prefixes", () => {
     expect(stripToolNamespace("SOME_TOOL")).toBe("SOME_TOOL");
   });
 
@@ -112,17 +90,46 @@ describe("stripToolNamespace", () => {
       "other_SOME_TOOL",
     );
   });
+
+  it("strips custom prefixes in order", () => {
+    expect(stripToolNamespace("mcp__cms__SOME_TOOL", undefined, PREFIXES)).toBe(
+      "SOME_TOOL",
+    );
+    expect(
+      stripToolNamespace("mcp__mesh__SOME_TOOL", undefined, PREFIXES),
+    ).toBe("SOME_TOOL");
+    expect(
+      stripToolNamespace("conn-abc123_hello_world", undefined, PREFIXES),
+    ).toBe("hello_world");
+  });
+
+  it("strips custom prefixes then clientId prefix", () => {
+    expect(
+      stripToolNamespace("mcp__cms__my-conn_SOME_TOOL", "my-conn", PREFIXES),
+    ).toBe("SOME_TOOL");
+    expect(
+      stripToolNamespace(
+        "mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world",
+        "conn-dvitqc2ooobdzmrd5ky24",
+        PREFIXES,
+      ),
+    ).toBe("hello_world");
+  });
 });
 
 describe("displayToolName", () => {
-  it("strips MCP prefix and formats for display", () => {
-    expect(displayToolName("mcp__cms__SOME_TOOL")).toBe("some tool");
-  });
+  const PREFIXES = [/^mcp__[a-zA-Z0-9_-]+__/, /^[a-z0-9-]+_/];
 
-  it("strips both MCP and gateway prefix", () => {
-    expect(displayToolName("mcp__cms__my-conn_SOME_TOOL", "my-conn")).toBe(
+  it("strips prefixes and formats for display", () => {
+    expect(displayToolName("mcp__cms__SOME_TOOL", undefined, PREFIXES)).toBe(
       "some tool",
     );
+  });
+
+  it("strips all prefixes and gateway prefix", () => {
+    expect(
+      displayToolName("mcp__cms__my-conn_SOME_TOOL", "my-conn", PREFIXES),
+    ).toBe("some tool");
   });
 });
 

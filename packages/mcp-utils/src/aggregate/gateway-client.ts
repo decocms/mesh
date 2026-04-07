@@ -80,40 +80,40 @@ export function getGatewayClientId(meta: unknown): string | undefined {
 }
 
 /**
- * Strip the gateway namespace prefix from a tool/prompt name.
- * First removes any MCP client prefix (e.g. "mcp__cms__toolName" → "toolName"),
- * then strips the gateway `slugify(clientId)_` prefix. When `clientId` is not
- * provided, falls back to a regex that strips a leading slug prefix (`[a-z0-9-]+_`).
+ * Strip namespace prefixes from a tool/prompt name.
+ *
+ * @param namespacedName - The name to strip prefixes from
+ * @param clientId - When provided, strips the exact `slugify(clientId)_` prefix
+ * @param prefixes - Additional RegExp patterns to strip before the clientId prefix
  */
 export function stripToolNamespace(
   namespacedName: string,
   clientId?: string,
+  prefixes?: RegExp[],
 ): string {
-  // Strip MCP server prefix (e.g. "mcp__cms__toolName" → "toolName")
-  const stripped = namespacedName.replace(/^mcp__[a-zA-Z0-9_-]+__/, "");
-
-  if (clientId) {
-    const prefix = `${slugify(clientId)}_`;
-    return stripped.startsWith(prefix)
-      ? stripped.slice(prefix.length)
-      : stripped;
+  let stripped = namespacedName;
+  if (prefixes) {
+    for (const re of prefixes) {
+      stripped = stripped.replace(re, "");
+    }
   }
 
-  // Fallback: strip leading slug prefix (e.g. "conn-abc123_hello_world" → "hello_world")
-  const match = stripped.match(/^[a-z0-9-]+_(.+)$/);
-  return match?.[1] ?? stripped;
+  if (!clientId) return stripped;
+  const prefix = `${slugify(clientId)}_`;
+  return stripped.startsWith(prefix) ? stripped.slice(prefix.length) : stripped;
 }
 
 /**
- * Strip namespace and normalize for display: removes the slug prefix,
+ * Strip namespace and normalize for display: removes prefixes,
  * replaces `_` and `-` with spaces, and lowercases the result.
  * Pair with CSS `capitalize` for Title Case rendering.
  */
 export function displayToolName(
   namespacedName: string,
   clientId?: string,
+  prefixes?: RegExp[],
 ): string {
-  return stripToolNamespace(namespacedName, clientId)
+  return stripToolNamespace(namespacedName, clientId, prefixes)
     .replace(/[_-]/g, " ")
     .toLowerCase();
 }

@@ -4,6 +4,7 @@ import {
   displayToolName,
   getGatewayClientId,
 } from "@decocms/mcp-utils/aggregate";
+import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -135,7 +136,8 @@ const MentionItem = <T extends BaseItem>({
   ref,
 }: MentionItemProps<T>) => {
   const clientId = getGatewayClientId((item as Record<string, unknown>)._meta);
-  const name = item.title || displayToolName(item.name, clientId);
+  const name =
+    item.title || displayToolName(item.name, clientId, TOOL_NAMESPACE_PREFIXES);
   const description = item.description || null;
 
   return (
