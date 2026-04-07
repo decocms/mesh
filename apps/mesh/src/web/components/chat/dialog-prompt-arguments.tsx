@@ -2,7 +2,6 @@ import {
   displayToolName,
   getGatewayClientId,
 } from "@decocms/mcp-utils/aggregate";
-import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -91,11 +90,7 @@ export function PromptArgsDialog({
           <DialogTitle>
             <span className="capitalize">
               {prompt.title ||
-                displayToolName(
-                  prompt.name,
-                  getGatewayClientId(prompt._meta),
-                  TOOL_NAMESPACE_PREFIXES,
-                )}
+                displayToolName(prompt.name, getGatewayClientId(prompt._meta))}
             </span>
           </DialogTitle>
           {prompt.description && (

@@ -80,40 +80,31 @@ export function getGatewayClientId(meta: unknown): string | undefined {
 }
 
 /**
- * Strip namespace prefixes from a tool/prompt name.
- *
- * @param namespacedName - The name to strip prefixes from
- * @param clientId - When provided, strips the exact `slugify(clientId)_` prefix
- * @param prefixes - Additional RegExp patterns to strip before the clientId prefix
+ * Strip the gateway namespace prefix from a tool/prompt name.
+ * Requires `clientId` to compute the exact prefix to remove.
+ * Returns the input unchanged when no `clientId` is provided or the prefix doesn't match.
  */
 export function stripToolNamespace(
   namespacedName: string,
   clientId?: string,
-  prefixes?: RegExp[],
 ): string {
-  let stripped = namespacedName;
-  if (prefixes) {
-    for (const re of prefixes) {
-      stripped = stripped.replace(re, "");
-    }
-  }
-
-  if (!clientId) return stripped;
+  if (!clientId) return namespacedName;
   const prefix = `${slugify(clientId)}_`;
-  return stripped.startsWith(prefix) ? stripped.slice(prefix.length) : stripped;
+  return namespacedName.startsWith(prefix)
+    ? namespacedName.slice(prefix.length)
+    : namespacedName;
 }
 
 /**
- * Strip namespace and normalize for display: removes prefixes,
+ * Strip namespace and normalize for display: removes the slug prefix,
  * replaces `_` and `-` with spaces, and lowercases the result.
  * Pair with CSS `capitalize` for Title Case rendering.
  */
 export function displayToolName(
   namespacedName: string,
   clientId?: string,
-  prefixes?: RegExp[],
 ): string {
-  return stripToolNamespace(namespacedName, clientId, prefixes)
+  return stripToolNamespace(namespacedName, clientId)
     .replace(/[_-]/g, " ")
     .toLowerCase();
 }

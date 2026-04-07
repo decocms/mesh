@@ -20,8 +20,9 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
-import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
+import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
 import { useToolDefinitionLookup } from "@/web/hooks/use-tool-definition-lookup";
+import { toTitleCase } from "./utils.tsx";
 import type {
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
@@ -45,7 +46,7 @@ import { PanelContext } from "@/web/contexts/panel-context.tsx";
 
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
-import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
+import { getEffectiveState } from "./utils.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -175,13 +176,8 @@ export function GenericToolCallPart({
       : part.type === "dynamic-tool"
         ? "Dynamic Tool"
         : part.type.replace("tool-", "") || "Tool";
-  const gatewayClientId = getGatewayClientId(toolMeta);
-  const toolName = stripToolNamespace(
-    rawToolName,
-    gatewayClientId,
-    TOOL_NAMESPACE_PREFIXES,
-  );
-  const friendlyName = getFriendlyToolName(rawToolName, gatewayClientId);
+  // Strip mcp__<server>__ prefix (e.g. mcp__cms__conn-abc_hello → conn-abc_hello)
+  const mcpStrippedName = stripMcpServerPrefix(rawToolName);
 
   const chatStream = useOptionalChatStream();
   const chatPrefs = useOptionalChatPrefs();
@@ -191,8 +187,6 @@ export function GenericToolCallPart({
   // (e.g. monitoring Threads tab), so we read the context directly.
   const panelControls = useContext(PanelContext);
   const setChatOpen = panelControls?.setChatOpen;
-
-  const uiResourceUri = getUIResourceUri(toolMeta);
 
   const connectionId =
     toolMeta &&
@@ -204,20 +198,21 @@ export function GenericToolCallPart({
       ? String(toolMeta.connectionId)
       : (chatPrefs?.selectedVirtualMcp?.id ?? null);
 
-  // Enrich metadata from virtual MCP tool list when _meta is missing
-  // (e.g. Claude Code path where tool metadata isn't forwarded in the stream)
-  const needsLookup = !gatewayClientId && !!connectionId;
+  // Look up tool definition from virtual MCP's listTools.
+  // Single source of truth for _meta, title, gatewayClientId, uiResourceUri.
   const { toolDef } = useToolDefinitionLookup(
-    needsLookup ? rawToolName : null,
+    connectionId ? rawToolName : null,
     connectionId,
     org.id,
   );
-  const enrichedMeta = toolDef?._meta ?? toolMeta;
-  const enrichedUiResourceUri = uiResourceUri ?? getUIResourceUri(enrichedMeta);
+  const meta = toolDef?._meta ?? toolMeta;
+  const gatewayClientId = getGatewayClientId(meta);
+  const toolName = stripToolNamespace(mcpStrippedName, gatewayClientId);
+  const friendlyName = toolDef?.title ?? toTitleCase(toolName);
+  const uiResourceUri = getUIResourceUri(meta);
 
-  const hasMCPApp =
-    !!enrichedUiResourceUri && part.state === "output-available";
-  const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
+  const hasMCPApp = !!uiResourceUri && part.state === "output-available";
+  const sourceId = connectionId ? `${connectionId}:${mcpStrippedName}` : null;
   const isDestructive = !!annotations?.destructiveHint;
   const canOpenInPanel =
     hasMCPApp && !!panelControls && !!connectionId && !isDestructive;
@@ -304,7 +299,7 @@ export function GenericToolCallPart({
           </button>
         </div>
       )}
-      {hasMCPApp && enrichedUiResourceUri && connectionId && org?.id && (
+      {hasMCPApp && uiResourceUri && connectionId && org?.id && (
         <>
           <ErrorBoundary
             fallback={({ resetError }) => (
@@ -337,17 +332,13 @@ export function GenericToolCallPart({
               }
             >
               <MCPAppRenderer
-                uiResourceUri={enrichedUiResourceUri}
+                uiResourceUri={uiResourceUri}
                 connectionId={connectionId}
                 orgId={org.id}
                 toolName={toolName}
                 toolInput={part.input}
                 toolResult={part.output}
-                toolMeta={
-                  (enrichedMeta ?? toolMeta) as
-                    | Record<string, unknown>
-                    | undefined
-                }
+                toolMeta={meta as Record<string, unknown> | undefined}
                 onMessage={handleAppMessage}
                 onUpdateModelContext={
                   sourceId && chatPrefs

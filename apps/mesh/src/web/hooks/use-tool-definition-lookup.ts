@@ -2,7 +2,7 @@ import { createMCPClient } from "@decocms/mesh-sdk";
 import { useQuery } from "@tanstack/react-query";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { KEYS } from "@/web/lib/query-keys";
-import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
+import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
 
 /**
  * Non-suspense hook that looks up a tool definition from the virtual MCP's
@@ -31,14 +31,7 @@ export function useToolDefinitionLookup(
         const { tools } = await client.listTools();
 
         // Strip mcp__<server>__ prefix to get the gateway-namespaced name
-        let stripped = rawToolName;
-        for (const re of TOOL_NAMESPACE_PREFIXES) {
-          const result = stripped.replace(re, "");
-          if (result !== stripped) {
-            stripped = result;
-            break; // Only strip the first matching prefix (mcp__cms__)
-          }
-        }
+        const stripped = stripMcpServerPrefix(rawToolName);
 
         return tools.find((t) => t.name === stripped) ?? null;
       } finally {

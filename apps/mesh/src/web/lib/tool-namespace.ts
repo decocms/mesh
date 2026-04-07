@@ -1,9 +1,12 @@
 /**
- * Prefix patterns stripped from tool/prompt names before display.
- * - MCP client prefix: "mcp__cms__toolName" → "toolName"
- * - Gateway slug prefix: "conn-abc123_toolName" → "toolName"
+ * Matches the MCP client prefix added by coding agents (e.g. Claude Code).
+ * "mcp__cms__conn-abc_hello_world" → "conn-abc_hello_world"
  */
-export const TOOL_NAMESPACE_PREFIXES: RegExp[] = [
-  /^mcp__[a-zA-Z0-9_-]+__/,
-  /^[a-z0-9-]+_/,
-];
+export const MCP_SERVER_PREFIX = /^mcp__[a-zA-Z0-9_-]+__/;
+
+/**
+ * Strip the MCP server prefix from a tool/prompt name.
+ */
+export function stripMcpServerPrefix(name: string): string {
+  return name.replace(MCP_SERVER_PREFIX, "");
+}

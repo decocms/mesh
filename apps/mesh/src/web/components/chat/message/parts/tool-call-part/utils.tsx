@@ -1,6 +1,4 @@
-import { displayToolName } from "@decocms/mcp-utils/aggregate";
 import { formatDuration } from "@/web/lib/format-time.ts";
-import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 
 export type ToolPartStatus =
   | "input-streaming"
@@ -39,15 +37,14 @@ export function formatToolMetrics(metrics: ToolCallMetrics): string | null {
 }
 
 /**
- * Convert a tool name to a friendly display name.
- * Strips any gateway namespace prefix, then converts to Title Case.
+ * Convert a name to Title Case: replaces `_` and `-` with spaces, lowercases,
+ * then capitalizes each word.
  */
-export function getFriendlyToolName(
-  toolName: string,
-  clientId?: string,
-): string {
-  if (!toolName) return "";
-  return displayToolName(toolName, clientId, TOOL_NAMESPACE_PREFIXES)
+export function toTitleCase(name: string): string {
+  if (!name) return "";
+  return name
+    .replace(/[_-]/g, " ")
+    .toLowerCase()
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");

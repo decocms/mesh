@@ -2,7 +2,7 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
-import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
+import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
 import { Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -50,11 +50,7 @@ function AppRenderer({
   });
 
   const clientId = getGatewayClientId(tool._meta);
-  const strippedName = stripToolNamespace(
-    tool.name,
-    clientId,
-    TOOL_NAMESPACE_PREFIXES,
-  );
+  const strippedName = stripToolNamespace(tool.name, clientId);
   const strippedTool: Tool = {
     ...tool,
     name: strippedName,
@@ -100,7 +96,7 @@ export function AppViewContent({
   const client = useMCPClient({ connectionId, orgId: org.id });
   const { data: toolsResult } = useMCPToolsList({ client });
 
-  const decodedToolName = decodeURIComponent(toolName);
+  const decodedToolName = stripMcpServerPrefix(decodeURIComponent(toolName));
 
   const tool = toolsResult.tools.find((t) => t.name === decodedToolName);
 
@@ -108,7 +104,7 @@ export function AppViewContent({
 
   if (!tool || !resourceURI) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full w-full">
         <p className="text-sm text-muted-foreground">
           Tool &quot;{decodedToolName}&quot; not found or has no UI
         </p>

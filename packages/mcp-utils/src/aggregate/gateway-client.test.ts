@@ -73,15 +73,13 @@ describe("slugify", () => {
 });
 
 describe("stripToolNamespace", () => {
-  const PREFIXES = [/^mcp__[a-zA-Z0-9_-]+__/, /^[a-z0-9-]+_/];
-
   it("strips clientId prefix", () => {
     expect(stripToolNamespace("my-conn_SOME_TOOL", "my-conn")).toBe(
       "SOME_TOOL",
     );
   });
 
-  it("returns unchanged when no clientId and no prefixes", () => {
+  it("returns unchanged when no clientId", () => {
     expect(stripToolNamespace("SOME_TOOL")).toBe("SOME_TOOL");
   });
 
@@ -91,45 +89,23 @@ describe("stripToolNamespace", () => {
     );
   });
 
-  it("strips custom prefixes in order", () => {
-    expect(stripToolNamespace("mcp__cms__SOME_TOOL", undefined, PREFIXES)).toBe(
-      "SOME_TOOL",
-    );
-    expect(
-      stripToolNamespace("mcp__mesh__SOME_TOOL", undefined, PREFIXES),
-    ).toBe("SOME_TOOL");
-    expect(
-      stripToolNamespace("conn-abc123_hello_world", undefined, PREFIXES),
-    ).toBe("hello_world");
-  });
-
-  it("strips custom prefixes then clientId prefix", () => {
-    expect(
-      stripToolNamespace("mcp__cms__my-conn_SOME_TOOL", "my-conn", PREFIXES),
-    ).toBe("SOME_TOOL");
+  it("strips real connection ID prefix", () => {
     expect(
       stripToolNamespace(
-        "mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world",
+        "conn-dvitqc2ooobdzmrd5ky24_hello_world",
         "conn-dvitqc2ooobdzmrd5ky24",
-        PREFIXES,
       ),
     ).toBe("hello_world");
   });
 });
 
 describe("displayToolName", () => {
-  const PREFIXES = [/^mcp__[a-zA-Z0-9_-]+__/, /^[a-z0-9-]+_/];
-
-  it("strips prefixes and formats for display", () => {
-    expect(displayToolName("mcp__cms__SOME_TOOL", undefined, PREFIXES)).toBe(
-      "some tool",
-    );
+  it("strips clientId prefix and formats for display", () => {
+    expect(displayToolName("my-conn_SOME_TOOL", "my-conn")).toBe("some tool");
   });
 
-  it("strips all prefixes and gateway prefix", () => {
-    expect(
-      displayToolName("mcp__cms__my-conn_SOME_TOOL", "my-conn", PREFIXES),
-    ).toBe("some tool");
+  it("returns formatted name when no clientId", () => {
+    expect(displayToolName("SOME_TOOL")).toBe("some tool");
   });
 });
 
