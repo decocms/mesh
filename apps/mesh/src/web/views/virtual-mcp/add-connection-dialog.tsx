@@ -1,6 +1,7 @@
 import { groupConnections } from "@/shared/utils/group-connections";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
+import { CreateConnectionDialog } from "@/web/components/connections/create-connection-dialog.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import type { RegistryItem } from "@/web/components/store/types";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
@@ -45,6 +46,7 @@ import {
   CheckVerified02,
   Container,
   Loading01,
+  Plus,
 } from "@untitledui/icons";
 import { Suspense, useDeferredValue, useState } from "react";
 import { toast } from "sonner";
@@ -73,6 +75,7 @@ function AddConnectionDialogContent({
   onConnectAndAdd,
   connectingItemId,
   search,
+  onCreateConnection,
 }: {
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
@@ -80,6 +83,7 @@ function AddConnectionDialogContent({
   onConnectAndAdd: (item: RegistryItem) => void;
   connectingItemId: string | null;
   search: string;
+  onCreateConnection: () => void;
 }) {
   const { org } = useProjectContext();
   const deferredSearch = useDeferredValue(search);
@@ -331,6 +335,15 @@ function AddConnectionDialogContent({
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id as ConnectionTab)}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-sm"
+            onClick={onCreateConnection}
+          >
+            <Plus size={12} />
+            Custom Connection
+          </Button>
         </div>
       )}
 
@@ -443,6 +456,7 @@ export function AddConnectionDialog({
 }: AddConnectionDialogProps) {
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
@@ -671,9 +685,20 @@ export function AddConnectionDialog({
             onConnectAndAdd={handleConnectAndAdd}
             connectingItemId={connectingItemId}
             search={search}
+            onCreateConnection={() => setCreateOpen(true)}
           />
         </Suspense>
       </DialogContent>
+
+      <CreateConnectionDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(id) => {
+          onAdd(id);
+          setCreateOpen(false);
+          onOpenChange(false);
+        }}
+      />
     </Dialog>
   );
 }
