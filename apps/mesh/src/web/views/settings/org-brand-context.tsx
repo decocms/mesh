@@ -801,11 +801,11 @@ function ExpandableBrandEntry({
           >
             <Star01
               size={13}
-              className={
+              className={cn(
                 brand.isDefault
                   ? "text-primary fill-primary"
-                  : "text-muted-foreground"
-              }
+                  : "text-muted-foreground",
+              )}
             />
           </span>
         )}
