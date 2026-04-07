@@ -374,6 +374,79 @@ interface MCPAppRendererProps {
   onTeardown?: () => void;
 }
 
+/**
+ * Check if a value is a Codex mcpToolCall envelope.
+ * Codex wraps MCP tool calls in { type: "mcpToolCall", ... } objects.
+ */
+function isMcpToolCallEnvelope(
+  value: unknown,
+): value is { type: "mcpToolCall"; [key: string]: unknown } {
+  return (
+    typeof value === "object" &&
+    value != null &&
+    "type" in value &&
+    (value as Record<string, unknown>).type === "mcpToolCall"
+  );
+}
+
+/**
+ * Normalize tool input across providers.
+ * Codex wraps input in { type: "mcpToolCall", arguments: { ... } } —
+ * unwrap to get the actual tool arguments.
+ */
+function normalizeToolInput(
+  input: unknown,
+): Record<string, unknown> | undefined {
+  if (input == null) return undefined;
+  if (isMcpToolCallEnvelope(input)) {
+    return (input.arguments as Record<string, unknown>) ?? undefined;
+  }
+  return input as Record<string, unknown>;
+}
+
+/**
+ * Normalize a tool result to CallToolResult format.
+ * - Standard AI SDK tools: already a CallToolResult
+ * - Claude Code dynamic tools: raw parsed JSON (no wrapper)
+ * - Codex: { type: "mcpToolCall", result: CallToolResult, ... } wrapped
+ *   inside structuredContent
+ */
+function normalizeToolResult(output: unknown): CallToolResult | undefined {
+  if (output == null) return undefined;
+
+  // Codex: output itself is the mcpToolCall envelope
+  if (isMcpToolCallEnvelope(output) && output.result != null) {
+    return output.result as CallToolResult;
+  }
+
+  // Already a CallToolResult (has content array with MCP content blocks)
+  if (
+    typeof output === "object" &&
+    "content" in output &&
+    Array.isArray((output as CallToolResult).content)
+  ) {
+    const arr = (output as CallToolResult).content;
+    if (
+      arr.length > 0 &&
+      typeof arr[0] === "object" &&
+      arr[0] != null &&
+      "type" in arr[0]
+    ) {
+      return output as CallToolResult;
+    }
+  }
+
+  // Wrap raw value (Claude Code) in CallToolResult format
+  const text = typeof output === "string" ? output : JSON.stringify(output);
+  return {
+    structuredContent:
+      typeof output === "object" && !Array.isArray(output)
+        ? (output as Record<string, unknown>)
+        : undefined,
+    content: [{ type: "text", text }],
+  };
+}
+
 function MCPAppRenderer({
   uiResourceUri,
   connectionId,
@@ -399,8 +472,8 @@ function MCPAppRenderer({
       <MCPAppIframeRenderer
         resourceURI={uiResourceUri}
         toolInfo={{ tool: toolDef }}
-        toolInput={toolInput as Record<string, unknown> | undefined}
-        toolResult={toolResult as CallToolResult | undefined}
+        toolInput={normalizeToolInput(toolInput)}
+        toolResult={normalizeToolResult(toolResult)}
         client={client}
         onMessage={onMessage}
         onUpdateModelContext={onUpdateModelContext}
