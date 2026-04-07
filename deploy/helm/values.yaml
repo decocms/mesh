@@ -62,7 +62,7 @@ configMap:
     BASE_URL: "http://localhost:8080"
     DATA_DIR: "/app/data"
     # NATS_URL: ""  # Optional: overrides auto-derived URL when nats.enabled=true (e.g. nats://my-nats:4222)
-    DATABASE_POOL_MAX: "83"
+    DATABASE_POOL_MAX: "20"
     DECO_AI_GATEWAY_ENABLED: "false"
   authConfig:
     emailAndPassword:
