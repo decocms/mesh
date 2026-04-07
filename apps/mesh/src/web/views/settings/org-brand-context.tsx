@@ -871,7 +871,6 @@ export function OrgBrandContextPage() {
       const data = unwrapToolResult<{ items?: BrandContext[] }>(result);
       return Array.isArray(data?.items) ? data.items : [];
     },
-    staleTime: 60_000,
   });
 
   const activeBrands = allBrands.filter((b) => !b.archivedAt);
@@ -879,7 +878,10 @@ export function OrgBrandContextPage() {
   const [showArchived, setShowArchived] = useState(false);
 
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: KEYS.brandContext(org.id) });
+    queryClient.invalidateQueries({
+      queryKey: KEYS.brandContext(org.id),
+      refetchType: "all",
+    });
 
   const { mutate: createBrand, isPending: isCreating } = useMutation({
     mutationFn: async () => {
@@ -901,10 +903,12 @@ export function OrgBrandContextPage() {
 
   const { mutate: extractBrand, isPending: isExtracting } = useMutation({
     mutationFn: async (domain: string) => {
-      await client.callTool({
+      const result = await client.callTool({
         name: "BRAND_CONTEXT_EXTRACT",
         arguments: { domain },
       });
+      // callTool doesn't throw on tool errors — check isError
+      unwrapToolResult(result);
     },
     onSuccess: () => {
       invalidate();
