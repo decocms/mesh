@@ -6,9 +6,13 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import {
+  ChevronDown,
+  ChevronRight,
   Edit03,
   LinkExternal01,
   Check,
+  Plus,
+  Trash01,
   X,
   Globe02,
   Zap,
@@ -599,6 +603,183 @@ function ColorsSection({
   );
 }
 
+// --- Expandable brand entry ---
+
+function ExpandableBrandEntry({
+  brand,
+  client,
+  onChanged,
+}: {
+  brand: BrandContext;
+  client: ReturnType<typeof useMCPClient>;
+  onChanged: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const { mutate: saveBrand } = useMutation({
+    mutationFn: async (data: Partial<BrandContext>) => {
+      const merged = {
+        id: brand.id,
+        name: data.name ?? brand.name ?? "",
+        domain: data.domain ?? brand.domain ?? "",
+        overview: data.overview ?? brand.overview ?? "",
+        logo: "logo" in data ? data.logo : brand.logo,
+        favicon: "favicon" in data ? data.favicon : brand.favicon,
+        ogImage: "ogImage" in data ? data.ogImage : brand.ogImage,
+        fonts: "fonts" in data ? data.fonts : brand.fonts,
+        colors: "colors" in data ? data.colors : brand.colors,
+        images: "images" in data ? data.images : brand.images,
+      };
+      await client.callTool({
+        name: "BRAND_CONTEXT_UPDATE",
+        arguments: merged,
+      });
+    },
+    onSuccess: () => {
+      onChanged();
+      toast.success("Brand context saved");
+    },
+    onError: () => toast.error("Failed to save brand context"),
+  });
+
+  const { mutate: deleteBrand, isPending: isDeleting } = useMutation({
+    mutationFn: async () => {
+      await client.callTool({
+        name: "BRAND_CONTEXT_DELETE",
+        arguments: { id: brand.id },
+      });
+    },
+    onSuccess: () => {
+      onChanged();
+      toast.success("Brand deleted");
+    },
+    onError: () => toast.error("Failed to delete brand"),
+  });
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-background">
+      {/* Collapsed header — always visible */}
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 p-5"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="shrink-0 text-muted-foreground">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+
+        {/* Logo thumbnail */}
+        {brand.logo ? (
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%), linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%)",
+              backgroundSize: "6px 6px",
+              backgroundPosition: "0 0, 3px 3px",
+              backgroundColor: "#fff",
+            }}
+          >
+            <img
+              src={brand.logo}
+              alt=""
+              className="h-full w-full object-contain p-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <span className="text-xs font-medium text-muted-foreground">
+              {brand.name?.charAt(0)?.toUpperCase() || "?"}
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-1 flex-col items-start gap-0.5 overflow-hidden text-left">
+          <span className="text-sm font-medium text-foreground">
+            {brand.name || "Untitled Brand"}
+          </span>
+          {brand.domain && (
+            <span className="truncate text-xs text-muted-foreground">
+              {brand.domain}
+            </span>
+          )}
+        </div>
+
+        {/* Color swatches */}
+        {brand.colors && brand.colors.length > 0 && (
+          <div className="flex shrink-0 gap-1">
+            {brand.colors.slice(0, 5).map((c) => (
+              <div
+                key={c.label}
+                className="h-5 w-5 rounded-full border border-border/40"
+                style={{ backgroundColor: c.value }}
+                title={`${c.label}: ${c.value}`}
+              />
+            ))}
+            {brand.colors.length > 5 && (
+              <span className="flex h-5 items-center text-[10px] text-muted-foreground">
+                +{brand.colors.length - 5}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Font names */}
+        {brand.fonts && brand.fonts.length > 0 && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {brand.fonts
+              .slice(0, 2)
+              .map((f) => f.name)
+              .filter(Boolean)
+              .join(", ")}
+            {brand.fonts.length > 2 && ` +${brand.fonts.length - 2}`}
+          </span>
+        )}
+
+        {/* Delete */}
+        <span
+          role="button"
+          tabIndex={0}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteBrand();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.stopPropagation();
+              deleteBrand();
+            }
+          }}
+        >
+          {isDeleting ? (
+            <span className="text-[10px] text-muted-foreground">...</span>
+          ) : (
+            <Trash01 size={13} className="text-muted-foreground" />
+          )}
+        </span>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="space-y-3 px-5 pb-5">
+          <OverviewSection brand={brand} onSave={saveBrand} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <LogosSection brand={brand} onSave={saveBrand} />
+            <FontsSection brand={brand} onSave={saveBrand} />
+          </div>
+
+          <ColorsSection brand={brand} onSave={saveBrand} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Main page ---
 
 export function OrgBrandContextPage() {
@@ -609,7 +790,7 @@ export function OrgBrandContextPage() {
   });
   const queryClient = useQueryClient();
 
-  const { data: brand = null } = useQuery<BrandContext | null>({
+  const { data: brands = [] } = useQuery<BrandContext[]>({
     queryKey: KEYS.brandContext(org.id),
     queryFn: async () => {
       const result = await client.callTool({
@@ -617,54 +798,35 @@ export function OrgBrandContextPage() {
         arguments: {},
       });
       const data = unwrapToolResult<{ items: BrandContext[] }>(result);
-      const first = data.items?.[0];
-      return first ?? null;
+      return data.items ?? [];
     },
     staleTime: 60_000,
   });
 
-  const { mutate: saveBrand } = useMutation({
-    mutationFn: async (data: Partial<BrandContext>) => {
-      const merged = {
-        name: data.name ?? brand?.name ?? "",
-        domain: data.domain ?? brand?.domain ?? "",
-        overview: data.overview ?? brand?.overview ?? "",
-        logo: "logo" in data ? data.logo : brand?.logo,
-        favicon: "favicon" in data ? data.favicon : brand?.favicon,
-        ogImage: "ogImage" in data ? data.ogImage : brand?.ogImage,
-        fonts: "fonts" in data ? data.fonts : brand?.fonts,
-        colors: "colors" in data ? data.colors : brand?.colors,
-        images: "images" in data ? data.images : brand?.images,
-      };
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: KEYS.brandContext(org.id) });
 
-      if (brand?.id) {
-        await client.callTool({
-          name: "BRAND_CONTEXT_UPDATE",
-          arguments: { id: brand.id, ...merged },
-        });
-      } else {
-        await client.callTool({
-          name: "BRAND_CONTEXT_CREATE",
-          arguments: merged,
-        });
-      }
+  const { mutate: createBrand, isPending: isCreating } = useMutation({
+    mutationFn: async () => {
+      await client.callTool({
+        name: "BRAND_CONTEXT_CREATE",
+        arguments: {
+          name: "New Brand",
+          domain: "example.com",
+          overview: "",
+        },
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: KEYS.brandContext(org.id),
-      });
-      toast.success("Brand context saved");
+      invalidate();
+      toast.success("Brand created");
     },
-    onError: () => {
-      toast.error("Failed to save brand context");
-    },
+    onError: () => toast.error("Failed to create brand"),
   });
 
   const handleAutoExtract = (_domain: string) => {
     toast.info("Auto-extract is not yet available");
   };
-
-  const hasContext = Boolean(brand);
 
   return (
     <Page>
@@ -675,29 +837,49 @@ export function OrgBrandContextPage() {
               <div>
                 <Page.Title>Brand Context</Page.Title>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  This context is automatically included in every prompt so
-                  agents always know your brand.
+                  Define your brand profiles. Each brand is available as an MCP
+                  prompt for AI clients.
                 </p>
               </div>
-              {hasContext && (
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                  Active
-                </span>
-              )}
+              <Button
+                variant="outline"
+                onClick={() => createBrand()}
+                disabled={isCreating}
+              >
+                <Plus size={14} />
+                Add Brand
+              </Button>
             </div>
 
             <AutoExtractBanner onExtract={handleAutoExtract} />
 
-            <div className="space-y-3">
-              <OverviewSection brand={brand ?? {}} onSave={saveBrand} />
-
-              <div className="grid grid-cols-2 gap-3">
-                <LogosSection brand={brand ?? {}} onSave={saveBrand} />
-                <FontsSection brand={brand ?? {}} onSave={saveBrand} />
+            {brands.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No brands configured yet.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => createBrand()}
+                  disabled={isCreating}
+                >
+                  <Plus size={14} />
+                  Add your first brand
+                </Button>
               </div>
+            )}
 
-              <ColorsSection brand={brand ?? {}} onSave={saveBrand} />
+            <div className="group space-y-3">
+              {brands.map((brand) => (
+                <ExpandableBrandEntry
+                  key={brand.id}
+                  brand={brand}
+                  client={client}
+                  onChanged={invalidate}
+                />
+              ))}
             </div>
           </div>
         </Page.Body>
