@@ -174,6 +174,20 @@ export const KEYS = {
   virtualMcpTools: (virtualMcpId: string | null, orgId: string) =>
     ["virtual-mcp", orgId, virtualMcpId ?? "default", "tools"] as const,
 
+  toolDefinitionLookup: (
+    connectionId: string | null,
+    orgId: string,
+    rawToolName: string | null,
+  ) =>
+    [
+      "virtual-mcp",
+      orgId,
+      connectionId ?? "default",
+      "tools",
+      "lookup",
+      rawToolName,
+    ] as const,
+
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
   virtualMcpPrompts: (virtualMcpId: string | null, orgId: string) =>

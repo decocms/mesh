@@ -18,11 +18,7 @@ export function useToolDefinitionLookup(
   orgId: string,
 ): { toolDef: Tool | undefined; isLoading: boolean } {
   const { data: toolDef, isLoading } = useQuery({
-    queryKey: [
-      ...KEYS.virtualMcpTools(connectionId, orgId),
-      "lookup",
-      rawToolName,
-    ],
+    queryKey: KEYS.toolDefinitionLookup(connectionId, orgId, rawToolName),
     queryFn: async () => {
       if (!rawToolName || !connectionId) return null;
 
