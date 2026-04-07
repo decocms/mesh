@@ -1342,18 +1342,28 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
+    const meshContext = c.var.meshContext;
+
+    // Require authentication (user session or API key)
+    const userId = meshContext.auth.user?.id ?? meshContext.auth.apiKey?.userId;
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
     const orgId = c.req.param("organizationId");
-    await c.var.meshContext.eventBus.publish(
-      orgId,
-      WellKnownOrgMCPId.SELF(orgId),
-      {
-        data: await c.req.json(),
-        type: `public:${c.req.param("type")}`,
-        subject: c.req.query("subject"),
-        deliverAt: c.req.query("deliverAt"),
-        cron: c.req.query("cron"),
-      },
-    );
+
+    // Verify the authenticated user belongs to the target organization
+    if (orgId !== meshContext.organization?.id) {
+      return c.json({ error: "Forbidden access to organization" }, 403);
+    }
+
+    await meshContext.eventBus.publish(orgId, WellKnownOrgMCPId.SELF(orgId), {
+      data: await c.req.json(),
+      type: `public:${c.req.param("type")}`,
+      subject: c.req.query("subject"),
+      deliverAt: c.req.query("deliverAt"),
+      cron: c.req.query("cron"),
+    });
     return c.json({ success: true });
   });
 
