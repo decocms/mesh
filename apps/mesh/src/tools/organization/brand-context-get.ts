@@ -71,9 +71,15 @@ export const BRAND_CONTEXT_GET = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
+    const organizationId = ctx.organization?.id;
+    if (!organizationId) {
+      throw new Error(
+        "Organization ID required (no active organization in context)",
+      );
+    }
 
     const brand = await ctx.storage.brandContext.get(input.id);
-    if (!brand) {
+    if (!brand || brand.organizationId !== organizationId) {
       throw new Error("Brand context not found");
     }
 

@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
@@ -18,10 +18,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("images", "text")
     .addColumn("metadata", "text")
     .addColumn("created_at", "timestamptz", (col) =>
-      col.notNull().defaultTo("now()"),
+      col.notNull().defaultTo(sql`now()`),
     )
     .addColumn("updated_at", "timestamptz", (col) =>
-      col.notNull().defaultTo("now()"),
+      col.notNull().defaultTo(sql`now()`),
     )
     .execute();
 

@@ -78,15 +78,27 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
+    const organizationId = ctx.organization?.id;
+    if (!organizationId) {
+      throw new Error(
+        "Organization ID required (no active organization in context)",
+      );
+    }
+
+    // Verify ownership before updating
+    const existing = await ctx.storage.brandContext.get(input.id);
+    if (!existing || existing.organizationId !== organizationId) {
+      throw new Error("Brand context not found");
+    }
 
     const { id, ...data } = input;
     const brand = await ctx.storage.brandContext.update(id, {
       name: data.name,
       domain: data.domain,
       overview: data.overview,
-      logo: data.logo ?? undefined,
-      favicon: data.favicon ?? undefined,
-      ogImage: data.ogImage ?? undefined,
+      logo: data.logo !== undefined ? (data.logo ?? null) : undefined,
+      favicon: data.favicon !== undefined ? (data.favicon ?? null) : undefined,
+      ogImage: data.ogImage !== undefined ? (data.ogImage ?? null) : undefined,
       fonts:
         data.fonts !== undefined
           ? ((data.fonts as Record<string, unknown>[] | null) ?? null)
@@ -140,6 +152,18 @@ export const BRAND_CONTEXT_DELETE = defineTool({
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
+    const organizationId = ctx.organization?.id;
+    if (!organizationId) {
+      throw new Error(
+        "Organization ID required (no active organization in context)",
+      );
+    }
+
+    // Verify ownership before deleting
+    const existing = await ctx.storage.brandContext.get(input.id);
+    if (!existing || existing.organizationId !== organizationId) {
+      throw new Error("Brand context not found");
+    }
 
     await ctx.storage.brandContext.delete(input.id);
     return { success: true };
