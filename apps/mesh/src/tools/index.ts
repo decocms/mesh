@@ -289,20 +289,30 @@ export const managementMCP = async (ctx: MeshContext) => {
         brand.overview,
       ];
 
-      if (brand.colors && Object.keys(brand.colors).length > 0) {
-        lines.push("", "## Colors");
-        for (const [key, value] of Object.entries(brand.colors)) {
-          lines.push(`- **${key}:** ${value}`);
+      if (brand.colors) {
+        // Colors can be {label,value}[] (UI) or Record<string,string> (legacy)
+        const colorEntries = Array.isArray(brand.colors)
+          ? (brand.colors as { label?: string; value?: string }[])
+              .filter((c) => c.label || c.value)
+              .map((c) => [c.label ?? "", c.value ?? ""] as const)
+          : Object.entries(brand.colors);
+        if (colorEntries.length > 0) {
+          lines.push("", "## Colors");
+          for (const [label, value] of colorEntries) {
+            lines.push(`- **${label}:** ${value}`);
+          }
         }
       }
 
       if (brand.fonts && brand.fonts.length > 0) {
         lines.push("", "## Fonts");
         for (const font of brand.fonts) {
-          const parts = Object.entries(font)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(", ");
-          lines.push(`- ${parts}`);
+          // Fonts can be {name,role} (UI) or {family,weight,style} (legacy)
+          const f = font as Record<string, unknown>;
+          const label = f.name ?? f.family ?? "";
+          const detail =
+            f.role ?? [f.weight, f.style].filter(Boolean).join(" ");
+          lines.push(`- ${label}${detail ? ` (${detail})` : ""}`);
         }
       }
 
