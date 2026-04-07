@@ -1,11 +1,11 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { recordToEnvVars } from "@/web/components/env-vars-editor";
 import {
-  envVarsToRecord,
-  recordToEnvVars,
-  type EnvVar,
-} from "@/web/components/env-vars-editor";
+  buildCustomStdioParameters,
+  buildNpxParameters,
+} from "@/web/utils/connection-form-helpers";
 import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
@@ -105,53 +105,6 @@ function parseStdioToCustom(params: StdioConnectionParameters): {
     args: params.args?.join(" ") ?? "",
     cwd: params.cwd ?? "",
   };
-}
-
-/**
- * Build STDIO connection_headers from NPX form fields
- */
-function buildNpxParameters(
-  packageName: string,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: "npx",
-    args: ["-y", packageName],
-  };
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-  return params;
-}
-
-/**
- * Build STDIO connection_headers from custom command form fields
- */
-function buildCustomStdioParameters(
-  command: string,
-  argsString: string,
-  cwd: string | undefined,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: command,
-  };
-
-  if (argsString.trim()) {
-    params.args = argsString.trim().split(/\s+/);
-  }
-
-  if (cwd?.trim()) {
-    params.cwd = cwd.trim();
-  }
-
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-
-  return params;
 }
 
 /**
