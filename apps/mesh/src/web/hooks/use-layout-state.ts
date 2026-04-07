@@ -153,20 +153,20 @@ export function computeDefaultSizes(state: {
 
 type PanelSearchParams = {
   taskId?: string;
-  tasks?: string;
-  mainOpen?: string;
-  chat?: string;
+  tasks?: number;
+  mainOpen?: number;
+  chat?: number;
   main?: string;
   id?: string;
   toolName?: string;
 };
 
 function parsePanelParam(
-  value: string | undefined,
+  value: number | undefined,
   defaultOpen: boolean,
 ): boolean {
-  if (value === "1") return true;
-  if (value === "0") return false;
+  if (value === 1) return true;
+  if (value === 0) return false;
   return defaultOpen;
 }
 
@@ -269,22 +269,22 @@ export function useLayoutState(): LayoutState & LayoutActions {
 
   const toggleTasks = () => {
     if (!canToggle(tasksOpen, expandedCount)) return;
-    navigateSearch({ tasks: !tasksOpen ? "1" : "0" }, { replace: true });
+    navigateSearch({ tasks: !tasksOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
-    navigateSearch({ mainOpen: !mainOpen ? "1" : "0" }, { replace: true });
+    navigateSearch({ mainOpen: !mainOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleChat = () => {
     if (!canToggle(chatOpen, expandedCount)) return;
-    navigateSearch({ chat: !chatOpen ? "1" : "0" }, { replace: true });
+    navigateSearch({ chat: !chatOpen ? 1 : 0 }, { replace: true });
   };
 
   const openChat = () => {
     if (chatOpen) return;
-    navigateSearch({ chat: "1" }, { replace: true });
+    navigateSearch({ chat: 1 }, { replace: true });
   };
 
   const createNewTask = () => {
@@ -296,7 +296,7 @@ export function useLayoutState(): LayoutState & LayoutActions {
       search: (prev: Record<string, unknown>) => {
         const next: Record<string, unknown> = {
           taskId: newTaskId,
-          chat: "1",
+          chat: 1,
         };
         if (prev.tasks) next.tasks = prev.tasks;
         return next;
@@ -328,7 +328,7 @@ export function useLayoutState(): LayoutState & LayoutActions {
 
     const updates: Record<string, unknown> = {
       main: view,
-      mainOpen: "1",
+      mainOpen: 1,
     };
     if (opts?.id) updates.id = opts.id;
     if (opts?.toolName) updates.toolName = opts.toolName;
@@ -344,7 +344,7 @@ export function useLayoutState(): LayoutState & LayoutActions {
         if (prev.taskId) next.taskId = prev.taskId;
         if (prev.tasks) next.tasks = prev.tasks;
         if (prev.chat) next.chat = prev.chat;
-        next.mainOpen = "0";
+        next.mainOpen = 0;
         return next;
       },
       replace: true,
