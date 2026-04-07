@@ -1,5 +1,7 @@
+import { groupConnections } from "@/shared/utils/group-connections";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
+import { CreateConnectionDialog } from "@/web/components/connections/create-connection-dialog.tsx";
 import { ConnectionCard } from "@/web/components/connections/connection-card.tsx";
 import type { RegistryItem } from "@/web/components/store/types";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
@@ -15,10 +17,10 @@ import {
   extractConnectionData,
   getRegistryItemAppName,
 } from "@/web/utils/extract-connection-data";
-import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { useEnabledRegistries } from "@/web/hooks/use-enabled-registries";
 import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
+import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Dialog,
@@ -61,91 +63,6 @@ interface AddConnectionDialogProps {
 }
 
 // ---------------------------------------------------------------------------
-// Grouping (same pattern as connections page)
-// ---------------------------------------------------------------------------
-
-interface ConnectionGroup {
-  type: "group";
-  key: string;
-  icon: string | null;
-  title: string;
-  connections: ConnectionEntity[];
-}
-
-interface SingleConnection {
-  type: "single";
-  connection: ConnectionEntity;
-}
-
-type GroupedItem = SingleConnection | ConnectionGroup;
-
-function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
-  const buckets = new Map<string, ConnectionEntity[]>();
-  for (const c of connections) {
-    const key = getConnectionSlug(c);
-    const list = buckets.get(key);
-    if (list) {
-      list.push(c);
-    } else {
-      buckets.set(key, [c]);
-    }
-  }
-
-  const items: GroupedItem[] = [];
-  const seen = new Set<string>();
-
-  for (const c of connections) {
-    const key = getConnectionSlug(c);
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const bucket = buckets.get(key)!;
-    const first = bucket[0]!;
-    if (bucket.length === 1) {
-      items.push({ type: "single", connection: first });
-    } else {
-      items.push({
-        type: "group",
-        key,
-        icon: first.icon,
-        title: first.app_name
-          ? first.title.replace(/\s*\(\d+\)\s*$/, "")
-          : first.title,
-        connections: bucket,
-      });
-    }
-  }
-  return items;
-}
-
-// ---------------------------------------------------------------------------
-// Add button for connection cards
-// ---------------------------------------------------------------------------
-
-function AddButton({
-  added,
-  onClick,
-}: {
-  added: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant={added ? "ghost" : "outline"}
-      size="sm"
-      className="h-7 px-2 text-xs font-medium"
-      disabled={added}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-    >
-      {added ? <Check size={13} /> : <Plus size={13} />}
-    </Button>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Dialog content (needs Suspense boundary above it)
 // ---------------------------------------------------------------------------
 
@@ -154,18 +71,21 @@ type ConnectionTab = "all" | "connected";
 function AddConnectionDialogContent({
   addedConnectionIds,
   onAdd,
-  onInlineConnect,
+  onCloneAndAdd,
+  onConnectAndAdd,
   connectingItemId,
   search,
+  onCreateConnection,
 }: {
   addedConnectionIds: Set<string>;
   onAdd: (connectionId: string) => void;
-  onInlineConnect: (item: RegistryItem) => void;
+  onCloneAndAdd: (base: ConnectionEntity) => void;
+  onConnectAndAdd: (item: RegistryItem) => void;
   connectingItemId: string | null;
   search: string;
+  onCreateConnection: () => void;
 }) {
   const { org } = useProjectContext();
-  // Defer search so React keeps showing old results instead of suspense fallback
   const deferredSearch = useDeferredValue(search);
   const isSearchStale = search !== deferredSearch;
   const searchLower = deferredSearch.toLowerCase();
@@ -175,7 +95,7 @@ function AddConnectionDialogContent({
     (existing) => existing ?? "connected",
   );
 
-  // Connections - server-side search with infinite scroll (VIRTUAL excluded by default)
+  // Connections - server-side search with infinite scroll
   const PAGE_SIZE = 100;
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -231,9 +151,7 @@ function AddConnectionDialogContent({
           offset: pageParam,
         },
       });
-      const payload =
-        result.structuredContent as CollectionListOutput<ConnectionEntity>;
-      return payload;
+      return result.structuredContent as CollectionListOutput<ConnectionEntity>;
     },
     initialPageParam: 0,
     getNextPageParam: (
@@ -256,7 +174,12 @@ function AddConnectionDialogContent({
     ) ?? [];
   const grouped = groupConnections(allConnections);
 
-  // Registry / catalog - merge all enabled registries (server-side search)
+  // Build set of connected app names to deduplicate catalog items
+  const connectedAppNames = new Set(
+    allConnections.filter((c) => c.app_name).map((c) => c.app_name as string),
+  );
+
+  // Registry / catalog
   const enabledRegistries = useEnabledRegistries();
   const mergedDiscovery = useMergedStoreDiscovery(
     enabledRegistries,
@@ -275,21 +198,15 @@ function AddConnectionDialogContent({
     isFetchingNextConnectionsPage,
   );
 
-  const connectedAppNames = new Set(
-    allConnections.filter((c) => c.app_name).map((c) => c.app_name as string),
-  );
+  const showCatalog = activeTab === "all" || !!searchLower;
 
-  const catalogItems =
-    activeTab === "all" || searchLower
-      ? mergedDiscovery.items.filter((item: RegistryItem) => {
-          // When searching, connected items are already shown via groupedForDisplay
-          if (searchLower) {
-            const appName = getRegistryItemAppName(item);
-            if (appName && connectedAppNames.has(appName)) return false;
-          }
-          return true;
-        })
-      : [];
+  // Catalog items, excluding apps already shown as connected cards
+  const catalogItems = showCatalog
+    ? mergedDiscovery.items.filter((item: RegistryItem) => {
+        const appName = getRegistryItemAppName(item);
+        return !(appName && connectedAppNames.has(appName));
+      })
+    : [];
 
   const verifiedCatalogItems = catalogItems.filter(
     (item: RegistryItem) =>
@@ -304,17 +221,61 @@ function AddConnectionDialogContent({
       !item.meta?.verified,
   );
 
-  // In "All" tab, don't show connected at top — they belong in "Connected" tab
-  // But when searching, show connected results across both
-  const groupedForDisplay = activeTab === "all" && !searchLower ? [] : grouped;
-
-  const isGroupAdded = (connections: ConnectionEntity[]) =>
+  // For connected apps: check if any instance is added to the agent
+  const hasAddedInstance = (connections: ConnectionEntity[]) =>
     connections.some((c) => addedConnectionIds.has(c.id));
 
-  // Render a catalog item card
+  // Render a connected app card — has instances, "Add" adds first instance
+  const renderConnectedApp = (
+    key: string,
+    title: string,
+    icon: string | null,
+    description: string | null,
+    connections: ConnectionEntity[],
+  ) => {
+    const added = hasAddedInstance(connections);
+    const availableInstance = connections.find(
+      (c) => !addedConnectionIds.has(c.id),
+    );
+    const firstInstance = connections[0]!;
+
+    return (
+      <ConnectionCard
+        key={key}
+        connection={{ title, icon, description }}
+        fallbackIcon={<Container />}
+        headerActionsAlwaysVisible
+        headerActions={
+          <div className="flex items-center gap-1.5">
+            {added && (
+              <Badge variant="secondary" className="text-xs gap-1 font-normal">
+                <Check size={11} /> Added
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-xs font-medium"
+              disabled={connectingItemId !== null}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (availableInstance) {
+                  onAdd(availableInstance.id);
+                } else {
+                  onCloneAndAdd(firstInstance);
+                }
+              }}
+            >
+              Add
+            </Button>
+          </div>
+        }
+      />
+    );
+  };
+
+  // Render a catalog item card — no instances yet, "Add" creates + adds
   const renderCatalogItem = (item: RegistryItem) => {
-    const appName = getRegistryItemAppName(item) ?? "";
-    const isConnected = connectedAppNames.has(appName);
     const meshMeta = item._meta?.["mcp.mesh"] as
       | Record<string, string>
       | undefined;
@@ -333,15 +294,6 @@ function AddConnectionDialogContent({
       getGitHubAvatarUrl(item.server?.repository) ||
       null;
 
-    // If already connected, find instances to let user add them directly
-    const appInstances = isConnected
-      ? allConnections.filter((c) => c.app_name === appName)
-      : [];
-    const firstInstance = appInstances[0];
-    const firstAdded = firstInstance
-      ? addedConnectionIds.has(firstInstance.id)
-      : false;
-
     return (
       <ConnectionCard
         key={`catalog-${item.id}`}
@@ -349,34 +301,22 @@ function AddConnectionDialogContent({
         fallbackIcon={<Container />}
         headerActionsAlwaysVisible
         headerActions={
-          isConnected ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Connected</span>
-              {firstInstance && (
-                <AddButton
-                  added={firstAdded}
-                  onClick={() => onAdd(firstInstance.id)}
-                />
-              )}
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-3 text-xs font-medium"
-              disabled={connectingItemId !== null}
-              onClick={(e) => {
-                e.stopPropagation();
-                onInlineConnect(item);
-              }}
-            >
-              {connectingItemId === item.id ? (
-                <Loading01 size={14} className="animate-spin" />
-              ) : (
-                "Connect"
-              )}
-            </Button>
-          )
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-3 text-xs font-medium"
+            disabled={connectingItemId !== null}
+            onClick={(e) => {
+              e.stopPropagation();
+              onConnectAndAdd(item);
+            }}
+          >
+            {connectingItemId === item.id ? (
+              <Loading01 size={14} className="animate-spin" />
+            ) : (
+              "Add"
+            )}
+          </Button>
         }
       />
     );
@@ -384,17 +324,28 @@ function AddConnectionDialogContent({
 
   return (
     <>
-      {/* Tabs */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
-        <CollectionTabs
-          tabs={[
-            { id: "all", label: "All" },
-            { id: "connected", label: "Connected" },
-          ]}
-          activeTab={activeTab}
-          onTabChange={(id) => setActiveTab(id as ConnectionTab)}
-        />
-      </div>
+      {/* Tabs — hidden when searching */}
+      {!searchLower && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+          <CollectionTabs
+            tabs={[
+              { id: "all", label: "All" },
+              { id: "connected", label: "Connected" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as ConnectionTab)}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-sm"
+            onClick={onCreateConnection}
+          >
+            <Plus size={12} />
+            Custom Connection
+          </Button>
+        </div>
+      )}
 
       {/* Content grid */}
       <div
@@ -404,123 +355,80 @@ function AddConnectionDialogContent({
         )}
       >
         <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-          {/* Connected connections (shown in Connected tab, or in All when searching) */}
-          {groupedForDisplay.map((item) => {
+          {/* Connected apps — one card per app */}
+          {grouped.map((item) => {
             if (item.type === "group") {
-              const added = isGroupAdded(item.connections);
-              const firstInstance = item.connections[0]!;
-              return (
-                <ConnectionCard
-                  key={item.key}
-                  connection={{
-                    title: item.title,
-                    icon: item.icon,
-                    description: `${item.connections.length} instances`,
-                  }}
-                  fallbackIcon={<Container />}
-                  headerActionsAlwaysVisible
-                  headerActions={
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">
-                        Connected
-                      </span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        x{item.connections.length}
-                      </span>
-                      <AddButton
-                        added={added}
-                        onClick={() => onAdd(firstInstance.id)}
-                      />
-                    </div>
-                  }
-                />
+              return renderConnectedApp(
+                item.key,
+                item.title,
+                item.icon,
+                null,
+                item.connections,
               );
             }
-
-            const connection = item.connection;
-            const added = addedConnectionIds.has(connection.id);
-            return (
-              <ConnectionCard
-                key={connection.id}
-                connection={connection}
-                fallbackIcon={<Container />}
-                headerActionsAlwaysVisible
-                headerActions={
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      Connected
-                    </span>
-                    <AddButton
-                      added={added}
-                      onClick={() => onAdd(connection.id)}
-                    />
-                  </div>
-                }
-              />
+            const c = item.connection;
+            return renderConnectedApp(
+              c.id,
+              c.title,
+              c.icon,
+              c.description ?? null,
+              [c],
             );
           })}
 
-          {/* Infinite scroll sentinel for connected results (Connected tab or search in All tab) */}
-          {(activeTab === "connected" || searchLower) && (
-            <>
-              <div ref={connectedSentinelRef} className="col-span-full h-4" />
-              {isFetchingNextConnectionsPage && (
-                <div className="col-span-full flex justify-center py-6">
-                  <Loading01
-                    size={24}
-                    className="animate-spin text-muted-foreground"
-                  />
-                </div>
-              )}
-            </>
+          {/* Infinite scroll sentinel for connected results */}
+          <div ref={connectedSentinelRef} className="col-span-full h-1" />
+          {isFetchingNextConnectionsPage && (
+            <div className="col-span-full flex justify-center py-6">
+              <Loading01
+                size={24}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
           )}
 
           {/* Verified catalog items */}
-          {(activeTab === "all" || searchLower) &&
-            verifiedCatalogItems.length > 0 && (
-              <div className="col-span-full flex items-center gap-2 mt-2">
-                <CheckVerified02
-                  size={13}
-                  className="text-muted-foreground shrink-0"
-                />
-                <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                  Verified
-                </span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-            )}
-          {verifiedCatalogItems.map(renderCatalogItem)}
+          {showCatalog && verifiedCatalogItems.length > 0 && (
+            <div className="col-span-full flex items-center gap-2 mt-2">
+              <CheckVerified02
+                size={13}
+                className="text-muted-foreground shrink-0"
+              />
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Verified
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+          )}
+          {showCatalog && verifiedCatalogItems.map(renderCatalogItem)}
 
           {/* Other catalog items */}
-          {(activeTab === "all" || searchLower) &&
-            otherCatalogItems.length > 0 && (
-              <div className="col-span-full flex items-center gap-2 mt-2">
-                <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                  All connections
-                </span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-            )}
-          {otherCatalogItems.map(renderCatalogItem)}
+          {showCatalog && otherCatalogItems.length > 0 && (
+            <div className="col-span-full flex items-center gap-2 mt-2">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                All connections
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+          )}
+          {showCatalog && otherCatalogItems.map(renderCatalogItem)}
 
-          {/* Infinite scroll sentinel */}
-          {(activeTab === "all" || searchLower) &&
-            enabledRegistries.length > 0 && (
-              <div ref={catalogSentinelRef} className="col-span-full h-4" />
-            )}
-          {(activeTab === "all" || searchLower) &&
-            mergedDiscovery.isLoadingMore && (
-              <div className="col-span-full flex justify-center py-6">
-                <Loading01
-                  size={24}
-                  className="animate-spin text-muted-foreground"
-                />
-              </div>
-            )}
+          {/* Catalog infinite scroll sentinel */}
+          {showCatalog && enabledRegistries.length > 0 && (
+            <div ref={catalogSentinelRef} className="col-span-full h-1" />
+          )}
+          {showCatalog && mergedDiscovery.isLoadingMore && (
+            <div className="col-span-full flex justify-center py-6">
+              <Loading01
+                size={24}
+                className="animate-spin text-muted-foreground"
+              />
+            </div>
+          )}
         </div>
 
         {/* Empty states */}
-        {groupedForDisplay.length === 0 &&
+        {grouped.length === 0 &&
           verifiedCatalogItems.length === 0 &&
           otherCatalogItems.length === 0 && (
             <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
@@ -548,12 +456,101 @@ export function AddConnectionDialog({
 }: AddConnectionDialogProps) {
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
   const connectionActions = useConnectionActions();
   const queryClient = useQueryClient();
 
-  const handleInlineConnect = async (item: RegistryItem) => {
+  // For connected apps: clone existing connection + add to agent
+  const handleCloneAndAdd = async (base: ConnectionEntity) => {
+    setConnectingItemId(base.app_name ?? base.id);
+    try {
+      const baseName = base.title.replace(/\s*\(\d+\)\s*$/, "");
+      const newTitle = `${baseName} (${Date.now().toString(36).slice(-4)})`;
+
+      const created = await connectionActions.create.mutateAsync({
+        title: newTitle,
+        description: base.description ?? null,
+        connection_type: base.connection_type,
+        connection_url: base.connection_url ?? null,
+        connection_token: null,
+        icon: base.icon ?? null,
+        app_name: base.app_name ?? null,
+        app_id: base.app_id ?? null,
+        connection_headers: base.connection_headers ?? null,
+      });
+      const id = created.id;
+
+      // Handle OAuth if needed
+      const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+      const authStatus = await isConnectionAuthenticated({
+        url: mcpProxyUrl.href,
+        token: null,
+      });
+
+      if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+        const { token, tokenInfo, error } = await authenticateMcp({
+          connectionId: id,
+        });
+        if (error || !token) {
+          toast.error(`Authentication failed: ${error ?? "no token received"}`);
+          // Clean up the orphaned connection
+          await connectionActions.delete.mutateAsync(id);
+          return;
+        }
+        if (tokenInfo) {
+          try {
+            const response = await fetch(`/api/connections/${id}/oauth-token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                accessToken: tokenInfo.accessToken,
+                refreshToken: tokenInfo.refreshToken,
+                expiresIn: tokenInfo.expiresIn,
+                scope: tokenInfo.scope,
+                clientId: tokenInfo.clientId,
+                clientSecret: tokenInfo.clientSecret,
+                tokenEndpoint: tokenInfo.tokenEndpoint,
+              }),
+            });
+            if (!response.ok) {
+              await connectionActions.update.mutateAsync({
+                id,
+                data: { connection_token: token },
+              });
+            } else {
+              await connectionActions.update.mutateAsync({ id, data: {} });
+            }
+          } catch {
+            await connectionActions.update.mutateAsync({
+              id,
+              data: { connection_token: token },
+            });
+          }
+        } else {
+          await connectionActions.update.mutateAsync({
+            id,
+            data: { connection_token: token },
+          });
+        }
+        await queryClient.invalidateQueries({
+          queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+        });
+      }
+
+      onAdd(id);
+    } catch (err) {
+      console.error("Failed to add connection:", err);
+      toast.error("Failed to add connection");
+    } finally {
+      setConnectingItemId(null);
+    }
+  };
+
+  // For catalog items with no instances: create connection + add to agent
+  const handleConnectAndAdd = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
     setConnectingItemId(item.id);
 
@@ -596,7 +593,6 @@ export function AddConnectionDialog({
         });
         if (error || !token) {
           toast.error(`Authentication failed: ${error ?? "no token received"}`);
-          // Still add to agent — user can auth later from agent page
           onAdd(id);
           return;
         }
@@ -646,7 +642,6 @@ export function AddConnectionDialog({
         toast.success("Connected");
       }
 
-      // Add to agent
       onAdd(id);
     } catch (err) {
       console.error("Failed to connect:", err);
@@ -665,7 +660,6 @@ export function AddConnectionDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search lives outside Suspense so it never unmounts during refetches */}
         <div className="pt-3 shrink-0">
           <CollectionSearch
             value={search}
@@ -687,12 +681,90 @@ export function AddConnectionDialog({
           <AddConnectionDialogContent
             addedConnectionIds={addedConnectionIds}
             onAdd={onAdd}
-            onInlineConnect={handleInlineConnect}
+            onCloneAndAdd={handleCloneAndAdd}
+            onConnectAndAdd={handleConnectAndAdd}
             connectingItemId={connectingItemId}
             search={search}
+            onCreateConnection={() => setCreateOpen(true)}
           />
         </Suspense>
       </DialogContent>
+
+      <CreateConnectionDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={async (id) => {
+          setCreateOpen(false);
+
+          // Handle OAuth if needed (same flow as handleConnectAndAdd)
+          const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+          const authStatus = await isConnectionAuthenticated({
+            url: mcpProxyUrl.href,
+            token: null,
+          });
+
+          if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+            const { token, tokenInfo, error } = await authenticateMcp({
+              connectionId: id,
+            });
+            if (error || !token) {
+              toast.error(
+                `Authentication failed: ${error ?? "no token received"}`,
+              );
+              await connectionActions.delete.mutateAsync(id);
+              return;
+            }
+            if (tokenInfo) {
+              try {
+                const response = await fetch(
+                  `/api/connections/${id}/oauth-token`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                      accessToken: tokenInfo.accessToken,
+                      refreshToken: tokenInfo.refreshToken,
+                      expiresIn: tokenInfo.expiresIn,
+                      scope: tokenInfo.scope,
+                      clientId: tokenInfo.clientId,
+                      clientSecret: tokenInfo.clientSecret,
+                      tokenEndpoint: tokenInfo.tokenEndpoint,
+                    }),
+                  },
+                );
+                if (!response.ok) {
+                  await connectionActions.update.mutateAsync({
+                    id,
+                    data: { connection_token: token },
+                  });
+                } else {
+                  await connectionActions.update.mutateAsync({
+                    id,
+                    data: {},
+                  });
+                }
+              } catch {
+                await connectionActions.update.mutateAsync({
+                  id,
+                  data: { connection_token: token },
+                });
+              }
+            } else {
+              await connectionActions.update.mutateAsync({
+                id,
+                data: { connection_token: token },
+              });
+            }
+            await queryClient.invalidateQueries({
+              queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+            });
+          }
+
+          onAdd(id);
+          onOpenChange(false);
+        }}
+      />
     </Dialog>
   );
 }
