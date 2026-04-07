@@ -63,6 +63,7 @@ export interface Settings {
   // External service credentials (optional)
   decoSupabaseUrl: string | undefined;
   decoSupabaseServiceKey: string | undefined;
+  firecrawlApiKey: string | undefined;
 }
 
 export interface CliFlags {

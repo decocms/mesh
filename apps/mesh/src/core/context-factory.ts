@@ -32,6 +32,7 @@ import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
+import { BrandContextStorage } from "../storage/brand-context";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import {
@@ -898,6 +899,7 @@ export async function createMeshContextFactory(
       monitorResults: new MonitorResultStorage(config.db as any),
       monitorConnections: new MonitorConnectionStorage(config.db as any),
     },
+    brandContext: new BrandContextStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin
@@ -1042,6 +1044,7 @@ export async function createMeshContextFactory(
         : undefined,
       getOrCreateClient: clientPool,
       pendingRevalidations: [],
+      firecrawlApiKey: getSettings().firecrawlApiKey,
     };
 
     return ctx;
