@@ -23,7 +23,7 @@ export type ConnectionProviderHint = {
 // URL normalization (trailing-slash / origin normalization for comparison)
 // ---------------------------------------------------------------------------
 
-export function normalizeConnectionUrl(input: string): string {
+function normalizeConnectionUrl(input: string): string {
   const raw = input.trim();
   if (!raw) return "";
   try {
