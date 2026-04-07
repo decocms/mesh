@@ -419,11 +419,18 @@ export interface BrandContextStoragePort {
     organizationId: string,
     options?: { includeArchived?: boolean },
   ): Promise<BrandContext[]>;
+  getDefault(organizationId: string): Promise<BrandContext | null>;
+  setDefault(id: string, organizationId: string): Promise<BrandContext>;
   create(
     organizationId: string,
     data: Omit<
       BrandContext,
-      "id" | "organizationId" | "archivedAt" | "createdAt" | "updatedAt"
+      | "id"
+      | "organizationId"
+      | "archivedAt"
+      | "isDefault"
+      | "createdAt"
+      | "updatedAt"
     >,
   ): Promise<BrandContext>;
   update(

@@ -99,6 +99,12 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
     }
 
     const { id, ...data } = input;
+
+    // Use setDefault to atomically clear other defaults
+    if (data.isDefault === true) {
+      await ctx.storage.brandContext.setDefault(id, organizationId);
+    }
+
     const brand = await ctx.storage.brandContext.update(id, organizationId, {
       name: data.name,
       domain: data.domain,

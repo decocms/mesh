@@ -12,6 +12,7 @@ import {
   LinkExternal01,
   Check,
   Plus,
+  Star01,
   Trash01,
   X,
   Globe02,
@@ -41,6 +42,7 @@ type BrandContext = {
   colors?: { label: string; value: string }[];
   images?: string[];
   archivedAt?: string | null;
+  isDefault?: boolean;
 };
 
 // --- Editable card ---
@@ -672,8 +674,27 @@ function ExpandableBrandEntry({
       ),
   });
 
+  const { mutate: setAsDefault } = useMutation({
+    mutationFn: async () => {
+      await client.callTool({
+        name: "BRAND_CONTEXT_UPDATE",
+        arguments: { id: brand.id, isDefault: true },
+      });
+    },
+    onSuccess: () => {
+      onChanged();
+      toast.success("Set as default brand");
+    },
+    onError: () => toast.error("Failed to set default brand"),
+  });
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-background">
+    <div
+      className={cn(
+        "rounded-2xl border bg-background",
+        brand.isDefault ? "border-primary/30" : "border-border/60",
+      )}
+    >
       {/* Collapsed header — always visible */}
       <button
         type="button"
@@ -755,7 +776,41 @@ function ExpandableBrandEntry({
           </span>
         )}
 
-        {/* Delete */}
+        {/* Default star */}
+        {!archived && (
+          <span
+            role="button"
+            tabIndex={0}
+            className={cn(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-opacity",
+              brand.isDefault
+                ? "opacity-100"
+                : "opacity-0 hover:bg-muted group-hover:opacity-100",
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!brand.isDefault) setAsDefault();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.stopPropagation();
+                if (!brand.isDefault) setAsDefault();
+              }
+            }}
+            title={brand.isDefault ? "Default brand" : "Set as default"}
+          >
+            <Star01
+              size={13}
+              className={
+                brand.isDefault
+                  ? "text-primary fill-primary"
+                  : "text-muted-foreground"
+              }
+            />
+          </span>
+        )}
+
+        {/* Archive */}
         <span
           role="button"
           tabIndex={0}

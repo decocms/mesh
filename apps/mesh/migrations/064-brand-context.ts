@@ -18,6 +18,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("images", "text")
     .addColumn("metadata", "text")
     .addColumn("archived_at", "timestamptz")
+    .addColumn("is_default", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("created_at", "timestamptz", (col) =>
       col.notNull().defaultTo(sql`now()`),
     )

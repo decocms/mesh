@@ -78,6 +78,10 @@ export const BrandContextSchema = z.object({
     .nullable()
     .optional()
     .describe("Archive timestamp (null to unarchive)"),
+  isDefault: z
+    .boolean()
+    .optional()
+    .describe("Whether this is the default brand for the organization"),
 });
 
 export type BrandContextInput = z.infer<typeof BrandContextSchema>;

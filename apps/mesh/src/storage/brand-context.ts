@@ -26,6 +26,7 @@ function toEntity(
     images: string | null;
     metadata: string | null;
     archived_at: Date | null;
+    is_default: boolean;
     created_at: Date;
     updated_at: Date;
   },
@@ -44,6 +45,7 @@ function toEntity(
     images: parseJson(record.images),
     metadata: parseJson(record.metadata),
     archivedAt: record.archived_at,
+    isDefault: record.is_default,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };
@@ -85,7 +87,12 @@ export class BrandContextStorage implements BrandContextStoragePort {
     organizationId: string,
     data: Omit<
       BrandContext,
-      "id" | "organizationId" | "archivedAt" | "createdAt" | "updatedAt"
+      | "id"
+      | "organizationId"
+      | "archivedAt"
+      | "isDefault"
+      | "createdAt"
+      | "updatedAt"
     >,
   ): Promise<BrandContext> {
     const id = crypto.randomUUID();
@@ -107,6 +114,7 @@ export class BrandContextStorage implements BrandContextStoragePort {
         images: data.images ? JSON.stringify(data.images) : null,
         metadata: data.metadata ? JSON.stringify(data.metadata) : null,
         archived_at: null,
+        is_default: false,
         created_at: now,
         updated_at: now,
       })
@@ -142,6 +150,7 @@ export class BrandContextStorage implements BrandContextStoragePort {
       updates.metadata = data.metadata ? JSON.stringify(data.metadata) : null;
     if (data.archivedAt !== undefined)
       updates.archived_at = data.archivedAt ?? null;
+    if (data.isDefault !== undefined) updates.is_default = data.isDefault;
 
     await this.db
       .updateTable("brand_context")
@@ -153,6 +162,32 @@ export class BrandContextStorage implements BrandContextStoragePort {
     const result = await this.get(id, organizationId);
     if (!result) throw new Error("Brand context not found");
     return result;
+  }
+
+  async getDefault(organizationId: string): Promise<BrandContext | null> {
+    const record = await this.db
+      .selectFrom("brand_context")
+      .selectAll()
+      .where("organization_id", "=", organizationId)
+      .where("is_default", "=", true)
+      .where("archived_at", "is", null)
+      .executeTakeFirst();
+
+    if (!record) return null;
+    return toEntity(record);
+  }
+
+  async setDefault(id: string, organizationId: string): Promise<BrandContext> {
+    // Clear all defaults for this org
+    await this.db
+      .updateTable("brand_context")
+      .set({ is_default: false })
+      .where("organization_id", "=", organizationId)
+      .where("is_default", "=", true)
+      .execute();
+
+    // Set the new default
+    return this.update(id, organizationId, { isDefault: true });
   }
 
   async delete(id: string, organizationId: string): Promise<void> {

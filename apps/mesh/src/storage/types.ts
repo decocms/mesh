@@ -953,6 +953,7 @@ export interface BrandContextTable {
     Date | string | null,
     Date | string | null
   >;
+  is_default: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -971,6 +972,7 @@ export interface BrandContext {
   images: Record<string, unknown>[] | null;
   metadata: Record<string, unknown> | null;
   archivedAt: Date | string | null;
+  isDefault: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
