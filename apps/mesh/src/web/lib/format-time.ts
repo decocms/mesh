@@ -22,3 +22,17 @@ export function formatTimeUntil(date: Date): string {
   if (seconds < 604800) return `in ${Math.floor(seconds / 86400)}d`;
   return `in ${Math.floor(seconds / 604800)}w`;
 }
+
+/**
+ * Format a duration in seconds into a human-readable string.
+ * - Under 60s: "12.3s"
+ * - 60s and above: "2m 3.1s"
+ */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs.toFixed(1)}s`;
+}
