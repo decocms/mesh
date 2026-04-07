@@ -45,62 +45,6 @@ spec:
       serviceAccountName: {{ include "chart-deco-studio.serviceAccountName" . }}
       securityContext:
         {{- include "chart-deco-studio.podSecurityContext" . | nindent 8 }}
-      {{- if .Values.secret.authConfigSecretName }}
-      initContainers:
-        - name: build-auth-config
-          image: alpine:latest
-          command:
-            - /bin/sh
-            - -c
-            - |
-              apk add --no-cache jq > /dev/null 2>&1
-              
-              # Read values from Secret volume
-              GOOGLE_CLIENT_ID=$(cat /secrets/googleClientId 2>/dev/null || echo "")
-              GOOGLE_CLIENT_SECRET=$(cat /secrets/googleClientSecret 2>/dev/null || echo "")
-              GITHUB_CLIENT_ID=$(cat /secrets/githubClientId 2>/dev/null || echo "")
-              GITHUB_CLIENT_SECRET=$(cat /secrets/githubClientSecret 2>/dev/null || echo "")
-              RESEND_API_KEY=$(cat /secrets/resendApiKey 2>/dev/null || echo "")
-              
-              # Read base config from ConfigMap (non-sensitive values)
-              BASE_CONFIG=$(cat /base-config/auth-config.json 2>/dev/null || echo "{}")
-              
-              # Merge Secret values into base config - preserve entire structure
-              # Only inject provider secrets when the provider is defined in the configmap
-              UPDATED_CONFIG=$(echo "$BASE_CONFIG" | jq --arg gid "$GOOGLE_CLIENT_ID" --arg gsec "$GOOGLE_CLIENT_SECRET" --arg ghid "$GITHUB_CLIENT_ID" --arg ghsec "$GITHUB_CLIENT_SECRET" --arg rkey "$RESEND_API_KEY" '
-                # Update Google OAuth if values provided and provider is configured
-                (if ($gid != "") and (.socialProviders.google // null) != null then .socialProviders.google.clientId = $gid else . end) |
-                (if ($gsec != "") and (.socialProviders.google // null) != null then .socialProviders.google.clientSecret = $gsec else . end) |
-                # Update GitHub OAuth if values provided and provider is configured
-                (if ($ghid != "") and (.socialProviders.github // null) != null then .socialProviders.github.clientId = $ghid else . end) |
-                (if ($ghsec != "") and (.socialProviders.github // null) != null then .socialProviders.github.clientSecret = $ghsec else . end) |
-                # Update Resend API Key if provided - this must return the full object
-                (if $rkey != "" then 
-                  .emailProviders = (.emailProviders | map(if .id == "resend-primary" then .config.apiKey = $rkey else . end))
-                else . end)
-              ')
-              
-              # Write merged config to shared volume (compact format)
-              echo "$UPDATED_CONFIG" | jq -c . > /shared/auth-config.json
-              
-              # Verify the output
-              if [ -s /shared/auth-config.json ]; then
-                echo "Auth config built successfully"
-                echo "Verification: socialProviders present: $(echo "$UPDATED_CONFIG" | jq -r 'has("socialProviders")')"
-              else
-                echo "ERROR: Failed to build auth config"
-                exit 1
-              fi
-          volumeMounts:
-            - name: auth-secrets
-              mountPath: /secrets
-              readOnly: true
-            - name: auth-config-base
-              mountPath: /base-config
-              readOnly: true
-            - name: auth-config-shared
-              mountPath: /shared
-      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}
@@ -168,17 +112,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            {{- if .Values.secret.authConfigSecretName }}
-            - name: auth-config-shared
-              mountPath: /app/apps/mesh/auth-config.json
-              subPath: auth-config.json
-              readOnly: true
-            {{- else }}
             - name: auth-config
               mountPath: /app/apps/mesh/auth-config.json
               subPath: auth-config.json
               readOnly: true
-            {{- end }}
             - name: data
               mountPath: {{ .Values.configMap.meshConfig.DATA_DIR | default "/app/data" }}
             {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
@@ -256,26 +193,12 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        {{- if .Values.secret.authConfigSecretName }}
-        - name: auth-secrets
-          secret:
-            secretName: {{ .Values.secret.authConfigSecretName }}
-        - name: auth-config-base
-          configMap:
-            name: {{ include "chart-deco-studio.fullname" . }}-auth-config
-            items:
-              - key: auth-config.json
-                path: auth-config.json
-        - name: auth-config-shared
-          emptyDir: {}
-        {{- else }}
         - name: auth-config
           configMap:
             name: {{ include "chart-deco-studio.fullname" . }}-auth-config
             items:
               - key: auth-config.json
                 path: auth-config.json
-        {{- end }}
         {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
         - name: ca-cert
           configMap:
