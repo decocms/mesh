@@ -111,8 +111,10 @@ function BrandCard({
 
 function AutoExtractBanner({
   onExtract,
+  isExtracting,
 }: {
   onExtract: (domain: string) => void;
+  isExtracting?: boolean;
 }) {
   const [domain, setDomain] = useState("");
 
@@ -144,11 +146,11 @@ function AutoExtractBanner({
             />
             <Button
               variant="outline"
-              disabled={!domain.trim()}
+              disabled={!domain.trim() || isExtracting}
               onClick={() => onExtract(domain.trim())}
             >
               <Globe02 size={14} />
-              Extract
+              {isExtracting ? "Extracting..." : "Extract"}
             </Button>
           </div>
         </div>
@@ -824,9 +826,22 @@ export function OrgBrandContextPage() {
     onError: () => toast.error("Failed to create brand"),
   });
 
-  const handleAutoExtract = (_domain: string) => {
-    toast.info("Auto-extract is not yet available");
-  };
+  const { mutate: extractBrand, isPending: isExtracting } = useMutation({
+    mutationFn: async (domain: string) => {
+      await client.callTool({
+        name: "BRAND_CONTEXT_EXTRACT",
+        arguments: { domain },
+      });
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Brand extracted successfully");
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error ? err.message : "Failed to extract brand",
+      ),
+  });
 
   return (
     <Page>
@@ -851,7 +866,10 @@ export function OrgBrandContextPage() {
               </Button>
             </div>
 
-            <AutoExtractBanner onExtract={handleAutoExtract} />
+            <AutoExtractBanner
+              onExtract={(domain) => extractBrand(domain)}
+              isExtracting={isExtracting}
+            />
 
             {brands.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">

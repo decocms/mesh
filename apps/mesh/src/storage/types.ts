@@ -962,7 +962,7 @@ export interface BrandContext {
   favicon: string | null;
   ogImage: string | null;
   fonts: Record<string, unknown>[] | null;
-  colors: Record<string, unknown> | null;
+  colors: Record<string, unknown>[] | Record<string, unknown> | null;
   images: Record<string, unknown>[] | null;
   metadata: Record<string, unknown> | null;
   createdAt: Date | string;

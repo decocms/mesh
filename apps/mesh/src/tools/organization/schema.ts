@@ -54,10 +54,13 @@ export const BrandContextSchema = z.object({
     .optional()
     .describe("Font configuration"),
   colors: z
-    .record(z.string(), z.unknown())
+    .union([
+      z.array(z.record(z.string(), z.unknown())),
+      z.record(z.string(), z.unknown()),
+    ])
     .nullable()
     .optional()
-    .describe("Color palette"),
+    .describe("Color palette — array of {label,value} or key-value object"),
   images: z
     .array(z.record(z.string(), z.unknown()))
     .nullable()

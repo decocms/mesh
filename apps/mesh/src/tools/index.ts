@@ -48,6 +48,7 @@ const CORE_TOOLS = [
   OrganizationTools.BRAND_CONTEXT_CREATE,
   OrganizationTools.BRAND_CONTEXT_UPDATE,
   OrganizationTools.BRAND_CONTEXT_DELETE,
+  OrganizationTools.BRAND_CONTEXT_EXTRACT,
   OrganizationTools.ORGANIZATION_MEMBER_ADD,
   OrganizationTools.ORGANIZATION_MEMBER_REMOVE,
   OrganizationTools.ORGANIZATION_MEMBER_LIST,
