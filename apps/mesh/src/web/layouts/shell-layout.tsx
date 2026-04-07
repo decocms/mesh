@@ -360,12 +360,12 @@ function AgentPanelGroup({
         </>
       )}
 
-      {showThreePanels && !isOrgHome && (
+      {showThreePanels && (
         <ResizablePanel
           ref={mainPanelRef}
           className="min-w-0 flex flex-col"
           order={2}
-          defaultSize={mainDefaultCollapsed ? 0 : undefined}
+          defaultSize={mainDefaultCollapsed || isOrgHome ? 0 : undefined}
           style={{ overflow: "visible" }}
           collapsible
           collapsedSize={0}
@@ -403,21 +403,20 @@ function AgentPanelGroup({
 
       {showThreePanels && (
         <>
-          {!isOrgHome && <ResizableHandle className="bg-sidebar" />}
+          <ResizableHandle className="bg-sidebar" />
           <PersistentResizablePanel
             key={
-              isOrgHome
-                ? "chat-home"
-                : mainDefaultCollapsed
-                  ? "chat-no-main"
-                  : chatDefaultCollapsed
-                    ? "chat-hidden"
-                    : "chat-default"
+              mainDefaultCollapsed || isOrgHome
+                ? "chat-no-main"
+                : chatDefaultCollapsed
+                  ? "chat-hidden"
+                  : "chat-default"
             }
             panelRef={chatPanelRef}
             defaultCollapsed={chatDefaultCollapsed}
-            defaultFullWidth={isOrgHome}
-            defaultSizeOverride={mainDefaultCollapsed ? 78 : undefined}
+            defaultSizeOverride={
+              mainDefaultCollapsed || isOrgHome ? 78 : undefined
+            }
             onCollapse={() => setChatOpen(false)}
             onExpand={() => setChatOpen(true)}
           >
@@ -471,7 +470,7 @@ function ShellLayoutInner({
 }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [tasksOpen, setTasksOpen] = useState(false);
-  const [mainOpen, setMainOpen] = useState(true);
+  const [mainOpen, setMainOpen] = useState(!isOrgHome);
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
 
@@ -738,14 +737,11 @@ function ShellLayoutInner({
                     type="button"
                     onClick={toggleMain}
                     aria-pressed={mainOpen}
-                    disabled={isOrgHome}
                     className={cn(
                       "flex size-7 items-center justify-center rounded-md transition-colors",
-                      isOrgHome
-                        ? "text-sidebar-foreground/30 cursor-not-allowed"
-                        : mainOpen
-                          ? "bg-sidebar-accent text-sidebar-foreground"
-                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                      mainOpen
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                     title="Toggle content"
                   >
