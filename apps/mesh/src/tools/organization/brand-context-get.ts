@@ -78,8 +78,8 @@ export const BRAND_CONTEXT_GET = defineTool({
       );
     }
 
-    const brand = await ctx.storage.brandContext.get(input.id);
-    if (!brand || brand.organizationId !== organizationId) {
+    const brand = await ctx.storage.brandContext.get(input.id, organizationId);
+    if (!brand) {
       throw new Error("Brand context not found");
     }
 

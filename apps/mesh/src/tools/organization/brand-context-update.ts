@@ -86,13 +86,16 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
     }
 
     // Verify ownership before updating
-    const existing = await ctx.storage.brandContext.get(input.id);
-    if (!existing || existing.organizationId !== organizationId) {
+    const existing = await ctx.storage.brandContext.get(
+      input.id,
+      organizationId,
+    );
+    if (!existing) {
       throw new Error("Brand context not found");
     }
 
     const { id, ...data } = input;
-    const brand = await ctx.storage.brandContext.update(id, {
+    const brand = await ctx.storage.brandContext.update(id, organizationId, {
       name: data.name,
       domain: data.domain,
       overview: data.overview,
@@ -160,12 +163,15 @@ export const BRAND_CONTEXT_DELETE = defineTool({
     }
 
     // Verify ownership before deleting
-    const existing = await ctx.storage.brandContext.get(input.id);
-    if (!existing || existing.organizationId !== organizationId) {
+    const existing = await ctx.storage.brandContext.get(
+      input.id,
+      organizationId,
+    );
+    if (!existing) {
       throw new Error("Brand context not found");
     }
 
-    await ctx.storage.brandContext.delete(input.id);
+    await ctx.storage.brandContext.delete(input.id, organizationId);
     return { success: true };
   },
 });

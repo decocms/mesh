@@ -276,7 +276,9 @@ export const managementMCP = async (ctx: MeshContext) => {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
-      const promptName = `brand-${slug || brand.id}`;
+      const promptName = slug
+        ? `brand-${slug}-${brand.id.slice(0, 8)}`
+        : `brand-${brand.id}`;
 
       const lines: string[] = [
         `# Brand: ${brand.name}`,

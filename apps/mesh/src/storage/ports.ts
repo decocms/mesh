@@ -414,7 +414,7 @@ export interface TagStoragePort {
 // ============================================================================
 
 export interface BrandContextStoragePort {
-  get(id: string): Promise<BrandContext | null>;
+  get(id: string, organizationId: string): Promise<BrandContext | null>;
   list(organizationId: string): Promise<BrandContext[]>;
   create(
     organizationId: string,
@@ -425,9 +425,10 @@ export interface BrandContextStoragePort {
   ): Promise<BrandContext>;
   update(
     id: string,
+    organizationId: string,
     data: Partial<
       Omit<BrandContext, "id" | "organizationId" | "createdAt" | "updatedAt">
     >,
   ): Promise<BrandContext>;
-  delete(id: string): Promise<void>;
+  delete(id: string, organizationId: string): Promise<void>;
 }

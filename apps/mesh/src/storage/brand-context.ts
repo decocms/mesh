@@ -50,11 +50,12 @@ function toEntity(
 export class BrandContextStorage implements BrandContextStoragePort {
   constructor(private readonly db: Kysely<Database>) {}
 
-  async get(id: string): Promise<BrandContext | null> {
+  async get(id: string, organizationId: string): Promise<BrandContext | null> {
     const record = await this.db
       .selectFrom("brand_context")
       .selectAll()
       .where("id", "=", id)
+      .where("organization_id", "=", organizationId)
       .executeTakeFirst();
 
     if (!record) return null;
@@ -102,12 +103,13 @@ export class BrandContextStorage implements BrandContextStoragePort {
       })
       .execute();
 
-    const result = await this.get(id);
+    const result = await this.get(id, organizationId);
     return result!;
   }
 
   async update(
     id: string,
+    organizationId: string,
     data: Partial<
       Omit<BrandContext, "id" | "organizationId" | "createdAt" | "updatedAt">
     >,
@@ -134,14 +136,19 @@ export class BrandContextStorage implements BrandContextStoragePort {
       .updateTable("brand_context")
       .set(updates)
       .where("id", "=", id)
+      .where("organization_id", "=", organizationId)
       .execute();
 
-    const result = await this.get(id);
+    const result = await this.get(id, organizationId);
     if (!result) throw new Error("Brand context not found");
     return result;
   }
 
-  async delete(id: string): Promise<void> {
-    await this.db.deleteFrom("brand_context").where("id", "=", id).execute();
+  async delete(id: string, organizationId: string): Promise<void> {
+    await this.db
+      .deleteFrom("brand_context")
+      .where("id", "=", id)
+      .where("organization_id", "=", organizationId)
+      .execute();
   }
 }

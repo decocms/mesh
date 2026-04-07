@@ -316,8 +316,8 @@ function BrandCard({
     onError: (err) => toast.error(err.message),
   });
 
-  const colorEntries = colorsToEntries(brand.colors);
-  const fontEntries = fontsToEntries(brand.fonts);
+  const colorEntries = colors;
+  const fontEntries = fonts;
 
   return (
     <Card className="p-6">
@@ -331,9 +331,9 @@ function BrandCard({
         </span>
 
         {/* Logo thumbnail */}
-        {brand.logo && (
+        {logo && (
           <img
-            src={brand.logo}
+            src={logo}
             alt=""
             className="h-8 w-8 shrink-0 rounded object-contain"
             onError={(e) => {
@@ -344,7 +344,7 @@ function BrandCard({
 
         <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
           <CardTitle className="text-sm">
-            {brand.name || "Untitled Brand"}
+            {name || "Untitled Brand"}
             {isPending && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 Saving...
@@ -352,7 +352,7 @@ function BrandCard({
             )}
           </CardTitle>
           <span className="truncate text-xs text-muted-foreground">
-            {brand.domain}
+            {domain}
           </span>
         </div>
 
@@ -655,6 +655,15 @@ function ImageField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [draft, setDraft] = useState(value);
+  const prevValue = useRef(value);
+
+  // Sync draft when external value changes (e.g. after server refetch)
+  if (prevValue.current !== value) {
+    prevValue.current = value;
+    setDraft(value);
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -671,8 +680,11 @@ function ImageField({
         </div>
       )}
       <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== value) onChange(draft);
+        }}
         placeholder="https://..."
       />
     </div>
