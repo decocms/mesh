@@ -213,7 +213,8 @@ export function GenericToolCallPart({
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
   const isDestructive = !!annotations?.destructiveHint;
-  const canOpenInPanel = hasMCPApp && !!virtualMcpCtx && !isDestructive;
+  const canOpenInPanel =
+    hasMCPApp && !!virtualMcpCtx && !!connectionId && !isDestructive;
 
   const handleOpenInPanel = () => {
     if (!connectionId || !virtualMcpCtx) return;
