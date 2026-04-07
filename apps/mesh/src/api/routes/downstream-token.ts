@@ -146,6 +146,15 @@ app.delete("/connections/:connectionId/oauth-token", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  // Verify connection exists and belongs to the user's organization
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    ctx.organization?.id,
+  );
+  if (!connection) {
+    return c.json({ error: "Connection not found" }, 404);
+  }
+
   const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
   await tokenStorage.delete(connectionId);
 
@@ -164,6 +173,15 @@ app.get("/connections/:connectionId/oauth-token/status", async (c) => {
   const userId = ctx.auth.user?.id ?? ctx.auth.apiKey?.userId ?? null;
   if (!userId) {
     return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  // Verify connection exists and belongs to the user's organization
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    ctx.organization?.id,
+  );
+  if (!connection) {
+    return c.json({ error: "Connection not found" }, 404);
   }
 
   const tokenStorage = new DownstreamTokenStorage(ctx.db, ctx.vault);
