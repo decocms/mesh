@@ -1115,7 +1115,7 @@ function VirtualMcpDetailViewWithData({
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: true });
   };
 
-  const handleAddConnection = (connectionId: string) => {
+  const handleAddConnection = async (connectionId: string) => {
     const current = form.getValues("connections");
     // Don't add duplicates
     if (current.some((c) => c.connection_id === connectionId)) return;
@@ -1134,6 +1134,16 @@ function VirtualMcpDetailViewWithData({
       { shouldDirty: true },
     );
     dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: false });
+
+    // Auto-trigger OAuth if the connection needs authorization
+    const mcpProxyUrl = new URL(`/mcp/${connectionId}`, window.location.origin);
+    const authStatus = await isConnectionAuthenticated({
+      url: mcpProxyUrl.href,
+      token: null,
+    });
+    if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+      await handleAuthenticate(connectionId);
+    }
   };
 
   const handleRemoveConnection = (connectionId: string) => {
