@@ -24,7 +24,10 @@ export default function OrgHomePage() {
     <Suspense
       fallback={
         <div className="flex h-full items-center justify-center">
-          <Loading01 size={20} className="animate-spin text-muted-foreground" />
+          <Loading01
+            size={20}
+            className="animate-spin text-muted-foreground"
+          />
         </div>
       }
     >
