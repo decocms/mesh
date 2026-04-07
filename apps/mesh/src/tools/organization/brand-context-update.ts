@@ -49,6 +49,10 @@ export const BRAND_CONTEXT_CREATE = defineTool({
 
     return {
       ...brand,
+      archivedAt:
+        brand.archivedAt instanceof Date
+          ? brand.archivedAt.toISOString()
+          : brand.archivedAt,
       createdAt:
         brand.createdAt instanceof Date
           ? brand.createdAt.toISOString()
@@ -118,10 +122,16 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
         data.metadata !== undefined
           ? ((data.metadata as Record<string, unknown> | null) ?? null)
           : undefined,
+      archivedAt:
+        data.archivedAt !== undefined ? (data.archivedAt ?? null) : undefined,
     });
 
     return {
       ...brand,
+      archivedAt:
+        brand.archivedAt instanceof Date
+          ? brand.archivedAt.toISOString()
+          : brand.archivedAt,
       createdAt:
         brand.createdAt instanceof Date
           ? brand.createdAt.toISOString()

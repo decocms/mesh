@@ -5,6 +5,7 @@ import { BrandContextSchema } from "./schema.ts";
 
 const BrandContextOutput = BrandContextSchema.extend({
   organizationId: z.string(),
+  archivedAt: z.string().nullable().optional().describe("ISO 8601 timestamp"),
   createdAt: z.string().describe("ISO 8601 timestamp"),
   updatedAt: z.string().describe("ISO 8601 timestamp"),
 });
@@ -20,13 +21,18 @@ export const BRAND_CONTEXT_LIST = defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
-  inputSchema: z.object({}),
+  inputSchema: z.object({
+    includeArchived: z
+      .boolean()
+      .optional()
+      .describe("Include archived brands in the list"),
+  }),
 
   outputSchema: z.object({
     items: z.array(BrandContextOutput),
   }),
 
-  handler: async (_, ctx) => {
+  handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
     const organizationId = ctx.organization?.id;
@@ -36,11 +42,17 @@ export const BRAND_CONTEXT_LIST = defineTool({
       );
     }
 
-    const brands = await ctx.storage.brandContext.list(organizationId);
+    const brands = await ctx.storage.brandContext.list(organizationId, {
+      includeArchived: input.includeArchived,
+    });
 
     return {
       items: brands.map((b) => ({
         ...b,
+        archivedAt:
+          b.archivedAt instanceof Date
+            ? b.archivedAt.toISOString()
+            : b.archivedAt,
         createdAt:
           b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
         updatedAt:
@@ -85,6 +97,10 @@ export const BRAND_CONTEXT_GET = defineTool({
 
     return {
       ...brand,
+      archivedAt:
+        brand.archivedAt instanceof Date
+          ? brand.archivedAt.toISOString()
+          : brand.archivedAt,
       createdAt:
         brand.createdAt instanceof Date
           ? brand.createdAt.toISOString()

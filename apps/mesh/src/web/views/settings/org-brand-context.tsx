@@ -40,6 +40,7 @@ type BrandContext = {
   fonts?: { name: string; role: string }[];
   colors?: { label: string; value: string }[];
   images?: string[];
+  archivedAt?: string | null;
 };
 
 // --- Editable card ---
@@ -611,10 +612,12 @@ function ExpandableBrandEntry({
   brand,
   client,
   onChanged,
+  archived,
 }: {
   brand: BrandContext;
   client: ReturnType<typeof useMCPClient>;
   onChanged: () => void;
+  archived?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -644,18 +647,29 @@ function ExpandableBrandEntry({
     onError: () => toast.error("Failed to save brand context"),
   });
 
-  const { mutate: archiveBrand, isPending: isArchiving } = useMutation({
+  const { mutate: toggleArchive, isPending: isToggling } = useMutation({
     mutationFn: async () => {
-      await client.callTool({
-        name: "BRAND_CONTEXT_DELETE",
-        arguments: { id: brand.id },
-      });
+      if (archived) {
+        // Unarchive: clear archivedAt via update
+        await client.callTool({
+          name: "BRAND_CONTEXT_UPDATE",
+          arguments: { id: brand.id, archivedAt: null },
+        });
+      } else {
+        await client.callTool({
+          name: "BRAND_CONTEXT_DELETE",
+          arguments: { id: brand.id },
+        });
+      }
     },
     onSuccess: () => {
       onChanged();
-      toast.success("Brand archived");
+      toast.success(archived ? "Brand restored" : "Brand archived");
     },
-    onError: () => toast.error("Failed to archive brand"),
+    onError: () =>
+      toast.error(
+        archived ? "Failed to restore brand" : "Failed to archive brand",
+      ),
   });
 
   return (
@@ -748,16 +762,16 @@ function ExpandableBrandEntry({
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
-            archiveBrand();
+            toggleArchive();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.stopPropagation();
-              archiveBrand();
+              toggleArchive();
             }
           }}
         >
-          {isArchiving ? (
+          {isToggling ? (
             <span className="text-[10px] text-muted-foreground">...</span>
           ) : (
             <Trash01 size={13} className="text-muted-foreground" />
@@ -792,18 +806,22 @@ export function OrgBrandContextPage() {
   });
   const queryClient = useQueryClient();
 
-  const { data: brands = [] } = useQuery<BrandContext[]>({
+  const { data: allBrands = [] } = useQuery<BrandContext[]>({
     queryKey: KEYS.brandContext(org.id),
     queryFn: async () => {
       const result = await client.callTool({
         name: "BRAND_CONTEXT_LIST",
-        arguments: {},
+        arguments: { includeArchived: true },
       });
       const data = unwrapToolResult<{ items?: BrandContext[] }>(result);
       return Array.isArray(data?.items) ? data.items : [];
     },
     staleTime: 60_000,
   });
+
+  const activeBrands = allBrands.filter((b) => !b.archivedAt);
+  const archivedBrands = allBrands.filter((b) => b.archivedAt);
+  const [showArchived, setShowArchived] = useState(false);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: KEYS.brandContext(org.id) });
@@ -871,7 +889,7 @@ export function OrgBrandContextPage() {
               isExtracting={isExtracting}
             />
 
-            {brands.length === 0 && (
+            {activeBrands.length === 0 && archivedBrands.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   No brands configured yet.
@@ -890,7 +908,7 @@ export function OrgBrandContextPage() {
             )}
 
             <div className="group space-y-3">
-              {brands.map((brand) => (
+              {activeBrands.map((brand) => (
                 <ExpandableBrandEntry
                   key={brand.id}
                   brand={brand}
@@ -899,6 +917,39 @@ export function OrgBrandContextPage() {
                 />
               ))}
             </div>
+
+            {archivedBrands.length > 0 && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowArchived(!showArchived)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+                >
+                  <ChevronRight
+                    size={12}
+                    className={cn(
+                      "transition-transform",
+                      showArchived && "rotate-90",
+                    )}
+                  />
+                  {archivedBrands.length} archived
+                </button>
+
+                {showArchived && (
+                  <div className="space-y-3 opacity-60">
+                    {archivedBrands.map((brand) => (
+                      <ExpandableBrandEntry
+                        key={brand.id}
+                        brand={brand}
+                        client={client}
+                        onChanged={invalidate}
+                        archived
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Page.Body>
       </Page.Content>

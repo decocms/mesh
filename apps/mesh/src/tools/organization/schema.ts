@@ -73,6 +73,11 @@ export const BrandContextSchema = z.object({
     .describe(
       "Extra design tokens (typography, components, spacing, layout, tone, etc.)",
     ),
+  archivedAt: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Archive timestamp (null to unarchive)"),
 });
 
 export type BrandContextInput = z.infer<typeof BrandContextSchema>;
