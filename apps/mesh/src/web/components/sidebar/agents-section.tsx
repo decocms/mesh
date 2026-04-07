@@ -254,6 +254,7 @@ function SortableAgentListItem(props: {
       style={style}
       {...attributes}
       {...listeners}
+      tabIndex={-1}
       className="w-full"
     >
       <AgentListItem {...props} isDragging={isDragging} />
@@ -585,8 +586,9 @@ function AgentsSectionContent() {
   return (
     <SidebarGroup className="py-0 px-0 mt-2 flex-1 min-h-0">
       <div className="h-px bg-border mx-2 mb-2" />
-      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col">
-        <SidebarMenu className="gap-2 flex-1 min-h-0 overflow-y-auto pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* NOTE: Do not add horizontal padding (px-*) here — it makes pinned agent icons smaller than the home button. */}
+      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <SidebarMenu className="gap-2">
           <PinAgentPopover />
           <DndContext
             sensors={sensors}

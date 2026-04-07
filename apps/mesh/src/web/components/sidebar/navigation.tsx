@@ -67,7 +67,7 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
         tooltip={item.label}
         className="bg-muted/75"
       >
-        <span className="[&>svg]:size-8">{item.icon}</span>
+        {item.icon}
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -124,10 +124,7 @@ function NavigationSidebarInner({
       </Suspense>
       {header}
       <SidebarContent
-        className={cn(
-          "flex flex-col flex-1 overflow-x-hidden px-2 py-2 gap-0",
-          contentClassName,
-        )}
+        className={cn("flex flex-col flex-1 px-2 py-2 gap-0", contentClassName)}
       >
         {sections.map((section, index) => (
           <SidebarSectionRenderer key={index} section={section} />
