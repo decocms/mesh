@@ -74,10 +74,13 @@ app.get("/config", async (c) => {
       icon: KNOWN_OAUTH_PROVIDERS[name as OAuthProvider].icon,
     }));
 
-    // STDIO is disabled in production unless explicitly allowed
+    // STDIO is enabled in local mode, in non-production environments,
+    // or when explicitly allowed via UNSAFE_ALLOW_STDIO_TRANSPORT
     const settings = getSettings();
     const stdioEnabled =
-      settings.nodeEnv !== "production" || settings.unsafeAllowStdioTransport;
+      settings.localMode ||
+      settings.nodeEnv !== "production" ||
+      settings.unsafeAllowStdioTransport;
 
     const config: AuthConfig = {
       emailAndPassword: {

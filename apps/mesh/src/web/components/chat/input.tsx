@@ -1,4 +1,4 @@
-import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
+import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { getAgentWrapperColor } from "@/web/components/agent-icon";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -7,11 +7,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
@@ -25,9 +20,10 @@ import {
   ChevronDown,
   Edit01,
   Lock01,
+  Plus,
   Stop,
   Upload01,
-  Users03,
+  X,
   XCircle,
 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
@@ -40,7 +36,6 @@ import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
-  VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
 import { modelSupportsFiles } from "./select-model";
@@ -53,116 +48,12 @@ import {
   type TiptapInputHandle,
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
+import { ToolsPopover } from "./tools-popover";
 import { SessionStats } from "./usage-stats";
 import { authClient } from "@/web/lib/auth-client.ts";
+import { useNavigate } from "@tanstack/react-router";
 import { useSound } from "@/web/hooks/use-sound.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
-
-// ============================================================================
-// DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
-// ============================================================================
-
-interface DecopilotIconButtonProps {
-  onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  disabled?: boolean;
-}
-
-function DecopilotIconButton({
-  onVirtualMcpChange,
-  disabled = false,
-}: DecopilotIconButtonProps) {
-  const [open, setOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const { org } = useProjectContext();
-  const isMobile = useIsMobile();
-
-  const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
-
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
-
-  const handleVirtualMcpChange = (virtualMcpId: string | null) => {
-    onVirtualMcpChange(virtualMcpId);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "relative flex items-center justify-center size-8 rounded-md text-muted-foreground/75 transition-colors shrink-0",
-                disabled
-                  ? "cursor-not-allowed opacity-50"
-                  : "cursor-pointer hover:text-muted-foreground",
-              )}
-              disabled={disabled}
-            >
-              <svg className="absolute inset-0 size-full" fill="none">
-                <defs>
-                  <linearGradient
-                    id="agent-border-gradient-decopilot"
-                    gradientUnits="userSpaceOnUse"
-                    x1="0"
-                    y1="0"
-                    x2="32"
-                    y2="32"
-                  >
-                    <animateTransform
-                      attributeName="gradientTransform"
-                      type="rotate"
-                      from="0 16 16"
-                      to="360 16 16"
-                      dur="6s"
-                      repeatCount="indefinite"
-                    />
-                    <stop offset="0%" stopColor="var(--chart-1)" />
-                    <stop offset="100%" stopColor="var(--chart-4)" />
-                  </linearGradient>
-                </defs>
-                <rect
-                  x="0.5"
-                  y="0.5"
-                  width="31"
-                  height="31"
-                  rx="5.5"
-                  stroke="url(#agent-border-gradient-decopilot)"
-                  strokeWidth="1"
-                  strokeDasharray="3 3"
-                />
-              </svg>
-              <Users03 size={16} />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        {!open && <TooltipContent side="top">Decopilot</TooltipContent>}
-      </Tooltip>
-      <PopoverContent
-        className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
-        align="start"
-        side="top"
-        sideOffset={8}
-        collisionPadding={16}
-      >
-        <VirtualMCPPopoverContent
-          selectedVirtualMcpId={decopilot.id}
-          onVirtualMcpChange={handleVirtualMcpChange}
-          searchInputRef={searchInputRef}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -227,7 +118,7 @@ function VirtualMCPBadge({
   return (
     <div
       className={cn(
-        "flex items-center justify-between px-3 py-1.5 rounded-t-xl z-10",
+        "flex items-center justify-between px-3 py-1.5 rounded-t-2xl z-10",
         color?.bg,
       )}
     >
@@ -294,59 +185,6 @@ function VirtualMCPBadge({
         </button>
       </div>
     </div>
-  );
-}
-
-// ============================================================================
-// PlanModeToggle - Toggle button for plan mode
-// ============================================================================
-
-function PlanModeToggle({ disabled }: { disabled?: boolean }) {
-  const [preferences, setPreferences] = usePreferences();
-  const isPlanMode = preferences.toolApprovalLevel === "plan";
-  const playSwitchSound = useSound(question004Sound);
-
-  const handleToggle = () => {
-    playSwitchSound();
-    setPreferences({
-      ...preferences,
-      toolApprovalLevel: isPlanMode ? "auto" : "plan",
-    });
-  };
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={disabled}
-          className={cn(
-            "flex items-center justify-center size-8 rounded-md transition-colors shrink-0",
-            disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-            isPlanMode
-              ? "border border-purple-500 text-purple-500 bg-purple-500/10 hover:bg-purple-500/20"
-              : "border border-border text-muted-foreground/75 hover:text-muted-foreground",
-          )}
-          aria-label={isPlanMode ? "Exit plan mode" : "Enter plan mode"}
-        >
-          <BookOpen01 size={16} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="flex items-center gap-1.5">
-        {isPlanMode ? "Exit plan mode" : "Plan mode"}
-        <span className="flex items-center gap-0.5">
-          {(isMac ? ["⌘", "⇧", "L"] : ["Ctrl", "⇧", "L"]).map((key) => (
-            <kbd
-              key={key}
-              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-            >
-              {key}
-            </kbd>
-          ))}
-        </span>
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -475,8 +313,10 @@ export function ChatInput({
   const userId = session?.user?.id;
 
   const navigateToAgent = useNavigateToAgent();
+  const navigate = useNavigate();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+  const playSwitchSound = useSound(question004Sound);
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
@@ -628,12 +468,12 @@ export function ChatInput({
   return (
     <div className="flex flex-col w-full justify-end">
       {/* Virtual MCP wrapper with badge */}
-      <div className="relative rounded-xl w-full flex flex-col">
+      <div className="relative rounded-2xl w-full flex flex-col">
         {/* Colored background overlay - stays during exit animation */}
         {showWrapper && (
           <div
             className={cn(
-              "absolute inset-0 rounded-xl pointer-events-none",
+              "absolute inset-0 rounded-2xl pointer-events-none",
               wrapperBg,
             )}
           />
@@ -645,7 +485,7 @@ export function ChatInput({
         {/* Virtual MCP Badge Header - animated expand/collapse */}
         <div
           className={cn(
-            "relative z-10 grid transition-[grid-template-rows] duration-250 ease-out overflow-hidden rounded-t-xl",
+            "relative z-10 grid transition-[grid-template-rows] duration-250 ease-out overflow-hidden rounded-t-2xl",
             hasAgentBadge ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
           )}
           onTransitionEnd={handleGridTransitionEnd}
@@ -679,10 +519,10 @@ export function ChatInput({
             <form
               onSubmit={handleSubmit}
               className={cn(
-                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border",
+                "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border border-[1px]",
                 isPlanMode
-                  ? "border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
-                  : "border-transparent shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
+                  ? "border-dashed border-violet-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
+                  : "border-border shadow-[0px_4px_12px_0px_rgba(0,0,0,0.03)]",
               )}
             >
               <FileDropZone selectedModel={selectedModel} />
@@ -696,35 +536,46 @@ export function ChatInput({
                   showFileUploader={true}
                   selectedModel={selectedModel}
                 />
-                {/* Focus hint — hidden when editor is focused */}
-                <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
-                  {isMac ? "⌘" : "Ctrl+"}L to focus
-                </span>
               </div>
 
               {/* Bottom Actions Row */}
-              <div className="flex items-center justify-between p-2.5">
-                {/* Left Actions (agent, file upload, mode) */}
-                <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
-                  {!selectedVirtualMcp || isDecopilot(selectedVirtualMcp.id) ? (
-                    <DecopilotIconButton
-                      onVirtualMcpChange={handleAgentChange}
-                      disabled={isStreaming}
-                    />
-                  ) : (
-                    <VirtualMCPSelector
-                      selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
-                      selectedVirtualMcp={selectedVirtualMcp}
-                      onVirtualMcpChange={handleAgentChange}
-                      placeholder="Agent"
-                      disabled={isStreaming}
-                    />
-                  )}
+              <div className="flex items-center justify-between p-2.5 gap-1">
+                {/* Left Actions (+, Tools, active tool pills, stats) */}
+                <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                   <FileUploadButton
                     selectedModel={selectedModel}
                     isStreaming={isStreaming}
+                    icon={<Plus size={16} />}
                   />
-                  <PlanModeToggle disabled={isStreaming} />
+                  <ToolsPopover
+                    disabled={isStreaming}
+                    onOpenConnections={() => {
+                      navigate({
+                        to: "/$org/settings/connections",
+                        params: { org: org.slug },
+                      });
+                    }}
+                  />
+                  {isPlanMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSwitchSound();
+                        setPreferences({
+                          ...preferences,
+                          toolApprovalLevel: "auto",
+                        });
+                      }}
+                      className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                    >
+                      <BookOpen01 size={14} className="shrink-0" />
+                      Plan mode
+                      <X
+                        size={14}
+                        className="shrink-0 hidden group-hover:block"
+                      />
+                    </button>
+                  )}
                   {contextWindow && lastTotalTokens > 0 && (
                     <SessionStats
                       usage={usage}
@@ -736,8 +587,12 @@ export function ChatInput({
                 </div>
 
                 {/* Right Actions (model, send) */}
-                <div className="flex items-center gap-1.5">
-                  <ModelSelector placeholder="Model" variant="borderless" />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ModelSelector
+                    placeholder="Model"
+                    variant="borderless"
+                    className="h-8 text-sm py-2 min-w-0"
+                  />
 
                   <Button
                     type={showStopOrCancel ? "button" : "submit"}
@@ -755,7 +610,7 @@ export function ChatInput({
                     size="icon"
                     disabled={!canSubmit && !showStopOrCancel}
                     className={cn(
-                      "size-8 rounded-md transition-all",
+                      "size-8 rounded-lg transition-all",
                       !canSubmit &&
                         !showStopOrCancel &&
                         "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",

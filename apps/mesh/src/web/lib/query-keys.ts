@@ -169,6 +169,25 @@ export const KEYS = {
   threadModelLogs: (locator: string, dateKey: string) =>
     ["threads", "model-logs", locator, dateKey] as const,
 
+  // Virtual MCP tools (for tool definition lookup in chat)
+  // null virtualMcpId means default virtual MCP
+  virtualMcpTools: (virtualMcpId: string | null, orgId: string) =>
+    ["virtual-mcp", orgId, virtualMcpId ?? "default", "tools"] as const,
+
+  toolDefinitionLookup: (
+    connectionId: string | null,
+    orgId: string,
+    rawToolName: string | null,
+  ) =>
+    [
+      "virtual-mcp",
+      orgId,
+      connectionId ?? "default",
+      "tools",
+      "lookup",
+      rawToolName,
+    ] as const,
+
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
   virtualMcpPrompts: (virtualMcpId: string | null, orgId: string) =>
@@ -283,6 +302,10 @@ export const KEYS = {
   // Prompt → connection map (scoped by org + connections)
   promptConnectionMap: (orgId: string, connectionIds: string[]) =>
     ["prompt-connection-map", orgId, ...connectionIds] as const,
+
+  // Brand context (scoped by organization)
+  brandContext: (organizationId: string) =>
+    ["brand-context", organizationId] as const,
 
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,

@@ -217,50 +217,27 @@ function CreditChipConditional() {
   return <CreditChip />;
 }
 
-function SettingsButton() {
-  const navigate = useNavigate();
-  const { org } = useProjectContext();
-
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          tooltip="Settings"
-          onClick={() =>
-            navigate({
-              to: "/$org/settings",
-              params: { org: org.slug },
-            })
-          }
-        >
-          <Settings01 size={24} />
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
-}
-
-export function InboxPopover() {
+function InboxButton() {
   const pendingInvitations = usePendingInvitations();
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="relative flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-          title="Open inbox"
-        >
-          <Inbox01 size={16} />
-          {pendingInvitations.length > 0 && (
-            <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-red-500 pointer-events-none" />
-          )}
-        </button>
-      </PopoverTrigger>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <PopoverTrigger asChild>
+            <SidebarMenuButton tooltip="Inbox" className="relative">
+              <Inbox01 size={24} />
+              {pendingInvitations.length > 0 && (
+                <span className="absolute top-1 right-1 size-2 rounded-full bg-red-500 pointer-events-none" />
+              )}
+            </SidebarMenuButton>
+          </PopoverTrigger>
+        </SidebarMenuItem>
+      </SidebarMenu>
       <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={8}
+        side="right"
+        align="start"
+        sideOffset={16}
         collisionPadding={16}
         className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
       >
@@ -289,6 +266,29 @@ export function InboxPopover() {
   );
 }
 
+function SettingsButton() {
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          tooltip="Settings"
+          onClick={() =>
+            navigate({
+              to: "/$org/settings",
+              params: { org: org.slug },
+            })
+          }
+        >
+          <Settings01 size={24} />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
 export function SidebarInboxFooter() {
   return (
     <SidebarFooter className="px-2 pb-3 gap-1">
@@ -297,6 +297,7 @@ export function SidebarInboxFooter() {
           <CreditChipConditional />
         </Suspense>
       </SilentErrorBoundary>
+      <InboxButton />
       <SettingsButton />
       <SidebarMenu>
         <SidebarMenuItem>

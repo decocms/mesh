@@ -10,10 +10,13 @@ import { decoAiGatewayAdapter } from "./adapters/deco-ai-gateway";
 import { getSettings } from "../settings";
 
 export function getProviders(): Partial<Record<ProviderId, ProviderAdapter>> {
+  const settings = getSettings();
   return {
-    ...(getSettings().aiGatewayEnabled && { deco: decoAiGatewayAdapter }),
-    "claude-code": claudeCodeAdapter,
-    codex: codexAdapter,
+    ...(settings.aiGatewayEnabled && { deco: decoAiGatewayAdapter }),
+    ...(settings.localMode && {
+      "claude-code": claudeCodeAdapter,
+      codex: codexAdapter,
+    }),
     anthropic: anthropicAdapter,
     google: googleAdapter,
     openrouter: openrouterAdapter,

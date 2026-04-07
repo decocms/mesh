@@ -20,7 +20,7 @@ const DEFAULT_SOUND_TOGGLES: Record<SoundEventKey, boolean> = {
 };
 
 const DEFAULT_PREFERENCES: Preferences = {
-  toolApprovalLevel: "readonly",
+  toolApprovalLevel: "auto",
   enableNotifications: typeof Notification !== "undefined" ? true : false,
   enableSounds: false,
   soundToggles: DEFAULT_SOUND_TOGGLES,
@@ -48,7 +48,7 @@ export function readToolApprovalLevel(): ToolApprovalLevel {
       return raw.toolApprovalLevel;
     }
   } catch {}
-  return "readonly";
+  return "auto";
 }
 
 export function usePreferences() {
@@ -61,7 +61,7 @@ export function usePreferences() {
         ...(existing?.soundToggles ?? {}),
       };
       if (!VALID_TOOL_APPROVAL_LEVELS.includes(merged.toolApprovalLevel)) {
-        merged.toolApprovalLevel = "readonly";
+        merged.toolApprovalLevel = "auto";
       }
       if (!VALID_THEME_MODES.includes(merged.theme)) {
         merged.theme = "system";

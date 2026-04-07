@@ -1,6 +1,7 @@
 import {
   displayToolName,
   getGatewayClientId,
+  stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
@@ -385,7 +386,10 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
         content: [
           createMentionDoc({
             id: prompt.name,
-            name: prompt.name,
+            name: stripToolNamespace(
+              prompt.name,
+              getGatewayClientId(prompt._meta),
+            ),
             metadata: result.messages,
             char: "/",
           }),
