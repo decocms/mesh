@@ -1,9 +1,13 @@
+import {
+  getGatewayClientId,
+  stripToolNamespace,
+} from "@decocms/mcp-utils/aggregate";
 import { Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
   useProjectContext,
   useMCPClient,
-  useConnection,
+  useMCPToolsList,
   useMCPToolCall,
 } from "@decocms/mesh-sdk";
 import type { McpUiMessageRequest } from "@modelcontextprotocol/ext-apps";
@@ -44,6 +48,16 @@ function AppRenderer({
     toolArguments: EMPTY_TOOL_INPUT,
   });
 
+  const clientId = getGatewayClientId(tool._meta);
+  const strippedName = stripToolNamespace(tool.name, clientId);
+  const strippedTool: Tool = {
+    ...tool,
+    name: strippedName,
+    inputSchema: (tool.inputSchema as Tool["inputSchema"]) ?? {
+      type: "object" as const,
+    },
+  };
+
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
@@ -55,7 +69,7 @@ function AppRenderer({
   return (
     <MCPAppRenderer
       resourceURI={resourceURI}
-      toolInfo={{ tool: tool as Tool }}
+      toolInfo={{ tool: strippedTool }}
       toolInput={EMPTY_TOOL_INPUT}
       toolResult={toolResult}
       displayMode="fullscreen"
@@ -79,23 +93,13 @@ export function AppViewContent({
 }) {
   const { org } = useProjectContext();
   const client = useMCPClient({ connectionId, orgId: org.id });
-  const connection = useConnection(connectionId);
+  const { data: toolsResult } = useMCPToolsList({ client });
 
   const decodedToolName = decodeURIComponent(toolName);
 
-  const tool = (connection?.tools ?? []).find(
-    (t: { name: string }) => t.name === decodedToolName,
-  );
+  const tool = toolsResult.tools.find((t) => t.name === decodedToolName);
 
   const resourceURI = tool?._meta ? getUIResourceUri(tool._meta) : undefined;
-
-  if (!connection) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-muted-foreground">Connection not found</p>
-      </div>
-    );
-  }
 
   if (!tool || !resourceURI) {
     return (

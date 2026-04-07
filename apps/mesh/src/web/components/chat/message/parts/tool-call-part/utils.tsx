@@ -1,3 +1,5 @@
+import { displayToolName } from "@decocms/mcp-utils/aggregate";
+
 export type ToolPartStatus =
   | "input-streaming"
   | "input-available"
@@ -36,14 +38,16 @@ export function formatToolMetrics(metrics: ToolCallMetrics): string | null {
 
 /**
  * Convert a tool name to a friendly display name.
- * Converts SCREAMING_SNAKE_CASE or snake_case to Title Case.
- * Edge cases: empty string returns "", single word returns title-cased word.
+ * Strips any gateway namespace prefix, then converts to Title Case.
  */
-export function getFriendlyToolName(toolName: string): string {
+export function getFriendlyToolName(
+  toolName: string,
+  clientId?: string,
+): string {
   if (!toolName) return "";
-  return toolName
-    .split(/[_-]/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+  return displayToolName(toolName, clientId)
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
