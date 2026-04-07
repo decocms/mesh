@@ -199,8 +199,8 @@ function AgentsListContent() {
 
   return (
     <>
-      <div className="w-full">
-        <div className="flex flex-nowrap justify-center gap-4">
+      <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-nowrap justify-center gap-4 max-md:justify-start">
           <AgentPreview
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
@@ -248,8 +248,8 @@ function AgentsListContent() {
  */
 function AgentsListSkeleton() {
   return (
-    <div className="w-full">
-      <div className="flex flex-nowrap justify-center gap-4">
+    <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-nowrap justify-center gap-4 max-md:justify-start">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}

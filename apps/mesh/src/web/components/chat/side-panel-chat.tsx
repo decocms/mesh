@@ -105,7 +105,7 @@ function HomeEmptyState({
         <div className="flex-1 relative flex flex-col items-center px-4">
           {/* Centered greeting */}
           <div className="flex-1 flex flex-col items-center justify-center w-full">
-            <p className="text-3xl font-medium text-foreground text-center">
+            <p className="text-3xl font-medium text-foreground text-center max-w-[280px]">
               What's on your mind, {userName}?
             </p>
           </div>
@@ -175,7 +175,7 @@ function SidebarEmptyState() {
           fallbackIcon={<Users03 size={32} />}
           className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
         />
-        <h3 className="text-base md:text-3xl font-medium text-foreground">
+        <h3 className="text-base md:text-xl font-medium text-foreground">
           {displayAgent.title}
         </h3>
         <div className="text-muted-foreground text-center text-base max-w-md line-clamp-2">
