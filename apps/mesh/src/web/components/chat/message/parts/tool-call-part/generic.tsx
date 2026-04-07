@@ -198,6 +198,8 @@ export function GenericToolCallPart({
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 
+  const virtualMcpCtx = useVirtualMCPURLContext();
+
   const connectionId =
     toolMeta &&
     typeof toolMeta === "object" &&
@@ -210,8 +212,6 @@ export function GenericToolCallPart({
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
-
-  const virtualMcpCtx = useVirtualMCPURLContext();
   const isDestructive = !!annotations?.destructiveHint;
   const canOpenInPanel = hasMCPApp && !!virtualMcpCtx && !isDestructive;
 
