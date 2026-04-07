@@ -58,12 +58,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import {
-  Outlet,
-  useMatch,
-  useRouterState,
-  useSearch,
-} from "@tanstack/react-router";
+import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
@@ -336,14 +331,9 @@ function AgentPanelGroup({
     agentVirtualMcpId,
     isAgentRoute,
   );
-  const search = useSearch({ strict: false }) as {
-    taskId?: string;
-    main?: string;
-  };
-  const hasMainParam = !!search.main;
   return (
     <ResizablePanelGroup
-      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}-${hasMainParam}-${search.taskId ?? ""}`}
+      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}`}
       direction="horizontal"
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
@@ -375,9 +365,7 @@ function AgentPanelGroup({
           ref={mainPanelRef}
           className="min-w-0 flex flex-col"
           order={2}
-          defaultSize={
-            mainDefaultCollapsed || (isOrgHome && !hasMainParam) ? 0 : undefined
-          }
+          defaultSize={mainDefaultCollapsed || isOrgHome ? 0 : undefined}
           style={{ overflow: "visible" }}
           collapsible
           collapsedSize={0}
@@ -418,7 +406,7 @@ function AgentPanelGroup({
           <ResizableHandle className="bg-sidebar" />
           <PersistentResizablePanel
             key={
-              mainDefaultCollapsed || (isOrgHome && !hasMainParam)
+              mainDefaultCollapsed || isOrgHome
                 ? "chat-no-main"
                 : chatDefaultCollapsed
                   ? "chat-hidden"
@@ -427,9 +415,7 @@ function AgentPanelGroup({
             panelRef={chatPanelRef}
             defaultCollapsed={chatDefaultCollapsed}
             defaultSizeOverride={
-              mainDefaultCollapsed || (isOrgHome && !hasMainParam)
-                ? 78
-                : undefined
+              mainDefaultCollapsed || isOrgHome ? 78 : undefined
             }
             onCollapse={() => setChatOpen(false)}
             onExpand={() => setChatOpen(true)}
