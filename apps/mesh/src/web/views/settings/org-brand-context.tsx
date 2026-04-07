@@ -34,6 +34,7 @@ interface BrandContextData {
   colors?: Record<string, unknown> | null;
   images?: Record<string, unknown>[] | null;
   metadata?: Record<string, unknown> | null;
+  updatedAt?: string;
 }
 
 interface FontEntry {
@@ -207,6 +208,21 @@ function BrandCard({
   );
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevBrandRef = useRef(brand.updatedAt);
+
+  // Sync local state when server data changes (e.g. after save refetch)
+  // Only resets if not mid-edit (no pending debounce timer)
+  if (prevBrandRef.current !== brand.updatedAt && !timerRef.current) {
+    prevBrandRef.current = brand.updatedAt;
+    setName(brand.name);
+    setDomain(brand.domain);
+    setOverview(brand.overview);
+    setLogo(brand.logo ?? "");
+    setFavicon(brand.favicon ?? "");
+    setOgImage(brand.ogImage ?? "");
+    setFonts(fontsToEntries(brand.fonts));
+    setColors(colorsToEntries(brand.colors));
+  }
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: async (args: {
