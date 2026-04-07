@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { lazy } from "react";
 import {
   useVirtualMCPContext,
+  useVirtualMCPURLContext,
   type MainView,
   type MainViewType,
 } from "@/web/contexts/virtual-mcp-context";
@@ -94,7 +95,9 @@ function mainViewKey(view: MainView): string {
 }
 
 export default function AgentHomePage() {
-  const { virtualMcpId, mainView } = useVirtualMCPContext();
+  const ctx = useVirtualMCPURLContext();
+  if (!ctx) return null;
+  const { virtualMcpId, mainView } = ctx;
   return (
     <ErrorBoundary key={`${virtualMcpId}:${mainViewKey(mainView)}`}>
       <AgentHomeContent />

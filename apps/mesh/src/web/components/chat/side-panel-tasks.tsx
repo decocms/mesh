@@ -394,7 +394,7 @@ function TasksPanelContent({
         onTaskCreate={handleNewTask}
         onTaskSelect={(taskId) => {
           openTask(taskId);
-          setChatOpen(true);
+          if (!chatOpen) setChatOpen(true);
         }}
       />
     </div>
