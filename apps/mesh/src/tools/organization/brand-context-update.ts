@@ -130,6 +130,8 @@ export const BRAND_CONTEXT_UPDATE = defineTool({
           : undefined,
       archivedAt:
         data.archivedAt !== undefined ? (data.archivedAt ?? null) : undefined,
+      // isDefault: true is handled by setDefault above; pass false through directly
+      isDefault: data.isDefault === false ? false : undefined,
     });
 
     return {
@@ -188,6 +190,7 @@ export const BRAND_CONTEXT_DELETE = defineTool({
 
     await ctx.storage.brandContext.update(input.id, organizationId, {
       archivedAt: new Date().toISOString(),
+      isDefault: false,
     });
     return { success: true };
   },
