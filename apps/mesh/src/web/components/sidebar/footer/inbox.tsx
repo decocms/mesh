@@ -289,55 +289,6 @@ function SettingsButton() {
   );
 }
 
-export function InboxPopover() {
-  const pendingInvitations = usePendingInvitations();
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="relative flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-          title="Open inbox"
-        >
-          <Inbox01 size={16} />
-          {pendingInvitations.length > 0 && (
-            <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-red-500 pointer-events-none" />
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={8}
-        collisionPadding={16}
-        className="w-[min(400px,calc(100vw-2rem))] p-0 h-[min(650px,calc(100dvh-4rem))] flex flex-col"
-      >
-        <div className="px-4 py-3 border-b border-border shrink-0">
-          <h3 className="text-sm font-medium">Inbox</h3>
-        </div>
-        {pendingInvitations.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <Inbox01 size={24} className="text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">
-              No invites pending
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Organization invitations will appear here
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-y-auto flex-1">
-            {pendingInvitations.map((inv) => (
-              <InvitationItem key={inv.id} invitation={inv} />
-            ))}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 export function SidebarInboxFooter() {
   return (
     <SidebarFooter className="px-2 pb-3 gap-1">
