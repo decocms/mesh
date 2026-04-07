@@ -296,10 +296,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-content"
       data-sidebar="content"
-      className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
-        className,
-      )}
+      className={cn("flex min-h-0 flex-1 flex-col gap-2", className)}
       {...props}
     />
   );
@@ -331,7 +328,7 @@ function SidebarGroupLabel({
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        "ring-sidebar-ring hidden shrink-0 items-center rounded-md px-1 py-1 text-xs font-medium text-sidebar-foreground/70 outline-hidden focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "hidden shrink-0 items-center rounded-md px-1 py-1 text-xs font-medium text-sidebar-foreground/70 outline-0 outline-sidebar-ring focus-visible:outline-2 focus-visible:-outline-offset-2 [&>svg]:size-4 [&>svg]:shrink-0",
         className,
       )}
       {...props}
@@ -364,7 +361,7 @@ function SidebarGroupContent({
     <div
       data-slot="sidebar-group-content"
       data-sidebar="group-content"
-      className={cn("w-full text-sm", className)}
+      className={cn("w-full text-sm overflow-visible", className)}
       {...props}
     />
   );
@@ -396,7 +393,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg py-0 pr-0.5 pl-1.5 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&_svg]:opacity-60 hover:[&_svg]:opacity-100",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-lg py-0 pr-0.5 pl-1.5 text-left text-sm outline-0 outline-sidebar-ring transition-[width,height,padding] focus-visible:outline-2 focus-visible:-outline-offset-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&_svg]:opacity-60 hover:[&_svg]:opacity-100",
   {
     variants: {
       variant: {

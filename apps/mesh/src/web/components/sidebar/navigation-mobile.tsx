@@ -134,7 +134,7 @@ export function MobileNavigationSidebar({
       <Suspense fallback={<div className="h-10 shrink-0" />}>
         <MobileLogoHeader />
       </Suspense>
-      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden px-2 py-2 gap-0">
+      <SidebarContent className="flex flex-col flex-1 px-2 py-2 gap-0">
         {sections.map((section, index) => (
           <MobileSectionRenderer
             key={index}
