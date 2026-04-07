@@ -1,4 +1,4 @@
-import { displayToolName } from "@decocms/mcp-utils/aggregate";
+import { toTitleCase } from "@/web/components/chat/message/parts/tool-call-part/utils.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { JSONContent, Node } from "@tiptap/core";
 import {
@@ -82,7 +82,7 @@ function MentionNodeView(props: NodeViewProps) {
       )}
     >
       {char}
-      {name ? displayToolName(name) : ""}
+      {name ? toTitleCase(name) : ""}
     </NodeViewWrapper>
   );
 }

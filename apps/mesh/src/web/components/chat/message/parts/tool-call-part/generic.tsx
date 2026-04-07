@@ -20,6 +20,9 @@ import {
   getGatewayClientId,
   stripToolNamespace,
 } from "@decocms/mcp-utils/aggregate";
+import { stripMcpServerPrefix } from "@/web/lib/tool-namespace";
+import { useToolDefinitionLookup } from "@/web/hooks/use-tool-definition-lookup";
+import { toTitleCase } from "./utils.tsx";
 import type {
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
@@ -43,7 +46,7 @@ import { PanelContext } from "@/web/contexts/panel-context.tsx";
 
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
-import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
+import { getEffectiveState } from "./utils.tsx";
 
 interface GenericToolCallPartProps {
   part: ToolUIPart | DynamicToolUIPart;
@@ -173,9 +176,8 @@ export function GenericToolCallPart({
       : part.type === "dynamic-tool"
         ? "Dynamic Tool"
         : part.type.replace("tool-", "") || "Tool";
-  const gatewayClientId = getGatewayClientId(toolMeta);
-  const toolName = stripToolNamespace(rawToolName, gatewayClientId);
-  const friendlyName = getFriendlyToolName(rawToolName, gatewayClientId);
+  // Strip mcp__<server>__ prefix (e.g. mcp__cms__conn-abc_hello → conn-abc_hello)
+  const mcpStrippedName = stripMcpServerPrefix(rawToolName);
 
   const chatStream = useOptionalChatStream();
   const chatPrefs = useOptionalChatPrefs();
@@ -186,8 +188,6 @@ export function GenericToolCallPart({
   const panelControls = useContext(PanelContext);
   const setChatOpen = panelControls?.setChatOpen;
 
-  const uiResourceUri = getUIResourceUri(toolMeta);
-
   const connectionId =
     toolMeta &&
     typeof toolMeta === "object" &&
@@ -197,6 +197,19 @@ export function GenericToolCallPart({
     toolMeta.connectionId !== ""
       ? String(toolMeta.connectionId)
       : (chatPrefs?.selectedVirtualMcp?.id ?? null);
+
+  // Look up tool definition from virtual MCP's listTools.
+  // Single source of truth for _meta, title, gatewayClientId, uiResourceUri.
+  const { toolDef } = useToolDefinitionLookup(
+    connectionId ? rawToolName : null,
+    connectionId,
+    org.id,
+  );
+  const meta = toolDef?._meta ?? toolMeta;
+  const gatewayClientId = getGatewayClientId(meta);
+  const toolName = stripToolNamespace(mcpStrippedName, gatewayClientId);
+  const friendlyName = toolDef?.title ?? toTitleCase(toolName);
+  const uiResourceUri = getUIResourceUri(meta);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
   const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
@@ -325,7 +338,7 @@ export function GenericToolCallPart({
                 toolName={toolName}
                 toolInput={part.input}
                 toolResult={part.output}
-                toolMeta={toolMeta as Record<string, unknown> | undefined}
+                toolMeta={meta as Record<string, unknown> | undefined}
                 onMessage={handleAppMessage}
                 onUpdateModelContext={
                   sourceId && chatPrefs
@@ -361,6 +374,79 @@ interface MCPAppRendererProps {
   onTeardown?: () => void;
 }
 
+/**
+ * Check if a value is a Codex mcpToolCall envelope.
+ * Codex wraps MCP tool calls in { type: "mcpToolCall", ... } objects.
+ */
+function isMcpToolCallEnvelope(
+  value: unknown,
+): value is { type: "mcpToolCall"; [key: string]: unknown } {
+  return (
+    typeof value === "object" &&
+    value != null &&
+    "type" in value &&
+    (value as Record<string, unknown>).type === "mcpToolCall"
+  );
+}
+
+/**
+ * Normalize tool input across providers.
+ * Codex wraps input in { type: "mcpToolCall", arguments: { ... } } —
+ * unwrap to get the actual tool arguments.
+ */
+function normalizeToolInput(
+  input: unknown,
+): Record<string, unknown> | undefined {
+  if (input == null) return undefined;
+  if (isMcpToolCallEnvelope(input)) {
+    return (input.arguments as Record<string, unknown>) ?? undefined;
+  }
+  return input as Record<string, unknown>;
+}
+
+/**
+ * Normalize a tool result to CallToolResult format.
+ * - Standard AI SDK tools: already a CallToolResult
+ * - Claude Code dynamic tools: raw parsed JSON (no wrapper)
+ * - Codex: { type: "mcpToolCall", result: CallToolResult, ... } wrapped
+ *   inside structuredContent
+ */
+function normalizeToolResult(output: unknown): CallToolResult | undefined {
+  if (output == null) return undefined;
+
+  // Codex: output itself is the mcpToolCall envelope
+  if (isMcpToolCallEnvelope(output) && output.result != null) {
+    return output.result as CallToolResult;
+  }
+
+  // Already a CallToolResult (has content array with MCP content blocks)
+  if (
+    typeof output === "object" &&
+    "content" in output &&
+    Array.isArray((output as CallToolResult).content)
+  ) {
+    const arr = (output as CallToolResult).content;
+    if (
+      arr.length > 0 &&
+      typeof arr[0] === "object" &&
+      arr[0] != null &&
+      "type" in arr[0]
+    ) {
+      return output as CallToolResult;
+    }
+  }
+
+  // Wrap raw value (Claude Code) in CallToolResult format
+  const text = typeof output === "string" ? output : JSON.stringify(output);
+  return {
+    structuredContent:
+      typeof output === "object" && !Array.isArray(output)
+        ? (output as Record<string, unknown>)
+        : undefined,
+    content: [{ type: "text", text }],
+  };
+}
+
 function MCPAppRenderer({
   uiResourceUri,
   connectionId,
@@ -386,8 +472,8 @@ function MCPAppRenderer({
       <MCPAppIframeRenderer
         resourceURI={uiResourceUri}
         toolInfo={{ tool: toolDef }}
-        toolInput={toolInput as Record<string, unknown> | undefined}
-        toolResult={toolResult as CallToolResult | undefined}
+        toolInput={normalizeToolInput(toolInput)}
+        toolResult={normalizeToolResult(toolResult)}
         client={client}
         onMessage={onMessage}
         onUpdateModelContext={onUpdateModelContext}

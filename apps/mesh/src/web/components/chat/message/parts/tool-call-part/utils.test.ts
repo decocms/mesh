@@ -1,35 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import { formatToolMetrics, getFriendlyToolName } from "./utils.tsx";
+import { formatToolMetrics, toTitleCase } from "./utils.tsx";
 
-describe("getFriendlyToolName", () => {
+describe("toTitleCase", () => {
   test("converts SCREAMING_SNAKE_CASE to Title Case", () => {
-    expect(getFriendlyToolName("SCREAMING_SNAKE_CASE")).toBe(
-      "Screaming Snake Case",
-    );
+    expect(toTitleCase("SCREAMING_SNAKE_CASE")).toBe("Screaming Snake Case");
   });
 
-  test("strips namespace and converts to Title Case with clientId", () => {
-    expect(getFriendlyToolName("conn-abc123_some_tool", "conn_abc123")).toBe(
-      "Some Tool",
-    );
+  test("converts snake_case to Title Case", () => {
+    expect(toTitleCase("some_tool")).toBe("Some Tool");
   });
 
-  test("preserves snake_case name without clientId", () => {
-    expect(getFriendlyToolName("some_tool")).toBe("Some Tool");
+  test("converts kebab-case to Title Case", () => {
+    expect(toTitleCase("some-tool")).toBe("Some Tool");
   });
 
   test("returns empty string for empty input", () => {
-    expect(getFriendlyToolName("")).toBe("");
+    expect(toTitleCase("")).toBe("");
   });
 
   test("returns title-cased single word", () => {
-    expect(getFriendlyToolName("SINGLE")).toBe("Single");
+    expect(toTitleCase("SINGLE")).toBe("Single");
   });
 
-  test("preserves full name when clientId does not match", () => {
-    expect(getFriendlyToolName("conn-abc123_some_tool", "other_client")).toBe(
-      "Conn Abc123 Some Tool",
-    );
+  test("handles mixed separators", () => {
+    expect(toTitleCase("hello_world-foo")).toBe("Hello World Foo");
   });
 });
 
