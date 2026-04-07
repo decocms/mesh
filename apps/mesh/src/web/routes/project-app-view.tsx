@@ -7,7 +7,7 @@ import { useParams } from "@tanstack/react-router";
 import {
   useProjectContext,
   useMCPClient,
-  useMCPToolsList,
+  useConnection,
   useMCPToolCall,
 } from "@decocms/mesh-sdk";
 import type { McpUiMessageRequest } from "@modelcontextprotocol/ext-apps";
@@ -93,13 +93,23 @@ export function AppViewContent({
 }) {
   const { org } = useProjectContext();
   const client = useMCPClient({ connectionId, orgId: org.id });
-  const { data: toolsResult } = useMCPToolsList({ client });
+  const connection = useConnection(connectionId);
 
   const decodedToolName = decodeURIComponent(toolName);
 
-  const tool = toolsResult.tools.find((t) => t.name === decodedToolName);
+  const tool = (connection?.tools ?? []).find(
+    (t: { name: string }) => t.name === decodedToolName,
+  );
 
   const resourceURI = tool?._meta ? getUIResourceUri(tool._meta) : undefined;
+
+  if (!connection) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-muted-foreground">Connection not found</p>
+      </div>
+    );
+  }
 
   if (!tool || !resourceURI) {
     return (
