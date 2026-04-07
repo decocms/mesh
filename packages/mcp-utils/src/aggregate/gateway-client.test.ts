@@ -82,6 +82,12 @@ describe("stripToolNamespace", () => {
     expect(stripToolNamespace("mcp__cms__my-conn_SOME_TOOL", "my-conn")).toBe(
       "SOME_TOOL",
     );
+    expect(
+      stripToolNamespace(
+        "mcp__cms__conn-dvitqc2ooobdzmrd5ky24_hello_world",
+        "conn-dvitqc2ooobdzmrd5ky24",
+      ),
+    ).toBe("hello_world");
   });
 
   it("strips gateway clientId prefix without MCP prefix", () => {
