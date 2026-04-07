@@ -16,6 +16,10 @@ import {
 
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  getGatewayClientId,
+  stripToolNamespace,
+} from "@decocms/mcp-utils/aggregate";
 import type {
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
@@ -163,13 +167,15 @@ export function GenericToolCallPart({
   toolMeta,
 }: GenericToolCallPartProps) {
   // Extract tool name with proper dynamic-tool handling
-  const toolName =
+  const rawToolName =
     "toolName" in part && typeof part.toolName === "string"
       ? part.toolName
       : part.type === "dynamic-tool"
         ? "Dynamic Tool"
         : part.type.replace("tool-", "") || "Tool";
-  const friendlyName = getFriendlyToolName(toolName);
+  const gatewayClientId = getGatewayClientId(toolMeta);
+  const toolName = stripToolNamespace(rawToolName, gatewayClientId);
+  const friendlyName = getFriendlyToolName(rawToolName, gatewayClientId);
 
   const chatStream = useOptionalChatStream();
   const chatPrefs = useOptionalChatPrefs();

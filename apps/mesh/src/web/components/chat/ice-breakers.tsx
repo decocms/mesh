@@ -1,3 +1,7 @@
+import {
+  displayToolName,
+  getGatewayClientId,
+} from "@decocms/mcp-utils/aggregate";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
   Tooltip,
@@ -76,7 +80,8 @@ function PromptCard({
   variant?: "pill" | "card";
 }) {
   const { prompt } = item;
-  const name = (prompt.title ?? prompt.name).replace(/_/g, " ");
+  const clientId = getGatewayClientId(prompt._meta);
+  const name = prompt.title ?? displayToolName(prompt.name, clientId);
   const description = prompt.description || null;
 
   if (variant === "card") {
@@ -93,7 +98,7 @@ function PromptCard({
         )}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium truncate">{name}</span>
+          <span className="font-medium truncate capitalize">{name}</span>
           {isLoading && <Spinner size="xs" />}
         </div>
         {description && (
@@ -119,7 +124,7 @@ function PromptCard({
             (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
           )}
         >
-          <span>{name}</span>
+          <span className="capitalize">{name}</span>
           {isLoading && <Spinner size="xs" />}
         </button>
       </TooltipTrigger>

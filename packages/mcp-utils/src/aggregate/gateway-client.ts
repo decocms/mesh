@@ -63,6 +63,57 @@ export function slugify(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Extract `gatewayClientId` from an item's `_meta` object.
+ * Returns `undefined` when the field is absent or not a string.
+ */
+export function getGatewayClientId(meta: unknown): string | undefined {
+  if (
+    meta &&
+    typeof meta === "object" &&
+    "gatewayClientId" in meta &&
+    typeof (meta as Record<string, unknown>).gatewayClientId === "string"
+  ) {
+    return (meta as Record<string, unknown>).gatewayClientId as string;
+  }
+  return undefined;
+}
+
+/**
+ * Strip the gateway namespace prefix from a tool/prompt name.
+ * When `clientId` is provided, strips the exact `slugify(clientId)_` prefix.
+ * Otherwise uses `_meta.gatewayClientId` embedded in the name pattern
+ * (slug contains only [a-z0-9-], followed by `_`).
+ * Returns the original name, or the input unchanged if no namespace is detected.
+ */
+export function stripToolNamespace(
+  namespacedName: string,
+  clientId?: string,
+): string {
+  if (clientId) {
+    const prefix = `${slugify(clientId)}_`;
+    return namespacedName.startsWith(prefix)
+      ? namespacedName.slice(prefix.length)
+      : namespacedName;
+  }
+  const match = namespacedName.match(/^[a-z0-9-]+_(.+)$/);
+  return match?.[1] ?? namespacedName;
+}
+
+/**
+ * Strip namespace and normalize for display: removes the slug prefix,
+ * replaces `_` and `-` with spaces, and lowercases the result.
+ * Pair with CSS `capitalize` for Title Case rendering.
+ */
+export function displayToolName(
+  namespacedName: string,
+  clientId?: string,
+): string {
+  return stripToolNamespace(namespacedName, clientId)
+    .replace(/[_-]/g, " ")
+    .toLowerCase();
+}
+
 export interface GatewayClientOptions {
   clientInfo?: Implementation;
   capabilities?: ClientCapabilities;
