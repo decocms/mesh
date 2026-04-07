@@ -16,6 +16,7 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -203,13 +204,21 @@ export function useLayoutState(): LayoutState & LayoutActions {
   // Org home is effectively the decopilot agent's home route
   const isAgentHomeRoute = (isAgentRoute && !!agentHomeMatch) || isOrgHome;
 
-  // Resolve defaults (entity metadata is not available here — it's inside
-  // VirtualMCPProvider's Suspense boundary. We pass null for entityMetadata
-  // and let the Suspense-resolved component override via the URL on mount.)
+  // Read entity metadata from VirtualMCPContext (available when inside
+  // VirtualMCPProvider — null on settings routes or outside provider).
+  const vmcpCtx = useVirtualMCPURLContext();
+  const layoutMetadata = vmcpCtx?.entity?.metadata?.ui?.layout ?? null;
+  const entityMetadata: EntityLayoutMetadata | null = layoutMetadata
+    ? {
+        defaultMainView: layoutMetadata.defaultMainView ?? null,
+        chatDefaultOpen: layoutMetadata.chatDefaultOpen ?? null,
+      }
+    : null;
+
   const defaults = resolveDefaultPanelState({
     virtualMcpId,
     orgId: org.id,
-    entityMetadata: null,
+    entityMetadata,
     hasMainParam: !!search.main,
     isAgentHomeRoute,
   });
