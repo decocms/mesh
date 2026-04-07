@@ -40,7 +40,7 @@ import type React from "react";
 import { Suspense, useContext } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
 import { PanelContext } from "@/web/contexts/panel-context.tsx";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context.tsx";
+
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -184,21 +184,9 @@ export function GenericToolCallPart({
   // Panel context may not be available when rendering read-only thread history
   // (e.g. monitoring Threads tab), so we read the context directly.
   const panelControls = useContext(PanelContext);
-  const setChatOpen = panelControls
-    ? (open: boolean) => {
-        if (open) {
-          panelControls.chatPanelRef.current?.resize(
-            Math.min(panelControls.chatPanelWidth, 35),
-          );
-        } else {
-          panelControls.chatPanelRef.current?.collapse();
-        }
-      }
-    : undefined;
+  const setChatOpen = panelControls?.setChatOpen;
 
   const uiResourceUri = getUIResourceUri(toolMeta);
-
-  const virtualMcpCtx = useVirtualMCPURLContext();
 
   const connectionId =
     toolMeta &&
@@ -214,17 +202,14 @@ export function GenericToolCallPart({
   const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
   const isDestructive = !!annotations?.destructiveHint;
   const canOpenInPanel =
-    hasMCPApp && !!virtualMcpCtx && !!connectionId && !isDestructive;
+    hasMCPApp && !!panelControls && !!connectionId && !isDestructive;
 
   const handleOpenInPanel = () => {
-    if (!connectionId || !virtualMcpCtx) return;
-    virtualMcpCtx.openMainView("ext-apps", {
+    if (!connectionId || !panelControls) return;
+    panelControls.openMainView("ext-apps", {
       id: connectionId,
       toolName: rawToolName,
     });
-    if (panelControls && !panelControls.mainOpen) {
-      panelControls.mainPanelRef.current?.expand();
-    }
   };
 
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
