@@ -115,7 +115,7 @@ function HomeEmptyState({
             <Chat.Input onOpenContextPanel={onOpenContextPanel} />
           </div>
           {isDecoUser && (
-            <div className="absolute bottom-4 left-0 right-0 px-4">
+            <div className="w-full">
               <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
             </div>
           )}
