@@ -27,7 +27,9 @@ describe("getFriendlyToolName", () => {
   });
 
   test("preserves full name when clientId does not match", () => {
-    expect(getFriendlyToolName("some_tool", "other_client")).toBe("Some Tool");
+    expect(getFriendlyToolName("conn-abc123_some_tool", "other_client")).toBe(
+      "Conn Abc123 Some Tool",
+    );
   });
 });
 

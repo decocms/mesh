@@ -82,7 +82,7 @@ function MentionNodeView(props: NodeViewProps) {
       )}
     >
       {char}
-      {displayToolName(name)}
+      {name ? displayToolName(name) : ""}
     </NodeViewWrapper>
   );
 }
