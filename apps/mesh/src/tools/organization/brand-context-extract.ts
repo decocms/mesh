@@ -175,14 +175,18 @@ export const BRAND_CONTEXT_EXTRACT = defineTool({
     const metadata = result.data.metadata ?? {};
     const mapped = mapFirecrawlBranding(branding, metadata);
 
-    // Derive name from metadata
+    // Derive name from metadata — prefer the short segment after a separator
+    // in the title (e.g. "Visual CMS for Your Storefront | Deco" → "Deco"),
+    // then ogSiteName, then the domain as last resort.
+    const titleParts = (metadata.title as string)
+      ?.split(/[|–—]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const shortestTitlePart = titleParts
+      ?.slice()
+      .sort((a, b) => a.length - b.length)[0];
     const name =
-      (metadata.ogSiteName as string) ??
-      (metadata.title as string)
-        ?.split(/[|\-–—]/)
-        .pop()
-        ?.trim() ??
-      input.domain;
+      shortestTitlePart ?? (metadata.ogSiteName as string) ?? input.domain;
 
     const brandData = {
       name,
