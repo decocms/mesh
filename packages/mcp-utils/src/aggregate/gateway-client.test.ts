@@ -1,6 +1,11 @@
 import { describe, it, expect, mock } from "bun:test";
 import type { IClient } from "../client-like.ts";
-import { GatewayClient, slugify } from "./gateway-client.ts";
+import {
+  GatewayClient,
+  displayToolName,
+  slugify,
+  stripToolNamespace,
+} from "./gateway-client.ts";
 
 function createMockClient(
   tools: { name: string }[] = [],
@@ -64,6 +69,47 @@ describe("slugify", () => {
     expect(slugify("a--b__c")).toBe("a-b-c");
     expect(slugify("---leading-trailing---")).toBe("leading-trailing");
     expect(slugify("simple")).toBe("simple");
+  });
+});
+
+describe("stripToolNamespace", () => {
+  it("strips MCP server prefix", () => {
+    expect(stripToolNamespace("mcp__cms__SOME_TOOL")).toBe("SOME_TOOL");
+    expect(stripToolNamespace("mcp__mesh__SOME_TOOL")).toBe("SOME_TOOL");
+  });
+
+  it("strips MCP prefix then gateway clientId prefix", () => {
+    expect(stripToolNamespace("mcp__cms__my-conn_SOME_TOOL", "my-conn")).toBe(
+      "SOME_TOOL",
+    );
+  });
+
+  it("strips gateway clientId prefix without MCP prefix", () => {
+    expect(stripToolNamespace("my-conn_SOME_TOOL", "my-conn")).toBe(
+      "SOME_TOOL",
+    );
+  });
+
+  it("returns unchanged when no prefix matches", () => {
+    expect(stripToolNamespace("SOME_TOOL")).toBe("SOME_TOOL");
+  });
+
+  it("returns unchanged when clientId does not match", () => {
+    expect(stripToolNamespace("other_SOME_TOOL", "my-conn")).toBe(
+      "other_SOME_TOOL",
+    );
+  });
+});
+
+describe("displayToolName", () => {
+  it("strips MCP prefix and formats for display", () => {
+    expect(displayToolName("mcp__cms__SOME_TOOL")).toBe("some tool");
+  });
+
+  it("strips both MCP and gateway prefix", () => {
+    expect(displayToolName("mcp__cms__my-conn_SOME_TOOL", "my-conn")).toBe(
+      "some tool",
+    );
   });
 });
 

@@ -81,18 +81,20 @@ export function getGatewayClientId(meta: unknown): string | undefined {
 
 /**
  * Strip the gateway namespace prefix from a tool/prompt name.
- * Requires `clientId` to compute the exact prefix to remove.
- * Returns the input unchanged when no `clientId` is provided or the prefix doesn't match.
+ * First removes any MCP client prefix (e.g. "mcp__cms__toolName" → "toolName"),
+ * then strips the gateway `slugify(clientId)_` prefix when `clientId` is provided.
+ * Returns the input unchanged when no prefix matches.
  */
 export function stripToolNamespace(
   namespacedName: string,
   clientId?: string,
 ): string {
-  if (!clientId) return namespacedName;
+  // Strip MCP server prefix (e.g. "mcp__cms__toolName" → "toolName")
+  const stripped = namespacedName.replace(/^mcp__[a-zA-Z0-9_-]+__/, "");
+
+  if (!clientId) return stripped;
   const prefix = `${slugify(clientId)}_`;
-  return namespacedName.startsWith(prefix)
-    ? namespacedName.slice(prefix.length)
-    : namespacedName;
+  return stripped.startsWith(prefix) ? stripped.slice(prefix.length) : stripped;
 }
 
 /**

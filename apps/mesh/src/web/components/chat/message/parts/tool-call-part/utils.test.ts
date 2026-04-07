@@ -31,6 +31,16 @@ describe("getFriendlyToolName", () => {
       "Conn Abc123 Some Tool",
     );
   });
+
+  test("strips mcp__ server prefix", () => {
+    expect(getFriendlyToolName("mcp__cms__SOME_TOOL")).toBe("Some Tool");
+  });
+
+  test("strips mcp__ prefix and clientId prefix", () => {
+    expect(
+      getFriendlyToolName("mcp__cms__conn-abc123_some_tool", "conn_abc123"),
+    ).toBe("Some Tool");
+  });
 });
 
 describe("formatToolMetrics", () => {
