@@ -1,13 +1,16 @@
 import { cn } from "@deco/ui/lib/utils.ts";
 import type { PropsWithChildren } from "react";
-import { ChatProvider, useChat } from "./context";
+import {
+  ChatContextProvider,
+  ActiveTaskProvider,
+  useChatStream,
+} from "./context";
 import { IceBreakers } from "./ice-breakers";
 import { ChatInput } from "./input";
 import { MessagePair, useMessagePairs } from "./message/pair.tsx";
-import { NoLlmBindingEmptyState } from "./no-llm-binding-empty-state";
-import { TaskHistoryPopover } from "./popover-tasks";
+import { NoAiProviderEmptyState } from "./no-ai-provider-empty-state";
 import { DecoChatSkeleton } from "./skeleton";
-export { useChat } from "./context";
+export { useChatTask } from "./context";
 export type { VirtualMCPInfo } from "./select-virtual-mcp";
 export type { ChatMessage, ChatStatus } from "./types.ts";
 
@@ -47,7 +50,7 @@ function ChatEmptyState({ children }: PropsWithChildren) {
 }
 
 function ChatMessages() {
-  const { messages, status } = useChat();
+  const { messages, status } = useChatStream();
   const messagePairs = useMessagePairs(messages);
   const lastMessagePair = messagePairs.at(-1);
 
@@ -104,7 +107,7 @@ function ChatFooter({
   return (
     <div
       className={cn(
-        "flex-none w-full mx-auto p-2",
+        "flex-none w-full mx-auto p-2 pt-0",
         "max-w-2xl min-w-0",
         className,
       )}
@@ -120,9 +123,9 @@ export const Chat = Object.assign(ChatRoot, {
   EmptyState: ChatEmptyState,
   Footer: ChatFooter,
   Input: ChatInput,
-  Provider: ChatProvider,
+  Provider: ChatContextProvider,
+  ActiveTaskProvider: ActiveTaskProvider,
   Skeleton: DecoChatSkeleton,
   IceBreakers: IceBreakers,
-  NoLlmBindingEmptyState: NoLlmBindingEmptyState,
-  TaskHistoryPopover: TaskHistoryPopover,
+  NoAiProviderEmptyState: NoAiProviderEmptyState,
 });

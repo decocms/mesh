@@ -22,9 +22,7 @@ import {
 } from "@decocms/bindings/collections";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
-  useInfiniteQuery,
   useMutation,
-  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -67,10 +65,8 @@ export interface UseCollectionListOptions<T extends CollectionEntity> {
   defaultSortKey?: keyof T;
   /** Page size for pagination (default: 100) */
   pageSize?: number;
-  /** Extra arguments to pass to the collection tool (e.g., include_tools for connections) */
-  extraArguments?: Record<string, unknown>;
-  /** Whether to enable the query (default: true). When false, the query is skipped. */
-  enabled?: boolean;
+  /** Additional arguments forwarded to the collection tool call (e.g., binding, include_virtual) */
+  additionalToolArgs?: Record<string, unknown>;
 }
 
 /**
@@ -150,7 +146,7 @@ export function buildOrderByExpression<T extends CollectionEntity>(
   defaultSortKey: keyof T,
 ): OrderByExpression[] | undefined {
   const key = sortKey ?? defaultSortKey;
-  const direction = sortDirection ?? "asc";
+  const direction = sortDirection ?? "desc";
 
   return [
     {
@@ -260,7 +256,7 @@ export function useCollectionList<T extends CollectionEntity>(
     searchFields = ["title", "description"] satisfies (keyof T)[],
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
-    extraArguments,
+    additionalToolArgs,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -273,12 +269,12 @@ export function useCollectionList<T extends CollectionEntity>(
     defaultSortKey,
   );
 
-  const toolArguments: CollectionListInput = {
+  const toolArguments: CollectionListInput & Record<string, unknown> = {
     ...(where && { where }),
     ...(orderBy && { orderBy }),
     limit: pageSize,
     offset: 0,
-    ...extraArguments,
+    ...additionalToolArgs,
   };
 
   const argsKey = JSON.stringify(toolArguments);
@@ -314,175 +310,6 @@ export function useCollectionList<T extends CollectionEntity>(
 }
 
 /**
- * Non-suspense variant of useCollectionList for background/lazy loading.
- * Returns { data, isLoading } instead of blocking render.
- */
-export function useCollectionListAsync<T extends CollectionEntity>(
-  scopeKey: string,
-  collectionName: string,
-  client: Client | null | undefined,
-  options: UseCollectionListOptions<T> = {},
-) {
-  const {
-    searchTerm,
-    filters,
-    sortKey,
-    sortDirection,
-    searchFields = ["title", "description"] satisfies (keyof T)[],
-    defaultSortKey = "updated_at" satisfies keyof T,
-    pageSize = 100,
-    extraArguments,
-    enabled,
-  } = options;
-
-  const upperName = collectionName.toUpperCase();
-  const listToolName = `COLLECTION_${upperName}_LIST`;
-
-  const where = buildWhereExpression(searchTerm, filters, searchFields);
-  const orderBy = buildOrderByExpression(
-    sortKey,
-    sortDirection,
-    defaultSortKey,
-  );
-
-  const toolArguments: CollectionListInput = {
-    ...(where && { where }),
-    ...(orderBy && { orderBy }),
-    limit: pageSize,
-    offset: 0,
-    ...extraArguments,
-  };
-
-  const argsKey = JSON.stringify(toolArguments);
-  const queryKey = KEYS.collectionList(
-    client,
-    scopeKey,
-    "",
-    upperName,
-    argsKey,
-  );
-
-  const { data, isLoading } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (!client) {
-        return EMPTY_COLLECTION_LIST_RESULT;
-      }
-      const result = await client.callTool({
-        name: listToolName,
-        arguments: toolArguments,
-      });
-      return result;
-    },
-    staleTime: 30_000,
-    retry: false,
-    enabled: enabled ?? true,
-    select: (result) => {
-      const payload = extractPayload<CollectionListOutput<T>>(result ?? {});
-      return payload?.items ?? [];
-    },
-  });
-
-  return { data, isLoading };
-}
-
-/**
- * Infinite-scroll variant of useCollectionList.
- * Uses offset-based pagination via useInfiniteQuery.
- * Returns flattened items, loadMore, hasMore, and loading states.
- */
-export function useCollectionListInfinite<T extends CollectionEntity>(
-  scopeKey: string,
-  collectionName: string,
-  client: Client | null | undefined,
-  options: UseCollectionListOptions<T> = {},
-) {
-  const {
-    searchTerm,
-    filters,
-    sortKey,
-    sortDirection,
-    searchFields = ["title", "description"] satisfies (keyof T)[],
-    defaultSortKey = "updated_at" satisfies keyof T,
-    pageSize = 20,
-    extraArguments,
-    enabled,
-  } = options;
-
-  const upperName = collectionName.toUpperCase();
-  const listToolName = `COLLECTION_${upperName}_LIST`;
-
-  const where = buildWhereExpression(searchTerm, filters, searchFields);
-  const orderBy = buildOrderByExpression(
-    sortKey,
-    sortDirection,
-    defaultSortKey,
-  );
-
-  const baseArgs = {
-    ...(where && { where }),
-    ...(orderBy && { orderBy }),
-    limit: pageSize,
-    ...extraArguments,
-  };
-
-  const argsKey = JSON.stringify(baseArgs);
-
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useInfiniteQuery({
-      queryKey: KEYS.collectionListInfinite(
-        client,
-        scopeKey,
-        "",
-        upperName,
-        argsKey,
-      ),
-      queryFn: async ({ pageParam = 0 }) => {
-        if (!client) {
-          return { items: [] as T[], hasMore: false };
-        }
-        const toolArguments: CollectionListInput = {
-          ...baseArgs,
-          offset: pageParam,
-        };
-        const result = await client.callTool({
-          name: listToolName,
-          arguments: toolArguments,
-        });
-        const payload = extractPayload<CollectionListOutput<T>>(result);
-        return {
-          items: payload?.items ?? [],
-          hasMore: payload?.hasMore ?? false,
-        };
-      },
-      initialPageParam: 0,
-      getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-        if (!lastPage.hasMore) return undefined;
-        return (lastPageParam as number) + pageSize;
-      },
-      staleTime: 30_000,
-      retry: false,
-      enabled: enabled ?? true,
-    });
-
-  const items = data?.pages.flatMap((p) => p.items) ?? [];
-
-  const loadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
-
-  return {
-    items,
-    isLoading,
-    hasMore: hasNextPage ?? false,
-    isLoadingMore: isFetchingNextPage,
-    loadMore,
-  };
-}
-
-/**
  * Builds a query key for a collection list query
  * Matches the internal logic of useCollectionList exactly
  *
@@ -506,7 +333,7 @@ export function buildCollectionQueryKey<T extends CollectionEntity>(
     searchFields = ["title", "description"] satisfies (keyof T)[],
     defaultSortKey = "updated_at" satisfies keyof T,
     pageSize = 100,
-    extraArguments,
+    additionalToolArgs,
   } = options;
 
   const upperName = collectionName.toUpperCase();
@@ -518,12 +345,12 @@ export function buildCollectionQueryKey<T extends CollectionEntity>(
     defaultSortKey,
   );
 
-  const toolArguments: CollectionListInput = {
+  const toolArguments: CollectionListInput & Record<string, unknown> = {
     ...(where && { where }),
     ...(orderBy && { orderBy }),
     limit: pageSize,
     offset: 0,
-    ...extraArguments,
+    ...additionalToolArgs,
   };
 
   const argsKey = JSON.stringify(toolArguments);

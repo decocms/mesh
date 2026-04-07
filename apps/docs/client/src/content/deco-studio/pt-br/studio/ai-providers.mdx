@@ -1,0 +1,113 @@
+---
+title: Provedores de IA
+description: Configure provedores de modelos de IA para o Decopilot e agentes — gerencie credenciais, descubra modelos e monitore creditos
+icon: Sparkles
+---
+
+import Callout from "../../../../components/ui/Callout.astro";
+
+## O que sao Provedores de IA?
+
+**Provedores de IA** fornecem os modelos de linguagem que alimentam o [Decopilot](/pt-br/studio/decopilot/overview) e os agentes no deco Studio. O sistema de provedores suporta multiplos fornecedores simultaneamente, cada um com suas proprias credenciais e catalogos de modelos.
+
+Chaves de provedores sao escopadas por organizacao e criptografadas em repouso no cofre de credenciais. Voce pode configurar multiplos provedores e alternar entre modelos conforme necessario.
+
+## Provedores Suportados
+
+| Provedor | ID | Metodos de Autenticacao | Recursos Principais |
+|----------|-----|-------------|--------------|
+| **Deco AI Gateway** | `deco` | OAuth PKCE, API key | Acesso gerenciado a 100+ modelos, saldo de creditos, recarga |
+| **Anthropic** | `anthropic` | API key | Acesso direto aos modelos Claude |
+| **Google** | `google` | API key | Acesso aos modelos Google AI |
+| **OpenRouter** | `openrouter` | OAuth PKCE, API key | API unificada para 100+ familias de modelos |
+| **Claude Code** | `claude-code` | CLI activate | Integracao com CLI do Claude Code — detecta instalacao local |
+
+<Callout type="info">
+  O Deco AI Gateway e opcionalmente habilitado via variavel de ambiente `DECO_AI_GATEWAY_ENABLED`. Quando habilitado, fornece acesso gerenciado a modelos de multiplos fornecedores atraves de um unico relacionamento de cobranca.
+</Callout>
+
+## Metodos de Autenticacao
+
+Cada provedor declara quais metodos de conexao suporta:
+
+### API Key
+
+O metodo mais comum. Voce fornece uma chave secreta emitida pelo provedor (ex: do Anthropic Console ou Google AI Studio). A chave e criptografada e armazenada no cofre do deco Studio.
+
+Chaves sao hasheadas (SHA-256) para deduplicacao — se voce adicionar a mesma chave duas vezes, a entrada existente e atualizada em vez de criar uma duplicata.
+
+### OAuth PKCE
+
+Um fluxo de autorizacao baseado em navegador para provedores que o suportam (OpenRouter, Deco AI Gateway). O fluxo:
+
+1. O deco Studio gera uma URL de autorizacao com um desafio PKCE
+2. Voce completa a autorizacao no seu navegador
+3. O deco Studio troca o codigo por uma API key
+4. A chave e armazenada criptografada no cofre
+
+### CLI Activate
+
+Apenas para integracao com Claude Code. Detecta a instalacao local do CLI e o estado de autenticacao — sem necessidade de entrada manual de chave.
+
+## Gerenciando Chaves de Provedores
+
+O gerenciamento de chaves de provedores esta disponivel atraves de ferramentas MCP:
+
+| Ferramenta | Proposito |
+|------|---------|
+| `AI_PROVIDER_KEY_CREATE` | Armazenar uma nova API key (criptografada em repouso) |
+| `AI_PROVIDER_KEY_LIST` | Listar chaves armazenadas, opcionalmente filtradas por provedor |
+| `AI_PROVIDER_KEY_DELETE` | Remover uma chave armazenada |
+| `AI_PROVIDERS_ACTIVE` | Listar provedores que tem pelo menos uma chave configurada |
+
+Chaves sao escopadas por organizacao com rastreamento de auditoria — cada chave registra quem a adicionou e quando.
+
+## Descoberta de Modelos
+
+Uma vez que uma chave de provedor esta configurada, voce pode descobrir modelos disponiveis:
+
+```
+AI_PROVIDERS_LIST_MODELS(provider_key_id)
+```
+
+Cada modelo inclui:
+
+- **ID e titulo do modelo** — identificador e nome legivel
+- **Capacidades** — o que o modelo pode fazer: `text`, `vision`, `tools`, `reasoning`, `image`, `audio`
+- **Limites de contexto** — tamanho da janela de contexto e maximo de tokens de saida
+- **Custos** — precos de tokens de entrada e saida
+
+Listas de modelos sao cacheadas por organizacao e provedor para evitar chamadas de API redundantes. Modelos de provedores nao-OpenRouter sao enriquecidos com metadados do catalogo do OpenRouter quando disponivel (descricoes, capacidades, precos).
+
+<Callout type="tip">
+  A disponibilidade de modelos pode ser filtrada por politicas de permissao de modelos no nivel da organizacao. Se um modelo que voce espera nao esta listado, verifique as permissoes de modelo da sua organizacao.
+</Callout>
+
+## Creditos e Cobranca
+
+Para provedores que suportam (atualmente Deco AI Gateway):
+
+| Ferramenta | Proposito |
+|------|---------|
+| `AI_PROVIDER_CREDITS` | Verificar saldo restante (em centavos) |
+| `AI_PROVIDER_TOPUP_URL` | Gerar URL de checkout para adicionar creditos (USD ou BRL) |
+
+Verifique o saldo de creditos quando usuarios reportam falhas de geracao — creditos insuficientes sao uma causa comum.
+
+## Como o Decopilot Usa Provedores
+
+O Decopilot e os agentes selecionam modelos de provedores ativos ao processar tarefas. O sistema de provedores gerencia:
+
+- **Selecao de modelo** — escolher o modelo certo para a tarefa
+- **Injecao de credenciais** — descriptografar e fornecer a API key no momento da requisicao
+- **Fallback** — usar provedores alternativos quando o primario nao esta disponivel
+
+Veja [Visao Geral do Decopilot](/pt-br/studio/decopilot/overview) para detalhes sobre como agentes interagem com modelos de IA.
+
+---
+
+## Proximos Passos
+
+<Callout type="info">
+Comece configurando pelo menos um provedor de IA para habilitar o Decopilot. Veja [Quickstart do Decopilot](/pt-br/studio/decopilot/quickstart) para comecar, ou [API Keys](/pt-br/studio/api-keys) para gerenciar acesso programatico ao deco Studio.
+</Callout>

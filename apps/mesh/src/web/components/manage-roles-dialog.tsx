@@ -2,7 +2,7 @@ import {
   getPermissionOptions,
   getToolsByCategory,
   type ToolName,
-} from "@/tools/registry";
+} from "@/tools/registry-metadata";
 import { DEFAULT_LOGO, PROVIDER_LOGOS } from "@/web/utils/ai-providers-logos";
 import { ToolSetSelector } from "@/web/components/tool-set-selector.tsx";
 import { useMembers } from "@/web/hooks/use-members";
@@ -15,9 +15,9 @@ import { KEYS } from "@/web/lib/query-keys";
 import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import {
   AiProviderKey,
-  useAiProviderKeyList,
+  useAiProviderKeys,
   useSuspenseAiProviderModels,
-} from "@/web/hooks/collections/use-llm";
+} from "@/web/hooks/collections/use-ai-providers";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -475,7 +475,7 @@ function ConnectionModelsSection({
           <img
             src={PROVIDER_LOGOS[connection.providerId] ?? DEFAULT_LOGO}
             alt={connection.providerId}
-            className="w-4 h-4 rounded-sm"
+            className="w-4 h-4 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
           />
           <div className="flex flex-col">
             <h4 className="text-sm font-medium text-muted-foreground/75">
@@ -518,7 +518,7 @@ function ConnectionModelsSection({
                 {model.logo && (
                   <img
                     src={model.logo}
-                    className="w-4 h-4 shrink-0 rounded-sm"
+                    className="w-4 h-4 shrink-0 rounded-sm dark:bg-white dark:rounded-sm dark:p-px"
                     alt={model.title}
                   />
                 )}
@@ -585,7 +585,7 @@ function ModelsPermissionsTab({
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const allModelsConnections = useAiProviderKeyList();
+  const allModelsConnections = useAiProviderKeys();
 
   // Toggle a single model for a connection
   const toggleModel = (connectionId: string, modelId: string) => {
@@ -741,7 +741,8 @@ function AddMemberDialog({
   const members = data?.data?.members ?? [];
 
   // Filter members by search
-  const filteredMembers = members.filter((member) => {
+  type Member = (typeof members)[number];
+  const filteredMembers = members.filter((member: Member) => {
     const searchLower = deferredSearchQuery.toLowerCase();
     return (
       member.user?.name?.toLowerCase().includes(searchLower) ||
@@ -750,7 +751,7 @@ function AddMemberDialog({
   });
 
   // Check if member is eligible (not owner)
-  const isMemberEligible = (member: (typeof members)[number]) => {
+  const isMemberEligible = (member: Member) => {
     return member.role !== "owner";
   };
 
@@ -801,7 +802,7 @@ function AddMemberDialog({
               </div>
             ) : (
               <div className="px-6 py-2 space-y-1">
-                {filteredMembers.map((member) => {
+                {filteredMembers.map((member: Member) => {
                   const eligible = isMemberEligible(member);
                   const alreadyInRole = isAlreadyInRole(member.id);
                   const isSelected = pendingMemberIds.includes(member.id);
@@ -893,11 +894,12 @@ function MembersTabContent({
   const { data } = useMembers();
   const members = data?.data?.members ?? [];
 
+  type Member = (typeof members)[number];
   // Get members that are in this role
-  const roleMembers = members.filter((m) => memberIds.includes(m.id));
+  const roleMembers = members.filter((m: Member) => memberIds.includes(m.id));
 
   // Filter by search
-  const filteredMembers = roleMembers.filter((member) => {
+  const filteredMembers = roleMembers.filter((member: Member) => {
     const searchLower = deferredSearchQuery.toLowerCase();
     return (
       member.user?.name?.toLowerCase().includes(searchLower) ||
@@ -977,7 +979,7 @@ function MembersTabContent({
           </div>
         ) : (
           <div className="p-4 space-y-2">
-            {filteredMembers.map((member) => (
+            {filteredMembers.map((member: Member) => (
               <div
                 key={member.id}
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
@@ -1097,7 +1099,8 @@ export function ManageRolesDialog({
   const { locator } = useProjectContext();
   const queryClient = useQueryClient();
 
-  // Get all connections for selection
+  // Get all connections for permission save/load logic (wildcard expansion, ID lookup).
+  // Display-level search is handled inside ToolSetSelector's own useConnections call.
   const connections = useConnections() ?? [];
 
   // Get existing custom roles
@@ -1198,9 +1201,10 @@ export function ManageRolesDialog({
 
     // Get members with this role
     const members = membersData?.data?.members ?? [];
+    type MemberItem = (typeof members)[number];
     const roleMemberIds = members
-      .filter((m) => m.role === role.role)
-      .map((m) => m.id);
+      .filter((m: MemberItem) => m.role === role.role)
+      .map((m: MemberItem) => m.id);
 
     return {
       role: {
@@ -1386,18 +1390,19 @@ export function ManageRolesDialog({
       if (isBuiltinRole) {
         // Built-in role - only update member assignments
         const members = membersData?.data?.members ?? [];
+        type SaveMember = (typeof members)[number];
         const currentMemberIds = members
-          .filter((m) => m.role === formData.role.slug)
-          .map((m) => m.id);
+          .filter((m: SaveMember) => m.role === formData.role.slug)
+          .map((m: SaveMember) => m.id);
 
         // Find members to add
         const membersToAdd = formData.memberIds.filter(
-          (id) => !currentMemberIds.includes(id),
+          (id: string) => !currentMemberIds.includes(id),
         );
 
         // Find members to remove
         const membersToRemove = currentMemberIds.filter(
-          (id) => !formData.memberIds.includes(id),
+          (id: string) => !formData.memberIds.includes(id),
         );
 
         // Add new members to this role
@@ -1436,18 +1441,19 @@ export function ManageRolesDialog({
 
         // Update member assignments
         const members = membersData?.data?.members ?? [];
+        type UpdateMember = (typeof members)[number];
         const currentMemberIds = members
-          .filter((m) => m.role === formData.role.slug)
-          .map((m) => m.id);
+          .filter((m: UpdateMember) => m.role === formData.role.slug)
+          .map((m: UpdateMember) => m.id);
 
         // Find members to add
         const membersToAdd = formData.memberIds.filter(
-          (id) => !currentMemberIds.includes(id),
+          (id: string) => !currentMemberIds.includes(id),
         );
 
         // Find members to remove
         const membersToRemove = currentMemberIds.filter(
-          (id) => !formData.memberIds.includes(id),
+          (id: string) => !formData.memberIds.includes(id),
         );
 
         // Add new members to this role
@@ -1720,7 +1726,6 @@ export function ManageRolesDialog({
                       {...form.register("role.label")}
                       placeholder="Enter role name"
                       className="flex-1 text-sm font-medium border-0 shadow-none h-auto px-0 py-0 focus-visible:ring-0 bg-transparent"
-                      autoFocus
                     />
                     <Badge
                       variant="secondary"
@@ -1815,7 +1820,9 @@ export function ManageRolesDialog({
                 <ToolSetSelector
                   toolSet={form.watch("toolSet")}
                   onToolSetChange={(newToolSet) =>
-                    form.setValue("toolSet", newToolSet, { shouldDirty: true })
+                    form.setValue("toolSet", newToolSet, {
+                      shouldDirty: true,
+                    })
                   }
                 />
               )}

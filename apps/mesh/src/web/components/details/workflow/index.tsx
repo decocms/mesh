@@ -4,6 +4,7 @@ import {
   WorkflowExecution,
 } from "@decocms/bindings/workflow";
 import {
+  useIsInputSchemaSelected,
   useTrackingExecutionId,
   useWorkflow,
   useWorkflowActions,
@@ -17,7 +18,15 @@ import {
 } from "@deco/ui/components/resizable.js";
 import { Badge } from "@deco/ui/components/badge.js";
 import { Button } from "@deco/ui/components/button.js";
-import { AlertOctagon, Check, Clock, Eye, FileIcon, X } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  Check,
+  Clock,
+  Eye,
+  FileIcon,
+  X,
+} from "lucide-react";
 import { WorkflowEditorHeader } from "./components/workflow-editor-header";
 import { WorkflowStepsCanvas } from "./components/workflow-steps-canvas";
 import { ToolSidebar } from "./components/tool-sidebar";
@@ -26,36 +35,32 @@ import { ExecutionsList } from "./components/executions-list";
 import { useViewModeStore } from "./stores/view-mode";
 import { useCurrentStep } from "./stores/workflow";
 import { ViewLayout } from "../layout";
-import { useParams } from "@tanstack/react-router";
 import {
   useCollectionActions,
   useCollectionItem,
-  useConnections,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+
 import { EmptyState } from "@deco/ui/components/empty-state.js";
 import { usePollingWorkflowExecution } from "./hooks";
 import { useWorkflowSSE } from "./hooks/use-workflow-sse";
+import { InputSchemaPanel } from "./components/input-schema-panel";
 import { useRef, useState, useSyncExternalStore } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared hook for workflow/execution data
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useCollectionWorkflow({ itemId }: { itemId: string }) {
+export function useCollectionWorkflow({
+  itemId,
+  connectionId: connectionIdOverride,
+}: {
+  itemId: string;
+  connectionId?: string;
+}) {
   const [isUpdating, setIsUpdating] = useState(false);
-  const { appSlug } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
-  });
-  const allConnections = useConnections();
-  const connection =
-    allConnections.find(
-      (c) =>
-        c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === appSlug,
-    ) ?? null;
-  const connectionId = connection?.id ?? appSlug;
+  const connectionId = connectionIdOverride ?? "self";
   const scopeKey = connectionId ?? "no-connection";
 
   const collectionName = "WORKFLOW";
@@ -114,6 +119,7 @@ function WorkflowCode({
   const wf = {
     title: workflow.title,
     description: workflow.description,
+    input_schema: workflow.input_schema,
     steps: workflow.steps,
   };
   return (
@@ -216,7 +222,10 @@ function WorkflowExecutionBar() {
   const formattedDuration = duration != null ? formatDuration(duration) : null;
   const status = executionItem?.status;
   const isError = status === "error" || status === "failed";
-  const isSuccess = status === "success";
+  const hasFailedSteps =
+    (executionItem?.completed_steps?.error?.length ?? 0) > 0;
+  const isPartialSuccess = status === "success" && hasFailedSteps;
+  const isSuccess = status === "success" && !hasFailedSteps;
   return (
     <div className="flex flex-col border-b border-border">
       <div className="h-10 bg-accent flex items-center justify-between">
@@ -236,6 +245,12 @@ function WorkflowExecutionBar() {
             <Badge variant="success" className="gap-1 ml-3">
               <Check size={11} />
               Success
+            </Badge>
+          )}
+          {isPartialSuccess && (
+            <Badge variant="warning" className="gap-1 ml-3">
+              <AlertTriangle size={11} />
+              Partial success
             </Badge>
           )}
           {isError && (
@@ -265,10 +280,13 @@ function WorkflowExecutionBar() {
   );
 }
 
-export function WorkflowDetails() {
-  const { itemId } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
-  });
+export function WorkflowDetails({
+  itemId,
+}: {
+  itemId: string;
+  onBack?: () => void;
+  onUpdate?: (updates: Record<string, unknown>) => Promise<void>;
+}) {
   const {
     item: workflow,
     update,
@@ -315,6 +333,7 @@ function WorkflowStudio({
   const trackingExecutionId = useTrackingExecutionId();
   const { viewMode, showExecutionsList } = useViewModeStore();
   const currentStep = useCurrentStep();
+  const isInputSchemaSelected = useIsInputSchemaSelected();
 
   const handleSave = async () => {
     await onUpdate(workflow);
@@ -325,8 +344,10 @@ function WorkflowStudio({
     ? (currentStep.action as ToolCallAction).toolName
     : null;
   const showToolSidebar = isToolStep && !toolName && !trackingExecutionId;
+  const showInputSchema = isInputSchemaSelected && !trackingExecutionId;
   const showStepDetail =
     !showToolSidebar &&
+    !showInputSchema &&
     (currentStep || trackingExecutionId || !showExecutionsList);
 
   return (
@@ -363,6 +384,9 @@ function WorkflowStudio({
                 {showToolSidebar && (
                   <ToolSidebar className="border-l border-border" />
                 )}
+                {showInputSchema && (
+                  <InputSchemaPanel className="border-l border-border" />
+                )}
                 {showExecutionsList && <ExecutionsList />}
                 {showStepDetail && (
                   <StepDetailPanel className="border-l border-border" />
@@ -376,17 +400,14 @@ function WorkflowStudio({
   );
 }
 
-function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
-  const { appSlug } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
-  });
-  const allConnections = useConnections();
-  const connection =
-    allConnections.find(
-      (c) =>
-        c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === appSlug,
-    ) ?? null;
-  const connectionId = connection?.id ?? appSlug;
+function useCollectionWorkflowExecution({
+  itemId,
+  connectionId: connectionIdOverride,
+}: {
+  itemId: string;
+  connectionId?: string;
+}) {
+  const connectionId = connectionIdOverride ?? "self";
   const scopeKey = connectionId ?? "no-connection";
 
   const collectionName = "WORKFLOW_EXECUTION";
@@ -409,12 +430,15 @@ function useCollectionWorkflowExecution({ itemId }: { itemId: string }) {
   };
 }
 
-export function WorkflowExecutionDetailsView() {
-  const { itemId } = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
-  });
+export function WorkflowExecutionDetailsView({
+  itemId,
+}: {
+  itemId: string;
+  onBack?: () => void;
+  onUpdate?: (updates: Record<string, unknown>) => Promise<void>;
+}) {
   const { item: execution } = useCollectionWorkflowExecution({
-    itemId: itemId,
+    itemId,
   });
 
   if (!execution) {

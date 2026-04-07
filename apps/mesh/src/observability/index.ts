@@ -27,12 +27,8 @@ import { enableFetchInstrumentation } from "./instrumentations/fetch";
 import { NDJSONLogExporter } from "../monitoring/ndjson-log-exporter";
 import { NDJSONMetricExporter } from "../monitoring/ndjson-metric-exporter";
 import { NDJSONTraceExporter } from "../monitoring/ndjson-trace-exporter";
-import {
-  DEFAULT_LOGS_DIR,
-  DEFAULT_METRICS_DIR,
-  DEFAULT_TRACES_DIR,
-} from "../monitoring/schema";
-import { env } from "../env";
+import { getLogsDir, getMetricsDir, getTracesDir } from "../monitoring/schema";
+import { getSettings } from "../settings";
 
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
@@ -197,91 +193,122 @@ export const prometheusExporter = new PrometheusExporter({
 const headSampler = new DebugSampler(new RatioSampler(HEAD_SAMPLER_RATIO));
 
 /**
- * Select trace exporter based on environment.
+ * Observability state — initialized lazily via initObservability().
  *
- * When CLICKHOUSE_URL is set, spans are also sent to an OTel Collector
- * via OTLP (which forwards to ClickHouse).
+ * The tracer/meter/logger are available immediately (they use OTel API
+ * no-ops until the SDK is started), but the NDJSON exporters and SDK
+ * require Settings and must wait until after buildSettings() completes.
  */
-const traceExporter = env.CLICKHOUSE_URL ? new OTLPTraceExporter() : undefined;
-
-// Always create local NDJSON exporters (skip only in tests — they create
-// timers and write to disk, neither of which is needed when running `bun test`).
-const monitoringLogExporter =
-  env.NODE_ENV === "test"
-    ? null
-    : new NDJSONLogExporter({ basePath: DEFAULT_LOGS_DIR });
-
-const monitoringTraceExporter =
-  env.NODE_ENV === "test"
-    ? null
-    : new NDJSONTraceExporter({ basePath: DEFAULT_TRACES_DIR });
-
-const monitoringMetricExporter =
-  env.NODE_ENV === "test"
-    ? null
-    : new NDJSONMetricExporter({ basePath: DEFAULT_METRICS_DIR });
-
-const monitoringMetricReader = monitoringMetricExporter
-  ? new PeriodicExportingMetricReader({
-      exporter: monitoringMetricExporter,
-      exportIntervalMillis: 60_000,
-    })
-  : null;
+let monitoringLogExporter: NDJSONLogExporter | null = null;
+let monitoringTraceExporter: NDJSONTraceExporter | null = null;
+let monitoringMetricExporter: NDJSONMetricExporter | null = null;
+let monitoringMetricReader: PeriodicExportingMetricReader | null = null;
+let _initialized = false;
 
 /**
- * Initialize OpenTelemetry SDK
+ * Initialize the OpenTelemetry SDK with settings-dependent configuration.
+ *
+ * Must be called after buildSettings() completes. Safe to call multiple
+ * times — subsequent calls are no-ops.
  */
-const sdk = new NodeSDK({
-  serviceName: env.OTEL_SERVICE_NAME,
-  traceExporter,
-  metricReaders: [
-    prometheusExporter,
-    ...(monitoringMetricReader ? [monitoringMetricReader] : []),
-  ],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sampler: headSampler,
-  spanProcessors: [
-    ...(monitoringTraceExporter
-      ? [
-          new BatchSpanProcessor(monitoringTraceExporter, {
-            scheduledDelayMillis: 60_000,
-            maxExportBatchSize: 1000,
-          }),
-        ]
-      : []),
-  ],
-  logRecordProcessors: [
-    ...(env.CLICKHOUSE_URL
-      ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
-      : []),
-    ...(monitoringLogExporter
-      ? [
-          new BatchLogRecordProcessor(monitoringLogExporter, {
-            scheduledDelayMillis: 60_000,
-            maxExportBatchSize: 1000,
-          }),
-        ]
-      : []),
-  ],
-  instrumentations: [new RuntimeNodeInstrumentation()],
-});
+export function initObservability(): void {
+  if (_initialized) return;
 
-// Start SDK to enable metric collection and tracing
-sdk.start();
+  const _settings = getSettings();
 
-// Enable custom Bun fetch instrumentation (must be after SDK start)
-// This wraps global fetch with tracing since Bun's fetch doesn't use undici
-enableFetchInstrumentation();
+  const traceExporter = _settings.clickhouseUrl
+    ? new OTLPTraceExporter()
+    : undefined;
+
+  // Always create local NDJSON exporters (skip only in tests — they create
+  // timers and write to disk, neither of which is needed when running `bun test`).
+  monitoringLogExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONLogExporter({ basePath: getLogsDir() });
+
+  monitoringTraceExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONTraceExporter({ basePath: getTracesDir() });
+
+  monitoringMetricExporter =
+    _settings.nodeEnv === "test"
+      ? null
+      : new NDJSONMetricExporter({ basePath: getMetricsDir() });
+
+  monitoringMetricReader = monitoringMetricExporter
+    ? new PeriodicExportingMetricReader({
+        exporter: monitoringMetricExporter,
+        exportIntervalMillis: 60_000,
+      })
+    : null;
+
+  const sdk = new NodeSDK({
+    serviceName: _settings.otelServiceName,
+    traceExporter,
+    metricReaders: [
+      prometheusExporter,
+      ...(monitoringMetricReader ? [monitoringMetricReader] : []),
+    ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sampler: headSampler,
+    spanProcessors: [
+      ...(monitoringTraceExporter
+        ? [
+            new BatchSpanProcessor(monitoringTraceExporter, {
+              scheduledDelayMillis: 60_000,
+              maxExportBatchSize: 1000,
+            }),
+          ]
+        : []),
+    ],
+    logRecordProcessors: [
+      ...(_settings.clickhouseUrl
+        ? [new BatchLogRecordProcessor(new OTLPLogExporter())]
+        : []),
+      ...(monitoringLogExporter
+        ? [
+            new BatchLogRecordProcessor(monitoringLogExporter, {
+              scheduledDelayMillis: 60_000,
+              maxExportBatchSize: 1000,
+            }),
+          ]
+        : []),
+    ],
+    instrumentations: [new RuntimeNodeInstrumentation()],
+  });
+
+  // Start SDK to enable metric collection and tracing
+  sdk.start();
+
+  // Re-obtain meter/tracer now that the SDK registered the real providers.
+  // The module-level `meter` and `tracer` were evaluated before sdk.start()
+  // and point to NoopMeter/NoopTracer. Reassigning ensures all callers that
+  // import these get working instruments.
+  meter = metrics.getMeter("mesh", "1.0.0");
+  tracer = trace.getTracer("mesh", "1.0.0");
+
+  // Enable custom Bun fetch instrumentation (must be after SDK start)
+  // This wraps global fetch with tracing since Bun's fetch doesn't use undici
+  enableFetchInstrumentation();
+
+  _initialized = true;
+}
 
 /**
  * Get tracer instance
  */
-export const tracer = trace.getTracer("mesh", "1.0.0");
+export let tracer = trace.getTracer("mesh", "1.0.0");
 
 /**
- * Get meter instance
+ * Get meter instance.
+ *
+ * Uses `let` so initObservability() can reassign after sdk.start().
+ * The module-level call returns a NoopMeter when evaluated before the SDK
+ * starts; the reassignment ensures all subsequent callers get a real meter.
  */
-export const meter = metrics.getMeter("mesh", "1.0.0");
+export let meter = metrics.getMeter("mesh", "1.0.0");
 
 /**
  * Get logger instance

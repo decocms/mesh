@@ -25,9 +25,9 @@ import type { RunEvent, RunTransition } from "./run-state";
 // ============================================================================
 
 export class RunClaimError extends Error {
-  constructor(threadId: string) {
+  constructor(taskId: string) {
     super(
-      `Failed to claim run for thread ${threadId} — already running on another pod`,
+      `Failed to claim run for thread ${taskId} — already running on another pod`,
     );
     this.name = "RunClaimError";
   }
@@ -48,21 +48,28 @@ export interface RunReactorDeps {
 // ============================================================================
 
 async function handleTerminalStatus(
-  threadId: string,
+  taskId: string,
   orgId: string,
   status: "completed" | "requires_action",
   deps: RunReactorDeps,
 ): Promise<void> {
   const { storage, streamBuffer, sseHub } = deps;
-  await storage.update(threadId, orgId, {
+  // Read thread to get virtual_mcp_id for SSE event
+  const thread = await storage.get(taskId, orgId);
+  const virtualMcpId = thread?.virtual_mcp_id ?? undefined;
+
+  await storage.update(taskId, orgId, {
     status,
     run_owner_pod: null,
     run_config: null,
     run_started_at: null,
   });
-  streamBuffer.purge(threadId);
-  sseHub.emit(orgId, createDecopilotThreadStatusEvent(threadId, status));
-  sseHub.emit(orgId, createDecopilotFinishEvent(threadId, status));
+  streamBuffer.purge(taskId);
+  sseHub.emit(
+    orgId,
+    createDecopilotThreadStatusEvent(taskId, status, virtualMcpId),
+  );
+  sseHub.emit(orgId, createDecopilotFinishEvent(taskId, status));
 }
 
 // ============================================================================
@@ -75,7 +82,7 @@ async function react(event: RunEvent, deps: RunReactorDeps): Promise<void> {
   switch (event.type) {
     case "RUN_STARTED": {
       const claimed = await storage.claimRunStart(
-        event.threadId,
+        event.taskId,
         event.orgId,
         {
           status: "in_progress",
@@ -86,45 +93,52 @@ async function react(event: RunEvent, deps: RunReactorDeps): Promise<void> {
         event.podId ?? null,
       );
       if (!claimed) {
-        throw new RunClaimError(event.threadId);
+        throw new RunClaimError(event.taskId);
       }
+      // Read virtual_mcp_id for SSE event (thread exists at this point)
+      const startedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.threadId, "in_progress"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "in_progress",
+          startedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       return;
     }
 
-    case "RUN_RESUMED":
-      await storage.update(event.threadId, event.orgId, {
+    case "RUN_RESUMED": {
+      await storage.update(event.taskId, event.orgId, {
         run_owner_pod: event.podId,
         run_started_at: new Date().toISOString(),
       });
+      const resumedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.threadId, "in_progress"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "in_progress",
+          resumedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       return;
+    }
 
     case "STEP_COMPLETED":
       sseHub.emit(
         event.orgId,
-        createDecopilotStepEvent(event.threadId, event.stepCount),
+        createDecopilotStepEvent(event.taskId, event.stepCount),
       );
       return;
 
     case "RUN_COMPLETED":
-      await handleTerminalStatus(
-        event.threadId,
-        event.orgId,
-        "completed",
-        deps,
-      );
+      await handleTerminalStatus(event.taskId, event.orgId, "completed", deps);
       return;
 
     case "RUN_REQUIRES_ACTION":
       await handleTerminalStatus(
-        event.threadId,
+        event.taskId,
         event.orgId,
         "requires_action",
         deps,
@@ -135,32 +149,37 @@ async function react(event: RunEvent, deps: RunReactorDeps): Promise<void> {
       // state is undefined post-projection; orgId is carried on the event
       if (event.reason === "ghost") {
         const transitioned = await storage.forceFailIfInProgress(
-          event.threadId,
+          event.taskId,
           event.orgId,
         );
         if (!transitioned) return;
         // Clear run columns for ghost failures too
-        await storage.update(event.threadId, event.orgId, {
+        await storage.update(event.taskId, event.orgId, {
           run_owner_pod: null,
           run_config: null,
           run_started_at: null,
         });
       } else {
-        await storage.update(event.threadId, event.orgId, {
+        await storage.update(event.taskId, event.orgId, {
           status: "failed",
           run_owner_pod: null,
           run_config: null,
           run_started_at: null,
         });
       }
-      streamBuffer.purge(event.threadId);
+      streamBuffer.purge(event.taskId);
+      const failedThread = await storage.get(event.taskId, event.orgId);
       sseHub.emit(
         event.orgId,
-        createDecopilotThreadStatusEvent(event.threadId, "failed"),
+        createDecopilotThreadStatusEvent(
+          event.taskId,
+          "failed",
+          failedThread?.virtual_mcp_id ?? undefined,
+        ),
       );
       sseHub.emit(
         event.orgId,
-        createDecopilotFinishEvent(event.threadId, "failed"),
+        createDecopilotFinishEvent(event.taskId, "failed"),
       );
       return;
     }

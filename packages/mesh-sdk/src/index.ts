@@ -4,7 +4,6 @@ export {
   useProjectContext,
   useOrg,
   useCurrentProject,
-  useIsOrgAdmin,
   Locator,
   type ProjectContextProviderProps,
   type ProjectLocator,
@@ -19,7 +18,6 @@ export {
   // Collection hooks
   useCollectionItem,
   useCollectionList,
-  useCollectionListAsync,
   useCollectionActions,
   buildWhereExpression,
   buildOrderByExpression,
@@ -31,8 +29,6 @@ export {
   type CollectionQueryKey,
   // Connection hooks
   useConnections,
-  useConnectionsAsync,
-  useConnectionsInfinite,
   useConnection,
   useConnectionActions,
   type ConnectionFilter,
@@ -203,7 +199,6 @@ export {
   getWellKnownCommunityRegistryConnection,
   getWellKnownSelfConnection,
   getWellKnownDevAssetsConnection,
-  getWellKnownOpenRouterConnection,
   getWellKnownMcpStudioConnection,
   // Virtual MCP factory functions
   getWellKnownDecopilotVirtualMCP,
@@ -211,4 +206,10 @@ export {
   // Decopilot utilities
   isDecopilot,
   getDecopilotId,
+  // Site Diagnostics utilities
+  isSiteDiagnostics,
+  getSiteDiagnosticsId,
+  // Well-known agent templates (display data + registry appId)
+  WELL_KNOWN_AGENT_TEMPLATES,
+  type WellKnownAgentTemplate,
 } from "./lib/constants";

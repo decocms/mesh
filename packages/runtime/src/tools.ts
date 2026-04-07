@@ -9,11 +9,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport as HttpServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type {
   GetPromptResult,
+  Implementation,
   ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ZodRawShape, ZodSchema, ZodTypeAny } from "zod";
-import { BindingRegistry } from "./bindings.ts";
+import { BindingRegistry, injectBindingSchemas } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
 import type { DefaultEnv } from "./index.ts";
 import { State } from "./state.ts";
@@ -485,6 +486,7 @@ export interface CreateMCPServerOptions<
   State extends
     TEnv["MESH_REQUEST_CONTEXT"]["state"] = TEnv["MESH_REQUEST_CONTEXT"]["state"],
 > {
+  serverInfo?: Partial<Implementation> & { instructions?: string };
   before?: (env: TEnv) => Promise<void> | void;
   oauth?: OAuthConfig;
   events?: {
@@ -579,7 +581,7 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
   configuration: { state: schema, scopes, onChange } = {},
 }: ResolvedMCPServerOptions<TSchema> = {}): CreatedTool[] => {
   const jsonSchema = schema
-    ? z.toJSONSchema(schema)
+    ? injectBindingSchemas(z.toJSONSchema(schema) as Record<string, unknown>)
     : { type: "object", properties: {} };
   const busProp = String(events?.bus ?? "EVENT_BUS");
   return [
@@ -711,14 +713,21 @@ const toolsFor = <TSchema extends ZodTypeAny = never>({
     ...(workflows?.length
       ? workflows.map((wf) => {
           const id = wf.toolId ?? workflowToolId(wf.title);
+          const baseDescription = [
+            wf.description
+              ? `Run workflow: ${wf.description}`
+              : `Start the "${wf.title}" workflow.`,
+            "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
+          ].join(" ");
           return createTool({
             id,
-            description: [
-              wf.description
-                ? `Run workflow: ${wf.description}`
-                : `Start the "${wf.title}" workflow.`,
-              "Returns an execution_id immediately. Use COLLECTION_WORKFLOW_EXECUTION_GET to track progress.",
-            ].join(" "),
+            description: (() => {
+              if (!wf.inputSchema) return baseDescription;
+              const schemaStr = JSON.stringify(wf.inputSchema, null, 2);
+              return schemaStr.length <= 2048
+                ? `${baseDescription}\n\nInput schema:\n${schemaStr}`
+                : `${baseDescription}\n\nThis workflow expects structured input. Use COLLECTION_WORKFLOW_GET to inspect the full input schema.`;
+            })(),
             inputSchema: z.object({
               input: z
                 .record(z.string(), z.unknown())
@@ -808,44 +817,115 @@ export const createMCPServer = <
 >(
   options: CreateMCPServerOptions<TEnv, TSchema, TBindings>,
 ): MCPServer<TEnv, TSchema, TBindings> => {
-  const createServer = async (bindings: TEnv) => {
-    await options.before?.(bindings);
+  // Tool/prompt/resource definitions are resolved once on first request and
+  // cached for the lifetime of the process. Tool *execution* reads per-request
+  // context from State (AsyncLocalStorage), so reusing definitions is safe.
+  type Registrations = {
+    tools: CreatedTool[];
+    prompts: CreatedPrompt[];
+    resources: CreatedResource[];
+    workflows?: WorkflowDefinition[];
+  };
 
-    const server = new McpServer(
-      { name: "@deco/mcp-api", version: "1.0.0" },
-      { capabilities: { tools: {}, prompts: {}, resources: {} } },
-    );
+  let cached: Registrations | null = null;
+  let inflightResolve: Promise<Registrations> | null = null;
 
-    const toolsFn =
-      typeof options.tools === "function"
-        ? options.tools
-        : async (bindings: TEnv) => {
-            if (typeof options.tools === "function") {
-              return await options.tools(bindings);
-            }
-            return await Promise.all(
-              options.tools?.flatMap(async (tool) => {
-                const toolResult = tool(bindings);
-                const awaited = await toolResult;
-                if (Array.isArray(awaited)) {
-                  return awaited;
+  const resolveRegistrations = async (
+    bindings: TEnv,
+  ): Promise<Registrations> => {
+    if (cached) return cached;
+    if (inflightResolve) return inflightResolve;
+
+    inflightResolve = (async (): Promise<Registrations> => {
+      try {
+        const toolsFn =
+          typeof options.tools === "function"
+            ? options.tools
+            : async (bindings: TEnv) => {
+                if (typeof options.tools === "function") {
+                  return await options.tools(bindings);
                 }
-                return [awaited];
-              }) ?? [],
-            ).then((t) => t.flat());
-          };
-    const tools = await toolsFn(bindings);
+                return await Promise.all(
+                  options.tools?.flatMap(async (tool) => {
+                    const toolResult = tool(bindings);
+                    const awaited = await toolResult;
+                    if (Array.isArray(awaited)) {
+                      return awaited;
+                    }
+                    return [awaited];
+                  }) ?? [],
+                ).then((t) => t.flat());
+              };
+        const tools = await toolsFn(bindings);
 
-    const resolvedWorkflows =
-      typeof options.workflows === "function"
-        ? await options.workflows(bindings)
-        : options.workflows;
+        const resolvedWorkflows =
+          typeof options.workflows === "function"
+            ? await options.workflows(bindings)
+            : options.workflows;
 
-    tools.push(
-      ...toolsFor<TSchema>({ ...options, workflows: resolvedWorkflows }),
-    );
+        tools.push(
+          ...toolsFor<TSchema>({ ...options, workflows: resolvedWorkflows }),
+        );
 
-    for (const tool of tools) {
+        const promptsFn =
+          typeof options.prompts === "function"
+            ? options.prompts
+            : async (bindings: TEnv) => {
+                if (typeof options.prompts === "function") {
+                  return await options.prompts(bindings);
+                }
+                return await Promise.all(
+                  options.prompts?.flatMap(async (prompt) => {
+                    const promptResult = prompt(bindings);
+                    const awaited = await promptResult;
+                    if (Array.isArray(awaited)) {
+                      return awaited;
+                    }
+                    return [awaited];
+                  }) ?? [],
+                ).then((p) => p.flat());
+              };
+        const prompts = await promptsFn(bindings);
+
+        const resourcesFn =
+          typeof options.resources === "function"
+            ? options.resources
+            : async (bindings: TEnv) => {
+                if (typeof options.resources === "function") {
+                  return await options.resources(bindings);
+                }
+                return await Promise.all(
+                  options.resources?.flatMap(async (resource) => {
+                    const resourceResult = resource(bindings);
+                    const awaited = await resourceResult;
+                    if (Array.isArray(awaited)) {
+                      return awaited;
+                    }
+                    return [awaited];
+                  }) ?? [],
+                ).then((r) => r.flat());
+              };
+        const resources = await resourcesFn(bindings);
+
+        const result = {
+          tools,
+          prompts,
+          resources,
+          workflows: resolvedWorkflows,
+        };
+        cached = result;
+        return result;
+      } catch (err) {
+        inflightResolve = null;
+        throw err;
+      }
+    })();
+
+    return inflightResolve;
+  };
+
+  const registerAll = (server: McpServer, registrations: Registrations) => {
+    for (const tool of registrations.tools) {
       server.registerTool(
         tool.id,
         {
@@ -873,9 +953,8 @@ export const createMCPServer = <
             runtimeContext: createRuntimeContext(),
           });
 
-          // For streamable tools, the Response is handled at the transport layer
-          // Do NOT call result.bytes() - it buffers the entire response in memory
-          // causing massive memory leaks (2GB+ Uint8Array accumulation)
+          // For streamable tools, the Response is handled at the transport layer.
+          // Do NOT call result.bytes() — it buffers the entire body in memory.
           if (isStreamableTool(tool) && result instanceof Response) {
             return {
               structuredContent: {
@@ -904,28 +983,7 @@ export const createMCPServer = <
       );
     }
 
-    // Resolve and register prompts
-    const promptsFn =
-      typeof options.prompts === "function"
-        ? options.prompts
-        : async (bindings: TEnv) => {
-            if (typeof options.prompts === "function") {
-              return await options.prompts(bindings);
-            }
-            return await Promise.all(
-              options.prompts?.flatMap(async (prompt) => {
-                const promptResult = prompt(bindings);
-                const awaited = await promptResult;
-                if (Array.isArray(awaited)) {
-                  return awaited;
-                }
-                return [awaited];
-              }) ?? [],
-            ).then((p) => p.flat());
-          };
-    const prompts = await promptsFn(bindings);
-
-    for (const prompt of prompts) {
+    for (const prompt of registrations.prompts) {
       server.registerPrompt(
         prompt.name,
         {
@@ -944,28 +1002,7 @@ export const createMCPServer = <
       );
     }
 
-    // Resolve and register resources
-    const resourcesFn =
-      typeof options.resources === "function"
-        ? options.resources
-        : async (bindings: TEnv) => {
-            if (typeof options.resources === "function") {
-              return await options.resources(bindings);
-            }
-            return await Promise.all(
-              options.resources?.flatMap(async (resource) => {
-                const resourceResult = resource(bindings);
-                const awaited = await resourceResult;
-                if (Array.isArray(awaited)) {
-                  return awaited;
-                }
-                return [awaited];
-              }) ?? [],
-            ).then((r) => r.flat());
-          };
-    const resources = await resourcesFn(bindings);
-
-    for (const resource of resources) {
+    for (const resource of registrations.resources) {
       server.resource(
         resource.name,
         resource.uri,
@@ -978,19 +1015,7 @@ export const createMCPServer = <
             uri,
             runtimeContext: createRuntimeContext(),
           });
-          // Build content object based on what's provided (text or blob, not both)
-          const content: {
-            uri: string;
-            mimeType?: string;
-            text?: string;
-            blob?: string;
-          } = { uri: result.uri };
 
-          if (result.mimeType) {
-            content.mimeType = result.mimeType;
-          }
-
-          // MCP SDK expects either text or blob content, not both
           const meta =
             (result as { _meta?: Record<string, unknown> | null })._meta ??
             undefined;
@@ -1018,7 +1043,6 @@ export const createMCPServer = <
             };
           }
 
-          // Fallback to empty text if neither provided
           return {
             contents: [
               { uri: result.uri, mimeType: result.mimeType, text: "" },
@@ -1027,8 +1051,28 @@ export const createMCPServer = <
         },
       );
     }
+  };
 
-    return { server, tools, prompts, resources };
+  const createServer = async (bindings: TEnv) => {
+    await options.before?.(bindings);
+
+    const { instructions, ...serverInfoOverrides } = options.serverInfo ?? {};
+    const server = new McpServer(
+      {
+        ...serverInfoOverrides,
+        name: serverInfoOverrides.name ?? "@deco/mcp-api",
+        version: serverInfoOverrides.version ?? "1.0.0",
+      },
+      {
+        capabilities: { tools: {}, prompts: {}, resources: {} },
+        ...(instructions && { instructions }),
+      },
+    );
+
+    const registrations = await resolveRegistrations(bindings);
+    registerAll(server, registrations);
+
+    return { server, ...registrations };
   };
 
   const fetch = async (req: Request, env: TEnv) => {
@@ -1037,46 +1081,48 @@ export const createMCPServer = <
 
     await server.connect(transport);
 
+    const cleanup = () => {
+      try {
+        transport.close?.();
+      } catch {
+        /* ignore */
+      }
+      try {
+        server.close?.();
+      } catch {
+        /* ignore */
+      }
+    };
+
     try {
       const response = await transport.handleRequest(req);
 
-      // Check if this is a streaming response (SSE or streamable tool)
-      // SSE responses have text/event-stream content-type
-      // Note: response.body is always non-null for all HTTP responses, so we can't use it to detect streaming
       const contentType = response.headers.get("content-type");
       const isStreaming =
         contentType?.includes("text/event-stream") ||
         contentType?.includes("application/json-rpc");
 
-      // Only close transport for non-streaming responses
-      if (!isStreaming) {
-        console.debug(
-          "[MCP Transport] Closing transport for non-streaming response",
-        );
-        try {
-          await transport.close?.();
-        } catch {
-          // Ignore close errors
-        }
-      } else {
-        console.debug(
-          "[MCP Transport] Keeping transport open for streaming response (Content-Type: %s)",
-          contentType,
-        );
+      if (!isStreaming || !response.body) {
+        cleanup();
+        return response;
       }
 
-      return response;
+      // Pipe the SSE body through a passthrough so that when the stream
+      // finishes (server sent the response) or the client disconnects
+      // (cancel), the server and transport are always cleaned up.
+      const { readable, writable } = new TransformStream();
+      response.body
+        .pipeTo(writable)
+        .catch(() => {})
+        .finally(cleanup);
+
+      return new Response(readable, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     } catch (error) {
-      // On error, always try to close transport to prevent leaks
-      console.debug(
-        "[MCP Transport] Closing transport due to error:",
-        error instanceof Error ? error.message : error,
-      );
-      try {
-        await transport.close?.();
-      } catch {
-        // Ignore close errors
-      }
+      cleanup();
       throw error;
     }
   };
@@ -1087,7 +1133,9 @@ export const createMCPServer = <
       throw new Error("Missing state, did you forget to call State.bind?");
     }
     const env = currentState?.env;
-    const { tools } = await createServer(env as TEnv & DefaultEnv<TSchema>);
+    const { tools } = await resolveRegistrations(
+      env as TEnv & DefaultEnv<TSchema>,
+    );
     const tool = tools.find((t) => t.id === toolCallId);
     const execute = tool?.execute;
     if (!execute) {

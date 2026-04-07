@@ -25,12 +25,13 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
     threads: null as never,
     tags: null as never,
     virtualMcpPluginConfigs: null as never,
-    monitoringDashboards: null as never,
     aiProviderKeys: null as never,
     oauthPkceStates: null as never,
     automations: null as never,
     orgSsoConfig: null as never,
     orgSsoSessions: null as never,
+    triggerCallbackTokens: null as never,
+    registry: null as never,
   },
   vault: null as never,
   authInstance: null as never,
@@ -62,6 +63,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
   aiProviders: null as never,
   createMCPProxy: async () => ({}) as never,
   getOrCreateClient: async () => ({}) as never,
+  pendingRevalidations: [],
   ...overrides,
 });
 

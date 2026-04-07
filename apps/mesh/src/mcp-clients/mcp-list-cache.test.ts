@@ -213,6 +213,73 @@ describe("fetchWithCache", () => {
     await new Promise((r) => setTimeout(r, 60));
     expect(await cache.get("tools", "conn1")).toEqual([makeTool("fresh")]);
   });
+
+  it("calls onRevalidation callback with revalidation promise on cache hit", async () => {
+    const cache = new TestMcpListCache();
+    const stale = [makeTool("stale")];
+    const fresh = [makeTool("fresh")];
+    await cache.set("tools", "conn1", stale);
+
+    const revalidations: Promise<void>[] = [];
+    const onRevalidation = (p: Promise<void>) => revalidations.push(p);
+
+    const data = await fetchWithCache(
+      "tools",
+      "conn1",
+      async () => fresh,
+      cache,
+      onRevalidation,
+    );
+
+    expect(data).toEqual(stale);
+    expect(revalidations).toHaveLength(1);
+
+    // Await the revalidation promise — cache should be updated
+    await Promise.allSettled(revalidations);
+    expect(await cache.get("tools", "conn1")).toEqual(fresh);
+  });
+
+  it("does not call onRevalidation on cache miss", async () => {
+    const cache = new TestMcpListCache();
+    const tools = [makeTool("t1")];
+
+    const revalidations: Promise<void>[] = [];
+    const onRevalidation = (p: Promise<void>) => revalidations.push(p);
+
+    await fetchWithCache(
+      "tools",
+      "conn1",
+      async () => tools,
+      cache,
+      onRevalidation,
+    );
+
+    expect(revalidations).toHaveLength(0);
+  });
+
+  it("silently handles connection closed errors during revalidation", async () => {
+    const cache = new TestMcpListCache();
+    const stale = [makeTool("stale")];
+    await cache.set("tools", "conn1", stale);
+
+    const { McpError } = await import("@modelcontextprotocol/sdk/types.js");
+    const revalidations: Promise<void>[] = [];
+
+    const data = await fetchWithCache(
+      "tools",
+      "conn1",
+      async () => {
+        throw new McpError(-32000, "Connection closed");
+      },
+      cache,
+      (p) => revalidations.push(p),
+    );
+
+    expect(data).toEqual(stale);
+    await Promise.allSettled(revalidations);
+    // Cache should still have stale data (revalidation failed silently)
+    expect(await cache.get("tools", "conn1")).toEqual(stale);
+  });
 });
 
 // ============================================================================
@@ -272,11 +339,11 @@ describe("withMcpCaching with TestMcpListCache", () => {
   });
 
   it("caches empty tool lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection({ tools: null });
     const client = {
       listTools: async () => {
-        callCount++;
+        _callCount++;
         return { tools: [] };
       },
     } as any as Client;
@@ -418,11 +485,11 @@ describe("withMcpCaching resources", () => {
   });
 
   it("caches empty resource lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection();
     const client = {
       listResources: async () => {
-        callCount++;
+        _callCount++;
         return { resources: [] };
       },
     } as any as Client;
@@ -506,11 +573,11 @@ describe("withMcpCaching prompts", () => {
   });
 
   it("caches empty prompt lists so removals are reflected immediately", async () => {
-    let callCount = 0;
+    let _callCount = 0;
     const connection = makeConnection();
     const client = {
       listPrompts: async () => {
-        callCount++;
+        _callCount++;
         return { prompts: [] };
       },
     } as any as Client;

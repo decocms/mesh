@@ -1,12 +1,17 @@
 # Simplified Dockerfile - uses pre-built npm package
-FROM oven/bun:1-alpine
+# Uses debian-slim (not alpine) because @duckdb/node-bindings requires glibc
+FROM oven/bun:1-slim
 
 # Version to install (override with --build-arg MESH_VERSION=1.0.0)
 ARG MESH_VERSION=latest
 
+# Install runtime dependencies (unzip needed by embedded-postgres)
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create non-root user and app directories
-RUN addgroup -g 1001 -S bunapp && \
-    adduser -u 1001 -S -G bunapp bunuser && \
+RUN groupadd -g 1001 bunapp && \
+    useradd -u 1001 -g bunapp -m -s /bin/sh bunuser && \
     mkdir -p /app/data /app/apps/mesh && \
     chown -R bunuser:bunapp /app
 
@@ -26,4 +31,4 @@ ENV DATABASE_URL=file:/app/data/mesh.db
 
 # The CLI handles migrations automatically on startup
 # Use --skip-migrations if you want to manage migrations separately
-CMD ["bun", "run", "deco", "--no-local-mode"]
+CMD ["bun", "run", "deco", "--no-tui", "--no-local-mode"]

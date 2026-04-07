@@ -25,6 +25,7 @@ import {
   PARENT_STEP_LIMIT,
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
+import { uploadFileParts, resolveStorageRefs } from "./file-materializer";
 import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
@@ -45,9 +46,13 @@ import {
   createClaudeCodeModel,
   resolveClaudeCodeModelId,
 } from "@/ai-providers/adapters/claude-code";
+import {
+  createCodexModel,
+  resolveCodexModelId,
+} from "@/ai-providers/adapters/codex";
 import { getInternalUrl } from "@/core/server-constants";
 import { traced, tracer } from "@/observability";
-import { POD_ID } from "@/core/pod-identity";
+import { getPodId } from "@/core/pod-identity";
 import { createBuiltinMcpServer } from "./built-in-tools/built-in-mcp-server";
 
 /**
@@ -82,7 +87,7 @@ export interface StreamCoreInput {
   toolApprovalLevel: ToolApprovalLevel;
   organizationId: string;
   userId: string;
-  threadId?: string;
+  taskId?: string;
   triggerId?: string;
   windowSize?: number;
   abortSignal?: AbortSignal;
@@ -96,7 +101,7 @@ export interface StreamCoreDeps {
 }
 
 export interface StreamCoreResult {
-  threadId: string;
+  taskId: string;
   stream: ReadableStream;
 }
 
@@ -118,7 +123,7 @@ export async function streamCore(
       "decopilot.credential.id": input.models.credentialId,
       "decopilot.organization.id": input.organizationId,
       "decopilot.user.id": input.userId,
-      "decopilot.thread.id": input.threadId,
+      "decopilot.thread.id": input.taskId,
     },
   );
 }
@@ -131,9 +136,17 @@ async function streamCoreInner(
 ): Promise<StreamCoreResult> {
   const { runRegistry, streamBuffer } = deps;
 
+  // Normalize: ensure every message has an id (runtime callers may omit it)
+  input = {
+    ...input,
+    messages: input.messages.map((m) =>
+      m.id ? m : { ...m, id: generateMessageId() },
+    ),
+  };
+
   let closeClients: (() => void) | undefined;
   let runStarted = false;
-  let threadId: string | undefined;
+  let taskId: string | undefined;
   let llmCallStartTime: number | undefined;
   let llmCallLogged = false;
 
@@ -142,10 +155,13 @@ async function streamCoreInner(
       .findById(input.models.credentialId, input.organizationId)
       .catch(() => null);
     const isClaudeCode = credentialKey?.providerId === "claude-code";
-    rootSpan.setAttribute("decopilot.isClaudeCode", isClaudeCode);
+    const isCodex = credentialKey?.providerId === "codex";
+    const isCliAgent = isClaudeCode || isCodex;
+    rootSpan.setAttribute("decopilot.isCliAgent", isCliAgent);
+    rootSpan.setAttribute("decopilot.isCodex", isCodex);
 
     // 1. Check model permissions (skip for Claude Code in local mode)
-    if (!isClaudeCode) {
+    if (!isCliAgent) {
       const allowedModels = await fetchModelPermissions(
         ctx.db,
         input.organizationId,
@@ -168,7 +184,7 @@ async function streamCoreInner(
     // 2. Load entities and create/load memory in parallel
     const [virtualMcp, provider, mem] = await Promise.all([
       ctx.storage.virtualMcps.findById(input.agent.id, input.organizationId),
-      isClaudeCode
+      isCliAgent
         ? Promise.resolve(null)
         : ctx.aiProviders.activate(
             input.models.credentialId,
@@ -176,14 +192,15 @@ async function streamCoreInner(
           ),
       createMemory(ctx.storage.threads, {
         organization_id: input.organizationId,
-        thread_id: input.threadId,
+        thread_id: input.taskId,
         userId: input.userId,
         defaultWindowSize: windowSize,
         triggerId: input.triggerId,
+        virtualMcpId: input.agent.id,
       }),
     ]);
 
-    threadId = mem.thread.id;
+    taskId = mem.thread.id;
     rootSpan.setAttribute("decopilot.thread.id", mem.thread.id);
 
     if (mem.thread.created_by !== input.userId) {
@@ -220,20 +237,20 @@ async function streamCoreInner(
     if (input.isResume) {
       await runRegistry.execute({
         type: "RESUME",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
-        podId: POD_ID,
+        podId: getPodId(),
       });
     } else {
       await runRegistry.execute({
         type: "START",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         orgId: input.organizationId,
         userId: input.userId,
         abortController: new AbortController(),
-        podId: POD_ID,
+        podId: getPodId(),
         runConfig: {
           models: input.models,
           agent: input.agent,
@@ -250,7 +267,7 @@ async function streamCoreInner(
     if (!registrySignal) {
       await runRegistry.execute({
         type: "FINISH",
-        threadId: mem.thread.id,
+        taskId: mem.thread.id,
         threadStatus: "failed",
       });
       throw new Error("Run was cancelled immediately after starting");
@@ -263,14 +280,14 @@ async function streamCoreInner(
       if (externalSignal.aborted) {
         await runRegistry.execute({
           type: "CANCEL",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
         });
       } else {
         externalSignal.addEventListener(
           "abort",
           () => {
             runRegistry
-              .execute({ type: "CANCEL", threadId: mem.thread.id })
+              .execute({ type: "CANCEL", taskId: mem.thread.id })
               .catch(() => {});
           },
           { once: true },
@@ -285,13 +302,21 @@ async function streamCoreInner(
     const systemMessages = input.messages.filter((m) => m.role === "system");
     const requestMessage = input.messages.find((m) => m.role !== "system");
 
+    // Upload file parts before saving so the thread stores stable
+    // mesh-storage: URIs instead of base64 data: blobs.
+    const materializedRequestMessage = requestMessage
+      ? ((await uploadFileParts([requestMessage], ctx)).find(
+          (m) => m.role !== "system",
+        ) as typeof requestMessage)
+      : undefined;
+
     if (!input.isResume) {
-      if (!requestMessage) {
+      if (!materializedRequestMessage) {
         throw new Error(
           "No user message found in input — expected at least one non-system message",
         );
       }
-      await saveMessagesToThread(requestMessage);
+      await saveMessagesToThread(materializedRequestMessage);
     }
 
     // Close MCP clients on abort
@@ -310,23 +335,29 @@ async function streamCoreInner(
     // from DB via createMemory / loadAndMergeMessages.
     const allMessages = await loadAndMergeMessages(
       mem,
-      requestMessage,
+      materializedRequestMessage,
       systemMessages,
       windowSize,
     );
 
-    // Find the last Claude Code sessionId for session resume
+    // Find the last coding agent session ID for session resume.
+    // Currently only Claude Code supports resume (Codex spawns a new process per request).
+    // We filter by codingAgentProvider to avoid using a Codex thread ID as a
+    // Claude Code resume session (possible when the user switches providers mid-thread).
     let resumeSessionId: string | undefined;
     if (isClaudeCode) {
       for (let i = allMessages.length - 1; i >= 0; i--) {
         const msg = allMessages[i];
+        const meta = msg?.metadata as {
+          codingAgentSessionId?: string;
+          codingAgentProvider?: string;
+        };
         if (
           msg?.role === "assistant" &&
-          (msg.metadata as { claudeCodeSessionId?: string })
-            ?.claudeCodeSessionId
+          meta?.codingAgentSessionId &&
+          meta?.codingAgentProvider === "claude-code"
         ) {
-          resumeSessionId = (msg.metadata as { claudeCodeSessionId: string })
-            .claudeCodeSessionId;
+          resumeSessionId = meta.codingAgentSessionId;
           break;
         }
       }
@@ -349,25 +380,31 @@ async function streamCoreInner(
           { listTimeoutMs: 1_000 },
         );
 
+        // Declared here (before closeClients) to avoid Temporal Dead Zone
+        // if the abort signal fires before the codex branch is reached.
+        let codexProvider: { close(): Promise<void> } | undefined;
+
         closeClients = () => {
           passthroughClient.close().catch(() => {});
+          codexProvider?.close().catch(() => {});
         };
 
-        const passthroughTools = isClaudeCode
+        const passthroughTools = isCliAgent
           ? {}
           : await toolsFromMCP(
               passthroughClient,
               toolOutputMap,
               writer,
               input.toolApprovalLevel,
+              { ctx },
             );
 
-        const builtInTools = isClaudeCode
+        const builtInTools = isCliAgent
           ? {}
           : await getBuiltInTools(
               writer,
               {
-                provider: provider!,
+                provider,
                 organization,
                 models: input.models,
                 toolApprovalLevel: input.toolApprovalLevel,
@@ -387,7 +424,7 @@ async function streamCoreInner(
 
         // Build tool annotations map for plan-mode gating in enable_tools
         const toolAnnotations = new Map<string, { readOnlyHint?: boolean }>();
-        if (input.toolApprovalLevel === "plan" && !isClaudeCode) {
+        if (input.toolApprovalLevel === "plan" && !isCliAgent) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
             toolAnnotations.set(t.name, {
@@ -396,7 +433,7 @@ async function streamCoreInner(
           }
         }
 
-        const tools = isClaudeCode
+        const tools = isCliAgent
           ? {}
           : {
               ...passthroughTools,
@@ -436,7 +473,7 @@ async function streamCoreInner(
               "`user_ask` — one good question beats three wrong assumptions.\n\n" +
               "Write the plan for a reader with no prior context. Include concrete details, " +
               "ordered steps, risks, trade-offs, and alternatives you considered.\n\n" +
-              (isClaudeCode
+              (isCliAgent
                 ? "When your plan is complete, provide it directly in chat as a comprehensive markdown plan.\n"
                 : "When your plan is complete, you MUST call `propose_plan`. This is the only way to submit a plan — do not describe it in chat.\n") +
               "</plan-mode>"
@@ -450,11 +487,15 @@ async function streamCoreInner(
           agentPrompt,
         ].filter((s): s is string => Boolean(s?.trim()));
 
+        // Resolve mesh-storage: URIs to fresh presigned URLs every turn.
+        // Also handles legacy data: URLs from threads predating this pipeline.
+        const materializedMessages = await resolveStorageRefs(allMessages, ctx);
+
         const {
           systemMessages: processedSystemMessages,
           messages: processedMessages,
           originalMessages,
-        } = await processConversation(allMessages, {
+        } = await processConversation(materializedMessages, {
           windowSize,
           models: input.models,
           tools,
@@ -463,15 +504,16 @@ async function streamCoreInner(
         ensureModelCompatibility(input.models, originalMessages);
 
         const shouldGenerateTitle =
-          mem.thread.title === DEFAULT_THREAD_TITLE && !isClaudeCode;
+          mem.thread.title === DEFAULT_THREAD_TITLE && !isCliAgent;
         if (shouldGenerateTitle) {
-          genTitle({
+          const titleInput = JSON.stringify(processedMessages[0]?.content);
+          const titleOp = genTitle({
             abortSignal: registrySignal,
             model: createLanguageModel(
               provider!,
               input.models.fast ?? input.models.thinking,
             ),
-            userMessage: JSON.stringify(processedMessages[0]?.content),
+            userMessage: titleInput,
           })
             .then(async (title) => {
               if (!title) return;
@@ -491,6 +533,16 @@ async function streamCoreInner(
                   data: { title },
                   transient: true,
                 });
+                console.log(
+                  "[decopilot:title-debug] SSE title event sent threadId=%s",
+                  mem.thread.id,
+                );
+              } else {
+                console.warn(
+                  "[decopilot:title-debug] Stream already finished, title SSE NOT sent threadId=%s title=%j",
+                  mem.thread.id,
+                  title,
+                );
               }
             })
             .catch((error) => {
@@ -499,11 +551,13 @@ async function streamCoreInner(
                 error,
               );
             });
+          pendingOps.push(titleOp);
         }
 
         let reasoningStartAt: Date | null = null;
         let lastProviderMetadata: Record<string, unknown> | undefined;
-        let claudeCodeSessionId: string | undefined;
+        let codingAgentSessionId: string | undefined;
+        let codingAgentProvider: string | undefined;
         llmCallStartTime = Date.now();
 
         // Build language model based on provider type
@@ -546,6 +600,38 @@ async function streamCoreInner(
               resume: resumeSessionId,
             },
           );
+        } else if (isCodex) {
+          const apiKey = await ctx.boundAuth.apiKey.create({
+            name: "codex-session",
+            expiresIn: 3600,
+            metadata: {
+              organization: {
+                id: organization.id,
+                slug: organization.slug,
+                name: organization.name,
+              },
+            },
+          });
+
+          const mcpUrl = `${getInternalUrl()}/mcp/virtual-mcp/${input.agent.id}`;
+          const codexResult = createCodexModel(
+            resolveCodexModelId(input.models.thinking.id),
+            {
+              mcpServers: {
+                mesh: {
+                  transport: "http",
+                  url: mcpUrl,
+                  headers: {
+                    Authorization: `Bearer ${apiKey.key}`,
+                    "x-org-id": input.organizationId,
+                  },
+                },
+              },
+              toolApprovalLevel: input.toolApprovalLevel,
+            },
+          );
+          languageModel = codexResult.model;
+          codexProvider = codexResult.provider;
         } else {
           languageModel = createLanguageModel(provider!, input.models.thinking);
         }
@@ -556,7 +642,8 @@ async function streamCoreInner(
           attributes: {
             "decopilot.model.id": input.models.thinking.id,
             "decopilot.credential.id": input.models.credentialId,
-            "decopilot.isClaudeCode": isClaudeCode,
+            "decopilot.isCliAgent": isCliAgent,
+            "decopilot.isCodex": isCodex,
           },
         });
 
@@ -573,7 +660,10 @@ async function streamCoreInner(
             ],
             messages: processedMessages,
             tools,
-            ...(isClaudeCode
+            // Note: Codex thread resume is not supported because each request
+            // spawns a new codexAppServer process. Thread IDs are local to a
+            // process and cannot be resumed by a different one.
+            ...(isCliAgent
               ? {}
               : {
                   prepareStep: () => {
@@ -648,7 +738,7 @@ async function streamCoreInner(
                 modelTitle:
                   input.models.thinking.title ?? input.models.thinking.id,
                 credentialId: input.models.credentialId,
-                threadId: mem.thread.id,
+                taskId: mem.thread.id,
                 durationMs,
                 isError: false,
                 finishReason,
@@ -703,7 +793,7 @@ async function streamCoreInner(
                   modelTitle:
                     input.models.thinking.title ?? input.models.thinking.id,
                   credentialId: input.models.credentialId,
-                  threadId: mem.thread.id,
+                  taskId: mem.thread.id,
                   durationMs,
                   isError: true,
                   errorMessage:
@@ -740,6 +830,8 @@ async function streamCoreInner(
                   credentialId: input.models.credentialId,
                   thinking: {
                     ...input.models.thinking,
+                    title:
+                      input.models.thinking.title ?? input.models.thinking.id,
                     provider: input.models.thinking.provider ?? undefined,
                   },
                 },
@@ -760,11 +852,20 @@ async function streamCoreInner(
             if (part.type === "finish-step") {
               lastProviderMetadata = part.providerMetadata;
               if (isClaudeCode && part.providerMetadata?.["claude-code"]) {
-                claudeCodeSessionId = (
+                codingAgentSessionId = (
                   part.providerMetadata["claude-code"] as {
                     sessionId?: string;
                   }
                 ).sessionId;
+                codingAgentProvider = "claude-code";
+              }
+              if (isCodex && part.providerMetadata?.["codex-app-server"]) {
+                codingAgentSessionId = (
+                  part.providerMetadata["codex-app-server"] as {
+                    threadId?: string;
+                  }
+                ).threadId;
+                codingAgentProvider = "codex";
               }
               return;
             }
@@ -798,7 +899,8 @@ async function streamCoreInner(
 
               return {
                 ...(usage && { usage }),
-                ...(claudeCodeSessionId && { claudeCodeSessionId }),
+                ...(codingAgentSessionId && { codingAgentSessionId }),
+                ...(codingAgentProvider && { codingAgentProvider }),
               };
             }
 
@@ -815,6 +917,11 @@ async function streamCoreInner(
         }
       },
       onFinish: async ({ responseMessage, finishReason }) => {
+        console.log(
+          "[decopilot:title-debug] onFinish called, setting streamFinished=true threadId=%s pendingOps=%d",
+          mem.thread.id,
+          pendingOps.length,
+        );
         streamFinished = true;
         closeClients?.();
 
@@ -834,7 +941,7 @@ async function streamCoreInner(
 
         await runRegistry.execute({
           type: "FINISH",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
           threadStatus,
         });
       },
@@ -873,7 +980,7 @@ async function streamCoreInner(
 
         const transitions = runRegistry.dispatch({
           type: "STEP_DONE",
-          threadId: mem.thread.id,
+          taskId: mem.thread.id,
         });
         pendingOps.push(
           runRegistry.react(transitions).catch((e) => {
@@ -904,7 +1011,7 @@ async function streamCoreInner(
         runRegistry
           .execute({
             type: "FINISH",
-            threadId: mem.thread.id,
+            taskId: mem.thread.id,
             threadStatus: "failed",
           })
           .catch((e) => {
@@ -916,17 +1023,17 @@ async function streamCoreInner(
     });
 
     return {
-      threadId: mem.thread.id,
+      taskId: mem.thread.id,
       stream: uiStream,
     };
   } catch (err) {
     closeClients?.();
 
-    if (runStarted && threadId) {
+    if (runStarted && taskId) {
       runRegistry
         .execute({
           type: "FINISH",
-          threadId,
+          taskId,
           threadStatus: "failed",
         })
         .catch((e) => {
@@ -1043,7 +1150,7 @@ async function buildToolCatalog(
     if (!isToolVisibleToModel(t)) continue;
 
     const connId = (t._meta?.connectionId as string) ?? "unknown";
-    const connName = (t._meta?.connectionTitle as string) || connId;
+    const connName = connId;
     const desc = trimToolDescription(t.description ?? "");
 
     let group = connections.get(connId);

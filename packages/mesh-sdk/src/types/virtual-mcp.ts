@@ -66,6 +66,20 @@ const VirtualMcpUISchema = z.object({
   icon: z.string().nullable().optional(),
   themeColor: z.string().nullable().optional(),
   pinnedViews: z.array(VirtualMcpPinnedViewSchema).nullable().optional(),
+  layout: z
+    .object({
+      defaultMainView: z
+        .object({
+          type: z.string(),
+          id: z.string().optional(),
+          toolName: z.string().optional(),
+        })
+        .nullable()
+        .optional(),
+      chatDefaultOpen: z.boolean().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export type VirtualMcpUI = z.infer<typeof VirtualMcpUISchema>;
@@ -91,10 +105,7 @@ export const VirtualMCPEntitySchema = z.object({
   // Entity-specific fields
   organization_id: z.string().describe("Organization ID this item belongs to"),
   status: z.enum(["active", "inactive"]).describe("Current status"),
-  subtype: z
-    .enum(["agent", "project"])
-    .nullable()
-    .describe("Virtual MCP subtype for UI presentation"),
+  pinned: z.boolean().describe("Whether this space is pinned to the sidebar"),
   // Metadata (stored in connections.metadata)
   // Normalize null/undefined to { instructions: null } for consistent form tracking
   metadata: z
@@ -141,10 +152,7 @@ export const VirtualMCPCreateDataSchema = z.object({
     .optional()
     .default("active")
     .describe("Initial status"),
-  subtype: z
-    .enum(["agent", "project"])
-    .optional()
-    .describe("Virtual MCP subtype"),
+  pinned: z.boolean().optional().default(false).describe("Pin to sidebar"),
   metadata: z
     .object({
       instructions: z
@@ -186,7 +194,7 @@ export const VirtualMCPUpdateDataSchema = z.object({
     .describe("New description (null to clear)"),
   icon: z.string().nullish().describe("New icon URL"),
   status: z.enum(["active", "inactive"]).optional().describe("New status"),
-  subtype: z.enum(["agent", "project"]).optional().describe("New subtype"),
+  pinned: z.boolean().optional().describe("Pin/unpin from sidebar"),
   metadata: z
     .object({
       instructions: z

@@ -3,7 +3,10 @@
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { MCPAppRenderer as MCPAppIframeRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
-import { useChatStable } from "@/web/components/chat/context.tsx";
+import {
+  useOptionalChatStream,
+  useOptionalChatPrefs,
+} from "@/web/components/chat/context.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
@@ -13,6 +16,10 @@ import {
 
 import type { ToolDefinition } from "@decocms/mesh-sdk";
 import { useMCPClient, useProjectContext } from "@decocms/mesh-sdk";
+import {
+  getGatewayClientId,
+  stripToolNamespace,
+} from "@decocms/mcp-utils/aggregate";
 import type {
   McpUiMessageRequest,
   McpUiUpdateModelContextRequest,
@@ -21,6 +28,7 @@ import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   AlertCircle,
   Atom02,
+  Expand06,
   Eye,
   Globe02,
   LayersTwo01,
@@ -29,9 +37,10 @@ import {
 } from "@untitledui/icons";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type React from "react";
-import { Suspense } from "react";
+import { Suspense, useContext } from "react";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { PanelContext } from "@/web/contexts/panel-context.tsx";
+
 import { getToolPartErrorText, safeStringify } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
 import { getEffectiveState, getFriendlyToolName } from "./utils.tsx";
@@ -158,18 +167,24 @@ export function GenericToolCallPart({
   toolMeta,
 }: GenericToolCallPartProps) {
   // Extract tool name with proper dynamic-tool handling
-  const toolName =
+  const rawToolName =
     "toolName" in part && typeof part.toolName === "string"
       ? part.toolName
       : part.type === "dynamic-tool"
         ? "Dynamic Tool"
         : part.type.replace("tool-", "") || "Tool";
-  const friendlyName = getFriendlyToolName(toolName);
+  const gatewayClientId = getGatewayClientId(toolMeta);
+  const toolName = stripToolNamespace(rawToolName, gatewayClientId);
+  const friendlyName = getFriendlyToolName(rawToolName, gatewayClientId);
 
-  const { selectedVirtualMcp, sendMessage, setAppContext, clearAppContext } =
-    useChatStable();
+  const chatStream = useOptionalChatStream();
+  const chatPrefs = useOptionalChatPrefs();
   const { org } = useProjectContext();
-  const [, setChatOpen] = useDecoChatOpen();
+
+  // Panel context may not be available when rendering read-only thread history
+  // (e.g. monitoring Threads tab), so we read the context directly.
+  const panelControls = useContext(PanelContext);
+  const setChatOpen = panelControls?.setChatOpen;
 
   const uiResourceUri = getUIResourceUri(toolMeta);
 
@@ -181,16 +196,27 @@ export function GenericToolCallPart({
     toolMeta.connectionId != null &&
     toolMeta.connectionId !== ""
       ? String(toolMeta.connectionId)
-      : (selectedVirtualMcp?.id ?? null);
+      : (chatPrefs?.selectedVirtualMcp?.id ?? null);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
-  const sourceId = connectionId ? `${connectionId}:${toolName}` : null;
+  const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
+  const isDestructive = !!annotations?.destructiveHint;
+  const canOpenInPanel =
+    hasMCPApp && !!panelControls && !!connectionId && !isDestructive;
+
+  const handleOpenInPanel = () => {
+    if (!connectionId || !panelControls) return;
+    panelControls.openMainView("ext-apps", {
+      id: connectionId,
+      toolName: rawToolName,
+    });
+  };
 
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
-      setChatOpen(true);
-      sendMessage(doc);
+      setChatOpen?.(true);
+      chatStream?.sendMessage(doc);
     }
   };
 
@@ -248,57 +274,73 @@ export function GenericToolCallPart({
         state={effectiveState}
         detail={detail || null}
       />
-      {hasMCPApp && uiResourceUri && connectionId && org?.id && (
-        <ErrorBoundary
-          fallback={({ resetError }) => (
-            <div className="mt-2 flex items-center gap-2 px-3 py-2.5 border border-dashed border-destructive/30 bg-destructive/5 rounded-lg">
-              <AlertCircle size={16} className="shrink-0 text-destructive" />
-              <span className="flex-1 text-xs text-destructive font-medium">
-                Failed to load <span className="font-mono">{friendlyName}</span>{" "}
-                app
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1.5 shrink-0"
-                onClick={resetError}
-              >
-                <RefreshCw01 className="size-3.5" />
-                Retry
-              </Button>
-            </div>
-          )}
-        >
-          <Suspense
-            fallback={
-              <div className="mt-2 flex items-center justify-center h-12 border border-border/75 rounded-lg overflow-hidden p-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Loading app...</span>
-                </div>
-              </div>
-            }
+      {canOpenInPanel && (
+        <div className="flex justify-end mt-1.5 mb-1">
+          <button
+            type="button"
+            onClick={handleOpenInPanel}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground rounded-md [@media(hover:hover)]:hover:bg-accent/50 [@media(hover:hover)]:hover:text-foreground transition-colors"
           >
-            <MCPAppRenderer
-              uiResourceUri={uiResourceUri}
-              connectionId={connectionId}
-              orgId={org.id}
-              toolName={toolName}
-              toolInput={part.input}
-              toolResult={part.output}
-              toolMeta={toolMeta as Record<string, unknown> | undefined}
-              onMessage={handleAppMessage}
-              onUpdateModelContext={
-                sourceId
-                  ? (params) => setAppContext(sourceId, params)
-                  : undefined
+            <Expand06 className="size-3.5" />
+            Open in panel
+          </button>
+        </div>
+      )}
+      {hasMCPApp && uiResourceUri && connectionId && org?.id && (
+        <>
+          <ErrorBoundary
+            fallback={({ resetError }) => (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2.5 border border-dashed border-destructive/30 bg-destructive/5 rounded-lg">
+                <AlertCircle size={16} className="shrink-0 text-destructive" />
+                <span className="flex-1 text-xs text-destructive font-medium">
+                  Failed to load{" "}
+                  <span className="font-mono">{friendlyName}</span> app
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5 shrink-0"
+                  onClick={resetError}
+                >
+                  <RefreshCw01 className="size-3.5" />
+                  Retry
+                </Button>
+              </div>
+            )}
+          >
+            <Suspense
+              fallback={
+                <div className="mt-2 flex items-center justify-center h-12 border border-border/75 rounded-lg overflow-hidden p-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Loading app...</span>
+                  </div>
+                </div>
               }
-              onTeardown={
-                sourceId ? () => clearAppContext(sourceId) : undefined
-              }
-            />
-          </Suspense>
-        </ErrorBoundary>
+            >
+              <MCPAppRenderer
+                uiResourceUri={uiResourceUri}
+                connectionId={connectionId}
+                orgId={org.id}
+                toolName={toolName}
+                toolInput={part.input}
+                toolResult={part.output}
+                toolMeta={toolMeta as Record<string, unknown> | undefined}
+                onMessage={handleAppMessage}
+                onUpdateModelContext={
+                  sourceId && chatPrefs
+                    ? (params) => chatPrefs.setAppContext(sourceId, params)
+                    : undefined
+                }
+                onTeardown={
+                  sourceId && chatPrefs
+                    ? () => chatPrefs.clearAppContext(sourceId)
+                    : undefined
+                }
+              />
+            </Suspense>
+          </ErrorBoundary>
+        </>
       )}
     </div>
   );

@@ -21,11 +21,12 @@ const buttonVariants = cva(
         link: "text-foreground/80 hover:text-foreground",
       },
       size: {
-        default: "h-10 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-7 gap-1.5 px-3 has-[>svg]:px-2.5",
-        xs: "h-6 gap-1 px-2 text-xs has-[>svg]:px-1.5",
-        lg: "h-10 px-6 has-[>svg]:px-4",
-        icon: "size-10",
+        default: "h-8 px-3 has-[>svg]:px-2.5",
+        sm: "h-7 gap-1.5 px-2.5 has-[>svg]:px-2",
+        xs: "h-6 gap-1 px-1.5 text-xs has-[>svg]:px-1",
+        lg: "h-10 px-3.5 has-[>svg]:px-3",
+        icon: "size-8",
+        "icon-sm": "size-7",
       },
     },
     defaultVariants: {

@@ -60,7 +60,7 @@ export function CollectionDisplayButton({
               <Button
                 variant="outline"
                 size="icon"
-                className="size-7 border border-input relative"
+                className="border border-input relative"
               >
                 <Sliders01 size={16} />
                 {activeFilterCount > 0 && (

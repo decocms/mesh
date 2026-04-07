@@ -31,9 +31,6 @@
 /* Explicitly scan @deco/ui components for Tailwind classes */
 @source "../components/**/*.tsx";
 
-/* Scan mesh-plugin components for Tailwind classes */
-@source "../../../mesh-plugin-private-registry/**/*.tsx";
-
 @custom-variant dark (&:is(.dark *));
 
 @utility no-scrollbar {
@@ -106,7 +103,7 @@
 }
 
 .dark {
-  --background: oklch(0.155 0.005 60);
+  --background: oklch(0.175 0.005 60);
   --foreground: oklch(0.96 0.005 60);
   --card: oklch(0.185 0.005 60);
   --card-foreground: oklch(0.96 0.005 60);
@@ -126,14 +123,14 @@
   --secondary: oklch(0.21 0.005 60);
   --secondary-foreground: oklch(0.96 0.005 60);
 
-  --destructive: oklch(0.45 0.2 27);
+  --destructive: oklch(0.62 0.22 27);
   --destructive-foreground: oklch(0.97 0.01 17);
   --success: oklch(0.45 0.15 149);
   --success-foreground: oklch(0.97 0.02 156);
   --warning: oklch(0.65 0.15 70);
   --warning-foreground: oklch(0.98 0.02 95);
 
-  --sidebar: oklch(0.175 0.005 60);
+  --sidebar: oklch(0.155 0.005 60);
   --sidebar-foreground: oklch(0.96 0.005 60);
   --sidebar-accent: oklch(0.23 0.005 60);
   --sidebar-accent-foreground: oklch(0.96 0.005 60);
@@ -142,11 +139,11 @@
   --sidebar-primary: oklch(0.82 0.01 60);
   --sidebar-primary-foreground: oklch(0.14 0.01 60);
 
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.7 0.18 150);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.73 0.15 289);
+  --chart-2: oklch(0.6 0.18 150);
+  --chart-3: oklch(0.61 0.2 6.81);
+  --chart-4: oklch(0.84 0.17 84.5);
+  --chart-5: oklch(0.74 0.17 159);
 }
 
 @theme inline {

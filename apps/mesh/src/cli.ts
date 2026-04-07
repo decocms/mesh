@@ -34,9 +34,6 @@ const { values, positionals } = parseArgs({
     "base-url": {
       type: "string",
     },
-    "env-file": {
-      type: "string",
-    },
     help: {
       type: "boolean",
       short: "h",
@@ -56,6 +53,14 @@ const { values, positionals } = parseArgs({
       default: false,
     },
     "no-local-mode": {
+      type: "boolean",
+      default: false,
+    },
+    "num-threads": {
+      type: "string",
+      default: "1",
+    },
+    vibe: {
       type: "boolean",
       default: false,
     },
@@ -81,13 +86,14 @@ Server Options:
   --no-local-mode       Disable auto-login (use cloud/SSO auth)
   --skip-migrations     Skip database migrations on startup
   --no-tui              Disable Ink UI, plain stdout (CI mode)
+  --num-threads <n>     Worker threads (default: 1; Linux only for n>1)
+  --vibe                Play synthwave soundtrack while running
   -h, --help            Show this help message
   -v, --version         Show version
 
 Dev Options:
   --vite-port <port>    Vite dev server port (default: 4000)
   --base-url <url>      Base URL for the server
-  --env-file <path>     Path to .env file to load
 
 Environment Variables:
   PORT                  Port to listen on (default: 3000)
@@ -104,7 +110,6 @@ Examples:
   deco --no-local-mode             Disable auto-login (production)
   deco dev                        Start dev server
   deco dev --vite-port 5000       Dev server with custom Vite port
-  deco dev --env-file .env        Dev server with env file
   deco services up                Start Postgres and NATS
   deco services status            Show service status
   deco services down              Stop services
@@ -176,7 +181,6 @@ if (command === "services") {
   await servicesCommand({
     subcommand,
     home: decoHome,
-    envFile: values["env-file"],
   });
   process.exit(0);
 }
@@ -197,7 +201,6 @@ if (command === "dev") {
     home: decoHome,
     baseUrl: values["base-url"],
     skipMigrations: values["skip-migrations"] === true,
-    envFile: values["env-file"],
     noTui,
     localMode: values["no-local-mode"] !== true,
   };
@@ -211,6 +214,11 @@ if (command === "dev") {
     console.log(dim(`  v${await getVersion()}`));
     console.log("");
 
+    if (values.vibe === true) {
+      const { startVibe } = await import("./cli/vibe/vibe-player");
+      startVibe(decoHome);
+    }
+
     const { startDevServer } = await import("./cli/commands/dev");
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -220,13 +228,20 @@ if (command === "dev") {
     const { createElement } = await import("react");
     const { App } = await import("./cli/app");
     const { startDevServer } = await import("./cli/commands/dev");
-    const { setDevMode } = await import("./cli/cli-store");
+    const { setDevMode, setVibe, setDataDir } = await import("./cli/cli-store");
 
     const displayHome = decoHome.replace(homedir(), "~");
     setDevMode();
+    setDataDir(decoHome);
     render(createElement(App, { home: displayHome }), {
       patchConsole: false,
     });
+
+    if (values.vibe === true) {
+      const { startVibe } = await import("./cli/vibe/vibe-player");
+      setVibe(true);
+      startVibe(decoHome);
+    }
 
     const result = await startDevServer(devOptions);
     const code = await result.process.exited;
@@ -251,6 +266,10 @@ const serveOptions = {
   home: decoHome,
   skipMigrations: values["skip-migrations"] === true,
   localMode: values["no-local-mode"] !== true,
+  numThreads: (() => {
+    const n = Number(values["num-threads"]);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+  })(),
 };
 
 const noTui = values["no-tui"] === true || !process.stdout.isTTY;
@@ -264,6 +283,11 @@ if (noTui) {
   }
   console.log(dim(`  v${await getVersion()}`));
   console.log("");
+
+  if (values.vibe === true) {
+    const { startVibe } = await import("./cli/vibe/vibe-player");
+    startVibe(decoHome);
+  }
 
   const { startServer } = await import("./cli/commands/serve");
   await startServer({ ...serveOptions, noTui: true });
@@ -281,6 +305,18 @@ if (noTui) {
   render(createElement(App, { home: displayHome }), {
     patchConsole: false,
   });
+
+  {
+    const { setDataDir } = await import("./cli/cli-store");
+    setDataDir(decoHome);
+  }
+
+  if (values.vibe === true) {
+    const { startVibe } = await import("./cli/vibe/vibe-player");
+    const { setVibe } = await import("./cli/cli-store");
+    setVibe(true);
+    startVibe(decoHome);
+  }
 
   await startServer(serveOptions);
 }

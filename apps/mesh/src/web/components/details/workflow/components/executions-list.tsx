@@ -1,7 +1,13 @@
 import { Button } from "@deco/ui/components/button.tsx";
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { X, Check, AlertOctagon, Columns01 } from "@untitledui/icons";
+import {
+  X,
+  Check,
+  AlertOctagon,
+  AlertTriangle,
+  Columns01,
+} from "@untitledui/icons";
 import type { WorkflowExecution } from "@decocms/bindings/workflow";
 import { useWorkflowExecutions } from "../hooks/queries/use-workflow-executions";
 import { useViewModeStore } from "../stores/view-mode";
@@ -11,9 +17,19 @@ interface ExecutionsListProps {
   className?: string;
 }
 
-type ExecutionStatus = WorkflowExecution["status"];
+function getStatusBadge(execution: WorkflowExecution) {
+  const { status } = execution;
+  const hasFailedSteps = (execution.completed_steps?.error?.length ?? 0) > 0;
 
-function getStatusBadge(status: ExecutionStatus) {
+  if (status === "success" && hasFailedSteps) {
+    return (
+      <Badge variant="warning" className="gap-1">
+        <AlertTriangle size={11} />
+        Partial
+      </Badge>
+    );
+  }
+
   switch (status) {
     case "success":
       return (
@@ -147,7 +163,7 @@ function ExecutionRow({
       onClick={onSelect}
     >
       <div className="flex items-center gap-2 w-full">
-        {getStatusBadge(execution.status)}
+        {getStatusBadge(execution)}
         <p className="flex-1 text-base font-medium text-foreground">
           {formatExecutionId(execution.id)}
         </p>

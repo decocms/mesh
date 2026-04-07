@@ -1,12 +1,23 @@
+// CredentialVault requires a valid 32-byte base64 ENCRYPTION_KEY.
+// Must be set before any import triggers getSettings(), which freezes
+// the settings singleton on first access.
+process.env.ENCRYPTION_KEY ??= Buffer.from("0".repeat(32)).toString("base64");
+
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import {
-  createTestDatabase,
-  closeTestDatabase,
-  type TestDatabase,
-} from "../database/test-db";
+import { createTestDatabase, type TestDatabase } from "../database/test-db";
 import type { EventBus } from "../event-bus";
+import { setGlobalSettings, getSettings } from "../settings";
 import { createTestSchema } from "../storage/test-helpers";
 import { createApp } from "./app";
+
+// If settings were already frozen by a prior test file without
+// ENCRYPTION_KEY, re-initialize them now that the env var is set.
+if (!getSettings().encryptionKey) {
+  setGlobalSettings({
+    ...getSettings(),
+    encryptionKey: process.env.ENCRYPTION_KEY!,
+  });
+}
 
 /**
  * Create a no-op mock event bus for testing
@@ -67,21 +78,61 @@ describe("Hono App", () => {
   });
 
   afterEach(async () => {
-    await closeTestDatabase(database);
+    // Shutdown the app first to stop all background tasks (RunRegistry,
+    // expired API key cleanup, monitoring retention, plugin hooks, etc.)
+    // before destroying the database. Without this, background tasks race
+    // against database teardown and produce "driver has already been
+    // destroyed" errors — which can cause timeouts in CI.
+    if (app) {
+      await app.shutdown();
+    }
+
+    // shutdown() already calls closeDatabase() which destroys the Kysely
+    // driver and ends the pool, but we still need to close the PGlite
+    // WASM instance which closeDatabase doesn't know about.
+    if (database?.pglite && !database.pglite.closed) {
+      await database.pglite.close();
+    }
   });
-  describe("health check", () => {
-    it("should respond to health check", async () => {
-      const res = await app.request("/health");
+  describe("liveness check", () => {
+    it("should respond to liveness probe", async () => {
+      const res = await app.request("/health/live");
+      expect(res.status).toBe(200);
+
+      const json = (await res.json()) as { status: string };
+      expect(json.status).toBe("ok");
+    });
+  });
+
+  describe("readiness check", () => {
+    it("should return 200 with per-service status (postgres up, nats down in test)", async () => {
+      const res = await app.request("/health/ready");
       expect(res.status).toBe(200);
 
       const json = (await res.json()) as {
         status: string;
-        timestamp: string;
-        version: string;
+        services: Record<string, { status: string }>;
       };
-      expect(json.status).toBe("ok");
-      expect(json.timestamp).toBeDefined();
-      expect(json.version).toBe("1.0.0");
+      expect(json.status).toBe("ready");
+      expect(json.services.postgres?.status).toBe("up");
+      expect(json.services.nats?.status).toBe("down");
+    });
+
+    it("should return 503 when postgres is unreachable", async () => {
+      // Close the PGlite instance so queries fail, simulating an outage
+      if (database.pglite && !database.pglite.closed) {
+        await database.pglite.close();
+      }
+
+      const res = await app.request("/health/ready");
+      expect(res.status).toBe(503);
+
+      const json = (await res.json()) as {
+        status: string;
+        services: Record<string, { status: string }>;
+      };
+      expect(json.status).toBe("not_ready");
+      expect(json.services.postgres?.status).toBe("down");
     });
   });
 
@@ -98,7 +149,7 @@ describe("Hono App", () => {
 
   describe("CORS", () => {
     it("should have CORS headers", async () => {
-      const res = await app.request("/health", {
+      const res = await app.request("/health/live", {
         headers: { Origin: "http://localhost:3000" },
       });
 
@@ -107,7 +158,7 @@ describe("Hono App", () => {
     });
 
     it("should allow credentials", async () => {
-      const res = await app.request("/health", {
+      const res = await app.request("/health/live", {
         headers: { Origin: "http://localhost:3000" },
       });
 

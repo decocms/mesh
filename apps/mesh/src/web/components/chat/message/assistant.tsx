@@ -16,7 +16,7 @@ import {
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
 import { type DataParts, useFilterParts } from "./use-filter-parts.ts";
 import { addUsage, emptyUsageStats } from "@decocms/mesh-sdk";
-import { useChat } from "../context.tsx";
+import { useOptionalChatStream } from "../context.tsx";
 
 type ThinkingStage = "planning" | "thinking";
 
@@ -92,10 +92,59 @@ function LiveTimer({ since }: { since: number }) {
   );
 }
 
+const GRID_CELLS = [
+  { delay: 0 },
+  { delay: 100 },
+  { delay: 200 },
+  { delay: 100 },
+  { delay: 200 },
+  { delay: 200 },
+  { delay: 300 },
+  { delay: 300 },
+  { delay: 400 },
+];
+
+function GridLoader() {
+  const [cellColors] = useState(() => {
+    const chart = `var(--chart-${Math.ceil(Math.random() * 5)})`;
+    return GRID_CELLS.map(() =>
+      Math.random() < 0.6
+        ? "color-mix(in srgb, var(--muted-foreground) 25%, transparent)"
+        : chart,
+    );
+  });
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: "repeat(3, 3px)",
+        gap: "1.5px",
+        width: "fit-content",
+      }}
+    >
+      {GRID_CELLS.map(({ delay }, i) => (
+        <div
+          key={i}
+          className="rounded-[1px]"
+          style={
+            {
+              width: 3,
+              height: 3,
+              "--cell-color": cellColors[i],
+              animation: "grid-ripple 1s ease infinite",
+              animationDelay: `${delay}ms`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
 function GeneratingFooter({ startedAt }: { startedAt: number }) {
   return (
-    <div className="flex items-center gap-1 mt-1 pb-1 text-muted-foreground/40 select-none">
-      <span className="text-sm">·</span>
+    <div className="flex items-center gap-2.5 mt-1 pb-1 text-muted-foreground/40 select-none">
+      <GridLoader />
       <LiveTimer since={startedAt} />
     </div>
   );
@@ -357,7 +406,7 @@ export function MessageAssistant({
   className,
   isLast = false,
 }: MessageAssistantProps) {
-  const { isRunInProgress } = useChat();
+  const { isRunInProgress = false } = useOptionalChatStream() ?? {};
   const isStreaming = status === "streaming";
   const isSubmitted = status === "submitted";
   const isLoading = isStreaming || isSubmitted;
@@ -379,9 +428,17 @@ export function MessageAssistant({
   // Handle null message or empty parts
   const hasContent = message !== null && message.parts.length > 0;
 
-  // Use hook to extract reasoning and data parts in a single pass
-  const { reasoningParts, dataParts } = useFilterParts(message);
-  const hasReasoning = reasoningParts.length > 0;
+  // Use hook to extract reasoning groups, build render order, and data parts
+  const { reasoningGroups, renderOrder, dataParts } = useFilterParts(message);
+
+  // Reasoning is actively streaming only when the last part in the array
+  // is a reasoning part (the model is currently inside a thinking block).
+  const lastMessagePart =
+    message && message.parts.length > 0
+      ? message.parts[message.parts.length - 1]
+      : null;
+  const isReasoningActive =
+    isStreaming && lastMessagePart?.type === "reasoning";
 
   const reasoningStartAt = message?.metadata?.reasoning_start_at
     ? new Date(message.metadata.reasoning_start_at)
@@ -390,7 +447,7 @@ export function MessageAssistant({
     ? new Date(message.metadata.reasoning_end_at)
     : new Date();
 
-  const duration =
+  const totalDuration =
     reasoningStartAt !== null
       ? reasoningEndAt.getTime() - reasoningStartAt.getTime()
       : null;
@@ -399,27 +456,47 @@ export function MessageAssistant({
     <Container className={className}>
       {hasContent ? (
         <div className="flex flex-col gap-3 sm:gap-2">
-          {hasReasoning && (
-            <ThoughtSummary
-              duration={duration}
-              parts={reasoningParts}
-              isStreaming={isStreaming}
-            />
-          )}
-          {message.parts.map((part, index) => {
-            const isLastPart = index === message.parts.length - 1;
-            const usage = isLastPart
+          {renderOrder.map((item, renderIndex) => {
+            if (item.kind === "reasoning-group") {
+              const { group } = item;
+              const isLastGroup =
+                group === reasoningGroups[reasoningGroups.length - 1];
+              const isGroupStreaming = isReasoningActive && isLastGroup;
+              // Skip empty reasoning groups (no text content) unless actively streaming
+              const hasText = group.parts.some((p) => p.text?.trim());
+              if (!hasText && !isGroupStreaming) {
+                return null;
+              }
+              const groupDuration =
+                reasoningGroups.length === 1 ? totalDuration : null;
+              return (
+                <ThoughtSummary
+                  key={`${message.id}-reasoning-${group.startIndex}`}
+                  duration={groupDuration}
+                  parts={group.parts}
+                  isStreaming={isGroupStreaming}
+                />
+              );
+            }
+
+            const part = message.parts[item.index]!;
+            // Find the last visible "part" item (skipping reasoning groups
+            // which may be filtered out) to attach usage stats correctly.
+            const isLastVisiblePart =
+              renderOrder.findLastIndex((r) => r.kind === "part") ===
+              renderIndex;
+            const usage = isLastVisiblePart
               ? addUsage(emptyUsageStats(), message.metadata?.usage)
               : null;
 
             return (
               <MessagePart
-                key={`${message.id}-${index}`}
+                key={`${message.id}-${item.index}`}
                 part={part}
                 id={message.id}
                 usageStats={
-                  isLastPart && (
-                    <MessageStatsBar usage={usage} duration={duration} />
+                  isLastVisiblePart && (
+                    <MessageStatsBar usage={usage} duration={totalDuration} />
                   )
                 }
                 dataParts={dataParts}

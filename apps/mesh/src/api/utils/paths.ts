@@ -7,7 +7,8 @@
 
 /** System paths that don't require authentication or special handling */
 export const SYSTEM_PATHS = {
-  HEALTH: "/health",
+  HEALTH_LIVE: "/health/live",
+  HEALTH_READY: "/health/ready",
   METRICS: "/metrics",
 } as const;
 
@@ -28,7 +29,8 @@ const STATIC_FILE_PATTERN =
 /** Check if a path is a system endpoint (health, metrics, well-known) */
 function isSystemPath(path: string): boolean {
   return (
-    path === SYSTEM_PATHS.HEALTH ||
+    path === SYSTEM_PATHS.HEALTH_LIVE ||
+    path === SYSTEM_PATHS.HEALTH_READY ||
     path === SYSTEM_PATHS.METRICS ||
     path.startsWith(PATH_PREFIXES.WELL_KNOWN)
   );
@@ -83,6 +85,7 @@ export function shouldSkipMeshContext(path: string): boolean {
   return (
     path === "/" ||
     path.startsWith(PATH_PREFIXES.API_AUTH) ||
+    path === "/api/trigger-callback" ||
     isSystemPath(path) ||
     isStaticFilePath(path)
   );

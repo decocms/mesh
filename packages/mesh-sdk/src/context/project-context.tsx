@@ -73,8 +73,6 @@ export interface ProjectData {
   enabledPlugins?: string[] | null;
   /** UI customization */
   ui?: ProjectUI | null;
-  /** Whether this is the org-admin project */
-  isOrgAdmin?: boolean;
 }
 
 interface ProjectContextType {
@@ -108,14 +106,6 @@ export const useOrg = () => {
  */
 export const useCurrentProject = () => {
   return useProjectContext().project;
-};
-
-/**
- * Convenience hook to check if current project is org-admin
- */
-export const useIsOrgAdmin = () => {
-  const project = useProjectContext().project;
-  return project.isOrgAdmin === true;
 };
 
 export type ProjectContextProviderProps = {

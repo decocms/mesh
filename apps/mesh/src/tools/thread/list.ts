@@ -20,8 +20,35 @@ const ThreadListInputSchema = CollectionListInputSchema.extend({
     .object({
       created_by: z.string().optional(),
       trigger_ids: z.array(z.string()).optional(),
+      virtual_mcp_id: z.string().optional(),
     })
     .optional(),
+  startDate: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Filter threads updated at or after this ISO timestamp"),
+  endDate: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Filter threads updated at or before this ISO timestamp"),
+  search: z
+    .string()
+    .optional()
+    .describe("Full-text search on thread title (case-insensitive)"),
+  status: z
+    .string()
+    .optional()
+    .describe("Filter by thread status (e.g. completed, failed, in_progress)"),
+  userId: z
+    .string()
+    .optional()
+    .describe("Filter by the user who created the thread"),
+  agentId: z
+    .string()
+    .optional()
+    .describe("Filter by agent (connection or virtual MCP) ID"),
 });
 
 /**
@@ -54,9 +81,11 @@ export const COLLECTION_THREADS_LIST = defineTool({
     const limit = input.limit ?? 100;
 
     const triggerIds = input.where?.trigger_ids;
+    const virtualMcpId = input.where?.virtual_mcp_id;
     // "me" is a reserved value meaning "filter by the authenticated user"
     const createdBy =
-      input.where?.created_by === "me" ? userId : input.where?.created_by;
+      input.userId ??
+      (input.where?.created_by === "me" ? userId : input.where?.created_by);
 
     const { threads, total } = triggerIds?.length
       ? await ctx.storage.threads.listByTriggerIds(triggerIds, {
@@ -66,6 +95,12 @@ export const COLLECTION_THREADS_LIST = defineTool({
       : await ctx.storage.threads.list(createdBy, {
           limit,
           offset,
+          virtualMcpId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          search: input.search,
+          status: input.status,
+          agentId: input.agentId,
         });
 
     const hasMore = offset + limit < total;

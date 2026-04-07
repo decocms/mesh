@@ -11,7 +11,7 @@ When AI assistants use tools via the Model Context Protocol, managing connection
 - **Connection sprawl**: Each MCP service has its own auth, config, and credentials
 - **Credential sharing**: Sharing access means sharing passwords or API keys
 - **No audit trail**: Who called which tool, when, and with what result?
-- **Tool isolation**: MCP services can't compose or share dependencies
+- **Tool isolation**: MCP services can't compose or share dependencies 
 
 MCP Mesh solves these problems by acting as a **secure proxy** between AI clients and MCP services:
 

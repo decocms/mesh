@@ -126,10 +126,16 @@ export interface SidebarItem {
   icon: string;
 }
 
+export interface RegistryConfig {
+  registries: Record<string, { enabled: boolean }>;
+  blockedMcps: string[];
+}
+
 export interface OrganizationSettingsTable {
   organizationId: string;
   sidebar_items: JsonArray<SidebarItem[]> | null;
   enabled_plugins: JsonArray<string[]> | null;
+  registry_config: JsonObject<RegistryConfig> | null;
   createdAt: ColumnType<Date, Date | string, never>;
   updatedAt: ColumnType<Date, Date | string, Date | string>;
 }
@@ -138,6 +144,7 @@ export interface OrganizationSettings {
   organizationId: string;
   sidebar_items: SidebarItem[] | null;
   enabled_plugins: string[] | null;
+  registry_config: RegistryConfig | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -156,6 +163,7 @@ export interface MCPConnectionTable {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
+  slug: string | null;
 
   // Connection details
   connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
@@ -175,11 +183,7 @@ export interface MCPConnectionTable {
   bindings: JsonArray<string[]> | null; // Detected bindings (CHAT, EMAIL, etc.)
 
   status: "active" | "inactive" | "error";
-  subtype: ColumnType<
-    "agent" | "project" | null,
-    "agent" | "project" | null,
-    "agent" | "project" | null
-  >;
+  pinned: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -511,7 +515,6 @@ export interface MonitoringLog {
   id?: string;
   organizationId: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
@@ -524,108 +527,6 @@ export interface MonitoringLog {
   userAgent?: string | null; // x-mesh-client header
   virtualMcpId?: string | null; // Virtual MCP (Agent) ID if routed through an agent
   properties?: Record<string, string> | null; // Custom key-value metadata
-}
-
-// ============================================================================
-// Monitoring Dashboard Table Definitions
-// ============================================================================
-
-/**
- * Table columns that can be used for groupBy in aggregations
- */
-export type GroupByColumn =
-  | "connection_id"
-  | "connection_title"
-  | "user_id"
-  | "tool_name"
-  | "virtual_mcp_id";
-
-/**
- * Aggregation function types for dashboard widgets
- */
-export type AggregationFunction =
-  | "sum"
-  | "avg"
-  | "min"
-  | "max"
-  | "count"
-  | "count_all"
-  | "last";
-
-/**
- * Widget display types
- */
-export type WidgetType = "metric" | "timeseries" | "table";
-
-/**
- * Dashboard widget definition
- * Defines how to extract and aggregate data from monitoring logs
- */
-export interface DashboardWidget {
-  id: string;
-  name: string;
-  type: WidgetType;
-
-  // What to extract (JSONPath syntax)
-  source: {
-    path: string; // e.g., "$.usage.total_tokens"
-    from: "input" | "output";
-  };
-
-  // Aggregation configuration
-  aggregation: {
-    fn: AggregationFunction;
-    groupBy?: string; // Optional JSONPath for grouping
-    groupByColumn?: GroupByColumn; // Optional table column for grouping (takes priority)
-    interval?: string; // For timeseries: "1h", "1d"
-  };
-
-  // Widget-specific filter overrides
-  filter?: {
-    connectionIds?: string[];
-    toolNames?: string[];
-  };
-}
-
-/**
- * Dashboard-level filters applied to all widgets
- */
-export interface DashboardFilters {
-  connectionIds?: string[];
-  virtualMcpIds?: string[];
-  toolNames?: string[];
-  propertyFilters?: Record<string, string>;
-}
-
-/**
- * Monitoring Dashboard table definition
- * Stores custom dashboards with JSONPath-based widgets
- */
-export interface MonitoringDashboardTable {
-  id: string;
-  organization_id: string;
-  name: string;
-  description: string | null;
-  filters: JsonObject<DashboardFilters> | null; // JSON
-  widgets: JsonArray<DashboardWidget>; // JSON array
-  created_by: string;
-  created_at: ColumnType<Date, Date | string, never>;
-  updated_at: ColumnType<Date, Date | string, Date | string>;
-}
-
-/**
- * Monitoring Dashboard runtime type
- */
-export interface MonitoringDashboard {
-  id: string;
-  organizationId: string;
-  name: string;
-  description: string | null;
-  filters: DashboardFilters | null;
-  widgets: DashboardWidget[];
-  createdBy: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
 }
 
 // ============================================================================
@@ -704,7 +605,7 @@ export interface EventSubscriptionTable {
   publisher: string | null; // Filter by publisher connection (null = wildcard)
   event_type: string; // Event type pattern to match
   filter: string | null; // Optional JSONPath filter on event data
-  enabled: number; // Integer column (0/1);
+  enabled: boolean;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -823,6 +724,8 @@ export interface ThreadTable {
     Date | string | null,
     Date | string | null
   >;
+  /** Virtual MCP (agent) this thread was initiated with */
+  virtual_mcp_id: string;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
   created_by: string; // User ID;
@@ -845,6 +748,8 @@ export interface Thread {
   run_owner_pod: string | null;
   run_config: Record<string, unknown> | null;
   run_started_at: string | null;
+  /** Virtual MCP (agent) this thread was initiated with */
+  virtual_mcp_id: string;
 }
 
 export interface ThreadMessageTable {
@@ -944,6 +849,7 @@ export interface AutomationTable {
   messages: string; // JSON string: UIMessage[]
   models: string; // JSON string: { connectionId, thinking, coding?, fast? }
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: ColumnType<Date, Date | string, never>;
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
@@ -961,6 +867,7 @@ export interface Automation {
   messages: string;
   models: string;
   temperature: number;
+  virtual_mcp_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1007,6 +914,24 @@ export interface AutomationTrigger {
 }
 
 /**
+ * Trigger callback token table - stores hashed tokens for external MCP callbacks
+ */
+export interface TriggerCallbackTokenTable {
+  id: string;
+  organization_id: string;
+  connection_id: string;
+  token_hash: string;
+  created_at: ColumnType<Date, Date | string, never>;
+}
+
+export interface KVTable {
+  organization_id: string;
+  key: string;
+  value: ColumnType<Record<string, unknown>, string, string>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+/**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
  *
@@ -1020,7 +945,6 @@ export interface Database {
   connections: MCPConnectionTable; // MCP connections (organization-scoped)
   organization_settings: OrganizationSettingsTable; // Organization-level configuration
   api_keys: ApiKeyTable; // Better Auth API keys
-  monitoring_dashboards: MonitoringDashboardTable; // Custom monitoring dashboards
 
   // OAuth tables (for MCP OAuth server)
   oauth_clients: OAuthClientTable;
@@ -1061,7 +985,13 @@ export interface Database {
   automations: AutomationTable;
   automation_triggers: AutomationTriggerTable;
 
+  // Trigger callback tokens (for external MCP → Mesh callbacks)
+  trigger_callback_tokens: TriggerCallbackTokenTable;
+
   // Organization SSO tables
   org_sso_config: OrgSsoConfigTable;
   org_sso_sessions: OrgSsoSessionTable;
+
+  // Generic org-scoped KV store
+  kv: KVTable;
 }

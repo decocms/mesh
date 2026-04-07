@@ -78,9 +78,9 @@ export function createReadToolOutputTool(params: ReadToolOutputParams) {
   });
 }
 /** Maximum tokens for the full result returned to the model */
-export const MAX_RESULT_TOKENS = 4000;
+export const MAX_RESULT_TOKENS = 32_000;
 
-const MAX_PREVIEW_TOKENS = 120;
+const MAX_PREVIEW_TOKENS = 400;
 
 /**
  * Create a head+tail preview of a large text output.

@@ -13,7 +13,7 @@
  * - Multiple workers can safely poll without processing same events
  */
 
-import type { Kysely, Selectable } from "kysely";
+import { sql, type Kysely, type Selectable } from "kysely";
 import type {
   Database,
   Event,
@@ -413,7 +413,7 @@ class KyselyEventBusStorage implements EventBusStorage {
         publisher: input.publisher ?? null,
         event_type: input.eventType,
         filter: input.filter ?? null,
-        enabled: 1 as never,
+        enabled: true as never,
         created_at: now,
         updated_at: now,
       })
@@ -426,7 +426,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       publisher: input.publisher ?? null,
       eventType: input.eventType,
       filter: input.filter ?? null,
-      enabled: 1 as never,
+      enabled: true as never,
       createdAt: now,
       updatedAt: now,
     };
@@ -486,7 +486,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       .selectFrom("event_subscriptions")
       .selectAll()
       .where("organization_id", "=", event.organizationId)
-      .where("enabled", "=", 1 as never)
+      .where("enabled", "=", true as never)
       .where("event_type", "=", event.type)
       .where((eb) =>
         eb.or([
@@ -530,25 +530,26 @@ class KyselyEventBusStorage implements EventBusStorage {
   async claimPendingDeliveries(limit: number): Promise<PendingDelivery[]> {
     const now = new Date().toISOString();
 
-    // Atomic claim with RETURNING
+    // Atomic claim with RETURNING.
+    // The inner SELECT uses FOR UPDATE SKIP LOCKED so concurrent workers
+    // on different pods claim disjoint rows instead of blocking each other.
     const result = await this.db
       .updateTable("event_deliveries")
       .set({ status: "processing" })
-      .where("id", "in", (eb) =>
-        eb
-          .selectFrom("event_deliveries as d")
-          .innerJoin("event_subscriptions as s", "s.id", "d.subscription_id")
-          .select("d.id")
-          .where("d.status", "=", "pending")
-          .where("s.enabled", "=", 1 as never)
-          .where((inner) =>
-            inner.or([
-              inner("d.next_retry_at", "is", null),
-              inner("d.next_retry_at", "<=", now),
-            ]),
-          )
-          .orderBy("d.created_at", "asc")
-          .limit(limit),
+      .where(
+        "id",
+        "in",
+        sql<string>`(
+          SELECT d.id
+          FROM event_deliveries d
+          INNER JOIN event_subscriptions s ON s.id = d.subscription_id
+          WHERE d.status = 'pending'
+            AND s.enabled = true
+            AND (d.next_retry_at IS NULL OR d.next_retry_at <= ${now})
+          ORDER BY d.created_at ASC
+          LIMIT ${limit}
+          FOR UPDATE OF d SKIP LOCKED
+        )`,
       )
       .where("status", "=", "pending")
       .returning(["id"])
@@ -779,15 +780,32 @@ class KyselyEventBusStorage implements EventBusStorage {
   }
 
   async resetStuckDeliveries(): Promise<number> {
-    // Reset deliveries that were 'processing' when server crashed back to 'pending'
-    // This ensures they will be retried on restart
-    const result = await this.db
-      .updateTable("event_deliveries")
-      .set({ status: "pending" })
-      .where("status", "=", "processing")
-      .executeTakeFirst();
+    // Use an advisory lock so only one pod resets stuck deliveries on startup.
+    // Other pods skip the reset — the winner handles it for everyone.
+    const lockResult = await sql<{
+      locked: boolean;
+    }>`SELECT pg_try_advisory_lock(hashtext('event_bus_reset_stuck')) as locked`.execute(
+      this.db,
+    );
+    const acquired = lockResult.rows[0]?.locked === true;
 
-    return Number(result.numUpdatedRows ?? 0);
+    if (!acquired) {
+      return 0;
+    }
+
+    try {
+      const result = await this.db
+        .updateTable("event_deliveries")
+        .set({ status: "pending" })
+        .where("status", "=", "processing")
+        .executeTakeFirst();
+
+      return Number(result.numUpdatedRows ?? 0);
+    } finally {
+      await sql`SELECT pg_advisory_unlock(hashtext('event_bus_reset_stuck'))`.execute(
+        this.db,
+      );
+    }
   }
 
   async getEvent(
@@ -1061,7 +1079,7 @@ class KyselyEventBusStorage implements EventBusStorage {
       event_type: string;
       publisher: string | null;
       filter: string | null;
-      enabled: number;
+      enabled: boolean;
       created_at: string;
       updated_at: string;
     }> = [];
@@ -1082,7 +1100,7 @@ class KyselyEventBusStorage implements EventBusStorage {
           event_type: desiredSub.eventType,
           publisher: desiredSub.publisher ?? null,
           filter: desiredSub.filter ?? null,
-          enabled: 1 as never,
+          enabled: true as never,
           created_at: now,
           updated_at: now,
         });

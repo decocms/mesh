@@ -30,6 +30,11 @@ export class OrganizationSettingsStorage
           ? JSON.parse(record.enabled_plugins)
           : record.enabled_plugins
         : null,
+      registry_config: record.registry_config
+        ? typeof record.registry_config === "string"
+          ? JSON.parse(record.registry_config)
+          : record.registry_config
+        : null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     };
@@ -38,7 +43,10 @@ export class OrganizationSettingsStorage
   async upsert(
     organizationId: string,
     data?: Partial<
-      Pick<OrganizationSettings, "sidebar_items" | "enabled_plugins">
+      Pick<
+        OrganizationSettings,
+        "sidebar_items" | "enabled_plugins" | "registry_config"
+      >
     >,
   ): Promise<OrganizationSettings> {
     const now = new Date().toISOString();
@@ -48,6 +56,9 @@ export class OrganizationSettingsStorage
     const enabledPluginsJson = data?.enabled_plugins
       ? JSON.stringify(data.enabled_plugins)
       : null;
+    const registryConfigJson = data?.registry_config
+      ? JSON.stringify(data.registry_config)
+      : null;
 
     await this.db
       .insertInto("organization_settings")
@@ -55,6 +66,7 @@ export class OrganizationSettingsStorage
         organizationId,
         sidebar_items: sidebarItemsJson,
         enabled_plugins: enabledPluginsJson,
+        registry_config: registryConfigJson,
         createdAt: now,
         updatedAt: now,
       })
@@ -62,6 +74,7 @@ export class OrganizationSettingsStorage
         oc.column("organizationId").doUpdateSet({
           sidebar_items: sidebarItemsJson ? sidebarItemsJson : undefined,
           enabled_plugins: enabledPluginsJson ? enabledPluginsJson : undefined,
+          registry_config: registryConfigJson ? registryConfigJson : undefined,
           updatedAt: now,
         }),
       )
@@ -74,6 +87,7 @@ export class OrganizationSettingsStorage
         organizationId,
         sidebar_items: data?.sidebar_items ?? null,
         enabled_plugins: data?.enabled_plugins ?? null,
+        registry_config: data?.registry_config ?? null,
         createdAt: now,
         updatedAt: now,
       };

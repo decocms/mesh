@@ -1,7 +1,7 @@
 import z from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
-import { PROVIDERS } from "@/ai-providers/registry";
+import { getProviders } from "@/ai-providers/registry";
 
 export const AI_PROVIDERS_LIST = defineTool({
   name: "AI_PROVIDERS_LIST",
@@ -33,7 +33,7 @@ export const AI_PROVIDERS_LIST = defineTool({
     requireOrganization(ctx);
     await ctx.access.check();
 
-    const providers = Object.values(PROVIDERS)
+    const providers = Object.values(getProviders())
       .filter((adapter) => !!adapter)
       .map((adapter) => ({
         ...adapter.info,

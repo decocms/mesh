@@ -1,0 +1,38 @@
+name: Resilience Tests
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.5"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Start infrastructure
+        run: docker compose -f tests/resilience/docker-compose.yml up -d --build --wait
+
+      - name: Run resilience tests
+        run: bun test tests/resilience/scenarios/ --serial --timeout 900000
+
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f tests/resilience/docker-compose.yml logs studio
+
+      - name: Tear down infrastructure
+        if: always()
+        run: docker compose -f tests/resilience/docker-compose.yml down -v

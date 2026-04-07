@@ -1,41 +1,17 @@
-import { useState, type ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useProjectContext,
   useMCPClient,
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { KEYS } from "@/web/lib/query-keys";
-import { Button } from "@deco/ui/components/button.tsx";
 import { Switch } from "@deco/ui/components/switch.tsx";
-import { Label } from "@deco/ui/components/label.tsx";
 import { toast } from "sonner";
 import { Container } from "@untitledui/icons";
 import { sourcePlugins } from "@/web/plugins";
-import { pluginSidebarGroups } from "@/web/index";
+import { pluginSidebarGroups, pluginSettingsSidebarItems } from "@/web/index";
 import type { AnyClientPlugin } from "@decocms/bindings/plugins";
-import { BindingSelector } from "@/web/components/binding-selector";
-
-type ProjectUpdateOutput = {
-  project: {
-    id: string;
-    organizationId: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    enabledPlugins: string[] | null;
-  } | null;
-};
-
-type PluginConfigOutput = {
-  config: {
-    id: string;
-    projectId: string;
-    pluginId: string;
-    connectionId: string | null;
-    settings: Record<string, unknown> | null;
-  } | null;
-};
 
 type ToolTextResponse = { type?: string; text?: string };
 type ToolErrorEnvelope = {
@@ -74,34 +50,13 @@ const unwrapToolResult = <T,>(result: unknown): T => {
   return payload as T;
 };
 
-// A plugin requires MCP binding if it has a `binding` property or `requiresMcpBinding: true`
-function pluginRequiresMcpBinding(plugin: AnyClientPlugin): boolean {
-  if (
-    (plugin as AnyClientPlugin & { requiresMcpBinding?: boolean })
-      .requiresMcpBinding === true
-  ) {
-    return true;
-  }
-  return plugin.binding !== undefined;
-}
-
-type PendingBindings = Record<string, string | null>;
-
 type PluginRowProps = {
   plugin: AnyClientPlugin;
   isEnabled: boolean;
   isSaving: boolean;
-  pendingBinding: string | null | undefined;
   description: string | null;
   label: string;
   icon?: ReactNode;
-  projectId: string | undefined;
-  client: ReturnType<typeof useMCPClient>;
-  onBindingChange: (
-    pluginId: string,
-    value: string | null,
-    serverValue: string | null,
-  ) => void;
   onToggle: (pluginId: string, enabled: boolean) => void;
 };
 
@@ -109,39 +64,11 @@ function PluginRow({
   plugin,
   isEnabled,
   isSaving,
-  pendingBinding,
   description,
   label,
   icon,
-  projectId,
-  client,
-  onBindingChange,
   onToggle,
 }: PluginRowProps) {
-  const needsBinding = pluginRequiresMcpBinding(plugin);
-
-  const { data: configData, isLoading: isConfigLoading } = useQuery({
-    queryKey: KEYS.projectPluginConfig(projectId ?? "", plugin.id),
-    queryFn: async () => {
-      if (!projectId) {
-        throw new Error("Project ID is required to load plugin config.");
-      }
-      const result = await client.callTool({
-        name: "VIRTUAL_MCP_PLUGIN_CONFIG_GET",
-        arguments: {
-          virtualMcpId: projectId,
-          pluginId: plugin.id,
-        },
-      });
-      return unwrapToolResult<PluginConfigOutput>(result);
-    },
-    enabled: !!projectId && needsBinding,
-  });
-
-  const serverConnectionId = configData?.config?.connectionId ?? null;
-  const selectorValue =
-    pendingBinding !== undefined ? pendingBinding : serverConnectionId;
-
   return (
     <div
       className="flex flex-col border-b border-border last:border-0"
@@ -172,29 +99,6 @@ function PluginRow({
           />
         </div>
       </div>
-
-      {isEnabled && needsBinding && (
-        <div
-          className="pb-4 pl-7 space-y-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-3">
-            <Label className="text-xs text-muted-foreground w-24">
-              Connection
-            </Label>
-            <BindingSelector
-              value={selectorValue ?? null}
-              onValueChange={(value) =>
-                onBindingChange(plugin.id, value, serverConnectionId)
-              }
-              binding={plugin.binding}
-              placeholder="Select connection..."
-              className="w-56"
-              disabled={isSaving || isConfigLoading}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -208,181 +112,66 @@ export function ProjectPluginsForm() {
     orgId: org.id,
   });
 
-  // Track only pending changes (pluginId -> intended state)
-  const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [pendingBindings, setPendingBindings] = useState<PendingBindings>({});
-  const [isSaving, setIsSaving] = useState(false);
-
   const serverPlugins = project.enabledPlugins ?? [];
 
-  // Derive whether a plugin is enabled: pending changes override server state
-  const isPluginEnabled = (pluginId: string): boolean => {
-    const pending = pendingChanges[pluginId];
-    if (pending !== undefined) {
-      return pending;
-    }
-    return serverPlugins.includes(pluginId);
-  };
-
-  // Compute the full list of enabled plugins for saving
-  const getEnabledPluginsList = (): string[] => {
-    const result = new Set(serverPlugins);
-    for (const [pluginId, enabled] of Object.entries(pendingChanges)) {
-      if (enabled) {
-        result.add(pluginId);
-      } else {
-        result.delete(pluginId);
-      }
-    }
-    return Array.from(result);
-  };
-
-  // Check if there are unsaved changes
-  const hasChanges =
-    Object.keys(pendingChanges).length > 0 ||
-    Object.keys(pendingBindings).length > 0;
-
-  const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
-    const serverEnabled = serverPlugins.includes(pluginId);
-
-    if (enabled === serverEnabled) {
-      // User toggled back to server state, remove from pending changes
-      setPendingChanges((prev) => {
-        const { [pluginId]: _, ...rest } = prev;
-        return rest;
-      });
-    } else {
-      // User changed from server state, track as pending change
-      setPendingChanges((prev) => ({ ...prev, [pluginId]: enabled }));
-    }
-  };
-
-  const handleBindingChange = (
-    pluginId: string,
-    value: string | null,
-    serverValue: string | null,
-  ) => {
-    if (value === serverValue) {
-      setPendingBindings((prev) => {
-        const { [pluginId]: _, ...rest } = prev;
-        return rest;
-      });
-      return;
-    }
-
-    setPendingBindings((prev) => ({ ...prev, [pluginId]: value }));
-  };
-
   const mutation = useMutation({
-    mutationFn: async (input: {
-      enabledPlugins: string[];
-      updatePlugins: boolean;
-      bindingUpdates: Array<{
-        pluginId: string;
-        connectionId?: string | null;
-        settings?: Record<string, unknown> | null;
-      }>;
-    }) => {
-      const results: Array<unknown> = [];
-
-      if (input.updatePlugins) {
-        const result = await client.callTool({
-          name: "COLLECTION_VIRTUAL_MCP_UPDATE",
-          arguments: {
-            id: project.id,
-            data: {
-              metadata: {
-                enabled_plugins: input.enabledPlugins,
-              },
-            },
-          },
-        });
-        results.push(unwrapToolResult<ProjectUpdateOutput>(result));
-      }
-
-      if (input.bindingUpdates.length > 0) {
-        const bindingResults = await Promise.all(
-          input.bindingUpdates.map(
-            async ({ pluginId, connectionId, settings }) => {
-              const result = await client.callTool({
-                name: "VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE",
-                arguments: {
-                  virtualMcpId: project.id,
-                  pluginId,
-                  connectionId,
-                  settings,
-                },
-              });
-              return unwrapToolResult<PluginConfigOutput>(result);
-            },
-          ),
-        );
-        results.push(...bindingResults);
-      }
-
-      return results;
-    },
-    onSuccess: (_data, variables) => {
-      if (variables.updatePlugins) {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.project(org.id, project.slug),
-        });
-        queryClient.invalidateQueries({
-          queryKey: KEYS.projects(org.id),
-        });
-      }
-
-      variables.bindingUpdates.forEach(({ pluginId }) => {
-        queryClient.invalidateQueries({
-          queryKey: KEYS.projectPluginConfig(project.id ?? "", pluginId),
-        });
+    mutationFn: async (input: { enabledPlugins: string[] }) => {
+      const result = await client.callTool({
+        name: "ORGANIZATION_SETTINGS_UPDATE",
+        arguments: {
+          organizationId: org.id,
+          enabled_plugins: input.enabledPlugins,
+        },
       });
-
-      setPendingChanges({});
-      setPendingBindings({});
-      toast.success("Plugins updated successfully");
+      return unwrapToolResult<unknown>(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: KEYS.project(org.id, project.slug),
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.projects(org.id),
+      });
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const k = query.queryKey;
+          return (
+            k[1] === org.id && k[3] === "collection" && k[4] === "VIRTUAL_MCP"
+          );
+        },
+      });
+      queryClient.invalidateQueries({
+        queryKey: KEYS.organizationSettings(org.id),
+      });
     },
     onError: (error) => {
       toast.error(
-        "Failed to update plugins: " +
+        "Failed to update plugin: " +
           (error instanceof Error ? error.message : "Unknown error"),
       );
     },
-    onSettled: () => {
-      setIsSaving(false);
-    },
   });
 
-  const handleSave = () => {
-    setIsSaving(true);
-    const bindingUpdates = Object.keys(pendingBindings).map((pluginId) => {
-      const pendingConnectionId = pendingBindings[pluginId];
-      return {
-        pluginId,
-        connectionId:
-          pendingConnectionId !== undefined ? pendingConnectionId : undefined,
-      };
-    });
-
-    mutation.mutate({
-      enabledPlugins: getEnabledPluginsList(),
-      updatePlugins: Object.keys(pendingChanges).length > 0,
-      bindingUpdates,
-    });
+  const handleTogglePlugin = (pluginId: string, enabled: boolean) => {
+    const current = new Set(serverPlugins);
+    if (enabled) {
+      current.add(pluginId);
+    } else {
+      current.delete(pluginId);
+    }
+    mutation.mutate({ enabledPlugins: Array.from(current) });
   };
 
-  const handleCancel = () => {
-    setPendingChanges({});
-    setPendingBindings({});
-  };
-
-  // Get plugin metadata from sidebar groups
+  // Get plugin metadata from sidebar groups or settings sidebar items
   const getPluginMeta = (pluginId: string) => {
     const group = pluginSidebarGroups.find((g) => g.pluginId === pluginId);
-    if (!group) return null;
-    return { label: group.label, icon: group.items[0]?.icon };
+    if (group) return { label: group.label, icon: group.items[0]?.icon };
+    const settingsItem = pluginSettingsSidebarItems.find(
+      (i) => i.pluginId === pluginId,
+    );
+    if (settingsItem)
+      return { label: settingsItem.label, icon: settingsItem.icon };
+    return null;
   };
 
   // Get plugin description from the source plugin
@@ -398,48 +187,25 @@ export function ProjectPluginsForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col">
-        {sourcePlugins.map((plugin) => {
-          const meta = getPluginMeta(plugin.id);
-          const description = getPluginDescription(plugin.id);
-          const isEnabled = isPluginEnabled(plugin.id);
+    <div className="flex flex-col">
+      {sourcePlugins.map((plugin) => {
+        const meta = getPluginMeta(plugin.id);
+        const description = getPluginDescription(plugin.id);
+        const isEnabled = serverPlugins.includes(plugin.id);
 
-          return (
-            <PluginRow
-              key={plugin.id}
-              plugin={plugin}
-              isEnabled={isEnabled}
-              isSaving={isSaving}
-              pendingBinding={pendingBindings[plugin.id]}
-              description={description}
-              label={meta?.label ?? plugin.id}
-              icon={meta?.icon ?? <Container size={14} />}
-              projectId={project.id}
-              client={client}
-              onBindingChange={handleBindingChange}
-              onToggle={handleTogglePlugin}
-            />
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-3 pt-4">
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={!hasChanges || isSaving}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className="min-w-24"
-        >
-          {isSaving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+        return (
+          <PluginRow
+            key={plugin.id}
+            plugin={plugin}
+            isEnabled={isEnabled}
+            isSaving={mutation.isPending}
+            description={description}
+            label={meta?.label ?? plugin.id}
+            icon={meta?.icon ?? <Container size={14} />}
+            onToggle={handleTogglePlugin}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -1,0 +1,195 @@
+/**
+ * Built-in TriggerStorage implementations.
+ *
+ * - StudioKV: Persists to Mesh/Studio's KV API (recommended for production)
+ * - JsonFileStorage: Persists to a local JSON file (for dev/simple deployments)
+ */
+
+import type { TriggerStorage } from "./triggers.ts";
+
+// ============================================================================
+// StudioKV — backed by Mesh's /api/kv endpoint
+// ============================================================================
+
+interface StudioKVOptions {
+  /** Mesh/Studio base URL (e.g., "https://studio.example.com") */
+  url: string;
+  /** API key created in the Studio org */
+  apiKey: string;
+  /** Key prefix to namespace trigger data (default: "triggers") */
+  prefix?: string;
+}
+
+/**
+ * TriggerStorage backed by Mesh/Studio's org-scoped KV API.
+ *
+ * @example
+ * ```typescript
+ * import { createTriggers } from "@decocms/runtime/triggers";
+ * import { StudioKV } from "@decocms/runtime/trigger-storage";
+ *
+ * const triggers = createTriggers({
+ *   definitions: [...],
+ *   storage: new StudioKV({
+ *     url: process.env.MESH_URL!,
+ *     apiKey: process.env.MESH_API_KEY!,
+ *   }),
+ * });
+ * ```
+ */
+export class StudioKV implements TriggerStorage {
+  private baseUrl: string;
+  private apiKey: string;
+  private prefix: string;
+
+  constructor(options: StudioKVOptions) {
+    this.baseUrl = options.url.replace(/\/$/, "");
+    this.apiKey = options.apiKey;
+    this.prefix = options.prefix ?? "triggers";
+  }
+
+  private key(connectionId: string): string {
+    return `${this.prefix}:${connectionId}`;
+  }
+
+  async get(connectionId: string) {
+    const res = await fetch(
+      `${this.baseUrl}/api/kv/${encodeURIComponent(this.key(connectionId))}`,
+      {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      },
+    );
+
+    if (res.status === 404) return null;
+
+    if (!res.ok) {
+      console.error(`[StudioKV] GET failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const body = (await res.json()) as {
+      value?: {
+        credentials: { callbackUrl: string; callbackToken: string };
+        activeTriggerTypes: string[];
+      };
+    };
+    return body.value ?? null;
+  }
+
+  async set(
+    connectionId: string,
+    state: {
+      credentials: { callbackUrl: string; callbackToken: string };
+      activeTriggerTypes: string[];
+    },
+  ) {
+    const res = await fetch(
+      `${this.baseUrl}/api/kv/${encodeURIComponent(this.key(connectionId))}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(state),
+      },
+    );
+
+    if (!res.ok) {
+      console.error(`[StudioKV] PUT failed: ${res.status} ${res.statusText}`);
+    }
+  }
+
+  async delete(connectionId: string) {
+    const res = await fetch(
+      `${this.baseUrl}/api/kv/${encodeURIComponent(this.key(connectionId))}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      },
+    );
+
+    if (!res.ok && res.status !== 404) {
+      console.error(
+        `[StudioKV] DELETE failed: ${res.status} ${res.statusText}`,
+      );
+    }
+  }
+}
+
+// ============================================================================
+// JsonFileStorage — backed by a local JSON file
+// ============================================================================
+
+interface JsonFileStorageOptions {
+  /** Path to the JSON file (will be created if it doesn't exist) */
+  path: string;
+}
+
+/**
+ * TriggerStorage backed by a local JSON file.
+ * Suitable for development and single-instance deployments.
+ *
+ * @example
+ * ```typescript
+ * import { createTriggers } from "@decocms/runtime/triggers";
+ * import { JsonFileStorage } from "@decocms/runtime/trigger-storage";
+ *
+ * const triggers = createTriggers({
+ *   definitions: [...],
+ *   storage: new JsonFileStorage({ path: "./trigger-state.json" }),
+ * });
+ * ```
+ */
+export class JsonFileStorage implements TriggerStorage {
+  private path: string;
+  private cache: Map<string, unknown> | null = null;
+
+  constructor(options: JsonFileStorageOptions) {
+    this.path = options.path;
+  }
+
+  private async load(): Promise<Map<string, unknown>> {
+    if (this.cache) return this.cache;
+    try {
+      const fs = await import("node:fs/promises");
+      const raw = await fs.readFile(this.path, "utf-8");
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      this.cache = new Map(Object.entries(data));
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        this.cache = new Map();
+      } else {
+        throw err;
+      }
+    }
+    return this.cache;
+  }
+
+  private async save(): Promise<void> {
+    const data = Object.fromEntries(this.cache ?? new Map());
+    const fs = await import("node:fs/promises");
+    await fs.writeFile(this.path, JSON.stringify(data, null, 2));
+  }
+
+  async get(connectionId: string) {
+    const map = await this.load();
+    return (map.get(connectionId) as any) ?? null;
+  }
+
+  async set(connectionId: string, state: unknown) {
+    const map = await this.load();
+    map.set(connectionId, state);
+    await this.save();
+  }
+
+  async delete(connectionId: string) {
+    const map = await this.load();
+    map.delete(connectionId);
+    await this.save();
+  }
+}

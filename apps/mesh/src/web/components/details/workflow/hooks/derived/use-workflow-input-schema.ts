@@ -126,9 +126,13 @@ function buildWorkflowInputSchema(steps: Step[]): JsonSchema | null {
 
 /**
  * Hook that returns the computed input schema for the current workflow.
- * Returns null if the workflow doesn't reference any @input fields.
+ * Prefers an explicit `input_schema` on the workflow collection; falls back
+ * to the schema derived from @input references in steps.
  */
 export function useWorkflowInputSchema(): JsonSchema | null {
   const workflow = useWorkflow();
+  if (workflow.input_schema) {
+    return workflow.input_schema as JsonSchema;
+  }
   return buildWorkflowInputSchema(workflow.steps);
 }

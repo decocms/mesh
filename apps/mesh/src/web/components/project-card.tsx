@@ -1,161 +1,104 @@
 import { Link } from "@tanstack/react-router";
-import { Settings, Trash2 } from "lucide-react";
+import { DotsVertical, Settings01, Trash01 } from "@untitledui/icons";
 import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { AgentAvatar, getIconColor } from "@/web/components/agent-icon";
-import { cn } from "@deco/ui/lib/utils.ts";
+import { AgentAvatar } from "@/web/components/agent-icon";
+import { Button } from "@deco/ui/components/button.tsx";
+import { Card } from "@deco/ui/components/card.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@deco/ui/components/dropdown-menu.tsx";
 
 interface ProjectCardProps {
   project: VirtualMCPEntity;
-  onSettingsClick?: (e: React.MouseEvent) => void;
   onDeleteClick?: (e: React.MouseEvent) => void;
 }
 
-export function ProjectCard({
-  project,
-  onSettingsClick,
-  onDeleteClick,
-}: ProjectCardProps) {
+export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
   const { org } = useProjectContext();
 
-  const ui = project.metadata?.ui;
-  const themeColor = ui?.themeColor as string | null | undefined;
-  const isHexColor = themeColor?.startsWith("#");
-  const iconColor = themeColor && !isHexColor ? getIconColor(themeColor) : null;
-
-  const bannerBg = iconColor?.bg ?? (isHexColor ? undefined : "bg-muted");
-  const bannerStyle =
-    isHexColor && themeColor ? { backgroundColor: themeColor } : undefined;
-
   return (
-    <Link
-      to="/$org/projects/$virtualMcpId"
-      params={{ org: org.slug, virtualMcpId: project.id }}
-      className="block group"
-    >
-      <div className="border border-border rounded-xl overflow-hidden bg-card">
-        {/* Banner */}
-        <div
-          className={cn("h-20 relative", bannerBg)}
-          style={
-            ui?.banner
-              ? {
-                  backgroundImage: `url(${ui.banner})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }
-              : bannerStyle
-          }
-        >
-          {/* Action Buttons */}
-          <div className="absolute top-3 right-3 flex items-center gap-1">
-            {onDeleteClick && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDeleteClick(e);
-                }}
-                className={cn(
-                  "size-6 rounded-md flex items-center justify-center",
-                  "bg-black/20 hover:bg-red-500/80 transition-colors",
-                )}
-              >
-                <Trash2 className="size-3.5 text-white" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onSettingsClick?.(e);
-              }}
-              className={cn(
-                "size-6 rounded-md flex items-center justify-center",
-                "bg-black/20 hover:bg-black/40 transition-colors",
-              )}
-            >
-              <Settings className="size-3.5 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex flex-col flex-1 justify-between p-4">
-          {/* Top Section */}
-          <div className="flex flex-col gap-4">
-            {/* Project Icon */}
+    <Card className="relative transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50">
+      {/* Overlay link for keyboard/accessibility — sits below interactive elements */}
+      <Link
+        to="/$org/$virtualMcpId"
+        params={{ org: org.slug, virtualMcpId: project.id }}
+        className="absolute inset-0 z-0"
+        aria-label={project.title}
+      />
+      {/* pointer-events-none lets clicks fall through to the overlay link */}
+      <div className="flex flex-col flex-1 pointer-events-none">
+        <div className="flex flex-col gap-3 p-4.5">
+          {/* Header: Icon + Actions */}
+          <div className="flex items-start justify-between">
             <AgentAvatar
               icon={project.icon}
               name={project.title}
-              size="md"
-              className="shrink-0"
+              size="sm"
+              className="shrink-0 shadow-sm"
             />
-
-            {/* Name & Time */}
-            <div className="flex flex-col">
-              <h3 className="font-medium text-base text-foreground truncate">
-                {project.title}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Edited{" "}
-                {formatDistanceToNow(new Date(project.updated_at), {
-                  addSuffix: true,
-                })}
-              </p>
+            {/* pointer-events-auto re-enables the dropdown */}
+            <div className="relative z-10 pointer-events-auto transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <DotsVertical size={20} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/$org/$virtualMcpId"
+                      params={{ org: org.slug, virtualMcpId: project.id }}
+                      search={{ main: "settings" }}
+                    >
+                      <Settings01 size={16} />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  {onDeleteClick && (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteClick(e);
+                      }}
+                    >
+                      <Trash01 size={16} />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between mt-4">
-            {/* Bound Connection Icons */}
-            <div className="flex pr-2">
-              {project.connections.slice(0, 4).map((conn) => (
-                <div
-                  key={conn.connection_id}
-                  className="-mr-2 rounded-md border border-background"
-                >
-                  <ConnectionIcon connectionId={conn.connection_id} />
-                </div>
-              ))}
-              {project.connections.length > 4 && (
-                <div className="-mr-2 rounded-md border border-background">
-                  <div className="size-6 rounded-md bg-background border border-black/10 shadow-sm flex items-center justify-center text-xs text-muted-foreground">
-                    +{project.connections.length - 4}
-                  </div>
-                </div>
-              )}
-            </div>
+          {/* Title and Description */}
+          <div className="flex flex-col gap-1">
+            <h3 className="text-sm font-medium text-foreground truncate">
+              {project.title}
+            </h3>
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {project.description || "No description"}
+            </p>
+          </div>
+        </div>
 
-            {/* Org Badge */}
-            <div className="flex items-center gap-2 text-xs text-foreground">
-              <AgentAvatar
-                icon={org.logo ?? null}
-                name={org.name}
-                size="xs"
-                className="shrink-0"
-              />
-              <span className="truncate max-w-20">{org.name}</span>
-            </div>
+        {/* Footer */}
+        <div className="border-t border-border mt-auto">
+          <div className="h-10 flex items-center px-4.5">
+            <p className="text-xs text-muted-foreground">
+              {formatDistanceToNow(new Date(project.updated_at), {
+                addSuffix: true,
+              })}
+            </p>
           </div>
         </div>
       </div>
-    </Link>
-  );
-}
-
-function ConnectionIcon({ connectionId }: { connectionId: string }) {
-  const baseClasses =
-    "size-6 rounded-md bg-background border border-black/10 shadow-sm flex items-center justify-center overflow-hidden";
-
-  return (
-    <div className={baseClasses} title={connectionId}>
-      <span className="text-[10px] text-muted-foreground font-medium">
-        {connectionId.charAt(0).toUpperCase()}
-      </span>
-    </div>
+    </Card>
   );
 }

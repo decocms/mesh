@@ -112,7 +112,7 @@ The engine creates an MCP proxy to the Virtual MCP, calls the tool with resolved
   name: "fetch_and_transform",
   action: {
     toolName: "GET_USERS",
-    transformCode: "export default function(input) { return input.data.map(u => u.email); }"
+    transformCode: "export default function(stepInput) { return stepInput.data.map(u => u.email); }"
   }
 }
 ```
@@ -125,7 +125,7 @@ Run TypeScript in a QuickJS WASM sandbox. No network access, no file system — 
 {
   name: "compute",
   action: {
-    code: "export default function(input) { return { total: input.items.length }; }"
+    code: "export default function(stepInput) { return { total: stepInput.items.length }; }"
   },
   input: { items: "@fetch_items.data" }
 }
@@ -311,7 +311,7 @@ How the type magic works:
 - **Step names are tracked** — each `.step("name", ...)` call widens the `TSteps` type parameter, so subsequent steps get `@name` in their `@ref` autocomplete
 - **Tool input keys are inferred** — if a tool has `inputSchema: z.object({ email: z.string() })`, the step's `input` will suggest `email` as a key
 - **Tool output schemas are auto-injected** — when a referenced tool has an `outputSchema`, the builder writes it into the step's `outputSchema` field so fingerprint changes propagate correctly
-- **Code steps** work too: `{ action: { code: "export default function(input) { ... }" } }`
+- **Code steps** work too: `{ action: { code: "export default function(stepInput) { ... }" } }`
 
 ### `Workflow.sync()` — Automatic Sync to Mesh
 

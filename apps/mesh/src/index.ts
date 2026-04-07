@@ -6,25 +6,33 @@
  * Or: bun run src/index.ts
  */
 
-// Import observability module early to initialize OpenTelemetry SDK
-import "./observability";
+import { getSettings } from "./settings";
+import { initObservability } from "./observability";
 
-import {
-  createAssetHandler,
-  resolveClientDir,
-} from "@decocms/runtime/asset-server";
-import { createApp } from "./api/app";
-import { isServerPath } from "./api/utils/paths";
-import { env, logConfiguration } from "./env";
-import { red } from "./fmt";
+const settings = getSettings();
 
-const port = env.PORT;
+// Initialize OpenTelemetry SDK BEFORE importing any app modules.
+// Modules like database/index.ts and run-registry.ts create OTel instruments
+// (histograms, counters) at import time via `meter.createX()`. If the SDK
+// hasn't started yet, those calls hit the NoopMeter and silently discard all
+// data forever. Dynamic-importing the app tree after `initObservability()`
+// ensures every `meter.createX()` call hits the real MeterProvider.
+initObservability();
+
+const { createApp } = await import("./api/app");
+const { isServerPath } = await import("./api/utils/paths");
+const { createAssetHandler, resolveClientDir } = await import(
+  "@decocms/runtime/asset-server"
+);
+const { red } = await import("./fmt");
+
+const port = settings.port;
 
 // Refuse local mode in production — it disables authentication
 if (
-  env.DECOCMS_LOCAL_MODE &&
-  env.NODE_ENV === "production" &&
-  !env.DECOCMS_ALLOW_LOCAL_PROD
+  settings.localMode &&
+  settings.nodeEnv === "production" &&
+  !settings.allowLocalProd
 ) {
   console.error(
     red(
@@ -70,22 +78,32 @@ function withSecurityHeaders(res: Response): Response {
 // Create the Hono app
 const app = await createApp();
 
-// When DECO_CLI is set, the calling script handles its own banner/config output
-if (!process.env.DECO_CLI) {
+// When running via CLI, the calling script handles its own banner/config output
+if (!settings.isCli) {
   const { ASCII_ART } = await import("./fmt");
   console.log("");
   for (const line of ASCII_ART) {
     console.log(line);
   }
-
-  logConfiguration(env);
 }
 
-Bun.serve({
+// REUSE_PORT is an internal coordination signal set by serve.ts when
+// numThreads > 1 on Linux. It intentionally bypasses the Settings pipeline
+// because it is not a user-facing config — it is set programmatically by the
+// CLI layer immediately before importing this module.
+const reusePort =
+  process.platform === "linux" && process.env.REUSE_PORT === "true";
+
+// DECOCMS_IS_WORKER is set by serve.ts on spawned worker processes.
+// Workers skip local-mode seeding to avoid concurrent DB races.
+const isWorker = process.env.DECOCMS_IS_WORKER === "1";
+
+const server = Bun.serve({
   // This was necessary because MCP has SSE endpoints (like notification) that disconnects after 10 seconds (default bun idle timeout)
   idleTimeout: 0,
   port,
   hostname: "0.0.0.0", // Listen on all network interfaces (required for K8s)
+  reusePort,
   fetch: async (request, server) => {
     // Try assets first (static files or dev proxy), then API
     // Pass server as env so Hono's getConnInfo can access requestIP
@@ -93,13 +111,15 @@ Bun.serve({
     if (assetRes) return withSecurityHeaders(assetRes);
     return app.fetch(request, { server });
   },
-  development: env.NODE_ENV !== "production",
+  development: settings.nodeEnv !== "production",
 });
 
 // Local mode: seed admin user + organization after server is listening
 // This must run after Bun.serve() so that the org seed can fetch tools
-// from the self MCP endpoint (http://localhost:PORT/mcp/self)
-if (env.DECOCMS_LOCAL_MODE) {
+// from the self MCP endpoint (http://localhost:PORT/mcp/self).
+// Worker processes skip seeding — only the primary process seeds to avoid
+// concurrent DB races across workers.
+if (settings.localMode && !isWorker) {
   import("./auth/local-mode")
     .then(async ({ seedLocalMode, markSeedComplete }) => {
       try {
@@ -123,3 +143,47 @@ if (env.DECOCMS_LOCAL_MODE) {
       }
     });
 }
+
+// ============================================================================
+// Graceful Shutdown
+// ============================================================================
+
+let shuttingDown = false;
+
+async function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.error("[shutdown] Timed out after 55s, forcing exit.");
+    process.exit(1);
+  }, 55_000);
+  forceExitTimer.unref?.();
+
+  let exitCode = 0;
+  try {
+    // 1. Mark as shutting down — readiness returns 503 immediately
+    app.markShuttingDown();
+
+    // 2. Give K8s time to notice the 503 and stop routing traffic before
+    //    we close connections (~2s is enough for most configurations)
+    await new Promise((r) => setTimeout(r, 2_000));
+
+    // 3. Stop accepting new connections, force-close active ones
+    //    (SSE streams are long-lived and would block graceful drain indefinitely)
+    await server.stop(true);
+
+    // 4. Stop workers, flush telemetry, close DB
+    await app.shutdown();
+  } catch (err) {
+    console.error("[shutdown] Error during shutdown:", err);
+    exitCode = 1;
+  }
+
+  clearTimeout(forceExitTimer);
+  process.exit(exitCode);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

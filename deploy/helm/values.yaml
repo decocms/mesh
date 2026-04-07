@@ -13,6 +13,13 @@ strategy:
 image:
   repository: ghcr.io/decocms/studio/studio
   pullPolicy: Always
+  command:
+    - bun
+    - run
+    - deco
+    - --no-local-mode
+    - --num-threads
+    - "4"
 
 service:
   type: ClusterIP
@@ -23,9 +30,6 @@ resources:
   requests:
     memory: "300Mi"
     cpu: "250m"
-  limits:
-    memory: "600Mi"
-    cpu: "500m"
 
 database:
   engine: sqlite # sqlite | postgresql
@@ -66,6 +70,11 @@ secret:
   # secretName: ""  # If defined, uses this existing secret (does not create new secret)
   # Generate secret with the following command: openssl rand -base64 32
   BETTER_AUTH_SECRET: "define_your_secret_with_command_above"
+  # ENCRYPTION_KEY for CredentialVault (AES-256-GCM).
+  # Empty string "" is valid — derives key via SHA-256("").
+  # If omitted, the server auto-generates a random key on each boot (breaks across restarts).
+  # Generate with: openssl rand -base64 32
+  ENCRYPTION_KEY: ""
 
 volumes: []
 # - name: foo
@@ -100,7 +109,7 @@ securityContext:
 
 livenessProbe:
   httpGet:
-    path: /health
+    path: /health/live
     port: http
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -108,12 +117,14 @@ livenessProbe:
   failureThreshold: 3
 readinessProbe:
   httpGet:
-    path: /health
+    path: /health/ready
     port: http
   initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 4
+
+terminationGracePeriodSeconds: 60
 
 # Optional lifecycle hooks (preStop, postStart)
 # lifecycle: {}
@@ -193,7 +204,7 @@ s3Sync:
   bucket: ""               # Required when enabled
   region: "us-east-1"
   prefix: ""               # S3 key prefix (e.g. "studio/production")
-  interval: 30             # Polling interval in seconds
+  interval: 60             # Polling interval in seconds
   roleArn: ""              # IRSA role ARN — adds eks.amazonaws.com/role-arn to ServiceAccount
   syncDirs:                # Directories under /app/data to sync
     - logs

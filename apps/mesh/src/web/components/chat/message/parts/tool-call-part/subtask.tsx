@@ -2,9 +2,8 @@
 
 import type { ToolSubtaskMetadata } from "../../use-filter-parts.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import type { ToolDefinition } from "@decocms/mesh-sdk";
+import { useVirtualMCP, type ToolDefinition } from "@decocms/mesh-sdk";
 import { Users03 } from "@untitledui/icons";
-import { useChatStable } from "../../../context.tsx";
 import type { SubtaskToolPart } from "../../../types.ts";
 import { extractTextFromOutput, getToolPartErrorText } from "../utils.ts";
 import { ToolCallShell } from "./common.tsx";
@@ -21,8 +20,6 @@ interface SubtaskPartProps {
 }
 
 export function SubtaskPart({ part, subtaskMeta, latency }: SubtaskPartProps) {
-  const { virtualMcps } = useChatStable();
-
   // State computation
   const isInputStreaming =
     part.state === "input-streaming" || part.state === "input-available";
@@ -39,9 +36,9 @@ export function SubtaskPart({ part, subtaskMeta, latency }: SubtaskPartProps) {
   );
   const effectiveState = rawState === "approval" ? "idle" : rawState;
 
-  // Agent lookup
+  // Agent lookup (single-item fetch, no full list needed)
   const agentId = part.input?.agent_id;
-  const agent = agentId ? virtualMcps.find((v) => v.id === agentId) : null;
+  const agent = useVirtualMCP(agentId);
 
   // Usage extraction from data part
   const usage = subtaskMeta?.usage;

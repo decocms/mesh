@@ -29,6 +29,13 @@ export interface RegisterEmptyStateParams {
   component: ReactNode;
 }
 
+export interface RegisterSettingsSidebarItemParams {
+  key: string;
+  icon: ReactNode;
+  label: string;
+  to: string;
+}
+
 export interface PluginSetupContext {
   parentRoute: AnyRoute;
   routing: {
@@ -37,6 +44,9 @@ export interface PluginSetupContext {
   };
   registerRootSidebarItem: (params: RegisterRootSidebarItemParams) => void;
   registerSidebarGroup: (params: RegisterSidebarGroupParams) => void;
+  registerSettingsSidebarItem: (
+    params: RegisterSettingsSidebarItemParams,
+  ) => void;
   registerPluginRoutes: (route: AnyRoute[]) => void;
 }
 
@@ -67,8 +77,14 @@ export interface ClientPlugin<TBinding extends Binder = Binder> {
   /**
    * Binding schema used to filter compatible connections.
    * Omit for plugins that manage their own connection (e.g. self MCP).
+   * @deprecated Use bindingName for server-side filtering instead.
    */
   binding?: TBinding;
+  /**
+   * Server-side binding name to filter connections (e.g., "WORKFLOW", "LLM").
+   * Preferred over `binding` as it avoids loading all connections client-side.
+   */
+  bindingName?: string;
   setup?: PluginSetup;
   /**
    * Optional custom layout component for this plugin.

@@ -195,7 +195,6 @@ async function emitMonitoringSpan(args: {
   enabled: boolean;
   organizationId?: string;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string;
   request: CallToolRequest;
   output: Record<string, unknown>;
@@ -243,7 +242,6 @@ async function emitMonitoringSpan(args: {
     {
       organizationId,
       connectionId: args.connectionId,
-      connectionTitle: args.connectionTitle,
       toolName: args.request.params.name,
       toolArguments: (args.request.params.arguments ?? {}) as Record<
         string,
@@ -269,14 +267,13 @@ export interface ProxyMonitoringMiddlewareParams {
   ctx: MeshContext;
   enabled: boolean;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string; // Virtual MCP (Agent) ID if routed through an agent
 }
 
 export function createProxyMonitoringMiddleware(
   params: ProxyMonitoringMiddlewareParams,
 ): CallToolMiddleware {
-  const { ctx, enabled, connectionId, connectionTitle, virtualMcpId } = params;
+  const { ctx, enabled, connectionId, virtualMcpId } = params;
 
   return async (request, next) => {
     const startTime = Date.now();
@@ -303,7 +300,6 @@ export function createProxyMonitoringMiddleware(
         ctx,
         enabled,
         connectionId,
-        connectionTitle,
         virtualMcpId,
         request,
         output: formatMonitoringOutput(result),
@@ -333,7 +329,6 @@ export function createProxyMonitoringMiddleware(
         ctx,
         enabled,
         connectionId,
-        connectionTitle,
         virtualMcpId,
         request,
         output: {},
@@ -350,7 +345,7 @@ export function createProxyMonitoringMiddleware(
 export function createProxyStreamableMonitoringMiddleware(
   params: ProxyMonitoringMiddlewareParams,
 ): CallStreamableToolMiddleware {
-  const { ctx, enabled, connectionId, connectionTitle, virtualMcpId } = params;
+  const { ctx, enabled, connectionId, virtualMcpId } = params;
 
   return async (request, next) => {
     const startTime = Date.now();
@@ -422,7 +417,6 @@ export function createProxyStreamableMonitoringMiddleware(
               enabled,
               organizationId,
               connectionId,
-              connectionTitle,
               virtualMcpId,
               request,
               output,
@@ -437,7 +431,6 @@ export function createProxyStreamableMonitoringMiddleware(
               enabled,
               organizationId,
               connectionId,
-              connectionTitle,
               virtualMcpId,
               request,
               output: {},
@@ -473,7 +466,6 @@ export function createProxyStreamableMonitoringMiddleware(
         ctx,
         enabled,
         connectionId,
-        connectionTitle,
         virtualMcpId,
         request,
         output: {},

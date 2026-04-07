@@ -5,14 +5,18 @@
  * Used by both the Monitoring page and the Home page.
  */
 
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@deco/ui/components/chart.tsx";
+import { ChartContainer, ChartTooltip } from "@deco/ui/components/chart.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Bar, BarChart, Cell } from "recharts";
-import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // ============================================================================
 // Types
@@ -21,7 +25,6 @@ import { HomeGridCell } from "@/web/routes/orgs/home/home-grid-cell.tsx";
 export interface MonitoringLog {
   id: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   isError: boolean;
   errorMessage: string | null;
@@ -194,6 +197,58 @@ export interface KPIChartProps {
   dataKey: "calls" | "errors" | "avg" | "p50" | "p95";
   colorNum: number;
   chartHeight: string;
+  variant?: "bar" | "area";
+}
+
+function formatYAxisValue(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
+}
+
+function KPITooltipContent({
+  active,
+  payload,
+  dataKey,
+  colorVar,
+}: {
+  active?: boolean;
+  // biome-ignore lint: recharts payload is loosely typed
+  payload?: any[];
+  dataKey: string;
+  colorVar: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const first = payload[0];
+  const t: string = first?.payload?.t ?? "";
+  const label = t
+    ? new Date(t).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : (first?.payload?.label ?? "");
+  const rawValue = first?.value;
+  const value = typeof rawValue === "number" ? rawValue : 0;
+  const isLatency = dataKey === "avg" || dataKey === "p50" || dataKey === "p95";
+  const formatted = isLatency
+    ? value >= 10000
+      ? `${(value / 1000).toFixed(1)}s`
+      : `${Math.round(value)}ms`
+    : value.toLocaleString();
+
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+      <div className="text-[11px] text-muted-foreground mb-1">{label}</div>
+      <div className="flex items-center gap-1.5">
+        <div
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: colorVar }}
+        />
+        <span className="text-xs font-medium tabular-nums">{formatted}</span>
+      </div>
+    </div>
+  );
 }
 
 export function KPIChart({
@@ -201,79 +256,152 @@ export function KPIChart({
   dataKey,
   colorNum,
   chartHeight,
+  variant = "bar",
 }: KPIChartProps) {
   const colorVar = `var(--chart-${colorNum})`;
+  const gradientId = `kpi-gradient-${dataKey}-${colorNum}`;
+
+  const maxVal = Math.max(...data.map((d) => d[dataKey]), 0);
+  const tickCount = 5;
+
+  if (variant === "area") {
+    return (
+      <ChartContainer
+        className={cn(chartHeight, "w-full")}
+        config={{ [dataKey]: { label: dataKey, color: colorVar } }}
+      >
+        <AreaChart
+          data={data}
+          margin={{ left: 0, right: -12, top: 8, bottom: 0 }}
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={colorVar} stopOpacity={0.2} />
+              <stop offset="100%" stopColor={colorVar} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="4 4"
+            stroke="var(--border)"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{
+              fontSize: 11,
+              fill: "var(--muted-foreground)",
+              opacity: 0.7,
+            }}
+            interval="preserveStartEnd"
+            tickMargin={8}
+          />
+          <YAxis
+            orientation="right"
+            axisLine={false}
+            tickLine={false}
+            tick={{
+              fontSize: 11,
+              fill: "var(--muted-foreground)",
+              opacity: 0.7,
+            }}
+            tickFormatter={formatYAxisValue}
+            width={40}
+            domain={[0, maxVal > 0 ? "auto" : 10]}
+            tickCount={tickCount}
+          />
+          <ChartTooltip
+            cursor={{ stroke: "var(--border)", strokeDasharray: "4 4" }}
+            content={({ active, payload }) => (
+              <KPITooltipContent
+                active={active}
+                payload={payload}
+                dataKey={dataKey}
+                colorVar={colorVar}
+              />
+            )}
+          />
+          <Area
+            type="linear"
+            dataKey={dataKey}
+            stroke={colorVar}
+            strokeWidth={2}
+            fill={`url(#${gradientId})`}
+            animationDuration={300}
+            dot={false}
+            activeDot={{
+              r: 4,
+              fill: colorVar,
+              stroke: "var(--background)",
+              strokeWidth: 2,
+            }}
+          />
+        </AreaChart>
+      </ChartContainer>
+    );
+  }
 
   return (
     <ChartContainer
       className={cn(chartHeight, "w-full")}
       config={{ [dataKey]: { label: dataKey, color: colorVar } }}
     >
-      <BarChart data={data} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              indicator="line"
-              labelFormatter={(_, payload) => {
-                const first = Array.isArray(payload) ? payload[0] : undefined;
-                return first && typeof first === "object" && "payload" in first
-                  ? ((first as any).payload?.label ?? "")
-                  : "";
-              }}
-            />
-          }
+      <BarChart data={data} margin={{ left: 0, right: -12, top: 8, bottom: 0 }}>
+        <CartesianGrid
+          strokeDasharray="4 4"
+          stroke="var(--border)"
+          strokeOpacity={0.5}
+          vertical={false}
         />
-        <Bar
-          dataKey={dataKey}
-          fill={colorVar}
-          radius={[0, 0, 0, 0]}
-          minPointSize={1}
-        >
+        <XAxis
+          dataKey="label"
+          axisLine={false}
+          tickLine={false}
+          tick={{
+            fontSize: 11,
+            fill: "var(--muted-foreground)",
+            opacity: 0.7,
+          }}
+          interval={data.length <= 6 ? 0 : Math.floor(data.length / 6)}
+          tickMargin={8}
+        />
+        <YAxis
+          orientation="right"
+          axisLine={false}
+          tickLine={false}
+          tick={{
+            fontSize: 11,
+            fill: "var(--muted-foreground)",
+            opacity: 0.7,
+          }}
+          tickFormatter={formatYAxisValue}
+          width={40}
+          domain={[0, maxVal > 0 ? "auto" : 10]}
+          tickCount={tickCount}
+        />
+        <ChartTooltip
+          cursor={{ fill: "var(--muted)", opacity: 0.3 }}
+          content={({ active, payload }) => (
+            <KPITooltipContent
+              active={active}
+              payload={payload}
+              dataKey={dataKey}
+              colorVar={colorVar}
+            />
+          )}
+        />
+        <Bar dataKey={dataKey} fill={colorVar} radius={0} minPointSize={1}>
           {data.map((entry, index) => (
             <Cell
               key={`cell-${index}`}
               fill={entry[dataKey] === 0 ? "var(--muted-foreground)" : colorVar}
-              fillOpacity={entry[dataKey] === 0 ? 0.25 : 1}
+              fillOpacity={entry[dataKey] === 0 ? 0.15 : 0.85}
             />
           ))}
         </Bar>
       </BarChart>
     </ChartContainer>
-  );
-}
-
-// ============================================================================
-// Skeleton
-// ============================================================================
-
-export function MonitoringStatsRowSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-[0.5px] bg-border flex-shrink-0">
-      {[...Array(3)].map((_, i) => (
-        <HomeGridCell
-          key={i}
-          title={
-            <div className="flex flex-col gap-0.5 md:gap-1">
-              <div className="h-4 w-16 rounded bg-muted animate-pulse" />
-              <div className="h-5 md:h-6 w-12 rounded bg-muted animate-pulse" />
-            </div>
-          }
-        >
-          <div className="flex flex-col w-full">
-            <div className="h-[30px] md:h-[40px] w-full rounded bg-muted animate-pulse" />
-            <div className="space-y-1.5 mt-2">
-              {Array.from({ length: 3 }).map((_, j) => (
-                <div key={j} className="flex items-center gap-1.5">
-                  <div className="size-4 rounded-sm bg-muted animate-pulse shrink-0" />
-                  <div className="h-2.5 w-20 rounded bg-muted animate-pulse" />
-                  <div className="h-1.5 flex-1 bg-muted animate-pulse" />
-                  <div className="h-2.5 w-8 rounded bg-muted animate-pulse shrink-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </HomeGridCell>
-      ))}
-    </div>
   );
 }

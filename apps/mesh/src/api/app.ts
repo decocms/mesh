@@ -8,7 +8,7 @@
  * - CORS support
  */
 
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { DECO_STORE_URL, isDecoHostedMcp } from "@/core/deco-constants";
 import { WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 import { PrometheusSerializer } from "@opentelemetry/exporter-prometheus";
@@ -17,14 +17,16 @@ import { getCookie } from "hono/cookie";
 import { cors } from "hono/cors";
 import { endTime, startTime, timing } from "hono/timing";
 import { auth } from "../auth";
+import { createMemberRoleCache } from "../auth/member-role-cache";
 import {
   ContextFactory,
   createMeshContextFactory,
 } from "../core/context-factory";
 import type { MeshContext } from "../core/mesh-context";
-import { getDb, type MeshDatabase } from "../database";
+import { closeDatabase, getDb, type MeshDatabase } from "../database";
 import { createEventBus, type EventBus } from "../event-bus";
 import {
+  flushMonitoringData,
   meter,
   prometheusExporter,
   tracer,
@@ -42,7 +44,10 @@ import oauthProxyRoutes, {
 } from "./routes/oauth-proxy";
 import openaiCompatRoutes from "./routes/openai-compat";
 import proxyRoutes from "./routes/proxy";
+import { createKVRoutes } from "./routes/kv";
+import { createTriggerCallbackRoutes } from "./routes/trigger-callback";
 import publicConfigRoutes from "./routes/public-config";
+import filesRoutes from "./routes/files";
 import selfRoutes from "./routes/self";
 import { shouldSkipMeshContext, SYSTEM_PATHS } from "./utils/paths";
 import {
@@ -73,14 +78,10 @@ import type { RunReactorDeps } from "./routes/decopilot/run-reactor";
 import { SqlThreadStorage } from "../storage/threads";
 import type { Thread } from "../storage/types";
 import { cleanupOldMonitoringFiles } from "../monitoring/ndjson-retention";
-import {
-  DEFAULT_LOGS_DIR,
-  DEFAULT_TRACES_DIR,
-  DEFAULT_METRICS_DIR,
-} from "../monitoring/schema";
+import { getLogsDir, getTracesDir, getMetricsDir } from "../monitoring/schema";
 import {
   AutomationCronWorker,
-  AutomationJobStream,
+  automationJobStream,
   EventTriggerEngine,
   Semaphore,
 } from "../automations";
@@ -90,10 +91,53 @@ import {
   PersistedRunConfigSchema,
   toModelsConfig,
 } from "./routes/decopilot/run-config";
-import { POD_ID } from "../core/pod-identity";
+import { getPodId } from "../core/pod-identity";
 import { NatsPodHeartbeat } from "../nats/pod-heartbeat";
 import { createAutomationsStorage } from "../storage/automations";
+import { KyselyKVStorage } from "../storage/kv";
+import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { createAutomationContextFactory } from "./routes/decopilot/automation-context";
+
+import type { Pool, PoolClient } from "pg";
+
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * Acquire a client from the pool, run SELECT 1, and release it.
+ * Destroys the connection (instead of returning it to the pool) on any
+ * failure or timeout so stale connections don't accumulate.
+ */
+async function checkPostgres(pool: Pool): Promise<boolean> {
+  const connectPromise = pool.connect();
+  let client: PoolClient;
+  try {
+    client = await Promise.race([
+      connectPromise,
+      rejectAfter(HEALTH_CHECK_TIMEOUT_MS),
+    ]);
+  } catch {
+    // Clean up a client that arrives after the timeout.
+    void connectPromise.then((c) => c.release(true)).catch(() => {});
+    return false;
+  }
+  try {
+    await Promise.race([
+      client.query("SELECT 1"),
+      rejectAfter(HEALTH_CHECK_TIMEOUT_MS),
+    ]);
+    client.release();
+    return true;
+  } catch {
+    client.release(true);
+    return false;
+  }
+}
+
+function rejectAfter(ms: number): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("pg health-check timeout")), ms),
+  );
+}
 
 // Track current event bus instance for cleanup during HMR
 let currentEventBus: EventBus | null = null;
@@ -123,10 +167,18 @@ async function getDecoStoreProjectLocator(
   organizationId: string,
 ): Promise<string | null> {
   // Find registry connection by URL within the organization
-  const connections = await ctx.storage.connections.list(organizationId);
-  const registryConn = connections.find((c) =>
-    c.connection_url?.startsWith(DECO_STORE_URL),
+  const { items: connections } = await ctx.storage.connections.list(
+    organizationId,
+    {
+      where: {
+        field: ["connection_url"],
+        operator: "like",
+        value: `${DECO_STORE_URL}%`,
+      },
+      limit: 1,
+    },
   );
+  const registryConn = connections[0];
 
   if (!registryConn?.configuration_state) {
     return null;
@@ -165,7 +217,10 @@ import {
   oAuthProtectedResourceMetadata,
 } from "better-auth/plugins";
 import { MiddlewareHandler } from "hono/types";
-import { getToolsByCategory, MANAGEMENT_TOOLS } from "../tools/registry";
+import {
+  getToolsByCategory,
+  MANAGEMENT_TOOLS,
+} from "../tools/registry-metadata";
 import { Env } from "./hono-env";
 import { devLogger } from "./utils/dev-logger";
 import { streamSSE } from "hono/streaming";
@@ -200,6 +255,7 @@ export interface CreateAppOptions {
  */
 export async function createApp(options: CreateAppOptions = {}) {
   const database = options.database ?? getDb();
+  let isShuttingDown = false;
 
   // Clear previous monitoring retention timer (cleanup during HMR)
   if (currentRetentionTimer) {
@@ -259,18 +315,18 @@ export async function createApp(options: CreateAppOptions = {}) {
   } else {
     // Production/dev mode: connect to NATS (required)
     natsProvider = createNatsConnectionProvider();
-    await natsProvider.init(env.NATS_URL);
+    natsProvider.init(getSettings().natsUrls);
 
     const tlc = new JetStreamKVMcpListCache({
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await tlc.init();
+    tlc.init().catch(() => {});
     mcpListCache = tlc;
 
     const mlc = new JetStreamKVModelListCache({
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await mlc.init();
+    mlc.init().catch(() => {});
     modelListCache = mlc;
 
     cancelBroadcast = new NatsCancelBroadcast({
@@ -283,6 +339,22 @@ export async function createApp(options: CreateAppOptions = {}) {
     });
 
     eventBus = createEventBus(database, natsProvider);
+
+    // When NATS connects, (re-)initialize all deferred consumers
+    natsProvider.onReady(() => {
+      tlc.init().catch((err: unknown) => {
+        console.error("[McpListCache] Deferred init failed:", err);
+      });
+      mlc.init().catch((err: unknown) => {
+        console.error("[ModelListCache] Deferred init failed:", err);
+      });
+      streamBuffer.init().catch((err: unknown) => {
+        console.warn(
+          "[StreamBuffer] Deferred init failed, late-join disabled:",
+          err,
+        );
+      });
+    });
   }
 
   // Track for cleanup during HMR
@@ -302,17 +374,25 @@ export async function createApp(options: CreateAppOptions = {}) {
     sseHub,
   };
 
+  const POD_ID = getPodId();
   const runRegistry = new RunRegistry(cancelReactorDeps, POD_ID);
 
   cancelBroadcast
-    .start((threadId) => {
-      runRegistry.execute({ type: "CANCEL", threadId }).catch((err) => {
+    .start((taskId) => {
+      runRegistry.execute({ type: "CANCEL", taskId }).catch((err) => {
         console.error("[Decopilot] CancelBroadcast execute failed:", err);
       });
     })
     .catch((err) => {
       console.error("[Decopilot] CancelBroadcast start failed:", err);
     });
+
+  // Re-start cancel broadcast subscription when NATS connects
+  natsProvider?.onReady(() => {
+    cancelBroadcast.start().catch((err) => {
+      console.error("[CancelBroadcast] Deferred start failed:", err);
+    });
+  });
   streamBuffer.init().catch((err) => {
     console.warn(
       "[Decopilot] StreamBuffer init failed, attach/late-join disabled:",
@@ -327,8 +407,26 @@ export async function createApp(options: CreateAppOptions = {}) {
       getConnection: () => natsProvider!.getConnection(),
       getJetStream: () => natsProvider!.getJetStream(),
     });
-    await podHeartbeat.init();
-    podHeartbeat.start(POD_ID);
+
+    // Attempt immediate init (may no-op if NATS not ready)
+    podHeartbeat
+      .init()
+      .then(() => {
+        podHeartbeat!.start(POD_ID);
+      })
+      .catch(() => {});
+
+    // Re-init when NATS connects
+    natsProvider.onReady(() => {
+      podHeartbeat!
+        .init()
+        .then(() => {
+          podHeartbeat!.start(POD_ID);
+        })
+        .catch((err: unknown) => {
+          console.error("[PodHeartbeat] Deferred init failed:", err);
+        });
+    });
   }
 
   currentDecopilotCleanup = async () => {
@@ -341,7 +439,6 @@ export async function createApp(options: CreateAppOptions = {}) {
     mcpListCache.teardown();
     modelListCache.teardown();
     setMcpListCache(null);
-    natsProvider?.drain().catch(() => {});
   };
 
   const app = new Hono<Env>();
@@ -355,7 +452,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     "*",
     timing({
       enabled: (c) =>
-        env.NODE_ENV !== "production" || getCookie(c, "debug") === "1",
+        getSettings().nodeEnv !== "production" || getCookie(c, "debug") === "1",
     }),
   );
 
@@ -389,7 +486,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     c.header("Content-Security-Policy", "frame-ancestors 'none'");
   });
 
-  if (process.env.DECO_NO_TUI !== "true") {
+  if (!getSettings().noTui) {
     app.use("*", devLogger());
   }
 
@@ -410,13 +507,41 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Health Check & Metrics
   // ============================================================================
 
-  // Health check endpoint (no auth required)
-  app.get(SYSTEM_PATHS.HEALTH, (c) => {
-    return c.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      version: "1.0.0",
-    });
+  // Liveness probe — the process is alive and the event loop is not stuck
+  app.get(SYSTEM_PATHS.HEALTH_LIVE, (c) => {
+    return c.json({ status: "ok" });
+  });
+
+  // Readiness probe — returns 503 during shutdown so K8s drains traffic before liveness fails,
+  // and checks that DB and NATS are reachable
+  app.get(SYSTEM_PATHS.HEALTH_READY, async (c) => {
+    if (isShuttingDown) {
+      return c.json({ status: "shutting_down" }, 503);
+    }
+
+    const services: Record<string, { status: "up" | "down" }> = {};
+
+    // Check PostgreSQL (hard dependency — determines readiness)
+    services.postgres = {
+      status: (await checkPostgres(database.pool)) ? "up" : "down",
+    };
+
+    // Check NATS (soft dependency — reported but does not block readiness)
+    if (natsProvider) {
+      services.nats = natsProvider.isConnected()
+        ? { status: "up" }
+        : { status: "down" };
+    } else {
+      services.nats = { status: "down" };
+    }
+
+    const ready = services.postgres.status === "up";
+    const httpStatus = ready ? 200 : 503;
+
+    return c.json(
+      { status: ready ? "ready" : "not_ready", services },
+      httpStatus,
+    );
   });
 
   // Prometheus metrics endpoint
@@ -669,11 +794,12 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // Create context factory with the provided database and event bus
   // Context factory only needs the Kysely instance, not the full MeshDatabase
+  const memberRoleCache = createMemberRoleCache({ ttlMs: 2 * 60 * 1000 });
   const factory = await createMeshContextFactory({
     db: database.db,
     auth,
     encryption: {
-      key: env.ENCRYPTION_KEY,
+      key: getSettings().encryptionKey,
     },
     observability: {
       tracer,
@@ -681,6 +807,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     },
     eventBus,
     modelListCache,
+    memberRoleCache,
   });
   ContextFactory.set(factory);
 
@@ -688,12 +815,16 @@ export async function createApp(options: CreateAppOptions = {}) {
   // startup hooks (runPluginStartupHooks) need storage to be ready and they
   // run as soon as eventBus.start() resolves — which can happen during any
   // `await` between here and where initializePluginStorage used to live.
-  const vault = new CredentialVault(env.ENCRYPTION_KEY);
+  const vault = new CredentialVault(getSettings().encryptionKey);
   initializePluginStorage(database.db, vault);
 
   // Start the event bus worker (async - resets stuck deliveries from previous crashes)
   // Then run plugin startup hooks (e.g., recover stuck workflow executions)
-  Promise.resolve(eventBus.start())
+  // Random jitter (0-2s) prevents all pods from hitting the DB simultaneously
+  // after a deployment causes simultaneous restarts.
+  const startupJitterMs = Math.random() * 2000;
+  new Promise((r) => setTimeout(r, startupJitterMs))
+    .then(() => eventBus.start())
     .then(() => {
       // db is typed as `any` to avoid Kysely version mismatch issues between packages
       return runPluginStartupHooks({
@@ -718,6 +849,9 @@ export async function createApp(options: CreateAppOptions = {}) {
   }
 
   const automationsStorage = createAutomationsStorage(database.db);
+  const triggerCallbackTokenStorage = new KyselyTriggerCallbackTokenStorage(
+    database.db,
+  );
   const automationSemaphore = new Semaphore(10); // max 10 concurrent runs globally
 
   const automationContextFactory = createAutomationContextFactory({
@@ -748,53 +882,111 @@ export async function createApp(options: CreateAppOptions = {}) {
   let cronTimer: ReturnType<typeof setInterval> | null = null;
 
   if (natsProvider) {
-    const automationJobStream = new AutomationJobStream({
+    const natsOpts = {
       getConnection: () => natsProvider!.getConnection(),
       getJetStream: () => natsProvider!.getJetStream(),
-    });
+    };
 
     const cronWorker = new AutomationCronWorker(
       automationsStorage,
-      automationJobStream,
+      automationJobStream.publish,
     );
 
     const cronPollIntervalMs = 10_000;
 
-    await automationJobStream.init();
-
-    await automationJobStream.startConsumer(async (payload) => {
-      const automation = await automationsStorage.findById(
-        payload.automationId,
-        payload.organizationId,
+    const startJobStream = async () => {
+      const t0 = Date.now();
+      await automationJobStream.init(natsOpts);
+      console.log(
+        `[AutomationJobStream] init completed in ${Date.now() - t0}ms`,
       );
-      if (!automation) return;
-      await fireAutomation({
-        automation,
-        triggerId: payload.triggerId,
-        storage: automationsStorage,
-        streamCoreFn: streamCore,
-        meshContextFactory: automationContextFactory,
-        config: {
-          maxConcurrentPerAutomation: 3,
-          runTimeoutMs: 5 * 60 * 1000,
-        },
-        globalSemaphore: automationSemaphore,
-        deps: { runRegistry, cancelBroadcast },
+      await automationJobStream.startConsumer(async (payload) => {
+        const automation = await automationsStorage.findById(
+          payload.automationId,
+          payload.organizationId,
+        );
+        if (!automation) return;
+        await fireAutomation({
+          automation,
+          triggerId: payload.triggerId,
+          storage: automationsStorage,
+          streamCoreFn: streamCore,
+          meshContextFactory: automationContextFactory,
+          config: {
+            maxConcurrentPerAutomation: 3,
+            runTimeoutMs: 5 * 60 * 1000,
+          },
+          globalSemaphore: automationSemaphore,
+          deps: { runRegistry, cancelBroadcast },
+        });
       });
+      const t1 = Date.now();
+      await cronWorker.start();
+      console.log(
+        `[AutomationJobStream] cronWorker.start() completed in ${Date.now() - t1}ms`,
+      );
+    };
+
+    const startJobStreamWithRetry = async (maxRetries = 5) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await startJobStream();
+          return;
+        } catch (err) {
+          if (attempt === maxRetries) throw err;
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          console.warn(
+            `[AutomationJobStream] Start attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+    };
+
+    // Attempt immediate start
+    startJobStreamWithRetry().catch((err) => {
+      console.error("[AutomationJobStream] Immediate start failed:", err);
     });
 
-    await cronWorker.start();
+    // Re-start when NATS connects
+    natsProvider.onReady(() => {
+      startJobStreamWithRetry().catch((err: unknown) => {
+        console.error("[AutomationJobStream] Deferred start failed:", err);
+      });
+    });
     cronTimer = setInterval(() => {
       cronWorker.processNow().catch((err) => {
         console.error("[AutomationCron] Error processing:", err);
       });
     }, cronPollIntervalMs);
 
+    // Periodic health check: detect dead consumer and reinitialize
+    const healthCheckIntervalMs = 60_000;
+    let reinitializing = false;
+    const healthCheckTimer = setInterval(async () => {
+      if (reinitializing) return;
+      try {
+        const healthy = await automationJobStream.isHealthy(natsOpts);
+        if (healthy) return;
+
+        reinitializing = true;
+        console.warn(
+          "[AutomationJobStream] Health check failed, reinitializing...",
+        );
+        await startJobStreamWithRetry();
+      } catch (err) {
+        console.error("[AutomationJobStream] Health re-init failed:", err);
+      } finally {
+        reinitializing = false;
+      }
+    }, healthCheckIntervalMs);
+
     currentCronWorkerCleanup = () => {
       if (cronTimer) {
         clearInterval(cronTimer);
         cronTimer = null;
       }
+      clearInterval(healthCheckTimer);
       automationJobStream.stop();
       cronWorker.stop().catch(() => {});
     };
@@ -893,7 +1085,7 @@ export async function createApp(options: CreateAppOptions = {}) {
         toolApprovalLevel: config.toolApprovalLevel,
         organizationId: thread.organization_id,
         userId: thread.created_by,
-        threadId: thread.id,
+        taskId: thread.id,
         windowSize: config.windowSize,
         isResume: true,
       },
@@ -924,11 +1116,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   }, 10_000); // 10s grace for rolling deploys
 
   // NDJSON monitoring retention cleanup (always — local files are always written)
-  const SIGNAL_DIRS = [
-    DEFAULT_LOGS_DIR,
-    DEFAULT_TRACES_DIR,
-    DEFAULT_METRICS_DIR,
-  ];
+  const SIGNAL_DIRS = [getLogsDir(), getTracesDir(), getMetricsDir()];
 
   for (const dir of SIGNAL_DIRS) {
     cleanupOldMonitoringFiles(dir)
@@ -986,7 +1174,25 @@ export async function createApp(options: CreateAppOptions = {}) {
     meshCtx.automationRunner = automationRunner;
     c.set("meshContext", meshCtx);
 
-    return next();
+    try {
+      await next();
+    } finally {
+      // Fire-and-forget: await pending SWR revalidations with a timeout.
+      // Keeps ctx (and its client pool) alive via closure while revalidations complete.
+      // No pool disposal — pool was never disposed and SSE/streaming connections depend on it.
+      const revalidations = meshCtx.pendingRevalidations;
+      if (revalidations.length > 0) {
+        const REVALIDATION_TIMEOUT_MS = 30_000;
+        void Promise.race([
+          Promise.allSettled(revalidations),
+          new Promise((resolve) =>
+            setTimeout(resolve, REVALIDATION_TIMEOUT_MS),
+          ),
+        ]).catch((err) =>
+          console.error("[mesh] revalidation cleanup error:", err),
+        );
+      }
+    }
   });
 
   // ============================================================================
@@ -1078,7 +1284,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.use("/mcp/self", mcpAuth);
 
   // Dev-only routes (local file storage MCP for testing object-storage plugin)
-  if (env.NODE_ENV !== "production") {
+  if (getSettings().nodeEnv !== "production") {
     // Using require() for synchronous loading to ensure routes are registered
     // before any requests come in. Static imports in dev-only.ts allow knip tracking.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1115,8 +1321,24 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   app.route("/api", decopilotRoutes);
 
+  // Stable file redirect endpoint (resolves mesh-storage: URIs to presigned URLs)
+  app.route("/api", filesRoutes);
+
   // OpenAI-compatible LLM API routes
   app.route("/api", openaiCompatRoutes);
+
+  // Trigger callback endpoint (external MCPs → Mesh automations)
+  app.route(
+    "/api",
+    createTriggerCallbackRoutes({
+      tokenStorage: triggerCallbackTokenStorage,
+      eventTriggerEngine,
+    }),
+  );
+
+  // KV store (org-scoped, for external MCPs to persist state)
+  const kvStorage = new KyselyKVStorage(database.db);
+  app.route("/api", createKVRoutes({ kvStorage }));
 
   // Public Events endpoint
   app.post("/org/:organizationId/events/:type", async (c) => {
@@ -1247,6 +1469,22 @@ export async function createApp(options: CreateAppOptions = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mountPluginRoutes(app, { db: database.db as any, vault });
 
+  // Private Registry public routes (first-class feature)
+  const { publicPublishRequestRoutes, publicMCPServerRoutes } = await import(
+    "@/api/routes/registry"
+  );
+  const registryRouteCtx = {
+    db: database.db as any,
+    vault: {
+      encrypt: (value: string) => vault.encrypt(value),
+      decrypt: (value: string) => vault.decrypt(value),
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  publicPublishRequestRoutes(app as any, registryRouteCtx);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  publicMCPServerRoutes(app as any, registryRouteCtx);
+
   // ============================================================================
   // 404 Handler
   // ============================================================================
@@ -1274,5 +1512,58 @@ export async function createApp(options: CreateAppOptions = {}) {
     );
   });
 
-  return app;
+  const markShuttingDown = () => {
+    isShuttingDown = true;
+  };
+
+  const shutdown = async () => {
+    console.log("[shutdown] Stopping workers...");
+
+    // Phase 1: Stop all workers/consumers in parallel (independent of each other)
+    await Promise.allSettled([
+      eventBus.isRunning() ? eventBus.stop() : Promise.resolve(),
+      sseHub.stop(),
+      currentCronWorkerCleanup
+        ? Promise.resolve(currentCronWorkerCleanup()).finally(() => {
+            currentCronWorkerCleanup = null;
+          })
+        : Promise.resolve(),
+      currentDecopilotCleanup
+        ? Promise.resolve(currentDecopilotCleanup()).finally(() => {
+            currentDecopilotCleanup = null;
+          })
+        : Promise.resolve(),
+    ]);
+
+    // Phase 2: Clear timers
+    if (currentRetentionTimer) {
+      clearInterval(currentRetentionTimer);
+      currentRetentionTimer = null;
+    }
+
+    // Phase 3: Drain NATS (after all consumers stopped)
+    if (natsProvider) {
+      await natsProvider
+        .drain()
+        .catch((err: unknown) =>
+          console.error("[shutdown] NATS drain error:", err),
+        );
+    }
+
+    // Phase 4: Flush telemetry
+    console.log("[shutdown] Flushing telemetry...");
+    await flushMonitoringData().catch((err: unknown) =>
+      console.error("[shutdown] Telemetry flush error:", err),
+    );
+
+    // Phase 5: Close database (last — other steps may need DB)
+    console.log("[shutdown] Closing database...");
+    await closeDatabase(database).catch((err: unknown) =>
+      console.error("[shutdown] Database close error:", err),
+    );
+
+    console.log("[shutdown] Cleanup complete.");
+  };
+
+  return Object.assign(app, { markShuttingDown, shutdown });
 }

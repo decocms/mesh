@@ -24,7 +24,6 @@ import * as DatabaseTools from "./database";
 import * as EventBusTools from "./eventbus";
 import * as VirtualMCPTools from "./virtual";
 import * as MonitoringTools from "./monitoring";
-import * as MonitoringDashboardTools from "./monitoring-dashboard";
 import * as OrganizationTools from "./organization";
 import * as TagTools from "./tags";
 import * as ThreadTools from "./thread";
@@ -32,7 +31,9 @@ import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
-import { ToolName } from "./registry";
+import * as ObjectStorageTools from "./object-storage";
+import * as RegistryTools from "./registry/index";
+import { ToolName } from "./registry-metadata";
 // Core tools - always available
 const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_CREATE,
@@ -69,17 +70,9 @@ const CORE_TOOLS = [
   DatabaseTools.DATABASES_RUN_SQL,
 
   // Monitoring tools
+  MonitoringTools.MONITORING_LOG_GET,
   MonitoringTools.MONITORING_LOGS_LIST,
   MonitoringTools.MONITORING_STATS,
-
-  // Monitoring Dashboard tools
-  MonitoringDashboardTools.MONITORING_DASHBOARD_CREATE,
-  MonitoringDashboardTools.MONITORING_DASHBOARD_GET,
-  MonitoringDashboardTools.MONITORING_DASHBOARD_LIST,
-  MonitoringDashboardTools.MONITORING_DASHBOARD_UPDATE,
-  MonitoringDashboardTools.MONITORING_DASHBOARD_DELETE,
-  MonitoringDashboardTools.MONITORING_DASHBOARD_QUERY,
-  MonitoringDashboardTools.MONITORING_WIDGET_PREVIEW,
 
   // API Key tools
   ApiKeyTools.API_KEY_CREATE,
@@ -141,6 +134,17 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
+
+  // Object Storage tools
+  ObjectStorageTools.LIST_OBJECTS,
+  ObjectStorageTools.GET_OBJECT_METADATA,
+  ObjectStorageTools.GET_PRESIGNED_URL,
+  ObjectStorageTools.PUT_PRESIGNED_URL,
+  ObjectStorageTools.DELETE_OBJECT,
+  ObjectStorageTools.DELETE_OBJECTS,
+
+  // Registry tools
+  ...RegistryTools.tools,
 ] as const satisfies { name: ToolName }[];
 
 // Plugin tools - collected at startup, gated by org settings at runtime
@@ -158,7 +162,7 @@ interface CombinedTool {
   execute: (input: unknown, ctx: MeshContext) => Promise<unknown>;
 }
 
-// All available tools - core + plugin tools
+// All available tools — core + plugin tools
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ALL_TOOLS: CombinedTool[] = [
   ...(CORE_TOOLS as unknown as CombinedTool[]),

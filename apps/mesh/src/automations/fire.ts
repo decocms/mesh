@@ -30,7 +30,7 @@ export type StreamCoreFn = (
   input: StreamCoreInput,
   ctx: MeshContext,
   deps: StreamCoreDeps,
-) => Promise<{ threadId: string; stream: ReadableStream }>;
+) => Promise<{ taskId: string; stream: ReadableStream }>;
 
 export type MeshContextFactory = (
   orgId: string,
@@ -43,8 +43,8 @@ export interface FireAutomationConfig {
 }
 
 export type FireAutomationResult =
-  | { threadId: string }
-  | { threadId: string; error: string }
+  | { taskId: string }
+  | { taskId: string; error: string }
   | { skipped: "concurrency_limit" }
   | { skipped: "creator_invalid" }
   | { skipped: "global_limit" };
@@ -101,12 +101,12 @@ export async function fireAutomation(opts: {
     }
 
     // 2. Atomic concurrency check
-    const threadId = await storage.tryAcquireRunSlot(
+    const taskId = await storage.tryAcquireRunSlot(
       automation.id,
       triggerId,
       config.maxConcurrentPerAutomation,
     );
-    if (!threadId) {
+    if (!taskId) {
       console.warn(
         `[fireAutomation] SKIPPED "${automation.name}" — per-automation concurrency limit (max ${config.maxConcurrentPerAutomation})`,
       );
@@ -122,7 +122,7 @@ export async function fireAutomation(opts: {
 
     let runError: string | undefined;
     try {
-      const request = buildStreamRequest(automation, triggerId, threadId);
+      const request = buildStreamRequest(automation, triggerId, taskId);
       if (contextMessages) {
         request.messages = [
           ...request.messages,
@@ -144,20 +144,20 @@ export async function fireAutomation(opts: {
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
       console.error(
-        `[fireAutomation] ERROR "${automation.name}" threadId=${threadId}:`,
+        `[fireAutomation] ERROR "${automation.name}" taskId=${taskId}:`,
         runError,
       );
       try {
-        await storage.markRunFailed(threadId);
-      } catch (_) {
+        await storage.markRunFailed(taskId);
+      } catch {
         // best-effort
       }
     } finally {
       clearTimeout(timeout);
     }
 
-    if (runError) return { threadId, error: runError };
-    return { threadId };
+    if (runError) return { taskId, error: runError };
+    return { taskId };
   } finally {
     globalSlot.release();
   }

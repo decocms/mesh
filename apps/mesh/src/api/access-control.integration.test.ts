@@ -259,6 +259,7 @@ describe("Access Control Integration Tests", () => {
         metadata: null,
         bindings: null,
         status: "active",
+        pinned: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

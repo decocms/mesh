@@ -5,7 +5,18 @@
  * All connections are organization-scoped.
  */
 
-import type { Insertable, Kysely, Updateable } from "kysely";
+import {
+  type Insertable,
+  type Kysely,
+  type RawBuilder,
+  sql,
+  type SqlBool,
+  type Updateable,
+} from "kysely";
+import type {
+  OrderByExpression,
+  WhereExpression,
+} from "@decocms/bindings/collections";
 import type { CredentialVault } from "../encryption/credential-vault";
 import type {
   ConnectionEntity,
@@ -19,6 +30,7 @@ import {
   getWellKnownDecopilotConnection,
   isDecopilot,
 } from "@decocms/mesh-sdk";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import type { ConnectionStoragePort } from "./ports";
 import type { Database } from "./types";
 
@@ -42,6 +54,7 @@ type RawConnectionRow = {
   icon: string | null;
   app_name: string | null;
   app_id: string | null;
+  slug: string | null;
   connection_type: "HTTP" | "SSE" | "Websocket" | "STDIO" | "VIRTUAL";
   connection_url: string | null;
   connection_token: string | null;
@@ -55,6 +68,120 @@ type RawConnectionRow = {
   created_at: Date | string;
   updated_at: Date | string;
 };
+/** Top-level columns on the connections table that are safe for user-controlled WHERE filtering */
+const TOP_LEVEL_COLUMNS = new Set([
+  "id",
+  "organization_id",
+  "created_by",
+  "updated_by",
+  "title",
+  "description",
+  "icon",
+  "app_name",
+  "app_id",
+  "slug",
+  "connection_type",
+  "connection_url",
+  // connection_token is intentionally excluded — sensitive
+  "status",
+  "created_at",
+  "updated_at",
+]);
+
+/** JSON columns that support nested access via ->>. Excludes sensitive columns. */
+const JSON_COLUMNS = new Set([
+  "metadata",
+  // connection_headers excluded — may contain auth headers
+  // oauth_config excluded — contains client secrets and tokens
+  "configuration_scopes",
+  "bindings",
+]);
+
+/**
+ * Build a SQL reference for a field path.
+ * Single-segment paths that match a column become `"column"`.
+ * Multi-segment paths where the first segment is a JSON column become `"column"->>'key'`.
+ * Returns null for unsupported paths.
+ */
+function fieldRef(fieldPath: string[]): RawBuilder<unknown> | null {
+  if (fieldPath.length === 0) return null;
+
+  const column = fieldPath[0]!;
+
+  if (fieldPath.length === 1 && TOP_LEVEL_COLUMNS.has(column)) {
+    return sql.ref(column);
+  }
+
+  if (fieldPath.length === 2 && JSON_COLUMNS.has(column)) {
+    const key = fieldPath[1]!;
+    return sql`${sql.ref(column)}->>${sql.lit(key)}`;
+  }
+
+  // Deeper nesting: use #>> for Postgres JSON path
+  if (fieldPath.length > 2 && JSON_COLUMNS.has(column)) {
+    const path = `{${fieldPath.slice(1).join(",")}}`;
+    return sql`${sql.ref(column)}#>>${sql.lit(path)}`;
+  }
+
+  // Unknown column — skip (will be ignored)
+  return null;
+}
+
+/**
+ * Translate a WhereExpression tree into a Kysely SQL expression.
+ */
+function applyWhereToSql(where: WhereExpression): RawBuilder<SqlBool> {
+  if ("conditions" in where) {
+    const { operator, conditions } = where;
+    if (conditions.length === 0) return sql<SqlBool>`true`;
+
+    const parts = conditions.map((c) => applyWhereToSql(c));
+
+    switch (operator) {
+      case "and":
+        return sql<SqlBool>`(${sql.join(parts, sql` AND `)})`;
+      case "or":
+        return sql<SqlBool>`(${sql.join(parts, sql` OR `)})`;
+      case "not":
+        return sql<SqlBool>`NOT (${sql.join(parts, sql` AND `)})`;
+      default:
+        return sql<SqlBool>`true`;
+    }
+  }
+
+  const { field, operator, value } = where;
+  const ref = fieldRef(field);
+  if (!ref) return sql<SqlBool>`true`; // Unknown field — no-op
+
+  switch (operator) {
+    case "eq":
+      return value === null
+        ? sql<SqlBool>`${ref} IS NULL`
+        : sql<SqlBool>`${ref} = ${sql.val(value)}`;
+    case "gt":
+      return sql<SqlBool>`${ref} > ${sql.val(value)}`;
+    case "gte":
+      return sql<SqlBool>`${ref} >= ${sql.val(value)}`;
+    case "lt":
+      return sql<SqlBool>`${ref} < ${sql.val(value)}`;
+    case "lte":
+      return sql<SqlBool>`${ref} <= ${sql.val(value)}`;
+    case "in":
+      if (!Array.isArray(value) || value.length === 0)
+        return sql<SqlBool>`false`;
+      return sql<SqlBool>`${ref} IN (${sql.join(value.map((v) => sql.val(v)))})`;
+    case "like":
+      return sql<SqlBool>`${ref} ILIKE ${sql.val(value)}`;
+    case "contains": {
+      // Escape LIKE metacharacters so they match literally
+      const escaped = String(value).replace(/[%_\\]/g, "\\$&");
+      return sql<SqlBool>`${ref} ILIKE ${sql.val(`%${escaped}%`)}`;
+    }
+    default:
+      return sql<SqlBool>`true`;
+  }
+}
+
 export class ConnectionStorage implements ConnectionStoragePort {
   constructor(
     private db: Kysely<Database>,
@@ -75,9 +202,11 @@ export class ConnectionStorage implements ConnectionStoragePort {
       return this.update(id, data);
     }
 
+    const slug = getConnectionSlug(data);
     const serialized = await this.serializeConnection({
       ...data,
       id: data.id ?? id,
+      slug,
       status: "active",
       created_at: now,
       updated_at: now,
@@ -121,8 +250,15 @@ export class ConnectionStorage implements ConnectionStoragePort {
 
   async list(
     organizationId: string,
-    options?: { includeVirtual?: boolean },
-  ): Promise<ConnectionEntity[]> {
+    options?: {
+      includeVirtual?: boolean;
+      slug?: string;
+      where?: WhereExpression;
+      orderBy?: OrderByExpression[];
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ items: ConnectionEntity[]; totalCount: number }> {
     let query = this.db
       .selectFrom("connections")
       .selectAll()
@@ -133,11 +269,49 @@ export class ConnectionStorage implements ConnectionStoragePort {
       query = query.where("connection_type", "!=", "VIRTUAL");
     }
 
+    if (options?.slug) {
+      query = query.where("slug", "=", options.slug);
+    }
+
+    // Apply where expression to SQL
+    if (options?.where) {
+      query = query.where(applyWhereToSql(options.where));
+    }
+
+    // Count before pagination
+    const countQuery = this.db
+      .selectFrom(query.as("filtered"))
+      .select(sql<number>`count(*)::int`.as("count"));
+    const countResult = await countQuery.executeTakeFirst();
+    const totalCount = countResult?.count ?? 0;
+
+    // Apply orderBy
+    if (options?.orderBy && options.orderBy.length > 0) {
+      for (const order of options.orderBy) {
+        const ref = fieldRef(order.field);
+        if (!ref) continue;
+        const dir = order.direction === "desc" ? sql`desc` : sql`asc`;
+        const nulls =
+          order.nulls === "first" ? sql`nulls first` : sql`nulls last`;
+        query = query.orderBy(sql`${ref} ${dir} ${nulls}`);
+      }
+    }
+
+    // Apply pagination
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+    if (options?.offset) {
+      query = query.offset(options.offset);
+    }
+
     const rows = await query.execute();
 
-    return Promise.all(
+    const items = await Promise.all(
       rows.map((row) => this.deserializeConnection(row as RawConnectionRow)),
     );
+
+    return { items, totalCount };
   }
 
   async update(
@@ -150,8 +324,26 @@ export class ConnectionStorage implements ConnectionStoragePort {
       return connection;
     }
 
+    // Recompute slug if any slug-relevant field changed
+    const slugData: Record<string, unknown> = { ...data };
+    if (
+      data.app_name !== undefined ||
+      data.connection_url !== undefined ||
+      data.title !== undefined
+    ) {
+      const existing = await this.findById(id);
+      if (existing) {
+        slugData.slug = getConnectionSlug({
+          app_name: data.app_name ?? existing.app_name,
+          connection_url: data.connection_url ?? existing.connection_url,
+          title: data.title ?? existing.title,
+          id,
+        });
+      }
+    }
+
     const serialized = await this.serializeConnection({
-      ...data,
+      ...slugData,
       updated_at: new Date().toISOString(),
     });
 
@@ -289,7 +481,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
       try {
         decryptedToken = await this.vault.decrypt(row.connection_token);
       } catch (error) {
-        console.error("Failed to decrypt connection token:", error);
+        console.error(
+          `Failed to decrypt connection token for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
@@ -300,7 +495,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
         const decryptedJson = await this.vault.decrypt(row.configuration_state);
         decryptedConfigState = JSON.parse(decryptedJson);
       } catch (error) {
-        console.error("Failed to decrypt configuration state:", error);
+        console.error(
+          `Failed to decrypt configuration state for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
@@ -330,7 +528,10 @@ export class ConnectionStorage implements ConnectionStoragePort {
           connectionParameters = parsed;
         }
       } catch (error) {
-        console.error("Failed to parse connection_headers:", error);
+        console.error(
+          `Failed to parse connection_headers for connection ${row.id} (org: ${row.organization_id}, type: ${row.connection_type}, title: ${row.title}):`,
+          error,
+        );
       }
     }
 
@@ -356,6 +557,7 @@ export class ConnectionStorage implements ConnectionStoragePort {
       icon: row.icon,
       app_name: row.app_name,
       app_id: row.app_id,
+      slug: row.slug,
       connection_type: row.connection_type,
       connection_url: row.connection_url,
       connection_token: decryptedToken,

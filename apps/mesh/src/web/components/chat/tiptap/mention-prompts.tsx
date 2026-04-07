@@ -1,3 +1,7 @@
+import {
+  getGatewayClientId,
+  stripToolNamespace,
+} from "@decocms/mcp-utils/aggregate";
 import { KEYS } from "@/web/lib/query-keys";
 import {
   getPrompt,
@@ -5,6 +9,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { usePromptConnectionMap } from "@/web/components/chat/use-prompt-connection-map";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type {
   ListPromptsResult,
@@ -12,7 +17,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor, Range } from "@tiptap/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   PromptArgsDialog,
@@ -38,6 +43,7 @@ async function fetchAndInsertPrompt(
   range: Range,
   client: Client,
   promptName: string,
+  clientId: string | undefined,
   values?: PromptArgumentValues,
 ) {
   try {
@@ -45,7 +51,7 @@ async function fetchAndInsertPrompt(
 
     insertMention(editor, range, {
       id: promptName,
-      name: promptName,
+      name: stripToolNamespace(promptName, clientId),
       metadata: result.messages,
       char: "/",
     });
@@ -65,6 +71,9 @@ export const PromptsMention = ({
     connectionId: virtualMcpId,
     orgId: org.id,
   });
+  const promptToConnection = usePromptConnectionMap(virtualMcpId, org.id);
+  const promptToConnectionRef = useRef(promptToConnection);
+  promptToConnectionRef.current = promptToConnection;
   // Use the query key helper which handles null (default virtual MCP)
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.id);
   const [activePrompt, setActivePrompt] = useState<PromptSelectContext | null>(
@@ -80,15 +89,23 @@ export const PromptsMention = ({
 
     // No arguments - fetch and insert directly
     if (!client) return;
-    await fetchAndInsertPrompt(editor, range, client, item.name);
+    const clientId = getGatewayClientId(item._meta);
+    await fetchAndInsertPrompt(editor, range, client, item.name, clientId);
   };
 
   const handleDialogSubmit = async (values: PromptArgumentValues) => {
     if (!activePrompt || !client) return;
 
     const { range, item: prompt } = activePrompt;
-
-    await fetchAndInsertPrompt(editor, range, client, prompt.name, values);
+    const clientId = getGatewayClientId(prompt._meta);
+    await fetchAndInsertPrompt(
+      editor,
+      range,
+      client,
+      prompt.name,
+      clientId,
+      values,
+    );
     setActivePrompt(null);
   };
 
@@ -140,7 +157,10 @@ export const PromptsMention = ({
       );
     }
 
-    return filteredPrompts;
+    return filteredPrompts.map((p) => ({
+      ...p,
+      icon: promptToConnectionRef.current.get(p.name)?.icon ?? null,
+    }));
   };
 
   return (

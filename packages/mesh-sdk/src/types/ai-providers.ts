@@ -8,6 +8,8 @@ export const PROVIDER_IDS = [
   "openrouter",
   "google",
   "claude-code",
+  "codex",
+  "openai-compatible",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -62,7 +64,7 @@ export interface AiProviderInfo {
   name: string;
   description: string;
   logo?: string | null;
-  supportedMethods: ("api-key" | "oauth-pkce")[];
+  supportedMethods: ("api-key" | "oauth-pkce" | "cli-activate")[];
   supportsTopUp?: boolean;
   supportsCredits?: boolean;
 }

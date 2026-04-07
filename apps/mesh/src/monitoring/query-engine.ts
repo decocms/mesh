@@ -7,7 +7,7 @@
  */
 
 import { resolve } from "node:path";
-import { DEFAULT_LOGS_DIR } from "./schema";
+import { getLogsDir } from "./schema";
 
 export interface QueryEngine {
   query(
@@ -80,8 +80,15 @@ export class DuckDBEngine implements QueryEngine {
 export class ClickHouseClientEngine implements QueryEngine {
   private client: unknown;
   private initPromise: Promise<void>;
+  private maxMemoryUsage: string;
+  private maxExecutionTime: number;
 
-  constructor(url: string) {
+  constructor(
+    url: string,
+    options?: { maxMemoryUsage?: string; maxExecutionTime?: number },
+  ) {
+    this.maxMemoryUsage = options?.maxMemoryUsage ?? "200000000";
+    this.maxExecutionTime = options?.maxExecutionTime ?? 30;
     this.initPromise = import("@clickhouse/client").then(({ createClient }) => {
       this.client = createClient({ url });
     });
@@ -97,6 +104,10 @@ export class ClickHouseClientEngine implements QueryEngine {
       query: sql,
       query_params: params,
       format: "JSONEachRow",
+      clickhouse_settings: {
+        max_memory_usage: this.maxMemoryUsage,
+        max_execution_time: this.maxExecutionTime,
+      },
     });
     return await result.json<Record<string, unknown>>();
   }
@@ -128,11 +139,16 @@ export interface MonitoringEngineConfig {
  * No-op engine returned when @duckdb/node-api is unavailable (e.g. CI,
  * environments without the native module). Monitoring queries return empty results.
  */
-class NoopEngine implements QueryEngine {
+export class NoopEngine implements QueryEngine {
   private warned = false;
+  private silent: boolean;
+
+  constructor(options?: { silent?: boolean }) {
+    this.silent = options?.silent ?? false;
+  }
 
   async query(): Promise<Record<string, unknown>[]> {
-    if (!this.warned) {
+    if (!this.warned && !this.silent) {
       this.warned = true;
       console.warn(
         "\n⚠️  WARNING: Monitoring query skipped — @duckdb/node-api native module is not available.\n" +
@@ -157,7 +173,7 @@ export async function createMonitoringEngine(
     };
   }
 
-  const basePath = config.basePath ?? DEFAULT_LOGS_DIR;
+  const basePath = config.basePath ?? getLogsDir();
   const resolvedPath = resolve(basePath);
   if (/[';]/.test(resolvedPath)) {
     throw new Error(`Invalid monitoring data path: ${resolvedPath}`);

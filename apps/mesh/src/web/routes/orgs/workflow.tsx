@@ -2,15 +2,9 @@ import { SELF_MCP_ALIAS_ID, useProjectContext } from "@decocms/mesh-sdk";
 import { CollectionTab } from "@/web/components/details/connection/collection-tab";
 import { PluginNotEnabledEmptyState } from "@/web/components/plugin-not-enabled-empty-state";
 import { Page } from "@/web/components/page";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@deco/ui/components/breadcrumb.tsx";
 import { Dataflow03 } from "@untitledui/icons";
-
-const WORKFLOWS_PLUGIN_ID = "MCP Workflows";
+import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
+import { useNavigate } from "@tanstack/react-router";
 
 const WORKFLOW_COLLECTION = {
   name: "WORKFLOW",
@@ -28,18 +22,6 @@ export default function WorkflowPage() {
   if (!isPluginEnabled) {
     return (
       <Page>
-        <Page.Header>
-          <Page.Header.Left>
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Workflows</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </Page.Header.Left>
-        </Page.Header>
-
         <Page.Content>
           <div className="flex flex-col items-center justify-center h-full">
             <PluginNotEnabledEmptyState
@@ -58,25 +40,21 @@ export default function WorkflowPage() {
     );
   }
 
+  const navigate = useNavigate();
+
   return (
     <Page>
-      <Page.Header>
-        <Page.Header.Left>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Workflows</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </Page.Header.Left>
-      </Page.Header>
-
       <Page.Content>
         <CollectionTab
           connectionId={SELF_MCP_ALIAS_ID}
           org={org.slug}
           activeCollection={WORKFLOW_COLLECTION}
+          onItemClick={(item) =>
+            navigate({
+              to: "/$org/settings/workflows/$itemId",
+              params: { org: org.slug, itemId: item.id },
+            })
+          }
         />
       </Page.Content>
     </Page>

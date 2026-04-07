@@ -21,22 +21,22 @@ export const ToolCallActionSchema = z.object({
   transformCode: z
     .string()
     .optional()
-    .describe(`Pure TypeScript function for data transformation of the tool call result. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(input): Output { ... }\`
-    The input will match with the tool call outputSchema. If transformCode is not provided, the tool call result will be used as the step output. 
+    .describe(`Pure TypeScript function for data transformation of the tool call result. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(stepInput): Output { ... }\`
+    The stepInput will match with the tool call outputSchema. If transformCode is not provided, the tool call result will be used as the step output.
     Providing an transformCode is recommended because it both allows you to transform the data and validate it against a JSON Schema - tools are ephemeral and may return unexpected data.`),
 });
 export type ToolCallAction = z.infer<typeof ToolCallActionSchema>;
 
 export const CodeActionSchema = z.object({
   code: z.string().describe(
-    `Pure TypeScript function for data transformation. Useful to merge data from multiple steps and transform it. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(input): Output { ... }\`
-       The input is the resolved value of the references in the input field. Example: 
+    `Pure TypeScript function for data transformation. Useful to merge data from multiple steps and transform it. Must be a TypeScript file that declares the Output interface and exports a default function: \`interface Output { ... } export default async function(stepInput): Output { ... }\`
+       The stepInput is the resolved value of the references in the input field. Example:
        {
          "input": {
           "name": "@Step_1.name",
           "age": "@Step_2.age"
          },
-         "code": "export default function(input): Output { return { result: \`\${input.name} is \${input.age} years old.\` } }"
+         "code": "export default function(stepInput): Output { return { result: \`\${stepInput.name} is \${stepInput.age} years old.\` } }"
        }
       `,
   ),
@@ -66,19 +66,60 @@ export type StepAction = z.infer<typeof StepActionSchema>;
 /**
  * Step Config Schema - Optional configuration for retry, timeout, and looping
  */
+/**
+ * Step Condition Schema - Structured condition for bail and future `when` support.
+ * Evaluates a resolved @ref against an optional operator.
+ * If no operator is specified, checks for truthiness.
+ */
+export const StepConditionSchema = z.object({
+  ref: z
+    .string()
+    .describe(
+      "@ref to resolve and evaluate, e.g. '@validate.shouldStop' or '@input.skipProcessing'",
+    ),
+  eq: z
+    .unknown()
+    .optional()
+    .describe("Step bails if resolved value equals this"),
+  neq: z
+    .unknown()
+    .optional()
+    .describe("Step bails if resolved value does NOT equal this"),
+  gt: z
+    .number()
+    .optional()
+    .describe("Step bails if resolved value is greater than this"),
+  lt: z
+    .number()
+    .optional()
+    .describe("Step bails if resolved value is less than this"),
+});
+export type StepCondition = z.infer<typeof StepConditionSchema>;
+
 export const StepConfigSchema = z.object({
   maxAttempts: z
     .number()
+    .int()
+    .min(1)
+    .max(10)
     .optional()
     .describe("Max retry attempts on failure (default: 1, no retries)"),
   backoffMs: z
     .number()
+    .int()
+    .min(100)
+    .max(60_000)
     .optional()
     .describe("Initial delay between retries in ms (doubles each attempt)"),
   timeoutMs: z
     .number()
+    .int()
+    .min(100)
+    .max(86_400_000)
     .optional()
-    .describe("Max execution time in ms before step fails (default: 30000)"),
+    .describe(
+      "Max execution time in ms before step fails (default: 30000). Upper bound 24h.",
+    ),
   onError: z
     .enum(["fail", "continue"])
     .optional()
@@ -102,16 +143,21 @@ export type StepConfig = z.infer<typeof StepConfigSchema>;
  * - @ctx.execution_id → current workflow execution ID
  */
 
-type JsonSchema = {
+export type JsonSchema = {
   type?: string;
-  properties?: Record<string, unknown>;
+  properties?: Record<string, JsonSchema>;
   required?: string[];
   description?: string;
   additionalProperties?: boolean | Record<string, unknown>;
   additionalItems?: boolean | Record<string, unknown>;
   items?: JsonSchema;
+  format?: string;
+  enum?: string[];
+  maxLength?: number;
+  anyOf?: JsonSchema[];
+  [key: string]: unknown;
 };
-const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
+export const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
   z
     .object({
       type: z.string().optional(),
@@ -127,7 +173,7 @@ const JsonSchemaSchema: z.ZodType<JsonSchema> = z.lazy(() =>
       items: JsonSchemaSchema.optional(),
     })
     .passthrough(),
-);
+) as unknown as z.ZodType<JsonSchema>;
 
 /**
  * Step names that are reserved by the @ref system and cannot be used as step names.
@@ -170,6 +216,12 @@ export const StepSchema = z.object({
         .describe("max parallel iterations. default is 1 (sequential)"),
     })
     .optional(),
+  bail: z
+    .union([z.literal(true), StepConditionSchema])
+    .optional()
+    .describe(
+      "Early return: if true, the workflow exits with this step's output on successful completion. If a condition object, the workflow exits only when the condition is met. Bail is ignored on step error.",
+    ),
 });
 
 export type Step = z.infer<typeof StepSchema>;
@@ -324,6 +376,10 @@ export const WorkflowSchema = BaseCollectionEntitySchema.extend({
     .optional()
     .describe("Human-readable summary of what this workflow does"),
 
+  input_schema: JsonSchemaSchema.optional().describe(
+    "Optional JSON Schema describing the expected input for this workflow.",
+  ),
+
   steps: z
     .array(StepSchema)
     .describe(
@@ -370,7 +426,7 @@ export const DEFAULT_TOOL_STEP: Omit<Step, "name"> = {
     interface Input { 
       
     }
-    export default function(input) { return input.result }`,
+    export default function(stepInput) { return stepInput.result }`,
   },
   input: {
     modelId: "anthropic/claude-4.5-haiku",
@@ -399,10 +455,10 @@ export const DEFAULT_CODE_STEP: Step = {
   interface Output {
     result: unknown;
   }
-    
-  export default async function(input: Input): Promise<Output> { 
+
+  export default async function(stepInput: Input): Promise<Output> {
     return {
-      result: input.example
+      result: stepInput.example
     }
   }`,
   },
@@ -477,6 +533,7 @@ export const WORKFLOW_EXECUTION_BINDING = createCollectionBindings(
 export interface DAGStep {
   name: string;
   input?: unknown;
+  bail?: true | StepCondition;
 }
 
 /**
@@ -491,7 +548,7 @@ export function getAllRefs(input: unknown): string[] {
 
   function traverse(value: unknown) {
     if (typeof value === "string") {
-      const matches = value.match(/@(\w+)/g);
+      const matches = value.match(/@([a-zA-Z_][a-zA-Z0-9_-]*)/g);
       if (matches) {
         refs.push(...matches.map((m) => m.substring(1))); // Remove @ prefix
       }
@@ -523,13 +580,13 @@ export function getStepDependencies(
   function traverse(value: unknown) {
     if (typeof value === "string") {
       // Match @stepName or @stepName.something patterns
-      const matches = value.match(/@(\w+)/g);
+      const matches = value.match(/@([a-zA-Z_][a-zA-Z0-9_-]*)/g);
       if (matches) {
         for (const match of matches) {
           const refName = match.substring(1); // Remove @
           // Only count as dependency if it references another step
           // (not "item", "index", "input" from forEach or workflow input)
-          if (allStepNames.has(refName)) {
+          if (allStepNames.has(refName) && refName !== step.name) {
             deps.push(refName);
           }
         }
@@ -542,6 +599,12 @@ export function getStepDependencies(
   }
 
   traverse(step.input);
+
+  // Extract dependency from bail condition ref
+  if (step.bail && step.bail !== true) {
+    traverse(step.bail.ref);
+  }
+
   return [...new Set(deps)];
 }
 

@@ -11,6 +11,7 @@ import {
   useMCPToolCallMutation,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function useWorkflowStart() {
   const { org } = useProjectContext();
@@ -56,9 +57,16 @@ export function useWorkflowStart() {
   return { handleRunWorkflow, isPending, requiresInput, inputSchema };
 }
 
+const EXECUTION_QUERY_TARGETS = [
+  "COLLECTION_WORKFLOW_EXECUTION_LIST",
+  "COLLECTION_WORKFLOW_EXECUTION_GET",
+  "COLLECTION_WORKFLOW_EXECUTION_GET_STEP_RESULT",
+];
+
 export function useWorkflowCancel() {
   const { org } = useProjectContext();
   const { id: connectionId } = useWorkflowBindingConnection();
+  const queryClient = useQueryClient();
   const client = useMCPClient({
     connectionId,
     orgId: org.id,
@@ -70,6 +78,12 @@ export function useWorkflowCancel() {
     const result = await cancelWorkflowMutation({
       name: "CANCEL_EXECUTION",
       arguments: { executionId },
+    });
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey.some(
+          (k) => typeof k === "string" && EXECUTION_QUERY_TARGETS.includes(k),
+        ),
     });
     return result;
   };

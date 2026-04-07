@@ -6,7 +6,7 @@ import {
   getUserId,
 } from "../../core/mesh-context";
 import { PROVIDER_IDS } from "../../ai-providers/provider-ids";
-import { PROVIDERS } from "../../ai-providers/registry";
+import { getProviders } from "../../ai-providers/registry";
 import { providerKeyOutputSchema } from "./key-create";
 
 export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
@@ -27,7 +27,7 @@ export const AI_PROVIDER_OAUTH_EXCHANGE = defineTool({
     const org = requireOrganization(ctx);
     await ctx.access.check();
 
-    const adapter = PROVIDERS[input.providerId];
+    const adapter = getProviders()[input.providerId];
     if (!adapter) {
       throw new Error(`Unknown provider: ${input.providerId}`);
     }

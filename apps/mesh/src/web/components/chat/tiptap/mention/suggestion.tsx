@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  displayToolName,
+  getGatewayClientId,
+} from "@decocms/mcp-utils/aggregate";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
@@ -115,7 +119,7 @@ function MentionAnchor({ children }: PropsWithChildren) {
         ref={refs.setFloating}
         style={floatingStyles}
         {...getFloatingProps()}
-        className="z-50 w-auto min-w-[280px] max-w-[400px] rounded-lg border bg-popover p-0 text-popover-foreground shadow-md outline-hidden overflow-hidden"
+        className="z-50 w-auto min-w-[360px] max-w-[520px] rounded-lg border bg-popover p-0 text-popover-foreground shadow-md outline-hidden overflow-hidden"
       >
         {children}
       </div>
@@ -130,6 +134,10 @@ const MentionItem = <T extends BaseItem>({
   isLoading,
   ref,
 }: MentionItemProps<T>) => {
+  const clientId = getGatewayClientId((item as Record<string, unknown>)._meta);
+  const name = item.title || displayToolName(item.name, clientId);
+  const description = item.description || null;
+
   return (
     <div
       ref={ref}
@@ -144,14 +152,14 @@ const MentionItem = <T extends BaseItem>({
     >
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium flex items-center truncate">
-            {item.title || item.name.replace(/_/g, " ")}
+          <span className="font-medium flex items-center truncate capitalize">
+            {name}
           </span>
           {isLoading && <Spinner size="xs" />}
         </div>
-        {item.description && (
+        {description && (
           <div className="text-xs text-muted-foreground line-clamp-1">
-            {item.description}
+            {description}
           </div>
         )}
       </div>
@@ -179,7 +187,7 @@ const MentionItemList = <T extends BaseItem>({
 
   if (!items.length) {
     return (
-      <div className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md border shadow-md p-3 text-sm">
+      <div className="min-w-[360px] max-w-[520px] bg-popover text-popover-foreground rounded-md border shadow-md p-3 text-sm">
         No items found
       </div>
     );
@@ -187,10 +195,10 @@ const MentionItemList = <T extends BaseItem>({
 
   return (
     <div
-      className="min-w-[280px] max-w-[400px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
+      className="min-w-[360px] max-w-[520px] bg-popover text-popover-foreground rounded-md overflow-y-auto"
       style={{
         maxHeight:
-          "min(217px, var(--radix-popover-content-available-height, 217px))",
+          "min(320px, var(--radix-popover-content-available-height, 320px))",
       }}
     >
       <div className="p-1">
@@ -226,8 +234,11 @@ function SuggestionItemListSkeleton() {
   return (
     <div className="p-1">
       {[...Array(3)].map((_, i) => (
-        <div key={i} className="px-2 py-1.5 h-[44px] animate-pulse">
-          <div className="h-4 w-24 bg-muted rounded mb-1" />
+        <div
+          key={i}
+          className="flex items-center gap-1.5 px-2 py-1.5 animate-pulse"
+        >
+          <div className="h-4 w-24 bg-muted rounded" />
           <div className="h-3 w-32 bg-muted rounded" />
         </div>
       ))}

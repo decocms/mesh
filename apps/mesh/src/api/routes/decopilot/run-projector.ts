@@ -16,7 +16,7 @@ export function project(
   switch (event.type) {
     case "RUN_STARTED":
       return {
-        threadId: event.threadId,
+        taskId: event.taskId,
         orgId: event.orgId,
         userId: event.userId,
         status: {
@@ -29,7 +29,7 @@ export function project(
 
     case "RUN_RESUMED":
       return {
-        threadId: event.threadId,
+        taskId: event.taskId,
         orgId: event.orgId,
         userId: event.userId,
         status: {

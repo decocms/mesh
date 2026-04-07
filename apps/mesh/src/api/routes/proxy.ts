@@ -11,27 +11,19 @@
  * - Supports StreamableHTTP and STDIO transports
  */
 
-import {
-  clientFromConnection,
-  serverFromConnection,
-  type ClientWithOptionalStreamingSupport,
-  type ClientWithStreamingSupport,
-} from "@/mcp-clients";
-import { createLazyClient } from "@/mcp-clients/lazy-client";
-import { getMcpListCache } from "@/mcp-clients/mcp-list-cache";
-import type { ConnectionEntity } from "@/tools/connection/schema";
-import type { ServerClient } from "@decocms/bindings/mcp";
-import {
-  createBridgeTransportPair,
-  createServerFromClient,
-} from "@decocms/mesh-sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { clientFromConnection, serverFromConnection } from "@/mcp-clients";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Context, Hono } from "hono";
+import { endTime, startTime } from "hono/timing";
 import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
+export {
+  toServerClient,
+  type MCPProxyClient,
+  type StreamableMCPProxyClient,
+} from "./mcp-proxy-factory";
 
 // Define Hono variables type
 type Variables = {
@@ -39,186 +31,6 @@ type Variables = {
 };
 
 const app = new Hono<{ Variables: Variables }>();
-
-// ============================================================================
-// MCP Tool Call Configuration
-// ============================================================================
-
-/**
- * Default timeout for MCP tool calls in milliseconds.
- * The MCP SDK default is 60 seconds (60000ms).
- * Increase this value for tools that take longer to execute.
- */
-export const MCP_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-// ============================================================================
-// MCP Proxy Factory
-// ============================================================================
-
-/**
- * Create MCP proxy for a downstream connection
- * Pattern from @deco/api proxy() function
- *
- * Single server approach - tools from downstream are dynamically fetched and registered
- *
- * Pure MCP spec-compliant client (no custom extensions)
- */
-export type MCPProxyClient = Client & {
-  [Symbol.asyncDispose]: () => Promise<void>;
-};
-
-/**
- * MCP proxy client with streaming support extension
- * This adds the custom callStreamableTool method for HTTP streaming
- */
-export type StreamableMCPProxyClient = MCPProxyClient & {
-  callStreamableTool: (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<Response>;
-};
-
-/**
- * Convert Client to ServerClient format for bindings compatibility
- * Overloaded to handle both regular and streamable clients
- */
-export function toServerClient(
-  client: Client,
-): Omit<ServerClient, "callStreamableTool">;
-export function toServerClient(
-  client: ClientWithStreamingSupport,
-): ServerClient;
-export function toServerClient(
-  client: ClientWithOptionalStreamingSupport,
-): ServerClient | Omit<ServerClient, "callStreamableTool"> {
-  const base = {
-    client: {
-      callTool: client.callTool.bind(client),
-      listTools: client.listTools.bind(client),
-    },
-  };
-
-  // Only add streaming if present
-  if ("callStreamableTool" in client && client.callStreamableTool) {
-    return {
-      ...base,
-      callStreamableTool: client.callStreamableTool.bind(client),
-    };
-  }
-
-  return base;
-}
-
-async function createMCPProxyDoNotUseDirectly(
-  connectionIdOrConnection: string | ConnectionEntity,
-  ctx: MeshContext,
-  { superUser }: { superUser: boolean }, // this is basically used for background workers that needs cross-organization access
-): Promise<MCPProxyClient> {
-  // Get connection details
-  const connection =
-    typeof connectionIdOrConnection === "string"
-      ? await ctx.storage.connections.findById(
-          connectionIdOrConnection,
-          ctx.organization?.id,
-        )
-      : connectionIdOrConnection;
-  if (!connection) {
-    throw new Error("Connection not found");
-  }
-
-  // Validate organization ownership
-  if (ctx.organization && connection.organization_id !== ctx.organization.id) {
-    throw new Error("Connection does not belong to the active organization");
-  }
-  if (!ctx.organization) {
-    const org = await ctx.db
-      .selectFrom("organization")
-      .select(["id", "slug", "name"])
-      .where("id", "=", connection.organization_id)
-      .executeTakeFirst();
-    ctx.organization = org
-      ? { id: org.id, slug: org.slug, name: org.name }
-      : { id: connection.organization_id };
-  }
-
-  // Check connection status
-  if (connection.status !== "active") {
-    throw new Error(`Connection inactive: ${connection.status}`);
-  }
-
-  // Create lazy client — defers MCP handshake until needed (cache hits avoid it)
-  const cachedClient = createLazyClient(
-    connection,
-    ctx,
-    superUser,
-    getMcpListCache() ?? undefined,
-  );
-
-  // Create server from lazy client with default capabilities
-  // The lazy client placeholder has no server capabilities (never connected),
-  // so we always provide defaults that include tools/resources/prompts.
-  const server = createServerFromClient(
-    cachedClient,
-    {
-      name: "mcp-cms-proxy-client",
-      version: "1.0.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-        prompts: {},
-      },
-    },
-  );
-
-  // Create in-memory bridge transport pair for zero-overhead communication
-  const { client: clientTransport, server: serverTransport } =
-    createBridgeTransportPair();
-
-  // Connect server to server-side transport
-  await server.connect(serverTransport);
-
-  // Create client and connect to client-side transport
-  const client = new Client({
-    name: "mcp-cms-proxy-client",
-    version: "1.0.0",
-  });
-  await client.connect(clientTransport);
-
-  // Return client as MCPProxyClient (backward compatible)
-  return client as MCPProxyClient;
-}
-
-/**
- * Create MCP proxy for a downstream connection
- * Pattern from @deco/api proxy() function
- *
- * Single server approach - tools from downstream are dynamically fetched and registered
- */
-export async function createMCPProxy(
-  connectionIdOrConnection: string | ConnectionEntity,
-  ctx: MeshContext,
-) {
-  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
-    superUser: false,
-  });
-}
-
-/**
- * Create a MCP proxy for a downstream connection with super user access
- * @param connectionIdOrConnection - The connection ID or connection entity
- * @param ctx - The mesh context
- * @returns The MCP proxy
- */
-export async function dangerouslyCreateSuperUserMCPProxy(
-  connectionIdOrConnection: string | ConnectionEntity,
-  ctx: MeshContext,
-) {
-  return createMCPProxyDoNotUseDirectly(connectionIdOrConnection, ctx, {
-    superUser: true,
-  });
-}
 
 // ============================================================================
 // Route Handlers
@@ -262,25 +74,29 @@ app.all("/:connectionId", async (c) => {
 
   try {
     try {
-      // Fetch connection
+      // Organization context is required — without it the ownership
+      // check below would be skipped, allowing cross-tenant access.
+      if (!ctx.organization?.id) {
+        return c.json({ error: "Organization context is required" }, 403);
+      }
+
+      // Fetch connection scoped to the caller's organization
+      startTime(c, "mcp.find_connection");
       const connection = await ctx.storage.connections.findById(
         connectionId,
-        ctx.organization?.id,
+        ctx.organization.id,
       );
+      endTime(c, "mcp.find_connection");
       if (!connection) {
         throw new Error("Connection not found");
       }
 
       // Validate organization ownership
-      if (
-        ctx.organization &&
-        connection.organization_id !== ctx.organization.id
-      ) {
+      if (connection.organization_id !== ctx.organization.id) {
         throw new Error(
           "Connection does not belong to the active organization",
         );
       }
-      ctx.organization ??= { id: connection.organization_id };
 
       // Check connection status
       if (connection.status !== "active") {
@@ -295,11 +111,15 @@ app.all("/:connectionId", async (c) => {
       // On success this also warms the per-request client pool, so the
       // lazy client reuses the same connection instead of double-connecting.
       if (connection.connection_url) {
+        startTime(c, "mcp.client_handshake");
         await clientFromConnection(connection, ctx, false);
+        endTime(c, "mcp.client_handshake");
       }
 
       // Create enhanced server directly (no need for bridge - server is used directly!)
+      startTime(c, "mcp.create_server");
       const server = serverFromConnection(connection, ctx, false);
+      endTime(c, "mcp.create_server");
 
       // Create HTTP transport
       const transport = new WebStandardStreamableHTTPServerTransport({
@@ -309,10 +129,15 @@ app.all("/:connectionId", async (c) => {
       });
 
       // Connect server to transport
+      startTime(c, "mcp.server_connect");
       await server.connect(transport);
+      endTime(c, "mcp.server_connect");
 
       // Handle request and cleanup
-      return await transport.handleRequest(c.req.raw);
+      startTime(c, "mcp.handle_request");
+      const response = await transport.handleRequest(c.req.raw);
+      endTime(c, "mcp.handle_request");
+      return response;
     } catch (error) {
       // Check if this is an auth error - if so, return appropriate 401
       // Note: This only applies to HTTP connections

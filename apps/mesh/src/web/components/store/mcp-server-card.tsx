@@ -15,9 +15,7 @@ import {
 import { Card } from "@deco/ui/components/card.js";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { IntegrationIcon } from "../integration-icon.tsx";
-import { getGitHubAvatarUrl } from "@/web/utils/github";
-import { extractDisplayNameFromDomain } from "@/web/utils/server-name";
-import type { RegistryItem, Protocol } from "./types";
+import type { Protocol } from "./types";
 
 // Re-export types for backwards compatibility
 export type {
@@ -100,6 +98,7 @@ interface MCPServerCardStoreProps extends MCPServerCardBaseProps {
   isVerified: boolean;
   isOfficial: boolean;
   canInstall: boolean;
+  sourceName?: string | null;
 }
 
 interface MCPServerCardServerProps extends MCPServerCardBaseProps {
@@ -155,6 +154,9 @@ export function MCPServerCard(props: MCPServerCardProps) {
   const canInstall = !isServer
     ? (props as MCPServerCardStoreProps).canInstall
     : true;
+  const sourceName = !isServer
+    ? (props as MCPServerCardStoreProps).sourceName
+    : null;
 
   return (
     <Card
@@ -253,6 +255,15 @@ export function MCPServerCard(props: MCPServerCardProps) {
           </div>
         )}
 
+        {/* Source badge (store variant, when multiple registries) */}
+        {!isServer && sourceName && (
+          <div className="mt-auto pt-1">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+              {sourceName}
+            </span>
+          </div>
+        )}
+
         {/* Action button (server variant only) */}
         {isServer && (
           <Button
@@ -278,126 +289,4 @@ export function MCPServerCard(props: MCPServerCardProps) {
 // Helper Functions
 // ============================================================================
 
-/**
- * Extract display data from a registry item for the card component
- * Handles name parsing, icon extraction, and verification status
- */
-function extractCardDisplayData(
-  item: RegistryItem,
-): Omit<MCPServerCardStoreProps, "onClick" | "variant"> {
-  const server = item.server;
-  const meshMeta = item._meta?.["mcp.mesh"];
-  const rawTitle =
-    meshMeta?.friendly_name ||
-    item.name ||
-    server?.title ||
-    item.title ||
-    item.id ||
-    "Unnamed Item";
-
-  // Description priority: short_description > mesh_description > server.description > item.description
-  const description =
-    meshMeta?.short_description ||
-    meshMeta?.mesh_description ||
-    server?.description ||
-    item.description ||
-    null;
-
-  const icon =
-    server?.icons?.[0]?.src || getGitHubAvatarUrl(server?.repository) || null;
-  const isVerified = meshMeta?.verified ?? false;
-  const isOfficial = meshMeta?.official ?? false;
-  const hasRemotes = (server?.remotes?.length ?? 0) > 0;
-  const hasPackages = (server?.packages?.length ?? 0) > 0;
-  const canInstall = hasRemotes || hasPackages;
-
-  // Extract scopeName and displayName from title if it contains "/"
-  let displayName = rawTitle;
-  let scopeName: string | null = null;
-
-  if (rawTitle.includes("/")) {
-    const parts = rawTitle.split("/");
-    if (parts.length >= 2) {
-      scopeName = parts[0] || null;
-      // Use function to extract the correct name
-      displayName = extractDisplayNameFromDomain(rawTitle);
-    }
-  }
-
-  // Fallback to _meta if scopeName wasn't extracted from title
-  if (!scopeName) {
-    const metaScopeName = meshMeta?.scopeName;
-    const metaAppName = meshMeta?.appName;
-    if (metaScopeName && metaAppName) {
-      scopeName = `${metaScopeName}/${metaAppName}`;
-    } else if (metaScopeName) {
-      scopeName = metaScopeName;
-    }
-  }
-
-  // Fallback to item.id when it contains a scope (e.g. "provider/name")
-  if (!scopeName && item.id?.includes("/")) {
-    scopeName = item.id;
-  }
-
-  // PRIORITY: Use friendly_name if available, otherwise use displayName
-  if (meshMeta?.friendly_name) {
-    displayName = meshMeta.friendly_name;
-  }
-
-  return {
-    icon,
-    scopeName,
-    displayName,
-    description,
-    isVerified,
-    isOfficial,
-    canInstall,
-  };
-}
-
 // ============================================================================
-// Grid Component
-// ============================================================================
-
-interface MCPServerCardGridProps {
-  items: RegistryItem[];
-  title: string;
-  subtitle?: string;
-  onItemClick: (item: RegistryItem) => void;
-  totalCount?: number | null;
-}
-
-/**
- * Grid component for displaying multiple MCP Server cards
- */
-export function MCPServerCardGrid({
-  items,
-  title,
-  onItemClick,
-}: MCPServerCardGridProps) {
-  const safeItems = items.filter((item) => item !== null && item !== undefined);
-  if (safeItems.length === 0) return null;
-
-  return (
-    <div className="flex flex-col gap-4">
-      {title && (
-        <div className="flex items-center justify-between w-max gap-2">
-          <h2 className="text-lg font-medium">{title}</h2>
-        </div>
-      )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {safeItems.map((item) => {
-          const displayData = extractCardDisplayData(item);
-          return (
-            <MCPServerCard
-              key={item.id}
-              {...displayData}
-              onClick={() => onItemClick(item)}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}

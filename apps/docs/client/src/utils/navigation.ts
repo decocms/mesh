@@ -14,73 +14,80 @@ export async function getNavigationLinks(
   const allDocs = await getCollection("docs");
   // doc.id format: "version/locale/...path" (e.g. "latest/en/mcp-mesh/overview")
   const [docVersion, docLocale] = currentDocId.split("/");
-  const docs = allDocs.filter(
-    (doc) =>
-      doc.id.split("/")[0] === docVersion && doc.id.split("/")[1] === docLocale,
-  );
+  const isLatest = docVersion === LATEST_VERSION.id;
+  const legacyPrefixes = ["no-code-guides/", "full-code-guides/"];
+  const docs = allDocs.filter((doc) => {
+    if (
+      doc.id.split("/")[0] !== docVersion ||
+      doc.id.split("/")[1] !== docLocale
+    )
+      return false;
+    // For the latest version, exclude legacy admin guides from navigation
+    if (isLatest) {
+      const path = doc.id.split("/").slice(2).join("/");
+      if (legacyPrefixes.some((p) => path.startsWith(p))) return false;
+    }
+    return true;
+  });
 
   // Define the correct order for navigation, version-aware
   const latestOrder = [
     // 1. Quickstart & Overview
-    "mcp-mesh/quickstart",
-    "mcp-mesh/overview",
+    "studio/quickstart",
+    "studio/overview",
 
     // 2. Getting Started
     "getting-started/ai-builders",
     "getting-started/developers",
 
     // 4. Core Concepts
-    "mcp-mesh/concepts",
+    "studio/concepts",
 
     // 5. Working with MCP
-    "mcp-mesh/connections",
-    "mcp-mesh/virtual-mcps",
-    "mcp-mesh/projects",
-    "mcp-mesh/agents",
-    "mcp-mesh/automations",
+    "studio/connections",
+    "studio/virtual-mcps",
+    "studio/store",
+    "studio/projects",
+    "studio/agents",
+    "studio/agent-bindings",
+    "studio/automations",
 
     // 6. Decopilot
-    "mcp-mesh/decopilot/overview",
-    "mcp-mesh/decopilot/quickstart",
-    "mcp-mesh/decopilot/context",
-    "mcp-mesh/decopilot/tasks-and-spawning",
-    "mcp-mesh/decopilot/tools",
-    "mcp-mesh/decopilot/scopes",
-    "mcp-mesh/decopilot/architecture",
+    "studio/decopilot/overview",
+    "studio/decopilot/quickstart",
+    "studio/decopilot/context",
+    "studio/decopilot/tasks-and-spawning",
+    "studio/decopilot/tools",
+    "studio/decopilot/scopes",
+    "studio/decopilot/architecture",
 
-    // 7. Monitoring & Observability
-    "mcp-mesh/monitoring",
+    // 7. AI Providers
+    "studio/ai-providers",
+
+    // 8. Monitoring & Observability
+    "studio/monitoring",
 
     // 8. User Management
-    "mcp-mesh/api-keys",
-    "mcp-mesh/user-management",
+    "studio/api-keys",
+    "studio/user-management",
 
     // 9. API Reference
-    "mcp-mesh/api-reference/connection-proxy",
-    "mcp-mesh/api-reference/built-in-tools",
-    "mcp-mesh/api-reference/built-in-tools/tool-search",
-    "mcp-mesh/api-reference/built-in-tools/tool-enable",
-    "mcp-mesh/api-reference/built-in-tools/agent-search",
-    "mcp-mesh/api-reference/built-in-tools/subtask-run",
-    "mcp-mesh/api-reference/built-in-tools/user-ask",
-    "mcp-mesh/api-reference/built-in-tools/resource-read",
-    "mcp-mesh/api-reference/built-in-tools/prompt-read",
+    "studio/api-reference/connection-proxy",
+    "studio/api-reference/built-in-tools",
+    "studio/api-reference/built-in-tools/tool-search",
+    "studio/api-reference/built-in-tools/tool-enable",
+    "studio/api-reference/built-in-tools/agent-search",
+    "studio/api-reference/built-in-tools/subtask-run",
+    "studio/api-reference/built-in-tools/user-ask",
+    "studio/api-reference/built-in-tools/resource-read",
+    "studio/api-reference/built-in-tools/prompt-read",
 
     // 10. Self-Hosting
-    "mcp-mesh/self-hosting/quickstart",
-    "mcp-mesh/self-hosting/authentication",
-    "mcp-mesh/self-hosting/monitoring",
-    "mcp-mesh/self-hosting/deploy/docker-compose",
-    "mcp-mesh/self-hosting/deploy/kubernetes",
-
-    // 11. Legacy Admin Guides (no-code and full-code guides)
-    "no-code-guides/creating-tools",
-    "no-code-guides/creating-agents",
-    "full-code-guides/project-structure",
-    "full-code-guides/building-tools",
-    "full-code-guides/building-views",
-    "full-code-guides/resources",
-    "full-code-guides/deployment",
+    "studio/self-hosting/quickstart",
+    "studio/self-hosting/authentication",
+    "studio/self-hosting/monitoring",
+    "studio/self-hosting/deploy/docker-compose",
+    "studio/self-hosting/deploy/kubernetes",
   ];
 
   const previousOrder = [
@@ -120,7 +127,7 @@ export async function getNavigationLinks(
     "api-reference/built-in-tools/user-ask",
   ];
 
-  const order = docVersion === LATEST_VERSION.id ? latestOrder : previousOrder;
+  const order = isLatest ? latestOrder : previousOrder;
 
   // Sort docs according to the defined order
   const sortedDocs = docs.sort((a, b) => {

@@ -38,7 +38,6 @@ async function supabaseGet<T>(
     },
   });
   if (!res.ok) {
-    // Log full details server-side only; never forward raw Supabase errors to clients.
     const text = await res.text().catch(() => res.statusText);
     console.error(`[deco-sites] Supabase error (${res.status}): ${text}`);
     throw new Error(`External service error (${res.status})`);
@@ -46,12 +45,44 @@ async function supabaseGet<T>(
   return res.json() as Promise<T[]>;
 }
 
+async function supabasePost<T>(
+  supabaseUrl: string,
+  serviceKey: string,
+  table: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    console.error(`[deco-sites] Supabase POST error (${res.status}): ${text}`);
+    throw new Error(`External service error (${res.status})`);
+  }
+  const rows = (await res.json()) as T[];
+  if (!rows[0]) {
+    throw new Error("Supabase POST returned no rows");
+  }
+  return rows[0];
+}
+
+import { getSettings } from "../../settings";
+
 function getSupabaseConfig(): {
   supabaseUrl: string;
   serviceKey: string;
 } | null {
-  const supabaseUrl = process.env.DECO_SUPABASE_URL;
-  const serviceKey = process.env.DECO_SUPABASE_SERVICE_KEY;
+  const settings = getSettings();
+  const supabaseUrl = settings.decoSupabaseUrl;
+  const serviceKey = settings.decoSupabaseServiceKey;
   if (!supabaseUrl || !serviceKey) return null;
   return { supabaseUrl, serviceKey };
 }
@@ -69,17 +100,27 @@ async function resolveProfileId(
   return profiles[0]?.user_id ?? null;
 }
 
-async function fetchDecoApiKey(
+async function getOrCreateDecoApiKey(
   supabaseUrl: string,
   serviceKey: string,
   profileId: string,
-): Promise<string | null> {
-  const apiKeys = await supabaseGet<{ id: string }>(
+): Promise<string> {
+  const existing = await supabaseGet<{ id: string }>(
     supabaseUrl,
     serviceKey,
     `api_key?user_id=eq.${encodeURIComponent(profileId)}&select=id&limit=1`,
   );
-  return apiKeys[0]?.id ?? null;
+  if (existing[0]?.id) {
+    return existing[0].id;
+  }
+
+  const created = await supabasePost<{ id: string }>(
+    supabaseUrl,
+    serviceKey,
+    "api_key",
+    { user_id: profileId },
+  );
+  return created.id;
 }
 
 // Require an authenticated user on every handler in this router.
@@ -133,7 +174,7 @@ app.get("/", async (c) => {
 
   const config = getSupabaseConfig();
   if (!config) {
-    return c.json({ error: "Deco integration is not configured" }, 503);
+    return c.json({ sites: [] });
   }
   const { supabaseUrl, serviceKey } = config;
 
@@ -173,6 +214,22 @@ app.get("/", async (c) => {
 
 const ADMIN_MCP = "https://sites-admin-mcp.decocache.com/api/mcp";
 
+async function fetchFaviconAsDataUrl(domain: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://${domain}/favicon.ico`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "image/x-icon";
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength === 0) return null;
+    const base64 = Buffer.from(buffer).toString("base64");
+    return `data:${contentType};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/deco-sites/connection
  *
@@ -201,6 +258,11 @@ app.post("/connection", async (c) => {
     return c.json({ error: "siteName, connId, and orgId are required" }, 400);
   }
 
+  // Validate siteName is a safe DNS subdomain label to prevent SSRF.
+  if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(siteName)) {
+    return c.json({ error: "Invalid siteName" }, 400);
+  }
+
   const membership = await ctx.db
     .selectFrom("member")
     .select("member.id")
@@ -224,7 +286,11 @@ app.post("/connection", async (c) => {
       return c.json({ error: "No deco.cx account found for this user" }, 404);
     }
 
-    const apiKey = await fetchDecoApiKey(supabaseUrl, serviceKey, profileId);
+    const apiKey = await getOrCreateDecoApiKey(
+      supabaseUrl,
+      serviceKey,
+      profileId,
+    );
 
     // Fetch tools and scopes from the MCP server before storing, mirroring
     // what COLLECTION_CONNECTIONS_CREATE does so the tools list isn't empty.
@@ -240,6 +306,10 @@ app.post("/connection", async (c) => {
       ? fetchResult.scopes
       : null;
 
+    // Fetch the favicon server-side to avoid CORS issues.
+    // Returned to the caller so it can be set as the project icon.
+    const faviconIcon = await fetchFaviconAsDataUrl(`${siteName}.deco.site`);
+
     // Store the connection with the API key encrypted by the vault.
     // The key is never serialised into any response body.
     const connection = await ctx.storage.connections.create({
@@ -250,7 +320,7 @@ app.post("/connection", async (c) => {
       description: `Admin MCP for deco.cx site: ${siteName}`,
       connection_type: "HTTP",
       connection_url: ADMIN_MCP,
-      connection_token: apiKey ?? null,
+      connection_token: apiKey,
       connection_headers: null,
       oauth_config: null,
       configuration_state: {
@@ -264,7 +334,7 @@ app.post("/connection", async (c) => {
       configuration_scopes,
     });
 
-    return c.json({ connId: connection.id });
+    return c.json({ connId: connection.id, icon: faviconIcon });
   } catch (err) {
     console.error("[deco-sites] POST /connection error:", err);
     return c.json({ error: "Failed to create connection" }, 500);

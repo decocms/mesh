@@ -8,7 +8,13 @@ describe("getFriendlyToolName", () => {
     );
   });
 
-  test("converts snake_case to Title Case", () => {
+  test("strips namespace and converts to Title Case with clientId", () => {
+    expect(getFriendlyToolName("conn-abc123_some_tool", "conn_abc123")).toBe(
+      "Some Tool",
+    );
+  });
+
+  test("preserves snake_case name without clientId", () => {
     expect(getFriendlyToolName("some_tool")).toBe("Some Tool");
   });
 
@@ -18,6 +24,12 @@ describe("getFriendlyToolName", () => {
 
   test("returns title-cased single word", () => {
     expect(getFriendlyToolName("SINGLE")).toBe("Single");
+  });
+
+  test("preserves full name when clientId does not match", () => {
+    expect(getFriendlyToolName("conn-abc123_some_tool", "other_client")).toBe(
+      "Conn Abc123 Some Tool",
+    );
   });
 });
 

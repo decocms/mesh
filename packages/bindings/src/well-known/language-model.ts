@@ -695,6 +695,11 @@ const LLM_COLLECTION_BINDING = createCollectionBindings(
  * - LLM_DO_GENERATE: Generate a language model response
  * - COLLECTION_LLM_LIST: List available AI models with their capabilities
  * - COLLECTION_LLM_GET: Get a single model by ID
+ *
+ * @deprecated Use native AI SDK provider adapters instead. The llm-binding
+ * abstraction wraps MCP connections as AI SDK v2 language models, but the
+ * AI SDK now expects v3. The decopilot stream path already uses native
+ * providers. This binding will be removed in a future release.
  */
 export const LANGUAGE_MODEL_BINDING = [
   {
@@ -717,4 +722,7 @@ export const LANGUAGE_MODEL_BINDING = [
   ...LLM_COLLECTION_BINDING,
 ] satisfies ToolBinder[];
 
+/**
+ * @deprecated Use native AI SDK provider adapters instead. See {@link LANGUAGE_MODEL_BINDING}.
+ */
 export const LanguageModelBinding = bindingClient(LANGUAGE_MODEL_BINDING);

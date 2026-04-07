@@ -13,7 +13,7 @@ import type { Meter, Tracer } from "@opentelemetry/api";
 import type { Kysely } from "kysely";
 import { verifyMeshToken } from "../auth/jwt";
 import { CredentialVault } from "../encryption/credential-vault";
-import { env } from "../env";
+import { getSettings } from "../settings";
 import { getBaseUrl } from "./server-constants";
 import { ConnectionStorage } from "../storage/connection";
 import { VirtualMCPStorage } from "../storage/virtual";
@@ -21,16 +21,27 @@ import {
   SqlMonitoringStorage,
   type SqlDialect,
 } from "../storage/monitoring-sql";
-import { createMonitoringEngine } from "../monitoring/query-engine";
-import { ClickHouseClientEngine } from "../monitoring/query-engine";
+import {
+  createMonitoringEngine,
+  ClickHouseClientEngine,
+  NoopEngine,
+} from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
-import { DEFAULT_LOGS_DIR, DEFAULT_METRICS_DIR } from "../monitoring/schema";
-import { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
+import { getLogsDir, getMetricsDir } from "../monitoring/schema";
 import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
+import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
+import {
+  RegistryItemStorage,
+  PublishRequestStorage,
+  PublishApiKeyStorage,
+  MonitorRunStorage,
+  MonitorResultStorage,
+  MonitorConnectionStorage,
+} from "../storage/registry";
 import { TagStorage } from "../storage/tags";
 import type { Database, Permission } from "../storage/types";
 import { UserStorage } from "../storage/user";
@@ -47,6 +58,7 @@ import type {
 // ============================================================================
 
 import type { EventBus } from "../event-bus/interface";
+import type { MemberRoleCache } from "../auth/member-role-cache";
 
 // ============================================================================
 // Helper Functions
@@ -98,6 +110,7 @@ export interface MeshContextConfig {
   };
   eventBus: EventBus;
   modelListCache?: ModelListCache;
+  memberRoleCache?: MemberRoleCache;
 }
 
 // ============================================================================
@@ -395,8 +408,7 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
   };
 }
 
-// Import built-in roles from separate module to avoid circular dependency
-import { createMCPProxy } from "@/api/routes/proxy";
+import { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { OrgScopedThreadStorage, SqlThreadStorage } from "@/storage/threads";
@@ -407,6 +419,7 @@ import { AIProviderFactory } from "@/ai-providers/factory";
 import type { ModelListCache } from "@/ai-providers/model-list-cache";
 import { getObjectStorageS3Service } from "../object-storage/factory";
 import { createBoundObjectStorage } from "../object-storage/bound-object-storage";
+import { DevObjectStorage } from "../object-storage/dev-object-storage";
 
 /**
  * Fetch role permissions from the database
@@ -456,6 +469,7 @@ async function authenticateRequest(
   auth: BetterAuthInstance,
   db: Kysely<Database>,
   timings: FactoryOptions["timings"] = DEFAULT_TIMINGS,
+  memberRoleCache?: MemberRoleCache,
 ): Promise<{
   user?: AuthenticatedUser;
   role?: string;
@@ -510,6 +524,11 @@ async function authenticateRequest(
           }
         : undefined;
 
+      // Cache the role for future requests
+      if (membership && role) {
+        memberRoleCache?.set(userId, membership.organizationId, role);
+      }
+
       // Fetch role permissions for MCP OAuth sessions (non-browser)
       let permissions: Permission | undefined;
       if (membership && role) {
@@ -547,17 +566,28 @@ async function authenticateRequest(
         let role: string | undefined;
         const organizationId = meshJwtPayload.metadata?.organizationId;
         if (meshJwtPayload.sub && organizationId) {
-          const membership = await timings.measure(
-            "auth_query_membership",
-            () =>
-              db
-                .selectFrom("member")
-                .select(["member.role"])
-                .where("member.userId", "=", meshJwtPayload.sub)
-                .where("member.organizationId", "=", organizationId)
-                .executeTakeFirst(),
+          const cachedRole = memberRoleCache?.get(
+            meshJwtPayload.sub,
+            organizationId,
           );
-          role = membership?.role;
+          if (cachedRole) {
+            role = cachedRole;
+          } else {
+            const membership = await timings.measure(
+              "auth_query_membership",
+              () =>
+                db
+                  .selectFrom("member")
+                  .select(["member.role"])
+                  .where("member.userId", "=", meshJwtPayload.sub)
+                  .where("member.organizationId", "=", organizationId)
+                  .executeTakeFirst(),
+            );
+            role = membership?.role;
+            if (role) {
+              memberRoleCache?.set(meshJwtPayload.sub, organizationId, role);
+            }
+          }
         }
 
         let organization: OrganizationContext | undefined;
@@ -600,9 +630,17 @@ async function authenticateRequest(
 
     // Try API Key authentication
     try {
-      const result = await timings.measure("auth_verify_api_key", () =>
+      const result = (await timings.measure("auth_verify_api_key", () =>
         auth.api.verifyApiKey({ body: { key: token } }),
-      );
+      )) as {
+        valid?: boolean;
+        key?: {
+          id: string;
+          userId: string;
+          metadata?: { organization?: OrganizationContext };
+          permissions?: Permission;
+        };
+      } | null;
 
       if (result?.valid && result.key) {
         // For API keys, organization might be embedded in metadata
@@ -617,17 +655,25 @@ async function authenticateRequest(
         let role: string | undefined;
         const userId = result.key.userId;
         if (userId && orgMetadata?.id) {
-          const membership = await timings.measure(
-            "auth_query_membership",
-            () =>
-              db
-                .selectFrom("member")
-                .select(["member.role"])
-                .where("member.userId", "=", userId)
-                .where("member.organizationId", "=", orgMetadata.id)
-                .executeTakeFirst(),
-          );
-          role = membership?.role;
+          const cachedRole = memberRoleCache?.get(userId, orgMetadata.id);
+          if (cachedRole) {
+            role = cachedRole;
+          } else {
+            const membership = await timings.measure(
+              "auth_query_membership",
+              () =>
+                db
+                  .selectFrom("member")
+                  .select(["member.role"])
+                  .where("member.userId", "=", userId)
+                  .where("member.organizationId", "=", orgMetadata.id)
+                  .executeTakeFirst(),
+            );
+            role = membership?.role;
+            if (userId && role) {
+              memberRoleCache?.set(userId, orgMetadata.id, role);
+            }
+          }
         }
 
         return {
@@ -659,9 +705,12 @@ async function authenticateRequest(
     const sessionHeaders = new Headers(req.headers);
     sessionHeaders.delete("Authorization");
 
-    const session = await timings.measure("auth_get_session", () =>
+    const session = (await timings.measure("auth_get_session", () =>
       auth.api.getSession({ headers: sessionHeaders }),
-    );
+    )) as {
+      user: { id: string; email: string };
+      session: { activeOrganizationId?: string };
+    } | null;
 
     if (session) {
       let organization: OrganizationContext | undefined;
@@ -670,13 +719,23 @@ async function authenticateRequest(
       if (session.session.activeOrganizationId) {
         // Get full organization data (includes members with roles)
 
-        const orgData = await timings.measure(
+        const orgData = (await timings.measure(
           "auth_get_full_organization",
           () =>
             auth.api
               .getFullOrganization({ headers: sessionHeaders })
               .catch(() => null),
-        );
+        )) as {
+          id: string;
+          slug: string;
+          name: string;
+          members?: {
+            userId: string;
+            role?: string;
+            user?: { id: string; email: string };
+          }[];
+          session?: { activeOrganizationId?: string };
+        } | null;
 
         if (orgData) {
           organization = {
@@ -687,7 +746,7 @@ async function authenticateRequest(
 
           // Extract user's role from the members array
           const currentMember = orgData.members?.find(
-            (m: { userId: string }) => m.userId === session.user.id,
+            (m) => m.userId === session.user.id,
           );
           role = currentMember?.role;
 
@@ -771,29 +830,33 @@ export async function createMeshContextFactory(
   const vault = new CredentialVault(config.encryption.key);
 
   // Create monitoring engines (shared across requests)
-  const isClickHouse = !!env.CLICKHOUSE_URL;
+  const clickhouseUrl = getSettings().clickhouseUrl;
+  const isClickHouse = !!clickhouseUrl;
   const dialect: SqlDialect = isClickHouse ? "clickhouse" : "duckdb";
 
   let monitoringEngine: QueryEngine;
   let metricEngine: QueryEngine;
 
-  if (isClickHouse) {
-    monitoringEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
-    metricEngine = new ClickHouseClientEngine(env.CLICKHOUSE_URL!);
+  if (getSettings().disableMonitoringQuery) {
+    monitoringEngine = new NoopEngine({ silent: true });
+    metricEngine = new NoopEngine({ silent: true });
+  } else if (isClickHouse) {
+    monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
+    metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {
     const { engine: me } = await createMonitoringEngine({
-      basePath: DEFAULT_LOGS_DIR,
+      basePath: getLogsDir(),
     });
     const { engine: metricE } = await createMonitoringEngine({
-      basePath: DEFAULT_METRICS_DIR,
+      basePath: getMetricsDir(),
     });
     monitoringEngine = me;
     metricEngine = metricE;
   }
 
   const { resolve } = await import("node:path");
-  const logsBasePath = resolve(DEFAULT_LOGS_DIR);
-  const metricsBasePath = resolve(DEFAULT_METRICS_DIR);
+  const logsBasePath = resolve(getLogsDir());
+  const metricsBasePath = resolve(getMetricsDir());
 
   const logSourceFactory = isClickHouse
     ? (_orgId: string) => "monitoring_logs"
@@ -817,7 +880,6 @@ export async function createMeshContextFactory(
       metricSourceFactory,
       dialect,
     ),
-    monitoringDashboards: new SqlMonitoringDashboardStorage(config.db),
     virtualMcps: new VirtualMCPStorage(config.db),
     users: new UserStorage(config.db),
     tags: new TagStorage(config.db),
@@ -825,8 +887,17 @@ export async function createMeshContextFactory(
     aiProviderKeys: new AIProviderKeyStorage(config.db, vault),
     oauthPkceStates: new OAuthPkceStateStorage(config.db),
     automations: createAutomationsStorage(config.db),
+    triggerCallbackTokens: new KyselyTriggerCallbackTokenStorage(config.db),
     orgSsoConfig: new OrgSsoConfigStorage(config.db, vault),
     orgSsoSessions: new OrgSsoSessionStorage(config.db),
+    registry: {
+      items: new RegistryItemStorage(config.db as any),
+      publishRequests: new PublishRequestStorage(config.db as any),
+      publishApiKeys: new PublishApiKeyStorage(config.db as any),
+      monitorRuns: new MonitorRunStorage(config.db as any),
+      monitorResults: new MonitorResultStorage(config.db as any),
+      monitorConnections: new MonitorConnectionStorage(config.db as any),
+    },
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin
@@ -845,11 +916,25 @@ export async function createMeshContextFactory(
     // Must NOT be a singleton — per-request auth headers (x-mesh-token JWT) get
     // baked into the transport at creation time and would go stale across requests.
     const clientPool = createClientPool();
-    const connectionId = req?.headers.get("x-caller-id") ?? undefined;
     // Authenticate request (OAuth session or API key)
     const authResult = req
-      ? await authenticateRequest(req, config.auth, config.db, timings)
+      ? await authenticateRequest(
+          req,
+          config.auth,
+          config.db,
+          timings,
+          config.memberRoleCache,
+        )
       : { user: undefined };
+
+    // Resolve caller connection ID: explicit header takes priority, then fall
+    // back to the connectionId embedded in the mesh JWT. This ensures that
+    // management tools (e.g. EVENT_PUBLISH on _self) see the caller's
+    // connection ID even when the runtime doesn't set x-caller-id.
+    const connectionId =
+      req?.headers.get("x-caller-id") ??
+      authResult.user?.connectionId ??
+      undefined;
 
     // Create bound auth client (encapsulates HTTP headers and auth context)
     const boundAuth = createBoundAuthClient({
@@ -878,7 +963,7 @@ export async function createMeshContextFactory(
 
     // Derive base URL from request or fallback to configured base URL
     const baseUrl = req
-      ? (env.BASE_URL ?? `${new URL(req.url).origin}`)
+      ? (getSettings().baseUrl ?? `${new URL(req.url).origin}`)
       : getBaseUrl();
 
     // Create AccessControl instance with bound auth client
@@ -901,12 +986,15 @@ export async function createMeshContextFactory(
       config.modelListCache,
     );
 
-    // Create org-scoped object storage if S3 is configured and org is available
+    // Create org-scoped object storage if S3 is configured and org is available.
+    // In development without S3, fall back to DevObjectStorage (local filesystem).
     const s3Service = getObjectStorageS3Service();
     const objectStorage =
       s3Service && organization
         ? createBoundObjectStorage(s3Service, organization.id)
-        : null;
+        : getSettings().nodeEnv === "development" && organization
+          ? new DevObjectStorage(organization.id, baseUrl)
+          : null;
 
     const ctx: MeshContext = {
       timings,
@@ -948,7 +1036,12 @@ export async function createMeshContextFactory(
       createMCPProxy: async (conn: string | ConnectionEntity) => {
         return await createMCPProxy(conn, ctx);
       },
+      invalidateMemberRole: config.memberRoleCache
+        ? (userId: string, organizationId: string) =>
+            config.memberRoleCache!.invalidate(userId, organizationId)
+        : undefined,
       getOrCreateClient: clientPool,
+      pendingRevalidations: [],
     };
 
     return ctx;

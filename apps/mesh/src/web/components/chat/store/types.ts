@@ -1,12 +1,11 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { ProjectLocator } from "@decocms/mesh-sdk";
 import type { McpUiUpdateModelContextRequest } from "@modelcontextprotocol/ext-apps";
-import type { AiProviderModel } from "../../../hooks/collections/use-llm";
+import type { AiProviderModel } from "../../../hooks/collections/use-ai-providers";
 import type { VirtualMCPInfo } from "../select-virtual-mcp";
 import type { Task } from "../task/types";
 import type { TaskOwnerFilter } from "../task/use-task-manager";
 import type { ChatMessage, Metadata } from "../types";
-import type { ToolApprovalLevel } from "../../../hooks/use-preferences";
 
 // ============================================================================
 // Store State
@@ -23,11 +22,6 @@ export interface ChatStoreState {
   threads: Task[];
   threadMessages: Record<string, ChatMessage[]>;
 
-  // Pagination (set by ThreadListSync)
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  fetchNextPage: (() => void) | undefined;
-
   // Owner filter
   ownerFilter: TaskOwnerFilter;
   isFilterChangePending: boolean;
@@ -35,13 +29,12 @@ export interface ChatStoreState {
   // Selections (persisted to localStorage)
   selectedModel: AiProviderModel | null;
   isModelsLoading: boolean;
-  selectedAgent: VirtualMCPInfo | null;
+  selectedVirtualMcp: VirtualMCPInfo | null;
   credentialId: string | null;
 
-  // All available agents and model connections
-  virtualMcps: VirtualMCPInfo[];
+  // All available model connections
   allModelsConnections: ReturnType<
-    typeof import("../../../hooks/collections/use-llm").useAiProviderKeyList
+    typeof import("../../../hooks/collections/use-ai-providers").useAiProviderKeys
   >;
 
   // Streaming
@@ -65,8 +58,7 @@ export interface SendMessageParams {
   parts?: ChatMessage["parts"];
   threadId?: string;
   model?: AiProviderModel;
-  agent?: VirtualMCPInfo | null;
-  toolApprovalLevel?: ToolApprovalLevel;
+  virtualMcp?: VirtualMCPInfo | null;
 }
 
 // ============================================================================

@@ -7,7 +7,7 @@ import {
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+
 import { EmptyState } from "@deco/ui/components/empty-state.tsx";
 import {
   Breadcrumb,
@@ -45,17 +45,12 @@ const WELL_KNOWN_VIEW_DETAILS: Record<
 function ToolDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
 
   const itemId = decodeURIComponent(params.itemId);
 
-  const allConnections = useConnections();
-  const siblings = allConnections.filter(
-    (c) =>
-      c.connection_type !== "VIRTUAL" &&
-      getConnectionSlug(c) === params.appSlug,
-  );
+  const siblings = useConnections({ slug: params.appSlug });
 
   const handleBack = () => {
     router.history.back();
@@ -92,7 +87,7 @@ function formatCollectionName(name: string): string {
 function CollectionDetailsContent() {
   const router = useRouter();
   const params = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
 
   const collectionName = decodeURIComponent(params.collectionName);
@@ -103,13 +98,8 @@ function CollectionDetailsContent() {
   };
 
   const { org } = useProjectContext();
-  const allConnections = useConnections();
-  const connection =
-    allConnections.find(
-      (c) =>
-        c.connection_type !== "VIRTUAL" &&
-        getConnectionSlug(c) === params.appSlug,
-    ) ?? null;
+  const slugConnections = useConnections({ slug: params.appSlug });
+  const connection = slugConnections[0] ?? null;
   const connectionId = connection?.id ?? "";
   const scopeKey = connectionId || "no-connection";
   const client = useMCPClient({
@@ -142,7 +132,7 @@ function CollectionDetailsContent() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link to="/$org/settings/connections" params={{ org: org.slug }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -153,7 +143,7 @@ function CollectionDetailsContent() {
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/mcps/$appSlug"
+                  to="/$org/settings/connections/$appSlug"
                   params={{
                     org: org.slug,
                     appSlug: params.appSlug,
@@ -201,7 +191,7 @@ function CollectionDetailsContent() {
 
 function CollectionDetailsRouter() {
   const params = useParams({
-    from: "/shell/$org/mcps/$appSlug/$collectionName/$itemId",
+    from: "/shell/$org/settings/connections/$appSlug/$collectionName/$itemId",
   });
 
   const collectionName = decodeURIComponent(params.collectionName);

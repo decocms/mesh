@@ -25,6 +25,7 @@ export interface CreateAutomationInput {
   messages: string; // JSON
   models: string; // JSON
   temperature?: number;
+  virtual_mcp_id?: string | null;
 }
 
 export interface UpdateAutomationInput {
@@ -54,13 +55,18 @@ export interface AutomationWithTriggerCount extends Automation {
   trigger_count: number;
 }
 
+export interface AutomationWithTriggerInfo extends AutomationWithTriggerCount {
+  nearest_next_run_at: string | null;
+}
+
 export interface AutomationsStorage {
   create(input: CreateAutomationInput): Promise<Automation>;
   findById(id: string, organizationId: string): Promise<Automation | null>;
   list(organizationId: string): Promise<Automation[]>;
   listWithTriggerCounts(
     organizationId: string,
-  ): Promise<AutomationWithTriggerCount[]>;
+    virtualMcpId?: string | null,
+  ): Promise<AutomationWithTriggerInfo[]>;
   update(
     id: string,
     organizationId: string,
@@ -94,9 +100,21 @@ export interface AutomationsStorage {
     triggerId: string | null,
     maxConcurrent: number,
   ): Promise<string | null>;
-  markRunFailed(threadId: string): Promise<void>;
+  markRunFailed(taskId: string): Promise<void>;
   updateTriggerLastRunAt(triggerId: string, lastRunAt: string): Promise<void>;
   deactivateAutomation(id: string): Promise<void>;
+  /**
+   * Force-fail zombie automation runs: threads that are in_progress with no
+   * run_config (never picked up by streamCore) and linked to an automation
+   * trigger, older than `maxAgeMs`.
+   *
+   * These threads are invisible to orphan recovery (which requires run_config)
+   * and the reaper (which only checks in-memory state). They permanently block
+   * per-automation concurrency slots after a crash or rolling deploy.
+   *
+   * @returns number of threads force-failed
+   */
+  failZombieAutomationRuns(maxAgeMs: number): Promise<number>;
 }
 
 // ============================================================================
@@ -117,6 +135,7 @@ function automationFromDbRow(row: {
   messages: string;
   models: string;
   temperature: number;
+  virtual_mcp_id?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }): Automation {
@@ -130,6 +149,7 @@ function automationFromDbRow(row: {
     messages: row.messages,
     models: row.models,
     temperature: row.temperature,
+    virtual_mcp_id: row.virtual_mcp_id ?? null,
     created_at: toIsoString(row.created_at),
     updated_at: toIsoString(row.updated_at),
   };
@@ -182,6 +202,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       messages: input.messages,
       models: input.models,
       temperature: input.temperature ?? 0.5,
+      virtual_mcp_id: input.virtual_mcp_id ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -222,8 +243,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
 
   async listWithTriggerCounts(
     organizationId: string,
-  ): Promise<AutomationWithTriggerCount[]> {
-    const rows = await this.db
+    virtualMcpId?: string | null,
+  ): Promise<AutomationWithTriggerInfo[]> {
+    let query = this.db
       .selectFrom("automations as a")
       .leftJoin("automation_triggers as t", "t.automation_id", "a.id")
       .select([
@@ -236,11 +258,21 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.messages",
         "a.models",
         "a.temperature",
+        "a.virtual_mcp_id",
         "a.created_at",
         "a.updated_at",
       ])
       .select((eb) => eb.fn.count("t.id").as("trigger_count"))
-      .where("a.organization_id", "=", organizationId)
+      .select((eb) => eb.fn.min("t.next_run_at").as("nearest_next_run_at"))
+      .where("a.organization_id", "=", organizationId);
+
+    if (virtualMcpId !== undefined) {
+      query = virtualMcpId
+        ? query.where("a.virtual_mcp_id", "=", virtualMcpId)
+        : query.where("a.virtual_mcp_id", "is", null);
+    }
+
+    const rows = await query
       .groupBy([
         "a.id",
         "a.organization_id",
@@ -251,6 +283,7 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         "a.messages",
         "a.models",
         "a.temperature",
+        "a.virtual_mcp_id",
         "a.created_at",
         "a.updated_at",
       ])
@@ -260,6 +293,9 @@ class KyselyAutomationsStorage implements AutomationsStorage {
     return rows.map((row) => ({
       ...automationFromDbRow(row),
       trigger_count: Number(row.trigger_count),
+      nearest_next_run_at: row.nearest_next_run_at
+        ? toIsoString(row.nearest_next_run_at as unknown as string)
+        : null,
     }));
   }
 
@@ -605,18 +641,19 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       }
 
       // Create a thread for this run
-      const threadId = generatePrefixedId("thrd");
+      const taskId = generatePrefixedId("thrd");
       const now = new Date().toISOString();
 
       await trx
         .insertInto("threads")
         .values({
-          id: threadId,
+          id: taskId,
           organization_id: automation.organization_id,
           title: `Automation: ${automation.name}`,
           description: null,
           status: "in_progress",
           trigger_id: triggerId,
+          virtual_mcp_id: automation.virtual_mcp_id ?? "",
           hidden: false,
           created_at: now,
           updated_at: now,
@@ -625,15 +662,15 @@ class KyselyAutomationsStorage implements AutomationsStorage {
         })
         .execute();
 
-      return threadId;
+      return taskId;
     });
   }
 
-  async markRunFailed(threadId: string): Promise<void> {
+  async markRunFailed(taskId: string): Promise<void> {
     await this.db
       .updateTable("threads")
       .set({ status: "failed", updated_at: new Date().toISOString() })
-      .where("id", "=", threadId)
+      .where("id", "=", taskId)
       .where("status", "=", "in_progress")
       .execute();
   }
@@ -656,6 +693,20 @@ class KyselyAutomationsStorage implements AutomationsStorage {
       .where("id", "=", id)
       .where("active", "=", true)
       .execute();
+  }
+
+  async failZombieAutomationRuns(maxAgeMs: number): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeMs);
+    const result = await this.db
+      .updateTable("threads")
+      .set({ status: "failed", updated_at: new Date().toISOString() })
+      .where("status", "=", "in_progress")
+      .where("run_config", "is", null)
+      .where("trigger_id", "is not", null)
+      .where("created_at", "<=", cutoff.toISOString() as unknown as Date)
+      .executeTakeFirst();
+
+    return Number(result.numUpdatedRows ?? 0n);
   }
 }
 

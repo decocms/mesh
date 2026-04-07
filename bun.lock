@@ -48,36 +48,38 @@
       },
       "devDependencies": {
         "@tailwindcss/typography": "^0.5.16",
-        "typescript": "^5.9.3",
         "wrangler": "^4.40.3",
       },
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.186.4",
+      "version": "2.235.0",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.58",
         "@ai-sdk/google": "^3.0.43",
+        "@ai-sdk/openai": "^3.0.50",
         "@anthropic-ai/sdk": "^0.79.0",
         "@aws-sdk/client-s3": "^3.1013.0",
         "@aws-sdk/s3-request-presigner": "^3.1013.0",
         "@clickhouse/client": "^1.8.1",
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/sortable": "^10.0.0",
+        "@dnd-kit/utilities": "^3.2.2",
         "@inkjs/ui": "^2.0.0",
-        "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
         "@modelcontextprotocol/ext-apps": "^1.2.2",
         "@openrouter/ai-sdk-provider": "^2.2.5",
         "@opentelemetry/core": "^2.6.0",
         "@tanstack/react-virtual": "^3.13.21",
         "ai-sdk-provider-claude-code": "^3.4.4",
+        "ai-sdk-provider-codex-cli": "^1.1.0",
         "dompurify": "^3.3.1",
         "embedded-postgres": "^18.3.0-beta.16",
         "ink": "^6.8.0",
         "kysely": "^0.28.12",
         "nats": "^2.29.3",
-        "quickjs-emscripten-core": "^0.31.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
       },
@@ -90,12 +92,14 @@
         "@deco/ui": "workspace:*",
         "@decocms/better-auth": "1.5.17",
         "@decocms/bindings": "workspace:*",
+        "@decocms/mcp-utils": "workspace:*",
         "@decocms/mesh-sdk": "workspace:*",
         "@decocms/runtime": "workspace:*",
         "@decocms/vite-plugin": "workspace:*",
         "@electric-sql/pglite": "^0.3.15",
         "@floating-ui/react": "^0.27.16",
         "@hookform/resolvers": "^5.2.2",
+        "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
         "@modelcontextprotocol/sdk": "1.27.1",
         "@monaco-editor/react": "^4.7.0",
         "@opentelemetry/api": "^1.9.0",
@@ -155,7 +159,6 @@
         "kysely-pglite": "^0.6.1",
         "lucide-react": "^0.468.0",
         "marked": "^15.0.6",
-        "mesh-plugin-private-registry": "workspace:*",
         "mesh-plugin-workflows": "workspace:*",
         "nanoid": "^5.1.6",
         "pg": "^8.16.3",
@@ -174,7 +177,6 @@
         "vite": "^7.2.1",
         "vite-tsconfig-paths": "^5.1.4",
         "zod": "^4.0.0",
-        "zod-from-json-schema": "^0.5.2",
         "zustand": "^5.0.9",
       },
       "optionalDependencies": {
@@ -183,7 +185,7 @@
     },
     "packages/bindings": {
       "name": "@decocms/bindings",
-      "version": "1.3.3",
+      "version": "1.4.1",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.27.1",
         "@tanstack/react-router": "1.139.7",
@@ -203,34 +205,21 @@
         "create-deco": "./index.js",
       },
     },
-    "packages/mesh-plugin-private-registry": {
-      "name": "mesh-plugin-private-registry",
-      "version": "0.1.0",
-      "dependencies": {
-        "@deco/ui": "workspace:*",
-        "@decocms/bindings": "workspace:*",
-        "@decocms/mesh-sdk": "workspace:*",
-        "@decocms/runtime": "workspace:*",
-        "@modelcontextprotocol/sdk": "1.27.1",
-        "@tanstack/react-query": "5.90.11",
-        "@untitledui/icons": "^0.0.19",
-        "ai": "^6.0.116",
-        "hono": "^4.7.10",
-        "kysely": "^0.28.12",
-        "sonner": "^2.0.7",
-        "zod": "^4.0.0",
-      },
+    "packages/mcp-utils": {
+      "name": "@decocms/mcp-utils",
+      "version": "1.0.0",
       "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.8.3",
+        "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+        "@modelcontextprotocol/sdk": "1.27.1",
+        "quickjs-emscripten-core": "0.31.0",
       },
       "peerDependencies": {
-        "react": "^19.2.0",
+        "@modelcontextprotocol/sdk": ">=1.27.0",
       },
     },
     "packages/mesh-plugin-workflows": {
       "name": "mesh-plugin-workflows",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@decocms/bindings": "workspace:*",
         "@decocms/mesh-sdk": "workspace:*",
@@ -240,6 +229,7 @@
         "quickjs-emscripten-core": "^0.31.0",
         "sucrase": "^3.35.0",
         "zod": "^4.0.0",
+        "zod-from-json-schema": "^0.5.2",
       },
       "devDependencies": {
         "@electric-sql/pglite": "^0.3.15",
@@ -256,9 +246,10 @@
     },
     "packages/mesh-sdk": {
       "name": "@decocms/mesh-sdk",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "dependencies": {
         "@decocms/bindings": "^1.1.1",
+        "@decocms/mcp-utils": "workspace:*",
         "@modelcontextprotocol/sdk": "1.27.1",
         "zod": "^4.0.0",
       },
@@ -274,7 +265,7 @@
     },
     "packages/runtime": {
       "name": "@decocms/runtime",
-      "version": "1.2.12",
+      "version": "1.3.1",
       "dependencies": {
         "@ai-sdk/provider": "^3.0.0",
         "@cloudflare/workers-types": "^4.20250617.0",
@@ -287,12 +278,16 @@
       "devDependencies": {
         "@types/bun": "^1.3.5",
         "@types/mime-db": "^1.43.6",
+        "ai": "^6.0.116",
         "ts-json-schema-generator": "^2.4.0",
+      },
+      "peerDependencies": {
+        "ai": ">=6.0.0",
       },
     },
     "packages/typegen": {
       "name": "@decocms/typegen",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "bin": {
         "typegen": "./dist/cli.js",
       },
@@ -417,6 +412,8 @@
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.66", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.19", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-SIQ0YY0iMuv+07HLsZ+bB990zUJ6S4ujORAh+Jv1V2KGNn73qQKnGO0JBk+w+Res8YqOFSycwDoWcFlQrVxS4A=="],
 
     "@ai-sdk/google": ["@ai-sdk/google@3.0.43", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.19" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-NGCgP5g8HBxrNdxvF8Dhww+UKfqAkZAmyYBvbu9YLoBkzAmGKDBGhVptN/oXPB5Vm0jggMdoLycZ8JReQM8Zqg=="],
+
+    "@ai-sdk/openai": ["@ai-sdk/openai@3.0.50", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.22" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-7M7bklrS+gckzPdpQpC3iG5aN5aQPRJdAJQ5jt7sEgYCqDgUuef9x4Nd570+ghIfKTZvV6tSqeeTuD6De/bZig=="],
 
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.8", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ=="],
 
@@ -648,6 +645,8 @@
 
     "@decocms/docs": ["@decocms/docs@workspace:apps/docs"],
 
+    "@decocms/mcp-utils": ["@decocms/mcp-utils@workspace:packages/mcp-utils"],
+
     "@decocms/mesh-sdk": ["@decocms/mesh-sdk@workspace:packages/mesh-sdk"],
 
     "@decocms/runtime": ["@decocms/runtime@workspace:packages/runtime"],
@@ -655,6 +654,14 @@
     "@decocms/typegen": ["@decocms/typegen@workspace:packages/typegen"],
 
     "@decocms/vite-plugin": ["@decocms/vite-plugin@workspace:packages/vite-plugin-deco"],
+
+    "@dnd-kit/accessibility": ["@dnd-kit/accessibility@3.1.1", "", { "dependencies": { "tslib": "^2.0.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw=="],
+
+    "@dnd-kit/core": ["@dnd-kit/core@6.3.1", "", { "dependencies": { "@dnd-kit/accessibility": "^3.1.1", "@dnd-kit/utilities": "^3.2.2", "tslib": "^2.0.0" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-xkGBRQQab4RLwgXxoqETICr6S5JlogafbhNsidmrkVv2YRs5MLwpjoF2qpiGjQt8S9AoxtIV603s0GIUpY5eYQ=="],
+
+    "@dnd-kit/sortable": ["@dnd-kit/sortable@10.0.0", "", { "dependencies": { "@dnd-kit/utilities": "^3.2.2", "tslib": "^2.0.0" }, "peerDependencies": { "@dnd-kit/core": "^6.3.0", "react": ">=16.8.0" } }, "sha512-+xqhmIIzvAYMGfBYYnbKuNicfSsk4RksY2XdmJhT+HAC01nix6fHCztU68jooFiMUB01Ky3F0FyOvhG/BZrWkg=="],
+
+    "@dnd-kit/utilities": ["@dnd-kit/utilities@3.2.2", "", { "dependencies": { "tslib": "^2.0.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-+MKAJEOfaBe5SmV6t34p80MMKhjvUz0vRrvVJbPT0WElzaOJ/1xs+D+KDv+tD/NE5ujfrChEcshd4fLn0wpiqg=="],
 
     "@duckdb/node-api": ["@duckdb/node-api@1.5.0-r.1", "", { "dependencies": { "@duckdb/node-bindings": "1.5.0-r.1" } }, "sha512-VjvjqlCyqUJ22bydG/+9Jj5l0CEvx9QUn1SATBkKFY0+x6n4uHzt0kp/FKwXK9LNduXX6KCKtdF+6v5BcHScfA=="],
 
@@ -881,6 +888,20 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@oclif/core": ["@oclif/core@4.9.0", "", { "dependencies": { "ansi-escapes": "^4.3.2", "ansis": "^3.17.0", "clean-stack": "^3.0.1", "cli-spinners": "^2.9.2", "debug": "^4.4.3", "ejs": "^3.1.10", "get-package-type": "^0.1.0", "indent-string": "^4.0.0", "is-wsl": "^2.2.0", "lilconfig": "^3.1.3", "minimatch": "^10.2.4", "semver": "^7.7.3", "string-width": "^4.2.3", "supports-color": "^8", "tinyglobby": "^0.2.14", "widest-line": "^3.1.0", "wordwrap": "^1.0.0", "wrap-ansi": "^7.0.0" } }, "sha512-k/ntRgDcUprTT+aaNoF+whk3cY3f9fRD2lkF6ul7JeCUg2MaMXVXZXfbRhJCfsiX51X8/5Pqo0LGdO9SLYXNHg=="],
+
+    "@openai/codex": ["@openai/codex@0.105.0", "", { "optionalDependencies": { "@openai/codex-darwin-arm64": "npm:@openai/codex@0.105.0-darwin-arm64", "@openai/codex-darwin-x64": "npm:@openai/codex@0.105.0-darwin-x64", "@openai/codex-linux-arm64": "npm:@openai/codex@0.105.0-linux-arm64", "@openai/codex-linux-x64": "npm:@openai/codex@0.105.0-linux-x64", "@openai/codex-win32-arm64": "npm:@openai/codex@0.105.0-win32-arm64", "@openai/codex-win32-x64": "npm:@openai/codex@0.105.0-win32-x64" }, "bin": { "codex": "bin/codex.js" } }, "sha512-enoNmQs3aOgUhsKYC6kfuKEG0AogS4q01pqcySPwf9zl2r8OcKuMUoLw1v5n4Y7sd3B6qGS7UtTABqbcT5FaMA=="],
+
+    "@openai/codex-darwin-arm64": ["@openai/codex@0.105.0-darwin-arm64", "", { "os": "darwin", "cpu": "arm64" }, "sha512-9TD7pDIg8o7itmOhyEPcC2HeVnVIOxxrrbwTvnTibMj2rHPLnY8E0JaK8QOBRNiIUlqI4WKspTMUZQg5Fegndw=="],
+
+    "@openai/codex-darwin-x64": ["@openai/codex@0.105.0-darwin-x64", "", { "os": "darwin", "cpu": "x64" }, "sha512-00xRV2X7RwKFRY8LB99/WmVSWqhHnMV6BB4gc5x4MMuDPDslaNrGTYWdp6KBukok1ayrg0JfwazUeAawNWU5Zw=="],
+
+    "@openai/codex-linux-arm64": ["@openai/codex@0.105.0-linux-arm64", "", { "os": "linux", "cpu": "arm64" }, "sha512-UFGyZhRB0Gtr31wFf0WDd//W3XGbZZ7mxYwf528i6rhlwabb3FIJKWrgv4DVXKQZCGiBujqAk0pr32PziElouA=="],
+
+    "@openai/codex-linux-x64": ["@openai/codex@0.105.0-linux-x64", "", { "os": "linux", "cpu": "x64" }, "sha512-cZgNzNjspqHmXNf/CraqqQrfotw5cXO7wvkSSYs2NZjZR7Ud10u5hFeumUW1sEvb5/F9tEKsjO+WCj+bVxdrYQ=="],
+
+    "@openai/codex-win32-arm64": ["@openai/codex@0.105.0-win32-arm64", "", { "os": "win32", "cpu": "arm64" }, "sha512-OGvHTn/XAyY8889n0ZEcvUgiaPeT/rLFEFUEOzWgt5yhKiODV+zEzfruYmcvZUpzgFJ1kRQlDgKPMbW7u2r01Q=="],
+
+    "@openai/codex-win32-x64": ["@openai/codex@0.105.0-win32-x64", "", { "os": "win32", "cpu": "x64" }, "sha512-8V26RjFeg06i4mrrhQTKLY6lcRXsm0s1cxT3lamApLccvBBAhhAOE0je6jHb5nkrncvf9x/lee+WmY0louvvGQ=="],
 
     "@openrouter/ai-sdk-provider": ["@openrouter/ai-sdk-provider@1.5.4", "", { "dependencies": { "@openrouter/sdk": "^0.1.27" }, "peerDependencies": { "ai": "^5.0.0", "zod": "^3.24.1 || ^v4" } }, "sha512-xrSQPUIH8n9zuyYZR0XK7Ba0h2KsjJcMkxnwaYfmv13pKs3sDkjPzVPPhlhzqBGddHb5cFEwJ9VFuFeDcxCDSw=="],
 
@@ -1666,6 +1687,8 @@
 
     "ai-sdk-provider-claude-code": ["ai-sdk-provider-claude-code@3.4.4", "", { "dependencies": { "@ai-sdk/provider": "^3.0.0", "@ai-sdk/provider-utils": "^4.0.1", "@anthropic-ai/claude-agent-sdk": "^0.2.63" }, "peerDependencies": { "zod": "^4.0.0" } }, "sha512-iHcup5SHh4Tul1RIi9J+bnpngen8WX66yC3lsz1YlbtwAmRhUEzZUuGKzmFGIN8Pmx9uQrerGfLJdbFxIxKkyw=="],
 
+    "ai-sdk-provider-codex-cli": ["ai-sdk-provider-codex-cli@1.1.0", "", { "dependencies": { "@ai-sdk/provider": "^3.0.0", "@ai-sdk/provider-utils": "^4.0.1", "jsonc-parser": "^3.3.1" }, "optionalDependencies": { "@openai/codex": "^0.105.0" }, "peerDependencies": { "zod": "^3.0.0 || ^4.0.0" } }, "sha512-l1ap+RAwCpdwEaLmB2cpQ4br+h2ut2IR0IvI88QvUMAAk5c3h2dSnx+vYZhwsOt1th3CS7FUQmvCTcnxqYshWg=="],
+
     "ajv": ["ajv@8.18.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A=="],
 
     "ajv-formats": ["ajv-formats@3.0.1", "", { "dependencies": { "ajv": "^8.0.0" } }, "sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ=="],
@@ -2270,6 +2293,8 @@
 
     "json5": ["json5@2.2.3", "", { "bin": { "json5": "lib/cli.js" } }, "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg=="],
 
+    "jsonc-parser": ["jsonc-parser@3.3.1", "", {}, "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="],
+
     "jsonfile": ["jsonfile@6.2.0", "", { "dependencies": { "universalify": "^2.0.0" }, "optionalDependencies": { "graceful-fs": "^4.1.6" } }, "sha512-FGuPw30AdOIUTRMC2OMRtQV+jkVj2cfPqSeWXv1NEAJ1qZ5zb1X6z1mFhbfOB/iy3ssJCD+3KuZ8r8C3uVFlAg=="],
 
     "jsonpointer": ["jsonpointer@5.0.1", "", {}, "sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ=="],
@@ -2399,8 +2424,6 @@
     "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
 
     "merge2": ["merge2@1.4.1", "", {}, "sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg=="],
-
-    "mesh-plugin-private-registry": ["mesh-plugin-private-registry@workspace:packages/mesh-plugin-private-registry"],
 
     "mesh-plugin-workflows": ["mesh-plugin-workflows@workspace:packages/mesh-plugin-workflows"],
 
@@ -3230,6 +3253,8 @@
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
+    "@ai-sdk/openai/@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@4.0.22", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@standard-schema/spec": "^1.1.0", "eventsource-parser": "^3.0.6" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-B2OTFcRw/Pdka9ZTjpXv6T6qZ6RruRuLokyb8HwW+aoW9ndJ3YasA3/mVswyJw7VMBF8ofXgqvcrCt9KYvFifg=="],
+
     "@astrojs/react/@vitejs/plugin-react": ["@vitejs/plugin-react@4.7.0", "", { "dependencies": { "@babel/core": "^7.28.0", "@babel/plugin-transform-react-jsx-self": "^7.27.1", "@babel/plugin-transform-react-jsx-source": "^7.27.1", "@rolldown/pluginutils": "1.0.0-beta.27", "@types/babel__core": "^7.20.5", "react-refresh": "^0.17.0" }, "peerDependencies": { "vite": "^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0" } }, "sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA=="],
 
     "@astrojs/react/vite": ["vite@6.4.1", "", { "dependencies": { "esbuild": "^0.25.0", "fdir": "^6.4.4", "picomatch": "^4.0.2", "postcss": "^8.5.3", "rollup": "^4.34.9", "tinyglobby": "^0.2.13" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^18.0.0 || ^20.0.0 || >=22.0.0", "jiti": ">=1.21.0", "less": "*", "lightningcss": "^1.21.0", "sass": "*", "sass-embedded": "*", "stylus": "*", "sugarss": "*", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "jiti", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-+Oxm7q9hDoLMyJOYfUYBuHQo+dkAloi33apOPP56pzj+vsdJDzr+j1NISE5pyaAuKL4A3UD34qd0lx5+kfKp2g=="],
@@ -3602,8 +3627,6 @@
 
     "mdast-util-mdx-jsx/parse-entities": ["parse-entities@4.0.2", "", { "dependencies": { "@types/unist": "^2.0.0", "character-entities-legacy": "^3.0.0", "character-reference-invalid": "^2.0.0", "decode-named-character-reference": "^1.0.0", "is-alphanumerical": "^2.0.0", "is-decimal": "^2.0.0", "is-hexadecimal": "^2.0.0" } }, "sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw=="],
 
-    "mesh-plugin-private-registry/@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
-
     "mesh-plugin-workflows/@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
 
     "micromatch/picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
@@ -3821,8 +3844,6 @@
     "mdast-util-mdx-jsx/parse-entities/is-decimal": ["is-decimal@2.0.1", "", {}, "sha512-AAB9hiomQs5DXWcRB1rqsxGUstbRroFOPPVAomNk/3XHR5JyEZChOyTWe2oayKnsSsr/kcGqF+z6yuH6HHpN0A=="],
 
     "mdast-util-mdx-jsx/parse-entities/is-hexadecimal": ["is-hexadecimal@2.0.1", "", {}, "sha512-DgZQp241c8oO6cA1SbTEWiXeoxV42vlcJxgH+B3hi1AiqqKruZR3ZGF8In3fj4+/y/7rHvlOZLZtgJ/4ttYGZg=="],
-
-    "mesh-plugin-private-registry/@types/bun/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "mesh-plugin-workflows/@types/bun/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 

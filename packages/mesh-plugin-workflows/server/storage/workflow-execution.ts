@@ -28,16 +28,22 @@ export interface ParsedStepResult {
   output: unknown;
   error: unknown;
   raw_tool_output: unknown;
+  attempt_number: number;
 }
 
 /**
  * Slim step result for orchestration — only the fields consumed by the
- * orchestrator hot path. Excludes raw_tool_output and started_at_epoch_ms
- * to avoid transferring and parsing potentially large tool response payloads.
+ * orchestrator hot path. Excludes raw_tool_output to avoid transferring
+ * and parsing potentially large tool response payloads.
  */
 export type ContextStepResult = Pick<
   ParsedStepResult,
-  "step_id" | "completed_at_epoch_ms" | "output" | "error"
+  | "step_id"
+  | "started_at_epoch_ms"
+  | "completed_at_epoch_ms"
+  | "output"
+  | "error"
+  | "attempt_number"
 >;
 
 export interface ExecutionContext {
@@ -243,7 +249,14 @@ export class WorkflowExecutionStorage {
         .executeTakeFirst(),
       this.db
         .selectFrom("workflow_execution_step_result")
-        .select(["step_id", "completed_at_epoch_ms", "output", "error"])
+        .select([
+          "step_id",
+          "started_at_epoch_ms",
+          "completed_at_epoch_ms",
+          "output",
+          "error",
+          "attempt_number",
+        ])
         .where("execution_id", "=", executionId)
         .execute(),
     ]);
@@ -264,9 +277,11 @@ export class WorkflowExecutionStorage {
       },
       stepResults: stepResultRows.map((row) => ({
         step_id: row.step_id,
+        started_at_epoch_ms: row.started_at_epoch_ms,
         completed_at_epoch_ms: row.completed_at_epoch_ms,
         output: parseJson(row.output),
         error: parseJson(row.error),
+        attempt_number: row.attempt_number,
       })),
     };
   }
@@ -357,9 +372,35 @@ export class WorkflowExecutionStorage {
     return this.db.transaction().execute(async (trx) => {
       const now = Date.now();
 
-      // Validate org ownership and resumable status first — bail before
-      // touching step results if the execution doesn't qualify.
-      const result = await trx
+      // Check current status and org ownership.
+      const execution = await trx
+        .selectFrom("workflow_execution")
+        .where("id", "=", executionId)
+        .where("organization_id", "=", organizationId)
+        .select(["status"])
+        .executeTakeFirst();
+
+      if (!execution) return false;
+
+      const { status } = execution;
+
+      // For "success" executions, only allow resume when there are failed steps
+      // to retry (e.g. forEach iterations that failed with onError: "continue").
+      if (status === "success") {
+        const failedCount = await trx
+          .selectFrom("workflow_execution_step_result")
+          .where("execution_id", "=", executionId)
+          .where("error", "is not", null)
+          .select(trx.fn.countAll<number>().as("count"))
+          .executeTakeFirstOrThrow();
+
+        if (Number(failedCount.count) === 0) return false;
+      } else if (status !== "cancelled" && status !== "error") {
+        return false;
+      }
+
+      // Reset execution to enqueued.
+      await trx
         .updateTable("workflow_execution")
         .set({
           status: "enqueued",
@@ -368,14 +409,23 @@ export class WorkflowExecutionStorage {
           error: null,
         })
         .where("id", "=", executionId)
-        .where("organization_id", "=", organizationId)
-        .where((eb) =>
-          eb.or([eb("status", "=", "cancelled"), eb("status", "=", "error")]),
-        )
-        .returningAll()
-        .executeTakeFirst();
+        .execute();
 
-      if (!result) return false;
+      // Collect parent step names from failed forEach iterations before deleting.
+      // We need to also delete their parent results so the orchestrator re-dispatches
+      // only the missing iterations (the forEach dispatch already handles partial recovery).
+      const failedIterations = await trx
+        .selectFrom("workflow_execution_step_result")
+        .where("execution_id", "=", executionId)
+        .where("error", "is not", null)
+        .where("step_id", "like", "%[%")
+        .select("step_id")
+        .execute();
+
+      const forEachParentNames = new Set<string>();
+      for (const row of failedIterations) {
+        forEachParentNames.add(row.step_id.replace(/\[\d+\]$/, ""));
+      }
 
       // Clear incomplete and failed step results in one pass; successful results
       // are preserved and their outputs will be reused by the orchestrator.
@@ -390,13 +440,28 @@ export class WorkflowExecutionStorage {
         )
         .execute();
 
+      // Delete forEach parent results whose children had errors, so the parent
+      // gets re-dispatched and re-collects iteration outputs.
+      if (forEachParentNames.size > 0) {
+        await trx
+          .deleteFrom("workflow_execution_step_result")
+          .where("execution_id", "=", executionId)
+          .where("step_id", "in", [...forEachParentNames])
+          .execute();
+      }
+
       return true;
     });
   }
 
   async listExecutions(
     organizationId: string,
-    options: { limit?: number; offset?: number; status?: string } = {},
+    options: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      workflowCollectionId?: string;
+    } = {},
   ): Promise<{
     items: (WorkflowExecutionRow & {
       title: string;
@@ -405,7 +470,7 @@ export class WorkflowExecutionStorage {
     totalCount: number;
     hasMore: boolean;
   }> {
-    const { limit = 50, offset = 0, status } = options;
+    const { limit = 50, offset = 0, status, workflowCollectionId } = options;
 
     let query = this.db
       .selectFrom("workflow_execution as we")
@@ -446,6 +511,14 @@ export class WorkflowExecutionStorage {
       );
     }
 
+    if (workflowCollectionId) {
+      query = query.where(
+        "w.workflow_collection_id",
+        "=",
+        workflowCollectionId,
+      );
+    }
+
     const items = await query
       .orderBy("we.created_at", "desc")
       .limit(limit)
@@ -453,15 +526,24 @@ export class WorkflowExecutionStorage {
       .execute();
 
     let countQuery = this.db
-      .selectFrom("workflow_execution")
+      .selectFrom("workflow_execution as we")
+      .innerJoin("workflow as w", "we.workflow_id", "w.id")
       .select((eb) => eb.fn.countAll<number>().as("count"))
-      .where("organization_id", "=", organizationId);
+      .where("we.organization_id", "=", organizationId);
 
     if (status) {
       countQuery = countQuery.where(
-        "status",
+        "we.status",
         "=",
         status as unknown as ExecutionStatus,
+      );
+    }
+
+    if (workflowCollectionId) {
+      countQuery = countQuery.where(
+        "w.workflow_collection_id",
+        "=",
+        workflowCollectionId,
       );
     }
 
@@ -499,6 +581,7 @@ export class WorkflowExecutionStorage {
         completed_at_epoch_ms: data.completed_at_epoch_ms ?? null,
         output: data.output !== undefined ? JSON.stringify(data.output) : null,
         error: data.error !== undefined ? JSON.stringify(data.error) : null,
+        attempt_number: 1,
       })
       .onConflict((oc) => oc.columns(["execution_id", "step_id"]).doNothing())
       .returningAll()
@@ -512,20 +595,31 @@ export class WorkflowExecutionStorage {
     stepId: string,
     data: {
       output?: unknown;
-      error?: string;
-      started_at_epoch_ms?: number;
-      completed_at_epoch_ms?: number;
+      error?: string | null;
+      started_at_epoch_ms?: number | null;
+      completed_at_epoch_ms?: number | null;
+      attempt_number?: number;
+      raw_tool_output?: unknown;
     },
   ): Promise<ParsedStepResult | null> {
     const setValues: Record<string, unknown> = {};
 
     if (data.output !== undefined)
-      setValues.output = JSON.stringify(data.output);
-    if (data.error !== undefined) setValues.error = JSON.stringify(data.error);
+      setValues.output =
+        data.output === null ? null : JSON.stringify(data.output);
+    if (data.error !== undefined)
+      setValues.error = data.error === null ? null : JSON.stringify(data.error);
     if (data.started_at_epoch_ms !== undefined)
       setValues.started_at_epoch_ms = data.started_at_epoch_ms;
     if (data.completed_at_epoch_ms !== undefined)
       setValues.completed_at_epoch_ms = data.completed_at_epoch_ms;
+    if (data.attempt_number !== undefined)
+      setValues.attempt_number = data.attempt_number;
+    if (data.raw_tool_output !== undefined)
+      setValues.raw_tool_output =
+        data.raw_tool_output === null
+          ? null
+          : JSON.stringify(data.raw_tool_output);
 
     if (Object.keys(setValues).length === 0) return null;
 
@@ -538,6 +632,44 @@ export class WorkflowExecutionStorage {
       .executeTakeFirst();
 
     return row ? parseStepResult(row) : null;
+  }
+
+  /**
+   * Atomic retry claim gate. Only one worker can claim a given retry attempt.
+   * The conditional WHERE ensures idempotency: if two retry events arrive
+   * for the same attempt, only one wins.
+   */
+  async claimStepForRetry(
+    executionId: string,
+    stepId: string,
+    expectedAttempt: number,
+  ): Promise<ParsedStepResult | null> {
+    const row = await this.db
+      .updateTable("workflow_execution_step_result")
+      .set({ started_at_epoch_ms: Date.now() })
+      .where("execution_id", "=", executionId)
+      .where("step_id", "=", stepId)
+      .where("attempt_number", "=", expectedAttempt)
+      .where("started_at_epoch_ms", "is", null)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row ? parseStepResult(row) : null;
+  }
+
+  async resetStepResultForRetry(
+    executionId: string,
+    stepId: string,
+    nextAttempt: number,
+  ): Promise<void> {
+    await this.updateStepResult(executionId, stepId, {
+      completed_at_epoch_ms: null,
+      output: null,
+      error: null,
+      started_at_epoch_ms: null,
+      attempt_number: nextAttempt,
+      raw_tool_output: null,
+    });
   }
 
   /**
@@ -638,11 +770,16 @@ export class WorkflowExecutionStorage {
     executionId: string,
     prefix: string,
   ): Promise<ParsedStepResult[]> {
+    // Escape LIKE metacharacters in the prefix to prevent unintended matches
+    const escapedPrefix = prefix
+      .replaceAll("\\", "\\\\")
+      .replaceAll("%", "\\%")
+      .replaceAll("_", "\\_");
     const rows = await this.db
       .selectFrom("workflow_execution_step_result")
       .selectAll()
       .where("execution_id", "=", executionId)
-      .where("step_id", "like", `${prefix}%`)
+      .where("step_id", "like", `${escapedPrefix}%`)
       .orderBy("step_id")
       .execute();
 

@@ -20,6 +20,11 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshContext } from "../core/mesh-context";
 import type { ConnectionEntity } from "../tools/connection/schema";
+import {
+  assertCircuitClosed,
+  recordFailure,
+  recordSuccess,
+} from "./circuit-breaker";
 import { clientFromConnection } from "./client";
 import { withStreamingSupport } from "./decorators/with-streaming-support";
 import { fetchWithCache, type McpListCache } from "./mcp-list-cache";
@@ -50,9 +55,13 @@ export function createLazyClient(
   let realClientPromise: Promise<Client> | null = null;
 
   function getRealClient(): Promise<Client> {
+    // Fast-fail if the circuit breaker is open for this connection
+    assertCircuitClosed(connection.id);
+
     if (!realClientPromise) {
       realClientPromise = clientFromConnection(connection, ctx, superUser)
         .then((client) => {
+          recordSuccess(connection.id);
           // Apply streaming support for HTTP connections so callStreamableTool
           // can stream responses via direct fetch instead of MCP transport
           if (
@@ -76,6 +85,7 @@ export function createLazyClient(
           // Clear cached promise so transient failures don't permanently
           // break the client — next call will retry the connection.
           realClientPromise = null;
+          recordFailure(connection.id);
           throw err;
         });
     }
@@ -117,6 +127,7 @@ export function createLazyClient(
           return extractData(res);
         },
         cache,
+        (p) => ctx.pendingRevalidations.push(p),
       );
 
       return buildCachedResult(result ?? []);

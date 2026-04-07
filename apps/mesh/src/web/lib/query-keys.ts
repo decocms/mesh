@@ -21,10 +21,12 @@ export const KEYS = {
     locator: string,
     ownerFilter?: "me" | "everyone",
     userId?: string | null,
+    virtualMcpId?: string,
   ): unknown[] => {
     const key: unknown[] = ["tasks", locator];
     if (ownerFilter !== undefined) key.push(ownerFilter);
     if (ownerFilter === "me") key.push(userId ?? null);
+    if (virtualMcpId) key.push(virtualMcpId);
     return key;
   },
   messages: (locator: string) => ["messages", locator] as const,
@@ -156,27 +158,16 @@ export const KEYS = {
   }) => ["monitoring", "logs", filters] as const,
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
+  monitoringLogDetail: (logId: string) =>
+    ["monitoring", "log-detail", logId] as const,
 
-  // Monitoring dashboards
-  monitoringDashboards: (locator: ProjectLocator) =>
-    ["monitoring", "dashboards", locator] as const,
-  monitoringDashboardDetails: (locator: ProjectLocator, dashboardId: string) =>
-    ["monitoring", "dashboard", locator, dashboardId] as const,
-  monitoringDashboardQuery: (
-    locator: ProjectLocator,
-    dashboardId: string,
-    startDate: string,
-    endDate: string,
-    propertyFilters?: string,
-  ) =>
-    [
-      "monitoringDashboardQuery",
-      locator,
-      dashboardId,
-      startDate,
-      endDate,
-      propertyFilters ?? "",
-    ] as const,
+  // Thread queries (scoped by locator)
+  threadsInfinite: (locator: string, paramsKey: string) =>
+    ["threads", "list-infinite", locator, paramsKey] as const,
+  threadMessages: (locator: string, threadId: string) =>
+    ["threads", "messages", locator, threadId] as const,
+  threadModelLogs: (locator: string, dateKey: string) =>
+    ["threads", "model-logs", locator, dateKey] as const,
 
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
@@ -220,9 +211,11 @@ export const KEYS = {
   memberTags: (locator: string, memberId: string) =>
     [locator, "member-tags", memberId] as const,
 
-  // Automations (scoped by organization)
-  automations: (organizationId: string) =>
+  // Automations (scoped by organization, optionally by project)
+  automationsAll: (organizationId: string) =>
     ["automations", organizationId] as const,
+  automations: (organizationId: string, virtualMcpId?: string | null) =>
+    ["automations", organizationId, virtualMcpId ?? null] as const,
   automation: (organizationId: string, id: string) =>
     ["automation", organizationId, id] as const,
   automationRuns: (
@@ -260,22 +253,40 @@ export const KEYS = {
     ["project-connections", projectId, "details", connectionIds] as const,
 
   // AI providers (static registry — staleTime: Infinity recommended)
-  aiProviders: (locator: string) => ["ai-providers", locator] as const,
+  aiProviders: (orgId: string) => ["ai-providers", orgId] as const,
 
   // AI provider models (scoped by keyId)
-  aiProviderModels: (locator: string, keyId: string) =>
-    ["ai-provider-models", locator, keyId] as const,
+  aiProviderModels: (orgId: string, keyId: string) =>
+    ["ai-provider-models", orgId, keyId] as const,
 
-  // AI provider stored keys (scoped by locator)
-  aiProviderKeys: (locator: string) => ["ai-provider-keys", locator] as const,
+  // AI provider stored keys (scoped by org)
+  aiProviderKeys: (orgId: string) => ["ai-provider-keys", orgId] as const,
 
-  // AI provider credits balance (scoped by locator + keyId)
-  aiProviderCredits: (locator: string, keyId: string) =>
-    ["ai-provider-credits", locator, keyId] as const,
+  // AI provider credits balance (scoped by org + keyId)
+  aiProviderCredits: (orgId: string, keyId: string) =>
+    ["ai-provider-credits", orgId, keyId] as const,
 
   // Organization SSO
   orgSsoConfig: (organizationId: string) =>
     ["org-sso-config", organizationId] as const,
   orgSsoStatus: (organizationId: string) =>
     ["org-sso-status", organizationId] as const,
+
+  // Registry config (scoped by organization)
+  registryConfig: (organizationId: string) =>
+    ["registry-config", organizationId] as const,
+
+  // Store discovery (per-registry infinite query)
+  storeDiscovery: (orgId: string, registryId: string) =>
+    ["store-discovery", orgId, registryId] as const,
+
+  // Prompt → connection map (scoped by org + connections)
+  promptConnectionMap: (orgId: string, connectionIds: string[]) =>
+    ["prompt-connection-map", orgId, ...connectionIds] as const,
+
+  // Deco profile (scoped by user email)
+  decoProfile: (email: string | undefined) => ["deco-profile", email] as const,
+
+  // Deco sites (scoped by user email)
+  decoSites: (email: string | undefined) => ["deco-sites", email] as const,
 } as const;

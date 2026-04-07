@@ -32,7 +32,7 @@ type RawConnectionRow = {
   description: string | null;
   icon: string | null;
   status: "active" | "inactive" | "error";
-  subtype: "agent" | "project" | null;
+  pinned: boolean;
   created_at: Date | string;
   updated_at: Date | string;
   created_by: string;
@@ -76,7 +76,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
         app_name: null,
         app_id: null,
         connection_type: "VIRTUAL",
-        subtype: data.subtype ?? "agent",
+        pinned: data.pinned ?? false,
         connection_url: `virtual://${id}`,
         connection_token: null,
         connection_headers: null,
@@ -145,7 +145,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       // Return Decopilot agent with connections populated
       return {
         ...getWellKnownDecopilotVirtualMCP(resolvedOrgId),
-        subtype: null,
+        pinned: false,
         connections: connections.map((c) => ({
           connection_id: c.id,
           selected_tools: null, // null = all tools
@@ -190,7 +190,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
   async list(
     organizationId: string,
-    subtype?: "agent" | "project",
+    options?: { pinnedOnly?: boolean },
   ): Promise<VirtualMCPEntity[]> {
     let query = this.db
       .selectFrom("connections")
@@ -198,8 +198,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       .where("organization_id", "=", organizationId)
       .where("connection_type", "=", "VIRTUAL");
 
-    if (subtype) {
-      query = query.where("subtype", "=", subtype);
+    if (options?.pinnedOnly) {
+      query = query.where("pinned", "=", true);
     }
 
     const rows = await query.execute();
@@ -315,8 +315,8 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
     if (data.status !== undefined) {
       updateData.status = data.status;
     }
-    if (data.subtype !== undefined) {
-      updateData.subtype = data.subtype;
+    if (data.pinned !== undefined) {
+      updateData.pinned = data.pinned;
     }
     if (data.metadata !== undefined) {
       updateData.metadata = data.metadata
@@ -334,6 +334,17 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
 
     // Update aggregations if provided
     if (data.connections !== undefined) {
+      // Collect current direct connection IDs before removing them
+      const currentAggs = await this.db
+        .selectFrom("connection_aggregations")
+        .select("child_connection_id")
+        .where("parent_connection_id", "=", id)
+        .where("dependency_mode", "=", "direct")
+        .execute();
+      const previousIds = new Set(
+        currentAggs.map((a) => a.child_connection_id),
+      );
+
       // Only delete 'direct' dependencies - preserve 'indirect' ones from virtual tools
       await this.db
         .deleteFrom("connection_aggregations")
@@ -364,6 +375,14 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
           )
           .execute();
       }
+
+      // Clean up pinned views for removed connections
+      const newIds = new Set(data.connections.map((c) => c.connection_id));
+      for (const prevId of previousIds) {
+        if (!newIds.has(prevId)) {
+          await this.cleanOrphanedPinnedViews([id], prevId);
+        }
+      }
     }
 
     const virtualMcp = await this.findById(id);
@@ -390,10 +409,77 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
   }
 
   async removeConnectionReferences(connectionId: string): Promise<void> {
+    // Find all virtual MCPs that reference this connection
+    const parentRows = await this.db
+      .selectFrom("connection_aggregations")
+      .select("parent_connection_id")
+      .where("child_connection_id", "=", connectionId)
+      .execute();
+
+    // Remove aggregation rows
     await this.db
       .deleteFrom("connection_aggregations")
       .where("child_connection_id", "=", connectionId)
       .execute();
+
+    // Clean up pinned views referencing this connection
+    await this.cleanOrphanedPinnedViews(
+      parentRows.map((r) => r.parent_connection_id),
+      connectionId,
+    );
+  }
+
+  /**
+   * Remove pinned views that reference a specific connection from the given virtual MCPs.
+   */
+  private async cleanOrphanedPinnedViews(
+    virtualMcpIds: string[],
+    removedConnectionId: string,
+  ): Promise<void> {
+    for (const parentId of virtualMcpIds) {
+      const row = await this.db
+        .selectFrom("connections")
+        .select("metadata")
+        .where("id", "=", parentId)
+        .executeTakeFirst();
+
+      if (!row?.metadata) continue;
+
+      let metadata: Record<string, unknown>;
+      try {
+        metadata =
+          typeof row.metadata === "string"
+            ? JSON.parse(row.metadata)
+            : (row.metadata as Record<string, unknown>);
+      } catch {
+        continue;
+      }
+      const pinnedViews = (metadata?.ui as Record<string, unknown>)
+        ?.pinnedViews;
+      if (!Array.isArray(pinnedViews)) continue;
+
+      const filtered = pinnedViews.filter(
+        (pv: { connectionId: string }) =>
+          pv.connectionId !== removedConnectionId,
+      );
+
+      if (filtered.length === pinnedViews.length) continue;
+
+      const ui = (metadata.ui as Record<string, unknown>) ?? {};
+      const updatedMetadata = {
+        ...metadata,
+        ui: {
+          ...ui,
+          pinnedViews: filtered.length > 0 ? filtered : null,
+        },
+      };
+
+      await this.db
+        .updateTable("connections")
+        .set({ metadata: JSON.stringify(updatedMetadata) })
+        .where("id", "=", parentId)
+        .execute();
+    }
   }
 
   /**
@@ -426,7 +512,7 @@ export class VirtualMCPStorage implements VirtualMCPStoragePort {
       description: row.description,
       icon: row.icon,
       status,
-      subtype: row.subtype,
+      pinned: row.pinned,
       created_at: createdAt,
       updated_at: updatedAt,
       created_by: row.created_by,

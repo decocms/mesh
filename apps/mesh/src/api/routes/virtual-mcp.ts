@@ -18,6 +18,7 @@ import { createServerFromClient, getDecopilotId } from "@decocms/mesh-sdk";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import type { MeshContext } from "../../core/mesh-context";
+import { MCP_TOOL_CALL_TIMEOUT_MS } from "@/core/constants";
 import { createVirtualClientFrom } from "../../mcp-clients/virtual-mcp";
 import type { Env } from "../hono-env";
 
@@ -91,6 +92,16 @@ export async function handleVirtualMcpRequest(
       );
     }
 
+    if (
+      ctx.organization?.id &&
+      virtualMcp.organization_id !== ctx.organization.id
+    ) {
+      return c.json(
+        { error: "Forbidden: Agent does not belong to your organization" },
+        403,
+      );
+    }
+
     // Set connection context (Virtual MCPs are now connections)
     // Note: virtualMcp.id can be null for Decopilot agent, but connectionId should be set for routing
     ctx.connectionId = virtualMcp.id ?? undefined;
@@ -133,6 +144,7 @@ export async function handleVirtualMcpRequest(
         typeof virtualMcp.metadata?.instructions === "string"
           ? virtualMcp.metadata.instructions
           : undefined,
+      toolCallTimeoutMs: MCP_TOOL_CALL_TIMEOUT_MS,
     });
 
     // Create transport

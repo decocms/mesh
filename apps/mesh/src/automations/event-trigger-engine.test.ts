@@ -30,6 +30,7 @@ function makeAutomation(overrides?: Partial<Automation>): Automation {
       credentialId: "cred_1",
     }),
     temperature: 0.5,
+    virtual_mcp_id: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -105,7 +106,7 @@ function makeEngine(opts?: {
 
   const streamCoreFn: StreamCoreFn =
     opts?.streamCoreFn ??
-    mock(async () => ({ threadId: "thrd_1", stream: makeEmptyStream() }));
+    mock(async () => ({ taskId: "thrd_1", stream: makeEmptyStream() }));
 
   const factory =
     opts?.meshContextFactory ?? mock(() => Promise.resolve(makeMeshContext()));
@@ -194,7 +195,7 @@ describe("EventTriggerEngine", () => {
       let receivedInput: any;
       const streamCoreFn: StreamCoreFn = mock(async (input) => {
         receivedInput = input;
-        return { threadId: "thrd_1", stream: makeEmptyStream() };
+        return { taskId: "thrd_1", stream: makeEmptyStream() };
       });
 
       const { engine } = makeEngine({ storage, streamCoreFn });
@@ -228,7 +229,7 @@ describe("EventTriggerEngine", () => {
       let receivedInput: any;
       const streamCoreFn: StreamCoreFn = mock(async (input) => {
         receivedInput = input;
-        return { threadId: "thrd_1", stream: makeEmptyStream() };
+        return { taskId: "thrd_1", stream: makeEmptyStream() };
       });
 
       const { engine } = makeEngine({ storage, streamCoreFn });

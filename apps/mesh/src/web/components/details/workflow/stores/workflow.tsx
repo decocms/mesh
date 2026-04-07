@@ -21,6 +21,9 @@ import { useCollectionWorkflow } from "..";
 type CurrentStepTab = "input" | "output" | "action" | "executions";
 export type StepType = "tool" | "code";
 
+/** Sentinel value for selecting the workflow-level input schema view */
+export const WORKFLOW_INPUT_VIEW = "__workflow_input__";
+
 interface State {
   originalWorkflow: Workflow;
   isAddingStep?: boolean | null;
@@ -55,6 +58,8 @@ interface Actions {
   cancelAddingStep: () => void;
   /** Add new tool step */
   addToolStep: () => void;
+  /** Add new code step (blank, no parent selection) */
+  addCodeStep: () => void;
   /** Toggle selection of a parent step (for code steps multi-selection) */
   toggleParentStepSelection: (stepName: string) => void;
   /** Confirm adding a code step with selected parent steps */
@@ -86,7 +91,7 @@ function generateUniqueName(baseName: string, existingSteps: Step[]): string {
  * If no Input interface exists, prepends the new one.
  * Handles nested braces in the interface body.
  */
-function replaceInputInterface(
+export function replaceInputInterface(
   code: string,
   newInputInterface: string,
 ): string {
@@ -375,6 +380,32 @@ const createWorkflowStore = (initialState: State) => {
                 currentStepName: newName,
               };
             }),
+          addCodeStep: () =>
+            set((state) => {
+              const newStep = createDefaultStep(
+                "code",
+                Number((Math.random() * 1000000).toFixed(0)),
+              );
+
+              const newName = generateUniqueName(
+                newStep.name,
+                state.workflow.steps,
+              );
+
+              return {
+                ...state,
+                isAddingStep: false,
+                addingStepType: null,
+                workflow: {
+                  ...state.workflow,
+                  steps: [
+                    ...state.workflow.steps,
+                    { ...newStep, name: newName },
+                  ],
+                },
+                currentStepName: newName,
+              };
+            }),
           setWorkflow: (workflow) =>
             set((state) => ({
               ...state,
@@ -482,9 +513,16 @@ export function useCurrentStepName() {
 export function useCurrentStep() {
   const currentStepName = useCurrentStepName();
   const steps = useWorkflowSteps();
+  if (currentStepName === WORKFLOW_INPUT_VIEW) return undefined;
   const exact = steps.find((step) => step.name === currentStepName);
   if (exact) return exact;
   return steps[0];
+}
+
+export function useIsInputSchemaSelected() {
+  return useWorkflowStore(
+    (state) => state.currentStepName === WORKFLOW_INPUT_VIEW,
+  );
 }
 
 export function useWorkflowSteps() {

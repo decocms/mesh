@@ -1,17 +1,14 @@
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open";
-import { Button } from "@deco/ui/components/button.tsx";
 import { SidebarTrigger } from "@deco/ui/components/sidebar.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
-import { MessageTextCircle02 } from "@untitledui/icons";
-import { useMatch, useRouterState } from "@tanstack/react-router";
 import type { PropsWithChildren, ReactElement, ReactNode } from "react";
-import { Children, isValidElement } from "react";
+import { Children, createContext, isValidElement, useContext } from "react";
+
+// Context for providing default className to Page.Content from a parent layout
+const PageContentDefaultClassNameContext = createContext<string | undefined>(
+  undefined,
+);
+export const PageContentClassNameProvider =
+  PageContentDefaultClassNameContext.Provider;
 
 // Helper to find child by type for slot-based composition
 function findChild<T>(
@@ -25,39 +22,6 @@ function findChild<T>(
     }
   }
   return null;
-}
-
-function ChatToggleButton() {
-  const [isChatOpen, setChatOpen] = useDecoChatOpen();
-  const isMobile = useIsMobile();
-  const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
-  const org = orgMatch?.params.org;
-  const { location } = useRouterState();
-  const isHomeRoute =
-    location.pathname === `/${org}` || location.pathname === `/${org}/`;
-
-  // On mobile, the FAB handles chat toggle instead
-  if (isHomeRoute || isMobile) return null;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          className={cn(
-            "h-7 px-2 gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground",
-            isChatOpen && "bg-accent text-foreground",
-          )}
-          onClick={() => setChatOpen((prev) => !prev)}
-          aria-label="Toggle Decopilot"
-        >
-          <MessageTextCircle02 size={14} className="text-inherit" />
-          Chat
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">Toggle Decopilot</TooltipContent>
-    </Tooltip>
-  );
 }
 
 // Root page container
@@ -100,14 +64,7 @@ function PageHeader({
         )}
         {left}
       </div>
-      <div className="flex items-center">
-        {right}
-        {!hideSidebarTrigger && (
-          <div className="flex items-center pl-2 ml-1">
-            <ChatToggleButton />
-          </div>
-        )}
-      </div>
+      <div className="flex items-center">{right}</div>
     </div>
   );
 }
@@ -151,8 +108,49 @@ function PageContent({
   children,
   className,
 }: PropsWithChildren<{ className?: string }>) {
+  const defaultClassName = useContext(PageContentDefaultClassNameContext);
   return (
-    <div className={cn("flex-1 overflow-auto", className)}>{children}</div>
+    <div className={cn("flex-1 overflow-auto", defaultClassName, className)}>
+      {children}
+    </div>
+  );
+}
+
+// Page title — prominent heading for the page
+function PageTitle({
+  children,
+  actions,
+  className,
+}: PropsWithChildren<{ actions?: ReactNode; className?: string }>) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3",
+        className,
+      )}
+    >
+      <h1 className="text-lg font-medium">{children}</h1>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+// Settings page body — centers content with max-width and consistent padding
+function PageBody({
+  children,
+  className,
+  maxWidth = "max-w-[1200px]",
+}: PropsWithChildren<{ className?: string; maxWidth?: string }>) {
+  return (
+    <div
+      className={cn(
+        "mx-auto w-full px-4 pt-8 pb-6 md:px-10 md:pt-12 md:pb-10",
+        maxWidth,
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -163,4 +161,6 @@ export const Page = Object.assign(PageRoot, {
     Right: PageHeaderRight,
   }),
   Content: PageContent,
+  Title: PageTitle,
+  Body: PageBody,
 });

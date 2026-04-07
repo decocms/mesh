@@ -186,9 +186,9 @@ export async function executeCode(
   code: string,
   input: unknown,
   stepName: string,
+  timeoutMs = 10_000,
 ): Promise<StepResult> {
   const startedAt = Date.now();
-  const timeoutMs = 10_000;
   let sandbox: { ctx: QuickJSContext; dispose: () => void } | undefined;
 
   try {

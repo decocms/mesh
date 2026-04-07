@@ -3,6 +3,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -11,10 +12,34 @@ import {
 } from "@deco/ui/components/sidebar.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { LinkExternal01 } from "@untitledui/icons";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import type { NavigationSidebarItem, SidebarSection } from "./types";
 import { SidebarCollapsibleGroup } from "./sidebar-group";
+import { DEFAULT_LOGO, usePublicConfig } from "@/web/hooks/use-public-config";
+
+function SidebarLogoHeader() {
+  const config = usePublicConfig();
+  const logo = config.logo ?? DEFAULT_LOGO;
+  const lightSrc = typeof logo === "string" ? logo : logo.light;
+  const darkSrc = typeof logo === "string" ? logo : logo.dark;
+
+  return (
+    <SidebarHeader className="flex items-center justify-center shrink-0 px-2 pb-0">
+      <div className="flex w-full aspect-square items-center justify-center">
+        <img
+          src={lightSrc}
+          alt="Logo"
+          className="size-6 object-contain dark:hidden"
+        />
+        <img
+          src={darkSrc}
+          alt="Logo"
+          className="size-6 object-contain hidden dark:block"
+        />
+      </div>
+    </SidebarHeader>
+  );
+}
 
 interface NavigationSidebarProps {
   sections: SidebarSection[];
@@ -22,7 +47,6 @@ interface NavigationSidebarProps {
   footer?: ReactNode;
   additionalContent?: ReactNode;
   variant?: "sidebar" | "floating" | "inset";
-  collapsible?: "offcanvas" | "icon" | "none";
   /** Additional classes for the content area */
   contentClassName?: string;
 }
@@ -36,23 +60,14 @@ function SidebarNavigationItem({ item }: { item: NavigationSidebarItem }) {
   };
 
   return (
-    <SidebarMenuItem key={item.key}>
+    <SidebarMenuItem key={item.key} className={cn(item.isActive && "z-10")}>
       <SidebarMenuButton
         onClick={handleClick}
         isActive={item.isActive}
         tooltip={item.label}
-        className={cn(item.isExternal && "group/external")}
+        className="bg-muted/75"
       >
-        <span className="[&>svg]:size-4">{item.icon}</span>
-        <span className={cn("truncate group-data-[collapsible=icon]:hidden")}>
-          {item.label}
-        </span>
-        {item.isExternal && (
-          <LinkExternal01
-            size={12}
-            className="ml-auto mr-1 shrink-0 opacity-0 group-hover/external:opacity-60 transition-opacity group-data-[collapsible=icon]:hidden"
-          />
-        )}
+        <span className="[&>svg]:size-8">{item.icon}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
@@ -79,7 +94,7 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
       return (
         <SidebarGroup className="pt-0 pr-0 pb-0 pl-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
+            <SidebarMenu className="gap-1.5">
               {section.items.map((item) => (
                 <SidebarNavigationItem key={item.key} item={item} />
               ))}
@@ -94,21 +109,23 @@ function SidebarSectionRenderer({ section }: { section: SidebarSection }) {
  * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
  * Accepts sections (items, groups, dividers) and optional footer/additional content.
  */
-export function NavigationSidebar({
+function NavigationSidebarInner({
   sections,
   header,
   footer,
   additionalContent,
   variant = "sidebar",
-  collapsible = "icon",
   contentClassName,
 }: NavigationSidebarProps) {
   return (
-    <Sidebar variant={variant} collapsible={collapsible}>
+    <Sidebar variant={variant}>
+      <Suspense fallback={<div className="h-10 shrink-0" />}>
+        <SidebarLogoHeader />
+      </Suspense>
       {header}
       <SidebarContent
         className={cn(
-          "flex flex-col flex-1 overflow-x-hidden mt-1 px-3.5 pb-2 group-data-[collapsible=icon]:px-2",
+          "flex flex-col flex-1 overflow-x-hidden px-2 py-2 gap-0",
           contentClassName,
         )}
       >
@@ -120,6 +137,14 @@ export function NavigationSidebar({
       {footer}
     </Sidebar>
   );
+}
+
+/**
+ * Generic navigation sidebar that can be used for any context (projects, orgs, etc.)
+ * Accepts sections (items, groups, dividers) and optional footer/additional content.
+ */
+export function NavigationSidebar(props: NavigationSidebarProps) {
+  return <NavigationSidebarInner {...props} />;
 }
 
 NavigationSidebar.Skeleton = function NavigationSidebarSkeleton() {

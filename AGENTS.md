@@ -48,6 +48,19 @@ bun run fmt
 bun run fmt:check
 ```
 
+### Resilience Tests (Docker required)
+```bash
+# Run full resilience suite (builds containers, runs tests, tears down)
+./tests/resilience/run.sh
+
+# Or step by step:
+docker compose -f tests/resilience/docker-compose.yml up -d --build --wait
+bun test tests/resilience/scenarios/ --serial --timeout 900000
+docker compose -f tests/resilience/docker-compose.yml down -v
+```
+
+Resilience tests use Docker Compose with Toxiproxy to simulate infrastructure failures (DB outages, NATS disconnections, high-latency MCP servers). See `tests/resilience/` for scenario files and configuration.
+
 **IMPORTANT**: Always run `bun run fmt` after making code changes to ensure consistent formatting. A lefthook pre-commit hook is configured to run this automatically. Install with `npx lefthook install`.
 
 ### Database
@@ -58,6 +71,29 @@ bun run --cwd=apps/mesh migrate
 # Run Better Auth schema migrations
 bun run --cwd=apps/mesh better-auth:migrate
 ```
+
+#### Querying local postgres during development
+The dev server uses embedded postgres on a **dynamic port**. To query it while `bun run dev` is running:
+
+1. Find the port:
+```bash
+ps aux | grep "postgres -D" | grep -v grep
+# Look for -p <PORT> at the end of the command
+```
+
+2. Run queries via a bun inline script (uses the `pg` package from apps/mesh):
+```bash
+cat << 'EOF' | bun run --cwd apps/mesh -
+import pg from "pg";
+const client = new pg.Client("postgresql://postgres:postgres@localhost:<PORT>/postgres");
+await client.connect();
+const { rows } = await client.query("SELECT * FROM <table> LIMIT 5");
+console.log(JSON.stringify(rows, null, 2));
+await client.end();
+EOF
+```
+
+Replace `<PORT>` with the port found in step 1. The `--cwd apps/mesh` is required so bun resolves the `pg` dependency from the mesh workspace.
 
 ### Build & Deploy
 ```bash

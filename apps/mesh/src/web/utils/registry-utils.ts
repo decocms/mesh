@@ -3,97 +3,52 @@
  * Centralizes duplicated logic across store-related files
  */
 
-import { createMCPClient } from "@decocms/mesh-sdk";
+import { createMCPClient, WellKnownOrgMCPId } from "@decocms/mesh-sdk";
 
 /**
- * Find the LIST tool from a tools array
- * Returns the tool name if found, empty string otherwise
+ * Check if a connection ID belongs to a well-known (non-private) registry.
  */
-export function findListToolName(
-  tools?: Array<{ name: string }> | null,
-): string {
-  if (!tools) return "";
-  const preferred = tools.find(
-    (tool) => tool.name === "COLLECTION_REGISTRY_APP_LIST",
+function isWellKnownRegistry(connectionId: string, orgId: string): boolean {
+  return (
+    connectionId === WellKnownOrgMCPId.REGISTRY(orgId) ||
+    connectionId === WellKnownOrgMCPId.COMMUNITY_REGISTRY(orgId)
   );
-  if (preferred) return preferred.name;
-
-  const privateRegistryList = tools.find(
-    (tool) => tool.name === "REGISTRY_ITEM_LIST",
-  );
-  if (privateRegistryList) return privateRegistryList.name;
-
-  const registryList = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith("_LIST"),
-  );
-  if (registryList) return registryList.name;
-  return "";
 }
 
 /**
- * Find the FILTERS tool from a tools array
- * Returns the tool name if found, empty string otherwise
- * Note: Not all registries support filters
+ * Infer the LIST tool name for a registry based on its connection ID.
+ * Well-known registries (Deco Store, Community) use COLLECTION_REGISTRY_APP_LIST.
+ * Private registries use REGISTRY_ITEM_LIST.
  */
-export function findFiltersToolName(
-  tools?: Array<{ name: string }> | null,
+export function inferRegistryListToolName(
+  connectionId: string,
+  orgId: string,
 ): string {
-  if (!tools) return "";
-  const preferred = tools.find(
-    (tool) => tool.name === "COLLECTION_REGISTRY_APP_FILTERS",
-  );
-  if (preferred) return preferred.name;
-
-  const privateRegistryFilters = tools.find(
-    (tool) => tool.name === "REGISTRY_ITEM_FILTERS",
-  );
-  if (privateRegistryFilters) return privateRegistryFilters.name;
-
-  const filtersTool = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith("_FILTERS"),
-  );
-  if (filtersTool) return filtersTool.name;
-  return "";
+  if (isWellKnownRegistry(connectionId, orgId)) {
+    return "COLLECTION_REGISTRY_APP_LIST";
+  }
+  return "REGISTRY_ITEM_LIST";
 }
 
 /**
- * Find a REGISTRY_APP tool by suffix (e.g., "_GET", "_VERSIONS")
+ * Infer a registry tool name by suffix based on the connection ID.
+ * Well-known registries use COLLECTION_REGISTRY_APP_{suffix}.
+ * Private registries use REGISTRY_ITEM_{suffix}.
  */
-export function findRegistryToolBySuffix(
-  tools: Array<{ name: string }> | null | undefined,
+export function inferRegistryToolBySuffix(
+  connectionId: string,
+  orgId: string,
   suffix: "_GET" | "_VERSIONS" | "_SEARCH",
 ): string {
-  if (!tools) return "";
-
-  const preferred = tools.find(
-    (tool) => tool.name === `COLLECTION_REGISTRY_APP${suffix}`,
-  );
-  if (preferred) return preferred.name;
-
-  const privateRegistryToolNameBySuffix: Record<
-    "_GET" | "_VERSIONS" | "_SEARCH",
-    string
-  > = {
+  if (isWellKnownRegistry(connectionId, orgId)) {
+    return `COLLECTION_REGISTRY_APP${suffix}`;
+  }
+  const suffixMap: Record<string, string> = {
     _GET: "REGISTRY_ITEM_GET",
     _VERSIONS: "REGISTRY_ITEM_VERSIONS",
     _SEARCH: "REGISTRY_ITEM_SEARCH",
   };
-  const privateRegistryTool = tools.find(
-    (tool) => tool.name === privateRegistryToolNameBySuffix[suffix],
-  );
-  if (privateRegistryTool) return privateRegistryTool.name;
-
-  const registryTool = tools.find(
-    (tool) =>
-      tool.name.startsWith("COLLECTION_REGISTRY_APP_") &&
-      tool.name.endsWith(suffix),
-  );
-  if (registryTool) return registryTool.name;
-  return "";
+  return suffixMap[suffix] ?? "";
 }
 
 /**

@@ -20,15 +20,14 @@ export interface Task {
   created_by?: string;
   /** Execution status from server — includes virtual "expired" for stale in_progress tasks */
   status?: ThreadDisplayStatus;
+  /** Virtual MCP (agent) this task was initiated with */
+  virtual_mcp_id?: string;
 }
 
 export type { ChatMessage } from "../types.ts";
 
-export type TasksInfiniteQueryData = {
-  pages: Array<{
-    items: Task[];
-    hasMore: boolean;
-    totalCount?: number;
-  }>;
-  pageParams: number[];
+export type TasksQueryData = {
+  items: Task[];
+  hasMore: boolean;
+  totalCount?: number;
 };

@@ -85,12 +85,13 @@ describe("Connection Tools", () => {
         users: null as never,
         tags: null as never,
         virtualMcpPluginConfigs: null as never,
-        monitoringDashboards: null as never,
         aiProviderKeys: null as never,
         oauthPkceStates: null as never,
         automations: null as never,
         orgSsoConfig: null as never,
         orgSsoSessions: null as never,
+        triggerCallbackTokens: null as never,
+        registry: null as never,
       },
       vault,
       authInstance: null as never,
@@ -137,6 +138,7 @@ describe("Connection Tools", () => {
       aiProviders: null as never,
       createMCPProxy: vi.fn().mockResolvedValue({}),
       getOrCreateClient: vi.fn().mockResolvedValue({}),
+      pendingRevalidations: [],
     };
   });
 

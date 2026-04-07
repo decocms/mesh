@@ -12,8 +12,16 @@ export async function callUpdateTaskTool(
   data: ThreadUpdateData,
 ): Promise<Task | null> {
   if (!client) {
+    console.error("[chat] callUpdateTaskTool: MCP client is null", {
+      taskId,
+      data,
+    });
     throw new Error("MCP client is not available");
   }
+  console.log("[chat] callUpdateTaskTool: calling COLLECTION_THREADS_UPDATE", {
+    taskId,
+    data,
+  });
   const result = (await client.callTool({
     name: "COLLECTION_THREADS_UPDATE",
     arguments: {
@@ -23,28 +31,25 @@ export async function callUpdateTaskTool(
   })) as { structuredContent?: unknown };
   const payload = (result.structuredContent ??
     result) as CollectionUpdateOutput<Task>;
+  console.log("[chat] callUpdateTaskTool: result", {
+    taskId,
+    hasItem: !!payload.item,
+    isError: (result as { isError?: boolean }).isError,
+  });
   return payload.item;
 }
 
 /**
  * Build an optimistic task object for immediate cache insertion
  */
-export function buildOptimisticTask(id: string): Task {
+export function buildOptimisticTask(id: string, virtualMcpId?: string): Task {
   const now = new Date().toISOString();
   return {
     id,
-    title: "New chat", // Empty title until first message generates one
+    title: "New chat",
+    status: "completed",
     created_at: now,
     updated_at: now,
+    virtual_mcp_id: virtualMcpId,
   };
-}
-
-/**
- * Find the next available task when hiding the current one
- */
-export function findNextAvailableTask(
-  tasks: Task[],
-  currentTaskId: string,
-): Task | null {
-  return tasks.find((task) => task.id !== currentTaskId) ?? null;
 }

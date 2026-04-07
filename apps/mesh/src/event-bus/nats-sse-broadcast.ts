@@ -25,7 +25,7 @@ interface NatsSSEMessage {
 }
 
 export interface NatsSSEBroadcastOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsSSEBroadcast implements SSEBroadcastStrategy {
@@ -36,11 +36,16 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
 
   constructor(private readonly options: NatsSSEBroadcastOptions) {}
 
-  async start(localEmit: LocalEmitFn): Promise<void> {
-    this.localEmit = localEmit;
+  async start(localEmit?: LocalEmitFn): Promise<void> {
+    if (localEmit) this.localEmit = localEmit;
 
     if (this.sub) return;
-    this.sub = this.options.getConnection().subscribe(SUBJECT);
+    if (!this.localEmit) return;
+
+    const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — local SSE still works
+
+    this.sub = nc.subscribe(SUBJECT);
 
     const decoder = new TextDecoder();
 
@@ -77,9 +82,9 @@ export class NatsSSEBroadcast implements SSEBroadcastStrategy {
     };
 
     try {
-      this.options
-        .getConnection()
-        .publish(SUBJECT, this.encoder.encode(JSON.stringify(payload)));
+      const nc = this.options.getConnection();
+      if (!nc) return; // NATS not ready — local broadcast only
+      nc.publish(SUBJECT, this.encoder.encode(JSON.stringify(payload)));
     } catch (err) {
       console.warn("[NatsSSEBroadcast] Publish failed (non-critical):", err);
     }

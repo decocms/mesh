@@ -30,12 +30,7 @@ export function useWorkflowExecutions() {
       client,
       toolName: "COLLECTION_WORKFLOW_EXECUTION_LIST",
       toolArguments: {
-        where: {
-          field: ["workflow"],
-          operator: "eq",
-          value: workflow.id,
-        },
-        orderBy: [{ field: ["created_at"], direction: "desc" }],
+        workflow_collection_id: workflow.id,
         limit: 100,
       },
       enabled: !!workflow.id,

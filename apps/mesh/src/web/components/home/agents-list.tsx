@@ -5,11 +5,8 @@
  * Only shows when the organization has agents.
  */
 
-import { useChatStable } from "@/web/components/chat/context";
-import {
-  VirtualMCPPopoverContent,
-  type VirtualMCPInfo,
-} from "@/web/components/chat/select-virtual-mcp";
+import { useChatPrefs } from "@/web/components/chat/context";
+import { VirtualMCPPopoverContent } from "@/web/components/chat/select-virtual-mcp";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   Popover,
@@ -18,14 +15,30 @@ import {
 } from "@deco/ui/components/popover.tsx";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { isDecopilot, useProjectContext } from "@decocms/mesh-sdk";
-import { useAgents } from "@/web/hooks/use-agents";
-import { readRecentAgentIds } from "@/web/components/chat/store/local-storage";
+import {
+  isDecopilot,
+  WELL_KNOWN_AGENT_TEMPLATES,
+  useProjectContext,
+  useVirtualMCPs,
+} from "@decocms/mesh-sdk";
+import type { ProjectLocator } from "@decocms/mesh-sdk";
+
+function readRecentAgentIds(locator: ProjectLocator): string[] {
+  try {
+    const raw = localStorage.getItem(`mesh:chat:recent-agents:${locator}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Plus, Users03 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
+import { Suspense, useRef, useState } from "react";
 
 /**
  * Individual agent preview component
@@ -41,13 +54,17 @@ function AgentPreview({
   };
   onSpecialClick?: () => void;
 }) {
-  const { setVirtualMcpId } = useChatStable();
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
 
   const handleClick = () => {
     if (onSpecialClick) {
       onSpecialClick();
     } else {
-      setVirtualMcpId(agent.id);
+      navigate({
+        to: "/$org/$virtualMcpId",
+        params: { org: org.slug, virtualMcpId: agent.id },
+      });
     }
   };
 
@@ -59,7 +76,7 @@ function AgentPreview({
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px]",
+        "w-[88px] shrink-0",
         "group",
       )}
       aria-label={`Select agent ${agent.title}`}
@@ -82,27 +99,15 @@ function AgentPreview({
  * See All button component
  */
 function SeeAllButton({
-  virtualMcps,
   selectedVirtualMcpId,
   onVirtualMcpChange,
 }: {
-  virtualMcps: VirtualMCPInfo[];
   selectedVirtualMcpId?: string | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
-
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
 
   const handleVirtualMcpChange = (virtualMcpId: string | null) => {
     onVirtualMcpChange(virtualMcpId);
@@ -118,7 +123,7 @@ function SeeAllButton({
             "flex flex-col items-center gap-3 p-2 rounded-lg",
             "transition-colors",
             "cursor-pointer",
-            "w-[88px]",
+            "w-[88px] shrink-0",
             "group",
           )}
           aria-label="See all agents"
@@ -136,9 +141,14 @@ function SeeAllButton({
         align="start"
         side="top"
         sideOffset={8}
+        onOpenAutoFocus={(e) => {
+          if (!isMobile) {
+            e.preventDefault();
+            searchInputRef.current?.focus();
+          }
+        }}
       >
         <VirtualMCPPopoverContent
-          virtualMcps={virtualMcps}
           selectedVirtualMcpId={selectedVirtualMcpId}
           onVirtualMcpChange={handleVirtualMcpChange}
           searchInputRef={searchInputRef}
@@ -147,15 +157,6 @@ function SeeAllButton({
     </Popover>
   );
 }
-
-/**
- * Hardcoded Site Editor agent shown first in the agents list for onboarding.
- */
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
 
 /**
  * Agents list content component
@@ -174,7 +175,7 @@ function CreateAgentButton() {
         "flex flex-col items-center gap-3 p-2 rounded-lg",
         "transition-colors",
         "cursor-pointer",
-        "w-[88px]",
+        "w-[88px] shrink-0",
         "group",
         "disabled:opacity-50 disabled:cursor-not-allowed",
       )}
@@ -191,10 +192,19 @@ function CreateAgentButton() {
 }
 
 function AgentsListContent() {
-  const virtualMcps = useAgents();
-  const { selectedVirtualMcp, setVirtualMcpId } = useChatStable();
+  const virtualMcps = useVirtualMCPs();
+  const { selectedVirtualMcp, setVirtualMcpId } = useChatPrefs();
   const { locator } = useProjectContext();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const navigateToAgent = useNavigateToAgent();
+
+  const siteEditorAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-editor",
+  )!;
+  const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  )!;
 
   const recentIds = readRecentAgentIds(locator);
 
@@ -207,45 +217,56 @@ function AgentsListContent() {
     .sort((a, b) => {
       const aIdx = recentIds.indexOf(a.id);
       const bIdx = recentIds.indexOf(b.id);
-      // Both in recents: lower index = more recent
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      // Only a in recents: a comes first
       if (aIdx !== -1) return -1;
-      // Only b in recents: b comes first
       if (bIdx !== -1) return 1;
-      // Neither in recents: fall back to most recently updated
       return (
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
     })
     .slice(0, 5);
 
-  // Convert to VirtualMCPInfo format
-  const virtualMcpsInfo: VirtualMCPInfo[] = virtualMcps.map((agent) => ({
-    id: agent.id,
-    title: agent.title,
-    description: agent.description,
-    icon: agent.icon,
-  }));
+  // Check if Site Diagnostics agent already exists (search full list, not just top-5)
+  const existingDiagnostics = virtualMcps.find(
+    (a): a is typeof a & { id: string } =>
+      a.id !== null &&
+      ((a as { metadata?: { type?: string } }).metadata?.type ===
+        siteDiagnosticsAgent.id ||
+        a.title === siteDiagnosticsAgent.title),
+  );
 
   const hasAgents = agents.length > 0;
 
   return (
     <>
       <div className="w-full">
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:justify-start max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
           <AgentPreview
-            key={SITE_EDITOR_AGENT.id}
-            agent={SITE_EDITOR_AGENT}
+            key={siteEditorAgent.id}
+            agent={siteEditorAgent}
             onSpecialClick={() => setSiteEditorModalOpen(true)}
           />
-          {agents.map((agent) => (
-            <AgentPreview key={agent.id ?? "default"} agent={agent} />
-          ))}
+          <AgentPreview
+            key={siteDiagnosticsAgent.id}
+            agent={existingDiagnostics ?? siteDiagnosticsAgent}
+            onSpecialClick={
+              existingDiagnostics
+                ? () => navigateToAgent(existingDiagnostics.id)
+                : () => setDiagnosticsModalOpen(true)
+            }
+          />
+          {agents
+            .filter((a) => a.id !== existingDiagnostics?.id)
+            .map((agent) => (
+              <AgentPreview
+                key={agent.id ?? "default"}
+                agent={agent}
+                onSpecialClick={() => navigateToAgent(agent.id)}
+              />
+            ))}
           <CreateAgentButton />
           {hasAgents && (
             <SeeAllButton
-              virtualMcps={virtualMcpsInfo}
               selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
               onVirtualMcpChange={setVirtualMcpId}
             />
@@ -257,6 +278,12 @@ function AgentsListContent() {
         open={siteEditorModalOpen}
         onOpenChange={setSiteEditorModalOpen}
       />
+
+      <SiteDiagnosticsRecruitModal
+        open={diagnosticsModalOpen}
+        onOpenChange={setDiagnosticsModalOpen}
+        existingAgent={existingDiagnostics}
+      />
     </>
   );
 }
@@ -267,11 +294,11 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full">
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2 max-md:overflow-x-auto max-md:flex-nowrap max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-3 p-2 w-[88px]"
+            className="flex flex-col items-center gap-3 p-2 w-[88px] shrink-0"
           >
             <Skeleton className="size-12 rounded-xl shrink-0" />
             <Skeleton className="h-3 sm:h-4 w-full" />

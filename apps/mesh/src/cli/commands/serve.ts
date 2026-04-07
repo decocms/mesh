@@ -1,12 +1,12 @@
 /**
  * Server startup logic extracted from cli.ts.
  *
- * Resolves secrets, starts services, runs migrations, and launches the server.
- * Reports progress via the CLI store so the Ink UI can update live.
+ * Delegates environment resolution, service startup, and migrations to
+ * buildSettings(). Reports progress via the CLI store so the Ink UI can
+ * update live.
  */
-import { chmod, mkdir, writeFile } from "fs/promises";
 import { join } from "path";
-import { resolveSecrets, type SecretsFile } from "./resolve-secrets";
+import { buildSettings } from "../../settings/pipeline";
 import {
   addLogEntry,
   setEnv,
@@ -15,7 +15,8 @@ import {
   setTuiConsoleIntercepted,
   updateService,
 } from "../cli-store";
-import type { ServiceStatus } from "../header";
+import { findAvailablePort } from "../find-available-port";
+import { buildChildEnv } from "../build-child-env";
 
 export interface ServeOptions {
   port: string;
@@ -23,12 +24,68 @@ export interface ServeOptions {
   skipMigrations: boolean;
   localMode: boolean;
   noTui?: boolean;
+  numThreads?: number;
 }
 
 // Strip ANSI escape codes from a string
 function stripAnsi(str: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI codes requires matching control chars
+  // oxlint-disable-next-line no-control-regex
   return str.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/**
+ * Pipe a readable stream line-by-line into the CLI store log entries.
+ * Used to route worker process stdout/stderr through the TUI instead of
+ * writing directly to stdout (which would corrupt Ink's cursor rendering).
+ */
+function pipeToLogStore(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  function processLines() {
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const raw of lines) {
+      const stripped = stripAnsi(raw)
+        .replace(/^\[\d+\]\s*/, "")
+        .trim();
+      if (!stripped) continue;
+      addLogEntry({
+        method: "",
+        path: "",
+        status: 0,
+        duration: 0,
+        timestamp: new Date(),
+        rawLine: stripped,
+      });
+    }
+  }
+
+  (async () => {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      processLines();
+    }
+    if (buffer.trim()) {
+      const stripped = stripAnsi(buffer)
+        .replace(/^\[\d+\]\s*/, "")
+        .trim();
+      if (stripped) {
+        addLogEntry({
+          method: "",
+          path: "",
+          status: 0,
+          duration: 0,
+          timestamp: new Date(),
+          rawLine: stripped,
+        });
+      }
+    }
+  })();
 }
 
 /**
@@ -77,89 +134,79 @@ export function interceptConsoleForTui() {
 }
 
 export async function startServer(options: ServeOptions): Promise<void> {
-  const { port, home, skipMigrations, localMode, noTui } = options;
+  const port = await findAvailablePort(Number(options.port));
 
-  // Set env vars before any imports that read them
-  if (noTui) {
-    process.env.DECO_NO_TUI = "true";
-  }
-  process.env.DECOCMS_HOME = home;
-  process.env.DATA_DIR = home;
-  process.env.PORT = port;
-  process.env.DECOCMS_LOCAL_MODE = localMode ? "true" : "false";
-
-  if (localMode) {
-    process.env.NODE_ENV = "production";
-    process.env.DECOCMS_ALLOW_LOCAL_PROD = "true";
-  } else if (!process.env.NODE_ENV) {
-    process.env.NODE_ENV = "production";
-  }
-
-  // ── Secrets ──────────────────────────────────────────────────────────
-  const secretsFilePath = join(home, "secrets.json");
-  await mkdir(home, { recursive: true, mode: 0o700 });
-
-  let savedSecrets: SecretsFile = {};
-  try {
-    const file = Bun.file(secretsFilePath);
-    if (await file.exists()) {
-      savedSecrets = await file.json();
-    }
-  } catch {
-    // File doesn't exist or is invalid
-  }
-
-  const { secrets, modified: secretsModified } = resolveSecrets(savedSecrets, {
-    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+  const { settings, services } = await buildSettings({
+    port: String(port),
+    home: options.home,
+    localMode: options.localMode,
+    skipMigrations: options.skipMigrations,
+    noTui: options.noTui,
+    nodeEnv: "production",
   });
 
-  process.env.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
-  process.env.ENCRYPTION_KEY = secrets.ENCRYPTION_KEY;
-
-  if (secretsModified) {
-    try {
-      await writeFile(secretsFilePath, JSON.stringify(secrets, null, 2), {
-        mode: 0o600,
-      });
-      await chmod(secretsFilePath, 0o600);
-    } catch {
-      // Non-fatal — continue
-    }
-  }
-
-  // ── Services ─────────────────────────────────────────────────────────
-  const { ensureServices } = await import("../../services/ensure-services");
-  const services = await ensureServices(home);
-
   for (const s of services) {
-    const svc: ServiceStatus = {
-      name: s.name === "PostgreSQL" ? "Postgres" : s.name,
-      status: "ready",
-      port: s.port,
-    };
-    updateService(svc);
+    updateService({ name: s.name, status: "ready", port: s.port });
   }
-
-  // ── Migrations ───────────────────────────────────────────────────────
-  if (!skipMigrations) {
-    try {
-      const { migrateToLatest } = await import("../../database/migrate");
-      await migrateToLatest({ keepOpen: true });
-    } catch (error) {
-      console.error("Failed to run migrations:", error);
-      process.exit(1);
-    }
-  }
+  setEnv(settings);
   setMigrationsDone();
 
-  // ── Env ──────────────────────────────────────────────────────────────
-  const { env } = await import("../../env");
-  setEnv(env);
+  const numThreads = options.numThreads ?? 1;
+  const isLinux = process.platform === "linux";
 
-  // ── Start server ─────────────────────────────────────────────────────
-  process.env.DECO_CLI = "1";
+  if (numThreads > 1 && !isLinux) {
+    console.warn(
+      "--num-threads is only supported on Linux (SO_REUSEPORT); running with 1 thread.",
+    );
+  }
+
+  if (numThreads > 1 && isLinux) {
+    // Determine the correct server entry point for workers:
+    //   Dev:  serve.ts lives at apps/mesh/src/cli/commands/ → ../../index.ts
+    //   Prod: serve.ts is bundled into dist/server/cli.js   → server.js (same dir)
+    const isDev = import.meta.path.endsWith(".ts");
+    const serverEntry = isDev
+      ? join(import.meta.dir, "../../index.ts")
+      : join(import.meta.dir, "server.js");
+
+    const useInherit = options.noTui === true;
+    const workerEnv = buildChildEnv(settings, {
+      DECOCMS_IS_WORKER: "1",
+      REUSE_PORT: "true",
+    });
+
+    const workers: import("bun").Subprocess[] = [];
+
+    for (let i = 1; i < numThreads; i++) {
+      const worker = Bun.spawn([process.execPath, serverEntry], {
+        env: workerEnv,
+        stdio: [
+          "inherit",
+          useInherit ? "inherit" : "pipe",
+          useInherit ? "inherit" : "pipe",
+        ],
+      });
+      workers.push(worker);
+      if (!useInherit) {
+        pipeToLogStore(worker.stdout as ReadableStream<Uint8Array>);
+        pipeToLogStore(worker.stderr as ReadableStream<Uint8Array>);
+      }
+    }
+
+    // Signal the primary process to also use reusePort in Bun.serve()
+    process.env.REUSE_PORT = "true";
+
+    // Propagate shutdown signals to all worker processes
+    const killWorkers = () => {
+      for (const w of workers) w.kill();
+    };
+    process.on("SIGINT", killWorkers);
+    process.on("SIGTERM", killWorkers);
+    process.on("exit", killWorkers);
+  }
+
+  // Boot the primary server process (in-process, as before)
   await import("../../index");
 
-  setServerUrl(`http://localhost:${port}`);
+  setServerUrl(`http://localhost:${settings.port}`);
 }

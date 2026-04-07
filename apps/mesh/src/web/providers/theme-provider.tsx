@@ -10,6 +10,7 @@ import { useLayoutEffect, type ReactNode } from "react";
 import type { PublicConfig } from "@/api/routes/public-config";
 import { KEYS } from "@/web/lib/query-keys";
 import { setOAuthRedirectOrigin } from "@decocms/mesh-sdk";
+import { usePreferences } from "@/web/hooks/use-preferences";
 
 async function fetchPublicConfig(): Promise<PublicConfig> {
   const response = await fetch("/api/config");
@@ -70,6 +71,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     staleTime: Infinity,
   });
 
+  const [preferences] = usePreferences();
+
   // Set OAuth redirect origin for proxy environments (e.g. tokyo.localhost → localhost:3000)
   if (publicConfig.internalUrl) {
     setOAuthRedirectOrigin(publicConfig.internalUrl);
@@ -80,6 +83,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     injectThemeVariables(publicConfig.theme);
   }, [publicConfig.theme]);
+
+  // Apply dark/light class based on user preference
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+
+    if (preferences.theme === "dark") {
+      root.classList.add("dark");
+      return;
+    }
+
+    if (preferences.theme === "light") {
+      root.classList.remove("dark");
+      return;
+    }
+
+    // System mode: follow OS preference and listen for changes
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (dark: boolean) => root.classList.toggle("dark", dark);
+
+    apply(mq.matches);
+
+    const handler = (e: MediaQueryListEvent) => apply(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [preferences.theme]);
 
   return <>{children}</>;
 }

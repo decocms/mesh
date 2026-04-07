@@ -12,8 +12,6 @@ import {
   useCollectionActions,
   useCollectionItem,
   useCollectionList,
-  useCollectionListAsync,
-  useCollectionListInfinite,
   type UseCollectionListOptions,
 } from "./use-collections";
 import { useMCPClient } from "./use-mcp-client";
@@ -27,15 +25,58 @@ export type ConnectionFilter = CollectionFilter;
 /**
  * Options for useConnections hook
  */
-export type UseConnectionsOptions = UseCollectionListOptions<ConnectionEntity>;
+export interface UseConnectionsOptions
+  extends UseCollectionListOptions<ConnectionEntity> {
+  /**
+   * Server-side binding filter. Only returns connections whose tools satisfy the binding.
+   * Can be a well-known binding name (e.g., "LLM", "ASSISTANTS", "OBJECT_STORAGE")
+   * or a custom binding schema object.
+   */
+  binding?: string | Record<string, unknown> | Record<string, unknown>[];
+  /**
+   * Whether to include VIRTUAL connections in results. Defaults to false (server default).
+   */
+  includeVirtual?: boolean;
+  /**
+   * Filter by computed connection slug (matches app_name, or slug derived from connection_url/title).
+   */
+  slug?: string;
+}
 
 /**
- * Hook to get all connections
+ * Hook to get connections with server-side filtering.
  *
- * @param options - Filter and configuration options
+ * @param options - Filter and configuration options (binding, search, etc.)
  * @returns Suspense query result with connections as ConnectionEntity[]
  */
 export function useConnections(options: UseConnectionsOptions = {}) {
+  const { binding, includeVirtual, slug, ...collectionOptions } = options;
+
+  // Build additional tool args for the COLLECTION_CONNECTIONS_LIST tool
+  const additionalToolArgs: Record<string, unknown> = {
+    ...collectionOptions.additionalToolArgs,
+  };
+
+  if (binding !== undefined) {
+    additionalToolArgs.binding = binding;
+  }
+
+  if (includeVirtual !== undefined) {
+    additionalToolArgs.include_virtual = includeVirtual;
+  }
+
+  if (slug !== undefined) {
+    additionalToolArgs.slug = slug;
+  }
+
+  const finalOptions: UseCollectionListOptions<ConnectionEntity> = {
+    ...collectionOptions,
+    additionalToolArgs:
+      Object.keys(additionalToolArgs).length > 0
+        ? additionalToolArgs
+        : undefined,
+  };
+
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -45,43 +86,7 @@ export function useConnections(options: UseConnectionsOptions = {}) {
     org.id,
     "CONNECTIONS",
     client,
-    options,
-  );
-}
-
-/**
- * Non-suspense variant of useConnections for background/lazy loading.
- * Returns { data, isLoading } instead of blocking render.
- */
-export function useConnectionsAsync(options: UseConnectionsOptions = {}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  return useCollectionListAsync<ConnectionEntity>(
-    org.id,
-    "CONNECTIONS",
-    client,
-    options,
-  );
-}
-
-/**
- * Infinite-scroll variant of useConnections.
- * Loads connections in pages of 20, with loadMore/hasMore for scroll-driven pagination.
- */
-export function useConnectionsInfinite(options: UseConnectionsOptions = {}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  return useCollectionListInfinite<ConnectionEntity>(
-    org.id,
-    "CONNECTIONS",
-    client,
-    options,
+    finalOptions,
   );
 }
 

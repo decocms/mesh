@@ -53,13 +53,13 @@ function createRegistry(
 /** Dispatch a START command for a given thread and return the transitions. */
 function startThread(
   registry: RunRegistry,
-  threadId: string,
+  taskId: string,
   orgId = "org1",
   userId = "u1",
 ) {
   return registry.dispatch({
     type: "START",
-    threadId,
+    taskId,
     orgId,
     userId,
     abortController: new AbortController(),
@@ -122,7 +122,7 @@ describe("RunRegistry", () => {
       const registry = createRegistry();
       startThread(registry, "t1");
 
-      const pairs = registry.dispatch({ type: "CANCEL", threadId: "t1" });
+      const pairs = registry.dispatch({ type: "CANCEL", taskId: "t1" });
 
       expect(pairs).toHaveLength(1);
       expect(pairs[0]!.event.type).toBe("RUN_FAILED");
@@ -137,14 +137,14 @@ describe("RunRegistry", () => {
       startThread(registry, "t1");
       const signal = registry.getAbortSignal("t1")!;
 
-      registry.dispatch({ type: "CANCEL", threadId: "t1" });
+      registry.dispatch({ type: "CANCEL", taskId: "t1" });
 
       expect(signal.aborted).toBe(true);
     });
 
     it("returns empty array for a non-running thread", () => {
       const registry = createRegistry();
-      const pairs = registry.dispatch({ type: "CANCEL", threadId: "t1" });
+      const pairs = registry.dispatch({ type: "CANCEL", taskId: "t1" });
       expect(pairs).toHaveLength(0);
     });
   });
@@ -159,7 +159,7 @@ describe("RunRegistry", () => {
 
       const pairs = registry.dispatch({
         type: "FINISH",
-        threadId: "t1",
+        taskId: "t1",
         threadStatus: "completed",
       });
 
@@ -174,7 +174,7 @@ describe("RunRegistry", () => {
 
       const pairs = registry.dispatch({
         type: "FINISH",
-        threadId: "t1",
+        taskId: "t1",
         threadStatus: "requires_action",
       });
 
@@ -189,7 +189,7 @@ describe("RunRegistry", () => {
 
       const pairs = registry.dispatch({
         type: "FINISH",
-        threadId: "t1",
+        taskId: "t1",
         threadStatus: "failed",
       });
 
@@ -202,7 +202,7 @@ describe("RunRegistry", () => {
       const registry = createRegistry();
       const pairs = registry.dispatch({
         type: "FINISH",
-        threadId: "t1",
+        taskId: "t1",
         threadStatus: "completed",
       });
       expect(pairs).toHaveLength(0);
@@ -219,7 +219,7 @@ describe("RunRegistry", () => {
 
       const pairs = registry.dispatch({
         type: "FORCE_FAIL",
-        threadId: "t1",
+        taskId: "t1",
         reason: "reaped",
       });
 
@@ -238,7 +238,7 @@ describe("RunRegistry", () => {
 
       registry.dispatch({
         type: "FORCE_FAIL",
-        threadId: "t1",
+        taskId: "t1",
         reason: "reaped",
       });
 
@@ -250,7 +250,7 @@ describe("RunRegistry", () => {
 
       const pairs = registry.dispatch({
         type: "FORCE_FAIL",
-        threadId: "t1",
+        taskId: "t1",
         reason: "ghost",
         orgId: "org1",
       });
@@ -267,7 +267,7 @@ describe("RunRegistry", () => {
       const registry = createRegistry();
       const pairs = registry.dispatch({
         type: "FORCE_FAIL",
-        threadId: "t1",
+        taskId: "t1",
         reason: "reaped",
       });
       expect(pairs).toHaveLength(0);
@@ -282,7 +282,7 @@ describe("RunRegistry", () => {
       const registry = createRegistry();
       startThread(registry, "t1");
 
-      const pairs = registry.dispatch({ type: "STEP_DONE", threadId: "t1" });
+      const pairs = registry.dispatch({ type: "STEP_DONE", taskId: "t1" });
 
       expect(pairs).toHaveLength(1);
       expect(pairs[0]!.event.type).toBe("STEP_COMPLETED");
@@ -293,7 +293,7 @@ describe("RunRegistry", () => {
 
     it("returns empty array when thread is not running", () => {
       const registry = createRegistry();
-      const pairs = registry.dispatch({ type: "STEP_DONE", threadId: "t1" });
+      const pairs = registry.dispatch({ type: "STEP_DONE", taskId: "t1" });
       expect(pairs).toHaveLength(0);
     });
   });
@@ -302,7 +302,7 @@ describe("RunRegistry", () => {
   // getAbortSignal
   // -------------------------------------------------------------------------
   describe("getAbortSignal", () => {
-    it("returns null for an unknown threadId", () => {
+    it("returns null for an unknown taskId", () => {
       const registry = createRegistry();
       expect(registry.getAbortSignal("nope")).toBeNull();
     });
@@ -313,7 +313,7 @@ describe("RunRegistry", () => {
 
       registry.dispatch({
         type: "FINISH",
-        threadId: "t1",
+        taskId: "t1",
         threadStatus: "completed",
       });
 
@@ -339,7 +339,7 @@ describe("RunRegistry", () => {
       startThread(registry, "t3", "org1", "u3");
       registry.dispatch({
         type: "FINISH",
-        threadId: "t3",
+        taskId: "t3",
         threadStatus: "completed",
       });
 

@@ -6,7 +6,8 @@ import {
   recordToEnvVars,
   type EnvVar,
 } from "@/web/components/env-vars-editor";
-import { useBindingConnections } from "@/web/hooks/use-binding";
+import { connectionImplementsBinding } from "@/web/hooks/use-binding";
+import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import { useMembers } from "@/web/hooks/use-members";
 import { Avatar } from "@deco/ui/components/avatar.tsx";
@@ -24,16 +25,6 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { ConnectionInstancesPanel } from "./connection-instances-panel.tsx";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Sheet,
@@ -72,7 +63,9 @@ import { Loading01, Trash01 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+
+import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
+import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -300,12 +293,17 @@ function ConnectionInspectorViewWithConnection({
   resources: Array<{ name: string; description?: string; uri?: string }>;
   siblings: ConnectionEntity[];
 }) {
-  const navigate = useNavigate({ from: "/$org/mcps/$appSlug" });
+  const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
+  const deleteConnection = useDeleteConnection({
+    onSuccess: () => {
+      if (siblings.length <= 1) {
+        navigate({ to: "/$org/settings/connections", params: { org } });
+      }
+    },
+  });
   const [configureInstance, setConfigureInstance] =
-    useState<ConnectionEntity | null>(null);
-  const [disconnectInstance, setDisconnectInstance] =
     useState<ConnectionEntity | null>(null);
   const [isAddingInstance, setIsAddingInstance] = useState(false);
 
@@ -317,19 +315,21 @@ function ConnectionInspectorViewWithConnection({
   const members = membersData?.data?.members ?? [];
   const activeInstance = configureInstance ?? connection;
   const instanceCreator = members.find(
-    (m) => m.userId === activeInstance.created_by,
+    (m: (typeof members)[number]) => m.userId === activeInstance.created_by,
   );
   // VIRTUAL connections are always "authenticated" - they don't have OAuth
   // They're internal connections that aggregate tools from other connections
   const isVirtualConnection = connection?.connection_type === "VIRTUAL";
   const isMCPAuthenticated = isVirtualConnection || authStatus.isAuthenticated;
 
-  // Check if connection has MCP binding for configuration
-  const mcpBindingConnections = useBindingConnections({
-    connections: [connection],
-    binding: "MCP",
-  });
-  const hasMcpBinding = mcpBindingConnections.length > 0;
+  // Check if connection has MCP binding for configuration.
+  // Use live tools from the MCP proxy (passed as prop) instead of connection.tools,
+  // because the LIST endpoint no longer fetches tools by default (include_tools=false).
+  const connectionWithLiveTools = { ...connection, tools } as ConnectionEntity;
+  const hasMcpBinding = connectionImplementsBinding(
+    connectionWithLiveTools,
+    MCP_BINDING,
+  );
 
   // Form state lifted to parent
   const form = useForm<ConnectionFormData>({
@@ -458,25 +458,12 @@ function ConnectionInspectorViewWithConnection({
     }
   };
 
-  const handleDisconnect = async (instance: ConnectionEntity) => {
-    await connectionActions.delete.mutateAsync(instance.id);
-    // If we deleted the last sibling, go back to list
-    if (siblings.length <= 1) {
-      navigate({
-        to: "/$org/mcps",
-        params: { org },
-      });
-    }
-    // Otherwise stay on same slug — remaining siblings still share it
-    setDisconnectInstance(null);
-  };
-
   const breadcrumb = (
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org }}>
+            <Link to="/$org/settings/connections" params={{ org }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -498,37 +485,7 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <>
-      {/* Disconnect Confirmation */}
-      <AlertDialog
-        open={disconnectInstance !== null}
-        onOpenChange={(open) => {
-          if (!open) setDisconnectInstance(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect instance?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove{" "}
-              <span className="font-medium text-foreground">
-                {disconnectInstance?.title}
-              </span>
-              . This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                disconnectInstance && handleDisconnect(disconnectInstance)
-              }
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Disconnect
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConnectionDialogs {...deleteConnection} />
 
       {/* Settings Sheet */}
       <Sheet
@@ -636,7 +593,7 @@ function ConnectionInspectorViewWithConnection({
                 onClick={() => {
                   const inst = configureInstance ?? connection;
                   setConfigureInstance(null);
-                  setDisconnectInstance(inst);
+                  deleteConnection.requestDelete(inst);
                 }}
               >
                 <Trash01 size={15} />
@@ -669,7 +626,7 @@ function ConnectionInspectorViewWithConnection({
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
-                  onDelete={(inst) => setDisconnectInstance(inst)}
+                  onDelete={(inst) => deleteConnection.requestDelete(inst)}
                   isAdding={isAddingInstance}
                   onAdd={async () => {
                     setIsAddingInstance(true);
@@ -743,19 +700,16 @@ function ConnectionInspectorViewWithConnection({
 }
 
 function ConnectionInspectorViewContent() {
-  const navigate = useNavigate({ from: "/$org/mcps/$appSlug" });
+  const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const { appSlug, org } = useParams({
-    from: "/shell/$org/mcps/$appSlug",
+    from: "/shell/$org/settings/connections/$appSlug",
   });
   const { org: projectOrg } = useProjectContext();
 
-  const allConnections = useConnections();
   const actions = useConnectionActions();
 
-  // Resolve appSlug → matching connections
-  const siblings = allConnections.filter(
-    (c) => c.connection_type !== "VIRTUAL" && getConnectionSlug(c) === appSlug,
-  );
+  // Resolve appSlug → matching connections (server-side slug filter, excludes VIRTUAL by default)
+  const siblings = useConnections({ slug: appSlug });
   const connection = siblings[0] ?? null;
   const connectionId = connection?.id ?? "";
 
@@ -860,7 +814,7 @@ function ConnectionInspectorViewContent() {
               variant="outline"
               onClick={() =>
                 navigate({
-                  to: "/$org/mcps",
+                  to: "/$org/settings/connections",
                   params: {
                     org: org as string,
                   },

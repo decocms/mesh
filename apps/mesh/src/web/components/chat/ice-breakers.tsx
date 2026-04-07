@@ -1,8 +1,7 @@
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@deco/ui/components/popover.tsx";
+  displayToolName,
+  getGatewayClientId,
+} from "@decocms/mcp-utils/aggregate";
 import { Spinner } from "@deco/ui/components/spinner.tsx";
 import {
   Tooltip,
@@ -11,6 +10,20 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@deco/ui/components/dialog.tsx";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@deco/ui/components/drawer.tsx";
+import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
   getPrompt,
   getWellKnownDecopilotVirtualMCP,
@@ -22,7 +35,7 @@ import type { Prompt } from "@modelcontextprotocol/sdk/types.js";
 import { Suspense, useReducer, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "../error-boundary";
-import { useChatStable } from "./context";
+import { useChatStream, useChatPrefs } from "./context";
 import {
   PromptArgsDialog,
   type PromptArgumentValues,
@@ -30,158 +43,271 @@ import {
 import { createMentionDoc } from "./tiptap/mention/node";
 import { appendToTiptapDoc } from "./tiptap/utils";
 
+// ---------- Types ----------
+
+interface PromptItem {
+  prompt: Prompt;
+}
+
 interface IceBreakersUIProps {
-  prompts: Prompt[];
+  items: PromptItem[];
   onSelect: (prompt: Prompt) => void;
   loadingPrompt?: Prompt | null;
   className?: string;
 }
 
-const MAX_VISIBLE = 3;
+// ---------- UI ----------
 
-function PromptPill({
-  prompt,
+const VISIBLE_COUNT = 3;
+
+const PILL_BASE =
+  "inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-muted text-muted-foreground text-sm font-medium transition-colors cursor-pointer";
+
+const CARD_BASE =
+  "flex flex-col gap-1.5 p-4 rounded-xl bg-accent/40 text-sm leading-snug transition-colors cursor-pointer text-left";
+
+function PromptCard({
+  item,
   onSelect,
-  isSelected,
-  isDisabled,
   isLoading,
+  isDisabled,
+  variant = "pill",
 }: {
-  prompt: Prompt;
+  item: PromptItem;
   onSelect: (prompt: Prompt) => void;
-  isSelected?: boolean;
-  isDisabled?: boolean;
-  isLoading?: boolean;
+  isLoading: boolean;
+  isDisabled: boolean;
+  variant?: "pill" | "card";
 }) {
-  const promptText = prompt.description ?? prompt.name;
+  const { prompt } = item;
+  const clientId = getGatewayClientId(prompt._meta);
+  const name = prompt.title ?? displayToolName(prompt.name, clientId);
+  const description = prompt.description || null;
+
+  if (variant === "card") {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(prompt)}
+        disabled={isDisabled || isLoading}
+        className={cn(
+          CARD_BASE,
+          "hover:bg-accent/60 text-foreground",
+          isLoading && "bg-accent/40",
+          (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium truncate capitalize">{name}</span>
+          {isLoading && <Spinner size="xs" />}
+        </div>
+        {description && (
+          <span className="text-xs text-muted-foreground line-clamp-2">
+            {description}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
-    <Tooltip>
+    <Tooltip delayDuration={400}>
       <TooltipTrigger asChild>
         <button
           type="button"
           onClick={() => onSelect(prompt)}
           disabled={isDisabled || isLoading}
           className={cn(
-            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer flex items-center gap-1.5",
-            isSelected && "bg-accent/50 text-foreground",
-            isLoading && "bg-accent/50 text-foreground",
-            (isDisabled || isLoading) &&
-              "cursor-not-allowed hover:bg-accent/50",
+            PILL_BASE,
+            "hover:bg-muted/70 hover:text-foreground",
+            isLoading && "bg-muted/50",
+            (isDisabled || isLoading) && "cursor-not-allowed opacity-50",
           )}
         >
-          {(prompt.title ?? prompt.name).replace(/_/g, " ")}
+          <span className="capitalize">{name}</span>
           {isLoading && <Spinner size="xs" />}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-xs">
-        <p className="text-xs">{promptText}</p>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">{description ?? name}</p>
       </TooltipContent>
     </Tooltip>
   );
 }
 
-/**
- * IceBreakersUI - Displays prompts as clickable conversation starters
- *
- * Shows prompts as compact pills that, when clicked, submit the prompt as the first message
- */
+function AllPromptsModal({
+  items,
+  open,
+  onOpenChange,
+  onSelect,
+  loadingPrompt,
+}: {
+  items: PromptItem[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (prompt: Prompt) => void;
+  loadingPrompt: Prompt | null | undefined;
+}) {
+  const [search, setSearch] = useState("");
+  const isAnyLoading = !!loadingPrompt;
+
+  const filtered = search.trim()
+    ? items.filter((item) => {
+        const q = search.toLowerCase();
+        return (
+          item.prompt.name.toLowerCase().includes(q) ||
+          (item.prompt.title ?? "").toLowerCase().includes(q) ||
+          (item.prompt.description ?? "").toLowerCase().includes(q)
+        );
+      })
+    : items;
+
+  const isMobile = useIsMobile();
+
+  const gridContent = (
+    <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-5">
+        {filtered.length === 0 && (
+          <p className="col-span-4 text-sm text-muted-foreground text-center py-8">
+            No prompts match &ldquo;{search}&rdquo;
+          </p>
+        )}
+        {filtered.map((item) => (
+          <PromptCard
+            key={item.prompt.name}
+            item={item}
+            variant="card"
+            onSelect={(prompt) => {
+              onOpenChange(false);
+              onSelect(prompt);
+            }}
+            isLoading={loadingPrompt?.name === item.prompt.name}
+            isDisabled={
+              isAnyLoading && loadingPrompt?.name !== item.prompt.name
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const searchBar = (
+    <CollectionSearch
+      value={search}
+      onChange={setSearch}
+      placeholder="Search prompts..."
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setSearch("");
+      }}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <TooltipProvider delayDuration={400}>
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerContent className="h-[85vh] flex flex-col p-0 gap-0">
+            <DrawerHeader className="sr-only">
+              <DrawerTitle>All prompts</DrawerTitle>
+            </DrawerHeader>
+            <div className="flex items-center h-12 border-b border-border px-4 shrink-0">
+              <span className="text-sm font-medium text-foreground">
+                Prompts
+              </span>
+            </div>
+            {searchBar}
+            {gridContent}
+          </DrawerContent>
+        </Drawer>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <TooltipProvider delayDuration={400}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[1100px] h-[680px] p-0 gap-0 overflow-hidden flex flex-col">
+          <DialogHeader className="sr-only">
+            <DialogTitle>All prompts</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center h-12 border-b border-border px-4 shrink-0">
+            <span className="text-sm font-medium text-foreground">Prompts</span>
+          </div>
+          {searchBar}
+          {gridContent}
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
+  );
+}
+
+/** Compact icebreakers: up to 3 prompt cards (centered) or 3 cards + "+N" overflow. */
 function IceBreakersUI({
-  prompts,
+  items,
   onSelect,
   loadingPrompt,
   className,
 }: IceBreakersUIProps) {
-  if (prompts.length === 0) return null;
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const visiblePrompts = prompts.slice(0, MAX_VISIBLE);
-  const hiddenPrompts = prompts.slice(MAX_VISIBLE);
-  const hasMore = hiddenPrompts.length > 0;
+  if (items.length === 0) return null;
+
+  const visible = items.slice(0, VISIBLE_COUNT);
+  const hidden = items.slice(VISIBLE_COUNT);
   const isAnyLoading = !!loadingPrompt;
 
+  const cards = visible.map((item) => (
+    <PromptCard
+      key={item.prompt.name}
+      item={item}
+      onSelect={onSelect}
+      isLoading={loadingPrompt?.name === item.prompt.name}
+      isDisabled={isAnyLoading && loadingPrompt?.name !== item.prompt.name}
+    />
+  ));
+
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delayDuration={400}>
       <div
-        className={cn(
-          "flex flex-wrap items-center justify-center gap-2",
-          className,
-        )}
+        className={cn("w-full flex flex-wrap gap-2 justify-center", className)}
       >
-        {visiblePrompts.map((prompt) => (
-          <PromptPill
-            key={prompt.name}
-            prompt={prompt}
-            onSelect={onSelect}
-            isLoading={loadingPrompt?.name === prompt.name}
-            isDisabled={isAnyLoading && loadingPrompt?.name !== prompt.name}
-          />
-        ))}
-        {hasMore && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                disabled={isAnyLoading}
-                className={cn(
-                  "size-7 flex items-center justify-center text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-accent/50 transition-colors cursor-pointer",
-                  isAnyLoading && "opacity-60 cursor-not-allowed",
-                )}
-              >
-                +{hiddenPrompts.length}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="bottom" align="center" className="w-auto p-2">
-              <div className="flex flex-col gap-1">
-                {hiddenPrompts.map((prompt) => {
-                  const promptText = prompt.description ?? prompt.name;
-                  const isLoading = loadingPrompt?.name === prompt.name;
-                  return (
-                    <Tooltip key={prompt.name}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => onSelect(prompt)}
-                          disabled={isAnyLoading && !isLoading}
-                          className={cn(
-                            "px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors cursor-pointer text-left flex items-center gap-1.5",
-                            isLoading && "bg-accent/50 text-foreground",
-                            isAnyLoading &&
-                              !isLoading &&
-                              "opacity-60 cursor-not-allowed",
-                          )}
-                        >
-                          {(prompt.title ?? prompt.name).replace(/_/g, " ")}
-                          {isLoading && <Spinner size="xs" />}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs">
-                        <p className="text-xs">{promptText}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
+        {cards}
+        {hidden.length > 0 && (
+          <button
+            type="button"
+            disabled={isAnyLoading}
+            onClick={() => setModalOpen(true)}
+            className={cn(
+              PILL_BASE,
+              "hover:bg-muted/70 hover:text-foreground",
+              isAnyLoading && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            +{hidden.length} more
+          </button>
         )}
       </div>
+      <AllPromptsModal
+        items={items}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        onSelect={onSelect}
+        loadingPrompt={loadingPrompt}
+      />
     </TooltipProvider>
   );
 }
+
+// ---------- State machine ----------
 
 interface IceBreakersProps {
   className?: string;
 }
 
-/**
- * Fallback component for Suspense — renders nothing while loading
- * The parent container maintains fixed height to prevent layout shift
- */
 function IceBreakersFallback() {
   return null;
 }
 
-/**
- * State machine for ice breakers
- */
 type IceBreakerState =
   | { stage: "idle" }
   | {
@@ -205,11 +331,9 @@ function iceBreakerReducer(
 ): IceBreakerState {
   switch (action.type) {
     case "SELECT_PROMPT":
-      // If prompt has no arguments, go directly to loading
       if (!action.prompt.arguments || action.prompt.arguments.length === 0) {
         return { stage: "loading", prompt: action.prompt };
       }
-      // Otherwise, will open dialog - stay idle until dialog submits
       return { stage: "idle" };
 
     case "START_LOADING":
@@ -227,19 +351,20 @@ function iceBreakerReducer(
   }
 }
 
-/**
- * Inner component that fetches and displays prompts for a specific MCP connection
- * @param connectionId - The connection ID, or null for the management MCP
- */
+// ---------- Data fetching ----------
+
 function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
-  const { tiptapDocRef, sendMessage } = useChatStable();
+  const { sendMessage } = useChatStream();
+  const { tiptapDocRef } = useChatPrefs();
   const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId,
-    orgId: org.id,
-  });
+
+  // Fetch prompts from the aggregated virtual MCP
+  const client = useMCPClient({ connectionId, orgId: org.id });
   const { data } = useMCPPromptsList({ client, staleTime: 60000 });
   const prompts = data?.prompts ?? [];
+
+  const items: PromptItem[] = prompts.map((prompt) => ({ prompt }));
+
   const [state, dispatch] = useReducer(iceBreakerReducer, { stage: "idle" });
   const [dialogPrompt, setDialogPrompt] = useState<Prompt | null>(null);
 
@@ -255,8 +380,6 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
 
       dispatch({ type: "RESET" });
 
-      // Append prompt to current tiptapDoc and send
-      // Wrap mention in a paragraph since it's an inline node
       const newTiptapDoc = appendToTiptapDoc(tiptapDocRef.current, {
         type: "paragraph",
         content: [
@@ -278,14 +401,12 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   };
 
   const handlePromptSelection = async (prompt: Prompt) => {
-    // If prompt has arguments, open dialog
     if (prompt.arguments && prompt.arguments.length > 0) {
       dispatch({ type: "SELECT_PROMPT", prompt });
       setDialogPrompt(prompt);
       return;
     }
 
-    // No arguments - fetch directly
     dispatch({ type: "START_LOADING", prompt });
     await loadPrompt(prompt);
   };
@@ -302,14 +423,14 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
     await loadPrompt(dialogPrompt, values);
   };
 
-  if (prompts.length === 0) {
+  if (items.length === 0) {
     return null;
   }
 
   return (
     <>
       <IceBreakersUI
-        prompts={prompts}
+        items={items}
         onSelect={handlePromptSelection}
         loadingPrompt={state.stage === "loading" ? state.prompt : null}
       />
@@ -325,24 +446,16 @@ function IceBreakersContent({ connectionId }: { connectionId: string | null }) {
   );
 }
 
-/**
- * Ice breakers component that uses suspense to fetch MCP prompts.
- * Uses the chat context for connection selection and message sending.
- * Includes ErrorBoundary, Suspense, and container internally.
- */
+// ---------- Export ----------
+
 export function IceBreakers({ className }: IceBreakersProps) {
-  const { selectedVirtualMcp } = useChatStable();
+  const { selectedVirtualMcp } = useChatPrefs();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const connectionId = selectedVirtualMcp?.id ?? decopilotId;
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center justify-center gap-2 min-h-[34px] mb-3",
-        className,
-      )}
-    >
+    <div className={cn("w-full @container", className)}>
       <ErrorBoundary fallback={null}>
         <Suspense
           key={connectionId ?? "default"}

@@ -6,10 +6,22 @@
  */
 
 import { z } from "zod";
-import { StepSchema } from "@decocms/bindings/workflow";
+import { StepSchema, JsonSchemaSchema } from "@decocms/bindings/workflow";
 import type { ServerPluginToolDefinition } from "@decocms/bindings/server-plugin";
 import { getDecopilotId } from "@decocms/mesh-sdk";
 import { requireWorkflowContext, getPluginStorage } from "../types";
+import { validateInputSchema } from "./schema-validation";
+
+function normalizeStepName(step: unknown): unknown {
+  const s = step as Record<string, unknown>;
+  return {
+    ...s,
+    name:
+      typeof s.name === "string"
+        ? s.name.trim().replaceAll(/\s+/g, "_")
+        : s.name,
+  };
+}
 
 // ============================================================================
 // LIST
@@ -82,6 +94,7 @@ export const WORKFLOW_COLLECTION_GET: ServerPluginToolDefinition = {
         description: z.string().nullable(),
         virtual_mcp_id: z.string(),
         steps: z.array(StepSchema),
+        input_schema: z.unknown().nullish(),
         created_at: z.string(),
         updated_at: z.string(),
       })
@@ -106,6 +119,7 @@ export const WORKFLOW_COLLECTION_GET: ServerPluginToolDefinition = {
         description: row.description,
         virtual_mcp_id: row.virtual_mcp_id,
         steps: row.steps,
+        input_schema: row.input_schema,
         created_at: row.created_at,
         updated_at: row.updated_at,
       },
@@ -156,6 +170,9 @@ Example workflow with a step that references the output of another step:
           "The Virtual MCP ID to use for workflow execution. Defaults to Decopilot (organization-wide agent). The execution will only be able to use tools from this Virtual MCP.",
         ),
       steps: z.array(StepSchema).optional().default([]),
+      input_schema: JsonSchemaSchema.optional().describe(
+        "Optional JSON Schema describing the expected input for this workflow. When set, executions will validate their input against this schema.",
+      ),
       created_at: z.string().optional(),
       updated_at: z.string().optional(),
       created_by: z.string().optional(),
@@ -173,11 +190,13 @@ Example workflow with a step that references the output of another step:
         description?: string;
         virtual_mcp_id?: string;
         steps?: unknown[];
+        input_schema?: Record<string, unknown>;
       };
     };
     const storage = getPluginStorage();
 
-    // Default to Decopilot (organization-wide agent) if no virtual_mcp_id provided
+    validateInputSchema(data.input_schema);
+
     const virtualMcpId =
       data.virtual_mcp_id ?? getDecopilotId(meshCtx.organization.id);
 
@@ -187,18 +206,8 @@ Example workflow with a step that references the output of another step:
       title: data.title,
       description: data.description ?? null,
       virtual_mcp_id: virtualMcpId,
-      steps: JSON.stringify(
-        (data.steps ?? []).map((s: unknown) => {
-          const step = s as Record<string, unknown>;
-          return {
-            ...step,
-            name:
-              typeof step.name === "string"
-                ? step.name.trim().replaceAll(/\s+/g, "_")
-                : step.name,
-          };
-        }),
-      ),
+      steps: JSON.stringify((data.steps ?? []).map(normalizeStepName)),
+      input_schema: data.input_schema ?? null,
       created_by: meshCtx.auth.user?.id ?? null,
       updated_by: meshCtx.auth.user?.id ?? null,
     });
@@ -210,6 +219,7 @@ Example workflow with a step that references the output of another step:
         description: row.description,
         virtual_mcp_id: row.virtual_mcp_id,
         steps: row.steps,
+        input_schema: row.input_schema,
         created_at: row.created_at,
         updated_at: row.updated_at,
       },
@@ -231,6 +241,9 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
       description: z.string().optional(),
       virtual_mcp_id: z.string().optional(),
       steps: z.array(StepSchema).optional(),
+      input_schema: JsonSchemaSchema.nullish().describe(
+        "JSON Schema for workflow input validation. Pass null to remove.",
+      ),
     }),
   }),
   outputSchema: z.object({
@@ -248,6 +261,7 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
         description?: string;
         virtual_mcp_id?: string;
         steps?: unknown[];
+        input_schema?: Record<string, unknown> | null;
       };
     };
     const storage = getPluginStorage();
@@ -261,20 +275,14 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
     if (data.virtual_mcp_id !== undefined)
       updateData.virtual_mcp_id = data.virtual_mcp_id;
     if (data.steps !== undefined)
-      updateData.steps = JSON.stringify(
-        data.steps.map((s: unknown) => {
-          const step = s as Record<string, unknown>;
-          return {
-            ...step,
-            name:
-              typeof step.name === "string"
-                ? step.name.trim().replaceAll(/\s+/g, "_")
-                : step.name,
-          };
-        }),
-      );
+      updateData.steps = JSON.stringify(data.steps.map(normalizeStepName));
+    if (data.input_schema !== undefined)
+      updateData.input_schema = data.input_schema;
 
     try {
+      if (data.input_schema !== undefined) {
+        validateInputSchema(data.input_schema);
+      }
       await storage.collections.update(
         id,
         meshCtx.organization.id,
@@ -283,6 +291,7 @@ export const WORKFLOW_COLLECTION_UPDATE: ServerPluginToolDefinition = {
           description?: string | null;
           virtual_mcp_id?: string;
           steps?: string;
+          input_schema?: Record<string, unknown> | null;
           updated_by?: string | null;
         },
       );
@@ -307,8 +316,9 @@ export const WORKFLOW_COLLECTION_DELETE: ServerPluginToolDefinition = {
     id: z.string(),
   }),
   outputSchema: z.object({
-    success: z.boolean(),
-    error: z.string().optional(),
+    item: z.object({
+      id: z.string(),
+    }),
   }),
 
   handler: async (input, ctx) => {
@@ -317,14 +327,7 @@ export const WORKFLOW_COLLECTION_DELETE: ServerPluginToolDefinition = {
     const { id } = input as { id: string };
     const storage = getPluginStorage();
 
-    try {
-      await storage.collections.delete(id, meshCtx.organization.id);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
+    await storage.collections.delete(id, meshCtx.organization.id);
+    return { item: { id } };
   },
 };

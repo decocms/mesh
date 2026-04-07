@@ -20,7 +20,8 @@ import type { ModelsConfig } from "../types";
 import { MeshProvider } from "@/ai-providers/types";
 
 export interface BuiltinToolParams {
-  provider: MeshProvider;
+  /** Provider — null for Claude Code (subtask tool is omitted when null) */
+  provider: MeshProvider | null;
   organization: OrganizationScope;
   models: ModelsConfig;
   toolApprovalLevel?: ToolApprovalLevel;
@@ -48,19 +49,9 @@ function buildAllTools(
     toolOutputMap,
     passthroughClient,
   } = params;
-  return {
+  const tools: Record<string, unknown> = {
     user_ask: userAskTool,
     propose_plan: proposePlanTool,
-    subtask: createSubtaskTool(
-      writer,
-      {
-        provider,
-        organization,
-        models,
-        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
-      },
-      ctx,
-    ),
     agent_search: createAgentSearchTool(
       writer,
       {
@@ -85,7 +76,30 @@ function buildAllTools(
       passthroughClient,
       toolOutputMap,
     }),
-  } as const;
+  };
+  // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
+  if (provider) {
+    tools.subtask = createSubtaskTool(
+      writer,
+      {
+        provider,
+        organization,
+        models,
+        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+      },
+      ctx,
+    );
+  }
+  return tools as {
+    user_ask: typeof userAskTool;
+    propose_plan: typeof proposePlanTool;
+    subtask: ReturnType<typeof createSubtaskTool>;
+    agent_search: ReturnType<typeof createAgentSearchTool>;
+    read_tool_output: ReturnType<typeof createReadToolOutputTool>;
+    sandbox: ReturnType<typeof createSandboxTool>;
+    read_resource: ReturnType<typeof createReadResourceTool>;
+    read_prompt: ReturnType<typeof createReadPromptTool>;
+  };
 }
 
 /**

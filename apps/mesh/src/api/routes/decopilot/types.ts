@@ -50,7 +50,7 @@ export type ChatMessage = UIMessage<
 
 export interface ModelInfo {
   id: string;
-  title: string;
+  title?: string;
   capabilities?: {
     vision?: boolean;
     text?: boolean;

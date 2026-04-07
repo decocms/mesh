@@ -20,7 +20,7 @@ const KV_BUCKET = "MESH_MODEL_LISTS";
 const KV_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface JetStreamKVModelListCacheOptions {
-  getJetStream: () => JetStreamClient;
+  getJetStream: () => JetStreamClient | null;
 }
 
 export class JetStreamKVModelListCache implements ModelListCache {
@@ -31,6 +31,7 @@ export class JetStreamKVModelListCache implements ModelListCache {
 
   async init(): Promise<void> {
     const js = this.options.getJetStream();
+    if (!js) return; // NATS not ready — cache disabled until re-init
     this.kv = await js.views.kv(KV_BUCKET, {
       ttl: KV_TTL_MS,
       storage: StorageType.Memory,

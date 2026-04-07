@@ -1,22 +1,11 @@
 import { BaseCollectionEntitySchema } from "@decocms/bindings/collections";
+import type { JsonSchema } from "@decocms/bindings/workflow";
 import { z } from "zod";
 
 // Re-export from core for backwards compatibility
 export { MCP_MESH_KEY as MCP_MESH_DECOCMS_KEY } from "@/core/constants";
-export { MCP_MESH_KEY as MCP_REGISTRY_DECOCMS_KEY } from "@/core/constants";
 
-export type JsonSchema = {
-  type?: string;
-  properties?: Record<string, JsonSchema>;
-  required?: string[];
-  items?: JsonSchema;
-  format?: string;
-  description?: string;
-  enum?: string[];
-  maxLength?: number;
-  anyOf?: JsonSchema[];
-  [key: string]: unknown;
-};
+export type { JsonSchema };
 
 /**
  * Base collection JSONSchema

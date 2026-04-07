@@ -1,9 +1,9 @@
-import { useConnections, useProjectContext } from "@decocms/mesh-sdk";
 import {
-  useBindingConnections,
-  resolveBindingType,
-} from "@/web/hooks/use-binding";
-import { useBindingSchemaFromRegistry } from "@/web/hooks/use-binding-schema-from-registry";
+  useConnection,
+  useConnections,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
+import { resolveBindingType } from "@/web/hooks/use-binding";
 import { useInstallFromRegistry } from "@/web/hooks/use-install-from-registry";
 import { Loading01, Plus } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -72,20 +72,6 @@ function getBindingInfo(schema: Record<string, unknown>): {
   };
 }
 
-/**
- * Check if a binding schema value represents an MCP Server name that needs dynamic resolution.
- * @example "@deco/database" -> true, "deco/database" -> true, [{name: "TOOL"}] -> false
- */
-function isDynamicBindingSchema(
-  bindingSchema: unknown,
-): bindingSchema is string {
-  if (typeof bindingSchema !== "string") return false;
-  const normalized = bindingSchema.startsWith("@")
-    ? bindingSchema.slice(1)
-    : bindingSchema;
-  return normalized.includes("/");
-}
-
 interface BindingFieldWithDynamicSchemaProps {
   bindingSchema: unknown;
   bindingType?: string;
@@ -114,35 +100,22 @@ function BindingFieldWithDynamicSchema({
   onAddNew,
   className,
 }: BindingFieldWithDynamicSchemaProps) {
+  // Resolve binding to a server-side filter.
+  // builtinBinding: "@deco/event-bus" → "EVENT_BUS"
+  // string bindingSchema: well-known name like "LLMS" → passed through
+  // array/object bindingSchema: custom binding schema → passed as object for server-side filtering
   const builtinBinding = resolveBindingType(bindingType);
-
-  const bindingSchemaIsDynamic = isDynamicBindingSchema(bindingSchema);
-  const bindingTypeIsDynamic =
-    !builtinBinding && isDynamicBindingSchema(bindingType);
-  const needsDynamicResolution = bindingSchemaIsDynamic || bindingTypeIsDynamic;
-
-  const dynamicAppName = bindingSchemaIsDynamic
-    ? (bindingSchema as string)
-    : bindingTypeIsDynamic
-      ? bindingType
-      : undefined;
-
-  const { bindingSchema: registrySchema } =
-    useBindingSchemaFromRegistry(dynamicAppName);
-
-  const resolvedBinding = (() => {
-    if (builtinBinding) return builtinBinding;
-    if (needsDynamicResolution) return registrySchema;
-    if (Array.isArray(bindingSchema)) {
-      return bindingSchema as Array<{
-        name: string;
-        inputSchema?: Record<string, unknown>;
-        outputSchema?: Record<string, unknown>;
-      }>;
-    }
-    if (typeof bindingSchema === "string") return bindingSchema;
-    return undefined;
-  })();
+  const resolvedBinding:
+    | string
+    | Record<string, unknown>
+    | Record<string, unknown>[]
+    | undefined =
+    builtinBinding ??
+    (typeof bindingSchema === "string"
+      ? bindingSchema
+      : bindingSchema != null
+        ? (bindingSchema as Record<string, unknown> | Record<string, unknown>[])
+        : undefined);
 
   return (
     <BindingSelector
@@ -161,13 +134,7 @@ interface BindingSelectorProps {
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
-  binding?:
-    | string
-    | Array<{
-        name: string;
-        inputSchema?: Record<string, unknown>;
-        outputSchema?: Record<string, unknown>;
-      }>;
+  binding?: string | Record<string, unknown> | Record<string, unknown>[];
   bindingType?: string;
   onAddNew?: () => void;
   className?: string;
@@ -188,50 +155,29 @@ function BindingSelector({
 
   const isInstalling = isLocalInstalling || isGlobalInstalling;
 
-  const allConnections = useConnections();
-  const filteredConnections = useBindingConnections({
-    connections: allConnections,
-    binding: binding,
-  });
+  // Server-side filtering: use binding check when available,
+  // fall back to app_name filter using bindingType as-is
+  const appName = !binding ? bindingType || undefined : undefined;
 
-  const parsedBindingType = (() => {
-    if (!bindingType?.startsWith("@")) return null;
-    const [scope, appName] = bindingType.replace("@", "").split("/");
-    return scope && appName ? { scope, appName } : null;
-  })();
+  const filteredConnections = useConnections(
+    binding
+      ? { binding }
+      : appName
+        ? { filters: [{ column: "app_name" as const, value: appName }] }
+        : {},
+  );
 
-  const connections = (() => {
-    let result = filteredConnections;
+  // Ensure the currently selected connection always appears in the dropdown,
+  // even if the app_name filter didn't match it
+  const selectedConnection = useConnection(
+    value && !filteredConnections.some((c) => c.id === value)
+      ? value
+      : undefined,
+  );
 
-    // When we already have a binding-based filter (builtin name or schema array),
-    // connections are matched by tool capabilities. The app-name fallback below
-    // only kicks in when no binding filter is available (e.g., unknown registry types).
-    const hasBindingFilter =
-      (typeof binding === "string" && binding.length > 0) ||
-      (Array.isArray(binding) && binding.length > 0);
-
-    if (parsedBindingType && !hasBindingFilter) {
-      result = result.filter((conn) => {
-        const connAppName = conn.app_name;
-        const connScopeName = (conn.metadata as Record<string, unknown> | null)
-          ?.scopeName as string | undefined;
-
-        return (
-          connAppName === parsedBindingType.appName &&
-          connScopeName === parsedBindingType.scope
-        );
-      });
-    }
-
-    if (value && !result.some((c) => c.id === value)) {
-      const selectedConnection = allConnections?.find((c) => c.id === value);
-      if (selectedConnection) {
-        return [selectedConnection, ...result];
-      }
-    }
-
-    return result;
-  })();
+  const connections = selectedConnection
+    ? [selectedConnection, ...filteredConnections]
+    : filteredConnections;
 
   const canInstallInline = bindingType?.startsWith("@");
 
@@ -439,9 +385,9 @@ function CustomFieldTemplate(props: FieldTemplateProps) {
           </label>
         )}
         {description && (
-          <p className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground truncate">
             {description}
-          </p>
+          </div>
         )}
       </div>
       <div className="w-[200px] shrink-0">{children}</div>
@@ -476,7 +422,7 @@ export function McpConfigurationForm({
 
   const handleAddNew = () => {
     navigate({
-      to: "/$org/mcps",
+      to: "/$org/settings/connections",
       params: { org: org.slug },
       search: { action: "create" },
     });

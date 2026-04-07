@@ -31,11 +31,11 @@ import {
 } from "./model-permissions";
 import { PersistedRunConfigSchema, toModelsConfig } from "./run-config";
 import { StreamRequestSchema } from "./schemas";
-import type { ChatMessage } from "./types";
+import type { ChatMessage, ModelsConfig } from "./types";
 import { streamCore } from "./stream-core";
 import { RunClaimError } from "./run-reactor";
 import type { SqlThreadStorage } from "@/storage/threads";
-import { POD_ID } from "@/core/pod-identity";
+import { getPodId } from "@/core/pod-identity";
 
 // ============================================================================
 // Request Validation
@@ -61,6 +61,37 @@ async function validateRequest(
     systemMessages,
     requestMessage,
     ...rest,
+  };
+}
+
+// ============================================================================
+// Default Model Resolution
+// ============================================================================
+
+async function resolveDefaultModels(
+  ctx: MeshContext,
+  organizationId: string,
+): Promise<ModelsConfig> {
+  const keys = await ctx.storage.aiProviderKeys.list({ organizationId });
+  if (keys.length === 0) {
+    throw new HTTPException(400, {
+      message: "No AI provider credentials configured for this organization",
+    });
+  }
+  const credential = keys[0]!;
+  const modelList = await ctx.aiProviders.listModels(
+    credential.id,
+    organizationId,
+  );
+  if (modelList.length === 0) {
+    throw new HTTPException(400, {
+      message: "No models available from the configured AI provider",
+    });
+  }
+  const model = modelList[0]!;
+  return {
+    credentialId: credential.id,
+    thinking: { id: model.modelId, title: model.title },
   };
 }
 
@@ -115,7 +146,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       // 1. Validate request
       const {
         organization,
-        models,
+        models: clientModels,
         agent,
         systemMessages,
         requestMessage,
@@ -130,7 +161,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
         throw new HTTPException(401, { message: "User ID is required" });
       }
 
-      // 2. Check model permissions
+      // 2. Resolve models — use client-provided or fall back to org defaults
+      const models =
+        clientModels ?? (await resolveDefaultModels(ctx, organization.id));
+
+      // 3. Check model permissions
       const allowedModels = await fetchModelPermissions(
         ctx.db,
         organization.id,
@@ -153,7 +188,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
       const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
       const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
 
-      // 3. Delegate to streamCore
+      // 4. Delegate to streamCore
       const result = await streamCore(
         {
           messages: [...systemMessages, requestMessage],
@@ -163,7 +198,100 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           toolApprovalLevel,
           organizationId: organization.id,
           userId,
-          threadId: resolvedThreadId,
+          taskId: resolvedThreadId,
+          windowSize,
+        },
+        ctx,
+        { runRegistry, streamBuffer, cancelBroadcast },
+      );
+
+      return createUIMessageStreamResponse({
+        stream: result.stream,
+        consumeSseStream: consumeStream,
+      });
+    } catch (err) {
+      console.error("[decopilot:stream] Error", err);
+
+      if (err instanceof HTTPException) {
+        return c.json({ error: err.message }, err.status);
+      }
+
+      if (err instanceof Error && err.name === "AbortError") {
+        console.warn("[decopilot:stream] Aborted", { error: err.message });
+        return c.json({ error: "Request aborted" }, 400);
+      }
+
+      console.error("[decopilot:stream] Failed", {
+        error: err instanceof Error ? err.message : JSON.stringify(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      return c.json(
+        { error: err instanceof Error ? err.message : JSON.stringify(err) },
+        500,
+      );
+    }
+  });
+
+  app.post("/:org/decopilot/runtime/stream", async (c) => {
+    try {
+      const ctx = c.get("meshContext");
+
+      // 1. Validate request
+      const {
+        organization,
+        models: clientModels,
+        agent,
+        systemMessages,
+        requestMessage,
+        temperature,
+        memory: memoryConfig,
+        thread_id,
+        toolApprovalLevel,
+      } = await validateRequest(c);
+
+      const userId = ctx.auth?.user?.id;
+      if (!userId) {
+        throw new HTTPException(401, { message: "User ID is required" });
+      }
+
+      // 2. Resolve models — use client-provided or fall back to org defaults
+      const models =
+        clientModels ?? (await resolveDefaultModels(ctx, organization.id));
+
+      // 3. Check model permissions
+      const allowedModels = await fetchModelPermissions(
+        ctx.db,
+        organization.id,
+        ctx.auth.user?.role,
+      );
+
+      if (
+        allowedModels !== undefined &&
+        !checkModelPermission(
+          allowedModels,
+          models.credentialId,
+          models.thinking.id,
+        )
+      ) {
+        throw new HTTPException(403, {
+          message: "Model not allowed for your role",
+        });
+      }
+
+      const windowSize = memoryConfig?.windowSize ?? DEFAULT_WINDOW_SIZE;
+      const resolvedThreadId = thread_id ?? memoryConfig?.thread_id;
+
+      // 4. Delegate to streamCore
+      const result = await streamCore(
+        {
+          messages: [...systemMessages, requestMessage],
+          models,
+          agent,
+          temperature,
+          toolApprovalLevel,
+          organizationId: organization.id,
+          userId,
+          taskId: resolvedThreadId,
           windowSize,
         },
         ctx,
@@ -206,31 +334,31 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
   // ============================================================================
 
   app.post("/:org/decopilot/cancel/:threadId", async (c) => {
-    const { threadId, thread, organization } = await validateThreadOwnership(c);
+    const { taskId, thread, organization } = await validateThreadOwnership(c);
 
     // Try to cancel locally first
     const cancelTransitions = await runRegistry.execute({
       type: "CANCEL",
-      threadId,
+      taskId,
     });
     if (cancelTransitions.some((t) => t.event.type === "RUN_FAILED")) {
       return c.json({ cancelled: true });
     }
 
     // Not on this pod — broadcast to all pods
-    cancelBroadcast.broadcast(threadId);
+    cancelBroadcast.broadcast(taskId);
 
     // Ghost run: server restarted while a run was in progress. No pod has this
     // run in memory, so the broadcast will never resolve. Force-fail the thread
     // in the DB so the user can send new messages.
     if (thread.status === "in_progress") {
       console.warn("[decopilot:cancel] Ghost run detected, force-failing", {
-        threadId,
+        taskId,
       });
       runRegistry
         .execute({
           type: "FORCE_FAIL",
-          threadId,
+          taskId,
           reason: "ghost",
           orgId: organization.id,
         })
@@ -238,7 +366,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           console.error(
             "[decopilot:cancel] Failed to force-fail ghost thread",
             {
-              threadId,
+              taskId,
               err,
             },
           );
@@ -254,12 +382,11 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
   app.get("/:org/decopilot/attach/:threadId", async (c) => {
     try {
-      const { threadId, thread, organization } = await validateThreadAccess(c);
+      const { taskId, thread, organization } = await validateThreadAccess(c);
 
       // ── Fast path: run is active on this pod → replay buffer ──
-      if (runRegistry.isRunning(threadId)) {
-        const replayChunkStream =
-          await streamBuffer.createReplayStream(threadId);
+      if (runRegistry.isRunning(taskId)) {
+        const replayChunkStream = await streamBuffer.createReplayStream(taskId);
         if (!replayChunkStream) {
           return c.body(null, 204);
         }
@@ -301,14 +428,14 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
       // No persisted config → can't resume; force-fail so user can retry
       if (!thread.run_config) {
-        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        await threadStorage.forceFailIfInProgress(taskId, organization.id);
         return c.body(null, 204);
       }
 
       // Validate stored config (schema drift protection)
       const parsed = PersistedRunConfigSchema.safeParse(thread.run_config);
       if (!parsed.success) {
-        await threadStorage.forceFailIfInProgress(threadId, organization.id);
+        await threadStorage.forceFailIfInProgress(taskId, organization.id);
         return c.body(null, 204);
       }
       const config = parsed.data;
@@ -334,9 +461,9 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
 
       // Atomic CAS claim — succeeds for null or stale run_owner_pod
       const claimed = await threadStorage.claimOrphanedRun(
-        threadId,
+        taskId,
         organization.id,
-        POD_ID,
+        getPodId(),
       );
       if (!claimed) {
         return c.body(null, 204);
@@ -352,7 +479,7 @@ export function createDecopilotRoutes(deps: DecopilotDeps) {
           toolApprovalLevel: config.toolApprovalLevel,
           organizationId: organization.id,
           userId,
-          threadId,
+          taskId,
           windowSize: config.windowSize,
           isResume: true,
         },

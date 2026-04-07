@@ -51,7 +51,7 @@ import {
   OAuthAuthenticationState,
   ManualAuthRequiredState,
 } from "./connection/settings-tab";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
   useConnection,
@@ -63,8 +63,8 @@ import {
 import { contentBlocksToTiptapDoc } from "@/mcp-apps/content-blocks.ts";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { ToolAnnotationBadges } from "@/web/components/tools/tools-list.tsx";
-import { useChatStable } from "@/web/components/chat/context.tsx";
-import { useDecoChatOpen } from "@/web/hooks/use-deco-chat-open.ts";
+import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
+import { useChatPanel } from "@/web/contexts/panel-context.tsx";
 import { MonacoCodeEditor } from "./workflow/components/monaco-editor";
 
 export interface ToolDetailsViewProps {
@@ -199,8 +199,9 @@ function ToolDetailsAuthenticated({
 
   const { org } = useProjectContext();
   const connection = useConnection(connectionId);
-  const { sendMessage, setAppContext, clearAppContext } = useChatStable();
-  const [, setChatOpen] = useDecoChatOpen();
+  const { sendMessage } = useChatBridge();
+  const { setAppContext, clearAppContext } = useChatPrefs();
+  const [, setChatOpen] = useChatPanel();
   const sourceId = `${connectionId}:${toolName}`;
 
   const client = useMCPClient({
@@ -218,7 +219,7 @@ function ToolDetailsAuthenticated({
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
       setChatOpen(true);
-      sendMessage(doc);
+      sendMessage({ tiptapDoc: doc });
     }
   };
 
@@ -350,7 +351,7 @@ function ToolDetailsAuthenticated({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/$org/mcps" params={{ org: org.slug }}>
+            <Link to="/$org/settings/connections" params={{ org: org.slug }}>
               Connections
             </Link>
           </BreadcrumbLink>
@@ -361,7 +362,7 @@ function ToolDetailsAuthenticated({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  to="/$org/mcps/$appSlug"
+                  to="/$org/settings/connections/$appSlug"
                   params={{
                     org: org.slug,
                     appSlug: getConnectionSlug(connection),

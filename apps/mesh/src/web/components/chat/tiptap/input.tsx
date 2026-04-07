@@ -15,7 +15,7 @@ import { FileNode, FileUploader } from "./file";
 import { MentionNode } from "./mention";
 import { PromptsMention } from "./mention-prompts.tsx";
 import { ResourcesMention } from "./mention-resources.tsx";
-import { AiProviderModel } from "@/web/hooks/collections/use-llm.ts";
+import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
 function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
   return [
@@ -24,6 +24,7 @@ function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
       blockquote: false,
       codeBlock: false,
       horizontalRule: false,
+      dropcursor: false,
     }),
     Placeholder.configure({
       placeholder: () =>

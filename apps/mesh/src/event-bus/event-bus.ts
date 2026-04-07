@@ -132,6 +132,7 @@ export class EventBus implements IEventBus {
 
     // Find matching subscriptions and create delivery records
     const subscriptions = await this.storage.getMatchingSubscriptions(event);
+
     if (subscriptions.length > 0) {
       // Determine when to deliver:
       // - deliverAt: use specified time
@@ -144,10 +145,12 @@ export class EventBus implements IEventBus {
         subscriptions.map((s) => s.id),
         deliverAt,
       );
-
-      // Only notify strategy for immediate delivery (no scheduled time and no cron)
-      // Scheduled events will be picked up by the polling worker at the right time
-      if (this.notifyStrategy && !deliverAt) {
+      // Notify strategy for immediate or already-due deliveries.
+      // Skip only for genuinely future-scheduled events — those will be
+      // picked up by the polling worker at the right time.
+      const isAlreadyDue =
+        deliverAt != null && new Date(deliverAt).getTime() <= Date.now();
+      if (this.notifyStrategy && (!deliverAt || isAlreadyDue)) {
         await this.notifyStrategy.notify(eventId).catch((error) => {
           console.warn("[EventBus] Notify failed (non-critical):", error);
         });

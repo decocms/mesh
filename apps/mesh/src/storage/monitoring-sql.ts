@@ -30,15 +30,30 @@ export type SqlDialect = "clickhouse" | "duckdb";
 // Validation helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalise a ClickHouse / DuckDB bucket timestamp to ISO 8601 UTC.
+ *
+ * ClickHouse JSONEachRow returns DateTime as "YYYY-MM-DD HH:MM:SS" (no TZ).
+ * Browsers parse that as *local* time, which shifts charts by the user's
+ * UTC offset and breaks the bucket-key lookup on the frontend.
+ */
+function toISOBucket(bucket: unknown): string {
+  const raw = String(bucket ?? "");
+  if (raw && !raw.includes("T")) {
+    return raw.replace(" ", "T") + "Z";
+  }
+  return raw;
+}
+
 /** Escape a string value for safe use in SQL single-quoted literals. */
 function esc(value: string): string {
+  // oxlint-disable-next-line no-control-regex
   return value.replace(/\0/g, "").replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
 
 /** Allowed groupByColumn values. */
 const ALLOWED_GROUP_BY_COLUMNS = new Set<GroupByColumn>([
   "connection_id",
-  "connection_title",
   "user_id",
   "tool_name",
   "virtual_mcp_id",
@@ -111,7 +126,7 @@ function intervalToSQL(interval: string, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `time_bucket(INTERVAL '${amount} ${sqlUnit}', CAST(timestamp AS TIMESTAMP))`;
   }
-  return `toStartOfInterval(parseDateTime64BestEffort(toString(timestamp)), INTERVAL ${amount} ${sqlUnit})`;
+  return `toStartOfInterval(timestamp, INTERVAL ${amount} ${sqlUnit})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +176,6 @@ function toMonitoringLog(row: Record<string, unknown>): MonitoringLog {
     id: String(row.id ?? ""),
     organizationId: String(row.organization_id ?? ""),
     connectionId: String(row.connection_id ?? ""),
-    connectionTitle: String(row.connection_title ?? ""),
     toolName: String(row.tool_name ?? ""),
     input: safeJsonParse(row.input),
     output: safeJsonParse(row.output),
@@ -259,6 +273,26 @@ function buildPropertyFilterClauses(
 }
 
 // ---------------------------------------------------------------------------
+// ClickHouse column list — truncate large JSON blobs to cap memory usage
+// ---------------------------------------------------------------------------
+
+const LIST_COLUMNS = [
+  "id",
+  "organization_id",
+  "connection_id",
+  "tool_name",
+  "is_error",
+  "error_message",
+  "duration_ms",
+  "timestamp",
+  "user_id",
+  "request_id",
+  "user_agent",
+  "virtual_mcp_id",
+  "properties",
+].join(", ");
+
+// ---------------------------------------------------------------------------
 // Timestamp filter helper (dialect-aware)
 // ---------------------------------------------------------------------------
 
@@ -305,14 +339,14 @@ function tsGte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) >= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `parseDateTime64BestEffort(toString(timestamp)) >= parseDateTime64BestEffort('${date.toISOString()}')`;
+  return `timestamp >= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 function tsLte(date: Date, dialect: SqlDialect): string {
   if (dialect === "duckdb") {
     return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
-  return `parseDateTime64BestEffort(toString(timestamp)) <= parseDateTime64BestEffort('${date.toISOString()}')`;
+  return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,18 +422,41 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     );
     const offset = Math.max(0, Math.floor(filters.offset ?? 0));
 
-    const sql = `SELECT *, count(*) OVER () AS _total FROM ${source} WHERE ${where.join(" AND ")} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+    const whereClause = where.join(" AND ");
 
-    const rows = await this.engine.query(sql);
-
-    if (rows.length === 0) {
-      return { logs: [], total: 0 };
+    if (this.dialect === "duckdb") {
+      const sql = `SELECT ${LIST_COLUMNS}, count(*) OVER () AS _total FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
+      const rows = await this.engine.query(sql);
+      if (rows.length === 0) {
+        return { logs: [], total: 0 };
+      }
+      const total = Number(rows[0]!._total ?? 0);
+      return { logs: rows.map(toMonitoringLog), total };
     }
 
-    const total = Number(rows[0]!._total ?? 0);
-    const logs = rows.map(toMonitoringLog);
+    const countSql = `SELECT count(*) AS total FROM ${source} WHERE ${whereClause}`;
+    const dataSql = `SELECT ${LIST_COLUMNS} FROM ${source} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    return { logs, total };
+    const [countRows, dataRows] = await Promise.all([
+      this.engine.query(countSql),
+      this.engine.query(dataSql),
+    ]);
+
+    const total = Number(countRows[0]?.total ?? 0);
+    return { logs: dataRows.map(toMonitoringLog), total };
+  }
+
+  async getById(
+    organizationId: string,
+    id: string,
+  ): Promise<MonitoringLog | null> {
+    if (!organizationId || !id) return null;
+
+    const source = this.sourceFactory(organizationId);
+    const sql = `SELECT * FROM ${source} WHERE organization_id = '${esc(organizationId)}' AND id = '${esc(id)}' LIMIT 1`;
+    const rows = await this.engine.query(sql);
+    if (rows.length === 0) return null;
+    return toMonitoringLog(rows[0]!);
   }
 
   async getStats(filters: {
@@ -687,8 +744,8 @@ ORDER BY bucket ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  groupArrayIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  groupArrayIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause}
 GROUP BY bucket
@@ -769,13 +826,22 @@ LIMIT 1000`;
         totalHistSum += histSum;
         totalHistCount += histCount;
 
-        // Parse histogram arrays for percentile computation
-        const boundariesArr = parseGroupedArrays(row.boundaries_arr);
-        const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+        // Parse and merge histogram data for percentile computation
+        let mergedBounds: number[];
+        let mergedCounts: number[];
 
-        // Merge all histogram data in this time bucket
-        const { boundaries: mergedBounds, counts: mergedCounts } =
-          mergeHistogramBuckets(boundariesArr, bucketCountsArr);
+        if (this.dialect === "clickhouse") {
+          // ClickHouse: already merged via anyIf/sumForEachIf
+          mergedBounds = parseSingleArray(row.boundaries_arr);
+          mergedCounts = parseSingleArray(row.bucket_counts_arr);
+        } else {
+          // DuckDB: merge in JS
+          const boundariesArr = parseGroupedArrays(row.boundaries_arr);
+          const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+          const merged = mergeHistogramBuckets(boundariesArr, bucketCountsArr);
+          mergedBounds = merged.boundaries;
+          mergedCounts = merged.counts;
+        }
 
         // Accumulate for global percentiles
         if (mergedBounds.length > 0) {
@@ -795,7 +861,7 @@ LIMIT 1000`;
         );
 
         return {
-          timestamp: String(row.bucket ?? ""),
+          timestamp: toISOBucket(row.bucket),
           calls,
           errors,
           errorRate,
@@ -996,8 +1062,8 @@ ORDER BY bucket ASC, tool_name ASC`;
   sumIf(value, name = 'tool.execution.count' AND status = 'error') AS errors,
   sumIf(hist_sum, name = 'tool.execution.duration') AS total_hist_sum,
   sumIf(hist_count, name = 'tool.execution.duration') AS total_hist_count,
-  groupArrayIf(hist_boundaries, name = 'tool.execution.duration') AS boundaries_arr,
-  groupArrayIf(hist_bucket_counts, name = 'tool.execution.duration') AS bucket_counts_arr
+  anyIf(JSONExtract(hist_boundaries, 'Array(Float64)'), name = 'tool.execution.duration') AS boundaries_arr,
+  sumForEachIf(JSONExtract(hist_bucket_counts, 'Array(Float64)'), name = 'tool.execution.duration') AS bucket_counts_arr
 FROM ${metricSource}
 WHERE ${whereClause} AND tool_name IN (${toolNamesSql})
 GROUP BY bucket, tool_name
@@ -1018,15 +1084,25 @@ ORDER BY bucket ASC, tool_name ASC`;
           const errors = Number(row.errors ?? 0);
           const histSum = Number(row.total_hist_sum ?? 0);
           const histCount = Number(row.total_hist_count ?? 0);
-          const boundariesArr = parseGroupedArrays(row.boundaries_arr);
-          const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
-          const { boundaries, counts } = mergeHistogramBuckets(
-            boundariesArr,
-            bucketCountsArr,
-          );
+          let boundaries: number[];
+          let counts: number[];
+
+          if (this.dialect === "clickhouse") {
+            boundaries = parseSingleArray(row.boundaries_arr);
+            counts = parseSingleArray(row.bucket_counts_arr);
+          } else {
+            const boundariesArr = parseGroupedArrays(row.boundaries_arr);
+            const bucketCountsArr = parseGroupedArrays(row.bucket_counts_arr);
+            const merged = mergeHistogramBuckets(
+              boundariesArr,
+              bucketCountsArr,
+            );
+            boundaries = merged.boundaries;
+            counts = merged.counts;
+          }
 
           return {
-            timestamp: String(row.bucket ?? ""),
+            timestamp: toISOBucket(row.bucket),
             toolName: String(row.tool_name ?? ""),
             calls,
             errors,
@@ -1051,8 +1127,26 @@ ORDER BY bucket ASC, tool_name ASC`;
 // ---------------------------------------------------------------------------
 
 /**
- * Parse grouped array results from ClickHouse/DuckDB.
- * groupArrayIf/LIST returns an array of JSON strings (each being a serialized array).
+ * Parse a single pre-merged array from ClickHouse (anyIf / sumForEachIf result).
+ * Returns a flat number[].
+ */
+function parseSingleArray(val: unknown): number[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map(Number);
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.map(Number);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * Parse grouped array results from DuckDB.
+ * LIST returns an array of JSON strings (each being a serialized array).
  */
 export function parseGroupedArrays(val: unknown): number[][] {
   if (!val) return [];

@@ -10,7 +10,6 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:assistant-chat:tasks:${locator}`,
   messages: (locator: ProjectLocator, taskId: string) =>
     `mesh:messages:${locator}:${taskId}`,
-  decoChatOpen: () => `mesh:decochat:open`,
   chatSelectedModel: (locator: ProjectLocator) =>
     `mesh:chat:selectedModel:${locator}`,
   chatSelectedMode: (locator: ProjectLocator) =>
@@ -20,8 +19,8 @@ export const LOCALSTORAGE_KEYS = {
   assistantChatActiveTask: (locator: ProjectLocator) =>
     `mesh:assistant-chat:active-task:${locator}`,
   decoChatPanelWidth: () => `mesh:decochat:panel-width`,
+  decoTasksPanelWidth: () => `mesh:decotasks:panel-width`,
   sidebarOpen: () => `mesh:sidebar-open`,
-  selectedRegistry: (org: string) => `mesh:store:selected-registry:${org}`,
   orgHomeQuickstart: (org: string) => `mesh:org-home:quickstart:${org}`,
   storeShowStdio: () => `mesh:store:show-stdio`,
   preferences: () => `mesh:user:preferences`,
@@ -31,4 +30,8 @@ export const LOCALSTORAGE_KEYS = {
     `mesh:chat:task-owner-filter:${locator}`,
   lastOrgSlug: () => `mesh:last-org-slug`,
   connectionsTab: (org: string) => `mesh:connections:tab:${org}`,
+  taskLastViewed: (locator: ProjectLocator) =>
+    `mesh:chat:task-last-viewed:${locator}`,
+  agentLastSeen: (orgId: string) => `mesh:agent:last-seen:${orgId}`,
+  agentLastUpdated: (orgId: string) => `mesh:agent:last-updated:${orgId}`,
 } as const;

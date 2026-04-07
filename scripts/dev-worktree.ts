@@ -41,8 +41,6 @@ startWorktree(slug, async (ctx) => {
       String(vitePort),
       "--base-url",
       `http://${ctx.slug}.localhost`,
-      "--env-file",
-      join(repoRoot, "apps/mesh/.env"),
       ...process.argv.slice(2),
     ],
     { stdio: ["inherit", "inherit", "inherit"] },

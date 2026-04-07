@@ -5,7 +5,7 @@ import {
   TabsTrigger,
 } from "@deco/ui/components/tabs.tsx";
 import { useConnection } from "@decocms/mesh-sdk";
-import { getConnectionSlug } from "@/web/utils/connection-slug";
+import { getConnectionSlug } from "@/shared/utils/connection-slug";
 import { BookOpen01, Columns01, ChevronRight, Tool01 } from "@untitledui/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
@@ -95,7 +95,7 @@ export function ConnectionCapabilities({
   function openTool(toolName: string) {
     if (!connectionId || !org) return;
     navigate({
-      to: "/$org/mcps/$appSlug/$collectionName/$itemId",
+      to: "/$org/settings/connections/$appSlug/$collectionName/$itemId",
       params: {
         org,
         appSlug: appSlug!,

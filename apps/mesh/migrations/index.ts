@@ -50,13 +50,23 @@ import * as migration048mergeprojectsagents from "./048-merge-projects-agents.ts
 import * as migration049removeorgadminprojects from "./049-remove-org-admin-projects.ts";
 import * as migration050durableagentruns from "./050-durable-agent-runs.ts";
 import * as migration051orgsso from "./051-org-sso.ts";
+import * as migration052threadagentids from "./052-thread-agent-ids.ts";
+import * as migration053registryconfig from "./053-registry-config.ts";
+import * as migration054connectionslug from "./054-connection-slug.ts";
+import * as migration055spaces from "./055-spaces.ts";
+import * as migration056automationprojectscope from "./056-automation-project-scope.ts";
+import * as migration057threadvirtualmcpid from "./057-thread-virtual-mcp-id.ts";
+import * as migration058triggercallbacktokens from "./058-trigger-callback-tokens.ts";
+import * as migration059kv from "./059-kv.ts";
+import * as migration060memberindex from "./060-member-index.ts";
+import * as migration061downstreamtokenconnectionindex from "./061-downstream-token-connection-index.ts";
+import * as migration062privateregistry from "./062-private-registry.ts";
+import * as migration063eventsubscriptionsenabledboolean from "./063-event-subscriptions-enabled-boolean.ts";
 
 /**
  * Core migrations for the Mesh application.
  *
  * These are managed by Kysely's migrator and run in alphabetical order.
- * Plugin migrations are handled separately by the plugin migration system
- * (see src/database/migrate.ts) to avoid ordering conflicts.
  */
 const migrations: Record<string, Migration> = {
   "001-initial-schema": migration001initialschema,
@@ -114,6 +124,20 @@ const migrations: Record<string, Migration> = {
   "049-remove-org-admin-projects": migration049removeorgadminprojects,
   "050-durable-agent-runs": migration050durableagentruns,
   "051-org-sso": migration051orgsso,
+  "052-thread-agent-ids": migration052threadagentids,
+  "053-registry-config": migration053registryconfig,
+  "054-connection-slug": migration054connectionslug,
+  "055-spaces": migration055spaces,
+  "056-automation-project-scope": migration056automationprojectscope,
+  "057-thread-virtual-mcp-id": migration057threadvirtualmcpid,
+  "058-trigger-callback-tokens": migration058triggercallbacktokens,
+  "059-kv": migration059kv,
+  "060-member-index": migration060memberindex,
+  "061-downstream-token-connection-index":
+    migration061downstreamtokenconnectionindex,
+  "062-private-registry": migration062privateregistry,
+  "063-event-subscriptions-enabled-boolean":
+    migration063eventsubscriptionsenabledboolean,
 };
 
 export default migrations;

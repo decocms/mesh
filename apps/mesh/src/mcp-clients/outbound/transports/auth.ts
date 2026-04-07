@@ -19,7 +19,7 @@ import type {
   JSONRPCRequest,
   CallToolRequest,
 } from "@modelcontextprotocol/sdk/types.js";
-import { WrapperTransport } from "./compose";
+import { WrapperTransport } from "@decocms/mcp-utils";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 const MCP_MESH_KEY = "mcp.mesh";
@@ -99,6 +99,7 @@ export class AuthTransport extends WrapperTransport {
         return tools;
       },
       cache,
+      (p) => this.options.ctx.pendingRevalidations.push(p),
     );
 
     if (!tools) {

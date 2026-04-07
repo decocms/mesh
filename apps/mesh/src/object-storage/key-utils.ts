@@ -14,6 +14,7 @@ export function sanitizeKey(key: string): string {
     decoded = key;
   }
 
+  /* oxlint-disable no-control-regex */
   const cleaned = decoded
     // Strip null bytes
     .replace(/\0/g, "")
@@ -21,6 +22,7 @@ export function sanitizeKey(key: string): string {
     .replace(/[\x00-\x1f\x7f]/g, "")
     // Normalize backslashes to forward slashes
     .replace(/\\/g, "/");
+  /* oxlint-enable no-control-regex */
 
   // Resolve path segments to eliminate traversal
   const segments = cleaned.split("/");

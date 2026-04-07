@@ -29,13 +29,14 @@ const ProviderEnum = z.enum([
   "openai-compatible",
   "deco",
   "claude-code",
+  "codex",
 ]);
 
 const ProviderSchema = ProviderEnum.optional().nullable();
 
 const ModelInfoSchema = z.object({
   id: z.string(),
-  title: z.string(),
+  title: z.string().optional(),
   capabilities: z
     .object({
       vision: z.boolean().optional(),
@@ -76,7 +77,7 @@ export const StreamRequestSchema = z.object({
       message: "Expected exactly one non-system message",
     }),
   memory: MemoryConfigSchema.optional(),
-  models: ModelsSchema,
+  models: ModelsSchema.optional(),
   agent: z
     .object({
       id: z.string(),

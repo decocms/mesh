@@ -6,7 +6,10 @@ import { cn } from "@deco/ui/lib/utils.ts";
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div data-slot="table-container" className="w-full min-w-0 bg-background">
+    <div
+      data-slot="table-container"
+      className="w-full min-w-0 bg-background rounded-xl border border-border shadow-xs overflow-hidden"
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm min-w-0", className)}
@@ -83,7 +86,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "p-2 align-middle whitespace-nowrap text-sm [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
       {...props}

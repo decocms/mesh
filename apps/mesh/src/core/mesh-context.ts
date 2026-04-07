@@ -220,7 +220,7 @@ export interface RequestMetadata {
 // ============================================================================
 
 // Forward declare storage types
-import type { createMCPProxy } from "@/api/routes/proxy";
+import type { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import type { BetterAuthInstance } from "@/auth";
 import type { OrgScopedThreadStorage } from "@/storage/threads";
 import type { EventBus } from "../event-bus/interface";
@@ -229,14 +229,15 @@ import type {
   MonitoringStorage,
   VirtualMcpPluginConfigStoragePort,
 } from "../storage/ports";
-import type { SqlMonitoringDashboardStorage } from "../storage/monitoring-dashboards";
 import type { OrganizationSettingsStorage } from "../storage/organization-settings";
 import type { TagStorage } from "../storage/tags";
 import type { UserStorage } from "../storage/user";
 import type { VirtualMCPStorage } from "../storage/virtual";
 import type { AutomationsStorage } from "../storage/automations";
+import type { TriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
+import type { RegistryStorage } from "../storage/registry";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { AIProviderKeyStorage } from "@/storage/ai-provider-keys";
@@ -262,7 +263,6 @@ export interface MeshStorage {
   connections: ConnectionStorage;
   organizationSettings: OrganizationSettingsStorage;
   monitoring: MonitoringStorage;
-  monitoringDashboards: SqlMonitoringDashboardStorage;
   virtualMcps: VirtualMCPStorage;
   users: UserStorage;
   threads: OrgScopedThreadStorage;
@@ -270,9 +270,11 @@ export interface MeshStorage {
   aiProviderKeys: AIProviderKeyStorage;
   oauthPkceStates: OAuthPkceStateStorage;
   automations: AutomationsStorage;
+  triggerCallbackTokens: TriggerCallbackTokenStorage;
   virtualMcpPluginConfigs: VirtualMcpPluginConfigStoragePort;
   orgSsoConfig: OrgSsoConfigStorage;
   orgSsoSessions: OrgSsoSessionStorage;
+  registry: RegistryStorage;
 }
 
 // ============================================================================
@@ -345,6 +347,12 @@ export interface MeshContext {
     transport: T,
     key: string,
   ) => Promise<Client>;
+
+  // Invalidate cached member role (call after role mutations)
+  invalidateMemberRole?: (userId: string, organizationId: string) => void;
+
+  // Revalidation promises from SWR cache — awaited in middleware before ctx goes out of scope
+  pendingRevalidations: Promise<void>[];
 
   // AI Provider keys storage
 

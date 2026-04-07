@@ -11,7 +11,7 @@ import { Attachment01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { modelSupportsFiles } from "../../select-model";
 import { insertFile, type FileAttrs } from "./node.tsx";
-import { AiProviderModel } from "@/web/hooks/collections/use-llm.ts";
+import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
 interface FileUploaderProps {
   editor: Editor;
@@ -21,7 +21,7 @@ interface FileUploaderProps {
 /**
  * Processes a file by converting it to base64 and inserting it into the editor.
  */
-async function processFile(
+export async function processFile(
   editor: Editor,
   selectedModel: AiProviderModel | null,
   file: File,
@@ -145,6 +145,26 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
 
           return true;
         },
+
+        handlePaste: (view, event) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+
+          const fileItems = Array.from(items).filter(
+            (item) => item.kind === "file",
+          );
+          if (fileItems.length === 0) return false;
+
+          event.preventDefault();
+
+          const { from } = view.state.selection;
+          for (const item of fileItems) {
+            const file = item.getAsFile();
+            if (file) void processFileRef.current?.(file, from);
+          }
+
+          return true;
+        },
       },
     });
 
@@ -199,7 +219,7 @@ export function FileUploadButton({
     }
   };
 
-  if (!editor) {
+  if (!editor || !modelSupportsFilesValue) {
     return null;
   }
 
@@ -211,7 +231,7 @@ export function FileUploadButton({
         multiple
         className="hidden"
         onChange={handleFileSelect}
-        disabled={isStreaming || !modelSupportsFilesValue}
+        disabled={isStreaming}
       />
       <Tooltip>
         <TooltipTrigger asChild>
@@ -219,21 +239,17 @@ export function FileUploadButton({
             type="button"
             className={cn(
               "flex items-center justify-center size-8 rounded-md border border-border text-muted-foreground/75 transition-colors shrink-0",
-              isStreaming || !modelSupportsFilesValue
+              isStreaming
                 ? "cursor-not-allowed opacity-50"
                 : "cursor-pointer hover:text-muted-foreground",
             )}
-            disabled={isStreaming || !modelSupportsFilesValue}
+            disabled={isStreaming}
             onClick={() => fileInputRef.current?.click()}
           >
             <Attachment01 size={16} />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          {!modelSupportsFilesValue
-            ? "Selected model does not support files"
-            : "Add file"}
-        </TooltipContent>
+        <TooltipContent side="top">Add file</TooltipContent>
       </Tooltip>
     </>
   );

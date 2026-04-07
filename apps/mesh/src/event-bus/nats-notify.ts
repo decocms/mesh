@@ -16,7 +16,7 @@ import type { NotifyStrategy } from "./notify-strategy";
 const SUBJECT = "mesh.events.notify";
 
 export interface NatsNotifyStrategyOptions {
-  getConnection: () => NatsConnection;
+  getConnection: () => NatsConnection | null;
 }
 
 export class NatsNotifyStrategy implements NotifyStrategy {
@@ -26,11 +26,15 @@ export class NatsNotifyStrategy implements NotifyStrategy {
 
   constructor(private readonly options: NatsNotifyStrategyOptions) {}
 
-  async start(onNotify: () => void): Promise<void> {
+  async start(onNotify?: () => void): Promise<void> {
     if (this.sub) return;
+    if (onNotify) this.onNotify = onNotify;
+    if (!this.onNotify) return;
 
-    this.onNotify = onNotify;
-    this.sub = this.options.getConnection().subscribe(SUBJECT);
+    const nc = this.options.getConnection();
+    if (!nc) return; // NATS not ready — polling strategy is safety net
+
+    this.sub = nc.subscribe(SUBJECT);
 
     (async () => {
       for await (const _msg of this.sub!) {
@@ -49,9 +53,9 @@ export class NatsNotifyStrategy implements NotifyStrategy {
 
   async notify(eventId: string): Promise<void> {
     try {
-      this.options
-        .getConnection()
-        .publish(SUBJECT, this.encoder.encode(eventId));
+      const nc = this.options.getConnection();
+      if (!nc) return; // NATS not ready — event bus will poll
+      nc.publish(SUBJECT, this.encoder.encode(eventId));
     } catch (err) {
       console.warn("[NatsNotify] Publish failed (non-critical):", err);
     }
