@@ -58,12 +58,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import {
-  Outlet,
-  useMatch,
-  useRouterState,
-  useSearch,
-} from "@tanstack/react-router";
+import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
@@ -336,14 +331,9 @@ function AgentPanelGroup({
     agentVirtualMcpId,
     isAgentRoute,
   );
-  const search = useSearch({ strict: false }) as {
-    taskId?: string;
-    main?: string;
-  };
-  const hasMainParam = !!search.main;
   return (
     <ResizablePanelGroup
-      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}-${hasMainParam}-${search.taskId ?? ""}`}
+      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}`}
       direction="horizontal"
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
@@ -370,18 +360,16 @@ function AgentPanelGroup({
         </>
       )}
 
-      {showThreePanels && (
+      {!isOrgHome && (
         <ResizablePanel
           ref={mainPanelRef}
           className="min-w-0 flex flex-col"
           order={2}
-          defaultSize={
-            mainDefaultCollapsed || (isOrgHome && !hasMainParam) ? 0 : undefined
-          }
+          defaultSize={mainDefaultCollapsed ? 0 : undefined}
           style={{ overflow: "visible" }}
-          collapsible
+          collapsible={isAgentRoute}
           collapsedSize={0}
-          minSize={20}
+          minSize={isAgentRoute ? 20 : undefined}
           onCollapse={() => setMainOpen(false)}
           onExpand={() => setMainOpen(true)}
         >
@@ -415,22 +403,21 @@ function AgentPanelGroup({
 
       {showThreePanels && (
         <>
-          <ResizableHandle className="bg-sidebar" />
+          {!isOrgHome && <ResizableHandle className="bg-sidebar" />}
           <PersistentResizablePanel
             key={
-              mainDefaultCollapsed || (isOrgHome && !hasMainParam)
-                ? "chat-no-main"
-                : chatDefaultCollapsed
-                  ? "chat-hidden"
-                  : "chat-default"
+              isOrgHome
+                ? "chat-home"
+                : mainDefaultCollapsed
+                  ? "chat-no-main"
+                  : chatDefaultCollapsed
+                    ? "chat-hidden"
+                    : "chat-default"
             }
             panelRef={chatPanelRef}
             defaultCollapsed={chatDefaultCollapsed}
-            defaultSizeOverride={
-              mainDefaultCollapsed || (isOrgHome && !hasMainParam)
-                ? 78
-                : undefined
-            }
+            defaultFullWidth={isOrgHome}
+            defaultSizeOverride={mainDefaultCollapsed ? 78 : undefined}
             onCollapse={() => setChatOpen(false)}
             onExpand={() => setChatOpen(true)}
           >
@@ -484,7 +471,7 @@ function ShellLayoutInner({
 }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [tasksOpen, setTasksOpen] = useState(false);
-  const [mainOpen, setMainOpen] = useState(!isOrgHome);
+  const [mainOpen, setMainOpen] = useState(true);
   const isMobile = useIsMobile();
   const { org } = useProjectContext();
 
@@ -751,11 +738,14 @@ function ShellLayoutInner({
                     type="button"
                     onClick={toggleMain}
                     aria-pressed={mainOpen}
+                    disabled={isOrgHome}
                     className={cn(
                       "flex size-7 items-center justify-center rounded-md transition-colors",
-                      mainOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                      isOrgHome
+                        ? "text-sidebar-foreground/30 cursor-not-allowed"
+                        : mainOpen
+                          ? "bg-sidebar-accent text-sidebar-foreground"
+                          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                     title="Toggle content"
                   >
