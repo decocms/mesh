@@ -1,4 +1,5 @@
 import { displayToolName } from "@decocms/mcp-utils/aggregate";
+import { formatDuration } from "@/web/lib/format-time.ts";
 import { TOOL_NAMESPACE_PREFIXES } from "@/web/lib/tool-namespace";
 
 export type ToolPartStatus =
@@ -31,7 +32,7 @@ export function formatToolMetrics(metrics: ToolCallMetrics): string | null {
   }
 
   if (metrics.latencySeconds != null) {
-    parts.push(`${metrics.latencySeconds.toFixed(1)}s`);
+    parts.push(formatDuration(metrics.latencySeconds));
   }
 
   return parts.length > 0 ? parts.join(" · ") : null;
