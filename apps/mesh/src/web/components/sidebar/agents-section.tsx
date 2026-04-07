@@ -49,6 +49,7 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
+  isStudioPackAgent,
   WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
@@ -62,6 +63,7 @@ import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
 
 function AgentListItem({
@@ -289,10 +291,12 @@ function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
   onOpenDiagnosticsModal,
+  onOpenStudioPackModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
   onOpenDiagnosticsModal: () => void;
+  onOpenStudioPackModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -311,8 +315,11 @@ function PinAgentPopoverContent({
     .filter((s) => !isDecopilot(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
+  const studioPackInstalled = allAgents.some((a) => isStudioPackAgent(a.id));
   const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
-    (t) => !search || t.title.toLowerCase().includes(lowerSearch),
+    (t) =>
+      (!search || t.title.toLowerCase().includes(lowerSearch)) &&
+      !(t.id === "studio-pack" && studioPackInstalled),
   );
 
   // Find existing recruited Site Diagnostics agent
@@ -347,6 +354,8 @@ function PinAgentPopoverContent({
       } else {
         onOpenDiagnosticsModal();
       }
+    } else if (templateId === "studio-pack") {
+      onOpenStudioPackModal();
     } else {
       navigateToNewTask(templateId);
     }
@@ -456,6 +465,7 @@ function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -476,6 +486,7 @@ function PinAgentPopover() {
         onClose={handleClose}
         onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
         onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
+        onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
       />
     </Suspense>
   );
@@ -528,6 +539,10 @@ function PinAgentPopover() {
       <SiteDiagnosticsRecruitModal
         open={diagnosticsModalOpen}
         onOpenChange={setDiagnosticsModalOpen}
+      />
+      <StudioPackRecruitModal
+        open={studioPackModalOpen}
+        onOpenChange={setStudioPackModalOpen}
       />
     </>
   );
