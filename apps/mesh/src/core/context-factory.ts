@@ -1044,6 +1044,7 @@ export async function createMeshContextFactory(
         : undefined,
       getOrCreateClient: clientPool,
       pendingRevalidations: [],
+      firecrawlApiKey: getSettings().firecrawlApiKey,
     };
 
     return ctx;

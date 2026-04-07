@@ -35,11 +35,11 @@ type BrandContext = {
   name: string;
   domain: string;
   overview: string;
-  logo?: string;
-  favicon?: string;
-  ogImage?: string;
-  fonts?: { name: string; role: string }[];
-  colors?: { label: string; value: string }[];
+  logo?: string | null;
+  favicon?: string | null;
+  ogImage?: string | null;
+  fonts?: { name: string; role: string }[] | null;
+  colors?: { label: string; value: string }[] | null;
   images?: string[];
   archivedAt?: string | null;
   isDefault?: boolean;
@@ -291,9 +291,9 @@ function LogosSection({
 
   const save = () => {
     onSave({
-      logo: logo || undefined,
-      favicon: favicon || undefined,
-      ogImage: ogImage || undefined,
+      logo: logo || null,
+      favicon: favicon || null,
+      ogImage: ogImage || null,
     });
     setEditing(false);
   };
@@ -421,7 +421,7 @@ function FontsSection({
 
   const save = () => {
     const validFonts = fonts.filter((f) => f.name.trim());
-    onSave({ fonts: validFonts.length ? validFonts : undefined });
+    onSave({ fonts: validFonts.length ? validFonts : null });
     setEditing(false);
   };
 
@@ -522,7 +522,7 @@ function ColorsSection({
 
   const save = () => {
     const validColors = colors.filter((c) => c.label.trim() && c.value.trim());
-    onSave({ colors: validColors.length ? validColors : undefined });
+    onSave({ colors: validColors.length ? validColors : null });
     setEditing(false);
   };
 

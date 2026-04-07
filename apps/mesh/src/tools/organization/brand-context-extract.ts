@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
-import { getSettings } from "../../settings";
 
 /**
  * Map Firecrawl's BrandingProfile to our brand context shape.
@@ -126,7 +125,7 @@ export const BRAND_CONTEXT_EXTRACT = defineTool({
       );
     }
 
-    const apiKey = getSettings().firecrawlApiKey;
+    const apiKey = ctx.firecrawlApiKey;
     if (!apiKey) {
       throw new Error(
         "FIRECRAWL_API_KEY is not configured. Set the environment variable to enable brand extraction.",

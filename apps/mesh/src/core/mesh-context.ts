@@ -361,6 +361,9 @@ export interface MeshContext {
   // Object storage (S3-compatible) — null when S3 isn't configured or no org scope
   objectStorage: BoundObjectStorage | null;
 
+  // External API keys (optional, from settings)
+  firecrawlApiKey?: string;
+
   // Automation runner — fires an automation manually (wired in app.ts)
   automationRunner?: (
     automationId: string,

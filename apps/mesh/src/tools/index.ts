@@ -272,12 +272,18 @@ export const managementMCP = async (ctx: MeshContext) => {
   if (ctx.organization?.id) {
     const brands = await ctx.storage.brandContext.list(ctx.organization.id);
 
+    const registeredPromptNames = new Set<string>();
     for (const brand of brands) {
       const slug = brand.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
-      const promptName = slug ? `brand-${slug}` : `brand-${brand.id}`;
+      let promptName = slug ? `brand-${slug}` : `brand-${brand.id}`;
+      // Deduplicate — append ID suffix on collision
+      if (registeredPromptNames.has(promptName)) {
+        promptName = `${promptName}-${brand.id.slice(0, 8)}`;
+      }
+      registeredPromptNames.add(promptName);
 
       const lines: string[] = [
         `# Brand: ${brand.name}`,
