@@ -12,7 +12,7 @@ strategy:
 
 image:
   repository: ghcr.io/decocms/studio/studio
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   command:
     - bun
     - run
@@ -28,8 +28,10 @@ service:
 
 resources:
   requests:
-    memory: "300Mi"
-    cpu: "250m"
+    memory: "2Gi"
+    cpu: "2000m"
+  limits:
+    memory: "2Gi"
 
 database:
   engine: sqlite # sqlite | postgresql
@@ -48,7 +50,7 @@ autoscaling:
   enabled: false
   minReplicas: 3
   maxReplicas: 6
-  #targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
 configMap:
@@ -60,6 +62,7 @@ configMap:
     BASE_URL: "http://localhost:8080"
     DATA_DIR: "/app/data"
     # NATS_URL: ""  # Optional: overrides auto-derived URL when nats.enabled=true (e.g. nats://my-nats:4222)
+    DATABASE_POOL_MAX: "20"
     DECO_AI_GATEWAY_ENABLED: "false"
   authConfig:
     emailAndPassword:
@@ -191,8 +194,7 @@ otel:
         memory: "128Mi"
         cpu: "100m"
       limits:
-        memory: "256Mi"
-        cpu: "250m"
+        memory: "128Mi"
 
 # S3 file sync sidecar — syncs /app/data/{logs,traces,metrics} to S3
 s3Sync:
@@ -213,10 +215,9 @@ s3Sync:
   resources:
     requests:
       memory: "64Mi"
-      cpu: "50m"
-    limits:
-      memory: "128Mi"
       cpu: "100m"
+    limits:
+      memory: "64Mi"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
