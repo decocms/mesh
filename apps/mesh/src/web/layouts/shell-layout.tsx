@@ -336,11 +336,14 @@ function AgentPanelGroup({
     agentVirtualMcpId,
     isAgentRoute,
   );
-  const search = useSearch({ strict: false }) as { main?: string };
+  const search = useSearch({ strict: false }) as {
+    taskId?: string;
+    main?: string;
+  };
   const hasMainParam = !!search.main;
   return (
     <ResizablePanelGroup
-      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}-${hasMainParam}`}
+      key={`${agentVirtualMcpId ?? "none"}-${mainDefaultCollapsed}-${chatDefaultCollapsed}-${hasMainParam}-${search.taskId ?? ""}`}
       direction="horizontal"
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
