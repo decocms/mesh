@@ -103,6 +103,7 @@ function VirtualMCPProviderContent({
   const virtualMcpContextValue: VirtualMCPContextValue = {
     virtualMcpId,
     mainView,
+    entity,
   };
 
   return (

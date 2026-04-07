@@ -8,6 +8,7 @@
  * and useChatNavigation respectively.
  */
 
+import type { VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { createContext, use } from "react";
 
 // ---------------------------------------------------------------------------
@@ -31,6 +32,7 @@ export type MainView =
 export interface VirtualMCPContextValue {
   virtualMcpId: string;
   mainView: MainView;
+  entity: VirtualMCPEntity | null;
 }
 
 // ---------------------------------------------------------------------------
