@@ -209,7 +209,7 @@ export function GenericToolCallPart({
       : (chatPrefs?.selectedVirtualMcp?.id ?? null);
 
   const hasMCPApp = !!uiResourceUri && part.state === "output-available";
-  const sourceId = connectionId ? `${connectionId}:${toolName}` : null;
+  const sourceId = connectionId ? `${connectionId}:${rawToolName}` : null;
 
   const virtualMcpCtx = useVirtualMCPURLContext();
   const isDestructive = !!annotations?.destructiveHint;
@@ -219,7 +219,7 @@ export function GenericToolCallPart({
     if (!connectionId || !virtualMcpCtx) return;
     virtualMcpCtx.openMainView("ext-apps", {
       id: connectionId,
-      toolName,
+      toolName: rawToolName,
     });
     if (panelControls && !panelControls.mainOpen) {
       panelControls.mainPanelRef.current?.expand();
