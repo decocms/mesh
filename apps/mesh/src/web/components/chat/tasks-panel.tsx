@@ -258,7 +258,9 @@ function AutomationRow({
       className="group/row relative flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer hover:bg-accent/50"
       onClick={onClick}
     >
-      <RefreshCcw01 size={16} className="shrink-0 text-muted-foreground" />
+      <span className="shrink-0 flex items-center justify-center size-6">
+        <RefreshCcw01 size={16} className="text-muted-foreground" />
+      </span>
       <span
         className={cn(
           "text-sm truncate flex-1 min-w-0",
