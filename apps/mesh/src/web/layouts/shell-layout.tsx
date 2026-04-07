@@ -338,7 +338,7 @@ function UnifiedPanelGroup({
                 </div>
               }
             >
-              <div className="flex-1 overflow-hidden rounded-[inherit]">
+              <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
                 <Outlet />
               </div>
             </Suspense>
@@ -694,7 +694,7 @@ function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
                           </div>
                         }
                       >
-                        <div className="flex-1 overflow-hidden rounded-[inherit]">
+                        <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
                           <Outlet />
                         </div>
                       </Suspense>
