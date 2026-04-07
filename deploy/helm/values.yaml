@@ -29,7 +29,9 @@ service:
 resources:
   requests:
     memory: "300Mi"
-    cpu: "250m"
+    cpu: "500m"
+  limits:
+    cpu: "4000m"
 
 database:
   engine: sqlite # sqlite | postgresql
@@ -48,7 +50,7 @@ autoscaling:
   enabled: false
   minReplicas: 3
   maxReplicas: 6
-  #targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
 configMap:
@@ -213,10 +215,10 @@ s3Sync:
   resources:
     requests:
       memory: "64Mi"
-      cpu: "50m"
+      cpu: "100m"
     limits:
       memory: "128Mi"
-      cpu: "100m"
+      cpu: "250m"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
