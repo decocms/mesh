@@ -450,7 +450,7 @@ function PinAgentPopoverContent({
       {/* Footer */}
       <div className="border-t border-border px-3 py-2.5">
         <Link
-          to="/$org/agents"
+          to="/$org/settings/agents"
           params={{ org: org.slug }}
           onClick={() => onClose()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"

@@ -106,7 +106,7 @@ function SeeAllButton() {
       )}
       aria-label="See all agents"
       onClick={() => {
-        navigate({ to: "/$org/agents", params: { org: org.slug } });
+        navigate({ to: "/$org/settings/agents", params: { org: org.slug } });
       }}
     >
       <div className="size-12 rounded-xl bg-accent flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">

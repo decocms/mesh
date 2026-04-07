@@ -407,8 +407,8 @@ const orgPluginRoute = createRoute({
 // ============================================
 
 // Agents list (view all)
-const agentsListRoute = createRoute({
-  getParentRoute: () => orgLayout,
+const settingsAgentsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
   path: "/agents",
   component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
@@ -539,6 +539,7 @@ const settingsWithChildren = settingsLayout.addChildren([
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
+  settingsAgentsRoute,
   monitoringRoute,
   settingsGeneralRoute,
   settingsFeaturesRoute,
@@ -564,7 +565,6 @@ const agentsWithChildren = agentsLayout.addChildren([
 
 const orgRoutes = [
   orgHomeRoute,
-  agentsListRoute,
   agentsWithChildren,
   settingsWithChildren,
   storeDetailRoute,
