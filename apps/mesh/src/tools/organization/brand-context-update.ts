@@ -156,7 +156,7 @@ export const BRAND_CONTEXT_DELETE = defineTool({
   annotations: {
     title: "Archive Brand Context",
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
     idempotentHint: true,
     openWorldHint: false,
   },

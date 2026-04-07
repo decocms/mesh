@@ -178,16 +178,27 @@ export class BrandContextStorage implements BrandContextStoragePort {
   }
 
   async setDefault(id: string, organizationId: string): Promise<BrandContext> {
-    // Clear all defaults for this org
-    await this.db
-      .updateTable("brand_context")
-      .set({ is_default: false })
-      .where("organization_id", "=", organizationId)
-      .where("is_default", "=", true)
-      .execute();
+    await this.db.transaction().execute(async (trx) => {
+      // Clear all defaults for this org
+      await trx
+        .updateTable("brand_context")
+        .set({ is_default: false })
+        .where("organization_id", "=", organizationId)
+        .where("is_default", "=", true)
+        .execute();
 
-    // Set the new default
-    return this.update(id, organizationId, { isDefault: true });
+      // Set the new default
+      await trx
+        .updateTable("brand_context")
+        .set({ is_default: true, updated_at: new Date().toISOString() })
+        .where("id", "=", id)
+        .where("organization_id", "=", organizationId)
+        .execute();
+    });
+
+    const result = await this.get(id, organizationId);
+    if (!result) throw new Error("Brand context not found");
+    return result;
   }
 
   async delete(id: string, organizationId: string): Promise<void> {

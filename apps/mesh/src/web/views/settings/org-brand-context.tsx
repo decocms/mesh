@@ -142,7 +142,7 @@ function AutoExtractBanner({
               onChange={(e) => setDomain(e.target.value)}
               className="max-w-xs"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && domain.trim()) {
+                if (e.key === "Enter" && domain.trim() && !isExtracting) {
                   onExtract(domain.trim());
                 }
               }}
