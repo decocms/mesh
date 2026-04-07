@@ -188,6 +188,7 @@ const orgHomeRoute = createRoute({
     view: z.string().optional(),
     main: z.string().optional(),
     id: z.string().optional(),
+    toolName: z.string().optional(),
     virtualMcpOverride: z.string().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
