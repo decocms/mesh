@@ -1,4 +1,7 @@
-import { stripToolNamespace } from "@decocms/mcp-utils/aggregate";
+import {
+  getGatewayClientId,
+  stripToolNamespace,
+} from "@decocms/mcp-utils/aggregate";
 import { Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import {
@@ -45,6 +48,16 @@ function AppRenderer({
     toolArguments: EMPTY_TOOL_INPUT,
   });
 
+  const clientId = getGatewayClientId(tool._meta);
+  const strippedName = stripToolNamespace(tool.name, clientId);
+  const strippedTool: Tool = {
+    ...tool,
+    name: strippedName,
+    inputSchema: (tool.inputSchema as Tool["inputSchema"]) ?? {
+      type: "object" as const,
+    },
+  };
+
   const handleAppMessage = (params: McpUiMessageRequest["params"]) => {
     const doc = contentBlocksToTiptapDoc(params.content);
     if (doc.content.length > 0) {
@@ -56,7 +69,7 @@ function AppRenderer({
   return (
     <MCPAppRenderer
       resourceURI={resourceURI}
-      toolInfo={{ tool: tool as Tool }}
+      toolInfo={{ tool: strippedTool }}
       toolInput={EMPTY_TOOL_INPUT}
       toolResult={toolResult}
       displayMode="fullscreen"
@@ -82,10 +95,7 @@ export function AppViewContent({
   const client = useMCPClient({ connectionId, orgId: org.id });
   const connection = useConnection(connectionId);
 
-  const decodedToolName = stripToolNamespace(
-    decodeURIComponent(toolName),
-    connectionId,
-  );
+  const decodedToolName = decodeURIComponent(toolName);
 
   const tool = (connection?.tools ?? []).find(
     (t: { name: string }) => t.name === decodedToolName,
