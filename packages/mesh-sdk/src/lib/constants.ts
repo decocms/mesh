@@ -277,11 +277,34 @@ export function getSiteDiagnosticsId(organizationId: string): string {
 }
 
 /**
+ * Studio Pack agent ID generators (org-scoped)
+ */
+export const StudioPackAgentId = {
+  AGENT_MANAGER: (orgId: string) => `studio-agent-manager_${orgId}`,
+  AUTOMATION_MANAGER: (orgId: string) => `studio-automation-manager_${orgId}`,
+  CONNECTION_MANAGER: (orgId: string) => `studio-connection-manager_${orgId}`,
+} as const;
+
+/**
+ * Check if a connection or virtual MCP ID is a Studio Pack agent.
+ */
+export function isStudioPackAgent(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return (
+    id.startsWith("studio-agent-manager_") ||
+    id.startsWith("studio-automation-manager_") ||
+    id.startsWith("studio-connection-manager_")
+  );
+}
+
+/**
  * Well-known agent templates.
  *
  * Display metadata (id, title, icon) is stored here for immediate rendering.
  * Full metadata (description, URL, connection details) should be fetched
  * from the deco registry at CTA time using the `appId`.
+ *
+ * Templates with `type: "pack"` install multiple agents at once.
  */
 export const WELL_KNOWN_AGENT_TEMPLATES = [
   {
@@ -289,12 +312,20 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
     appId: "deco/site-editor",
     title: "Site Editor",
     icon: "icon://Globe01?color=violet",
+    type: "registry-agent" as const,
   },
   {
     id: "site-diagnostics",
     appId: "deco/site-diagnostics",
     title: "Site Diagnostics",
     icon: "icon://SearchRefraction?color=cyan",
+    type: "registry-agent" as const,
+  },
+  {
+    id: "studio-pack",
+    title: "Studio Pack",
+    icon: "icon://Package?color=blue",
+    type: "pack" as const,
   },
 ] as const;
 

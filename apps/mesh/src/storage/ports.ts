@@ -315,6 +315,7 @@ export interface VirtualMCPStoragePort {
     organizationId: string,
     userId: string,
     data: VirtualMCPCreateData,
+    options?: { id?: string },
   ): Promise<VirtualMCPEntity>;
   findById(
     id: string,
