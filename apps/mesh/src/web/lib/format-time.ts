@@ -32,7 +32,10 @@ export function formatDuration(seconds: number): string {
   if (seconds < 60) {
     return `${seconds.toFixed(1)}s`;
   }
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  // Round the remainder first to avoid ".toFixed(1)" pushing 59.95 → "60.0"
+  const remainder = Math.round((seconds % 60) * 10) / 10;
+  const carry = remainder >= 60 ? 1 : 0;
+  const mins = Math.floor(seconds / 60) + carry;
+  const secs = carry ? 0 : remainder;
   return `${mins}m ${secs.toFixed(1)}s`;
 }

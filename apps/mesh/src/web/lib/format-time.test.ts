@@ -64,4 +64,9 @@ describe("formatDuration", () => {
     expect(formatDuration(125.7)).toBe("2m 5.7s");
     expect(formatDuration(3661)).toBe("61m 1.0s");
   });
+
+  test("does not produce 60.0s at minute boundaries", () => {
+    expect(formatDuration(119.95)).toBe("2m 0.0s");
+    expect(formatDuration(179.96)).toBe("3m 0.0s");
+  });
 });
