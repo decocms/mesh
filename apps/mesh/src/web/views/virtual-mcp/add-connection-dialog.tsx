@@ -693,9 +693,70 @@ export function AddConnectionDialog({
       <CreateConnectionDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={(id) => {
-          onAdd(id);
+        onCreated={async (id) => {
           setCreateOpen(false);
+
+          // Handle OAuth if needed (same flow as handleConnectAndAdd)
+          const mcpProxyUrl = new URL(`/mcp/${id}`, window.location.origin);
+          const authStatus = await isConnectionAuthenticated({
+            url: mcpProxyUrl.href,
+            token: null,
+          });
+
+          if (authStatus.supportsOAuth && !authStatus.isAuthenticated) {
+            const { token, tokenInfo, error } = await authenticateMcp({
+              connectionId: id,
+            });
+            if (!error && token) {
+              if (tokenInfo) {
+                try {
+                  const response = await fetch(
+                    `/api/connections/${id}/oauth-token`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
+                      body: JSON.stringify({
+                        accessToken: tokenInfo.accessToken,
+                        refreshToken: tokenInfo.refreshToken,
+                        expiresIn: tokenInfo.expiresIn,
+                        scope: tokenInfo.scope,
+                        clientId: tokenInfo.clientId,
+                        clientSecret: tokenInfo.clientSecret,
+                        tokenEndpoint: tokenInfo.tokenEndpoint,
+                      }),
+                    },
+                  );
+                  if (!response.ok) {
+                    await connectionActions.update.mutateAsync({
+                      id,
+                      data: { connection_token: token },
+                    });
+                  } else {
+                    await connectionActions.update.mutateAsync({
+                      id,
+                      data: {},
+                    });
+                  }
+                } catch {
+                  await connectionActions.update.mutateAsync({
+                    id,
+                    data: { connection_token: token },
+                  });
+                }
+              } else {
+                await connectionActions.update.mutateAsync({
+                  id,
+                  data: { connection_token: token },
+                });
+              }
+              await queryClient.invalidateQueries({
+                queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+              });
+            }
+          }
+
+          onAdd(id);
           onOpenChange(false);
         }}
       />
