@@ -444,9 +444,6 @@ function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
   // Chat.Provider virtualMcpId
   const chatVirtualMcpId = virtualMcpId;
 
-  // VirtualMCPProvider scope: agent routes and org home (decopilot)
-  const providerVirtualMcpId = showThreePanels ? virtualMcpId : undefined;
-
   // --- Mobile layout: full-screen with hamburger toolbar ---
   if (isMobile) {
     const mobileSidebarSheet = (
@@ -490,25 +487,21 @@ function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
       return (
         <PanelContextProvider value={panelControls}>
           <div className="flex flex-col flex-1 bg-background min-h-0">
-            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
-              <Chat.Provider
-                key={chatVirtualMcpId}
-                virtualMcpId={chatVirtualMcpId}
-              >
-                <NewTaskBridge
-                  onNewTaskRef={onNewTask}
-                  createNewTask={layout.createNewTask}
-                />
-                <MobileToolbar
-                  onOpenSidebar={() => setMobileSidebarOpen(true)}
-                />
-                <MobileAgentContent
-                  isDecopilot={isDecopilot}
-                  mainOpen={layout.mainOpen}
-                />
-                {mobileSidebarSheet}
-              </Chat.Provider>
-            </VirtualMCPScope>
+            <Chat.Provider
+              key={chatVirtualMcpId}
+              virtualMcpId={chatVirtualMcpId}
+            >
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <MobileAgentContent
+                isDecopilot={isDecopilot}
+                mainOpen={layout.mainOpen}
+              />
+              {mobileSidebarSheet}
+            </Chat.Provider>
           </div>
         </PanelContextProvider>
       );
@@ -645,63 +638,47 @@ function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
             </div>
           </div>
 
-          <Suspense
-            fallback={
-              <div className="flex-1 flex items-center justify-center">
-                <Loading01
-                  size={20}
-                  className="animate-spin text-muted-foreground"
-                />
-              </div>
-            }
-          >
-            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
-              <Chat.Provider
-                key={chatVirtualMcpId}
-                virtualMcpId={chatVirtualMcpId}
-              >
-                <NewTaskBridge
-                  onNewTaskRef={onNewTask}
-                  createNewTask={layout.createNewTask}
-                />
-                {showThreePanels ? (
-                  <UnifiedPanelGroup
-                    virtualMcpId={virtualMcpId}
-                    isDecopilot={isDecopilot}
-                    tasksVirtualMcpId={tasksVirtualMcpId}
-                    tasksOpen={layout.tasksOpen}
-                    mainOpen={layout.mainOpen}
-                    chatOpen={layout.chatOpen}
-                  />
-                ) : (
-                  <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
-                    <div
-                      className={cn(
-                        "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                        "border border-sidebar-border shadow-sm",
-                        "rounded-[0.75rem]",
-                      )}
-                    >
-                      <Suspense
-                        fallback={
-                          <div className="flex-1 flex items-center justify-center">
-                            <Loading01
-                              size={20}
-                              className="animate-spin text-muted-foreground"
-                            />
-                          </div>
-                        }
-                      >
-                        <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
-                          <Outlet />
-                        </div>
-                      </Suspense>
+          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+            <NewTaskBridge
+              onNewTaskRef={onNewTask}
+              createNewTask={layout.createNewTask}
+            />
+            {showThreePanels ? (
+              <UnifiedPanelGroup
+                virtualMcpId={virtualMcpId}
+                isDecopilot={isDecopilot}
+                tasksVirtualMcpId={tasksVirtualMcpId}
+                tasksOpen={layout.tasksOpen}
+                mainOpen={layout.mainOpen}
+                chatOpen={layout.chatOpen}
+              />
+            ) : (
+              <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
+                <div
+                  className={cn(
+                    "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                    "border border-sidebar-border shadow-sm",
+                    "rounded-[0.75rem]",
+                  )}
+                >
+                  <Suspense
+                    fallback={
+                      <div className="flex-1 flex items-center justify-center">
+                        <Loading01
+                          size={20}
+                          className="animate-spin text-muted-foreground"
+                        />
+                      </div>
+                    }
+                  >
+                    <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
+                      <Outlet />
                     </div>
-                  </div>
-                )}
-              </Chat.Provider>
-            </VirtualMCPScope>
-          </Suspense>
+                  </Suspense>
+                </div>
+              </div>
+            )}
+          </Chat.Provider>
         </SidebarInset>
       </SidebarLayout>
     </PanelContextProvider>
@@ -772,11 +749,36 @@ function ShellLayoutContent() {
     );
   }
 
+  // Extract virtualMcpId for VirtualMCPScope (needs to be above ShellLayoutInner
+  // so entity metadata is resolved via Suspense before useLayoutState runs).
+  const agentsMatchForScope = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const scopeVirtualMcpId = agentsMatchForScope?.params.virtualMcpId;
+  const showThreePanelsForScope = !!scopeVirtualMcpId || !isSettingsRoute;
+  const providerVirtualMcpId = showThreePanelsForScope
+    ? (scopeVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(activeOrg.id).id)
+    : undefined;
+
   return (
     <ShellProjectProvider org={{ ...activeOrg, logo: activeOrg.logo ?? null }}>
       <PersistentSidebarProvider defaultOpen={isSettingsRoute}>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <ShellLayoutInner isSettingsRoute={isSettingsRoute} />
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
+              <ShellLayoutInner isSettingsRoute={isSettingsRoute} />
+            </VirtualMCPScope>
+          </Suspense>
         </div>
       </PersistentSidebarProvider>
 

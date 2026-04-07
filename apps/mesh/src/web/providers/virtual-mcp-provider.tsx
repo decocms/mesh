@@ -10,7 +10,7 @@
  * and useChatNavigation respectively.
  */
 
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useNavigate, useMatch, useSearch } from "@tanstack/react-router";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -114,7 +114,7 @@ function VirtualMCPProviderContent({
 }
 
 // ---------------------------------------------------------------------------
-// Public provider (with Suspense boundary)
+// Public provider (Suspense boundary provided by parent — see ShellLayoutContent)
 // ---------------------------------------------------------------------------
 
 export function VirtualMCPProvider({
@@ -125,10 +125,8 @@ export function VirtualMCPProvider({
   children: ReactNode;
 }) {
   return (
-    <Suspense fallback={<div className="flex-1 min-h-0" />}>
-      <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
-        {children}
-      </VirtualMCPProviderContent>
-    </Suspense>
+    <VirtualMCPProviderContent virtualMcpId={virtualMcpId}>
+      {children}
+    </VirtualMCPProviderContent>
   );
 }
