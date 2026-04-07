@@ -91,7 +91,7 @@ export async function toolsFromMCP(
   client: Client,
   toolOutputMap: Map<string, string>,
   writer?: UIMessageStreamWriter,
-  toolApprovalLevel: ToolApprovalLevel = "readonly",
+  toolApprovalLevel: ToolApprovalLevel = "auto",
   options?: { disableOutputTruncation?: boolean; ctx?: MeshContext },
 ): Promise<ToolSet> {
   const truncate = !options?.disableOutputTruncation;
