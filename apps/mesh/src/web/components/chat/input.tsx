@@ -23,7 +23,6 @@ import {
   Plus,
   Stop,
   Upload01,
-  Users03,
   X,
   XCircle,
 } from "@untitledui/icons";
@@ -190,59 +189,6 @@ function VirtualMCPBadge({
 }
 
 // ============================================================================
-// PlanModeToggle - Toggle button for plan mode
-// ============================================================================
-
-function PlanModeToggle({ disabled }: { disabled?: boolean }) {
-  const [preferences, setPreferences] = usePreferences();
-  const isPlanMode = preferences.toolApprovalLevel === "plan";
-  const playSwitchSound = useSound(question004Sound);
-
-  const handleToggle = () => {
-    playSwitchSound();
-    setPreferences({
-      ...preferences,
-      toolApprovalLevel: isPlanMode ? "auto" : "plan",
-    });
-  };
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={disabled}
-          className={cn(
-            "flex items-center justify-center size-8 rounded-md transition-colors shrink-0",
-            disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-            isPlanMode
-              ? "border border-purple-500 text-purple-500 bg-purple-500/10 hover:bg-purple-500/20"
-              : "border border-border text-muted-foreground/75 hover:text-muted-foreground",
-          )}
-          aria-label={isPlanMode ? "Exit plan mode" : "Enter plan mode"}
-        >
-          <BookOpen01 size={16} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="flex items-center gap-1.5">
-        {isPlanMode ? "Exit plan mode" : "Plan mode"}
-        <span className="flex items-center gap-0.5">
-          {(isMac ? ["⌘", "⇧", "L"] : ["Ctrl", "⇧", "L"]).map((key) => (
-            <kbd
-              key={key}
-              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-            >
-              {key}
-            </kbd>
-          ))}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-// ============================================================================
 // useWindowFileDrop - Reusable hook for window-level file drag & drop
 // ============================================================================
 
@@ -370,7 +316,7 @@ export function ChatInput({
   const navigate = useNavigate();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
-  const playSwitchSound = useSound(switch005Sound);
+  const playSwitchSound = useSound(question004Sound);
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
@@ -593,9 +539,9 @@ export function ChatInput({
               </div>
 
               {/* Bottom Actions Row */}
-              <div className="flex items-center justify-between p-2.5">
+              <div className="flex items-center justify-between p-2.5 gap-1">
                 {/* Left Actions (+, Tools, active tool pills, stats) */}
-                <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
+                <div className="flex items-center gap-1.5 min-w-0 shrink-0">
                   <FileUploadButton
                     selectedModel={selectedModel}
                     isStreaming={isStreaming}
@@ -641,11 +587,11 @@ export function ChatInput({
                 </div>
 
                 {/* Right Actions (model, send) */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <ModelSelector
                     placeholder="Model"
                     variant="borderless"
-                    className="h-8 text-sm py-2"
+                    className="h-8 text-sm py-2 min-w-0"
                   />
 
                   <Button

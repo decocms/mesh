@@ -80,7 +80,7 @@ function AgentPreview({
         fallbackIcon={<Users03 size={24} />}
         className="transition-transform group-hover:scale-110"
       />
-      <p className="text-xs sm:text-sm text-foreground text-center leading-tight line-clamp-2">
+      <p className="text-xs sm:text-sm text-foreground text-center leading-tight line-clamp-2 md:line-clamp-1">
         {agent.title}
       </p>
     </button>
@@ -200,7 +200,7 @@ function AgentsListContent() {
   return (
     <>
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-        <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start">
+        <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
           <AgentPreview
             key={siteEditorAgent.id}
             agent={siteEditorAgent}
@@ -249,7 +249,7 @@ function AgentsListContent() {
 function AgentsListSkeleton() {
   return (
     <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-      <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start">
+      <div className="flex flex-wrap justify-center gap-4 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}

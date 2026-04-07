@@ -50,7 +50,7 @@ export function ToolsPopover({
           className="text-muted-foreground hover:text-foreground"
         >
           <Settings04 size={14} />
-          Tools
+          <span className="hidden sm:inline">Tools</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
