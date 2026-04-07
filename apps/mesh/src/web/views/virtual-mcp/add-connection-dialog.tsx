@@ -707,53 +707,58 @@ export function AddConnectionDialog({
             const { token, tokenInfo, error } = await authenticateMcp({
               connectionId: id,
             });
-            if (!error && token) {
-              if (tokenInfo) {
-                try {
-                  const response = await fetch(
-                    `/api/connections/${id}/oauth-token`,
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({
-                        accessToken: tokenInfo.accessToken,
-                        refreshToken: tokenInfo.refreshToken,
-                        expiresIn: tokenInfo.expiresIn,
-                        scope: tokenInfo.scope,
-                        clientId: tokenInfo.clientId,
-                        clientSecret: tokenInfo.clientSecret,
-                        tokenEndpoint: tokenInfo.tokenEndpoint,
-                      }),
-                    },
-                  );
-                  if (!response.ok) {
-                    await connectionActions.update.mutateAsync({
-                      id,
-                      data: { connection_token: token },
-                    });
-                  } else {
-                    await connectionActions.update.mutateAsync({
-                      id,
-                      data: {},
-                    });
-                  }
-                } catch {
+            if (error || !token) {
+              toast.error(
+                `Authentication failed: ${error ?? "no token received"}`,
+              );
+              await connectionActions.delete.mutateAsync(id);
+              return;
+            }
+            if (tokenInfo) {
+              try {
+                const response = await fetch(
+                  `/api/connections/${id}/oauth-token`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                      accessToken: tokenInfo.accessToken,
+                      refreshToken: tokenInfo.refreshToken,
+                      expiresIn: tokenInfo.expiresIn,
+                      scope: tokenInfo.scope,
+                      clientId: tokenInfo.clientId,
+                      clientSecret: tokenInfo.clientSecret,
+                      tokenEndpoint: tokenInfo.tokenEndpoint,
+                    }),
+                  },
+                );
+                if (!response.ok) {
                   await connectionActions.update.mutateAsync({
                     id,
                     data: { connection_token: token },
                   });
+                } else {
+                  await connectionActions.update.mutateAsync({
+                    id,
+                    data: {},
+                  });
                 }
-              } else {
+              } catch {
                 await connectionActions.update.mutateAsync({
                   id,
                   data: { connection_token: token },
                 });
               }
-              await queryClient.invalidateQueries({
-                queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+            } else {
+              await connectionActions.update.mutateAsync({
+                id,
+                data: { connection_token: token },
               });
             }
+            await queryClient.invalidateQueries({
+              queryKey: KEYS.isMCPAuthenticated(mcpProxyUrl.href, null),
+            });
           }
 
           onAdd(id);
