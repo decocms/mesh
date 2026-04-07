@@ -28,10 +28,10 @@ service:
 
 resources:
   requests:
-    memory: "300Mi"
+    memory: "2Gi"
     cpu: "2000m"
   limits:
-    memory: "300Mi"
+    memory: "2Gi"
 
 database:
   engine: sqlite # sqlite | postgresql
