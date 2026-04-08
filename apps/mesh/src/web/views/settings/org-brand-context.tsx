@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { Page } from "@/web/components/page";
 import { KEYS } from "@/web/lib/query-keys";
 import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
+import { usePublicConfig } from "@/web/hooks/use-public-config";
 
 // --- Types ---
 
@@ -854,6 +855,7 @@ function ExpandableBrandEntry({
 // --- Main page ---
 
 export function OrgBrandContextPage() {
+  const { brandExtractEnabled } = usePublicConfig();
   const { org } = useProjectContext();
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -943,10 +945,12 @@ export function OrgBrandContextPage() {
               </Button>
             </div>
 
-            <AutoExtractBanner
-              onExtract={(domain) => extractBrand(domain)}
-              isExtracting={isExtracting}
-            />
+            {brandExtractEnabled && (
+              <AutoExtractBanner
+                onExtract={(domain) => extractBrand(domain)}
+                isExtracting={isExtracting}
+              />
+            )}
 
             {activeBrands.length === 0 && archivedBrands.length === 0 && (
               <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
