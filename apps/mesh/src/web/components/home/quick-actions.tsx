@@ -21,6 +21,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import { useCreateProject } from "@/web/hooks/use-create-project";
+import { useCreateSlideProject } from "@/web/hooks/use-create-slide-project";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal";
@@ -37,6 +38,11 @@ const ACTION_ICON_CONFIG: Record<
   string,
   { Icon: typeof PresentationChart01; color: string; bg: string }
 > = {
+  "slide-maker": {
+    Icon: PresentationChart01,
+    color: "#8B5CF6",
+    bg: "bg-violet-100 dark:bg-violet-900/50",
+  },
   "site-editor": {
     Icon: Globe04,
     color: "#3B82F6",
@@ -171,6 +177,7 @@ function QuickActionsContent() {
   const { createProject } = useCreateProject({
     navigateOnCreate: true,
   });
+  const { create: createSlideProject } = useCreateSlideProject();
 
   const siteDiagnosticsAgent = WELL_KNOWN_AGENT_TEMPLATES.find(
     (t) => t.id === "site-diagnostics",
@@ -208,6 +215,11 @@ function QuickActionsContent() {
       {/* Action items row */}
       <div className="w-full max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         <div className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start md:max-h-52 md:overflow-hidden">
+          <ActionItem
+            label="New Slides"
+            icon="slide-maker"
+            onClick={() => createSlideProject()}
+          />
           <ActionItem
             label="New Site"
             icon="site-editor"
