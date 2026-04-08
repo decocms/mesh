@@ -277,6 +277,43 @@ describe("runCode", () => {
     });
   });
 
+  describe("host promise resolves after runtime disposal", () => {
+    it("does not crash when host function resolves after sandbox is disposed", async () => {
+      // Simulate the production scenario: client.callTool takes a long time
+      // (e.g., slow DB query) and the sandbox timeout fires first, disposing
+      // the QuickJS runtime. The pending .then() callback must not call
+      // ctx.newString() on a dead context.
+      const client = createMockClient({
+        callTool: () =>
+          // This promise resolves AFTER the sandbox timeout (200ms),
+          // so by the time .then() fires the runtime is already disposed.
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({ content: [{ type: "text" as const, text: "late" }] }),
+              1000,
+            ),
+          ),
+      });
+
+      const result = await runCode({
+        client,
+        code: `export default async (client) => {
+          const result = await client.callTool({ name: "slowTool", arguments: {} });
+          return result;
+        }`,
+        timeoutMs: 200,
+      });
+
+      // Should get a timeout error, NOT a process crash from QuickJSUseAfterFree
+      expect(result.error).toBeDefined();
+
+      // Wait for the delayed host promise to resolve — this is when the
+      // use-after-free would fire if the bug still exists.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    });
+  });
+
   describe("syntax errors", () => {
     it("returns error for invalid JavaScript", async () => {
       const result = await runCode({
