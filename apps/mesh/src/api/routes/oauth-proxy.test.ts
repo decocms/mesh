@@ -238,7 +238,7 @@ describe("OAuth Proxy Routes", () => {
       expect(res.status).toBe(200);
     });
 
-    test("returns 404 when origin fetch fails to prevent connection enumeration", async () => {
+    test("returns 502 when origin fetch fails", async () => {
       mockConnectionStorage({
         connection_url: "https://origin.example.com/mcp",
       });
@@ -251,10 +251,9 @@ describe("OAuth Proxy Routes", () => {
         "/.well-known/oauth-protected-resource/mcp/conn_123",
       );
 
-      // Returns 404 (same as "not found") to avoid leaking connection existence
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(502);
       const body = await res.json();
-      expect(body.error).toBe("Connection not found");
+      expect(body.error).toBe("Failed to proxy OAuth metadata");
     });
 
     test("passes through error responses from origin", async () => {

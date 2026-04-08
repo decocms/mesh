@@ -45,17 +45,13 @@ const NO_METADATA_STATUSES = [404, 401, 406];
 
 /**
  * Get connection URL from storage by connection ID.
- * Scopes lookup by organization when auth context is available.
  * Blocks private/internal network URLs to prevent SSRF.
  */
 async function getConnectionUrl(
   connectionId: string,
   ctx: MeshContext,
 ): Promise<string | null> {
-  const connection = await ctx.storage.connections.findById(
-    connectionId,
-    ctx.organization?.id,
-  );
+  const connection = await ctx.storage.connections.findById(connectionId);
   const url = connection?.connection_url ?? null;
   if (url && isPrivateNetworkUrl(url)) {
     return null;
@@ -476,8 +472,10 @@ const protectedResourceMetadataHandler = async (c: {
       "[oauth-proxy] Failed to proxy OAuth protected resource metadata:",
       err,
     );
-    // Return 404 (same as "not found") to avoid leaking connection existence
-    return c.json({ error: "Connection not found" }, 404);
+    return c.json(
+      { error: "Failed to proxy OAuth metadata", message: err.message },
+      502,
+    );
   }
 };
 
@@ -630,8 +628,10 @@ app.get(
     } catch (error) {
       const err = error as Error;
       console.error("[oauth-proxy] Failed to proxy auth server metadata:", err);
-      // Return 404 (same as "not found") to avoid leaking connection existence
-      return c.json({ error: "Connection not found or no auth server" }, 404);
+      return c.json(
+        { error: "Failed to proxy auth server metadata", message: err.message },
+        502,
+      );
     }
   },
 );
