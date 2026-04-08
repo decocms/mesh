@@ -363,9 +363,7 @@ function OrgStoreContent() {
 
       {/* Community Registry */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted-foreground">
-          Community
-        </h3>
+        <h3 className="text-sm font-medium text-muted-foreground">Community</h3>
         {communityConnection ? (
           <RegistryCard
             name="MCP Registry"
