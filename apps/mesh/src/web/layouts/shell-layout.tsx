@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  createContext,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
@@ -6,7 +13,7 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
-import { MeshSidebar, MeshSidebarMobile } from "@/web/components/sidebar";
+import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
 import {
   SettingsSidebar,
   SettingsSidebarMobile,
@@ -54,6 +61,7 @@ import {
   useProjectContext,
   useVirtualMCP,
 } from "@decocms/mesh-sdk";
+import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   Outlet,
@@ -70,13 +78,8 @@ import { SsoRequiredScreen } from "../components/sso-required-screen";
 import { Button } from "@deco/ui/components/button.tsx";
 import { EmptyState } from "@/web/components/empty-state";
 import {
-  VirtualMCPContext,
-  type MainView,
-  type VirtualMCPContextValue,
-} from "@/web/contexts/virtual-mcp-context";
-import {
   computeDefaultSizes,
-  useLayoutState,
+  usePanelState,
 } from "@/web/hooks/use-layout-state";
 
 /**
@@ -203,6 +206,27 @@ function PersistentSidebarProvider({
 // Panel actions — provider-free hook, works anywhere in the router tree.
 // All actions just update URL search params via navigate().
 // ---------------------------------------------------------------------------
+
+export type MainViewType = "chat" | "settings" | "automation" | "ext-apps";
+
+export type MainView =
+  | { type: "chat" }
+  | { type: "settings" }
+  | { type: "automation"; id: string }
+  | { type: "ext-apps"; id: string; toolName?: string; [key: string]: unknown }
+  | null;
+
+export interface InsetContextValue {
+  virtualMcpId: string;
+  mainView: MainView;
+  entity: VirtualMCPEntity | null;
+}
+
+const InsetContext = createContext<InsetContextValue | null>(null);
+
+export function useInsetContext(): InsetContextValue | null {
+  return use(InsetContext);
+}
 
 export function usePanelActions() {
   const navigate = useNavigate();
@@ -401,14 +425,23 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
     mainView = null;
   }
 
-  const virtualMcpContextValue: VirtualMCPContextValue = {
+  const insetContextValue: InsetContextValue = {
     virtualMcpId,
     mainView,
     entity,
   };
 
+  // Derive entity layout metadata for usePanelState
+  const layoutMetadata = (entity?.metadata as any)?.ui?.layout ?? null;
+  const entityMetadata = layoutMetadata
+    ? {
+        defaultMainView: layoutMetadata.defaultMainView ?? null,
+        chatDefaultOpen: layoutMetadata.chatDefaultOpen ?? null,
+      }
+    : null;
+
   // Layout state from URL querystring
-  const layout = useLayoutState();
+  const layout = usePanelState(entityMetadata);
 
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
@@ -454,7 +487,7 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
                 className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto group/sidebar"
                 data-state="collapsed"
               >
-                <MeshSidebarMobile
+                <StudioSidebarMobile
                   onClose={() => setMobileSidebarOpen(false)}
                 />
               </div>
@@ -474,7 +507,7 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
 
     if (showThreePanels) {
       return (
-        <VirtualMCPContext value={virtualMcpContextValue}>
+        <InsetContext value={insetContextValue}>
           <div className="flex flex-col flex-1 bg-background min-h-0">
             <Chat.Provider
               key={chatVirtualMcpId}
@@ -492,12 +525,12 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
               {mobileSidebarSheet}
             </Chat.Provider>
           </div>
-        </VirtualMCPContext>
+        </InsetContext>
       );
     }
 
     return (
-      <VirtualMCPContext value={virtualMcpContextValue}>
+      <InsetContext value={insetContextValue}>
         <div className="flex flex-col flex-1 bg-background min-h-0">
           <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
           <div className="flex-1 overflow-hidden">
@@ -505,13 +538,13 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
           </div>
           {mobileSidebarSheet}
         </div>
-      </VirtualMCPContext>
+      </InsetContext>
     );
   }
 
   // --- Desktop layout ---
   return (
-    <VirtualMCPContext value={virtualMcpContextValue}>
+    <InsetContext value={insetContextValue}>
       <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
         <div className="flex items-center gap-0.5 min-w-0">
           <button
@@ -655,7 +688,7 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
           </div>
         )}
       </Chat.Provider>
-    </VirtualMCPContext>
+    </InsetContext>
   );
 }
 
@@ -724,7 +757,7 @@ function NewTaskBridge({
 
 /**
  * Unified 3-panel layout for both org home and agent routes.
- * Panel sizes and visibility are driven by useLayoutState (URL querystring).
+ * Panel sizes and visibility are driven by usePanelState (URL querystring).
  * Keyed by virtualMcpId + panel open/closed state so the panel group remounts
  * with correct deterministic sizes when any panel is toggled.
  */
@@ -907,7 +940,7 @@ function ShellLayoutContent() {
               } as Record<string, string>
             }
           >
-            {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
+            {isSettingsRoute ? <SettingsSidebar /> : <StudioSidebar />}
             <SidebarInset
               className="flex flex-col"
               style={{

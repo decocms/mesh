@@ -7,7 +7,7 @@
 
 import { useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
+import { useInsetContext } from "@/web/layouts/shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   getStatusConfig,
@@ -298,7 +298,7 @@ function AutomationRow({
 // ────────────────────────────────────────
 
 function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
+  const virtualMcpCtx = useInsetContext();
   const { openMainView } = usePanelActions();
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();

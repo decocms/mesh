@@ -1,5 +1,5 @@
 /**
- * useLayoutState — Querystring-driven panel layout state.
+ * usePanelState — Querystring-driven panel layout state.
  *
  * Panel open/closed state lives in URL search params.
  * Panel widths stay in localStorage.
@@ -16,7 +16,6 @@ import {
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,7 +174,9 @@ function parsePanelParam(
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useLayoutState(): LayoutState & LayoutActions {
+export function usePanelState(
+  entityMetadata: EntityLayoutMetadata | null,
+): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
@@ -204,24 +205,14 @@ export function useLayoutState(): LayoutState & LayoutActions {
   // Org home is effectively the decopilot agent's home route
   const isAgentHomeRoute = (isAgentRoute && !!agentHomeMatch) || isOrgHome;
 
-  // Read entity metadata from VirtualMCPContext (available when inside
-  // VirtualMCPProvider — null on settings routes or outside provider).
-  const vmcpCtx = useVirtualMCPURLContext();
-  const layoutMetadata = vmcpCtx?.entity?.metadata?.ui?.layout ?? null;
-  const entityMetadata: EntityLayoutMetadata | null = layoutMetadata
-    ? {
-        defaultMainView: layoutMetadata.defaultMainView ?? null,
-        chatDefaultOpen: layoutMetadata.chatDefaultOpen ?? null,
-      }
-    : null;
-
-  const defaults = resolveDefaultPanelState({
+  const resolveCtx = {
     virtualMcpId,
     orgId: org.id,
     entityMetadata,
     hasMainParam: !!search.main,
     isAgentHomeRoute,
-  });
+  };
+  const defaults = resolveDefaultPanelState(resolveCtx);
 
   // Parse panel state from URL, falling back to defaults
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);

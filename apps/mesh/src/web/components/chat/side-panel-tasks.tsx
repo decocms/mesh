@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
+import { useInsetContext } from "@/web/layouts/shell-layout";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -105,7 +105,7 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
 // ────────────────────────────────────────
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
+  const virtualMcpCtx = useInsetContext();
   const { openMainView } = usePanelActions();
 
   const pinnedViews =
@@ -265,7 +265,7 @@ function TasksPanelContent({
   hideProjectHeader?: boolean;
   showAutomations?: boolean;
 }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
+  const virtualMcpCtx = useInsetContext();
   const { openMainView } = usePanelActions();
   const { createNewTask, setTaskId } = usePanelActions();
   const [isPending, startTransition] = useTransition();
