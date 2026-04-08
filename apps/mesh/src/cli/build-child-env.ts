@@ -42,7 +42,11 @@ export function buildChildEnv(
 
     // Config files
     CONFIG_PATH: settings.configPath,
-    AUTH_CONFIG_PATH: settings.authConfigPath,
+
+    // Forward all AUTH_* env vars (auth config is env-var-only)
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => k.startsWith("AUTH_")),
+    ),
 
     // Transport
     UNSAFE_ALLOW_STDIO_TRANSPORT: String(settings.unsafeAllowStdioTransport),

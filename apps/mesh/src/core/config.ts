@@ -1,124 +1,60 @@
-import { EmailOtpConfig } from "@/auth/email-otp";
-import { EmailProviderConfig } from "@/auth/email-providers";
-import { MagicLinkConfig } from "@/auth/magic-link";
-import { SSOConfig } from "@/auth/sso";
+import { type AuthConfig, loadAuthConfig } from "@/auth/auth-env";
 import {
   DEFAULT_MONITORING_CONFIG,
   type MonitoringConfig,
 } from "@/monitoring/types";
-import { BetterAuthOptions } from "better-auth";
 import { existsSync, readFileSync } from "fs";
 import { getSettings } from "../settings";
 
-const DEFAULT_AUTH_CONFIG: Partial<BetterAuthOptions> = {
-  emailAndPassword: {
-    enabled: true,
-  },
-};
+// ── Types ────────────────────────────────────────────────────────────
 
-/**
- * Theme configuration for customizing the UI appearance.
- * Allows overriding CSS variables for light and dark modes.
- *
- * @example
- * ```json
- * {
- *   "theme": {
- *     "light": {
- *       "--primary": "oklch(0.6 0.2 250)",
- *       "--brand-green-light": "#00ff00"
- *     },
- *     "dark": {
- *       "--primary": "oklch(0.5 0.2 250)"
- *     }
- *   }
- * }
- * ```
- */
 export interface ThemeConfig {
-  /** CSS variable overrides for light mode */
   light?: Record<string, string>;
-  /** CSS variable overrides for dark mode */
   dark?: Record<string, string>;
 }
 
 export interface Config {
-  auth: Partial<BetterAuthOptions> & {
-    ssoConfig?: SSOConfig;
-    magicLinkConfig?: MagicLinkConfig;
-    emailOtpConfig?: EmailOtpConfig;
-    emailProviders?: EmailProviderConfig[];
-    inviteEmailProviderId?: string;
-    resetPasswordEmailProviderId?: string;
-    jwt?: { secret?: string };
-  };
+  auth: AuthConfig;
   monitoring?: Partial<MonitoringConfig>;
-  /**
-   * Theme customization for the UI.
-   * Allows overriding CSS variables for light and dark modes.
-   */
   theme?: ThemeConfig;
-  /**
-   * Product logo shown in the sidebar.
-   * Defaults to the Deco logo. Override for white-label deployments.
-   * Can be a single URL (used for both modes) or per-mode URLs.
-   */
   logo?: string | { light: string; dark: string };
-  /**
-   * Whether to automatically create an organization when a new user signs up.
-   * @default true
-   */
   autoCreateOrganizationOnSignup?: boolean;
 }
 
-/**
- * Load optional configuration from file
- *
- * Paths can be configured via environment variables:
- * - CONFIG_PATH: Full config file path (default: ./config.json)
- * - AUTH_CONFIG_PATH: Auth config file path (default: ./auth-config.json)
- */
+// ── Loading ──────────────────────────────────────────────────────────
+
 function loadConfig(): Config {
+  const auth = loadAuthConfig();
+
   const configPath = getSettings().configPath;
-  const authConfigPath = getSettings().authConfigPath;
-
-  if (existsSync(configPath)) {
-    try {
-      const content = readFileSync(configPath, "utf-8");
-      const parsed = JSON.parse(content);
-      return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-        ...parsed,
-      };
-    } catch {
-      return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-      };
-    }
+  if (!existsSync(configPath)) {
+    return { auth, monitoring: DEFAULT_MONITORING_CONFIG };
   }
 
-  if (existsSync(authConfigPath)) {
-    try {
-      const content = readFileSync(authConfigPath, "utf-8");
-      return {
-        auth: JSON.parse(content),
-        monitoring: DEFAULT_MONITORING_CONFIG,
-      };
-    } catch {
-      return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-      };
-    }
-  }
+  try {
+    const raw = JSON.parse(readFileSync(configPath, "utf-8"));
 
-  return {
-    auth: DEFAULT_AUTH_CONFIG,
-    monitoring: DEFAULT_MONITORING_CONFIG,
-  };
+    if (raw.auth) {
+      console.warn(
+        "[config] DEPRECATION: 'auth' key found in config.json. " +
+          "Auth is now configured via AUTH_* environment variables. " +
+          "The 'auth' key will be ignored.",
+      );
+    }
+
+    return {
+      auth,
+      monitoring: raw.monitoring ?? DEFAULT_MONITORING_CONFIG,
+      theme: raw.theme,
+      logo: raw.logo,
+      autoCreateOrganizationOnSignup: raw.autoCreateOrganizationOnSignup,
+    };
+  } catch {
+    return { auth, monitoring: DEFAULT_MONITORING_CONFIG };
+  }
 }
+
+// ── Public API ───────────────────────────────────────────────────────
 
 let _config: Config | null = null;
 
@@ -129,9 +65,6 @@ export function getConfig(): Config {
   return _config;
 }
 
-/**
- * Get monitoring configuration with defaults
- */
 export function getMonitoringConfig(): MonitoringConfig {
   return {
     ...DEFAULT_MONITORING_CONFIG,
@@ -139,9 +72,6 @@ export function getMonitoringConfig(): MonitoringConfig {
   };
 }
 
-/**
- * Get theme configuration
- */
 export function getThemeConfig(): ThemeConfig | undefined {
   return getConfig().theme;
 }
