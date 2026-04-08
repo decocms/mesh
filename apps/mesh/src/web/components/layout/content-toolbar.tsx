@@ -6,6 +6,7 @@
 
 import { cn } from "@deco/ui/lib/utils.ts";
 import { useInsetContext, usePanelActions } from "@/web/layouts/shell-layout";
+import { useSearch } from "@tanstack/react-router";
 import { useVirtualMCP, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { isProject } from "@/web/hooks/use-create-project";
 import { IntegrationIcon } from "@/web/components/integration-icon";
@@ -80,8 +81,9 @@ function ToolbarContent() {
 
   if (!entityIsProject) return null;
 
+  const search = useSearch({ strict: false }) as { main?: string };
   const isSettingsActive = mainView?.type === "settings";
-  const isFilesActive = mainView === null || mainView?.type === "chat";
+  const isFilesActive = search.main === "files";
 
   return (
     <div className="shrink-0 flex items-center gap-0.5 px-2 py-1.5 border-b border-border">
@@ -90,7 +92,7 @@ function ToolbarContent() {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={() => openMainView("default")}
+            onClick={() => openMainView("files")}
             className={cn(
               "flex items-center justify-center size-7 rounded-md transition-colors",
               isFilesActive

@@ -11,6 +11,7 @@ import {
   type MainViewType,
 } from "@/web/layouts/shell-layout";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
+import { useSearch } from "@tanstack/react-router";
 import { useChatTask } from "@/web/components/chat/context";
 import { isProject } from "@/web/hooks/use-create-project";
 import { ProjectHome } from "@/web/views/project/project-home";
@@ -104,7 +105,12 @@ function AgentHomeContent() {
   const entityIsProject = entity ? isProject(entity) : false;
 
   // Projects show files as default, simplified settings
+  const search = useSearch({ strict: false }) as { main?: string };
   if (entityIsProject) {
+    // Explicit ?main=files → show project file browser
+    if (search.main === "files") {
+      return <ProjectHome virtualMcpId={virtualMcpId} />;
+    }
     if (resolved.type === "settings") {
       return <ProjectSettings virtualMcpId={virtualMcpId} />;
     }
