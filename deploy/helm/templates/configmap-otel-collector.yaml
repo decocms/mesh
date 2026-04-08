@@ -16,6 +16,10 @@ data:
             endpoint: "0.0.0.0:4318"
 
     processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
       batch:
         send_batch_size: 1024
         timeout: 5s
@@ -45,14 +49,14 @@ data:
         {{- end }}
         traces:
           receivers: [otlp]
-          processors: [batch]
+          processors: [memory_limiter, batch]
           exporters: [{{ join ", " $exporters }}]
         metrics:
           receivers: [otlp]
-          processors: [batch]
+          processors: [memory_limiter, batch]
           exporters: [{{ join ", " $exporters }}]
         logs:
           receivers: [otlp]
-          processors: [batch]
+          processors: [memory_limiter, batch]
           exporters: [{{ join ", " $exporters }}]
 {{- end }}
