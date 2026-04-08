@@ -8,7 +8,14 @@
 import { Hono } from "hono";
 import { getConnInfo } from "hono/bun";
 import { getSettings } from "../../settings";
-import { authConfig, resetPasswordEnabled } from "../../auth";
+import {
+  auth,
+  authConfig,
+  GENERIC_EMAIL_DOMAINS,
+  resetPasswordEnabled,
+} from "../../auth";
+import { getDb } from "../../database";
+import { OrganizationDomainStorage } from "../../storage/organization-domains";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
 import {
   getLocalAdminUser,
@@ -210,7 +217,6 @@ app.post("/local-session", async (c) => {
  */
 app.get("/domain-lookup", async (c) => {
   // Verify authentication — session required
-  const { auth, GENERIC_EMAIL_DOMAINS } = await import("../../auth");
   const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
   })) as { user?: { id: string; email: string } } | null;
@@ -237,10 +243,6 @@ app.get("/domain-lookup", async (c) => {
   }
 
   try {
-    const { OrganizationDomainStorage } = await import(
-      "../../storage/organization-domains"
-    );
-    const { getDb } = await import("../../database");
     const domainStorage = new OrganizationDomainStorage(getDb().db);
     const record = await domainStorage.getByDomain(domain);
 
@@ -249,9 +251,8 @@ app.get("/domain-lookup", async (c) => {
     }
 
     // Fetch org name/slug for display — deliberately omit ID
-    const db = getDb().db;
-    const org = await db
-      .selectFrom("organization")
+    const org = await getDb()
+      .db.selectFrom("organization")
       .select(["name", "slug"])
       .where("id", "=", record.organizationId)
       .executeTakeFirst();
@@ -277,12 +278,8 @@ app.get("/domain-lookup", async (c) => {
  * Route: POST /api/auth/custom/domain-join
  */
 app.post("/domain-join", async (c) => {
-  const { auth: authInstance, GENERIC_EMAIL_DOMAINS } = await import(
-    "../../auth"
-  );
-
   // Verify authentication
-  const session = (await authInstance.api.getSession({
+  const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
   })) as { user?: { id: string; email: string } } | null;
   if (!session?.user) {
@@ -305,10 +302,6 @@ app.post("/domain-join", async (c) => {
   }
 
   try {
-    const { OrganizationDomainStorage } = await import(
-      "../../storage/organization-domains"
-    );
-    const { getDb } = await import("../../database");
     const db = getDb().db;
     const domainStorage = new OrganizationDomainStorage(db);
 
@@ -338,7 +331,7 @@ app.post("/domain-join", async (c) => {
     // Add the user as a member — if they're already a member
     // (e.g. the signup hook already auto-joined them), treat as success.
     try {
-      await authInstance.api.addMember({
+      await auth.api.addMember({
         body: {
           userId: session.user.id,
           role: "user",
