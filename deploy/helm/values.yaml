@@ -206,7 +206,7 @@ s3Sync:
       memory: "32Mi"
       cpu: "10m"
     limits:
-      memory: "128Mi"
+      memory: "256Mi"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
@@ -261,6 +261,12 @@ opentelemetry-collector:
       cpu: "250m"
     limits:
       memory: "1Gi"
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
   config:
     receivers:
       otlp:
