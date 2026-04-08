@@ -109,10 +109,19 @@ function AgentHomeContent() {
       return <ProjectSettings virtualMcpId={virtualMcpId} />;
     }
     if (resolved.type === "ext-apps") {
+      // Read toolInput from project metadata (e.g., { deckId: "xxx" })
+      const defaultViewMeta = (
+        entity?.metadata?.ui as Record<string, unknown> | null | undefined
+      )?.layout as {
+        defaultMainView?: { toolInput?: Record<string, unknown> };
+      } | null;
+      const toolInput = defaultViewMeta?.defaultMainView?.toolInput;
+
       return (
         <ProjectAppViewContent
           connectionId={resolved.id}
           toolName={resolved.toolName ?? ""}
+          toolInput={toolInput}
         />
       );
     }
