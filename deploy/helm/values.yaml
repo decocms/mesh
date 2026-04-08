@@ -262,11 +262,13 @@ opentelemetry-collector:
     limits:
       memory: "1Gi"
   autoscaling:
-    enabled: false
+    enabled: true
     minReplicas: 1
     maxReplicas: 5
+    behavior: {}
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
+    additionalMetrics: []
   config:
     receivers:
       otlp:
