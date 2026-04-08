@@ -893,8 +893,8 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
         <CardContent className="p-0">
           {noConnections && (
             <p className="text-sm text-muted-foreground">
-              No connections yet. Add connections in the Connections tab to
-              configure pinned views.
+              No agents yet. Add agents in the Agents tab to configure pinned
+              views.
             </p>
           )}
           {noInteractiveTools && !noConnections && (
@@ -1362,7 +1362,7 @@ Define step-by-step how the agent should handle requests.
     },
     {
       id: "connections",
-      label: "Connections",
+      label: "Agents",
       count: connections.length || undefined,
     },
     { id: "layout", label: "Layout" },
@@ -1378,7 +1378,7 @@ Define step-by-step how the agent should handle requests.
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={handleTestAgent}>
                     <Play size={14} className="!size-[14px]" />
-                    Test Agent
+                    Test
                   </Button>
                   <Button
                     variant="outline"
@@ -1500,7 +1500,7 @@ Define step-by-step how the agent should handle requests.
                       <Plus size={16} />
                     </div>
                     <span className="text-sm text-muted-foreground">
-                      No connections yet. Add one to get started.
+                      No agents yet. Add one to get started.
                     </span>
                   </button>
                 ) : (
@@ -1543,7 +1543,7 @@ Define step-by-step how the agent should handle requests.
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Agent?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <span className="font-medium text-foreground">
