@@ -6,10 +6,7 @@
  */
 
 import { useChatTask } from "@/web/components/chat/context";
-import {
-  useMainViewActions,
-  useTaskActions,
-} from "@/web/contexts/panel-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
@@ -302,7 +299,7 @@ function AutomationRow({
 
 function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
   const virtualMcpCtx = useVirtualMCPURLContext();
-  const { openMainView } = useMainViewActions();
+  const { openMainView } = usePanelActions();
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
@@ -449,7 +446,7 @@ export function TaskListContent({
   showAutomations = true,
 }: TaskListContentProps) {
   const { ownerFilter } = useChatTask();
-  const { setTaskId } = useTaskActions();
+  const { setTaskId } = usePanelActions();
 
   // Read taskId directly from router (seeded by validateSearch)
   const search = useSearch({ strict: false }) as { taskId?: string };

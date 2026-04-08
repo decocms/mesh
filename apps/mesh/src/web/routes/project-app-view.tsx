@@ -18,7 +18,7 @@ import { MCPAppRenderer } from "@/mcp-apps/mcp-app-renderer.tsx";
 import { getUIResourceUri, MCP_APP_DISPLAY_MODES } from "@/mcp-apps/types.ts";
 import { useChatBridge, useChatPrefs } from "@/web/components/chat/context.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary.tsx";
-import { useChatPanel } from "@/web/contexts/panel-context.tsx";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { Page } from "@/web/components/page/index.tsx";
 
 const EMPTY_TOOL_INPUT: Record<string, unknown> = {};
@@ -41,7 +41,7 @@ function AppRenderer({
 }) {
   const { sendMessage } = useChatBridge();
   const { setAppContext, clearAppContext } = useChatPrefs();
-  const [, setChatOpen] = useChatPanel();
+  const { setChatOpen } = usePanelActions();
   const sourceId = `${connectionId}:${tool.name}`;
   const { data: toolResult } = useMCPToolCall({
     client,

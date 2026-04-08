@@ -10,10 +10,7 @@
 import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
-import {
-  useMainViewActions,
-  useTaskActions,
-} from "@/web/contexts/panel-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
@@ -109,7 +106,7 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
   const virtualMcpCtx = useVirtualMCPURLContext();
-  const { openMainView } = useMainViewActions();
+  const { openMainView } = usePanelActions();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -269,8 +266,8 @@ function TasksPanelContent({
   showAutomations?: boolean;
 }) {
   const virtualMcpCtx = useVirtualMCPURLContext();
-  const { openMainView } = useMainViewActions();
-  const { createNewTask, setTaskId } = useTaskActions();
+  const { openMainView } = usePanelActions();
+  const { createNewTask, setTaskId } = usePanelActions();
   const [isPending, startTransition] = useTransition();
   const virtualMcpId = virtualMcpIdProp ?? null;
 

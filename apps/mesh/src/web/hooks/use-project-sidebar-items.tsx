@@ -6,7 +6,7 @@ import type {
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Dataflow03, Home01, LayoutLeft } from "@untitledui/icons";
 import { getIconComponent, parseIconString } from "../components/agent-icon";
-import { useTasksPanel } from "@/web/contexts/panel-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { pluginRootSidebarItems, pluginSidebarGroups } from "../index.tsx";
 import { PLUGIN_ID as WORKFLOWS_PLUGIN_ID } from "mesh-plugin-workflows/shared";
 
@@ -14,7 +14,7 @@ export function useProjectSidebarItems(): SidebarSection[] {
   const { org: orgContext } = useProjectContext();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const [, setTasksOpen] = useTasksPanel();
+  const { setTasksOpen } = usePanelActions();
   const org = orgContext.slug;
   const currentProject = useProjectContext().project;
 

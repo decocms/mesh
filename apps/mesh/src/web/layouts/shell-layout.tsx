@@ -11,7 +11,6 @@ import {
   SettingsSidebar,
   SettingsSidebarMobile,
 } from "@/web/layouts/settings-layout";
-import { PanelContextProvider } from "@/web/contexts/panel-context";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
@@ -36,6 +35,7 @@ import {
 import { cn } from "@deco/ui/lib/utils.js";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
 import {
+  AlertCircle,
   Browser,
   ChevronLeft,
   ChevronRight,
@@ -52,15 +52,28 @@ import {
   SELF_MCP_ALIAS_ID,
   useMCPClient,
   useProjectContext,
+  useVirtualMCP,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Outlet, useMatch, useRouterState } from "@tanstack/react-router";
+import {
+  Outlet,
+  useMatch,
+  useNavigate,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
 import { PropsWithChildren, Suspense, useTransition } from "react";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { useStatusSounds } from "../hooks/use-status-sounds";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
-import { VirtualMCPProvider } from "@/web/providers/virtual-mcp-provider";
+import { Button } from "@deco/ui/components/button.tsx";
+import { EmptyState } from "@/web/components/empty-state";
+import {
+  VirtualMCPContext,
+  type MainView,
+  type VirtualMCPContextValue,
+} from "@/web/contexts/virtual-mcp-context";
 import {
   computeDefaultSizes,
   useLayoutState,
@@ -186,21 +199,464 @@ function PersistentSidebarProvider({
   );
 }
 
-function VirtualMCPScope({
-  virtualMcpId,
-  children,
-}: {
-  virtualMcpId?: string;
-  children: React.ReactNode;
-}) {
-  if (virtualMcpId) {
+// ---------------------------------------------------------------------------
+// Panel actions — provider-free hook, works anywhere in the router tree.
+// All actions just update URL search params via navigate().
+// ---------------------------------------------------------------------------
+
+export function usePanelActions() {
+  const navigate = useNavigate();
+
+  const agentsMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const orgHomeMatch = useMatch({
+    from: "/shell/$org/",
+    shouldThrow: false,
+  });
+
+  const orgSlug = agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? "";
+  const isAgentRoute = !!agentsMatch;
+  const virtualMcpId = agentsMatch?.params.virtualMcpId ?? "";
+
+  const routeBase = isAgentRoute
+    ? ("/$org/$virtualMcpId/" as const)
+    : ("/$org/" as const);
+  const routeParams = isAgentRoute
+    ? { org: orgSlug, virtualMcpId }
+    : { org: orgSlug };
+
+  const nav = (
+    searchFn: (prev: Record<string, unknown>) => Record<string, unknown>,
+    replace = true,
+  ) =>
+    navigate({
+      to: routeBase,
+      params: routeParams,
+      search: searchFn,
+      replace,
+    });
+
+  const setChatOpen = (open: boolean) =>
+    nav((prev) => ({ ...prev, chat: open ? 1 : 0 }));
+
+  const setTasksOpen = (open: boolean) =>
+    nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
+
+  const setTaskId = (id: string) =>
+    nav((prev) => {
+      const next: Record<string, unknown> = { taskId: id };
+      if (prev.tasks) next.tasks = prev.tasks;
+      return next;
+    }, false);
+
+  const createNewTask = () => {
+    const newTaskId = crypto.randomUUID();
+    nav((prev) => {
+      const next: Record<string, unknown> = {
+        taskId: newTaskId,
+        chat: 1,
+      };
+      if (prev.tasks) next.tasks = prev.tasks;
+      return next;
+    }, false);
+  };
+
+  const openMainView = (
+    view: string,
+    opts?: { id?: string; toolName?: string },
+  ) => {
+    if (view === "default") {
+      nav((prev) => {
+        const next: Record<string, unknown> = {};
+        if (prev.taskId) next.taskId = prev.taskId;
+        if (prev.tasks) next.tasks = prev.tasks;
+        if (prev.mainOpen) next.mainOpen = prev.mainOpen;
+        if (prev.chat) next.chat = prev.chat;
+        return next;
+      });
+      return;
+    }
+
+    nav((prev) => {
+      const next: Record<string, unknown> = {
+        ...prev,
+        main: view,
+        mainOpen: 1,
+      };
+      if (opts?.id) next.id = opts.id;
+      if (opts?.toolName) next.toolName = opts.toolName;
+      return next;
+    });
+  };
+
+  const closeMainView = () =>
+    nav((prev) => {
+      const next: Record<string, unknown> = {};
+      if (prev.taskId) next.taskId = prev.taskId;
+      if (prev.tasks) next.tasks = prev.tasks;
+      if (prev.chat) next.chat = prev.chat;
+      next.mainOpen = 0;
+      return next;
+    });
+
+  return {
+    setChatOpen,
+    setTasksOpen,
+    setTaskId,
+    createNewTask,
+    openMainView,
+    closeMainView,
+  };
+}
+
+/**
+ * InsetProvider — unified content provider for the SidebarInset area.
+ *
+ * Resolves virtualMcpId, fetches entity (Suspense-based), provides
+ * VirtualMCPContext + PanelContext, and renders toolbar + panel layout.
+ * Lives inside SidebarInset so the sidebar is never suspended on agent switch.
+ */
+function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
+
+  // Org-wide SSE sound notifications
+  useStatusSounds(org.id);
+
+  // Extract virtualMcpId from route for agent context
+  const agentsMatch = useMatch({
+    from: "/shell/$org/$virtualMcpId",
+    shouldThrow: false,
+  });
+  const orgHomeMatch = useMatch({
+    from: "/shell/$org/",
+    shouldThrow: false,
+  });
+  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
+  const isAgentRoute = !!agentsMatch && !isSettingsRoute;
+  const orgSlug = agentsMatch?.params.org ?? orgHomeMatch?.params.org ?? "";
+
+  // Determine the effective virtualMcpId (agent or decopilot)
+  const virtualMcpId =
+    agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
+  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
+
+  // Org home or agent route → show 3-panel layout
+  const isOrgHome = !agentVirtualMcpId && !isSettingsRoute;
+  const showThreePanels = isAgentRoute || isOrgHome;
+
+  // Fetch entity (Suspense-based — resolved before render)
+  const entity = useVirtualMCP(virtualMcpId);
+
+  // Not found
+  if (!entity) {
     return (
-      <VirtualMCPProvider virtualMcpId={virtualMcpId}>
-        {children}
-      </VirtualMCPProvider>
+      <div className="flex-1 min-h-0 pr-1.5 pb-1.5 overflow-hidden">
+        <div className="flex flex-col h-full bg-card overflow-hidden border border-sidebar-border shadow-sm rounded-[0.75rem]">
+          <EmptyState
+            image={<AlertCircle size={48} className="text-muted-foreground" />}
+            title="Agent not found"
+            description={`The agent "${virtualMcpId}" does not exist in this organization.`}
+            actions={
+              <Button
+                variant="outline"
+                onClick={() =>
+                  navigate({
+                    to: "/$org",
+                    params: { org: orgSlug },
+                  })
+                }
+              >
+                Go to organization home
+              </Button>
+            }
+          />
+        </div>
+      </div>
     );
   }
-  return <>{children}</>;
+
+  // Derive mainView from URL search params
+  const search = useSearch({ strict: false }) as {
+    main?: string;
+    id?: string;
+    toolName?: string;
+  };
+
+  let mainView: MainView;
+  if (search.main === "settings") {
+    mainView = { type: "settings" };
+  } else if (search.main === "automation") {
+    const id = search.id ?? "";
+    mainView = id ? { type: "automation", id } : { type: "settings" };
+  } else if (search.main === "ext-apps") {
+    const id = search.id ?? "";
+    mainView = id
+      ? { type: "ext-apps", id, toolName: search.toolName }
+      : { type: "settings" };
+  } else {
+    mainView = null;
+  }
+
+  const virtualMcpContextValue: VirtualMCPContextValue = {
+    virtualMcpId,
+    mainView,
+    entity,
+  };
+
+  // Layout state from URL querystring
+  const layout = useLayoutState();
+
+  // Tasks panel virtualMcpId
+  const tasksVirtualMcpId = virtualMcpId;
+
+  const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
+  const setMobileSidebarOpen = setOpenMobile;
+
+  const onNewTask = useRef<(() => void) | null>(null);
+
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⇧⌘S new-task shortcut; DOM event listener has no React 19 alternative
+  useEffect(() => {
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (isModKey(e) && e.shiftKey && e.code === "KeyS" && !e.repeat) {
+        e.preventDefault();
+        onNewTask.current?.();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Chat.Provider virtualMcpId
+  const chatVirtualMcpId = virtualMcpId;
+
+  // --- Mobile layout: full-screen with hamburger toolbar ---
+  if (isMobile) {
+    const mobileSidebarSheet = (
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent
+          side="left"
+          hideCloseButton
+          className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+        >
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          {isSettingsRoute ? (
+            <SettingsSidebarMobile
+              onClose={() => setMobileSidebarOpen(false)}
+            />
+          ) : (
+            <div className="flex h-full">
+              {/* Icon sidebar rail — mirrors desktop collapsed sidebar */}
+              <div
+                className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto group/sidebar"
+                data-state="collapsed"
+              >
+                <MeshSidebarMobile
+                  onClose={() => setMobileSidebarOpen(false)}
+                />
+              </div>
+              {/* Tasks / agent panel */}
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <TasksSidePanel
+                  virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
+                  hideProjectHeader={isDecopilot}
+                  showAutomations={!isDecopilot}
+                />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    );
+
+    if (showThreePanels) {
+      return (
+        <VirtualMCPContext value={virtualMcpContextValue}>
+          <div className="flex flex-col flex-1 bg-background min-h-0">
+            <Chat.Provider
+              key={chatVirtualMcpId}
+              virtualMcpId={chatVirtualMcpId}
+            >
+              <NewTaskBridge
+                onNewTaskRef={onNewTask}
+                createNewTask={layout.createNewTask}
+              />
+              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+              <MobileAgentContent
+                isDecopilot={isDecopilot}
+                mainOpen={layout.mainOpen}
+              />
+              {mobileSidebarSheet}
+            </Chat.Provider>
+          </div>
+        </VirtualMCPContext>
+      );
+    }
+
+    return (
+      <VirtualMCPContext value={virtualMcpContextValue}>
+        <div className="flex flex-col flex-1 bg-background min-h-0">
+          <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+          <div className="flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+          {mobileSidebarSheet}
+        </div>
+      </VirtualMCPContext>
+    );
+  }
+
+  // --- Desktop layout ---
+  return (
+    <VirtualMCPContext value={virtualMcpContextValue}>
+      <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
+        <div className="flex items-center gap-0.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => window.history.back()}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            title="Go back"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => window.history.forward()}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            title="Go forward"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div className="flex items-center gap-0.5">
+          {showThreePanels && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNewTask.current?.();
+                    }}
+                    aria-label="New task"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                  >
+                    <Edit05 size={16} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="flex items-center gap-1.5"
+                >
+                  New task
+                  <span className="flex items-center gap-0.5">
+                    {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
+                      (key) => (
+                        <kbd
+                          key={key}
+                          className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
+                        >
+                          {key}
+                        </kbd>
+                      ),
+                    )}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+              <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
+              <button
+                type="button"
+                onClick={layout.toggleTasks}
+                aria-pressed={layout.tasksOpen}
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                  layout.tasksOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle tasks"
+              >
+                <LayoutLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleChat}
+                aria-pressed={layout.chatOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.chatOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle chat"
+              >
+                <LayoutRight size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+        <NewTaskBridge
+          onNewTaskRef={onNewTask}
+          createNewTask={layout.createNewTask}
+        />
+        {showThreePanels ? (
+          <UnifiedPanelGroup
+            virtualMcpId={virtualMcpId}
+            isDecopilot={isDecopilot}
+            tasksVirtualMcpId={tasksVirtualMcpId}
+            tasksOpen={layout.tasksOpen}
+            mainOpen={layout.mainOpen}
+            chatOpen={layout.chatOpen}
+          />
+        ) : (
+          <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
+            <div
+              className={cn(
+                "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                "border border-sidebar-border shadow-sm",
+                "rounded-[0.75rem]",
+              )}
+            >
+              <Suspense
+                fallback={
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loading01
+                      size={20}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
+                  <Outlet />
+                </div>
+              </Suspense>
+            </div>
+          </div>
+        )}
+      </Chat.Provider>
+    </VirtualMCPContext>
+  );
 }
 
 function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
@@ -375,316 +831,6 @@ function MobileAgentContent({
   );
 }
 
-function ShellLayoutInner({ isSettingsRoute }: { isSettingsRoute: boolean }) {
-  const isMobile = useIsMobile();
-  const { org } = useProjectContext();
-
-  // Org-wide SSE sound notifications
-  useStatusSounds(org.id);
-
-  // Layout state from URL querystring
-  const layout = useLayoutState();
-
-  // Extract virtualMcpId from route for agent context
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const agentVirtualMcpId = agentsMatch?.params.virtualMcpId;
-  const isAgentRoute = !!agentsMatch && !isSettingsRoute;
-
-  // Determine the effective virtualMcpId (agent or decopilot)
-  const virtualMcpId =
-    agentVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
-  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
-
-  // Org home or agent route → show 3-panel layout
-  const isOrgHome = !agentVirtualMcpId && !isSettingsRoute;
-  const showThreePanels = isAgentRoute || isOrgHome;
-
-  // Tasks panel virtualMcpId
-  const tasksVirtualMcpId = virtualMcpId;
-
-  const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
-  const setMobileSidebarOpen = setOpenMobile;
-
-  const onNewTask = useRef<(() => void) | null>(null);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — subscribes to document keydown for ⇧⌘S new-task shortcut; DOM event listener has no React 19 alternative
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => {
-      if (isModKey(e) && e.shiftKey && e.code === "KeyS" && !e.repeat) {
-        e.preventDefault();
-        onNewTask.current?.();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
-
-  const panelControls = {
-    chatOpen: layout.chatOpen,
-    tasksOpen: layout.tasksOpen,
-    mainOpen: layout.mainOpen,
-    onNewTask,
-    setChatOpen: (open: boolean) => {
-      if (open) layout.openChat();
-      else layout.toggleChat();
-    },
-    setTasksOpen: (open: boolean) => {
-      if (open && !layout.tasksOpen) layout.toggleTasks();
-      else if (!open && layout.tasksOpen) layout.toggleTasks();
-    },
-    setTaskId: layout.setTaskId,
-    createNewTask: layout.createNewTask,
-    openMainView: layout.openMainView,
-    closeMainView: layout.closeMainView,
-  };
-
-  // Chat.Provider virtualMcpId
-  const chatVirtualMcpId = virtualMcpId;
-
-  // --- Mobile layout: full-screen with hamburger toolbar ---
-  if (isMobile) {
-    const mobileSidebarSheet = (
-      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-        <SheetContent
-          side="left"
-          hideCloseButton
-          className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
-        >
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          {isSettingsRoute ? (
-            <SettingsSidebarMobile
-              onClose={() => setMobileSidebarOpen(false)}
-            />
-          ) : (
-            <div className="flex h-full">
-              {/* Icon sidebar rail — mirrors desktop collapsed sidebar */}
-              <div
-                className="w-14 shrink-0 bg-sidebar flex flex-col items-center border-r border-border overflow-y-auto group/sidebar"
-                data-state="collapsed"
-              >
-                <MeshSidebarMobile
-                  onClose={() => setMobileSidebarOpen(false)}
-                />
-              </div>
-              {/* Tasks / agent panel */}
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <TasksSidePanel
-                  virtualMcpId={showThreePanels ? tasksVirtualMcpId : undefined}
-                  hideProjectHeader={isDecopilot}
-                  showAutomations={!isDecopilot}
-                />
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-    );
-
-    if (showThreePanels) {
-      return (
-        <PanelContextProvider value={panelControls}>
-          <div className="flex flex-col flex-1 bg-background min-h-0">
-            <Chat.Provider
-              key={chatVirtualMcpId}
-              virtualMcpId={chatVirtualMcpId}
-            >
-              <NewTaskBridge
-                onNewTaskRef={onNewTask}
-                createNewTask={layout.createNewTask}
-              />
-              <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-              <MobileAgentContent
-                isDecopilot={isDecopilot}
-                mainOpen={layout.mainOpen}
-              />
-              {mobileSidebarSheet}
-            </Chat.Provider>
-          </div>
-        </PanelContextProvider>
-      );
-    }
-
-    return (
-      <PanelContextProvider value={panelControls}>
-        <div className="flex flex-col flex-1 bg-background min-h-0">
-          <MobileToolbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
-          <div className="flex-1 overflow-hidden">
-            <Outlet />
-          </div>
-          {mobileSidebarSheet}
-        </div>
-      </PanelContextProvider>
-    );
-  }
-
-  // --- Desktop layout: resizable 3-panel ---
-  return (
-    <PanelContextProvider value={panelControls}>
-      <SidebarLayout
-        className="flex-1 bg-sidebar"
-        style={
-          {
-            "--sidebar-width-icon": "3.5rem",
-          } as Record<string, string>
-        }
-      >
-        {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
-        <SidebarInset
-          className="flex flex-col"
-          style={{ background: "transparent", containerType: "inline-size" }}
-        >
-          <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
-            <div className="flex items-center gap-0.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go back"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.history.forward()}
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title="Go forward"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-            <div className="flex items-center gap-0.5">
-              {showThreePanels && (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onNewTask.current?.();
-                        }}
-                        aria-label="New task"
-                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                      >
-                        <Edit05 size={16} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="flex items-center gap-1.5"
-                    >
-                      New task
-                      <span className="flex items-center gap-0.5">
-                        {(isMac ? ["⇧", "⌘", "S"] : ["⇧", "Ctrl", "S"]).map(
-                          (key) => (
-                            <kbd
-                              key={key}
-                              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-                            >
-                              {key}
-                            </kbd>
-                          ),
-                        )}
-                      </span>
-                    </TooltipContent>
-                  </Tooltip>
-                  <div className="mx-1 h-4 w-px bg-sidebar-foreground/20" />
-                  <button
-                    type="button"
-                    onClick={layout.toggleTasks}
-                    aria-pressed={layout.tasksOpen}
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                      layout.tasksOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle tasks"
-                  >
-                    <LayoutLeft size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={layout.toggleMain}
-                    aria-pressed={layout.mainOpen}
-                    className={cn(
-                      "flex size-7 items-center justify-center rounded-md transition-colors",
-                      layout.mainOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle content"
-                  >
-                    <Browser size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={layout.toggleChat}
-                    aria-pressed={layout.chatOpen}
-                    className={cn(
-                      "flex size-7 items-center justify-center rounded-md transition-colors",
-                      layout.chatOpen
-                        ? "bg-sidebar-accent text-sidebar-foreground"
-                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    )}
-                    title="Toggle chat"
-                  >
-                    <LayoutRight size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-            <NewTaskBridge
-              onNewTaskRef={onNewTask}
-              createNewTask={layout.createNewTask}
-            />
-            {showThreePanels ? (
-              <UnifiedPanelGroup
-                virtualMcpId={virtualMcpId}
-                isDecopilot={isDecopilot}
-                tasksVirtualMcpId={tasksVirtualMcpId}
-                tasksOpen={layout.tasksOpen}
-                mainOpen={layout.mainOpen}
-                chatOpen={layout.chatOpen}
-              />
-            ) : (
-              <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
-                <div
-                  className={cn(
-                    "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                    "border border-sidebar-border shadow-sm",
-                    "rounded-[0.75rem]",
-                  )}
-                >
-                  <Suspense
-                    fallback={
-                      <div className="flex-1 flex items-center justify-center">
-                        <Loading01
-                          size={20}
-                          className="animate-spin text-muted-foreground"
-                        />
-                      </div>
-                    }
-                  >
-                    <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
-                      <Outlet />
-                    </div>
-                  </Suspense>
-                </div>
-              </div>
-            )}
-          </Chat.Provider>
-        </SidebarInset>
-      </SidebarLayout>
-    </PanelContextProvider>
-  );
-}
-
 function ShellLayoutContent() {
   const orgMatch = useMatch({ from: "/shell/$org", shouldThrow: false });
   const org = orgMatch?.params.org;
@@ -749,36 +895,40 @@ function ShellLayoutContent() {
     );
   }
 
-  // Extract virtualMcpId for VirtualMCPScope (needs to be above ShellLayoutInner
-  // so entity metadata is resolved via Suspense before useLayoutState runs).
-  const agentsMatchForScope = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
-  const scopeVirtualMcpId = agentsMatchForScope?.params.virtualMcpId;
-  const showThreePanelsForScope = !!scopeVirtualMcpId || !isSettingsRoute;
-  const providerVirtualMcpId = showThreePanelsForScope
-    ? (scopeVirtualMcpId ?? getWellKnownDecopilotVirtualMCP(activeOrg.id).id)
-    : undefined;
-
   return (
     <ShellProjectProvider org={{ ...activeOrg, logo: activeOrg.logo ?? null }}>
       <PersistentSidebarProvider defaultOpen={isSettingsRoute}>
         <div className="flex flex-col h-dvh overflow-hidden">
-          <Suspense
-            fallback={
-              <div className="flex-1 flex items-center justify-center">
-                <Loading01
-                  size={20}
-                  className="animate-spin text-muted-foreground"
-                />
-              </div>
+          <SidebarLayout
+            className="flex-1 bg-sidebar"
+            style={
+              {
+                "--sidebar-width-icon": "3.5rem",
+              } as Record<string, string>
             }
           >
-            <VirtualMCPScope virtualMcpId={providerVirtualMcpId}>
-              <ShellLayoutInner isSettingsRoute={isSettingsRoute} />
-            </VirtualMCPScope>
-          </Suspense>
+            {isSettingsRoute ? <SettingsSidebar /> : <MeshSidebar />}
+            <SidebarInset
+              className="flex flex-col"
+              style={{
+                background: "transparent",
+                containerType: "inline-size",
+              }}
+            >
+              <Suspense
+                fallback={
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loading01
+                      size={20}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                <InsetProvider isSettingsRoute={isSettingsRoute} />
+              </Suspense>
+            </SidebarInset>
+          </SidebarLayout>
         </div>
       </PersistentSidebarProvider>
 

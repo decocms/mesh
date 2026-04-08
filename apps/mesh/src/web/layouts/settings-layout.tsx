@@ -22,7 +22,6 @@ import {
   Building02,
   Container,
   CpuChip01,
-  LayersThree01,
   Lock01,
   PackageCheck,
   User01,
@@ -71,7 +70,7 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
         {
           key: "agents",
           label: "Agents",
-          icon: <LayersThree01 size={14} />,
+          icon: <Users03 size={14} />,
           to: "/$org/settings/agents",
         },
         {
