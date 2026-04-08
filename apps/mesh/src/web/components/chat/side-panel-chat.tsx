@@ -1,4 +1,4 @@
-import { AgentsList } from "@/web/components/home/agents-list.tsx";
+import { QuickActions } from "@/web/components/home/quick-actions.tsx";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
 import { authClient } from "@/web/lib/auth-client";
@@ -111,7 +111,7 @@ function HomeEmptyState({
           </div>
           {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
-            <AgentsList />
+            <QuickActions />
             <Chat.Input onOpenContextPanel={onOpenContextPanel} />
           </div>
           {isDecoUser && (
@@ -127,29 +127,29 @@ function HomeEmptyState({
 
   return (
     <>
-      <div className="flex-1 relative flex flex-col items-center px-10">
-        <div className="flex-1 flex flex-col items-center justify-center w-full">
-          <div className="flex flex-col items-center w-full max-w-[672px]">
-            <div className="text-center mb-10">
-              <p className="text-3xl font-medium text-foreground">
-                What's on your mind, {userName}?
-              </p>
-            </div>
-            <div className="w-full">
-              <Chat.Input onOpenContextPanel={onOpenContextPanel} />
-            </div>
+      <div className="flex-1 relative flex flex-col items-center overflow-y-auto px-10">
+        {/* Top spacer to push greeting toward center when content is short */}
+        <div className="flex-1 min-h-16 max-h-[30vh]" />
+        <div className="flex flex-col items-center w-full max-w-[672px]">
+          <div className="text-center mb-10">
+            <p className="text-3xl font-medium text-foreground">
+              What's on your mind, {userName}?
+            </p>
           </div>
-          <div className="w-full mt-10 mx-auto">
-            <AgentsList />
+          <div className="w-full">
+            <Chat.Input onOpenContextPanel={onOpenContextPanel} />
           </div>
         </div>
+        <div className="w-full mt-10 mx-auto">
+          <QuickActions />
+        </div>
         {isDecoUser && (
-          <div className="absolute bottom-6 left-0 right-0 px-10">
-            <div className="w-full max-w-[500px] mx-auto">
-              <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
-            </div>
+          <div className="w-full max-w-[500px] mx-auto mt-6 mb-6">
+            <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
           </div>
         )}
+        {/* Bottom spacer */}
+        <div className="min-h-6" />
       </div>
       <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
     </>
