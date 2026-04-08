@@ -31,27 +31,6 @@ export function inferRegistryListToolName(
 }
 
 /**
- * Infer a registry tool name by suffix based on the connection ID.
- * Well-known registries use COLLECTION_REGISTRY_APP_{suffix}.
- * Private registries use REGISTRY_ITEM_{suffix}.
- */
-export function inferRegistryToolBySuffix(
-  connectionId: string,
-  orgId: string,
-  suffix: "_GET" | "_VERSIONS" | "_SEARCH",
-): string {
-  if (isWellKnownRegistry(connectionId, orgId)) {
-    return `COLLECTION_REGISTRY_APP${suffix}`;
-  }
-  const suffixMap: Record<string, string> = {
-    _GET: "REGISTRY_ITEM_GET",
-    _VERSIONS: "REGISTRY_ITEM_VERSIONS",
-    _SEARCH: "REGISTRY_ITEM_SEARCH",
-  };
-  return suffixMap[suffix] ?? "";
-}
-
-/**
  * Flatten paginated items from multiple pages into a single array
  * Handles both direct array responses and nested array responses
  */
@@ -98,16 +77,6 @@ const CONNECTION_TYPE_MAP: Record<string, string> = {
 export function getConnectionTypeLabel(remoteType?: string): string | null {
   if (!remoteType) return null;
   return CONNECTION_TYPE_MAP[remoteType] ?? remoteType.toUpperCase();
-}
-
-/**
- * Extract schema version from a schema URL
- * Example: "https://schemas/2024-11-21" -> "2024-11-21"
- */
-export function extractSchemaVersion(schemaUrl?: string): string | null {
-  if (!schemaUrl) return null;
-  const match = schemaUrl.match(/schemas\/([\d-]+)/);
-  return match?.[1] ?? null;
 }
 
 /**
