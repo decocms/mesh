@@ -57,6 +57,7 @@ import {
   useProjectContext,
   useVirtualMCP,
   useVirtualMCPActions,
+  useVirtualMCPs,
 } from "@decocms/mesh-sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,8 +75,10 @@ import { Suspense, useReducer, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { SimpleIconPicker } from "../../components/simple-icon-picker";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { Page } from "@/web/components/page";
 import { AddConnectionDialog } from "./add-connection-dialog";
+import { AddAgentDialog } from "./add-agent-dialog";
 import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
@@ -84,6 +87,7 @@ import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 type DialogState = {
   shareDialogOpen: boolean;
   addDialogOpen: boolean;
+  addAgentDialogOpen: boolean;
   settingsDialogOpen: boolean;
   settingsConnectionId: string | null;
 };
@@ -91,6 +95,7 @@ type DialogState = {
 type DialogAction =
   | { type: "SET_SHARE_DIALOG_OPEN"; payload: boolean }
   | { type: "SET_ADD_DIALOG_OPEN"; payload: boolean }
+  | { type: "SET_ADD_AGENT_DIALOG_OPEN"; payload: boolean }
   | { type: "OPEN_SETTINGS"; payload: string }
   | { type: "CLOSE_SETTINGS" };
 
@@ -100,6 +105,8 @@ function dialogReducer(state: DialogState, action: DialogAction): DialogState {
       return { ...state, shareDialogOpen: action.payload };
     case "SET_ADD_DIALOG_OPEN":
       return { ...state, addDialogOpen: action.payload };
+    case "SET_ADD_AGENT_DIALOG_OPEN":
+      return { ...state, addAgentDialogOpen: action.payload };
     case "OPEN_SETTINGS":
       return {
         ...state,
@@ -476,6 +483,74 @@ function ConnectionItemSkeleton() {
       </div>
       <div className="flex items-center px-4 py-2 border-t border-border bg-muted/25">
         <div className="h-5 w-20 rounded bg-muted animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Agent Item — represents a child Virtual MCP inside a project
+// ---------------------------------------------------------------------------
+
+function AgentItem({
+  agentId,
+  onRemove,
+}: {
+  agentId: string;
+  onRemove: () => void;
+}) {
+  const agent = useVirtualMCP(agentId);
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+
+  if (!agent) return null;
+
+  const connectionCount = agent.connections.length;
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <button
+        type="button"
+        onClick={() =>
+          navigate({
+            to: "/$org/$virtualMcpId",
+            params: { org: org.slug, virtualMcpId: agent.id },
+            search: { main: "settings", mainOpen: 1 },
+          })
+        }
+        className="flex items-center gap-3 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors cursor-pointer"
+      >
+        <AgentAvatar
+          icon={agent.icon}
+          name={agent.title}
+          size="sm"
+          className="shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {agent.title}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {agent.description || "No description"}
+          </p>
+        </div>
+        {connectionCount > 0 && (
+          <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+            {connectionCount}{" "}
+            {connectionCount === 1 ? "connection" : "connections"}
+          </span>
+        )}
+        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+      </button>
+      <div className="flex items-center justify-end px-4 py-1.5 border-t border-border bg-muted/25">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          title="Remove agent from project"
+        >
+          <Trash01 size={14} />
+        </button>
       </div>
     </div>
   );
@@ -1037,10 +1112,22 @@ function VirtualMcpDetailViewWithData({
   // Watch connections for reactive UI
   const connections = form.watch("connections");
 
+  // Identify which children are Virtual MCPs (agents) vs regular connections
+  const allVirtualMcps = useVirtualMCPs();
+  const virtualMcpIds = new Set(allVirtualMcps.map((v) => v.id));
+  const agentConnections = connections.filter((c) =>
+    virtualMcpIds.has(c.connection_id),
+  );
+  const regularConnections = connections.filter(
+    (c) => !virtualMcpIds.has(c.connection_id),
+  );
+  const addedAgentIds = new Set(agentConnections.map((c) => c.connection_id));
+
   // Dialog states
   const [dialogState, dispatch] = useReducer(dialogReducer, {
     shareDialogOpen: false,
     addDialogOpen: false,
+    addAgentDialogOpen: false,
     settingsDialogOpen: false,
     settingsConnectionId: null,
   });
@@ -1438,14 +1525,21 @@ Define step-by-step how the agent should handle requests.
                 }}
               />
               {activeTab === "connections" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenAddDialog}
-                >
-                  <Plus size={13} />
-                  Add
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_ADD_AGENT_DIALOG_OPEN",
+                        payload: true,
+                      })
+                    }
+                  >
+                    <Plus size={13} />
+                    Add Agent
+                  </Button>
+                </div>
               )}
               {activeTab === "instructions" && (
                 <div className="flex items-center gap-2">
@@ -1489,11 +1583,17 @@ Define step-by-step how the agent should handle requests.
             )}
 
             {activeTab === "connections" && (
-              <div className="flex flex-col gap-2">
-                {connections.length === 0 ? (
+              <div className="flex flex-col gap-4">
+                {/* Agents section */}
+                {agentConnections.length === 0 ? (
                   <button
                     type="button"
-                    onClick={handleOpenAddDialog}
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_ADD_AGENT_DIALOG_OPEN",
+                        payload: true,
+                      })
+                    }
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-border hover:bg-accent/50 transition-colors w-full text-left cursor-pointer"
                   >
                     <div className="flex items-center justify-center size-8 rounded-md text-muted-foreground/75 border border-dashed border-border shrink-0">
@@ -1504,30 +1604,67 @@ Define step-by-step how the agent should handle requests.
                     </span>
                   </button>
                 ) : (
-                  connections.map((conn) => (
-                    <ErrorBoundary
-                      key={conn.connection_id}
-                      fallback={() => null}
-                    >
-                      <Suspense fallback={<ConnectionItemSkeleton />}>
-                        <ConnectionItem
-                          connection_id={conn.connection_id}
-                          usedConnectionIds={addedConnectionIds}
-                          onOpenSettings={() =>
-                            handleOpenSettings(conn.connection_id)
-                          }
-                          onRemove={() =>
-                            handleRemoveConnection(conn.connection_id)
-                          }
-                          onAuthenticate={handleAuthenticate}
-                          onSwitchInstance={handleSwitchInstance}
-                          onNewInstance={() =>
-                            handleNewInstance(conn.connection_id)
-                          }
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ))
+                  <div className="flex flex-col gap-2">
+                    {agentConnections.map((conn) => (
+                      <ErrorBoundary
+                        key={conn.connection_id}
+                        fallback={() => null}
+                      >
+                        <Suspense fallback={<ConnectionItemSkeleton />}>
+                          <AgentItem
+                            agentId={conn.connection_id}
+                            onRemove={() =>
+                              handleRemoveConnection(conn.connection_id)
+                            }
+                          />
+                        </Suspense>
+                      </ErrorBoundary>
+                    ))}
+                  </div>
+                )}
+
+                {/* Regular connections (shown separately if any exist) */}
+                {regularConnections.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Direct Connections
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleOpenAddDialog}
+                        className="h-6 text-xs"
+                      >
+                        <Plus size={12} />
+                        Add
+                      </Button>
+                    </div>
+                    {regularConnections.map((conn) => (
+                      <ErrorBoundary
+                        key={conn.connection_id}
+                        fallback={() => null}
+                      >
+                        <Suspense fallback={<ConnectionItemSkeleton />}>
+                          <ConnectionItem
+                            connection_id={conn.connection_id}
+                            usedConnectionIds={addedConnectionIds}
+                            onOpenSettings={() =>
+                              handleOpenSettings(conn.connection_id)
+                            }
+                            onRemove={() =>
+                              handleRemoveConnection(conn.connection_id)
+                            }
+                            onAuthenticate={handleAuthenticate}
+                            onSwitchInstance={handleSwitchInstance}
+                            onNewInstance={() =>
+                              handleNewInstance(conn.connection_id)
+                            }
+                          />
+                        </Suspense>
+                      </ErrorBoundary>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1570,6 +1707,16 @@ Define step-by-step how the agent should handle requests.
           dispatch({ type: "SET_ADD_DIALOG_OPEN", payload: open })
         }
         addedConnectionIds={addedConnectionIds}
+        onAdd={handleAddConnection}
+      />
+
+      <AddAgentDialog
+        open={dialogState.addAgentDialogOpen}
+        onOpenChange={(open) =>
+          dispatch({ type: "SET_ADD_AGENT_DIALOG_OPEN", payload: open })
+        }
+        projectId={virtualMcp.id}
+        addedAgentIds={addedAgentIds}
         onAdd={handleAddConnection}
       />
 

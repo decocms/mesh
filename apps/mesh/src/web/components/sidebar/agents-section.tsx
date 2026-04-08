@@ -291,6 +291,23 @@ function AgentGridItem({
   );
 }
 
+/**
+ * Compute which Virtual MCP IDs are children of other Virtual MCPs.
+ * These are "agents inside projects" and should not appear as top-level projects.
+ */
+function getChildVirtualMcpIds(
+  allVirtualMcps: VirtualMCPEntity[],
+): Set<string> {
+  const allIds = new Set(allVirtualMcps.map((a) => a.id));
+  return new Set(
+    allVirtualMcps.flatMap((parent) =>
+      parent.connections
+        .map((c) => c.connection_id)
+        .filter((id) => allIds.has(id)),
+    ),
+  );
+}
+
 function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
@@ -314,9 +331,13 @@ function PinAgentPopoverContent({
   const navigateToNewTask = useCreateTaskAndNavigate();
   const navigateToAgent = useNavigateToAgent();
 
+  // Filter to top-level projects only (not agents nested inside other projects)
+  const childIds = getChildVirtualMcpIds(allAgents);
+
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
     .filter((s) => !isDecopilot(s.id))
+    .filter((s) => !childIds.has(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
   const studioPackInstalled = allAgents.some((a) => isStudioPackAgent(a.id));
@@ -555,13 +576,20 @@ function PinAgentPopover() {
 function AgentsSectionContent() {
   const allAgents = useVirtualMCPs();
   const { org } = useProjectContext();
-  const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
+
+  // Filter to top-level projects only (not agents nested inside other projects)
+  const childIds = getChildVirtualMcpIds(allAgents);
+  const topLevelProjects = allAgents.filter((a) => !childIds.has(a.id));
+
+  const serverPinnedIds = topLevelProjects
+    .filter((a) => a.pinned)
+    .map((a) => a.id);
   const { pinnedIds, unpin, reorder } = usePinnedAgents(
     org.id,
     serverPinnedIds,
   );
 
-  const agentMap = new Map(allAgents.map((a) => [a.id, a]));
+  const agentMap = new Map(topLevelProjects.map((a) => [a.id, a]));
   const pinnedAgents = pinnedIds
     .map((id) => agentMap.get(id))
     .filter((a): a is VirtualMCPEntity => !!a);

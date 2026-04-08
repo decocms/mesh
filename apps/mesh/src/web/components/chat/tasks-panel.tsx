@@ -18,7 +18,8 @@ import {
 import type { Task } from "./task/types";
 import { useTasks } from "./task";
 import { authClient } from "../../lib/auth-client";
-import { useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useProjectContext } from "@decocms/mesh-sdk";
 import {
   Tooltip,
   TooltipContent,
@@ -482,9 +483,23 @@ export function TaskListContent({
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
     );
 
+  const navigate = useNavigate();
+  const { org } = useProjectContext();
+  const insetCtx = useInsetContext();
+  const currentVirtualMcpId = insetCtx?.virtualMcpId;
+
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
+      return;
+    }
+    // Navigate cross-project if the task belongs to a different project
+    if (task.virtual_mcp_id && task.virtual_mcp_id !== currentVirtualMcpId) {
+      navigate({
+        to: "/$org/$virtualMcpId/",
+        params: { org: org.slug, virtualMcpId: task.virtual_mcp_id },
+        search: { taskId: task.id },
+      });
     } else {
       setTaskId(task.id);
     }
