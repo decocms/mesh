@@ -10,7 +10,7 @@ import { useSearch } from "@tanstack/react-router";
 import { useVirtualMCP, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { isProject } from "@/web/hooks/use-create-project";
 import { AgentAvatar } from "@/web/components/agent-icon";
-import { FolderClosed, Settings02 } from "@untitledui/icons";
+import { Folder, Settings02 } from "@untitledui/icons";
 import { Suspense } from "react";
 import {
   Tooltip,
@@ -106,7 +106,7 @@ function ToolbarContent() {
               isFilesActive ? toolbarBtnActive : toolbarBtnInactive,
             )}
           >
-            <FolderClosed size={16} />
+            <Folder size={16} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Files</TooltipContent>
