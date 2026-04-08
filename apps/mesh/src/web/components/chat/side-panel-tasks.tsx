@@ -1,25 +1,17 @@
 /**
  * Global Tasks Side Panel
  *
- * When inside a project: shows project name header (Cursor-style) with
- * settings, New session button, pinned Views, then tasks for that project.
- *
- * When global (no project): shows "Tasks" header, New task button, all tasks.
+ * Unified task list — always shows all tasks across all projects,
+ * labeled by project name. Optionally filterable.
  */
 
-import { Page } from "@/web/components/page";
-import { getIconComponent, parseIconString } from "../agent-icon";
-
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
+import { Edit05, Loading01 } from "@untitledui/icons";
 import {
-  useVirtualMCPActions,
-  useVirtualMCP,
   useVirtualMCPs,
   isDecopilot as isDecopilotFn,
 } from "@decocms/mesh-sdk";
-import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { Suspense, useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
@@ -31,8 +23,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useInsetContext } from "@/web/layouts/shell-layout";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -88,209 +78,28 @@ function NewTaskButton({
 }
 
 // ────────────────────────────────────────
-// Pinned view icon — renders icon:// as plain stroke, falls back to Browser icon
-// ────────────────────────────────────────
-
-function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
-  const parsed = parseIconString(icon);
-  if (parsed.type === "icon") {
-    const IconComp = getIconComponent(parsed.name);
-    if (IconComp) {
-      return <IconComp size={16} className="shrink-0 text-muted-foreground" />;
-    }
-  }
-  if (parsed.type === "url") {
-    return <img src={parsed.url} alt="" className="size-4 rounded shrink-0" />;
-  }
-  return <LayoutLeft size={16} className="shrink-0 text-muted-foreground" />;
-}
-
-// ────────────────────────────────────────
-// Views section — pinned UIs for the project
-// ────────────────────────────────────────
-
-function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const virtualMcpCtx = useInsetContext();
-  const { openMainView } = usePanelActions();
-
-  const pinnedViews =
-    ((project.metadata?.ui as Record<string, unknown> | null | undefined)
-      ?.pinnedViews as Array<{
-      connectionId: string;
-      toolName: string;
-      label: string;
-      icon: string | null;
-    }> | null) ?? [];
-
-  if (pinnedViews.length === 0) return null;
-
-  // Determine which pinned view is currently active
-  const currentMain = virtualMcpCtx?.mainView;
-  const isExtAppActive = (view: { connectionId: string; toolName: string }) =>
-    currentMain?.type === "ext-apps" &&
-    currentMain.id === view.connectionId &&
-    currentMain.toolName === view.toolName;
-
-  return (
-    <>
-      {pinnedViews.map((view) => (
-        <button
-          key={`${view.connectionId}-${view.toolName}`}
-          type="button"
-          onClick={() =>
-            isExtAppActive(view)
-              ? openMainView("default")
-              : openMainView("ext-apps", {
-                  id: view.connectionId,
-                  toolName: view.toolName,
-                })
-          }
-          className={cn(
-            navItemClass,
-            isExtAppActive(view) && "bg-accent text-foreground",
-          )}
-        >
-          <PinnedViewIcon icon={view.icon} />
-          <span className="truncate text-foreground capitalize">
-            {view.label || view.toolName}
-          </span>
-        </button>
-      ))}
-    </>
-  );
-}
-
-// ────────────────────────────────────────
-// Space identity header — inline-editable name, description, icon, pin
-// ────────────────────────────────────────
-
-function SpaceIdentityHeader({ project }: { project: VirtualMCPEntity }) {
-  const actions = useVirtualMCPActions();
-  const [title, setTitle] = useState(project.title);
-  const [description, setDescription] = useState(project.description ?? "");
-  const initialRenderRef = useRef(true);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — debounced title sync
-  useEffect(() => {
-    if (initialRenderRef.current) return;
-    const trimmed = title.trim();
-    if (!trimmed || trimmed === project.title) return;
-    const timer = setTimeout(() => {
-      actions.update.mutate({ id: project.id, data: { title: trimmed } });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [title, actions.update, project.title, project.id]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — debounced description sync
-  useEffect(() => {
-    if (initialRenderRef.current) return;
-    if (description === (project.description ?? "")) return;
-    const timer = setTimeout(() => {
-      actions.update.mutate({
-        id: project.id,
-        data: { description },
-      });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [description, actions.update, project.description, project.id]);
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect — skip initial render for debounce effects
-  useEffect(() => {
-    initialRenderRef.current = false;
-  }, []);
-
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value);
-  };
-
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDescription(e.target.value);
-  };
-
-  const handleIconChange = (icon: string | null) => {
-    actions.update.mutate({ id: project.id, data: { icon } });
-  };
-
-  const handleColorChange = (color: string) => {
-    actions.update.mutate({
-      id: project.id,
-      data: {
-        metadata: {
-          ...project.metadata,
-          ui: {
-            ...(project.metadata?.ui as Record<string, unknown> | undefined),
-            themeColor: color,
-          },
-        },
-      },
-    });
-  };
-
-  return (
-    <div className="flex items-center gap-3 pl-3 pr-4 pt-3 pb-3">
-      <IconPicker
-        value={project.icon}
-        onChange={handleIconChange}
-        onColorChange={handleColorChange}
-        name={project.title || "Space"}
-        size="sm+"
-        className="shrink-0 self-start"
-        avatarClassName="[&_svg]:w-1/2 [&_svg]:h-1/2"
-      />
-      <div className="flex flex-col flex-1 min-w-0">
-        <input
-          type="text"
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Space Name"
-          className="text-sm font-medium text-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
-        />
-        <input
-          type="text"
-          value={description}
-          onChange={handleDescriptionChange}
-          placeholder="Add a description..."
-          className="text-sm text-muted-foreground bg-transparent border-none outline-none px-1 -mx-1 rounded hover:bg-input/25 focus:bg-input/25 transition-colors w-full truncate"
-        />
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
 // Panel content
 // ────────────────────────────────────────
 
 function TasksPanelContent({
-  virtualMcpId: virtualMcpIdProp,
-  hideProjectHeader,
+  virtualMcpId: _virtualMcpIdProp,
+  hideProjectHeader: _hideProjectHeader,
   showAutomations,
 }: {
   virtualMcpId?: string;
   hideProjectHeader?: boolean;
   showAutomations?: boolean;
 }) {
-  const virtualMcpCtx = useInsetContext();
-  const { openMainView } = usePanelActions();
   const { createNewTask, setTaskId } = usePanelActions();
   const [isPending, startTransition] = useTransition();
-  const virtualMcpId = virtualMcpIdProp ?? null;
 
-  const virtualMcp = useVirtualMCP(virtualMcpId);
-
-  // When on org home (decopilot / hideProjectHeader), show ALL tasks
-  const isGlobalView = hideProjectHeader;
-  const taskListVirtualMcpId = isGlobalView ? "" : (virtualMcpId ?? "");
-
-  // Build project names map for labeling tasks in global view
+  // Always show ALL tasks — unified panel regardless of context
   const allProjects = useVirtualMCPs();
-  const projectNames = isGlobalView
-    ? new Map(
-        allProjects
-          .filter((p) => p.id && !isDecopilotFn(p.id))
-          .map((p) => [p.id, p.title]),
-      )
-    : undefined;
+  const projectNames = new Map(
+    allProjects
+      .filter((p) => p.id && !isDecopilotFn(p.id))
+      .map((p) => [p.id, p.title]),
+  );
 
   const handleNewTask = () => {
     startTransition(() => {
@@ -298,59 +107,28 @@ function TasksPanelContent({
     });
   };
 
-  const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
-
   return (
     <div className="flex flex-col h-full">
-      {/* Space identity */}
-      {virtualMcp && !hideProjectHeader && (
-        <SpaceIdentityHeader key={virtualMcp.id} project={virtualMcp} />
-      )}
-
       {/* Header */}
-      {!virtualMcp && (
-        <Page.Header className="flex-none" hideSidebarTrigger>
-          <Page.Header.Left className="gap-2">
-            <span className="text-sm font-medium text-foreground">Tasks</span>
-          </Page.Header.Left>
-          <Page.Header.Right className="gap-1">
-            <OwnerFilter />
-          </Page.Header.Right>
-        </Page.Header>
-      )}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+        <span className="text-sm font-medium text-foreground flex-1">
+          Tasks
+        </span>
+        <OwnerFilter />
+      </div>
 
-      {/* Nav items: New session + Settings + Views flow as one group */}
-      <div className="py-2 flex flex-col gap-0.5">
+      {/* New task */}
+      <div className="py-1 flex flex-col gap-0.5">
         <NewTaskButton
           onClick={handleNewTask}
           isPending={isPending}
           label="New task"
         />
-        {virtualMcp && virtualMcpCtx && !hideProjectHeader && (
-          <button
-            type="button"
-            onClick={() =>
-              isSettingsActive
-                ? openMainView("default")
-                : openMainView("settings")
-            }
-            className={cn(
-              navItemClass,
-              isSettingsActive && "bg-accent text-foreground",
-            )}
-          >
-            <Settings01 size={16} className="shrink-0" />
-            <span className="text-foreground">Settings</span>
-          </button>
-        )}
-        {virtualMcp && !hideProjectHeader && (
-          <ProjectViewsSection project={virtualMcp} />
-        )}
       </div>
 
-      {/* Task list */}
+      {/* Task list — always all tasks, labeled by project */}
       <TaskListContent
-        virtualMcpId={taskListVirtualMcpId}
+        virtualMcpId=""
         showAutomations={showAutomations}
         onTaskCreate={handleNewTask}
         onTaskSelect={(taskId) => {

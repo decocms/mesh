@@ -191,8 +191,11 @@ function AgentListItem({
               onClick={(e) => {
                 e.stopPropagation();
                 setButtonRect(null);
-                onUnpin();
-                navigate({ to: "/$org", params: { org } });
+                navigate({
+                  to: "/$org/$virtualMcpId",
+                  params: { org, virtualMcpId: agent.id },
+                  search: { main: "settings", mainOpen: 1 },
+                });
               }}
               className={cn(
                 "flex items-center justify-center",
@@ -214,7 +217,7 @@ function AgentListItem({
                   "inset 0 0 0.5px 1px hsla(0, 0%, 100%, 0.075), 0 0 0 0.5px hsla(0, 0%, 0%, 0.12)",
               }}
             >
-              <X size={14} />
+              <Settings01 size={14} />
             </button>,
             document.body,
           )}
