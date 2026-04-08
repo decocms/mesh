@@ -82,6 +82,11 @@ export function resolveConfig(
     // Transport
     unsafeAllowStdioTransport: toBool(envVars.UNSAFE_ALLOW_STDIO_TRANSPORT),
 
+    // Security
+    allowPrivateNetworkConnections: toBool(
+      envVars.ALLOW_PRIVATE_NETWORK_CONNECTIONS,
+    ),
+
     // AI Gateway
     aiGatewayEnabled: toBool(envVars.DECO_AI_GATEWAY_ENABLED),
     aiGatewayUrl:

@@ -442,6 +442,56 @@ describe("OAuth Proxy Routes", () => {
       expect(body.issuer).toBeUndefined();
       expect(body.authorization_endpoint).toBeUndefined();
     });
+
+    test("blocks SSRF to loopback addresses", async () => {
+      mockConnectionStorage({
+        connection_url: "http://127.0.0.1:51388",
+      });
+
+      const res = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_ssrf",
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe("Connection not found");
+    });
+
+    test("blocks SSRF to AWS IMDS endpoint", async () => {
+      mockConnectionStorage({
+        connection_url: "http://169.254.169.254/latest/meta-data/",
+      });
+
+      const res = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_imds",
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    test("blocks SSRF to private network addresses", async () => {
+      mockConnectionStorage({
+        connection_url: "http://10.0.0.1:8080/internal-api",
+      });
+
+      const res = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_private",
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    test("blocks SSRF to localhost", async () => {
+      mockConnectionStorage({
+        connection_url: "http://localhost:3000/mcp",
+      });
+
+      const res = await app.request(
+        "/.well-known/oauth-protected-resource/mcp/conn_localhost",
+      );
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("Authorization Server Metadata Proxy", () => {
@@ -486,6 +536,18 @@ describe("OAuth Proxy Routes", () => {
 
       const res = await app.request(
         "/.well-known/oauth-authorization-server/oauth-proxy/conn_notfound",
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    test("blocks SSRF to internal addresses via auth server metadata", async () => {
+      mockConnectionWithAuthServer({
+        connection_url: "http://127.0.0.1:51388",
+      });
+
+      const res = await app.request(
+        "/.well-known/oauth-authorization-server/oauth-proxy/conn_ssrf",
       );
 
       expect(res.status).toBe(404);

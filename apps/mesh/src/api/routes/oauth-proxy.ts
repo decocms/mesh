@@ -15,6 +15,8 @@
 import { Hono } from "hono";
 import { ContextFactory } from "../../core/context-factory";
 import type { MeshContext } from "../../core/mesh-context";
+import { getSettings } from "../../settings";
+import { isPrivateNetworkUrl } from "../../shared/utils/url-validation";
 
 // Define Hono variables type
 type Variables = {
@@ -43,15 +45,23 @@ const NO_METADATA_STATUSES = [404, 401, 406];
 // ============================================================================
 
 /**
- * Get connection URL from storage by connection ID
- * Does not require organization ID - connections are globally unique
+ * Get connection URL from storage by connection ID.
+ * Blocks private/internal network URLs to prevent SSRF.
  */
 async function getConnectionUrl(
   connectionId: string,
   ctx: MeshContext,
 ): Promise<string | null> {
   const connection = await ctx.storage.connections.findById(connectionId);
-  return connection?.connection_url ?? null;
+  const url = connection?.connection_url ?? null;
+  if (
+    url &&
+    !getSettings().allowPrivateNetworkConnections &&
+    isPrivateNetworkUrl(url)
+  ) {
+    return null;
+  }
+  return url;
 }
 
 /**
