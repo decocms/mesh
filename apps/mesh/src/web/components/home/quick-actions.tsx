@@ -176,6 +176,7 @@ function QuickActionsContent() {
     (t) => t.id === "site-diagnostics",
   )!;
 
+  // Find existing diagnostics agent to include in new projects
   const existingDiagnostics = virtualMcps.find(
     (a): a is typeof a & { id: string } =>
       a.id !== null &&
@@ -183,6 +184,24 @@ function QuickActionsContent() {
         siteDiagnosticsAgent.id ||
         a.title === siteDiagnosticsAgent.title),
   );
+
+  const handleNewDiagnostic = () => {
+    if (existingDiagnostics) {
+      // Create project with existing diagnostics agent
+      createProject({
+        title: "New Diagnostic",
+        agentIds: [existingDiagnostics.id],
+      });
+    } else {
+      // Need to recruit the agent first
+      setDiagnosticsModalOpen(true);
+    }
+  };
+
+  const handleNewSite = () => {
+    // Site editor needs onboarding first
+    setSiteEditorModalOpen(true);
+  };
 
   return (
     <>
@@ -192,16 +211,12 @@ function QuickActionsContent() {
           <ActionItem
             label="New Site"
             icon="site-editor"
-            onClick={() => setSiteEditorModalOpen(true)}
+            onClick={handleNewSite}
           />
           <ActionItem
             label="New Diagnostic"
             icon="site-diagnostics"
-            onClick={
-              existingDiagnostics
-                ? () => navigateToAgent(existingDiagnostics.id)
-                : () => setDiagnosticsModalOpen(true)
-            }
+            onClick={handleNewDiagnostic}
           />
           {/* Custom agents as actions */}
           {virtualMcps

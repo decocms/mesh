@@ -12,12 +12,22 @@ export function useCreateProject(options: { navigateOnCreate?: boolean } = {}) {
   const actions = useVirtualMCPActions();
   const navigateToAgent = useNavigateToAgent();
 
-  const createProject = async () => {
+  const createProject = async (params?: {
+    title?: string;
+    agentIds?: string[];
+  }) => {
+    const connections = (params?.agentIds ?? []).map((id) => ({
+      connection_id: id,
+      selected_tools: null,
+      selected_resources: null,
+      selected_prompts: null,
+    }));
+
     const virtualMcp = await actions.create.mutateAsync({
-      title: "New Project",
+      title: params?.title ?? "New Project",
       description: "",
       status: "active",
-      connections: [],
+      connections,
       pinned: true,
       metadata: {
         instructions: null,
@@ -26,7 +36,7 @@ export function useCreateProject(options: { navigateOnCreate?: boolean } = {}) {
     });
 
     if (navigateOnCreate) {
-      navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
+      navigateToAgent(virtualMcp.id!);
     }
 
     return { id: virtualMcp.id!, virtualMcp };
