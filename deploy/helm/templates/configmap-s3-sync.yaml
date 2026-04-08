@@ -29,7 +29,7 @@ data:
       for dir in $DIRS; do
         if [ -d "${DATA_DIR}/${dir}" ]; then
           s5cmd --numworkers 4 --log error sync --size-only \
-            "${DATA_DIR}/${dir}/" "${S3_BASE}/${dir}/" || true
+            "${DATA_DIR}/${dir}/" "${S3_BASE}/${dir}/" || echo "s3-sync: error syncing ${dir}"
         fi
       done
     }
