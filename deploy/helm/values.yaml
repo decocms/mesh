@@ -185,16 +185,17 @@ otel:
     enabled: false
 
 # S3 file sync sidecar — syncs /app/data/{logs,traces,metrics} to S3
+# Uses s5cmd (Go) for fast, lightweight S3 sync with minimal resources
 s3Sync:
   enabled: false
   image:
-    repository: amazon/aws-cli
-    tag: "latest"
+    repository: ghcr.io/decocms/studio/s3-sync
+    tag: "2.3.0"
     pullPolicy: IfNotPresent
   bucket: ""               # Required when enabled
   region: "us-east-1"
   prefix: ""               # S3 key prefix (e.g. "studio/production")
-  interval: 60             # Polling interval in seconds
+  interval: 30             # Polling interval in seconds
   roleArn: ""              # IRSA role ARN — adds eks.amazonaws.com/role-arn to ServiceAccount
   syncDirs:                # Directories under /app/data to sync
     - logs
@@ -202,8 +203,8 @@ s3Sync:
     - metrics
   resources:
     requests:
-      memory: "64Mi"
-      cpu: "100m"
+      memory: "32Mi"
+      cpu: "10m"
     limits:
       memory: "64Mi"
 

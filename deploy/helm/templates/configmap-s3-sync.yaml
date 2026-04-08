@@ -25,14 +25,22 @@ data:
       S3_BASE="${S3_BASE}/${PREFIX}"
     fi
 
-    echo "Starting s3-sync (polling every ${INTERVAL}s)..."
-
-    while true; do
+    do_sync() {
       for dir in $DIRS; do
         if [ -d "${DATA_DIR}/${dir}" ]; then
-          aws s3 sync "${DATA_DIR}/${dir}" "${S3_BASE}/${dir}/" --size-only --quiet
+          s5cmd --numworkers 4 --log error sync --size-only \
+            "${DATA_DIR}/${dir}/" "${S3_BASE}/${dir}/" || echo "s3-sync: error syncing ${dir}"
         fi
       done
+    }
+
+    # Final sync on shutdown
+    trap 'echo "s3-sync: final sync before exit"; do_sync; exit 0' TERM INT
+
+    echo "s3-sync: starting (polling every ${INTERVAL}s) to ${S3_BASE}"
+
+    while true; do
+      do_sync
       sleep "$INTERVAL"
     done
 {{- end }}
