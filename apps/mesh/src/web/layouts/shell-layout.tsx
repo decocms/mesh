@@ -12,6 +12,7 @@ import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { SplashScreen } from "@/web/components/splash-screen";
 import { ContentToolbar } from "@/web/components/layout/content-toolbar";
+import { ProjectScopeProvider } from "@/web/providers/project-scope";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
@@ -441,10 +442,13 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
       }
     : null;
 
-  // Check if entity is a project
+  // Check if entity is a project and compute its agent IDs
   const entityIsProject =
     (entity?.metadata as Record<string, unknown> | undefined)?.type ===
     "project";
+  const projectAgentIds = entityIsProject
+    ? new Set(entity!.connections.map((c) => c.connection_id))
+    : null;
 
   // Layout state from URL querystring
   const layout = usePanelState(entityMetadata, {
@@ -655,49 +659,69 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
         </div>
       </div>
 
-      <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
-        <NewTaskBridge
-          onNewTaskRef={onNewTask}
-          createNewTask={layout.createNewTask}
-        />
-        {showThreePanels ? (
-          <UnifiedPanelGroup
-            virtualMcpId={virtualMcpId}
-            isDecopilot={isDecopilot}
-            tasksVirtualMcpId={tasksVirtualMcpId}
-            tasksOpen={layout.tasksOpen}
-            mainOpen={layout.mainOpen}
-            chatOpen={layout.chatOpen}
+      <MaybeProjectScope agentIds={projectAgentIds}>
+        <Chat.Provider key={chatVirtualMcpId} virtualMcpId={chatVirtualMcpId}>
+          <NewTaskBridge
+            onNewTaskRef={onNewTask}
+            createNewTask={layout.createNewTask}
           />
-        ) : (
-          <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
-            <div
-              className={cn(
-                "flex flex-col h-full min-h-0 bg-card overflow-hidden",
-                "border border-sidebar-border shadow-sm",
-                "rounded-[0.75rem]",
-              )}
-            >
-              <Suspense
-                fallback={
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loading01
-                      size={20}
-                      className="animate-spin text-muted-foreground"
-                    />
-                  </div>
-                }
+          {showThreePanels ? (
+            <UnifiedPanelGroup
+              virtualMcpId={virtualMcpId}
+              isDecopilot={isDecopilot}
+              tasksVirtualMcpId={tasksVirtualMcpId}
+              tasksOpen={layout.tasksOpen}
+              mainOpen={layout.mainOpen}
+              chatOpen={layout.chatOpen}
+            />
+          ) : (
+            <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
+              <div
+                className={cn(
+                  "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+                  "border border-sidebar-border shadow-sm",
+                  "rounded-[0.75rem]",
+                )}
               >
-                <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
-                  <Outlet />
-                </div>
-              </Suspense>
+                <Suspense
+                  fallback={
+                    <div className="flex-1 flex items-center justify-center">
+                      <Loading01
+                        size={20}
+                        className="animate-spin text-muted-foreground"
+                      />
+                    </div>
+                  }
+                >
+                  <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
+                    <Outlet />
+                  </div>
+                </Suspense>
+              </div>
             </div>
-          </div>
-        )}
-      </Chat.Provider>
+          )}
+        </Chat.Provider>
+      </MaybeProjectScope>
     </InsetContext>
   );
+}
+
+/** Wraps children in ProjectScopeProvider only when agentIds is non-null */
+function MaybeProjectScope({
+  agentIds,
+  children,
+}: {
+  agentIds: Set<string> | null;
+  children: React.ReactNode;
+}) {
+  if (agentIds) {
+    return (
+      <ProjectScopeProvider agentIds={agentIds}>
+        {children}
+      </ProjectScopeProvider>
+    );
+  }
+  return <>{children}</>;
 }
 
 function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {

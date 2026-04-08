@@ -15,6 +15,7 @@ import {
 import { cn } from "@deco/ui/lib/utils.ts";
 import { isDecopilot, type VirtualMCPEntity } from "@decocms/mesh-sdk";
 import { useVirtualMCPs } from "@decocms/mesh-sdk";
+import { useProjectScope } from "@/web/providers/project-scope";
 import { Check, Loading01, SearchMd, Users03 } from "@untitledui/icons";
 import {
   Suspense,
@@ -79,6 +80,8 @@ export interface VirtualMCPPopoverContentProps {
   selectedVirtualMcpId?: string | null;
   onVirtualMcpChange: (virtualMcpId: string | null) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
+  /** If provided, only show agents with these IDs (project scoping) */
+  scopeToIds?: Set<string>;
 }
 
 function PopoverContentLoading() {
@@ -101,6 +104,7 @@ function VirtualMCPPopoverContentInner({
   selectedVirtualMcpId,
   onVirtualMcpChange,
   searchInputRef,
+  scopeToIds: scopeToIdsProp,
 }: VirtualMCPPopoverContentProps) {
   const virtualMcps = useVirtualMCPs();
   const [searchTerm, setSearchTerm] = useState("");
@@ -110,17 +114,27 @@ function VirtualMCPPopoverContentInner({
     navigateOnCreate: true,
   });
 
-  // Filter virtual MCPs based on search term and exclude Decopilot
+  // Auto-scope to project agents if inside a project
+  const projectScope = useProjectScope();
+  const scopeToIds = scopeToIdsProp ?? projectScope?.agentIds;
+
+  // Filter virtual MCPs: exclude Decopilot, scope to project agents if provided
   const filteredVirtualMcps = (() => {
-    // First filter out Decopilot
-    const nonDecopilotMcps = virtualMcps.filter(
+    let mcps = virtualMcps.filter(
       (virtualMcp) => !virtualMcp.id || !isDecopilot(virtualMcp.id),
     );
 
-    if (!searchTerm.trim()) return nonDecopilotMcps;
+    // If scoped to a project, only show those specific agents
+    if (scopeToIds) {
+      mcps = mcps.filter(
+        (virtualMcp) => virtualMcp.id != null && scopeToIds.has(virtualMcp.id),
+      );
+    }
+
+    if (!searchTerm.trim()) return mcps;
 
     const search = searchTerm.toLowerCase();
-    return nonDecopilotMcps.filter((virtualMcp) => {
+    return mcps.filter((virtualMcp) => {
       return (
         virtualMcp.title.toLowerCase().includes(search) ||
         virtualMcp.description?.toLowerCase().includes(search)
