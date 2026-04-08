@@ -18,7 +18,11 @@ import {
   dangerouslyCreateSuperUserMCPProxy,
   toServerClient,
 } from "../api/routes/mcp-proxy-factory";
-import { PermanentDeliveryError, isAuthError } from "./errors";
+import {
+  PermanentDeliveryError,
+  isAuthError,
+  isPermanentError,
+} from "./errors";
 import type { NotifySubscriberFn } from "./interface";
 
 /**
@@ -177,7 +181,7 @@ export function createNotifySubscriber(): NotifySubscriberFn {
         errorMessage,
       );
 
-      if (isAuthError(error)) {
+      if (isAuthError(error) || isPermanentError(error)) {
         throw new PermanentDeliveryError(errorMessage);
       }
 

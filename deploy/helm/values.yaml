@@ -187,10 +187,10 @@ otel:
       pullPolicy: IfNotPresent
     resources:
       requests:
-        memory: "128Mi"
+        memory: "512Mi"
         cpu: "100m"
       limits:
-        memory: "128Mi"
+        memory: "512Mi"
 
 # S3 file sync sidecar — syncs /app/data/{logs,traces,metrics} to S3
 s3Sync:
