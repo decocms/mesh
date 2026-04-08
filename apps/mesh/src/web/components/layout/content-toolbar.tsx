@@ -1,7 +1,7 @@
 /**
  * ContentToolbar — Top bar on the main content panel.
  * Shows icons for available UI tools from the project's agents.
- * Clicking an icon switches the main view to that tool's UI.
+ * Styled to match the top bar layout toggles (size-7 ghost buttons, 16px icons).
  */
 
 import { cn } from "@deco/ui/lib/utils.ts";
@@ -9,7 +9,7 @@ import { useInsetContext, usePanelActions } from "@/web/layouts/shell-layout";
 import { useSearch } from "@tanstack/react-router";
 import { useVirtualMCP, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { isProject } from "@/web/hooks/use-create-project";
-import { IntegrationIcon } from "@/web/components/integration-icon";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { FolderClosed, Settings02 } from "@untitledui/icons";
 import { Suspense } from "react";
 import {
@@ -31,18 +31,20 @@ function useProjectToolUIs(virtualMcpId: string): ToolUIEntry[] {
 
   if (!entity || !isProject(entity)) return [];
 
-  // Collect pinned views from the project metadata
   const pinnedViews =
     ((entity.metadata?.ui as Record<string, unknown> | null | undefined)
       ?.pinnedViews as ToolUIEntry[] | null) ?? [];
 
   if (pinnedViews.length > 0) return pinnedViews;
 
-  // Fallback: check if the project has a default ext-apps view
   const defaultView = (
     entity.metadata?.ui as Record<string, unknown> | null | undefined
   )?.layout as {
-    defaultMainView?: { type: string; id?: string; toolName?: string };
+    defaultMainView?: {
+      type: string;
+      id?: string;
+      toolName?: string;
+    };
   } | null;
 
   if (
@@ -51,7 +53,6 @@ function useProjectToolUIs(virtualMcpId: string): ToolUIEntry[] {
   ) {
     const connId = defaultView.defaultMainView.id;
     const toolName = defaultView.defaultMainView.toolName ?? "";
-    // Find the connection's title for the label
     const agent = allVirtualMcps.find((a) =>
       a.connections.some((c) => c.connection_id === connId),
     );
@@ -67,6 +68,13 @@ function useProjectToolUIs(virtualMcpId: string): ToolUIEntry[] {
 
   return [];
 }
+
+/** Button style matching the top bar layout toggles */
+const toolbarBtnClass =
+  "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors";
+const toolbarBtnActive = "bg-sidebar-accent text-sidebar-foreground";
+const toolbarBtnInactive =
+  "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground";
 
 function ToolbarContent() {
   const ctx = useInsetContext();
@@ -86,7 +94,7 @@ function ToolbarContent() {
   const isFilesActive = search.main === "files";
 
   return (
-    <div className="shrink-0 flex items-center gap-0.5 px-2 py-1.5 border-b border-border">
+    <div className="shrink-0 flex items-center gap-0.5 px-1.5 h-10 border-b border-border">
       {/* Files */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -94,13 +102,11 @@ function ToolbarContent() {
             type="button"
             onClick={() => openMainView("files")}
             className={cn(
-              "flex items-center justify-center size-7 rounded-md transition-colors",
-              isFilesActive
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              toolbarBtnClass,
+              isFilesActive ? toolbarBtnActive : toolbarBtnInactive,
             )}
           >
-            <FolderClosed size={14} />
+            <FolderClosed size={16} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Files</TooltipContent>
@@ -120,24 +126,22 @@ function ToolbarContent() {
                 type="button"
                 onClick={() =>
                   isActive
-                    ? openMainView("default")
+                    ? openMainView("files")
                     : openMainView("ext-apps", {
                         id: tool.connectionId,
                         toolName: tool.toolName,
                       })
                 }
                 className={cn(
-                  "flex items-center justify-center size-7 rounded-md transition-colors",
-                  isActive
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  toolbarBtnClass,
+                  isActive ? toolbarBtnActive : toolbarBtnInactive,
                 )}
               >
-                <IntegrationIcon
+                <AgentAvatar
                   icon={tool.icon}
                   name={tool.label}
-                  size="2xs"
-                  className="border-0 bg-transparent"
+                  size="xs"
+                  className="size-5 [&_svg]:size-3"
                 />
               </button>
             </TooltipTrigger>
@@ -155,17 +159,15 @@ function ToolbarContent() {
             type="button"
             onClick={() =>
               isSettingsActive
-                ? openMainView("default")
+                ? openMainView("files")
                 : openMainView("settings")
             }
             className={cn(
-              "flex items-center justify-center size-7 rounded-md transition-colors",
-              isSettingsActive
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              toolbarBtnClass,
+              isSettingsActive ? toolbarBtnActive : toolbarBtnInactive,
             )}
           >
-            <Settings02 size={14} />
+            <Settings02 size={16} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">Settings</TooltipContent>

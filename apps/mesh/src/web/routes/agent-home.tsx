@@ -101,14 +101,15 @@ function AgentEmptyState() {
 function AgentHomeContent() {
   const { virtualMcpId } = useInsetContext()!;
   const entity = useVirtualMCP(virtualMcpId);
-  const resolved = useResolvedMainView();
   const entityIsProject = entity ? isProject(entity) : false;
-
-  // Projects show files as default, simplified settings
   const search = useSearch({ strict: false }) as { main?: string };
+
+  const resolved = useResolvedMainView();
+
+  // Projects: use raw search param to decide view (don't fall through to entity default)
   if (entityIsProject) {
-    // Explicit ?main=files → show project file browser
-    if (search.main === "files") {
+    // Files is the default — show when ?main=files, or when no ?main= param at all
+    if (search.main === "files" || !search.main) {
       return <ProjectHome virtualMcpId={virtualMcpId} />;
     }
     if (resolved.type === "settings") {
