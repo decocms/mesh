@@ -206,7 +206,7 @@ s3Sync:
       memory: "32Mi"
       cpu: "10m"
     limits:
-      memory: "64Mi"
+      memory: "128Mi"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
