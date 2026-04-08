@@ -1,0 +1,126 @@
+# Production values overlay for MCP Mesh HA deployment.
+# Contains ONLY values that differ from defaults in values.yaml.
+# Usage: helm install mesh deploy/helm/ -f deploy/helm/values-production.example.yaml
+#
+# Prerequisites:
+#   - PostgreSQL (RDS Multi-AZ, CloudNativePG, or Cloud SQL HA)
+#   - External Secrets Operator for secret management
+#   - cert-manager for TLS certificates (optional)
+#   - 3+ AZ cluster with 6+ nodes
+
+replicaCount: 3
+
+# --- Database (required for multi-replica) ---
+database:
+  engine: postgresql
+  # URL provided via secret.secretName below
+
+# --- Secret (managed by External Secrets Operator) ---
+secret:
+  secretName: "mesh-production-secrets"
+
+# --- Autoscaling ---
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 6
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+
+# --- Topology: use DoNotSchedule for zone spread in 3+ AZ clusters ---
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: chart-deco-studio
+        app.kubernetes.io/instance: deco-studio  # Change to your release name
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: chart-deco-studio
+        app.kubernetes.io/instance: deco-studio  # Change to your release name
+
+# --- NATS: 3-node cluster for production ---
+nats:
+  enabled: true
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    jetstream:
+      enabled: true
+      memoryStore:
+        enabled: true
+        maxSize: 512Mi
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 5Gi
+  podTemplate:
+    merge:
+      spec:
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: ["nats"]
+                topologyKey: kubernetes.io/hostname
+
+# --- Ingress (example with NGINX + SSE support) ---
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: mesh.example.com  # CHANGE THIS
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mesh-tls
+      hosts:
+        - mesh.example.com  # CHANGE THIS
+
+# --- ConfigMap overrides ---
+configMap:
+  meshConfig:
+    NODE_ENV: "production"
+    PORT: "3000"
+    HOST: "0.0.0.0"
+    BETTER_AUTH_URL: "https://mesh.example.com"  # CHANGE THIS
+    BASE_URL: "https://mesh.example.com"  # CHANGE THIS
+    DATA_DIR: "/app/data"
+    DECO_AI_GATEWAY_ENABLED: "false"
+
+# --- OTel (optional) ---
+otel:
+  enabled: true
+  protocol: "http/protobuf"
+  service: "mcp-mesh"
+  collector:
+    enabled: true
