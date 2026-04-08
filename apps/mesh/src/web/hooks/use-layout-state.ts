@@ -1,5 +1,5 @@
 /**
- * useLayoutState — Querystring-driven panel layout state.
+ * usePanelState — Querystring-driven panel layout state.
  *
  * Panel open/closed state lives in URL search params.
  * Panel widths stay in localStorage.
@@ -174,7 +174,9 @@ function parsePanelParam(
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useLayoutState(): LayoutState & LayoutActions {
+export function usePanelState(
+  entityMetadata: EntityLayoutMetadata | null,
+): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
 
@@ -203,16 +205,14 @@ export function useLayoutState(): LayoutState & LayoutActions {
   // Org home is effectively the decopilot agent's home route
   const isAgentHomeRoute = (isAgentRoute && !!agentHomeMatch) || isOrgHome;
 
-  // Resolve defaults (entity metadata is not available here — it's inside
-  // VirtualMCPProvider's Suspense boundary. We pass null for entityMetadata
-  // and let the Suspense-resolved component override via the URL on mount.)
-  const defaults = resolveDefaultPanelState({
+  const resolveCtx = {
     virtualMcpId,
     orgId: org.id,
-    entityMetadata: null,
+    entityMetadata,
     hasMainParam: !!search.main,
     isAgentHomeRoute,
-  });
+  };
+  const defaults = resolveDefaultPanelState(resolveCtx);
 
   // Parse panel state from URL, falling back to defaults
   const tasksOpen = parsePanelParam(search.tasks, defaults.tasksOpen);

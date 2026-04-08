@@ -10,10 +10,7 @@
 import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
-import {
-  useMainViewActions,
-  useTaskActions,
-} from "@/web/contexts/panel-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
@@ -30,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
+import { useInsetContext } from "@/web/layouts/shell-layout";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons
@@ -108,8 +105,8 @@ function PinnedViewIcon({ icon }: { icon: string | null | undefined }) {
 // ────────────────────────────────────────
 
 function ProjectViewsSection({ project }: { project: VirtualMCPEntity }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
-  const { openMainView } = useMainViewActions();
+  const virtualMcpCtx = useInsetContext();
+  const { openMainView } = usePanelActions();
 
   const pinnedViews =
     ((project.metadata?.ui as Record<string, unknown> | null | undefined)
@@ -268,9 +265,9 @@ function TasksPanelContent({
   hideProjectHeader?: boolean;
   showAutomations?: boolean;
 }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
-  const { openMainView } = useMainViewActions();
-  const { createNewTask, setTaskId } = useTaskActions();
+  const virtualMcpCtx = useInsetContext();
+  const { openMainView } = usePanelActions();
+  const { createNewTask, setTaskId } = usePanelActions();
   const [isPending, startTransition] = useTransition();
   const virtualMcpId = virtualMcpIdProp ?? null;
 

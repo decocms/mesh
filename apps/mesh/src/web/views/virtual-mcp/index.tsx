@@ -6,7 +6,7 @@ import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
-import { useTaskActions } from "@/web/contexts/panel-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
 import { usePreferences } from "@/web/hooks/use-preferences";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
 import {
@@ -1057,7 +1057,7 @@ function VirtualMcpDetailViewWithData({
   // Chat hooks
   const [preferences, setPreferences] = usePreferences();
   const { createTaskWithMessage } = useChatTask();
-  const { createNewTask } = useTaskActions();
+  const { createNewTask } = usePanelActions();
 
   const handleImprovePrompt = () => {
     const currentInstructions = form.getValues("metadata.instructions");

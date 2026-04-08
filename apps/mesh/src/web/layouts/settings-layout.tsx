@@ -68,6 +68,12 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           to: "/$org/settings/connections",
         },
         {
+          key: "agents",
+          label: "Agents",
+          icon: <Users03 size={14} />,
+          to: "/$org/settings/agents",
+        },
+        {
           key: "store",
           label: "Store",
           icon: <PackageCheck size={14} />,
