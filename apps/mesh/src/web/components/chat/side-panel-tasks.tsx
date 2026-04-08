@@ -12,7 +12,12 @@ import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
-import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
+import {
+  useVirtualMCPActions,
+  useVirtualMCP,
+  useVirtualMCPs,
+  isDecopilot as isDecopilotFn,
+} from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
@@ -273,6 +278,20 @@ function TasksPanelContent({
 
   const virtualMcp = useVirtualMCP(virtualMcpId);
 
+  // When on org home (decopilot / hideProjectHeader), show ALL tasks
+  const isGlobalView = hideProjectHeader;
+  const taskListVirtualMcpId = isGlobalView ? "" : (virtualMcpId ?? "");
+
+  // Build project names map for labeling tasks in global view
+  const allProjects = useVirtualMCPs();
+  const projectNames = isGlobalView
+    ? new Map(
+        allProjects
+          .filter((p) => p.id && !isDecopilotFn(p.id))
+          .map((p) => [p.id, p.title]),
+      )
+    : undefined;
+
   const handleNewTask = () => {
     startTransition(() => {
       createNewTask();
@@ -331,12 +350,13 @@ function TasksPanelContent({
 
       {/* Task list */}
       <TaskListContent
-        virtualMcpId={virtualMcpId}
+        virtualMcpId={taskListVirtualMcpId}
         showAutomations={showAutomations}
         onTaskCreate={handleNewTask}
         onTaskSelect={(taskId) => {
           setTaskId(taskId);
         }}
+        projectNames={projectNames}
       />
     </div>
   );

@@ -60,14 +60,18 @@ export function useTasks(
       if (!client) {
         throw new Error("MCP client is not available");
       }
+      const where: Record<string, unknown> = {
+        ...(ownerFilter === "me" && { created_by: "me" }),
+      };
+      // Only filter by virtual_mcp_id if one is provided
+      if (virtualMcpId) {
+        where.virtual_mcp_id = virtualMcpId;
+      }
       const input = {
         limit: TASK_CONSTANTS.TASKS_PAGE_SIZE,
         offset: 0,
         orderBy: [{ field: ["updated_at"], direction: "desc" as const }],
-        where: {
-          ...(ownerFilter === "me" && { created_by: "me" }),
-          virtual_mcp_id: virtualMcpId,
-        },
+        where,
       };
 
       const result = (await client.callTool({

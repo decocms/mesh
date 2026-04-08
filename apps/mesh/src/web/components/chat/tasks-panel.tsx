@@ -141,10 +141,12 @@ function TaskRow({
   task,
   isActive,
   onClick,
+  projectName,
 }: {
   task: Task;
   isActive: boolean;
   onClick: () => void;
+  projectName?: string;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
   const playSound = useSound(question004Sound);
@@ -157,7 +159,8 @@ function TaskRow({
   return (
     <div
       className={cn(
-        "group/row relative flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer",
+        "group/row relative flex items-center gap-2 mx-2 px-3 rounded-md w-[calc(100%-1rem)] cursor-pointer",
+        projectName ? "h-12 py-1" : "h-10",
         isActive ? "bg-accent" : "hover:bg-accent/50",
       )}
       onClick={onClick}
@@ -207,15 +210,22 @@ function TaskRow({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Title + time */}
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        <TruncatedText
-          text={task.title || "Untitled"}
-          className="text-sm text-muted-foreground flex-1 min-w-0"
-        />
-        <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap group-hover/row:invisible">
-          {task.updated_at ? formatTimeAgo(new Date(task.updated_at)) : ""}
-        </span>
+      {/* Title + project + time */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0">
+        <div className="flex items-center gap-1.5">
+          <TruncatedText
+            text={task.title || "Untitled"}
+            className="text-sm text-muted-foreground flex-1 min-w-0"
+          />
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap group-hover/row:invisible">
+            {task.updated_at ? formatTimeAgo(new Date(task.updated_at)) : ""}
+          </span>
+        </div>
+        {projectName && (
+          <span className="text-[11px] text-muted-foreground/50 truncate leading-tight">
+            {projectName}
+          </span>
+        )}
       </div>
 
       {/* Archive button — shown on hover */}
@@ -437,6 +447,8 @@ interface TaskListContentProps {
   onTaskCreate?: () => void;
   virtualMcpId?: string | null;
   showAutomations?: boolean;
+  /** Map of virtualMcpId → project name for labeling tasks */
+  projectNames?: Map<string, string>;
 }
 
 export function TaskListContent({
@@ -444,6 +456,7 @@ export function TaskListContent({
   onTaskCreate,
   virtualMcpId,
   showAutomations = true,
+  projectNames,
 }: TaskListContentProps) {
   const { ownerFilter } = useChatTask();
   const { setTaskId } = usePanelActions();
@@ -515,6 +528,11 @@ export function TaskListContent({
               task={task}
               isActive={task.id === taskId}
               onClick={() => handleSelect(task)}
+              projectName={
+                projectNames && task.virtual_mcp_id
+                  ? projectNames.get(task.virtual_mcp_id)
+                  : undefined
+              }
             />
           ))
         ) : (

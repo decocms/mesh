@@ -127,9 +127,7 @@ function HomeEmptyState({
 
   return (
     <>
-      <div className="flex-1 relative flex flex-col items-center overflow-y-auto px-10">
-        {/* Top spacer to push greeting toward center when content is short */}
-        <div className="flex-1 min-h-16 max-h-[30vh]" />
+      <div className="flex-1 relative flex flex-col items-center overflow-y-auto px-10 pt-[25vh]">
         <div className="flex flex-col items-center w-full max-w-[672px]">
           <div className="text-center mb-10">
             <p className="text-3xl font-medium text-foreground">
@@ -144,11 +142,10 @@ function HomeEmptyState({
           <QuickActions />
         </div>
         {isDecoUser && (
-          <div className="w-full max-w-[500px] mx-auto mt-6 mb-6">
+          <div className="w-full max-w-[500px] mx-auto mt-6">
             <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
           </div>
         )}
-        {/* Bottom spacer */}
         <div className="min-h-6" />
       </div>
       <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />

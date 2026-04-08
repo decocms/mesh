@@ -1,14 +1,12 @@
 /**
  * QuickActions - Action-oriented items for the home page.
- * Replaces the agents list with actions like "New Slide Deck", "Run Diagnostic", etc.
- * Below shows recent files and folders.
+ * Replaces the agents list with actions like "New Site", "New Diagnostic", etc.
  */
 
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   BarChart12,
   ChevronRight,
-  FolderClosed,
   Globe04,
   Plus,
   PresentationChart01,
@@ -26,13 +24,6 @@ import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal";
-import {
-  MOCK_FOLDERS,
-  getRecentArtifacts,
-  formatRelativeTime,
-  type Artifact,
-  type ArtifactType,
-} from "@/web/lib/mock-artifacts";
 
 // ---------- Action item (replaces agent preview) ----------
 
@@ -103,76 +94,6 @@ function ActionItem({
   );
 }
 
-// ---------- Mini artifact row for recent files ----------
-
-const ARTIFACT_TYPE_CONFIG: Record<
-  ArtifactType,
-  { Icon: typeof PresentationChart01; color: string }
-> = {
-  deck: { Icon: PresentationChart01, color: "#8B5CF6" },
-  report: { Icon: BarChart12, color: "#10B981" },
-  site: { Icon: Globe04, color: "#3B82F6" },
-};
-
-function ArtifactRow({ artifact }: { artifact: Artifact }) {
-  const config = ARTIFACT_TYPE_CONFIG[artifact.type];
-  const { Icon } = config;
-
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex items-center gap-2.5 px-3 py-2 w-full rounded-lg text-left",
-        "transition-colors hover:bg-accent/50 cursor-pointer",
-      )}
-    >
-      <div
-        className="flex items-center justify-center size-7 rounded-md shrink-0"
-        style={{ backgroundColor: `${config.color}15` }}
-      >
-        <Icon size={14} style={{ color: config.color }} />
-      </div>
-      <span className="flex-1 text-sm text-foreground truncate min-w-0">
-        {artifact.title}
-      </span>
-      <span className="text-xs text-muted-foreground shrink-0">
-        {formatRelativeTime(artifact.updatedAt)}
-      </span>
-    </button>
-  );
-}
-
-// ---------- Mini folder card ----------
-
-function FolderRow({
-  folder,
-}: {
-  folder: { id: string; title: string; color: string; itemCount: number };
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex items-center gap-2.5 px-3 py-2 w-full rounded-lg text-left",
-        "transition-colors hover:bg-accent/50 cursor-pointer",
-      )}
-    >
-      <div
-        className="flex items-center justify-center size-7 rounded-md shrink-0"
-        style={{ backgroundColor: `${folder.color}15` }}
-      >
-        <FolderClosed size={14} style={{ color: folder.color }} />
-      </div>
-      <span className="flex-1 text-sm text-foreground truncate min-w-0">
-        {folder.title}
-      </span>
-      <span className="text-xs text-muted-foreground shrink-0">
-        {folder.itemCount} items
-      </span>
-    </button>
-  );
-}
-
 // ---------- Main content ----------
 
 function QuickActionsContent() {
@@ -197,8 +118,6 @@ function QuickActionsContent() {
         siteDiagnosticsAgent.id ||
         a.title === siteDiagnosticsAgent.title),
   );
-
-  const recentArtifacts = getRecentArtifacts(5);
 
   return (
     <>
@@ -227,7 +146,7 @@ function QuickActionsContent() {
                 !isDecopilot(a.id) &&
                 a.id !== existingDiagnostics?.id,
             )
-            .slice(0, 3)
+            .slice(0, 4)
             .map((agent) => (
               <ActionItem
                 key={agent.id}
@@ -258,41 +177,6 @@ function QuickActionsContent() {
             </p>
           </button>
         </div>
-      </div>
-
-      {/* Files section */}
-      <div className="w-full max-w-[672px] mx-auto mt-6">
-        {/* Folders */}
-        {MOCK_FOLDERS.length > 0 && (
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1 px-3">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Folders
-              </h3>
-            </div>
-            <div className="flex flex-col">
-              {MOCK_FOLDERS.map((folder) => (
-                <FolderRow key={folder.id} folder={folder} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Recent files */}
-        {recentArtifacts.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-1 px-3">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Recent
-              </h3>
-            </div>
-            <div className="flex flex-col">
-              {recentArtifacts.map((artifact) => (
-                <ArtifactRow key={artifact.id} artifact={artifact} />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <SiteEditorOnboardingModal

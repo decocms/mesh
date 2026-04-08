@@ -95,10 +95,10 @@ export function resolveDefaultPanelState(ctx: {
     return allOpen;
   }
 
-  // Decopilot ID: tasks closed, main closed, chat open
+  // Decopilot ID: tasks open (all tasks), main closed, chat open
   const isDecopilot = ctx.virtualMcpId === getDecopilotId(ctx.orgId);
   if (isDecopilot) {
-    return { tasksOpen: false, mainOpen: false, chatOpen: true };
+    return { tasksOpen: true, mainOpen: false, chatOpen: true };
   }
 
   // Entity metadata driven defaults

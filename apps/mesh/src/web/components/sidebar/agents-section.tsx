@@ -368,7 +368,7 @@ function PinAgentPopoverContent({
       <CollectionSearch
         value={search}
         onChange={setSearch}
-        placeholder="Search agents..."
+        placeholder="Search projects..."
       />
 
       {/* Scrollable content */}
@@ -376,7 +376,7 @@ function PinAgentPopoverContent({
         {/* Agents section */}
         <div className="px-1 pt-3 pb-2">
           <span className="text-xs font-medium text-muted-foreground">
-            Agents
+            Projects
           </span>
         </div>
         <div className="grid grid-cols-3 gap-1">
@@ -394,7 +394,7 @@ function PinAgentPopoverContent({
               <Plus size={18} className="text-muted-foreground" />
             </div>
             <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground">
-              Create new
+              New project
             </span>
           </button>
 
@@ -455,7 +455,7 @@ function PinAgentPopoverContent({
           onClick={() => onClose()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
         >
-          See all agents
+          See all projects
         </Link>
       </div>
     </div>
@@ -498,7 +498,7 @@ function PinAgentPopover() {
         <>
           <SidebarMenuItem>
             <SidebarMenuButton
-              tooltip="Browse agents"
+              tooltip="Browse projects"
               className="bg-muted/75 hover:bg-sidebar-accent"
               onClick={() => setOpen(true)}
             >
@@ -507,7 +507,7 @@ function PinAgentPopover() {
           </SidebarMenuItem>
           <Drawer open={open} onOpenChange={setOpen} direction="bottom">
             <DrawerContent className="max-h-[85dvh] p-0">
-              <DrawerTitle className="sr-only">Browse agents</DrawerTitle>
+              <DrawerTitle className="sr-only">Browse projects</DrawerTitle>
               {popoverContent}
             </DrawerContent>
           </Drawer>
@@ -517,7 +517,7 @@ function PinAgentPopover() {
           <SidebarMenuItem>
             <PopoverTrigger asChild>
               <SidebarMenuButton
-                tooltip="Browse agents"
+                tooltip="Browse projects"
                 className="bg-muted/75 hover:bg-sidebar-accent"
               >
                 <Plus className="!opacity-100" />
