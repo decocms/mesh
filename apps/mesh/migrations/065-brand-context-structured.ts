@@ -31,27 +31,47 @@ const FONT_ROLE_MAP: Record<string, string> = {
   mono: "code",
 };
 
-function transformColors(raw: unknown): string | null {
-  if (!raw) return null;
+function transformColors(raw: unknown): {
+  structured: string | null;
+  extra: Record<string, string>;
+} {
+  const extra: Record<string, string> = {};
+  if (!raw) return { structured: null, extra };
 
   // Already structured object with known keys
   if (!Array.isArray(raw) && typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
     if (Object.keys(obj).some((k) => COLOR_ROLES.has(k))) {
       const result: Record<string, string> = {};
-      for (const role of COLOR_ROLES) {
-        if (typeof obj[role] === "string") result[role] = obj[role] as string;
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value !== "string") continue;
+        if (COLOR_ROLES.has(key)) {
+          result[key] = value;
+        } else {
+          extra[key] = value;
+        }
       }
-      return Object.keys(result).length > 0 ? JSON.stringify(result) : null;
+      return {
+        structured:
+          Object.keys(result).length > 0 ? JSON.stringify(result) : null,
+        extra,
+      };
     }
     // Legacy Record<string,string>
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === "string" && COLOR_ROLES.has(key.toLowerCase())) {
+      if (typeof value !== "string") continue;
+      if (COLOR_ROLES.has(key.toLowerCase())) {
         result[key.toLowerCase()] = value;
+      } else {
+        extra[key] = value;
       }
     }
-    return Object.keys(result).length > 0 ? JSON.stringify(result) : null;
+    return {
+      structured:
+        Object.keys(result).length > 0 ? JSON.stringify(result) : null,
+      extra,
+    };
   }
 
   // Legacy array
@@ -61,14 +81,21 @@ function transformColors(raw: unknown): string | null {
       const entry = item as Record<string, unknown>;
       const label = (entry.label as string)?.toLowerCase?.();
       const value = entry.value as string;
-      if (label && value && COLOR_ROLES.has(label)) {
+      if (!label || !value) continue;
+      if (COLOR_ROLES.has(label)) {
         result[label] = value;
+      } else {
+        extra[label] = value;
       }
     }
-    return Object.keys(result).length > 0 ? JSON.stringify(result) : null;
+    return {
+      structured:
+        Object.keys(result).length > 0 ? JSON.stringify(result) : null,
+      extra,
+    };
   }
 
-  return null;
+  return { structured: null, extra };
 }
 
 function transformFonts(raw: unknown): string | null {
@@ -114,21 +141,36 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     id: string;
     colors: string | null;
     fonts: string | null;
-  }>`SELECT id, colors, fonts FROM brand_context`.execute(db);
+    metadata: string | null;
+  }>`SELECT id, colors, fonts, metadata FROM brand_context`.execute(db);
 
   for (const row of rows.rows) {
     let colorsChanged = false;
     let fontsChanged = false;
+    let metadataChanged = false;
     let newColors: string | null = row.colors;
     let newFonts: string | null = row.fonts;
+    let metadata: Record<string, unknown> = {};
+
+    try {
+      metadata = row.metadata ? JSON.parse(row.metadata) : {};
+    } catch {
+      // skip unparseable metadata
+    }
 
     if (row.colors) {
       try {
         const parsed = JSON.parse(row.colors);
         // Only transform if it's an array (legacy format)
         if (Array.isArray(parsed)) {
-          newColors = transformColors(parsed);
+          const result = transformColors(parsed);
+          newColors = result.structured;
           colorsChanged = true;
+          // Preserve unmapped colors in metadata so no data is lost
+          if (Object.keys(result.extra).length > 0) {
+            metadata.extraColors = result.extra;
+            metadataChanged = true;
+          }
         }
       } catch {
         // skip unparseable
@@ -147,12 +189,16 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       }
     }
 
-    if (colorsChanged || fontsChanged) {
+    if (colorsChanged || fontsChanged || metadataChanged) {
+      const newMetadata = metadataChanged
+        ? JSON.stringify(metadata)
+        : row.metadata;
       await sql`
         UPDATE brand_context
         SET
           colors = ${newColors},
           fonts = ${newFonts},
+          metadata = ${newMetadata},
           updated_at = NOW()
         WHERE id = ${row.id}
       `.execute(db);

@@ -28,14 +28,14 @@ function toBrandOutput(brand: BrandContext) {
     tagline:
       typeof metadata.tagline === "string" ? metadata.tagline : undefined,
     tone: typeof metadata.tone === "string" ? metadata.tone : undefined,
-    metadata:
-      Object.keys(metadata).length > 0
-        ? Object.fromEntries(
-            Object.entries(metadata).filter(
-              ([k]) => k !== "tagline" && k !== "tone",
-            ),
-          )
-        : undefined,
+    metadata: (() => {
+      const filtered = Object.fromEntries(
+        Object.entries(metadata).filter(
+          ([k]) => k !== "tagline" && k !== "tone",
+        ),
+      );
+      return Object.keys(filtered).length > 0 ? filtered : undefined;
+    })(),
   };
 }
 
