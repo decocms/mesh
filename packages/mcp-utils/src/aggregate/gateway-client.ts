@@ -159,25 +159,80 @@ export class GatewayClient extends Client {
   }
 
   /**
-   * Parse a namespaced name into [clientKey, originalName].
-   * Splits on the first "_" — slugs never contain underscores.
+   * Resolve a tool name to [clientKey, originalName].
+   * Fast path: parse namespace prefix. Fallback: search aggregated tools
+   * for an un-namespaced match (supports callers that don't know about
+   * namespacing, e.g. workflow tool steps).
    */
-  private parseNamespace(namespacedName: string): [string, string] {
-    const sep = namespacedName.indexOf("_");
+  private async resolveToolTarget(
+    name: string,
+  ): Promise<[clientKey: string, originalName: string]> {
+    // Fast path: namespace prefix matches a known client
+    const sep = name.indexOf("_");
+    if (sep !== -1) {
+      const slug = name.slice(0, sep);
+      const clientKey = this.slugToKey.get(slug);
+      if (clientKey) {
+        return [clientKey, name.slice(sep + 1)];
+      }
+    }
+
+    // Fallback: search aggregated tools by original (un-namespaced) name
+    const { tools } = await this.listTools();
+    for (const tool of tools) {
+      const clientId = getGatewayClientId(tool._meta);
+      if (!clientId) continue;
+      if (stripToolNamespace(tool.name, clientId) === name) {
+        return [clientId, name];
+      }
+    }
+
+    // Nothing matched — throw the original-style error
     if (sep === -1) {
       throw new Error(
-        `GatewayClient: invalid namespaced name "${namespacedName}"`,
+        `GatewayClient: could not resolve tool "${name}" — no namespace prefix and not found in any client`,
       );
     }
-    const slug = namespacedName.slice(0, sep);
-    const originalName = namespacedName.slice(sep + 1);
-    const clientKey = this.slugToKey.get(slug);
-    if (!clientKey) {
+    throw new Error(
+      `GatewayClient: unknown namespace "${name.slice(0, sep)}" in "${name}" and not found by original name in any client`,
+    );
+  }
+
+  /**
+   * Resolve a prompt name to [clientKey, originalName].
+   * Same logic as resolveToolTarget but searches prompts.
+   */
+  private async resolvePromptTarget(
+    name: string,
+  ): Promise<[clientKey: string, originalName: string]> {
+    // Fast path: namespace prefix matches a known client
+    const sep = name.indexOf("_");
+    if (sep !== -1) {
+      const slug = name.slice(0, sep);
+      const clientKey = this.slugToKey.get(slug);
+      if (clientKey) {
+        return [clientKey, name.slice(sep + 1)];
+      }
+    }
+
+    // Fallback: search aggregated prompts by original (un-namespaced) name
+    const { prompts } = await this.listPrompts();
+    for (const prompt of prompts) {
+      const clientId = getGatewayClientId(prompt._meta);
+      if (!clientId) continue;
+      if (stripToolNamespace(prompt.name, clientId) === name) {
+        return [clientId, name];
+      }
+    }
+
+    if (sep === -1) {
       throw new Error(
-        `GatewayClient: unknown namespace "${slug}" in "${namespacedName}"`,
+        `GatewayClient: could not resolve prompt "${name}" — no namespace prefix and not found in any client`,
       );
     }
-    return [clientKey, originalName];
+    throw new Error(
+      `GatewayClient: unknown namespace "${name.slice(0, sep)}" in "${name}" and not found by original name in any client`,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -460,7 +515,7 @@ export class GatewayClient extends Client {
     resultSchema?: unknown,
     options?: RequestOptions,
   ): Promise<CallToolResult | CompatibilityCallToolResult> {
-    const [clientKey, originalName] = this.parseNamespace(params.name);
+    const [clientKey, originalName] = await this.resolveToolTarget(params.name);
     const client = await this.resolveClient(clientKey);
     return client.callTool(
       { ...params, name: originalName },
@@ -482,7 +537,9 @@ export class GatewayClient extends Client {
     params: GetPromptRequest["params"],
     _options?: RequestOptions,
   ): Promise<GetPromptResult> {
-    const [clientKey, originalName] = this.parseNamespace(params.name);
+    const [clientKey, originalName] = await this.resolvePromptTarget(
+      params.name,
+    );
     const client = await this.resolveClient(clientKey);
     return client.getPrompt({ ...params, name: originalName });
   }

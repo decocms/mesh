@@ -241,24 +241,41 @@ describe("GatewayClient", () => {
       expect(clientA.getPrompt).not.toHaveBeenCalled();
     });
 
-    it("throws for unknown namespace", async () => {
+    it("throws for unknown namespace when not found by original name", async () => {
       const gw = new GatewayClient({
         a: { client: createMockClient([{ name: "t" }]) },
       });
 
       await expect(
         gw.callTool({ name: "unknown_t", arguments: {} }),
-      ).rejects.toThrow(/unknown namespace/);
+      ).rejects.toThrow(/unknown namespace.*not found by original name/);
     });
 
-    it("throws for name without separator", async () => {
+    it("throws for name without separator when not found", async () => {
       const gw = new GatewayClient({
         a: { client: createMockClient([{ name: "t" }]) },
       });
 
       await expect(
         gw.callTool({ name: "noprefix", arguments: {} }),
-      ).rejects.toThrow(/invalid namespaced name/);
+      ).rejects.toThrow(/could not resolve tool/);
+    });
+
+    it("resolves un-namespaced tool name by searching clients", async () => {
+      const clientA = createMockClient([{ name: "TOOL_A" }]);
+      const clientB = createMockClient([{ name: "TOOL_B" }]);
+      const gw = new GatewayClient({
+        "conn-abc": { client: clientA },
+        "conn-def": { client: clientB },
+      });
+
+      // Call with un-namespaced name — should find TOOL_B on conn-def
+      await gw.callTool({ name: "TOOL_B", arguments: { x: 1 } });
+      expect(clientB.callTool).toHaveBeenCalledWith(
+        { name: "TOOL_B", arguments: { x: 1 } },
+        undefined,
+        undefined,
+      );
     });
   });
 
