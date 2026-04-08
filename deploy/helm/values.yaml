@@ -204,7 +204,7 @@ s3Sync:
   resources:
     requests:
       memory: "256Mi"
-      cpu: "256m"
+      cpu: "200m"
     limits:
       memory: "256Mi"
 
