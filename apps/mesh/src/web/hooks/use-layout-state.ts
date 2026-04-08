@@ -11,6 +11,7 @@
 
 import { useRef } from "react";
 import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
+import { saveTaskLayout } from "@/web/lib/task-layout-store";
 import {
   getDecopilotId,
   getWellKnownDecopilotVirtualMCP,
@@ -230,6 +231,20 @@ export function usePanelState(
   // taskId fallback for non-validated routes
   const fallbackRef = useRef(crypto.randomUUID());
   const taskId = search.taskId ?? fallbackRef.current;
+
+  // Persist per-task layout (chat + main state, not tasks panel)
+  const prevTaskIdRef = useRef(taskId);
+  if (taskId && search.taskId) {
+    // Only save when we have an explicit taskId from URL (not fallback)
+    saveTaskLayout(taskId, {
+      chatOpen,
+      mainOpen,
+      main: search.main,
+      id: search.id,
+      toolName: search.toolName,
+    });
+  }
+  prevTaskIdRef.current = taskId;
 
   // Expanded count for toggle guard
   const expandedCount = [tasksOpen, mainOpen, chatOpen].filter(Boolean).length;

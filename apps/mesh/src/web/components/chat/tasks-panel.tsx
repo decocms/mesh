@@ -7,6 +7,7 @@
 
 import { useChatTask } from "@/web/components/chat/context";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import { getTaskLayout } from "@/web/lib/task-layout-store";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useInsetContext } from "@/web/layouts/shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
@@ -482,7 +483,6 @@ export function TaskListContent({
   projectNames,
 }: TaskListContentProps) {
   const { ownerFilter } = useChatTask();
-  const { setTaskId } = usePanelActions();
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
 
@@ -516,26 +516,50 @@ export function TaskListContent({
       onTaskSelect(task.id);
       return;
     }
-    if (task.virtual_mcp_id && task.virtual_mcp_id !== currentVirtualMcpId) {
-      // Restore the project's default UI view when navigating cross-project
-      const projectInfo = task.virtual_mcp_id
-        ? projectNames?.get(task.virtual_mcp_id)
-        : undefined;
+
+    // Build search params: restore per-task layout, fall back to project default
+    const saved = getTaskLayout(task.id);
+    const searchParams: Record<string, unknown> = { taskId: task.id };
+
+    if (saved) {
+      // Restore saved per-task state
+      if (saved.chatOpen !== undefined)
+        searchParams.chat = saved.chatOpen ? 1 : 0;
+      if (saved.mainOpen !== undefined)
+        searchParams.mainOpen = saved.mainOpen ? 1 : 0;
+      if (saved.main) {
+        searchParams.main = saved.main;
+        if (saved.id) searchParams.id = saved.id;
+        if (saved.toolName) searchParams.toolName = saved.toolName;
+      }
+    } else if (task.virtual_mcp_id) {
+      // No saved state — use project's default view
+      const projectInfo = projectNames?.get(task.virtual_mcp_id);
       const dv = projectInfo?.defaultView;
-      const searchParams: Record<string, unknown> = { taskId: task.id };
       if (dv?.type) {
         searchParams.main = dv.type;
         searchParams.mainOpen = 1;
         if (dv.id) searchParams.id = dv.id;
         if (dv.toolName) searchParams.toolName = dv.toolName;
       }
+    }
+
+    if (task.virtual_mcp_id && task.virtual_mcp_id !== currentVirtualMcpId) {
       navigate({
         to: "/$org/$virtualMcpId/",
         params: { org: org.slug, virtualMcpId: task.virtual_mcp_id },
         search: searchParams,
       });
     } else {
-      setTaskId(task.id);
+      // Same project — just update search params
+      navigate({
+        to: "/$org/$virtualMcpId/",
+        params: {
+          org: org.slug,
+          virtualMcpId: task.virtual_mcp_id ?? currentVirtualMcpId ?? "",
+        },
+        search: searchParams,
+      });
     }
   };
 
