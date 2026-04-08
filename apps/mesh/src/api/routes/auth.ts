@@ -210,20 +210,30 @@ app.post("/local-session", async (c) => {
  */
 app.get("/domain-lookup", async (c) => {
   // Verify authentication — session required
-  const { auth } = await import("../../auth");
+  const { auth, GENERIC_EMAIL_DOMAINS } = await import("../../auth");
   const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
-  })) as { user?: { id: string } } | null;
+  })) as { user?: { id: string; email: string } } | null;
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
   }
 
+  // Only allow looking up the user's own email domain — prevents
+  // arbitrary domain enumeration by authenticated users.
+  const userEmail = session.user.email;
+  const userDomain = userEmail?.split("@")[1]?.toLowerCase();
   const domain = c.req.query("domain")?.toLowerCase().trim();
   if (!domain) {
     return c.json(
       { success: false, error: "domain query param required" },
       400,
     );
+  }
+  if (domain !== userDomain) {
+    return c.json({ found: false });
+  }
+  if (GENERIC_EMAIL_DOMAINS.has(domain)) {
+    return c.json({ found: false });
   }
 
   try {
@@ -325,21 +335,37 @@ app.post("/domain-join", async (c) => {
       );
     }
 
-    // Add the user as a member
-    await authInstance.api.addMember({
-      body: {
-        userId: session.user.id,
-        role: "user",
-        organizationId: org.id,
-      },
-    } as any);
+    // Add the user as a member — if they're already a member
+    // (e.g. the signup hook already auto-joined them), treat as success.
+    try {
+      await authInstance.api.addMember({
+        body: {
+          userId: session.user.id,
+          role: "user",
+          organizationId: org.id,
+        },
+      } as any);
+    } catch (addError) {
+      const msg =
+        addError instanceof Error ? addError.message.toLowerCase() : "";
+      const isAlreadyMember = msg.includes("already") || msg.includes("member");
+      if (!isAlreadyMember) {
+        console.error("[Auth] Domain join addMember failed:", addError);
+        return c.json(
+          { success: false, error: "Failed to join organization" },
+          500,
+        );
+      }
+      // Already a member — fall through to success
+    }
 
     return c.json({ success: true, slug: org.slug });
   } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : "Failed to join organization";
-    console.error("[Auth] Domain join failed:", msg);
-    return c.json({ success: false, error: msg }, 500);
+    console.error("[Auth] Domain join failed:", error);
+    return c.json(
+      { success: false, error: "Failed to join organization" },
+      500,
+    );
   }
 });
 

@@ -76,12 +76,9 @@ export class OrganizationDomainStorage
     } catch (error) {
       // Handle unique constraint violation on 'domain' column —
       // another org already claimed this domain (race-safe).
-      const msg = error instanceof Error ? error.message : "";
-      if (
-        msg.includes("unique") ||
-        msg.includes("duplicate key") ||
-        msg.includes("organization_domains_domain_unique")
-      ) {
+      // PostgreSQL SQLSTATE 23505 = unique_violation (locale-independent).
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23505") {
         throw new Error(
           `Domain "${normalizedDomain}" is already claimed by another organization.`,
         );
