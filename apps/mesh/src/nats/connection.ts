@@ -178,7 +178,15 @@ function defaultConnect(opts: {
   reconnect: boolean;
   maxReconnectAttempts: number;
 }): Promise<NatsConnection> {
-  return connect(opts);
+  return connect({
+    ...opts,
+    pingInterval: 20_000,
+    maxPingOut: 3,
+    reconnectTimeWait: 1_000,
+    reconnectJitter: 500,
+    reconnectJitterTLS: 1_000,
+    name: "mesh-app",
+  });
 }
 
 function sleep(ms: number): Promise<void> {
