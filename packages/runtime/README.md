@@ -152,37 +152,6 @@ const getUserDataTool = createPrivateTool({
 });
 ```
 
-### Streamable Tools
-
-For tools that return streaming responses:
-
-```typescript
-import { createStreamableTool } from "@decocms/runtime";
-
-const streamDataTool = createStreamableTool({
-  id: "streamData",
-  description: "Streams data as a response",
-  inputSchema: z.object({
-    query: z.string(),
-  }),
-  streamable: true,
-  execute: async ({ context }) => {
-    // Return a streaming Response
-    const stream = new ReadableStream({
-      async start(controller) {
-        controller.enqueue(new TextEncoder().encode("Chunk 1\n"));
-        controller.enqueue(new TextEncoder().encode("Chunk 2\n"));
-        controller.close();
-      },
-    });
-    
-    return new Response(stream, {
-      headers: { "Content-Type": "text/plain" },
-    });
-  },
-});
-```
-
 ### Registering Tools
 
 Tools can be registered in multiple ways:
@@ -701,7 +670,6 @@ export default withRuntime({
 ### Types
 
 - `Tool<TSchemaIn, TSchemaOut>` - Tool definition with typed input/output
-- `StreamableTool<TSchemaIn>` - Tool that returns streaming Response
 - `Prompt<TArgs>` - Prompt definition with typed arguments
 - `Resource` - Resource definition
 - `OAuthConfig` - OAuth configuration
@@ -714,7 +682,6 @@ export default withRuntime({
 - `withRuntime(options)` - Create an MCP server
 - `createTool(opts)` - Create a public tool
 - `createPrivateTool(opts)` - Create an authenticated tool
-- `createStreamableTool(opts)` - Create a streaming tool
 - `createPrompt(opts)` - Create an authenticated prompt
 - `createPublicPrompt(opts)` - Create a public prompt
 - `createResource(opts)` - Create an authenticated resource

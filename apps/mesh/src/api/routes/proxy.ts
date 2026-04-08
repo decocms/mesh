@@ -19,11 +19,7 @@ import type { MeshContext } from "../../core/mesh-context";
 import { managementMCP } from "../../tools";
 import { handleAuthError } from "./oauth-proxy";
 import { handleVirtualMcpRequest } from "./virtual-mcp";
-export {
-  toServerClient,
-  type MCPProxyClient,
-  type StreamableMCPProxyClient,
-} from "./mcp-proxy-factory";
+export { toServerClient, type MCPProxyClient } from "./mcp-proxy-factory";
 
 // Define Hono variables type
 type Variables = {

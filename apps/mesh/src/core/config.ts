@@ -65,13 +65,6 @@ export function getConfig(): Config {
   return _config;
 }
 
-export function getMonitoringConfig(): MonitoringConfig {
-  return {
-    ...DEFAULT_MONITORING_CONFIG,
-    ...getConfig().monitoring,
-  };
-}
-
 export function getThemeConfig(): ThemeConfig | undefined {
   return getConfig().theme;
 }

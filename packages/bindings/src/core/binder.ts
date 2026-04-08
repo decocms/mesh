@@ -24,7 +24,6 @@ export interface ToolBinder<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TInput = any,
   TReturn extends object | null | boolean = object,
-  TStreamable extends boolean = boolean,
 > {
   /** The name of the tool (e.g., "DECO_CHAT_CHANNELS_JOIN") */
   name: TName;
@@ -33,12 +32,7 @@ export interface ToolBinder<
   inputSchema: ZodType<TInput>;
 
   /** Optional Zod schema for validating tool output */
-  outputSchema?: TStreamable extends true ? never : ZodType<TReturn>;
-
-  /**
-   * Whether this tool is streamable.
-   */
-  streamable?: TStreamable;
+  outputSchema?: ZodType<TReturn>;
 
   /**
    * Whether this tool is optional in the binding.
@@ -103,13 +97,6 @@ export const bindingClient = <TDefinition extends readonly ToolBinder[]>(
     forClient: (client: ServerClient): MCPClientFetchStub<TDefinition> => {
       return createMCPFetchStub<TDefinition>({
         client,
-        streamable: binder.reduce(
-          (acc, tool) => {
-            acc[tool.name] = tool.streamable === true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        ),
       });
     },
     forConnection: (
@@ -117,13 +104,6 @@ export const bindingClient = <TDefinition extends readonly ToolBinder[]>(
     ): MCPClientFetchStub<TDefinition> => {
       return createMCPFetchStub<TDefinition>({
         connection: mcpConnection,
-        streamable: binder.reduce(
-          (acc, tool) => {
-            acc[tool.name] = tool.streamable === true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        ),
       });
     },
   };

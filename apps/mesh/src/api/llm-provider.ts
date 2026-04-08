@@ -253,29 +253,12 @@ export const createLLMProvider = (binding: LLMBindingClient): LLMProvider => {
             },
           };
         },
-        doStream: async (options: LanguageModelV2CallOptions) => {
-          const convertedOptions = convertCallOptionsForBinding(
-            options,
-          ) as Parameters<LLMBindingClient["LLM_DO_STREAM"]>[0]["callOptions"];
-
-          const response = await binding.LLM_DO_STREAM({
-            callOptions: convertedOptions,
-            modelId,
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(
-              `Streaming failed for model ${modelId} with the status code: ${response.status}\n${errorText}`,
-            );
-          }
-
-          return {
-            stream: responseToStream(response),
-            response: {
-              headers: Object.fromEntries(response.headers?.entries() ?? []),
-            },
-          };
+        doStream: async () => {
+          throw new Error(
+            `LLM streaming via llm-binding is no longer supported. ` +
+              `Migrate to native AI SDK provider adapters. ` +
+              `See LANGUAGE_MODEL_BINDING deprecation notice.`,
+          );
         },
       };
     },

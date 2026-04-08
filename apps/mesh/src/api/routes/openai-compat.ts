@@ -10,7 +10,7 @@
  */
 
 import { LanguageModelBinding } from "@decocms/bindings/llm";
-import { clientFromConnection, withStreamingSupport } from "@/mcp-clients";
+import { clientFromConnection } from "@/mcp-clients";
 import { toServerClient } from "./proxy";
 import {
   generateText,
@@ -582,16 +582,9 @@ app.post("/:org/v1/chat/completions", async (c) => {
         // Add streaming support since this branch needs it
         // Note: No need for await using - client pool manages lifecycle
         const client = await clientFromConnection(connection, ctx, false);
-        const streamableClient = withStreamingSupport(
-          client,
-          connectionId,
-          connection,
-          ctx,
-          { superUser: false },
-        );
         // @deprecated: llm-binding path — migrate to native AI SDK providers
         const llmBinding = LanguageModelBinding.forClient(
-          toServerClient(streamableClient),
+          toServerClient(client),
         );
         const provider = createLLMProvider(llmBinding).languageModel(modelId);
 

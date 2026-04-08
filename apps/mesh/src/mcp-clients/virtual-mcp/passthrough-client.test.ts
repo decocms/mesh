@@ -292,29 +292,6 @@ describe("PassthroughClient", () => {
     });
   });
 
-  describe("callStreamableTool", () => {
-    it("returns JSON response when client lacks streaming support", async () => {
-      const conn = makeConnection("conn_ns", "NS");
-      const client = makeMockClient([{ name: "tool1" }]);
-
-      mockCreateLazyClient.mockReturnValue(client as any);
-
-      const pt = new PassthroughClient(
-        {
-          connections: [conn],
-          virtualMcp: makeVirtualMcp([makeVmcpConn("conn_ns")]),
-        },
-        mockCtx,
-      );
-
-      const namespacedName = `${slugify("conn_ns")}_tool1`;
-      const response = await pt.callStreamableTool(namespacedName, {});
-
-      expect(response).toBeInstanceOf(Response);
-      expect(response.headers.get("Content-Type")).toBe("application/json");
-    });
-  });
-
   describe("close", () => {
     it("closes the gateway and underlying clients", async () => {
       const conn = makeConnection("conn_cl", "CL");
