@@ -130,17 +130,58 @@ if (
     const sendEmail = createEmailSender(inviteProvider);
 
     sendInvitationEmail = async (data) => {
-      const inviterName = data.inviter.user?.name || data.inviter.user?.email;
-      const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${data.invitation.id}&redirectTo=/`;
+      const esc = (s: string) =>
+        s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const inviterName =
+        data.inviter.user?.name || data.inviter.user?.email || "";
+      const orgSlug = data.organization.slug ?? "";
+      const acceptUrl = `${getBaseUrl()}/auth/accept-invitation?invitationId=${encodeURIComponent(data.invitation.id)}&redirectTo=/${encodeURIComponent(orgSlug)}`;
 
       await sendEmail({
         to: data.email,
-        subject: `Invitation to join ${data.organization.name}`,
-        html: `
-          <h2>You've been invited!</h2>
-          <p>${inviterName} has invited you to join <strong>${data.organization.name}</strong>.</p>
-          <p><a href="${acceptUrl}">Click here to accept the invitation</a></p>
-        `,
+        subject: `You've been invited to join ${data.organization.name}`,
+        html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e4e4e7;">
+          <tr>
+            <td style="padding:32px 32px 24px;border-bottom:1px solid #f4f4f5;">
+              <p style="margin:0;font-size:13px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;">Invitation</p>
+              <h1 style="margin:8px 0 0;font-size:22px;font-weight:600;color:#09090b;line-height:1.3;">You've been invited to join<br /><span style="color:#18181b;">${esc(data.organization.name)}</span></h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 32px;">
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3f3f46;">
+                <strong style="color:#18181b;">${esc(inviterName)}</strong> has invited you to collaborate on <strong style="color:#18181b;">${esc(data.organization.name)}</strong>.
+              </p>
+              <a href="${acceptUrl}" style="display:inline-block;background-color:#18181b;color:#fafafa;text-decoration:none;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:500;">Accept invitation</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <p style="margin:0;font-size:12px;color:#a1a1aa;">
+                Or copy this link into your browser:<br />
+                <a href="${acceptUrl}" style="color:#71717a;word-break:break-all;">${esc(acceptUrl)}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
       });
     };
   }

@@ -10,7 +10,6 @@ import { Chat, useChatTask } from "@/web/components/chat/index";
 import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { ErrorBoundary } from "@/web/components/error-boundary";
-import { SplashScreen } from "@/web/components/splash-screen";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
@@ -915,7 +914,24 @@ function ShellLayoutContent() {
   const { data: ssoStatus } = useOrgSsoStatus(orgId);
 
   if (!activeOrg) {
-    return <SplashScreen />;
+    return (
+      <EmptyState
+        image={null}
+        title="Access denied"
+        description="You don't have access to this organization. Check your email for an invitation."
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              localStorage.removeItem(LOCALSTORAGE_KEYS.lastOrgSlug());
+              window.location.href = "/";
+            }}
+          >
+            Go to your account
+          </Button>
+        }
+      />
+    );
   }
 
   if (ssoStatus?.ssoRequired && !ssoStatus.authenticated) {
