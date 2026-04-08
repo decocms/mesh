@@ -81,7 +81,7 @@ data:
         "https://${S3_HOST}/${S3_KEY}")
 
       case "$HTTP_CODE" in
-        2*) return 0 ;;
+        2*) echo "s3-sync: uploaded ${RELATIVE}" ; return 0 ;;
         *)
           echo "s3-sync: upload failed ${RELATIVE} (HTTP ${HTTP_CODE})"
           return 1
