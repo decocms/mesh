@@ -112,10 +112,6 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: auth-config
-              mountPath: /app/apps/mesh/auth-config.json
-              subPath: auth-config.json
-              readOnly: true
             - name: data
               mountPath: {{ .Values.configMap.meshConfig.DATA_DIR | default "/app/data" }}
             {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
@@ -193,12 +189,6 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        - name: auth-config
-          configMap:
-            name: {{ include "chart-deco-studio.fullname" . }}-auth-config
-            items:
-              - key: auth-config.json
-                path: auth-config.json
         {{- if and (eq (lower (default "sqlite" .Values.database.engine)) "postgresql") .Values.database.caCert }}
         - name: ca-cert
           configMap:

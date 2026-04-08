@@ -107,9 +107,28 @@ function getConfigSections(e: Settings): ConfigSection[] {
     },
     {
       title: "Config Files",
+      entries: [{ key: "configPath", value: e.configPath }],
+    },
+    {
+      title: "Auth Providers",
       entries: [
-        { key: "configPath", value: e.configPath },
-        { key: "authConfigPath", value: e.authConfigPath },
+        {
+          key: "emailAndPassword",
+          value: process.env.AUTH_EMAIL_PASSWORD_ENABLED ?? "true",
+        },
+        { key: "google", value: !!process.env.AUTH_GOOGLE_CLIENT_ID },
+        { key: "github", value: !!process.env.AUTH_GITHUB_CLIENT_ID },
+        { key: "resend", value: !!process.env.AUTH_RESEND_API_KEY },
+        { key: "sendgrid", value: !!process.env.AUTH_SENDGRID_API_KEY },
+        { key: "sso", value: !!process.env.AUTH_SSO_MS_CLIENT_ID },
+        {
+          key: "magicLink",
+          value: process.env.AUTH_MAGIC_LINK_ENABLED === "true",
+        },
+        {
+          key: "emailOtp",
+          value: process.env.AUTH_EMAIL_OTP_ENABLED === "true",
+        },
       ],
     },
     {

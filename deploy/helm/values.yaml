@@ -64,10 +64,6 @@ configMap:
     # NATS_URL: ""  # Optional: overrides auto-derived URL when nats.enabled=true (e.g. nats://my-nats:4222)
     DATABASE_POOL_MAX: "20"
     DECO_AI_GATEWAY_ENABLED: "false"
-  authConfig:
-    emailAndPassword:
-      enabled: true
-
 
 secret:
   # secretName: ""  # If defined, uses this existing secret (does not create new secret)

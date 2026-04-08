@@ -78,7 +78,6 @@ export function resolveConfig(
 
     // Config files
     configPath: envVars.CONFIG_PATH || "./config.json",
-    authConfigPath: envVars.AUTH_CONFIG_PATH || "./auth-config.json",
 
     // Transport
     unsafeAllowStdioTransport: toBool(envVars.UNSAFE_ALLOW_STDIO_TRANSPORT),

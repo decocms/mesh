@@ -18,17 +18,18 @@ services:
       
       # Authentication secret (required)
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      
+
       # Database URL
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/postgres}
+
+      # Auth providers (optional, set to enable)
+      # - AUTH_GOOGLE_CLIENT_ID=${AUTH_GOOGLE_CLIENT_ID}
+      # - AUTH_GOOGLE_CLIENT_SECRET=${AUTH_GOOGLE_CLIENT_SECRET}
+      # - AUTH_GITHUB_CLIENT_ID=${AUTH_GITHUB_CLIENT_ID}
+      # - AUTH_GITHUB_CLIENT_SECRET=${AUTH_GITHUB_CLIENT_SECRET}
     volumes:
       # Persistent volume for data (embedded PostgreSQL or other files)
       - studio-data:/app/data
-      
-      # Auth config - mounts the JSON authentication configuration file
-      # The file is mounted at /app/apps/mesh/auth-config.json
-      # If the file doesn't exist locally, Docker Compose will fail to start
-      - ./auth-config.json:/app/apps/mesh/auth-config.json:ro
     healthcheck:
       # Health check using curl (adjust if your image doesn't have curl)
       # Alternative: use wget or remove if not available

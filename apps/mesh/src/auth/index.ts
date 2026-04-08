@@ -359,27 +359,21 @@ export const auth = betterAuth({
   // Better Auth can use the dialect directly
   database,
 
-  // Load optional configuration from file
-  ...authConfig,
+  // Auth providers from AUTH_* env vars
+  socialProviders: authConfig.socialProviders,
 
-  // Enable automatic account linking for SSO providers.
-  // When a user logs in via SSO with the same email as an existing account,
-  // automatically link the SSO identity to the existing user.
-  account: {
-    ...authConfig.account,
-    accountLinking: {
-      ...authConfig.account?.accountLinking,
-      trustedProviders: [
-        ...(authConfig.account?.accountLinking?.trustedProviders ?? []),
-        ...(authConfig.ssoConfig ? [authConfig.ssoConfig.providerId] : []),
-      ],
+  // Automatic account linking for SSO providers
+  ...(authConfig.ssoConfig && {
+    account: {
+      accountLinking: {
+        trustedProviders: [authConfig.ssoConfig.providerId],
+      },
     },
-  },
+  }),
 
   emailAndPassword: {
-    enabled: true,
-    ...authConfig.emailAndPassword,
-    ...(sendResetPassword ? { sendResetPassword } : {}),
+    enabled: authConfig.emailAndPassword.enabled,
+    ...(sendResetPassword && { sendResetPassword }),
   },
 
   // Disable rate limiting in development (set DISABLE_RATE_LIMIT=true)

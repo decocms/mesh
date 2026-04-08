@@ -97,5 +97,4 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 20
-    volumes:
-      - ./auth-config.test.json:/app/apps/mesh/auth-config.json:ro
+    volumes: []
