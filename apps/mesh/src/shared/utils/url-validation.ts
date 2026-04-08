@@ -59,11 +59,11 @@ function extractIPv4FromMappedIPv6(ip: string): string | null {
 
   // Dotted form: ::ffff:127.0.0.1
   const dotted = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (dotted) return dotted[1];
+  if (dotted?.[1]) return dotted[1];
 
   // Hex form: ::ffff:7f00:1 (URL parser normalizes to this)
   const hex = normalized.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-  if (hex) {
+  if (hex?.[1] && hex[2]) {
     const hi = parseInt(hex[1], 16);
     const lo = parseInt(hex[2], 16);
     return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
