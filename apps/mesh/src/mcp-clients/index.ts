@@ -8,4 +8,3 @@
 
 export { clientFromConnection } from "./client";
 export { serverFromConnection } from "./server";
-export * from "./decorators";
