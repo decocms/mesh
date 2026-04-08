@@ -123,3 +123,26 @@ export {
 
 // Re-export workflow binding types
 export { WORKFLOWS_COLLECTION_BINDING } from "./well-known/workflow";
+
+// Re-export brand binding types (for reading org brand context)
+export {
+  BrandColorsSchema,
+  type BrandColors,
+  BrandFontsSchema,
+  type BrandFonts,
+  BrandAssetsSchema,
+  type BrandAssets,
+  BrandSchema,
+  type Brand,
+  BrandGetInputSchema,
+  type BrandGetInput,
+  BrandGetOutputSchema,
+  type BrandGetOutput,
+  BrandListInputSchema,
+  type BrandListInput,
+  BrandListOutputSchema,
+  type BrandListOutput,
+  BRAND_BINDING,
+  BrandBinding,
+  type BrandBindingClient,
+} from "./well-known/brand";

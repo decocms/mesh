@@ -5,6 +5,27 @@ import { requireAuth } from "../../core/mesh-context";
 /**
  * Map Firecrawl's BrandingProfile to our brand context shape.
  */
+const COLOR_ROLES = new Set([
+  "primary",
+  "secondary",
+  "accent",
+  "background",
+  "foreground",
+]);
+
+const FONT_ROLE_MAP: Record<string, string> = {
+  heading: "heading",
+  headings: "heading",
+  head: "heading",
+  title: "heading",
+  body: "body",
+  primary: "body",
+  text: "body",
+  code: "code",
+  monospace: "code",
+  mono: "code",
+};
+
 function mapFirecrawlBranding(
   branding: Record<string, unknown>,
   metadata: Record<string, unknown>,
@@ -12,51 +33,51 @@ function mapFirecrawlBranding(
   logo: string | null;
   favicon: string | null;
   ogImage: string | null;
-  fonts: { name: string; role: string }[];
-  colors: { label: string; value: string }[];
+  fonts: { heading?: string; body?: string; code?: string } | null;
+  colors: {
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    background?: string;
+    foreground?: string;
+  } | null;
   metadata: Record<string, unknown>;
 } {
   const images = (branding.images ?? {}) as Record<string, unknown>;
 
-  // Colors: branding.colors is { primary?: string, secondary?: string, ... }
+  // Colors: pick known semantic roles from branding.colors
   const rawColors = (branding.colors ?? {}) as Record<string, unknown>;
-  const colors: { label: string; value: string }[] = [];
-  for (const [label, value] of Object.entries(rawColors)) {
-    if (typeof value === "string" && value) {
-      colors.push({ label, value });
+  const colors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawColors)) {
+    if (typeof value === "string" && value && COLOR_ROLES.has(key)) {
+      colors[key] = value;
     }
   }
 
-  // Fonts: branding.fonts is Array<{ family: string, ... }>
-  // Also check typography.fontFamilies for role-labeled fonts
-  const fonts: { name: string; role: string }[] = [];
+  // Fonts: map fontFamilies roles to semantic roles
+  const fonts: Record<string, string> = {};
   const typography = (branding.typography ?? {}) as Record<string, unknown>;
   const fontFamilies = (typography.fontFamilies ?? {}) as Record<
     string,
     unknown
   >;
 
-  // Named font families (primary, heading, code, etc.)
-  const seenFamilies = new Set<string>();
   for (const [role, family] of Object.entries(fontFamilies)) {
     if (typeof family === "string" && family) {
-      fonts.push({ name: family, role });
-      seenFamilies.add(family.toLowerCase());
+      const mapped = FONT_ROLE_MAP[role.toLowerCase()];
+      if (mapped && !fonts[mapped]) {
+        fonts[mapped] = family;
+      }
     }
   }
 
-  // Additional fonts from the fonts array that weren't in fontFamilies
+  // Fallback: additional fonts from the fonts array
   const rawFonts = branding.fonts;
   if (Array.isArray(rawFonts)) {
     for (const f of rawFonts) {
       const family = (f as Record<string, unknown>).family;
-      if (
-        typeof family === "string" &&
-        family &&
-        !seenFamilies.has(family.toLowerCase())
-      ) {
-        fonts.push({ name: family, role: "" });
-        seenFamilies.add(family.toLowerCase());
+      if (typeof family === "string" && family && !fonts.body) {
+        fonts.body = family;
       }
     }
   }
@@ -83,8 +104,20 @@ function mapFirecrawlBranding(
     logo: (images.logo as string) ?? null,
     favicon: (images.favicon as string) ?? null,
     ogImage: (images.ogImage as string) ?? (metadata.ogImage as string) ?? null,
-    fonts,
-    colors,
+    fonts:
+      Object.keys(fonts).length > 0
+        ? (fonts as { heading?: string; body?: string; code?: string })
+        : null,
+    colors:
+      Object.keys(colors).length > 0
+        ? (colors as {
+            primary?: string;
+            secondary?: string;
+            accent?: string;
+            background?: string;
+            foreground?: string;
+          })
+        : null,
     metadata: richMetadata,
   };
 }
@@ -194,8 +227,8 @@ export const BRAND_CONTEXT_EXTRACT = defineTool({
       logo: mapped.logo,
       favicon: mapped.favicon,
       ogImage: mapped.ogImage,
-      fonts: mapped.fonts.length > 0 ? mapped.fonts : null,
-      colors: mapped.colors.length > 0 ? mapped.colors : null,
+      fonts: mapped.fonts,
+      colors: mapped.colors,
       images: null,
       metadata:
         Object.keys(mapped.metadata).length > 0 ? mapped.metadata : null,

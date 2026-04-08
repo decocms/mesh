@@ -49,18 +49,28 @@ export const BrandContextSchema = z.object({
   favicon: z.string().nullable().optional().describe("Favicon URL"),
   ogImage: z.string().nullable().optional().describe("OG image URL"),
   fonts: z
-    .array(z.record(z.string(), z.unknown()))
+    .object({
+      heading: z.string().optional().describe("Font family for headings"),
+      body: z.string().optional().describe("Font family for body text"),
+      code: z.string().optional().describe("Font family for code / monospace"),
+    })
     .nullable()
     .optional()
-    .describe("Font configuration"),
+    .describe("Font families by semantic role"),
   colors: z
-    .union([
-      z.array(z.record(z.string(), z.unknown())),
-      z.record(z.string(), z.unknown()),
-    ])
+    .object({
+      primary: z.string().optional().describe("Primary brand color (hex)"),
+      secondary: z.string().optional().describe("Secondary brand color (hex)"),
+      accent: z.string().optional().describe("Accent / highlight color (hex)"),
+      background: z.string().optional().describe("Background color (hex)"),
+      foreground: z
+        .string()
+        .optional()
+        .describe("Foreground / text color (hex)"),
+    })
     .nullable()
     .optional()
-    .describe("Color palette — array of {label,value} or key-value object"),
+    .describe("Semantic color palette"),
   images: z
     .array(z.record(z.string(), z.unknown()))
     .nullable()

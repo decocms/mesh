@@ -11,6 +11,119 @@ function parseJson<T>(value: string | null): T | null {
   }
 }
 
+const COLOR_ROLES = new Set([
+  "primary",
+  "secondary",
+  "accent",
+  "background",
+  "foreground",
+]);
+
+/**
+ * Normalize colors from legacy formats to structured semantic object.
+ * Legacy formats: [{label:"primary",value:"#fff"},...] or {"primary":"#fff",...}
+ */
+function normalizeColors(raw: unknown): BrandContext["colors"] {
+  if (!raw) return null;
+  // Already structured: { primary?: string, ... }
+  if (!Array.isArray(raw) && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    // Check if it looks structured (has known color role keys, not label/value)
+    if (Object.keys(obj).some((k) => COLOR_ROLES.has(k))) {
+      const result: Record<string, string> = {};
+      for (const role of COLOR_ROLES) {
+        if (typeof obj[role] === "string") result[role] = obj[role] as string;
+      }
+      return result as BrandContext["colors"];
+    }
+    // Legacy Record<string,string> — try to map keys to roles
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === "string" && COLOR_ROLES.has(key.toLowerCase())) {
+        result[key.toLowerCase()] = value;
+      }
+    }
+    return Object.keys(result).length > 0
+      ? (result as BrandContext["colors"])
+      : null;
+  }
+  // Legacy array: [{label:"primary",value:"#fff"},...]
+  if (Array.isArray(raw)) {
+    const result: Record<string, string> = {};
+    for (const item of raw) {
+      const entry = item as Record<string, unknown>;
+      const label = (entry.label as string)?.toLowerCase?.();
+      const value = entry.value as string;
+      if (label && value && COLOR_ROLES.has(label)) {
+        result[label] = value;
+      }
+    }
+    return Object.keys(result).length > 0
+      ? (result as BrandContext["colors"])
+      : null;
+  }
+  return null;
+}
+
+const FONT_ROLE_MAP: Record<string, string> = {
+  heading: "heading",
+  headings: "heading",
+  head: "heading",
+  title: "heading",
+  body: "body",
+  primary: "body",
+  text: "body",
+  code: "code",
+  monospace: "code",
+  mono: "code",
+};
+
+/**
+ * Normalize fonts from legacy formats to structured semantic object.
+ * Legacy format: [{name:"Inter",role:"heading"},...]
+ */
+function normalizeFonts(raw: unknown): BrandContext["fonts"] {
+  if (!raw) return null;
+  // Already structured: { heading?: string, body?: string, code?: string }
+  if (!Array.isArray(raw) && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    if (
+      typeof obj.heading === "string" ||
+      typeof obj.body === "string" ||
+      typeof obj.code === "string"
+    ) {
+      return {
+        heading: typeof obj.heading === "string" ? obj.heading : undefined,
+        body: typeof obj.body === "string" ? obj.body : undefined,
+        code: typeof obj.code === "string" ? obj.code : undefined,
+      };
+    }
+    return null;
+  }
+  // Legacy array: [{name:"Inter",role:"heading"},...]
+  if (Array.isArray(raw)) {
+    const result: Record<string, string> = {};
+    for (const item of raw) {
+      const entry = item as Record<string, unknown>;
+      const name =
+        (entry.name as string) ?? (entry.family as string) ?? undefined;
+      const role = (entry.role as string)?.toLowerCase?.() ?? "";
+      if (!name) continue;
+      const mapped = FONT_ROLE_MAP[role];
+      if (mapped && !result[mapped]) {
+        result[mapped] = name;
+      } else if (!result.body) {
+        // First font without a recognized role becomes body
+        result.body = name;
+      }
+    }
+    return Object.keys(result).length > 0
+      ? (result as BrandContext["fonts"])
+      : null;
+  }
+  return null;
+}
+
 function toEntity(
   record: Record<string, unknown> & {
     id: string;
@@ -40,8 +153,8 @@ function toEntity(
     logo: record.logo,
     favicon: record.favicon,
     ogImage: record.og_image,
-    fonts: parseJson(record.fonts),
-    colors: parseJson(record.colors),
+    fonts: normalizeFonts(parseJson(record.fonts)),
+    colors: normalizeColors(parseJson(record.colors)),
     images: parseJson(record.images),
     metadata: parseJson(record.metadata),
     archivedAt: record.archived_at,

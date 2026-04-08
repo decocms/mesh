@@ -18,6 +18,7 @@ export {
   BRAND_CONTEXT_DELETE,
 } from "./brand-context-update";
 export { BRAND_CONTEXT_EXTRACT } from "./brand-context-extract";
+export { BRAND_GET, BRAND_LIST } from "./brand-get";
 
 // Member management
 export { ORGANIZATION_MEMBER_ADD } from "./member-add";

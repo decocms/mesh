@@ -29,6 +29,20 @@ import { unwrapToolResult } from "@/web/lib/unwrap-tool-result";
 
 // --- Types ---
 
+type BrandColors = {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+  background?: string;
+  foreground?: string;
+};
+
+type BrandFonts = {
+  heading?: string;
+  body?: string;
+  code?: string;
+};
+
 type BrandContext = {
   id: string;
   organizationId: string;
@@ -38,8 +52,8 @@ type BrandContext = {
   logo?: string | null;
   favicon?: string | null;
   ogImage?: string | null;
-  fonts?: { name: string; role: string }[] | null;
-  colors?: { label: string; value: string }[] | null;
+  fonts?: BrandFonts | null;
+  colors?: BrandColors | null;
   images?: string[];
   archivedAt?: string | null;
   isDefault?: boolean;
@@ -402,6 +416,12 @@ function LogosSection({
 
 // --- Section: Fonts ---
 
+const FONT_ROLES = [
+  { key: "heading" as const, label: "Headings" },
+  { key: "body" as const, label: "Body" },
+  { key: "code" as const, label: "Code" },
+];
+
 function FontsSection({
   brand,
   onSave,
@@ -410,29 +430,21 @@ function FontsSection({
   onSave: (data: Partial<BrandContext>) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [fonts, setFonts] = useState<{ name: string; role: string }[]>(
-    brand.fonts ?? [],
-  );
+  const [fonts, setFonts] = useState<BrandFonts>(brand.fonts ?? {});
 
   const startEdit = () => {
-    setFonts(brand.fonts?.length ? [...brand.fonts] : [{ name: "", role: "" }]);
+    setFonts(brand.fonts ?? {});
     setEditing(true);
   };
 
   const save = () => {
-    const validFonts = fonts.filter((f) => f.name.trim());
-    onSave({ fonts: validFonts.length ? validFonts : null });
+    const hasAny = Object.values(fonts).some((v) => v?.trim());
+    onSave({ fonts: hasAny ? fonts : null });
     setEditing(false);
   };
 
-  const updateFont = (i: number, field: "name" | "role", value: string) => {
-    setFonts(fonts.map((f, j) => (j === i ? { ...f, [field]: value } : f)));
-  };
-
-  const addFont = () => setFonts([...fonts, { name: "", role: "" }]);
-  const removeFont = (i: number) => setFonts(fonts.filter((_, j) => j !== i));
-
-  const hasFonts = brand.fonts && brand.fonts.length > 0;
+  const hasFonts =
+    brand.fonts && Object.values(brand.fonts).some((v) => v?.trim());
 
   return (
     <BrandCard
@@ -444,49 +456,38 @@ function FontsSection({
     >
       {editing ? (
         <div className="space-y-2">
-          {fonts.map((font, i) => (
-            <div key={i} className="flex gap-2">
+          {FONT_ROLES.map(({ key, label }) => (
+            <div key={key}>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {label}
+              </label>
               <Input
-                value={font.name}
-                onChange={(e) => updateFont(i, "name", e.target.value)}
-                placeholder="Font name"
-                className="flex-1"
+                value={fonts[key] ?? ""}
+                onChange={(e) => setFonts({ ...fonts, [key]: e.target.value })}
+                placeholder={`Font family for ${label.toLowerCase()}`}
               />
-              <Input
-                value={font.role}
-                onChange={(e) => updateFont(i, "role", e.target.value)}
-                placeholder="Role (e.g. Headings)"
-                className="flex-1"
-              />
-              <Button variant="ghost" size="icon" onClick={() => removeFont(i)}>
-                <X size={13} />
-              </Button>
             </div>
           ))}
-          <Button variant="ghost" size="sm" onClick={addFont}>
-            + Add font
-          </Button>
         </div>
       ) : hasFonts ? (
         <div className="space-y-3">
-          {brand.fonts!.map((font) => (
-            <div
-              key={`${font.name}-${font.role}`}
-              className="flex items-center gap-3"
-            >
-              <span className="w-9 text-xl font-medium leading-none text-foreground">
-                Aa
-              </span>
-              <div>
-                <p className="text-sm font-medium leading-none text-foreground">
-                  {font.name}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {font.role}
-                </p>
+          {FONT_ROLES.filter(({ key }) => brand.fonts?.[key]).map(
+            ({ key, label }) => (
+              <div key={key} className="flex items-center gap-3">
+                <span className="w-9 text-xl font-medium leading-none text-foreground">
+                  Aa
+                </span>
+                <div>
+                  <p className="text-sm font-medium leading-none text-foreground">
+                    {brand.fonts![key]}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {label}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground/60">
@@ -499,6 +500,14 @@ function FontsSection({
 
 // --- Section: Colors ---
 
+const COLOR_ROLES = [
+  { key: "primary" as const, label: "Primary" },
+  { key: "secondary" as const, label: "Secondary" },
+  { key: "accent" as const, label: "Accent" },
+  { key: "background" as const, label: "Background" },
+  { key: "foreground" as const, label: "Foreground" },
+];
+
 function ColorsSection({
   brand,
   onSave,
@@ -507,35 +516,21 @@ function ColorsSection({
   onSave: (data: Partial<BrandContext>) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [colors, setColors] = useState<{ label: string; value: string }[]>(
-    brand.colors ?? [],
-  );
+  const [colors, setColors] = useState<BrandColors>(brand.colors ?? {});
 
   const startEdit = () => {
-    setColors(
-      brand.colors?.length
-        ? [...brand.colors]
-        : [{ label: "", value: "#000000" }],
-    );
+    setColors(brand.colors ?? {});
     setEditing(true);
   };
 
   const save = () => {
-    const validColors = colors.filter((c) => c.label.trim() && c.value.trim());
-    onSave({ colors: validColors.length ? validColors : null });
+    const hasAny = Object.values(colors).some((v) => v?.trim());
+    onSave({ colors: hasAny ? colors : null });
     setEditing(false);
   };
 
-  const updateColor = (i: number, field: "label" | "value", value: string) => {
-    setColors(colors.map((c, j) => (j === i ? { ...c, [field]: value } : c)));
-  };
-
-  const addColor = () =>
-    setColors([...colors, { label: "", value: "#000000" }]);
-  const removeColor = (i: number) =>
-    setColors(colors.filter((_, j) => j !== i));
-
-  const hasColors = brand.colors && brand.colors.length > 0;
+  const hasColors =
+    brand.colors && Object.values(brand.colors).some((v) => v?.trim());
 
   return (
     <BrandCard
@@ -547,57 +542,52 @@ function ColorsSection({
     >
       {editing ? (
         <div className="space-y-2">
-          {colors.map((color, i) => (
-            <div key={i} className="flex items-center gap-2">
+          {COLOR_ROLES.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2">
               <input
                 type="color"
-                value={color.value}
-                onChange={(e) => updateColor(i, "value", e.target.value)}
+                value={colors[key] ?? "#000000"}
+                onChange={(e) =>
+                  setColors({ ...colors, [key]: e.target.value })
+                }
                 className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border bg-transparent p-0.5"
               />
               <Input
-                value={color.value}
-                onChange={(e) => updateColor(i, "value", e.target.value)}
+                value={colors[key] ?? ""}
+                onChange={(e) =>
+                  setColors({ ...colors, [key]: e.target.value })
+                }
                 placeholder="#000000"
                 className="w-28"
               />
-              <Input
-                value={color.label}
-                onChange={(e) => updateColor(i, "label", e.target.value)}
-                placeholder="Label (e.g. Primary)"
-                className="flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeColor(i)}
-              >
-                <X size={13} />
-              </Button>
+              <span className="flex-1 text-xs text-muted-foreground">
+                {label}
+              </span>
             </div>
           ))}
-          <Button variant="ghost" size="sm" onClick={addColor}>
-            + Add color
-          </Button>
         </div>
       ) : hasColors ? (
         <div className="flex flex-wrap gap-4">
-          {brand.colors!.map((color) => (
-            <div key={color.label} className="flex flex-col items-center gap-2">
-              <div
-                className="h-14 w-14 rounded-full shadow-sm"
-                style={{
-                  backgroundColor: color.value,
-                  border:
-                    color.value === "#FFFFFF" ? "1px solid #e5e7eb" : undefined,
-                }}
-              />
-              <p className="font-mono text-[10px] text-muted-foreground">
-                {color.value}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{color.label}</p>
-            </div>
-          ))}
+          {COLOR_ROLES.filter(({ key }) => brand.colors?.[key]).map(
+            ({ key, label }) => (
+              <div key={key} className="flex flex-col items-center gap-2">
+                <div
+                  className="h-14 w-14 rounded-full shadow-sm"
+                  style={{
+                    backgroundColor: brand.colors![key],
+                    border:
+                      brand.colors![key] === "#FFFFFF"
+                        ? "1px solid #e5e7eb"
+                        : undefined,
+                  }}
+                />
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  {brand.colors![key]}
+                </p>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+              </div>
+            ),
+          )}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground/60">
@@ -746,33 +736,25 @@ function ExpandableBrandEntry({
         </div>
 
         {/* Color swatches */}
-        {brand.colors && brand.colors.length > 0 && (
+        {brand.colors && Object.values(brand.colors).some((v) => v) && (
           <div className="flex shrink-0 gap-1">
-            {brand.colors.slice(0, 5).map((c) => (
-              <div
-                key={c.label}
-                className="h-5 w-5 rounded-full border border-border/40"
-                style={{ backgroundColor: c.value }}
-                title={`${c.label}: ${c.value}`}
-              />
-            ))}
-            {brand.colors.length > 5 && (
-              <span className="flex h-5 items-center text-[10px] text-muted-foreground">
-                +{brand.colors.length - 5}
-              </span>
-            )}
+            {Object.entries(brand.colors)
+              .filter(([, v]) => v)
+              .map(([role, value]) => (
+                <div
+                  key={role}
+                  className="h-5 w-5 rounded-full border border-border/40"
+                  style={{ backgroundColor: value }}
+                  title={`${role}: ${value}`}
+                />
+              ))}
           </div>
         )}
 
         {/* Font names */}
-        {brand.fonts && brand.fonts.length > 0 && (
+        {brand.fonts && Object.values(brand.fonts).some((v) => v) && (
           <span className="shrink-0 text-xs text-muted-foreground">
-            {brand.fonts
-              .slice(0, 2)
-              .map((f) => f.name)
-              .filter(Boolean)
-              .join(", ")}
-            {brand.fonts.length > 2 && ` +${brand.fonts.length - 2}`}
+            {Object.values(brand.fonts).filter(Boolean).join(", ")}
           </span>
         )}
 
