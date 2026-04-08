@@ -8,7 +8,7 @@ function createMockConnection(): {
 } {
   const subs: Subscription[] = [];
   const nc = {
-    subscribe: mock((subject: string) => {
+    subscribe: mock((_subject: string) => {
       let resolveIterator: (() => void) | null = null;
       const sub: Subscription = {
         unsubscribe: mock(() => {
@@ -57,7 +57,7 @@ describe("NatsNotifyStrategy", () => {
     await strategy.start();
     expect(nc.subscribe).toHaveBeenCalledTimes(2);
     // Old subscription should have been unsubscribed
-    expect(subs[0].unsubscribe).toHaveBeenCalledTimes(1);
+    expect(subs[0]!.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   test("stop() cleans up subscription", async () => {
@@ -67,7 +67,7 @@ describe("NatsNotifyStrategy", () => {
     await strategy.start(() => {});
     await strategy.stop();
 
-    expect(subs[0].unsubscribe).toHaveBeenCalledTimes(1);
+    expect(subs[0]!.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   test("notify() publishes to correct subject", async () => {
