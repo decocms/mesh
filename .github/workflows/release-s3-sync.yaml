@@ -78,3 +78,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      # NOTE: After first push, set package visibility to "Public" at:
+      # https://github.com/orgs/decocms/packages/container/studio%2Fs3-sync/settings
