@@ -26,6 +26,17 @@ service:
   port: 80
   targetPort: 3000
 
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: mesh.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 resources:
   requests:
     memory: "2Gi"
