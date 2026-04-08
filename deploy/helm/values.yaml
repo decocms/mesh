@@ -121,11 +121,19 @@ securityContext:
       - ALL
   readOnlyRootFilesystem: false
 
+startupProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+  timeoutSeconds: 3
+
 livenessProbe:
   httpGet:
     path: /health/live
     port: http
-  initialDelaySeconds: 30
+  initialDelaySeconds: 0
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
@@ -133,15 +141,18 @@ readinessProbe:
   httpGet:
     path: /health/ready
     port: http
-  initialDelaySeconds: 10
+  initialDelaySeconds: 0
   periodSeconds: 5
   timeoutSeconds: 3
-  failureThreshold: 4
+  failureThreshold: 3
 
-terminationGracePeriodSeconds: 60
+# Shutdown timing budget: preStop(5s) + appTimeout(58s) + buffer(2s) = 65s
+terminationGracePeriodSeconds: 65
 
-# Optional lifecycle hooks (preStop, postStart)
-# lifecycle: {}
+lifecycle:
+  preStop:
+    exec:
+      command: ["sleep", "5"]
 
 nodeSelector:
   kubernetes.io/arch: amd64
@@ -154,24 +165,31 @@ tolerations: []
 #     value: "dev"
 #     effect: "NoSchedule"
 
-affinity: {}
-# Example:
-# affinity:
-#   podAntiAffinity:
-#     preferredDuringSchedulingIgnoredDuringExecution:
-#       - weight: 100
-#         podAffinityTerm:
-#           labelSelector:
-#             matchLabels:
-#               app.kubernetes.io/name: chart-deco-studio
-#           topologyKey: kubernetes.io/hostname
+# NOTE: labelSelector uses the default chart name. If you use nameOverride or
+# a different release name, update the matchLabels to match your deployment.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: chart-deco-studio
+          topologyKey: kubernetes.io/hostname
 
-# Topology Spread Constraints (optional - leave empty [] to disable)
-# IMPORTANT: labelSelector is required when topologySpreadConstraints is configured
-#topologySpreadConstraints: []
+# NOTE: labelSelector uses the default chart/release names. Update if using
+# nameOverride or a different release name. Use DoNotSchedule for zone in
+# production clusters with 3+ AZs to guarantee zone spread.
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: chart-deco-studio
+        app.kubernetes.io/instance: deco-studio
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
@@ -212,7 +230,7 @@ s3Sync:
   enabled: false
   image:
     repository: amazon/aws-cli
-    tag: "latest"
+    tag: "2.22.35"
     pullPolicy: IfNotPresent
   bucket: ""               # Required when enabled
   region: "us-east-1"
