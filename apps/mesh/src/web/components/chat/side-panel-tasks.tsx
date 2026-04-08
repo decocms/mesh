@@ -11,6 +11,7 @@ import {
   useVirtualMCPs,
   isDecopilot as isDecopilotFn,
 } from "@decocms/mesh-sdk";
+import { isProject } from "@/web/hooks/use-create-project";
 import { Suspense, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
@@ -90,14 +91,15 @@ function TasksPanelContent({
   hideProjectHeader?: boolean;
   showAutomations?: boolean;
 }) {
-  const { createNewTask, setTaskId } = usePanelActions();
+  const { createNewTask } = usePanelActions();
   const [isPending, startTransition] = useTransition();
 
   // Always show ALL tasks — unified panel regardless of context
-  const allProjects = useVirtualMCPs();
+  const allVirtualMcps = useVirtualMCPs();
+  // Only show project names (not agent names) on task labels
   const projectNames = new Map<string, ProjectInfo>(
-    allProjects
-      .filter((p) => p.id && !isDecopilotFn(p.id))
+    allVirtualMcps
+      .filter((p) => p.id && !isDecopilotFn(p.id) && isProject(p))
       .map((p) => [p.id, { name: p.title, icon: p.icon }]),
   );
 
@@ -131,9 +133,6 @@ function TasksPanelContent({
         virtualMcpId=""
         showAutomations={showAutomations}
         onTaskCreate={handleNewTask}
-        onTaskSelect={(taskId) => {
-          setTaskId(taskId);
-        }}
         projectNames={projectNames}
       />
     </div>
