@@ -20,7 +20,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
-import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
+import { useCreateProject } from "@/web/hooks/use-create-project";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal";
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal";
@@ -168,7 +168,7 @@ function QuickActionsContent() {
   const navigateToAgent = useNavigateToAgent();
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
   const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
-  const { createVirtualMCP } = useCreateVirtualMCP({
+  const { createProject } = useCreateProject({
     navigateOnCreate: true,
   });
 
@@ -220,7 +220,7 @@ function QuickActionsContent() {
                 onClick={() => navigateToAgent(agent.id)}
               />
             ))}
-          <ActionItem label="New project" onClick={() => createVirtualMCP()} />
+          <ActionItem label="New project" onClick={() => createProject()} />
           <button
             type="button"
             className={cn(

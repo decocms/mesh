@@ -56,7 +56,6 @@ import {
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
-import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
@@ -65,6 +64,7 @@ import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onb
 import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
 import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
+import { isProject, useCreateProject } from "@/web/hooks/use-create-project";
 
 function AgentListItem({
   agent,
@@ -291,23 +291,6 @@ function AgentGridItem({
   );
 }
 
-/**
- * Compute which Virtual MCP IDs are children of other Virtual MCPs.
- * These are "agents inside projects" and should not appear as top-level projects.
- */
-function getChildVirtualMcpIds(
-  allVirtualMcps: VirtualMCPEntity[],
-): Set<string> {
-  const allIds = new Set(allVirtualMcps.map((a) => a.id));
-  return new Set(
-    allVirtualMcps.flatMap((parent) =>
-      parent.connections
-        .map((c) => c.connection_id)
-        .filter((id) => allIds.has(id)),
-    ),
-  );
-}
-
 function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
@@ -324,20 +307,18 @@ function PinAgentPopoverContent({
   const { org } = useProjectContext();
   const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
   const { pin, isPinned } = usePinnedAgents(org.id, serverPinnedIds);
-  const { createVirtualMCP, isCreating } = useCreateVirtualMCP({
+  const { createProject, isCreating: isCreatingProject } = useCreateProject({
     navigateOnCreate: true,
   });
 
   const navigateToNewTask = useCreateTaskAndNavigate();
   const navigateToAgent = useNavigateToAgent();
 
-  // Filter to top-level projects only (not agents nested inside other projects)
-  const childIds = getChildVirtualMcpIds(allAgents);
-
   const lowerSearch = search.toLowerCase();
-  const userAgents = allAgents
-    .filter((s) => !isDecopilot(s.id))
-    .filter((s) => !childIds.has(s.id))
+
+  // Only show projects (metadata.type === "project") in the projects section
+  const projects = allAgents
+    .filter((s) => !isDecopilot(s.id) && isProject(s))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
   const studioPackInstalled = allAgents.some((a) => isStudioPackAgent(a.id));
@@ -404,12 +385,12 @@ function PinAgentPopoverContent({
           </span>
         </div>
         <div className="grid grid-cols-3 gap-1">
-          {/* Create new button */}
+          {/* Create new project */}
           <button
             type="button"
-            disabled={isCreating}
+            disabled={isCreatingProject}
             onClick={async () => {
-              await createVirtualMCP();
+              await createProject();
               onClose();
             }}
             className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
@@ -422,11 +403,11 @@ function PinAgentPopoverContent({
             </span>
           </button>
 
-          {userAgents.map((agent) => (
+          {projects.map((project) => (
             <AgentGridItem
-              key={agent.id}
-              agent={agent}
-              onClick={() => handleSelect(agent)}
+              key={project.id}
+              agent={project}
+              onClick={() => handleSelect(project)}
             />
           ))}
         </div>
@@ -462,11 +443,11 @@ function PinAgentPopoverContent({
           </>
         )}
 
-        {userAgents.length === 0 &&
+        {projects.length === 0 &&
           filteredTemplates.length === 0 &&
-          !isCreating && (
+          !isCreatingProject && (
             <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-              {search ? "No agents found" : "No agents yet"}
+              {search ? "No projects found" : "No projects yet"}
             </div>
           )}
       </div>
@@ -577,19 +558,18 @@ function AgentsSectionContent() {
   const allAgents = useVirtualMCPs();
   const { org } = useProjectContext();
 
-  // Filter to top-level projects only (not agents nested inside other projects)
-  const childIds = getChildVirtualMcpIds(allAgents);
-  const topLevelProjects = allAgents.filter((a) => !childIds.has(a.id));
+  // Only show projects (metadata.type === "project") in the sidebar
+  const projectsOnly = allAgents.filter(
+    (a) => !isDecopilot(a.id) && isProject(a),
+  );
 
-  const serverPinnedIds = topLevelProjects
-    .filter((a) => a.pinned)
-    .map((a) => a.id);
+  const serverPinnedIds = projectsOnly.filter((a) => a.pinned).map((a) => a.id);
   const { pinnedIds, unpin, reorder } = usePinnedAgents(
     org.id,
     serverPinnedIds,
   );
 
-  const agentMap = new Map(topLevelProjects.map((a) => [a.id, a]));
+  const agentMap = new Map(projectsOnly.map((a) => [a.id, a]));
   const pinnedAgents = pinnedIds
     .map((id) => agentMap.get(id))
     .filter((a): a is VirtualMCPEntity => !!a);
