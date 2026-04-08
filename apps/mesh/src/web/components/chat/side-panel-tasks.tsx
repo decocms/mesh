@@ -96,11 +96,28 @@ function TasksPanelContent({
 
   // Always show ALL tasks — unified panel regardless of context
   const allVirtualMcps = useVirtualMCPs();
-  // Only show project names (not agent names) on task labels
+  // Only show project names (not agent names) on task labels, include default view
   const projectNames = new Map<string, ProjectInfo>(
     allVirtualMcps
       .filter((p) => p.id && !isDecopilotFn(p.id) && isProject(p))
-      .map((p) => [p.id, { name: p.title, icon: p.icon }]),
+      .map((p) => {
+        const layout = (p.metadata?.ui as Record<string, unknown> | undefined)
+          ?.layout as {
+          defaultMainView?: {
+            type: string;
+            id?: string;
+            toolName?: string;
+          };
+        } | null;
+        return [
+          p.id,
+          {
+            name: p.title,
+            icon: p.icon,
+            defaultView: layout?.defaultMainView ?? null,
+          },
+        ];
+      }),
   );
 
   const handleNewTask = () => {

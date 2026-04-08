@@ -455,6 +455,12 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 export interface ProjectInfo {
   name: string;
   icon: string | null;
+  /** Default main view for this project (ext-apps, etc.) */
+  defaultView?: {
+    type: string;
+    id?: string;
+    toolName?: string;
+  } | null;
 }
 
 type GroupBy = "none" | "project" | "status";
@@ -511,10 +517,22 @@ export function TaskListContent({
       return;
     }
     if (task.virtual_mcp_id && task.virtual_mcp_id !== currentVirtualMcpId) {
+      // Restore the project's default UI view when navigating cross-project
+      const projectInfo = task.virtual_mcp_id
+        ? projectNames?.get(task.virtual_mcp_id)
+        : undefined;
+      const dv = projectInfo?.defaultView;
+      const searchParams: Record<string, unknown> = { taskId: task.id };
+      if (dv?.type) {
+        searchParams.main = dv.type;
+        searchParams.mainOpen = 1;
+        if (dv.id) searchParams.id = dv.id;
+        if (dv.toolName) searchParams.toolName = dv.toolName;
+      }
       navigate({
         to: "/$org/$virtualMcpId/",
         params: { org: org.slug, virtualMcpId: task.virtual_mcp_id },
-        search: { taskId: task.id },
+        search: searchParams,
       });
     } else {
       setTaskId(task.id);
