@@ -8,13 +8,8 @@ import {
 } from "@/monitoring/types";
 import { BetterAuthOptions } from "better-auth";
 import { existsSync, readFileSync } from "fs";
+import { z } from "zod";
 import { getSettings } from "../settings";
-
-const DEFAULT_AUTH_CONFIG: Partial<BetterAuthOptions> = {
-  emailAndPassword: {
-    enabled: true,
-  },
-};
 
 /**
  * Theme configuration for customizing the UI appearance.
@@ -72,52 +67,148 @@ export interface Config {
 }
 
 /**
- * Load optional configuration from file
- *
- * Paths can be configured via environment variables:
- * - CONFIG_PATH: Full config file path (default: ./config.json)
- * - AUTH_CONFIG_PATH: Auth config file path (default: ./auth-config.json)
+ * Zod helper: use the file value if non-empty, otherwise fall back to an env var.
  */
-function loadConfig(): Config {
+const envFallback = (envKey: string) =>
+  z
+    .string()
+    .optional()
+    .transform((val) => val || process.env[envKey] || "");
+
+/**
+ * Zod schema for auth config secrets.
+ *
+ * Values are resolved with file-first, env-fallback semantics:
+ *   1. JSON.parse the file → use the value if present
+ *   2. If the value is missing or empty → read from env var
+ *
+ * Supported env vars:
+ * - AUTH_GOOGLE_CLIENT_ID / AUTH_GOOGLE_CLIENT_SECRET
+ * - AUTH_GITHUB_CLIENT_ID / AUTH_GITHUB_CLIENT_SECRET
+ * - AUTH_RESEND_API_KEY (applies to the "resend-primary" email provider)
+ */
+const authConfigSchema = z
+  .object({
+    emailAndPassword: z
+      .object({ enabled: z.boolean().default(true) })
+      .passthrough()
+      .default({ enabled: true }),
+    socialProviders: z
+      .object({
+        google: z
+          .object({
+            clientId: envFallback("AUTH_GOOGLE_CLIENT_ID"),
+            clientSecret: envFallback("AUTH_GOOGLE_CLIENT_SECRET"),
+          })
+          .passthrough()
+          .optional(),
+        github: z
+          .object({
+            clientId: envFallback("AUTH_GITHUB_CLIENT_ID"),
+            clientSecret: envFallback("AUTH_GITHUB_CLIENT_SECRET"),
+          })
+          .passthrough()
+          .optional(),
+      })
+      .passthrough()
+      .optional(),
+    emailProviders: z.array(z.record(z.string(), z.unknown())).optional(),
+  })
+  .passthrough()
+  .transform((config) => {
+    // If env vars are set but the provider block wasn't in the file, create it
+    const socialProviders = { ...config.socialProviders };
+    if (
+      !socialProviders.google &&
+      (process.env.AUTH_GOOGLE_CLIENT_ID ||
+        process.env.AUTH_GOOGLE_CLIENT_SECRET)
+    ) {
+      socialProviders.google = {
+        clientId: process.env.AUTH_GOOGLE_CLIENT_ID ?? "",
+        clientSecret: process.env.AUTH_GOOGLE_CLIENT_SECRET ?? "",
+      };
+    }
+    if (
+      !socialProviders.github &&
+      (process.env.AUTH_GITHUB_CLIENT_ID ||
+        process.env.AUTH_GITHUB_CLIENT_SECRET)
+    ) {
+      socialProviders.github = {
+        clientId: process.env.AUTH_GITHUB_CLIENT_ID ?? "",
+        clientSecret: process.env.AUTH_GITHUB_CLIENT_SECRET ?? "",
+      };
+    }
+
+    // Apply resend API key env override
+    const resendApiKey = process.env.AUTH_RESEND_API_KEY;
+    let emailProviders = config.emailProviders;
+    if (resendApiKey && emailProviders) {
+      emailProviders = emailProviders.map((p) =>
+        p.id === "resend-primary"
+          ? { ...p, config: { ...(p.config as object), apiKey: resendApiKey } }
+          : p,
+      );
+    }
+
+    return {
+      ...config,
+      ...(Object.keys(socialProviders).length > 0 && { socialProviders }),
+      ...(emailProviders && { emailProviders }),
+    };
+  });
+
+/**
+ * Read raw JSON from the config file or auth-config file.
+ * Returns the parsed object, or null if no file exists / parse fails.
+ */
+function readConfigFile(): {
+  raw: Record<string, unknown>;
+  isFullConfig: boolean;
+} | null {
   const configPath = getSettings().configPath;
   const authConfigPath = getSettings().authConfigPath;
 
   if (existsSync(configPath)) {
     try {
-      const content = readFileSync(configPath, "utf-8");
-      const parsed = JSON.parse(content);
       return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-        ...parsed,
+        raw: JSON.parse(readFileSync(configPath, "utf-8")),
+        isFullConfig: true,
       };
     } catch {
-      return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-      };
+      return null;
     }
   }
 
   if (existsSync(authConfigPath)) {
     try {
-      const content = readFileSync(authConfigPath, "utf-8");
       return {
-        auth: JSON.parse(content),
-        monitoring: DEFAULT_MONITORING_CONFIG,
+        raw: JSON.parse(readFileSync(authConfigPath, "utf-8")),
+        isFullConfig: false,
       };
     } catch {
-      return {
-        auth: DEFAULT_AUTH_CONFIG,
-        monitoring: DEFAULT_MONITORING_CONFIG,
-      };
+      return null;
     }
   }
 
-  return {
-    auth: DEFAULT_AUTH_CONFIG,
-    monitoring: DEFAULT_MONITORING_CONFIG,
-  };
+  return null;
+}
+
+function loadConfig(): Config {
+  const file = readConfigFile();
+
+  if (file?.isFullConfig) {
+    // config.json: full config with auth nested under "auth" key
+    const auth = authConfigSchema.parse(file.raw.auth ?? {});
+    return {
+      monitoring: DEFAULT_MONITORING_CONFIG,
+      ...file.raw,
+      auth,
+    } as Config;
+  }
+
+  // auth-config.json or no file: parse as auth config directly
+  const auth = authConfigSchema.parse(file?.raw ?? {});
+  return { auth, monitoring: DEFAULT_MONITORING_CONFIG } as Config;
 }
 
 let _config: Config | null = null;

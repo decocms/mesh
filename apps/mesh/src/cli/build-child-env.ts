@@ -44,6 +44,13 @@ export function buildChildEnv(
     CONFIG_PATH: settings.configPath,
     AUTH_CONFIG_PATH: settings.authConfigPath,
 
+    // Auth provider credentials (env var overrides for auth-config.json)
+    AUTH_GOOGLE_CLIENT_ID: process.env.AUTH_GOOGLE_CLIENT_ID,
+    AUTH_GOOGLE_CLIENT_SECRET: process.env.AUTH_GOOGLE_CLIENT_SECRET,
+    AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
+    AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
+    AUTH_RESEND_API_KEY: process.env.AUTH_RESEND_API_KEY,
+
     // Transport
     UNSAFE_ALLOW_STDIO_TRANSPORT: String(settings.unsafeAllowStdioTransport),
 
