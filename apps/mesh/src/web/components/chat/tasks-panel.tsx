@@ -6,6 +6,7 @@
  */
 
 import { useChatTask } from "@/web/components/chat/context";
+import { AgentAvatar } from "@/web/components/agent-icon";
 import { usePanelActions } from "@/web/layouts/shell-layout";
 import { useInsetContext } from "@/web/layouts/shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
@@ -26,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
+import { FilterLines, Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
@@ -142,12 +143,12 @@ function TaskRow({
   task,
   isActive,
   onClick,
-  projectName,
+  projectInfo,
 }: {
   task: Task;
   isActive: boolean;
   onClick: () => void;
-  projectName?: string;
+  projectInfo?: ProjectInfo;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
   const playSound = useSound(question004Sound);
@@ -161,7 +162,7 @@ function TaskRow({
     <div
       className={cn(
         "group/row relative flex items-center gap-2 mx-2 px-3 rounded-md w-[calc(100%-1rem)] cursor-pointer",
-        projectName ? "h-12 py-1" : "h-10",
+        projectInfo ? "h-12 py-1" : "h-10",
         isActive ? "bg-accent" : "hover:bg-accent/50",
       )}
       onClick={onClick}
@@ -222,10 +223,18 @@ function TaskRow({
             {task.updated_at ? formatTimeAgo(new Date(task.updated_at)) : ""}
           </span>
         </div>
-        {projectName && (
-          <span className="text-[11px] text-muted-foreground/50 truncate leading-tight">
-            {projectName}
-          </span>
+        {projectInfo && (
+          <div className="flex items-center gap-1 leading-tight">
+            <AgentAvatar
+              icon={projectInfo.icon}
+              name={projectInfo.name}
+              size="xs"
+              className="size-3.5 [&_svg]:size-2 shrink-0"
+            />
+            <span className="text-[11px] text-muted-foreground/50 truncate">
+              {projectInfo.name}
+            </span>
+          </div>
         )}
       </div>
 
@@ -443,13 +452,20 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
+export interface ProjectInfo {
+  name: string;
+  icon: string | null;
+}
+
+type GroupBy = "none" | "project" | "status";
+
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
   onTaskCreate?: () => void;
   virtualMcpId?: string | null;
   showAutomations?: boolean;
-  /** Map of virtualMcpId → project name for labeling tasks */
-  projectNames?: Map<string, string>;
+  /** Map of virtualMcpId → project info for labeling tasks */
+  projectNames?: Map<string, ProjectInfo>;
 }
 
 export function TaskListContent({
@@ -461,12 +477,12 @@ export function TaskListContent({
 }: TaskListContentProps) {
   const { ownerFilter } = useChatTask();
   const { setTaskId } = usePanelActions();
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
 
-  // Read taskId directly from router (seeded by validateSearch)
   const search = useSearch({ strict: false }) as { taskId?: string };
   const taskId = search.taskId ?? null;
 
-  // Own task list fetch — shares TanStack Query cache with ChatContextProvider
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
   const { tasks } = useTasks(
@@ -477,6 +493,7 @@ export function TaskListContent({
 
   const visible = tasks
     .filter((t) => !t.hidden)
+    .filter((t) => !filterProjectId || t.virtual_mcp_id === filterProjectId)
     .slice()
     .sort(
       (a, b) =>
@@ -493,7 +510,6 @@ export function TaskListContent({
       onTaskSelect(task.id);
       return;
     }
-    // Navigate cross-project if the task belongs to a different project
     if (task.virtual_mcp_id && task.virtual_mcp_id !== currentVirtualMcpId) {
       navigate({
         to: "/$org/$virtualMcpId/",
@@ -505,20 +521,143 @@ export function TaskListContent({
     }
   };
 
+  const grouped =
+    groupBy === "project"
+      ? groupByProject(visible, projectNames)
+      : groupBy === "status"
+        ? groupByStatus(visible)
+        : null;
+
+  const projectOptions = projectNames
+    ? Array.from(projectNames.entries()).map(([id, info]) => ({
+        id,
+        name: info.name,
+        icon: info.icon,
+      }))
+    : [];
+
+  const hasActiveFilter = groupBy !== "none" || filterProjectId !== null;
+
+  const renderTask = (task: Task) => (
+    <TaskRow
+      key={task.id}
+      task={task}
+      isActive={task.id === taskId}
+      onClick={() => handleSelect(task)}
+      projectInfo={
+        projectNames && task.virtual_mcp_id
+          ? projectNames.get(task.virtual_mcp_id)
+          : undefined
+      }
+    />
+  );
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto">
-        {/* Automations section */}
         {virtualMcpId && showAutomations && (
           <IncomingSection virtualMcpId={virtualMcpId} />
         )}
 
-        {/* Tasks section header */}
-        <div className="flex items-center gap-2 mx-2 px-3 h-8 mt-2 w-[calc(100%-1rem)]">
-          <span className="text-xs font-medium text-muted-foreground/60">
+        {/* Header with filter */}
+        <div className="flex items-center gap-1 mx-2 px-3 h-8 mt-2 w-[calc(100%-1rem)]">
+          <span className="text-xs font-medium text-muted-foreground/60 flex-1">
             Tasks
           </span>
-          <span className="flex-1" />
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <span
+                    role="button"
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-md cursor-pointer",
+                      hasActiveFilter
+                        ? "text-foreground bg-accent"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <FilterLines size={14} />
+                  </span>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filter</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                className="gap-2 text-xs"
+                onSelect={() => {
+                  setGroupBy("none");
+                  setFilterProjectId(null);
+                }}
+              >
+                No grouping
+                {!hasActiveFilter && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    active
+                  </span>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 text-xs"
+                onSelect={() => setGroupBy("project")}
+              >
+                Group by project
+                {groupBy === "project" && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    active
+                  </span>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 text-xs"
+                onSelect={() => setGroupBy("status")}
+              >
+                Group by status
+                {groupBy === "status" && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    active
+                  </span>
+                )}
+              </DropdownMenuItem>
+              {projectOptions.length > 0 && (
+                <>
+                  <div className="h-px bg-border my-1" />
+                  <div className="px-2 py-1">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      Filter by project
+                    </span>
+                  </div>
+                  {projectOptions.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      className="gap-2 text-xs"
+                      onSelect={() =>
+                        setFilterProjectId(
+                          filterProjectId === p.id ? null : p.id,
+                        )
+                      }
+                    >
+                      <AgentAvatar
+                        icon={p.icon}
+                        name={p.name}
+                        size="xs"
+                        className="size-4 [&_svg]:size-2.5 shrink-0"
+                      />
+                      {p.name}
+                      {filterProjectId === p.id && (
+                        <span className="ml-auto text-[10px] text-muted-foreground">
+                          active
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {onTaskCreate && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -535,21 +674,23 @@ export function TaskListContent({
           )}
         </div>
 
-        {/* Task rows — always visible */}
-        {visible.length > 0 ? (
-          visible.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              isActive={task.id === taskId}
-              onClick={() => handleSelect(task)}
-              projectName={
-                projectNames && task.virtual_mcp_id
-                  ? projectNames.get(task.virtual_mcp_id)
-                  : undefined
-              }
-            />
+        {/* Task rows */}
+        {grouped ? (
+          Object.entries(grouped).map(([label, groupTasks]) => (
+            <div key={label} className="mt-1">
+              <div className="flex items-center gap-2 mx-2 px-3 h-7 w-[calc(100%-1rem)]">
+                <span className="text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider truncate">
+                  {label}
+                </span>
+                <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+                  {groupTasks.length}
+                </span>
+              </div>
+              {groupTasks.map(renderTask)}
+            </div>
           ))
+        ) : visible.length > 0 ? (
+          visible.map(renderTask)
         ) : (
           <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
             No tasks
@@ -558,4 +699,31 @@ export function TaskListContent({
       </div>
     </div>
   );
+}
+
+function groupByProject(
+  tasks: Task[],
+  projectNames?: Map<string, ProjectInfo>,
+): Record<string, Task[]> {
+  const groups: Record<string, Task[]> = {};
+  for (const task of tasks) {
+    const name =
+      (task.virtual_mcp_id && projectNames?.get(task.virtual_mcp_id)?.name) ??
+      "Other";
+    if (!groups[name]) groups[name] = [];
+    groups[name].push(task);
+  }
+  return groups;
+}
+
+function groupByStatus(tasks: Task[]): Record<string, Task[]> {
+  const groups: Record<string, Task[]> = {};
+  for (const task of tasks) {
+    const status = task.status ?? "unknown";
+    const label =
+      STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label ?? status;
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(task);
+  }
+  return groups;
 }

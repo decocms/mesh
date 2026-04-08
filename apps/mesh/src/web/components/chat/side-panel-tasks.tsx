@@ -15,7 +15,7 @@ import { Suspense, useTransition } from "react";
 import { isMac } from "@/web/lib/keyboard-shortcuts";
 import { ErrorBoundary } from "../error-boundary";
 import { Chat } from "./index";
-import { OwnerFilter, TaskListContent } from "./tasks-panel";
+import { OwnerFilter, TaskListContent, type ProjectInfo } from "./tasks-panel";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
 import {
@@ -95,10 +95,10 @@ function TasksPanelContent({
 
   // Always show ALL tasks — unified panel regardless of context
   const allProjects = useVirtualMCPs();
-  const projectNames = new Map(
+  const projectNames = new Map<string, ProjectInfo>(
     allProjects
       .filter((p) => p.id && !isDecopilotFn(p.id))
-      .map((p) => [p.id, p.title]),
+      .map((p) => [p.id, { name: p.title, icon: p.icon }]),
   );
 
   const handleNewTask = () => {
