@@ -10,3 +10,7 @@ dependencies:
     version: "2.12.5"
     repository: "https://nats-io.github.io/k8s/helm/charts/"
     condition: nats.enabled
+  - name: opentelemetry-collector
+    version: "0.147.2"
+    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    condition: otel.collector.enabled
