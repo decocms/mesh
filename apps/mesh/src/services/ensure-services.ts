@@ -334,6 +334,25 @@ async function ensurePostgres(home: string): Promise<ServiceInfo> {
     try {
       await pg.initialise();
     } catch (initErr) {
+      const errMsg =
+        initErr instanceof Error ? initErr.message : String(initErr);
+
+      // Detect missing locale — embedded-postgres requires en_US.UTF-8 which
+      // is not available on minimal Linux installations (e.g. Ubuntu minimal,
+      // Alpine, slim Docker images).
+      if (
+        errMsg.includes("init script exited with code 1") ||
+        errMsg.includes("invalid locale")
+      ) {
+        console.error(
+          `[ensurePostgres] PostgreSQL initialisation failed. This is likely caused by a missing locale.\n` +
+            `  embedded-postgres requires the "en_US.UTF-8" locale, which may not be installed on all Linux distros.\n` +
+            `  To fix, run:\n` +
+            `    sudo apt-get install -y locales && sudo locale-gen en_US.UTF-8\n` +
+            `  Then retry.`,
+        );
+      }
+
       // initdb may have been killed by a signal (exit code null) due to a race
       // with another process initializing the same data directory. Log the
       // error for debugging — do NOT remove the data dir as it may contain
