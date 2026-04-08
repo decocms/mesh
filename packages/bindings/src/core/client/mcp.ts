@@ -3,12 +3,6 @@ import { z } from "zod";
 import type { MCPConnection } from "../connection";
 import { createMCPClientProxy } from "./proxy";
 export type { ServerClient } from "./mcp-client";
-export const isStreamableToolBinder = (
-  toolBinder: ToolBinder,
-): toolBinder is ToolBinder<string, any, any, true> => {
-  return toolBinder.streamable === true;
-};
-
 // Default fetcher instance with API_SERVER_URL and API_HEADERS
 export const MCPClient = new Proxy(
   {} as {
@@ -69,13 +63,13 @@ export type MCPClientFetchStub<TDefinition extends readonly ToolBinder[]> = {
     }[]
   >;
 } & {
-  [K in TDefinition[number] as K["name"]]: K["streamable"] extends true
-    ? K extends ToolBinder<string, infer TInput, any, true>
-      ? (params: TInput, init?: RequestInit) => Promise<Response>
-      : never
-    : K extends ToolBinder<string, infer TInput, infer TReturn, any>
-      ? (params: TInput, init?: RequestInit) => Promise<Awaited<TReturn>>
-      : never;
+  [K in TDefinition[number] as K["name"]]: K extends ToolBinder<
+    string,
+    infer TInput,
+    infer TReturn
+  >
+    ? (params: TInput, init?: RequestInit) => Promise<Awaited<TReturn>>
+    : never;
 };
 
 export interface MCPClientRaw {
@@ -93,7 +87,6 @@ export type JSONSchemaToZodConverter = (jsonSchema: any) => z.ZodTypeAny;
 
 export interface CreateStubForClientAPIOptions {
   client: ServerClient;
-  streamable?: Record<string, boolean>;
   debugId?: () => string;
   getErrorByStatusCode?: (
     statusCode: number,
@@ -105,7 +98,6 @@ export interface CreateStubForClientAPIOptions {
 
 export interface CreateStubForConnectionAPIOptions {
   connection: MCPConnection;
-  streamable?: Record<string, boolean>;
   debugId?: () => string;
   createServerClient?: (
     mcpServer: { connection: MCPConnection; name?: string },
