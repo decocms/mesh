@@ -185,17 +185,17 @@ otel:
     enabled: false
 
 # S3 file sync sidecar — syncs /app/data/{logs,traces,metrics} to S3
-# Uses s5cmd (Go) for fast, lightweight S3 sync with minimal resources
+# Uses inotify + curl (AWS SigV4) for event-driven upload with minimal memory
 s3Sync:
   enabled: false
   image:
     repository: ghcr.io/decocms/studio/s3-sync
-    tag: "2.3.0"
+    tag: "3.0.0"
     pullPolicy: IfNotPresent
   bucket: ""               # Required when enabled
   region: "us-east-1"
   prefix: ""               # S3 key prefix (e.g. "studio/production")
-  interval: 30             # Polling interval in seconds
+  interval: 60             # Safety-net poll interval in seconds
   roleArn: ""              # IRSA role ARN — adds eks.amazonaws.com/role-arn to ServiceAccount
   syncDirs:                # Directories under /app/data to sync
     - logs
@@ -203,10 +203,10 @@ s3Sync:
     - metrics
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "200m"
+      memory: "32Mi"
+      cpu: "10m"
     limits:
-      memory: "256Mi"
+      memory: "32Mi"
 
 # NATS subchart (https://artifacthub.io/packages/helm/nats/nats)
 # When enabled, NATS_URL is automatically set to nats://<release-name>-nats:4222
