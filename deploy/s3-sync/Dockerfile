@@ -14,11 +14,11 @@ RUN set -eu; \
     wget -q "https://github.com/peak/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_checksums.txt" \
          -O /tmp/checksums.txt; \
     wget -q "https://github.com/peak/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_${S5CMD_VERSION}_${S5CMD_ARCH}.tar.gz" \
-         -O /tmp/s5cmd.tar.gz; \
+         -O "/tmp/s5cmd_${S5CMD_VERSION}_${S5CMD_ARCH}.tar.gz"; \
     cd /tmp && grep "${S5CMD_ARCH}.tar.gz" checksums.txt | sha256sum -c -; \
-    tar xz -C /usr/local/bin -f /tmp/s5cmd.tar.gz s5cmd; \
+    tar xz -C /usr/local/bin -f "/tmp/s5cmd_${S5CMD_VERSION}_${S5CMD_ARCH}.tar.gz" s5cmd; \
     chmod +x /usr/local/bin/s5cmd; \
-    rm /tmp/checksums.txt /tmp/s5cmd.tar.gz
+    rm /tmp/checksums.txt "/tmp/s5cmd_${S5CMD_VERSION}_${S5CMD_ARCH}.tar.gz"
 
 # Non-root user for security
 RUN adduser -D -u 1001 syncer
