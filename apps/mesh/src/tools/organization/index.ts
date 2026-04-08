@@ -19,6 +19,13 @@ export {
 } from "./brand-context-update";
 export { BRAND_CONTEXT_EXTRACT } from "./brand-context-extract";
 
+// Domain management
+export { ORGANIZATION_DOMAIN_GET } from "./domain-get";
+export {
+  ORGANIZATION_DOMAIN_SET,
+  ORGANIZATION_DOMAIN_CLEAR,
+} from "./domain-set";
+
 // Member management
 export { ORGANIZATION_MEMBER_ADD } from "./member-add";
 export { ORGANIZATION_MEMBER_REMOVE } from "./member-remove";

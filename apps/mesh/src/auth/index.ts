@@ -32,7 +32,8 @@ import {
 import { getConfig } from "@/core/config";
 import { getBaseUrl } from "@/core/server-constants";
 import { createAccessControl, Role } from "@decocms/better-auth/plugins/access";
-import { getDatabaseUrl, getDbDialect } from "../database";
+import { getDb, getDatabaseUrl, getDbDialect } from "../database";
+import { OrganizationDomainStorage } from "../storage/organization-domains";
 import { createEmailOtpConfig } from "./email-otp";
 import { createEmailSender, findEmailProvider } from "./email-providers";
 import { createMagicLinkConfig } from "./magic-link";
@@ -319,6 +320,34 @@ const plugins = [
     : []),
 ];
 
+/**
+ * Generic email providers that should be skipped for domain-based auto-join.
+ */
+const GENERIC_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "protonmail.com",
+  "proton.me",
+  "zoho.com",
+  "yandex.com",
+  "mail.com",
+  "gmx.com",
+  "gmx.net",
+  "tutanota.com",
+  "fastmail.com",
+]);
+
+export { GENERIC_EMAIL_DOMAINS };
+
 const databaseUrl = getDatabaseUrl();
 
 // Get dialect without creating the full Kysely instance
@@ -397,6 +426,30 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Try domain-based auto-join first
+          const emailDomain = user.email?.split("@")[1]?.toLowerCase();
+          if (emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+            try {
+              const domainStorage = new OrganizationDomainStorage(getDb().db);
+              const domainRecord = await domainStorage.getByDomain(emailDomain);
+
+              if (domainRecord?.autoJoinEnabled) {
+                // Auto-join the user to the org
+                await auth.api.addMember({
+                  body: {
+                    userId: user.id,
+                    role: "user",
+                    organizationId: domainRecord.organizationId,
+                  },
+                } as any);
+                return; // Skip default org creation
+              }
+            } catch (error) {
+              console.error("[Auth] Domain auto-join check failed:", error);
+              // Fall through to default org creation
+            }
+          }
+
           // Check if auto-creation is enabled (default: true)
           if (getConfig().autoCreateOrganizationOnSignup === false) {
             return;

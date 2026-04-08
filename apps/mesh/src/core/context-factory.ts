@@ -33,6 +33,7 @@ import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-co
 import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import { BrandContextStorage } from "../storage/brand-context";
+import { OrganizationDomainStorage } from "../storage/organization-domains";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import {
@@ -900,6 +901,7 @@ export async function createMeshContextFactory(
       monitorConnections: new MonitorConnectionStorage(config.db as any),
     },
     brandContext: new BrandContextStorage(config.db),
+    organizationDomains: new OrganizationDomainStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin

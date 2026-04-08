@@ -33,6 +33,7 @@ const createMockContext = (overrides?: Partial<MeshContext>): MeshContext => ({
     triggerCallbackTokens: null as never,
     registry: null as never,
     brandContext: null as never,
+    organizationDomains: null as never,
   },
   vault: null as never,
   authInstance: null as never,

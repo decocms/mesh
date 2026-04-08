@@ -289,6 +289,13 @@ export const KEYS = {
   promptConnectionMap: (orgId: string, connectionIds: string[]) =>
     ["prompt-connection-map", orgId, ...connectionIds] as const,
 
+  // Organization domain (scoped by organization)
+  organizationDomain: (organizationId: string) =>
+    ["organization-domain", organizationId] as const,
+
+  // Domain lookup (for onboarding — scoped by email domain)
+  domainLookup: (domain: string) => ["domain-lookup", domain] as const,
+
   // Brand context (scoped by organization)
   brandContext: (organizationId: string) =>
     ["brand-context", organizationId] as const,

@@ -197,4 +197,150 @@ app.post("/local-session", async (c) => {
   }
 });
 
+/**
+ * Domain Lookup Endpoint (authenticated)
+ *
+ * For the onboarding flow: checks if an email domain has a claimed organization.
+ * Requires a valid session — the /api/auth/ prefix skips MeshContext but we
+ * verify the session manually via Better Auth.
+ *
+ * Only returns the org name and slug (not the ID) to limit exposure.
+ *
+ * Route: GET /api/auth/custom/domain-lookup?domain=acme.com
+ */
+app.get("/domain-lookup", async (c) => {
+  // Verify authentication — session required
+  const { auth } = await import("../../auth");
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as { user?: { id: string } } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+
+  const domain = c.req.query("domain")?.toLowerCase().trim();
+  if (!domain) {
+    return c.json(
+      { success: false, error: "domain query param required" },
+      400,
+    );
+  }
+
+  try {
+    const { OrganizationDomainStorage } = await import(
+      "../../storage/organization-domains"
+    );
+    const { getDb } = await import("../../database");
+    const domainStorage = new OrganizationDomainStorage(getDb().db);
+    const record = await domainStorage.getByDomain(domain);
+
+    if (!record) {
+      return c.json({ found: false });
+    }
+
+    // Fetch org name/slug for display — deliberately omit ID
+    const db = getDb().db;
+    const org = await db
+      .selectFrom("organization")
+      .select(["name", "slug"])
+      .where("id", "=", record.organizationId)
+      .executeTakeFirst();
+
+    return c.json({
+      found: true,
+      autoJoinEnabled: record.autoJoinEnabled,
+      organization: org ? { name: org.name, slug: org.slug } : null,
+    });
+  } catch (error) {
+    console.error("[Auth] Domain lookup failed:", error);
+    return c.json({ success: false, error: "Domain lookup failed" }, 500);
+  }
+});
+
+/**
+ * Domain Auto-Join Endpoint (authenticated)
+ *
+ * Adds the authenticated user to an organization whose claimed domain
+ * matches the user's email domain, provided auto_join_enabled is true.
+ * The server validates everything — the client only supplies the org slug.
+ *
+ * Route: POST /api/auth/custom/domain-join
+ */
+app.post("/domain-join", async (c) => {
+  const { auth: authInstance, GENERIC_EMAIL_DOMAINS } = await import(
+    "../../auth"
+  );
+
+  // Verify authentication
+  const session = (await authInstance.api.getSession({
+    headers: c.req.raw.headers,
+  })) as { user?: { id: string; email: string } } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+
+  const body = (await c.req.json()) as { orgSlug?: string };
+  const orgSlug = body.orgSlug;
+  if (!orgSlug || typeof orgSlug !== "string") {
+    return c.json({ success: false, error: "orgSlug is required" }, 400);
+  }
+
+  const userEmail = session.user.email;
+  const emailDomain = userEmail?.split("@")[1]?.toLowerCase();
+  if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+    return c.json(
+      { success: false, error: "Generic email domains cannot auto-join" },
+      403,
+    );
+  }
+
+  try {
+    const { OrganizationDomainStorage } = await import(
+      "../../storage/organization-domains"
+    );
+    const { getDb } = await import("../../database");
+    const db = getDb().db;
+    const domainStorage = new OrganizationDomainStorage(db);
+
+    // Look up the domain claim
+    const domainRecord = await domainStorage.getByDomain(emailDomain);
+    if (!domainRecord || !domainRecord.autoJoinEnabled) {
+      return c.json(
+        { success: false, error: "Auto-join is not available for this domain" },
+        403,
+      );
+    }
+
+    // Verify the org slug matches the domain's org
+    const org = await db
+      .selectFrom("organization")
+      .select(["id", "slug"])
+      .where("id", "=", domainRecord.organizationId)
+      .executeTakeFirst();
+
+    if (!org || org.slug !== orgSlug) {
+      return c.json(
+        { success: false, error: "Organization does not match domain" },
+        403,
+      );
+    }
+
+    // Add the user as a member
+    await authInstance.api.addMember({
+      body: {
+        userId: session.user.id,
+        role: "user",
+        organizationId: org.id,
+      },
+    } as any);
+
+    return c.json({ success: true, slug: org.slug });
+  } catch (error) {
+    const msg =
+      error instanceof Error ? error.message : "Failed to join organization";
+    console.error("[Auth] Domain join failed:", msg);
+    return c.json({ success: false, error: msg }, 500);
+  }
+});
+
 export default app;
