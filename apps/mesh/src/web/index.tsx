@@ -167,7 +167,7 @@ const homeRoute = createRoute({
 
 // Onboarding route (for users with no orgs)
 const onboardingRoute = createRoute({
-  getParentRoute: () => shellLayout,
+  getParentRoute: () => rootRoute,
   path: "/onboarding",
   component: lazyRouteComponent(() => import("./routes/onboarding.tsx")),
 });
@@ -585,12 +585,12 @@ const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
-  onboardingRoute,
   orgLayoutWithChildren,
 ]);
 
 const routeTree = rootRoute.addChildren([
   shellRouteTree,
+  onboardingRoute,
   loginRoute,
   resetPasswordRoute,
   betterAuthRoutes,
