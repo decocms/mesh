@@ -76,14 +76,14 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: {{ .Values.otel.service | quote }}
             {{- end }}
-            {{- if .Values.otel.collector.enabled }}
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://localhost:4318"
-            {{- else if .Values.otel.endpoint }}
+            {{- if .Values.otel.endpoint }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.otel.endpoint | quote }}
+            {{- else if .Values.otel.collector.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ printf "http://%s-opentelemetry-collector:4318" .Release.Name | quote }}
             {{- end }}
-            {{- if and .Values.otel.headers (not .Values.otel.collector.enabled) }}
+            {{- if and .Values.otel.headers (or (not .Values.otel.collector.enabled) .Values.otel.endpoint) }}
             - name: OTEL_EXPORTER_OTLP_HEADERS
               value: {{ include "chart-deco-studio.otelHeaders" . | quote }}
             {{- end }}
@@ -122,48 +122,6 @@ spec:
           {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if and .Values.otel.enabled .Values.otel.collector.enabled }}
-        - name: otel-collector
-          image: "{{ .Values.otel.collector.image.repository }}:{{ .Values.otel.collector.image.tag }}"
-          imagePullPolicy: {{ .Values.otel.collector.image.pullPolicy }}
-          command:
-            - "/otelcol-contrib"
-            - "--config=/etc/otel/config.yaml"
-          ports:
-            - name: otlp-grpc
-              containerPort: 4317
-              protocol: TCP
-            - name: otlp-http
-              containerPort: 4318
-              protocol: TCP
-            - name: health
-              containerPort: 13133
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 13133
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 13133
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          {{- with .Values.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.otel.collector.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          volumeMounts:
-            - name: otel-collector-config
-              mountPath: /etc/otel
-              readOnly: true
-      {{- end }}
       {{- if .Values.s3Sync.enabled }}
         - name: s3-sync
           image: "{{ .Values.s3Sync.image.repository }}:{{ .Values.s3Sync.image.tag }}"
@@ -209,14 +167,6 @@ spec:
         {{- else }}
         - name: data
           emptyDir: {}
-        {{- end }}
-        {{- if and .Values.otel.enabled .Values.otel.collector.enabled }}
-        - name: otel-collector-config
-          configMap:
-            name: {{ include "chart-deco-studio.fullname" . }}-otel-collector
-            items:
-              - key: config.yaml
-                path: config.yaml
         {{- end }}
         {{- if .Values.s3Sync.enabled }}
         - name: s3-sync-script
