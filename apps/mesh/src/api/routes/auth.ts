@@ -341,7 +341,7 @@ app.post("/domain-join", async (c) => {
     } catch (addError) {
       const msg =
         addError instanceof Error ? addError.message.toLowerCase() : "";
-      const isAlreadyMember = msg.includes("already") || msg.includes("member");
+      const isAlreadyMember = msg.includes("already a member");
       if (!isAlreadyMember) {
         console.error("[Auth] Domain join addMember failed:", addError);
         return c.json(
