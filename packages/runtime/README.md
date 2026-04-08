@@ -742,7 +742,11 @@ import { ... } from "@decocms/runtime/tools";
 
 ## Deployment
 
-The server works with any Web Standard runtime:
+`withRuntime` returns a standard `{ fetch }` handler that works with any Web Standard runtime. For simple servers you can use it directly, but real-world MCP apps typically have custom routes, static assets, and other platform-specific concerns. The recommended pattern separates your app logic from platform-specific wiring.
+
+### Simple (no custom routes)
+
+If your MCP app only exposes tools/prompts/resources with no custom HTTP routes:
 
 **Cloudflare Workers:**
 ```typescript
@@ -752,18 +756,127 @@ export default withRuntime({ tools: [...] });
 **Bun:**
 ```typescript
 const server = withRuntime({ tools: [...] });
-Bun.serve({
-  port: 3000,
-  fetch: server.fetch,
-});
+Bun.serve({ port: 3000, fetch: server.fetch });
 ```
 
-**Node.js (with adapter):**
+**Node.js:**
 ```typescript
 import { serve } from "@hono/node-server";
 const server = withRuntime({ tools: [...] });
 serve({ fetch: server.fetch, port: 3000 });
 ```
+
+### Multi-Platform Pattern (recommended for apps with custom routes or assets)
+
+Most MCP apps need custom REST routes, serve static assets, or embed resources like CSS/JS. These apps should use an **app factory** pattern — a platform-agnostic core with thin entrypoints per deployment target.
+
+#### 1. App Factory (`api/app.ts`)
+
+Define your entire app as a factory function that receives platform-resolved assets and returns a Hono app. All routes, middleware, and `withRuntime` usage live here — no platform-specific code.
+
+```typescript
+import { withRuntime } from "@decocms/runtime";
+import { Hono } from "hono";
+
+export interface AppConfig {
+  /** Pre-loaded static assets (loaded differently per platform) */
+  assets: { tailwindCDN: string };
+  /** Pre-loaded client HTML (optional — omit to read from disk at dev time) */
+  clientHTML?: string;
+}
+
+export function createApp(config: AppConfig) {
+  const runtime = withRuntime({
+    tools: [...],
+    resources: [...],
+  });
+
+  const app = new Hono();
+
+  // Custom routes
+  app.get("/api/health", (c) => c.json({ ok: true }));
+
+  // MCP bridge
+  app.all("/api/mcp", (c) => runtime.fetch(c.req.raw, {}));
+  app.all("/api/mcp/*", (c) => {
+    const url = new URL(c.req.url);
+    url.pathname = url.pathname.replace("/api/mcp", "/mcp");
+    return runtime.fetch(new Request(url.toString(), c.req.raw), {});
+  });
+
+  return app;
+}
+```
+
+#### 2. Platform Entrypoints
+
+Each target gets a thin file (~10 lines) that loads assets the platform's way and calls `createApp()`.
+
+**Bun (`api/main.bun.ts`):**
+```typescript
+import TAILWIND_CDN from "./lib/tailwind-cdn.min.js?raw"; // Bun ?raw import
+import { createApp } from "./app.ts";
+
+const app = createApp({
+  assets: { tailwindCDN: TAILWIND_CDN },
+});
+
+Bun.serve({ port: 3001, fetch: app.fetch });
+```
+
+**Cloudflare Workers (`api/main.workers.ts`):**
+```typescript
+// Wrangler resolves these as Text modules via [[rules]] in wrangler.toml
+import CLIENT_HTML from "../dist/client/index.html";
+import TAILWIND_CDN from "./lib/tailwind-cdn.min.js";
+import { createApp } from "./app.ts";
+
+export default createApp({
+  clientHTML: CLIENT_HTML as unknown as string,
+  assets: { tailwindCDN: TAILWIND_CDN as unknown as string },
+});
+```
+
+**Deno (`api/main.deno.ts`):**
+```typescript
+import { createApp } from "./app.ts";
+
+const tailwindCDN = await Deno.readTextFile("./lib/tailwind-cdn.min.js");
+const app = createApp({ assets: { tailwindCDN } });
+
+Deno.serve({ port: 3001 }, app.fetch);
+```
+
+**Node.js (`api/main.node.ts`):**
+```typescript
+import { readFileSync } from "node:fs";
+import { serve } from "@hono/node-server";
+import { createApp } from "./app.ts";
+
+const tailwindCDN = readFileSync("./lib/tailwind-cdn.min.js", "utf-8");
+const app = createApp({ assets: { tailwindCDN } });
+
+serve({ fetch: app.fetch, port: 3001 });
+```
+
+**AWS Lambda (`api/main.lambda.ts`):**
+```typescript
+import { readFileSync } from "node:fs";
+import { handle } from "hono/aws-lambda";
+import { createApp } from "./app.ts";
+
+const tailwindCDN = readFileSync("./lib/tailwind-cdn.min.js", "utf-8");
+const app = createApp({ assets: { tailwindCDN } });
+
+export const handler = handle(app);
+```
+
+#### Key Principles
+
+- **The app factory is the source of truth.** All business logic, routes, tools, and middleware live in `createApp()`. Entrypoints never contain business logic.
+- **Asset loading is the main thing that varies.** Each platform has its own way of loading static files — Bun uses `?raw` imports, Workers uses Text modules via `wrangler.toml` rules, Deno/Node use filesystem reads.
+- **Server start is trivial.** Each platform has a one-liner to start an HTTP server from a `fetch` handler. This isn't worth abstracting.
+- **Adding a new target is ~10 lines.** Create a new `main.<platform>.ts`, load assets the platform's way, call `createApp()`, start the server.
 
 ## License
 
