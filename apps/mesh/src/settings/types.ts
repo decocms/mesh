@@ -39,6 +39,9 @@ export interface Settings {
   // Transport
   unsafeAllowStdioTransport: boolean;
 
+  // Security
+  allowPrivateNetworkConnections: boolean;
+
   // AI Gateway
   aiGatewayEnabled: boolean;
   aiGatewayUrl: string;

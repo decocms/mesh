@@ -15,6 +15,7 @@
 import { Hono } from "hono";
 import { ContextFactory } from "../../core/context-factory";
 import type { MeshContext } from "../../core/mesh-context";
+import { getSettings } from "../../settings";
 import { isPrivateNetworkUrl } from "../../shared/utils/url-validation";
 
 // Define Hono variables type
@@ -53,7 +54,11 @@ async function getConnectionUrl(
 ): Promise<string | null> {
   const connection = await ctx.storage.connections.findById(connectionId);
   const url = connection?.connection_url ?? null;
-  if (url && isPrivateNetworkUrl(url)) {
+  if (
+    url &&
+    !getSettings().allowPrivateNetworkConnections &&
+    isPrivateNetworkUrl(url)
+  ) {
     return null;
   }
   return url;
