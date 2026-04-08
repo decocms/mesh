@@ -258,12 +258,12 @@ nats:
       enabled: true
       memoryStore:
         enabled: true
-        maxSize: 1Gi
+        maxSize: 512Mi
       fileStore:
         enabled: true
         pvc:
           enabled: true
-          size: 10Gi
+          size: 5Gi
           storageClassName: ""  # empty = use cluster default StorageClass
 
 # Additional environment variables (merged with existing envs)
