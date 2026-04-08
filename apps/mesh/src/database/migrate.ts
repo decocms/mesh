@@ -154,10 +154,11 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
   }
 
   // Use a transaction-scoped advisory lock to prevent concurrent execution.
-  // Must use db.connection() to pin to a single connection (pool-safe).
+  // db.transaction() both pins the connection AND wraps in a transaction,
+  // so pg_advisory_xact_lock holds until the transaction commits.
   // Lock ID 73649281 is a fixed constant for plugin migrations.
-  return await db.connection().execute(async (conn) => {
-    await sql`SELECT pg_advisory_xact_lock(73649281)`.execute(conn);
+  return await db.transaction().execute(async (trx) => {
+    await sql`SELECT pg_advisory_xact_lock(73649281)`.execute(trx);
 
     // Note: plugin_migrations table and old record migration are handled
     // in runKyselyMigrations() before Kysely's migrator runs
@@ -165,7 +166,7 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
     // Get already executed migrations
     const executed = await sql<{ plugin_id: string; name: string }>`
       SELECT plugin_id, name FROM plugin_migrations
-    `.execute(conn);
+    `.execute(trx);
     const executedSet = new Set(
       executed.rows.map((r) => `${r.plugin_id}/${r.name}`),
     );
@@ -204,14 +205,14 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
         }
 
         totalPending++;
-        await migration.up(conn);
+        await migration.up(trx);
 
         // Record as executed
         const timestamp = new Date().toISOString();
         await sql`
           INSERT INTO plugin_migrations (plugin_id, name, timestamp)
           VALUES (${pluginId}, ${migration.name}, ${timestamp})
-        `.execute(conn);
+        `.execute(trx);
       }
     }
 
