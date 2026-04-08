@@ -11,6 +11,7 @@ import { ChatPanel } from "@/web/components/chat/side-panel-chat";
 import { TasksSidePanel } from "@/web/components/chat/side-panel-tasks";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { SplashScreen } from "@/web/components/splash-screen";
+import { ContentToolbar } from "@/web/components/layout/content-toolbar";
 import { KeyboardShortcutsDialog } from "@/web/components/keyboard-shortcuts-dialog";
 import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
 import { StudioSidebar, StudioSidebarMobile } from "@/web/components/sidebar";
@@ -623,20 +624,6 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
               </button>
               <button
                 type="button"
-                onClick={layout.toggleMain}
-                aria-pressed={layout.mainOpen}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md transition-colors",
-                  layout.mainOpen
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-                title="Toggle content"
-              >
-                <Browser size={16} />
-              </button>
-              <button
-                type="button"
                 onClick={layout.toggleChat}
                 aria-pressed={layout.chatOpen}
                 className={cn(
@@ -646,6 +633,20 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
                     : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 title="Toggle chat"
+              >
+                <Browser size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={layout.toggleMain}
+                aria-pressed={layout.mainOpen}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md transition-colors",
+                  layout.mainOpen
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                )}
+                title="Toggle content"
               >
                 <LayoutRight size={16} />
               </button>
@@ -792,6 +793,7 @@ function UnifiedPanelGroup({
       className="flex-1 min-h-0 pb-1 pr-1 pl-0 pt-0"
       style={{ overflow: "visible" }}
     >
+      {/* Panel 1: Tasks */}
       <TasksResizablePanel defaultSize={sizes.tasks}>
         <div className="h-full p-0.5 overflow-hidden">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
@@ -805,9 +807,21 @@ function UnifiedPanelGroup({
       </TasksResizablePanel>
       <ResizableHandle className="bg-sidebar" />
 
+      {/* Panel 2: Chat (center) */}
+      <PersistentResizablePanel defaultSize={sizes.chat}>
+        <div className="h-full p-0.5">
+          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
+            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+          </div>
+        </div>
+      </PersistentResizablePanel>
+
+      <ResizableHandle className="bg-sidebar" />
+
+      {/* Panel 3: Main content / Layout (right) */}
       <ResizablePanel
         className="min-w-0 flex flex-col"
-        order={2}
+        order={3}
         defaultSize={sizes.main}
         style={{ overflow: "visible" }}
         collapsible={true}
@@ -823,6 +837,7 @@ function UnifiedPanelGroup({
               "rounded-[0.75rem]",
             )}
           >
+            <ContentToolbar />
             <Suspense
               fallback={
                 <div className="flex-1 flex items-center justify-center">
@@ -840,15 +855,6 @@ function UnifiedPanelGroup({
           </div>
         </div>
       </ResizablePanel>
-
-      <ResizableHandle className="bg-sidebar" />
-      <PersistentResizablePanel defaultSize={sizes.chat}>
-        <div className="h-full p-0.5">
-          <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
-          </div>
-        </div>
-      </PersistentResizablePanel>
     </ResizablePanelGroup>
   );
 }
