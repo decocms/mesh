@@ -50,7 +50,10 @@ async function getConnectionUrl(
   connectionId: string,
   ctx: MeshContext,
 ): Promise<string | null> {
-  const connection = await ctx.storage.connections.findById(connectionId);
+  const connection = await ctx.storage.connections.findById(
+    connectionId,
+    ctx.organization?.id,
+  );
   return connection?.connection_url ?? null;
 }
 
@@ -467,10 +470,8 @@ const protectedResourceMetadataHandler = async (c: {
       "[oauth-proxy] Failed to proxy OAuth protected resource metadata:",
       err,
     );
-    return c.json(
-      { error: "Failed to proxy OAuth metadata", message: err.message },
-      502,
-    );
+    // Return 404 (same as "not found") to avoid leaking connection existence
+    return c.json({ error: "Connection not found" }, 404);
   }
 };
 
@@ -623,10 +624,8 @@ app.get(
     } catch (error) {
       const err = error as Error;
       console.error("[oauth-proxy] Failed to proxy auth server metadata:", err);
-      return c.json(
-        { error: "Failed to proxy auth server metadata", message: err.message },
-        502,
-      );
+      // Return 404 (same as "not found") to avoid leaking connection existence
+      return c.json({ error: "Connection not found or no auth server" }, 404);
     }
   },
 );
