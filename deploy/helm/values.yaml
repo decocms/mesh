@@ -203,8 +203,8 @@ s3Sync:
     - metrics
   resources:
     requests:
-      memory: "32Mi"
-      cpu: "10m"
+      memory: "256Mi"
+      cpu: "256m"
     limits:
       memory: "256Mi"
 
