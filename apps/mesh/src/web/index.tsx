@@ -83,21 +83,6 @@ const betterAuthRoutes = createRoute({
   component: lazyRouteComponent(() => import("./routes/auth-catchall.tsx")),
 });
 
-/**
- * Store invite route - deep links to store apps without knowing the org slug
- * After login, redirects to the user's first org and first registry
- */
-const storeInviteRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/store/$appName",
-  component: lazyRouteComponent(() => import("./routes/store-invite.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      serverName: z.string().optional(),
-    }),
-  ),
-});
-
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -377,22 +362,6 @@ const settingsWorkflowDetailRoute = createRoute({
   ),
 });
 
-// Store detail (the store list is part of the connections "All" tab)
-const storeDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store/$appName",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      registryId: z.string().optional(),
-      serverName: z.string().optional(),
-      itemId: z.string().optional(),
-    }),
-  ),
-});
-
 // Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
   getParentRoute: () => orgLayout,
@@ -567,7 +536,6 @@ const orgRoutes = [
   orgHomeRoute,
   agentsWithChildren,
   settingsWithChildren,
-  storeDetailRoute,
   orgPluginRoute,
 ];
 
@@ -585,7 +553,6 @@ const routeTree = rootRoute.addChildren([
   betterAuthRoutes,
   oauthCallbackRoute,
   oauthCallbackAiProviderRoute,
-  storeInviteRoute,
 ]);
 
 const router = createRouter({

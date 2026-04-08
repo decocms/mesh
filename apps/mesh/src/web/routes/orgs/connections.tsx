@@ -20,7 +20,6 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
-import { slugify } from "@/shared/utils/slugify";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -523,7 +522,6 @@ function CatalogItemCard({
   connectedAppNames,
   connectingItemId,
   onNavigateConnected,
-  onNavigateCatalog,
   onConnect,
 }: {
   item: RegistryItem;
@@ -531,13 +529,10 @@ function CatalogItemCard({
   connectedAppNames: Set<string>;
   connectingItemId: string | null;
   onNavigateConnected: (conn: ConnectionEntity) => void;
-  onNavigateCatalog: (item: RegistryItem) => void;
   onConnect: (item: RegistryItem) => void;
 }) {
   const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    "navigate" | "connect" | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<"connect" | null>(null);
 
   const appName = getRegistryItemAppName(item) ?? "";
   const isConnected = connectedAppNames.has(appName);
@@ -572,12 +567,7 @@ function CatalogItemCard({
       }
       return;
     }
-    if (isCommunity) {
-      setPendingAction("navigate");
-      setCommunityWarningOpen(true);
-    } else {
-      onNavigateCatalog(item);
-    }
+    handleConnect();
   };
 
   const handleConnect = () => {
@@ -591,9 +581,7 @@ function CatalogItemCard({
 
   const handleCommunityConfirm = () => {
     setCommunityWarningOpen(false);
-    if (pendingAction === "navigate") {
-      onNavigateCatalog(item);
-    } else if (pendingAction === "connect") {
+    if (pendingAction === "connect") {
       onConnect(item);
     }
     setPendingAction(null);
@@ -772,27 +760,6 @@ function ConnectionResults({
   // When both show, connected always appear first in the grid
   const groupedForDisplay =
     activeTab === "connected" || isSearching ? grouped : [];
-
-  const navigateToCatalogItem = (item: RegistryItem) => {
-    const serverSlug = slugify(
-      item.name || item.title || item.server?.title || "",
-    );
-    const idIsScoped = typeof item.id === "string" && item.id.includes("/");
-    const serverNameIsScoped =
-      typeof item.server?.name === "string" && item.server.name.includes("/");
-    const serverName =
-      idIsScoped && !serverNameIsScoped
-        ? item.id
-        : item.server?.name || item.id || "";
-    navigate({
-      to: "/$org/store/$appName",
-      params: {
-        org: org.slug,
-        appName: serverSlug,
-      },
-      search: { registryId: item._registryId, serverName },
-    });
-  };
 
   const handleInlineConnect = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
@@ -1199,7 +1166,6 @@ function ConnectionResults({
                       },
                     })
                   }
-                  onNavigateCatalog={navigateToCatalogItem}
                   onConnect={handleInlineConnect}
                 />
               ))}

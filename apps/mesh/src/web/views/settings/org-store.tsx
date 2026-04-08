@@ -362,8 +362,8 @@ function OrgStoreContent() {
       </div>
 
       {/* Community Registry */}
-      <div className="space-y-3 pt-4 border-t">
-        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted-foreground">
           Community
         </h3>
         {communityConnection ? (
