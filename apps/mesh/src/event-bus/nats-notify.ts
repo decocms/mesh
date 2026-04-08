@@ -27,9 +27,19 @@ export class NatsNotifyStrategy implements NotifyStrategy {
   constructor(private readonly options: NatsNotifyStrategyOptions) {}
 
   async start(onNotify?: () => void): Promise<void> {
-    if (this.sub) return;
     if (onNotify) this.onNotify = onNotify;
     if (!this.onNotify) return;
+
+    // Clean up stale subscription from previous connection (reconnect scenario).
+    // After NATS reconnects, the old Subscription object is dead but non-null.
+    if (this.sub) {
+      try {
+        this.sub.unsubscribe();
+      } catch {
+        // ignore — connection may already be closed
+      }
+      this.sub = null;
+    }
 
     const nc = this.options.getConnection();
     if (!nc) return; // NATS not ready — polling strategy is safety net
