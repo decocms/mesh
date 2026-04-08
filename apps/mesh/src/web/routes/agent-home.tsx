@@ -12,6 +12,9 @@ import {
 } from "@/web/layouts/shell-layout";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { useChatTask } from "@/web/components/chat/context";
+import { isProject } from "@/web/hooks/use-create-project";
+import { ProjectHome } from "@/web/views/project/project-home";
+import { ProjectSettings } from "@/web/views/project/project-settings";
 
 const ProjectAppViewContent = lazy(() =>
   import("./project-app-view").then((m) => ({
@@ -96,8 +99,28 @@ function AgentEmptyState() {
 
 function AgentHomeContent() {
   const { virtualMcpId } = useInsetContext()!;
+  const entity = useVirtualMCP(virtualMcpId);
   const resolved = useResolvedMainView();
+  const entityIsProject = entity ? isProject(entity) : false;
 
+  // Projects show files as default, simplified settings
+  if (entityIsProject) {
+    if (resolved.type === "settings") {
+      return <ProjectSettings virtualMcpId={virtualMcpId} />;
+    }
+    if (resolved.type === "ext-apps") {
+      return (
+        <ProjectAppViewContent
+          connectionId={resolved.id}
+          toolName={resolved.toolName ?? ""}
+        />
+      );
+    }
+    // Default: show project files
+    return <ProjectHome virtualMcpId={virtualMcpId} />;
+  }
+
+  // Agents: existing behavior
   if (resolved.type === "chat") {
     return <AgentEmptyState />;
   }

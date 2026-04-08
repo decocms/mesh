@@ -440,8 +440,15 @@ function InsetProvider({ isSettingsRoute }: { isSettingsRoute: boolean }) {
       }
     : null;
 
+  // Check if entity is a project
+  const entityIsProject =
+    (entity?.metadata as Record<string, unknown> | undefined)?.type ===
+    "project";
+
   // Layout state from URL querystring
-  const layout = usePanelState(entityMetadata);
+  const layout = usePanelState(entityMetadata, {
+    isProject: entityIsProject,
+  });
 
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;

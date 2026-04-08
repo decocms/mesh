@@ -82,6 +82,7 @@ export function resolveDefaultPanelState(ctx: {
   entityMetadata: EntityLayoutMetadata | null;
   hasMainParam: boolean;
   isAgentHomeRoute: boolean;
+  isProject?: boolean;
 }): { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean } {
   const allOpen = { tasksOpen: true, mainOpen: true, chatOpen: true };
 
@@ -99,6 +100,11 @@ export function resolveDefaultPanelState(ctx: {
   const isDecopilot = ctx.virtualMcpId === getDecopilotId(ctx.orgId);
   if (isDecopilot) {
     return { tasksOpen: true, mainOpen: false, chatOpen: true };
+  }
+
+  // Projects: show files (main) + chat by default
+  if (ctx.isProject) {
+    return { tasksOpen: false, mainOpen: true, chatOpen: true };
   }
 
   // Entity metadata driven defaults
@@ -176,6 +182,7 @@ function parsePanelParam(
 
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
+  options?: { isProject?: boolean },
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -211,6 +218,7 @@ export function usePanelState(
     entityMetadata,
     hasMainParam: !!search.main,
     isAgentHomeRoute,
+    isProject: options?.isProject,
   };
   const defaults = resolveDefaultPanelState(resolveCtx);
 
