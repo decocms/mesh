@@ -346,7 +346,7 @@ async function ensurePostgres(home: string): Promise<ServiceInfo> {
       ) {
         console.error(
           `[ensurePostgres] PostgreSQL initialisation failed. This is likely caused by a missing locale.\n` +
-            `  embedded-postgres requires the "en_US.UTF-8" locale, which may not be installed on all Linux distros.\n` +
+            `  embedded-postgres requires the "en_US.UTF-8" locale, which may not be installed on all Linux systems.\n` +
             `  To fix, run:\n` +
             `    sudo apt-get install -y locales && sudo locale-gen en_US.UTF-8\n` +
             `  Then retry.`,
