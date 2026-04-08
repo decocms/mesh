@@ -270,7 +270,7 @@ export function usePanelActions() {
 
   const setTaskId = (id: string) =>
     nav((prev) => {
-      const next: Record<string, unknown> = { taskId: id };
+      const next: Record<string, unknown> = { taskId: id, chat: 1 };
       if (prev.tasks) next.tasks = prev.tasks;
       return next;
     }, false);
