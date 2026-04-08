@@ -9,7 +9,7 @@ import { useInsetContext, usePanelActions } from "@/web/layouts/shell-layout";
 import { useVirtualMCP, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { isProject } from "@/web/hooks/use-create-project";
 import { IntegrationIcon } from "@/web/components/integration-icon";
-import { Settings01 } from "@untitledui/icons";
+import { File06, Settings01 } from "@untitledui/icons";
 import { Suspense } from "react";
 import {
   Tooltip,
@@ -81,9 +81,29 @@ function ToolbarContent() {
   if (!entityIsProject) return null;
 
   const isSettingsActive = mainView?.type === "settings";
+  const isFilesActive = mainView === null || mainView?.type === "chat";
 
   return (
     <div className="shrink-0 flex items-center gap-0.5 px-2 py-1.5 border-b border-border">
+      {/* Files */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => openMainView("default")}
+            className={cn(
+              "flex items-center justify-center size-7 rounded-md transition-colors",
+              isFilesActive
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            )}
+          >
+            <File06 size={14} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Files</TooltipContent>
+      </Tooltip>
+
       {/* Tool UI icons */}
       {toolUIs.map((tool) => {
         const isActive =

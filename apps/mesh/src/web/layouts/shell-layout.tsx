@@ -848,7 +848,7 @@ function UnifiedPanelGroup({
                 </div>
               }
             >
-              <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
+              <div className="flex flex-1 items-center overflow-hidden">
                 <Outlet />
               </div>
             </Suspense>
