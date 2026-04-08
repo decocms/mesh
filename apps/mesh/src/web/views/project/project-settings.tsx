@@ -4,6 +4,7 @@
  * No instructions, no connections, no layout — those belong to agents.
  */
 
+import { cn } from "@deco/ui/lib/utils.ts";
 import { Page } from "@/web/components/page";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { IconPicker } from "@/web/components/icon-picker";
@@ -21,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { ChevronRight, Plus, Trash01 } from "@untitledui/icons";
+import { Check, ChevronRight, Plus, Trash01 } from "@untitledui/icons";
 import {
   useProjectContext,
   useVirtualMCP,
@@ -100,6 +101,128 @@ function AgentCardSkeleton() {
       <div className="flex-1 space-y-1.5">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * LayoutSection — Shows which agent connections have UIs and lets
+ * the user set one as the default view for this project.
+ */
+function LayoutSection({
+  entity,
+  allVirtualMcps,
+}: {
+  entity: {
+    id: string;
+    connections: Array<{ connection_id: string }>;
+    metadata: Record<string, unknown>;
+  };
+  allVirtualMcps: Array<{
+    id: string;
+    title: string;
+    icon: string | null;
+    connections: Array<{ connection_id: string }>;
+  }>;
+}) {
+  const actions = useVirtualMCPActions();
+  const virtualMcpIds = new Set(allVirtualMcps.map((v) => v.id));
+
+  // Find all connections (non-virtual) across all agents in this project
+  const agentChildren = entity.connections.filter((c) =>
+    virtualMcpIds.has(c.connection_id),
+  );
+
+  // Collect all real connections from agents
+  const connectionEntries: Array<{
+    agentTitle: string;
+    connectionId: string;
+  }> = [];
+  for (const ac of agentChildren) {
+    const agent = allVirtualMcps.find((v) => v.id === ac.connection_id);
+    if (!agent) continue;
+    for (const conn of agent.connections) {
+      if (!virtualMcpIds.has(conn.connection_id)) {
+        connectionEntries.push({
+          agentTitle: agent.title,
+          connectionId: conn.connection_id,
+        });
+      }
+    }
+  }
+
+  // Get current default view
+  const currentDefault = (
+    entity.metadata?.ui as Record<string, unknown> | undefined
+  )?.layout as
+    | { defaultMainView?: { type: string; id?: string; toolName?: string } }
+    | undefined;
+  const currentDefaultId = currentDefault?.defaultMainView?.id;
+
+  const handleSetDefault = async (connectionId: string, toolName: string) => {
+    const isAlreadyDefault = currentDefaultId === connectionId;
+    await actions.update.mutateAsync({
+      id: entity.id,
+      data: {
+        metadata: {
+          ...entity.metadata,
+          instructions:
+            ((entity.metadata as Record<string, unknown>)?.instructions as
+              | string
+              | null) ?? null,
+          ui: {
+            ...(entity.metadata?.ui as Record<string, unknown> | undefined),
+            layout: {
+              defaultMainView: isAlreadyDefault
+                ? null
+                : { type: "ext-apps", id: connectionId, toolName },
+              chatDefaultOpen: true,
+            },
+          },
+        },
+      },
+    });
+  };
+
+  if (connectionEntries.length === 0) return null;
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-sm font-medium text-foreground mb-3">Layout</h2>
+      <p className="text-xs text-muted-foreground mb-3">
+        Connections with UIs. Click to set as default view when opening this
+        project.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        {connectionEntries.map((entry) => {
+          const isDefault = currentDefaultId === entry.connectionId;
+          return (
+            <button
+              key={entry.connectionId}
+              type="button"
+              onClick={() => handleSetDefault(entry.connectionId, "")}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors w-full",
+                isDefault
+                  ? "border-foreground/20 bg-accent/50"
+                  : "border-border hover:bg-accent/30",
+              )}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground truncate">
+                  {entry.connectionId.slice(0, 20)}...
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  via {entry.agentTitle}
+                </p>
+              </div>
+              {isDefault && (
+                <Check size={14} className="text-foreground shrink-0" />
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -268,6 +391,9 @@ export function ProjectSettings({ virtualMcpId }: { virtualMcpId: string }) {
             </div>
           )}
         </div>
+
+        {/* Layout section — which UIs are available, set default */}
+        <LayoutSection entity={entity} allVirtualMcps={allVirtualMcps} />
       </div>
 
       {/* Dialogs */}
