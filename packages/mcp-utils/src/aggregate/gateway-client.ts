@@ -159,28 +159,6 @@ export class GatewayClient extends Client {
   }
 
   /**
-   * Parse a namespaced name into [clientKey, originalName].
-   * Splits on the first "_" — slugs never contain underscores.
-   */
-  private parseNamespace(namespacedName: string): [string, string] {
-    const sep = namespacedName.indexOf("_");
-    if (sep === -1) {
-      throw new Error(
-        `GatewayClient: invalid namespaced name "${namespacedName}"`,
-      );
-    }
-    const slug = namespacedName.slice(0, sep);
-    const originalName = namespacedName.slice(sep + 1);
-    const clientKey = this.slugToKey.get(slug);
-    if (!clientKey) {
-      throw new Error(
-        `GatewayClient: unknown namespace "${slug}" in "${namespacedName}"`,
-      );
-    }
-    return [clientKey, originalName];
-  }
-
-  /**
    * Resolve a tool name to [clientKey, originalName].
    * Fast path: parse namespace prefix. Fallback: search aggregated tools
    * for an un-namespaced match (supports callers that don't know about
