@@ -153,63 +153,71 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
     return 0;
   }
 
-  // Note: plugin_migrations table and old record migration are handled
-  // in runKyselyMigrations() before Kysely's migrator runs
+  // Use a transaction-scoped advisory lock to prevent concurrent execution.
+  // Must use db.connection() to pin to a single connection (pool-safe).
+  // Lock ID 73649281 is a fixed constant for plugin migrations.
+  return await db.connection().execute(async (conn) => {
+    await sql`SELECT pg_advisory_xact_lock(73649281)`.execute(conn);
 
-  // Get already executed migrations
-  const executed = await sql<{ plugin_id: string; name: string }>`
-    SELECT plugin_id, name FROM plugin_migrations
-  `.execute(db);
-  const executedSet = new Set(
-    executed.rows.map((r) => `${r.plugin_id}/${r.name}`),
-  );
+    // Note: plugin_migrations table and old record migration are handled
+    // in runKyselyMigrations() before Kysely's migrator runs
 
-  // Group migrations by plugin
-  const migrationsByPlugin = new Map<
-    string,
-    Array<{
-      name: string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      up: (db: any) => Promise<void>;
-    }>
-  >();
+    // Get already executed migrations
+    const executed = await sql<{ plugin_id: string; name: string }>`
+      SELECT plugin_id, name FROM plugin_migrations
+    `.execute(conn);
+    const executedSet = new Set(
+      executed.rows.map((r) => `${r.plugin_id}/${r.name}`),
+    );
 
-  for (const { pluginId, migration } of pluginMigrations) {
-    if (!migrationsByPlugin.has(pluginId)) {
-      migrationsByPlugin.set(pluginId, []);
-    }
-    migrationsByPlugin.get(pluginId)!.push({
-      name: migration.name,
-      up: migration.up,
-    });
-  }
+    // Group migrations by plugin
+    const migrationsByPlugin = new Map<
+      string,
+      Array<{
+        name: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        up: (db: any) => Promise<void>;
+      }>
+    >();
 
-  // Run pending migrations for each plugin
-  let totalPending = 0;
-
-  for (const [pluginId, pluginMigrationList] of migrationsByPlugin) {
-    // Sort by name to ensure consistent order
-    pluginMigrationList.sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const migration of pluginMigrationList) {
-      const key = `${pluginId}/${migration.name}`;
-      if (executedSet.has(key)) {
-        continue; // Already executed
+    for (const { pluginId, migration } of pluginMigrations) {
+      if (!migrationsByPlugin.has(pluginId)) {
+        migrationsByPlugin.set(pluginId, []);
       }
-
-      totalPending++;
-      await migration.up(db);
-
-      // Record as executed
-      const timestamp = new Date().toISOString();
-      await sql`
-        INSERT INTO plugin_migrations (plugin_id, name, timestamp)
-        VALUES (${pluginId}, ${migration.name}, ${timestamp})
-      `.execute(db);
+      migrationsByPlugin.get(pluginId)!.push({
+        name: migration.name,
+        up: migration.up,
+      });
     }
-  }
 
-  return totalPending;
+    // Run pending migrations for each plugin
+    let totalPending = 0;
+
+    for (const [pluginId, pluginMigrationList] of migrationsByPlugin) {
+      // Sort by name to ensure consistent order
+      pluginMigrationList.sort((a, b) => a.name.localeCompare(b.name));
+
+      for (const migration of pluginMigrationList) {
+        const key = `${pluginId}/${migration.name}`;
+        if (executedSet.has(key)) {
+          continue; // Already executed
+        }
+
+        totalPending++;
+        await migration.up(conn);
+
+        // Record as executed
+        const timestamp = new Date().toISOString();
+        await sql`
+          INSERT INTO plugin_migrations (plugin_id, name, timestamp)
+          VALUES (${pluginId}, ${migration.name}, ${timestamp})
+        `.execute(conn);
+      }
+    }
+
+    return totalPending;
+  });
+  // Advisory lock is automatically released when the connection returns to pool.
 }
 
 // ============================================================================
