@@ -1,0 +1,20 @@
+# cert-manager ClusterIssuer for Let's Encrypt TLS certificates.
+# Prerequisites:
+#   - cert-manager installed (helm install cert-manager jetstack/cert-manager --set crds.enabled=true)
+#
+# Usage: kubectl apply -f deploy/infrastructure/cert-issuer.yaml
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@example.com  # CHANGE THIS
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
