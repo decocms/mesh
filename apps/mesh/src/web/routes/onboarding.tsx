@@ -62,7 +62,7 @@ export default function OnboardingPage() {
     emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain);
 
   // Look up domain if corporate email
-  const { data: domainLookup, isPending: domainLoading } =
+  const { data: domainLookup, isLoading: domainLoading } =
     useQuery<DomainLookupResult>({
       queryKey: KEYS.domainLookup(emailDomain),
       queryFn: async () => {
