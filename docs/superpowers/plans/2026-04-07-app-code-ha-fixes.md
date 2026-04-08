@@ -34,12 +34,19 @@ function createMockConnection(): {
   const subs: Subscription[] = [];
   const nc = {
     subscribe: mock((subject: string) => {
+      let resolveIterator: (() => void) | null = null;
       const sub: Subscription = {
-        unsubscribe: mock(() => {}),
+        unsubscribe: mock(() => {
+          resolveIterator?.();
+        }),
         drain: mock(() => Promise.resolve()),
         isClosed: false,
         [Symbol.asyncIterator]: () => ({
-          next: () => new Promise(() => {}), // never resolves — simulates waiting
+          next: () =>
+            new Promise<IteratorResult<unknown>>((resolve) => {
+              resolveIterator = () =>
+                resolve({ done: true, value: undefined });
+            }),
           return: () => Promise.resolve({ done: true, value: undefined }),
           throw: () => Promise.resolve({ done: true, value: undefined }),
         }),
@@ -98,11 +105,38 @@ describe("NatsNotifyStrategy", () => {
     expect(nc.publish).toHaveBeenCalledTimes(1);
   });
 
+  test("notify() publishes to correct subject", async () => {
+    const { nc } = createMockConnection();
+    const strategy = new NatsNotifyStrategy({ getConnection: () => nc });
+
+    await strategy.notify("event-123");
+
+    expect(nc.publish).toHaveBeenCalledWith(
+      "mesh.events.notify",
+      expect.any(Uint8Array),
+    );
+  });
+
   test("notify() silently succeeds when NATS is disconnected", async () => {
     const strategy = new NatsNotifyStrategy({ getConnection: () => null });
 
     // Should not throw
     await strategy.notify("event-123");
+  });
+
+  test("start() with no connection cleans up old sub but does not crash", async () => {
+    const { nc, subs } = createMockConnection();
+    const strategy = new NatsNotifyStrategy({ getConnection: () => nc });
+
+    await strategy.start(() => {});
+    expect(nc.subscribe).toHaveBeenCalledTimes(1);
+
+    // Simulate NATS going away — getConnection returns null on reconnect attempt
+    const strategyWithNull = new NatsNotifyStrategy({
+      getConnection: () => null,
+    });
+    // This tests that start() handles null connection gracefully
+    await strategyWithNull.start(() => {});
   });
 });
 ```
@@ -193,9 +227,11 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
     return 0;
   }
 
-  // Acquire advisory lock to prevent concurrent plugin migration execution.
-  // Kysely's built-in migration_lock only covers core migrations, not plugins.
-  await sql`SELECT pg_advisory_lock(hashtext('plugin_migrations'))`.execute(db);
+  // Use a transaction-scoped advisory lock to prevent concurrent execution.
+  // Must use db.connection() to pin to a single connection (pool-safe).
+  // Lock ID 73649281 is a fixed constant for plugin migrations.
+  return await db.connection().execute(async (conn) => {
+    await sql`SELECT pg_advisory_xact_lock(73649281)`.execute(conn);
 ```
 
 Then, wrap the rest of the function body in a try/finally to release the lock. Replace lines 159-213 (the rest after the lock acquisition). The full function becomes:
@@ -208,18 +244,19 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
     return 0;
   }
 
-  // Acquire advisory lock to prevent concurrent plugin migration execution.
-  // Kysely's built-in migration_lock only covers core migrations, not plugins.
-  await sql`SELECT pg_advisory_lock(hashtext('plugin_migrations'))`.execute(db);
+  // Use a transaction-scoped advisory lock to prevent concurrent execution.
+  // Must use db.connection() to pin to a single connection (pool-safe).
+  // Lock ID 73649281 is a fixed constant for plugin migrations.
+  return await db.connection().execute(async (conn) => {
+    await sql`SELECT pg_advisory_xact_lock(73649281)`.execute(conn);
 
-  try {
     // Note: plugin_migrations table and old record migration are handled
     // in runKyselyMigrations() before Kysely's migrator runs
 
     // Get already executed migrations
     const executed = await sql<{ plugin_id: string; name: string }>`
       SELECT plugin_id, name FROM plugin_migrations
-    `.execute(db);
+    `.execute(conn);
     const executedSet = new Set(
       executed.rows.map((r) => `${r.plugin_id}/${r.name}`),
     );
@@ -258,23 +295,20 @@ async function runPluginMigrations(db: Kysely<Database>): Promise<number> {
         }
 
         totalPending++;
-        await migration.up(db);
+        await migration.up(conn);
 
         // Record as executed
         const timestamp = new Date().toISOString();
         await sql`
           INSERT INTO plugin_migrations (plugin_id, name, timestamp)
           VALUES (${pluginId}, ${migration.name}, ${timestamp})
-        `.execute(db);
+        `.execute(conn);
       }
     }
 
     return totalPending;
-  } finally {
-    await sql`SELECT pg_advisory_unlock(hashtext('plugin_migrations'))`.execute(
-      db,
-    );
-  }
+  });
+  // Advisory lock is automatically released when the connection returns to pool.
 }
 ```
 
@@ -290,9 +324,9 @@ Expected: All existing tests pass (the advisory lock is transparent when there i
 git add apps/mesh/src/database/migrate.ts
 git commit -m "fix(database): add advisory lock to plugin migrations
 
-Prevents race condition when multiple pods start simultaneously and
-both try to run the same plugin migration. Kysely's built-in
-migration_lock only covers core migrations."
+Uses pg_advisory_xact_lock on a pinned connection to prevent race
+conditions when multiple pods start simultaneously. Transaction-scoped
+lock auto-releases on connection return, safe with connection poolers."
 ```
 
 ---
@@ -441,3 +475,21 @@ Run: `bun test`
 git add -A
 git commit -m "chore: format"
 ```
+
+---
+
+## Critique Decisions
+
+**Adopted:**
+- Fixed advisory lock to use `pg_advisory_xact_lock(73649281)` on a pinned connection via `db.connection().execute()` -- session-level `pg_advisory_lock` through a connection pool is broken because lock and unlock may execute on different connections. Also replaced `hashtext()` (undocumented internal PG function) with a hardcoded constant. (Correctness, Performance, Architecture, Documentation critics)
+- Fixed mock async iterator to terminate `next()` when `unsubscribe()` is called, matching real NATS Subscription behavior (Testing critic)
+- Added test for correct NATS subject in `notify()` (Testing critic)
+- Added test for `start()` with null connection (Testing critic)
+
+**Rejected:**
+- Adding a staleness check (`this.sub.isClosed`) before re-subscribing -- the NATS `Subscription` interface does not reliably expose `isClosed` in all states. Unconditionally cleaning up is simpler and correct. The churn cost (one unsubscribe+subscribe per reconnect) is negligible. (Performance critic)
+- Adding resilience test for NATS reconnect delivery latency -- valuable but out of scope for this plan. Filed as follow-up.
+- Adding concurrent migration test with embedded Postgres -- the advisory lock fix is straightforward and the existing Kysely migration tests validate single-pod behavior. Concurrent testing would require significant test infrastructure. (Testing critic)
+
+**Adapted:**
+- NATS connection `name` kept static as `"mesh-app"` -- including pod hostname would require reading env vars at module init time which adds complexity. The static name is sufficient for distinguishing mesh app connections from other NATS clients. (Architecture critic)

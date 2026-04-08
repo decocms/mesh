@@ -2,57 +2,54 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Document and configure the external infrastructure needed for production HA: External Secrets Operator, cert-manager, Karpenter NodePool, and production values overlay.
+**Goal:** Provide production configuration examples: a values overlay with HA features enabled, and reference infrastructure manifests.
 
-**Architecture:** This plan produces documentation and example configuration files. Unlike the Helm chart and app code plans, most of these items are cluster-level resources deployed outside the Helm chart. The deliverables are: a production values overlay, infrastructure setup docs, and example manifests in `deploy/`.
+**Architecture:** This plan produces example configuration files deployed outside the Helm chart. The deliverables are: a production values example overlay and infrastructure reference manifests in `deploy/`.
 
-**Tech Stack:** Kubernetes, Karpenter, ArgoCD, External Secrets Operator, cert-manager, Velero
+**Tech Stack:** Kubernetes, External Secrets Operator, cert-manager
 
-**Note:** This plan is for documentation and configuration. It does NOT modify application code or the core Helm chart templates (those are covered by the other two plans).
+**Note:** This plan is for documentation and configuration. It does NOT modify application code or the core Helm chart templates.
 
 ---
 
-### Task 1: Create Production Values Overlay
+### Task 1: Create Production Values Example Overlay
 
 **Files:**
-- Create: `deploy/helm/values-production.yaml`
+- Create: `deploy/helm/values-production.example.yaml`
 
-This file serves as a reference for production deployments with all HA features enabled.
+This file contains ONLY values that differ from the defaults in `values.yaml`. It serves as a starting point for production deployments.
 
-- [ ] **Step 1: Create the production values overlay**
+- [ ] **Step 1: Create the production values example**
 
-Create `deploy/helm/values-production.yaml`:
+Create `deploy/helm/values-production.example.yaml`:
 
 ```yaml
 # Production values overlay for MCP Mesh HA deployment.
-# Usage: helm install mesh deploy/helm/ -f deploy/helm/values-production.yaml
+# Contains ONLY values that differ from defaults in values.yaml.
+# Usage: helm install mesh deploy/helm/ -f deploy/helm/values-production.example.yaml
 #
 # Prerequisites:
-#   - PostgreSQL (RDS/CloudNativePG) with DATABASE_URL in secret
+#   - PostgreSQL (RDS Multi-AZ, CloudNativePG, or Cloud SQL HA)
 #   - External Secrets Operator for secret management
-#   - cert-manager for TLS certificates
-#   - CNI with NetworkPolicy support (Calico/Cilium)
+#   - cert-manager for TLS certificates (optional)
 #   - 3+ AZ cluster with 6+ nodes
 
 replicaCount: 3
 
-image:
-  pullPolicy: IfNotPresent
-  command:
-    - bun
-    - run
-    - deco
-    - --no-local-mode
-    - --num-threads
-    - "4"
+# --- Database (required for multi-replica) ---
+database:
+  engine: postgresql
+  # URL provided via secret.secretName below
+
+# --- Secret (managed by External Secrets Operator) ---
+secret:
+  secretName: "mesh-production-secrets"
 
 # --- Autoscaling ---
 autoscaling:
   enabled: true
   minReplicas: 3
   maxReplicas: 6
-  targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 80
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 30
@@ -67,65 +64,7 @@ autoscaling:
           value: 10
           periodSeconds: 60
 
-# --- Database ---
-database:
-  engine: postgresql
-  # URL provided via secret.secretName (External Secrets Operator)
-
-# --- Persistence ---
-persistence:
-  enabled: true
-  accessMode: ReadWriteOnce
-  storageClass: "gp3"
-  size: 10Gi
-
-# --- Probes ---
-startupProbe:
-  httpGet:
-    path: /health/live
-    port: http
-  periodSeconds: 2
-  failureThreshold: 30
-  timeoutSeconds: 3
-
-livenessProbe:
-  httpGet:
-    path: /health/live
-    port: http
-  initialDelaySeconds: 0
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
-
-readinessProbe:
-  httpGet:
-    path: /health/ready
-    port: http
-  initialDelaySeconds: 0
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 2
-
-# --- Shutdown ---
-terminationGracePeriodSeconds: 65
-lifecycle:
-  preStop:
-    exec:
-      command: ["sleep", "5"]
-
-# --- Scheduling ---
-nodeSelector: {}
-
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: chart-deco-studio
-          topologyKey: kubernetes.io/hostname
-
+# --- Topology: use DoNotSchedule for zone spread in 3+ AZ clusters ---
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
@@ -133,54 +72,16 @@ topologySpreadConstraints:
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: chart-deco-studio
-        app.kubernetes.io/instance: deco-studio
+        app.kubernetes.io/instance: deco-studio  # Change to your release name
   - maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: chart-deco-studio
-        app.kubernetes.io/instance: deco-studio
+        app.kubernetes.io/instance: deco-studio  # Change to your release name
 
-# --- Priority ---
-priorityClass:
-  enabled: true
-  name: "mcp-mesh-control-plane"
-  value: 1000000
-  preemptionPolicy: PreemptLowerPriority
-
-# --- Secret ---
-secret:
-  secretName: "mesh-production-secrets"  # Managed by External Secrets Operator
-
-# --- Ingress ---
-ingress:
-  enabled: true
-  className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-  hosts:
-    - host: mesh.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: mesh-tls
-      hosts:
-        - mesh.example.com
-
-# --- Network Policy ---
-networkPolicy:
-  enabled: true
-  ingressNamespace: "ingress-nginx"
-  databaseCIDR: "10.0.0.0/8"
-
-# --- NATS ---
+# --- NATS: 3-node cluster for production ---
 nats:
   enabled: true
   config:
@@ -196,8 +97,7 @@ nats:
         enabled: true
         pvc:
           enabled: true
-          size: 2Gi
-          storageClassName: ""
+          size: 5Gi
   podTemplate:
     merge:
       spec:
@@ -211,60 +111,69 @@ nats:
                       values: ["nats"]
                 topologyKey: kubernetes.io/hostname
 
-# --- ConfigMap ---
+# --- Ingress (example with NGINX + SSE support) ---
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: mesh.example.com  # CHANGE THIS
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mesh-tls
+      hosts:
+        - mesh.example.com  # CHANGE THIS
+
+# --- ConfigMap overrides ---
 configMap:
   meshConfig:
     NODE_ENV: "production"
     PORT: "3000"
     HOST: "0.0.0.0"
-    BETTER_AUTH_URL: "https://mesh.example.com"
-    BASE_URL: "https://mesh.example.com"
+    BETTER_AUTH_URL: "https://mesh.example.com"  # CHANGE THIS
+    BASE_URL: "https://mesh.example.com"  # CHANGE THIS
     DATA_DIR: "/app/data"
-    DATABASE_POOL_MAX: "10"
     DECO_AI_GATEWAY_ENABLED: "false"
 
-# --- OTel ---
+# --- OTel (optional) ---
 otel:
   enabled: true
   protocol: "http/protobuf"
   service: "mcp-mesh"
   collector:
     enabled: true
-    image:
-      repository: otel/opentelemetry-collector-contrib
-      tag: "0.115.1"
-      pullPolicy: IfNotPresent
-
-# --- S3 Sync ---
-s3Sync:
-  enabled: false
-  image:
-    repository: amazon/aws-cli
-    tag: "2.22.35"
 ```
 
 - [ ] **Step 2: Validate production overlay renders**
 
-Run: `helm template mesh-prod deploy/helm/ -f deploy/helm/values-production.yaml --set database.url=postgresql://x | head -20`
+Run: `helm template mesh-prod deploy/helm/ -f deploy/helm/values-production.example.yaml --set database.url=postgresql://x > /dev/null && echo "OK"`
 
-Expected: Rendered manifests without errors.
+Expected: "OK" (no rendering errors).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add deploy/helm/values-production.yaml
-git commit -m "feat(helm): add production values overlay with full HA configuration"
+git add deploy/helm/values-production.example.yaml
+git commit -m "feat(helm): add production values example overlay"
 ```
 
 ---
 
-### Task 2: Create Infrastructure Setup Guide
+### Task 2: Create Infrastructure Reference Manifests
 
 **Files:**
 - Create: `deploy/infrastructure/README.md`
 - Create: `deploy/infrastructure/external-secret.yaml`
 - Create: `deploy/infrastructure/cert-issuer.yaml`
-- Create: `deploy/infrastructure/karpenter-nodepool.yaml`
+- Create: `deploy/infrastructure/networkpolicy.yaml`
 
 - [ ] **Step 1: Create the infrastructure directory**
 
@@ -277,23 +186,22 @@ Create `deploy/infrastructure/external-secret.yaml`:
 ```yaml
 # External Secrets Operator: sync secrets from AWS Secrets Manager.
 # Prerequisites:
-#   - External Secrets Operator installed (helm install external-secrets external-secrets/external-secrets)
+#   - External Secrets Operator installed
 #   - ClusterSecretStore configured for AWS Secrets Manager
-#   - Secrets created in AWS Secrets Manager at the referenced paths
 #
 # Usage: kubectl apply -f deploy/infrastructure/external-secret.yaml -n mesh-production
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: mesh-production-secrets
 spec:
-  refreshInterval: 1h
+  refreshInterval: 5m
   secretStoreRef:
     name: aws-secrets-manager
     kind: ClusterSecretStore
   target:
-    name: mesh-production-secrets  # Must match secret.secretName in values-production.yaml
+    name: mesh-production-secrets  # Must match secret.secretName in values
     creationPolicy: Owner
   data:
     - secretKey: BETTER_AUTH_SECRET
@@ -337,83 +245,79 @@ spec:
             ingressClassName: nginx
 ```
 
-- [ ] **Step 4: Create Karpenter NodePool example**
+- [ ] **Step 4: Create NetworkPolicy example**
 
-Create `deploy/infrastructure/karpenter-nodepool.yaml`:
+Create `deploy/infrastructure/networkpolicy.yaml`:
 
 ```yaml
-# Karpenter NodePool for MCP Mesh workloads.
-# Prerequisites:
-#   - Karpenter installed and configured with EC2NodeClass
+# NetworkPolicy example for MCP Mesh.
+# This is highly environment-specific -- adapt to your cluster's CNI,
+# ingress controller, and network layout before applying.
 #
-# Usage: kubectl apply -f deploy/infrastructure/karpenter-nodepool.yaml
+# Usage: kubectl apply -f deploy/infrastructure/networkpolicy.yaml -n mesh-production
 ---
-apiVersion: karpenter.sh/v1
-kind: NodePool
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
 metadata:
-  name: mesh-app
+  name: mcp-mesh
 spec:
-  template:
-    spec:
-      requirements:
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["on-demand", "spot"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["c", "m"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["5"]
-      nodeClassRef:
-        group: karpenter.k8s.aws
-        kind: EC2NodeClass
-        name: default
-  limits:
-    cpu: "64"
-    memory: "128Gi"
-  disruption:
-    consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 60s
----
-# NATS nodes must not use spot instances (JetStream fileStore corruption risk)
-apiVersion: karpenter.sh/v1
-kind: NodePool
-metadata:
-  name: mesh-data
-spec:
-  template:
-    spec:
-      requirements:
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
-          operator: In
-          values: ["m", "r"]
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values: ["5"]
-      nodeClassRef:
-        group: karpenter.k8s.aws
-        kind: EC2NodeClass
-        name: default
-      taints:
-        - key: workload-type
-          value: data
-          effect: NoSchedule
-  limits:
-    cpu: "16"
-    memory: "64Gi"
-  disruption:
-    consolidationPolicy: WhenEmpty
-    consolidateAfter: 300s
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chart-deco-studio  # Match your chart name
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx  # Your ingress namespace
+      ports:
+        - port: 3000
+          protocol: TCP
+    # Kubelet health checks (host-network, bypasses NetworkPolicy)
+    - ports:
+        - port: 3000
+          protocol: TCP
+  egress:
+    # NATS
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nats
+      ports:
+        - port: 4222
+          protocol: TCP
+    # PostgreSQL
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # Your database CIDR
+      ports:
+        - port: 5432
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # External HTTPS only (MCP servers, OAuth providers)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
 ```
 
 - [ ] **Step 5: Create the README**
@@ -423,39 +327,16 @@ Create `deploy/infrastructure/README.md`:
 ```markdown
 # Infrastructure Setup for MCP Mesh HA
 
-This directory contains example manifests for the external infrastructure
-components needed for a production HA deployment of MCP Mesh.
+Reference manifests for external infrastructure components needed for
+production HA deployment of MCP Mesh. Adapt to your environment.
 
 ## Prerequisites
 
-1. **Kubernetes cluster** with 3+ AZs and 6+ nodes
-2. **PostgreSQL** — RDS Multi-AZ, Cloud SQL HA, or CloudNativePG
-3. **External Secrets Operator** — for secret management
-4. **cert-manager** — for TLS certificate automation
-5. **Ingress controller** — NGINX Ingress or Envoy-based (Contour)
-6. **CNI with NetworkPolicy** — Calico or Cilium
-
-## Setup Order
-
-1. Install infrastructure operators:
-   - External Secrets Operator
-   - cert-manager
-   - Karpenter (optional, replaces Cluster Autoscaler)
-
-2. Apply infrastructure manifests:
-   ```bash
-   kubectl apply -f deploy/infrastructure/cert-issuer.yaml
-   kubectl apply -f deploy/infrastructure/external-secret.yaml -n mesh-production
-   # kubectl apply -f deploy/infrastructure/karpenter-nodepool.yaml  # if using Karpenter
-   ```
-
-3. Deploy MCP Mesh with production values:
-   ```bash
-   helm install mesh deploy/helm/ \
-     -f deploy/helm/values-production.yaml \
-     --set database.url=postgresql://... \
-     -n mesh-production
-   ```
+1. **Kubernetes cluster** with 3+ AZs
+2. **PostgreSQL** -- RDS Multi-AZ, Cloud SQL HA, or CloudNativePG
+3. **External Secrets Operator** -- for secret management
+4. **cert-manager** -- for TLS certificate automation (optional)
+5. **Ingress controller** -- NGINX Ingress or Envoy-based (Contour)
 
 ## Files
 
@@ -463,52 +344,39 @@ components needed for a production HA deployment of MCP Mesh.
 |------|-------------|
 | `external-secret.yaml` | ExternalSecret for AWS Secrets Manager |
 | `cert-issuer.yaml` | cert-manager ClusterIssuer for Let's Encrypt |
-| `karpenter-nodepool.yaml` | Karpenter NodePools for app and data workloads |
+| `networkpolicy.yaml` | NetworkPolicy example (adapt to your CNI) |
 
-## Disaster Recovery
+## Deployment
 
-**Target:** RPO 1hr, RTO 15min
+1. Apply infrastructure manifests (adapt first):
+   ```bash
+   kubectl apply -f deploy/infrastructure/cert-issuer.yaml
+   kubectl apply -f deploy/infrastructure/external-secret.yaml -n mesh-production
+   kubectl apply -f deploy/infrastructure/networkpolicy.yaml -n mesh-production
+   ```
 
-1. PostgreSQL: Cross-region read replica (promotable in ~5min)
-2. NATS: Let it rebuild — events are durable in PostgreSQL, polling fallback covers the gap
-3. Kubernetes: ArgoCD reconciles from Git + Velero for PVC/CRD backups
-4. DNS: Route53 health-check failover to DR region
+2. Deploy MCP Mesh with production values:
+   ```bash
+   helm install mesh deploy/helm/ \
+     -f deploy/helm/values-production.example.yaml \
+     --set database.url=postgresql://... \
+     -n mesh-production
+   ```
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add deploy/infrastructure/
-git commit -m "docs(infra): add infrastructure setup guide and example manifests
+git commit -m "docs(infra): add infrastructure reference manifests
 
-Includes External Secrets Operator, cert-manager ClusterIssuer,
-and Karpenter NodePool examples for production HA deployment."
+Includes External Secrets Operator (v1 API), cert-manager ClusterIssuer,
+and NetworkPolicy example for production HA deployment."
 ```
 
 ---
 
-### Task 3: Add Helm Chart Validation for SQLite + Autoscaling
-
-**Files:**
-- Modify: `deploy/helm/templates/_helpers.tpl`
-
-**Context:** The `_helpers.tpl` already validates that autoscaling requires PostgreSQL or distributed storage (line 116-118). But there is no warning when `database.engine=sqlite` with `replicaCount > 1`. The existing validation on line 113-115 covers `replicaCount > 1` without distributed storage, which implicitly covers SQLite. This task adds a more explicit error message specifically for SQLite + autoscaling.
-
-- [ ] **Step 1: Verify existing validation already covers this case**
-
-Run: `helm template test deploy/helm/ --set autoscaling.enabled=true --set database.engine=sqlite 2>&1 | head -5`
-
-Expected: Error message about autoscaling requiring PostgreSQL or distributed storage.
-
-Since the existing validation already handles this, no change is needed. Mark this task as done.
-
-- [ ] **Step 2: Commit (no-op — validation already exists)**
-
-No commit needed.
-
----
-
-### Task 4: Format and Final Verification
+### Task 3: Format and Final Verification
 
 - [ ] **Step 1: Run formatter**
 
@@ -516,7 +384,7 @@ Run: `bun run fmt`
 
 - [ ] **Step 2: Validate all Helm templates render without errors**
 
-Run: `helm template mesh-prod deploy/helm/ -f deploy/helm/values-production.yaml --set database.url=postgresql://x > /dev/null && echo "OK"`
+Run: `helm template mesh-prod deploy/helm/ -f deploy/helm/values-production.example.yaml --set database.url=postgresql://x > /dev/null && echo "OK"`
 
 Expected: "OK"
 
@@ -526,3 +394,24 @@ Expected: "OK"
 git add -A
 git commit -m "chore: format"
 ```
+
+---
+
+## Critique Decisions
+
+**Adopted:**
+- Slimmed `values-production.yaml` to deltas only, renamed to `.example.yaml` (Duplication, Scope critics)
+- Fixed ESO API from `v1beta1` to `v1` (Documentation critic)
+- Reduced ESO `refreshInterval` from `1h` to `5m` (Security critic)
+- Removed port 80 from NetworkPolicy egress, added RFC1918 exclusions (Security critic)
+- Moved NetworkPolicy from Helm template to infrastructure example (Scope critic)
+- Removed `DATABASE_POOL_MAX` override (Correctness critic -- was backwards)
+- Removed `persistence` from overlay to avoid RWO + multi-replica conflict (Correctness critic)
+- Removed Karpenter NodePool -- AWS-specific, out of scope for this repo (Scope critic)
+- Removed DR section from README -- belongs in deployment guide (Scope critic)
+
+**Rejected:**
+- Adding Helm validation for empty secrets in production -- Better Auth already fails on startup with invalid secrets. Adding chart-level validation is an unrelated concern.
+
+**Adapted:**
+- Kept 3-node NATS cluster in production overlay only (not as default) with pod anti-affinity (Scope + Architecture compromise)

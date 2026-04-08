@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Harden the Helm chart for maximum pod-level availability, add missing K8s primitives (PDB, NetworkPolicy, Ingress), and configure NATS clustering.
+**Goal:** Harden the Helm chart for maximum pod-level availability, add missing K8s primitives (PDB, Ingress), update probe strategy, and right-size NATS.
 
-**Architecture:** Add new Helm templates (PDB, NetworkPolicy, Ingress, PriorityClass) and update `values.yaml` defaults for production HA. No application code changes — purely Helm chart modifications.
+**Architecture:** Add new Helm templates (PDB, Ingress) and update `values.yaml` defaults for production HA. No application code changes -- purely Helm chart modifications.
 
-**Tech Stack:** Helm 3, Kubernetes API (policy/v1, networking.k8s.io/v1, autoscaling/v2, scheduling.k8s.io/v1), NATS subchart v2.12.5
+**Tech Stack:** Helm 3, Kubernetes API (policy/v1, autoscaling/v2), NATS subchart v2.12.5
 
 ---
 
@@ -54,7 +54,7 @@ git commit -m "feat(helm): add PodDisruptionBudget template for HA deployments"
 
 ---
 
-### Task 2: Update values.yaml — Pod Scheduling, Probes, Shutdown
+### Task 2: Update values.yaml -- Pod Scheduling, Probes, Shutdown
 
 **Files:**
 - Modify: `deploy/helm/values.yaml`
@@ -113,8 +113,9 @@ readinessProbe:
   initialDelaySeconds: 0
   periodSeconds: 5
   timeoutSeconds: 3
-  failureThreshold: 2
+  failureThreshold: 3
 
+# Shutdown timing budget: preStop(5s) + appTimeout(58s) + buffer(2s) = 65s
 terminationGracePeriodSeconds: 65
 
 lifecycle:
@@ -132,6 +133,8 @@ affinity: {}
 
 With:
 ```yaml
+# NOTE: labelSelector uses the default chart name. If you use nameOverride or
+# a different release name, update the matchLabels to match your deployment.
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
@@ -143,7 +146,7 @@ affinity:
           topologyKey: kubernetes.io/hostname
 ```
 
-- [ ] **Step 3: Harden topologySpreadConstraints**
+- [ ] **Step 3: Add hostname spread constraint**
 
 Replace:
 ```yaml
@@ -159,10 +162,13 @@ topologySpreadConstraints:
 
 With:
 ```yaml
+# NOTE: labelSelector uses the default chart/release names. Update if using
+# nameOverride or a different release name. Use DoNotSchedule for zone in
+# production clusters with 3+ AZs to guarantee zone spread.
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: DoNotSchedule
+    whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
         app.kubernetes.io/name: chart-deco-studio
@@ -261,35 +267,16 @@ git commit -m "feat(helm): add startupProbe support to deployment template"
 
 ---
 
-### Task 4: Add HPA Behavior Policies
+### Task 4: Add HPA Behavior Support to Template
 
 **Files:**
-- Modify: `deploy/helm/values.yaml`
 - Modify: `deploy/helm/templates/hpa.yaml`
 
-- [ ] **Step 1: Add behavior config to values.yaml**
+Note: We add the `behavior` rendering to the template but do NOT add default behavior values to `values.yaml`. Users should define behavior when they enable HPA and have traffic patterns to optimize for.
 
-In `deploy/helm/values.yaml`, inside the `autoscaling` block, after `targetMemoryUtilizationPercentage: 80`, add:
+- [ ] **Step 1: Update HPA template to render behavior when present**
 
-```yaml
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 30
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-        - type: Percent
-          value: 10
-          periodSeconds: 60
-```
-
-- [ ] **Step 2: Update HPA template to render behavior**
-
-In `deploy/helm/templates/hpa.yaml`, before the final `{{- end }}`, add the behavior block. Replace the full file with:
+In `deploy/helm/templates/hpa.yaml`, add the behavior block before the final `{{- end }}`. Replace the full file with:
 
 ```yaml
 {{- if .Values.autoscaling.enabled }}
@@ -330,37 +317,42 @@ spec:
 {{- end }}
 ```
 
-- [ ] **Step 3: Validate HPA renders with behavior**
+- [ ] **Step 2: Validate HPA renders without behavior (no default)**
 
-Run: `helm template test deploy/helm/ --set autoscaling.enabled=true --set database.engine=postgresql --set database.url=postgresql://x | grep -A 15 behavior`
+Run: `helm template test deploy/helm/ --set autoscaling.enabled=true --set database.engine=postgresql --set database.url=postgresql://x | grep behavior`
 
-Expected: behavior block with scaleUp and scaleDown policies.
+Expected: No output (behavior not rendered when not configured).
+
+- [ ] **Step 3: Validate HPA renders with behavior when provided**
+
+Run: `helm template test deploy/helm/ --set autoscaling.enabled=true --set autoscaling.behavior.scaleDown.stabilizationWindowSeconds=300 --set database.engine=postgresql --set database.url=postgresql://x | grep -A 5 behavior`
+
+Expected: behavior block renders.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add deploy/helm/values.yaml deploy/helm/templates/hpa.yaml
-git commit -m "feat(helm): add HPA behavior policies for scaling stability"
+git add deploy/helm/templates/hpa.yaml
+git commit -m "feat(helm): add HPA behavior support to template"
 ```
 
 ---
 
-### Task 5: Enable 3-Node NATS Cluster
+### Task 5: Right-Size NATS JetStream Storage
 
 **Files:**
 - Modify: `deploy/helm/values.yaml`
 
-- [ ] **Step 1: Update NATS subchart values for clustering**
+Note: We keep NATS as a single replica by default (clustering is a production overlay concern). Only right-size the JetStream storage which was overprovisioned.
 
-In `deploy/helm/values.yaml`, replace the `nats:` block:
+- [ ] **Step 1: Update NATS JetStream values**
+
+In `deploy/helm/values.yaml`, replace the `nats:` block. Only change the JetStream sizing:
 
 ```yaml
 nats:
   enabled: true
   config:
-    cluster:
-      enabled: true
-      replicas: 3
     jetstream:
       enabled: true
       memoryStore:
@@ -370,155 +362,20 @@ nats:
         enabled: true
         pvc:
           enabled: true
-          size: 2Gi
-          storageClassName: ""
-  podTemplate:
-    merge:
-      spec:
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values: ["nats"]
-                topologyKey: kubernetes.io/hostname
+          size: 5Gi
+          storageClassName: ""  # empty = use cluster default StorageClass
 ```
 
-- [ ] **Step 2: Validate NATS subchart renders**
-
-Run: `helm dependency update deploy/helm/ && helm template test deploy/helm/ --set database.engine=postgresql --set database.url=postgresql://x | grep -c "kind: StatefulSet"`
-
-Expected: At least 1 (NATS StatefulSet).
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
 git add deploy/helm/values.yaml
-git commit -m "feat(helm): enable 3-node NATS cluster with pod anti-affinity"
+git commit -m "feat(helm): right-size NATS JetStream storage (1Gi->512Mi mem, 10Gi->5Gi file)"
 ```
 
 ---
 
-### Task 6: Add NetworkPolicy Templates
-
-**Files:**
-- Create: `deploy/helm/templates/networkpolicy.yaml`
-- Modify: `deploy/helm/values.yaml`
-
-- [ ] **Step 1: Add networkPolicy config to values.yaml**
-
-After the `env: []` block at the end of `deploy/helm/values.yaml`, add:
-
-```yaml
-
-# Network Policies (optional - requires a CNI that supports NetworkPolicy)
-networkPolicy:
-  enabled: false
-  # Ingress controller namespace (for allowing inbound traffic)
-  ingressNamespace: "ingress-nginx"
-  # PostgreSQL CIDR (for egress to database)
-  databaseCIDR: "10.0.0.0/8"
-```
-
-- [ ] **Step 2: Create the NetworkPolicy template**
-
-Create `deploy/helm/templates/networkpolicy.yaml`:
-
-```yaml
-{{- if .Values.networkPolicy.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "chart-deco-studio.fullname" . }}
-  labels:
-    {{- include "chart-deco-studio.labels" . | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "chart-deco-studio.selectorLabels" . | nindent 6 }}
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    # Allow traffic from ingress controller
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
-      ports:
-        - port: {{ .Values.service.targetPort | default 3000 }}
-          protocol: TCP
-    # Allow health checks from kubelet
-    - ports:
-        - port: {{ .Values.service.targetPort | default 3000 }}
-          protocol: TCP
-  egress:
-    # NATS
-    {{- if .Values.nats.enabled }}
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: nats
-      ports:
-        - port: 4222
-          protocol: TCP
-    {{- end }}
-    # PostgreSQL
-    - to:
-        - ipBlock:
-            cidr: {{ .Values.networkPolicy.databaseCIDR }}
-      ports:
-        - port: 5432
-          protocol: TCP
-    # DNS
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
-    # External HTTPS (MCP servers, OAuth providers, OTel)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 169.254.169.254/32
-      ports:
-        - port: 443
-          protocol: TCP
-        - port: 80
-          protocol: TCP
-{{- end }}
-```
-
-- [ ] **Step 3: Validate NetworkPolicy renders when enabled**
-
-Run: `helm template test deploy/helm/ --set networkPolicy.enabled=true --set database.engine=postgresql --set database.url=postgresql://x | grep -A 5 NetworkPolicy`
-
-Expected: NetworkPolicy manifest with correct podSelector.
-
-- [ ] **Step 4: Validate NetworkPolicy is NOT rendered when disabled**
-
-Run: `helm template test deploy/helm/ --set database.engine=postgresql --set database.url=postgresql://x | grep NetworkPolicy`
-
-Expected: No output.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add deploy/helm/templates/networkpolicy.yaml deploy/helm/values.yaml
-git commit -m "feat(helm): add optional NetworkPolicy template"
-```
-
----
-
-### Task 7: Add Ingress Template
+### Task 6: Add Ingress Template
 
 **Files:**
 - Create: `deploy/helm/templates/ingress.yaml`
@@ -534,20 +391,12 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
-    # For NGINX Ingress with SSE support:
-    # nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    # nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
   hosts:
     - host: mesh.example.com
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  #  - secretName: mesh-tls
-  #    hosts:
-  #      - mesh.example.com
 ```
 
 - [ ] **Step 2: Create the Ingress template**
@@ -608,77 +457,12 @@ Expected: Ingress manifest with correct service backend.
 
 ```bash
 git add deploy/helm/templates/ingress.yaml deploy/helm/values.yaml
-git commit -m "feat(helm): add optional Ingress template with SSE annotation examples"
+git commit -m "feat(helm): add optional Ingress template"
 ```
 
 ---
 
-### Task 8: Add PriorityClass Template
-
-**Files:**
-- Create: `deploy/helm/templates/priorityclass.yaml`
-- Modify: `deploy/helm/values.yaml`
-- Modify: `deploy/helm/templates/deployment.yaml`
-
-- [ ] **Step 1: Add priorityClass config to values.yaml**
-
-In `deploy/helm/values.yaml`, after the `securityContext:` block, add:
-
-```yaml
-
-# Priority class for pod scheduling (optional)
-priorityClass:
-  enabled: false
-  name: "mcp-mesh-control-plane"
-  value: 1000000
-  preemptionPolicy: PreemptLowerPriority
-```
-
-- [ ] **Step 2: Create the PriorityClass template**
-
-Create `deploy/helm/templates/priorityclass.yaml`:
-
-```yaml
-{{- if .Values.priorityClass.enabled }}
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: {{ .Values.priorityClass.name }}
-  labels:
-    {{- include "chart-deco-studio.labels" . | nindent 4 }}
-value: {{ .Values.priorityClass.value }}
-globalDefault: false
-preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
-description: "Priority for MCP Mesh control plane pods"
-{{- end }}
-```
-
-- [ ] **Step 3: Add priorityClassName to Deployment template**
-
-In `deploy/helm/templates/deployment.yaml`, inside `spec.template.spec`, after `serviceAccountName`, add:
-
-```yaml
-      {{- if .Values.priorityClass.enabled }}
-      priorityClassName: {{ .Values.priorityClass.name }}
-      {{- end }}
-```
-
-- [ ] **Step 4: Validate PriorityClass renders**
-
-Run: `helm template test deploy/helm/ --set priorityClass.enabled=true --set database.engine=postgresql --set database.url=postgresql://x | grep -A 5 PriorityClass`
-
-Expected: PriorityClass manifest with value 1000000.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add deploy/helm/templates/priorityclass.yaml deploy/helm/templates/deployment.yaml deploy/helm/values.yaml
-git commit -m "feat(helm): add optional PriorityClass for preemption protection"
-```
-
----
-
-### Task 9: Format and Lint
+### Task 7: Format and Lint
 
 - [ ] **Step 1: Run formatter**
 
@@ -696,3 +480,25 @@ Fix any issues found.
 git add -A
 git commit -m "chore(helm): format"
 ```
+
+---
+
+## Critique Decisions
+
+**Adopted:**
+- Kept `readinessProbe.failureThreshold` at 3 (not 2) to avoid flapping risk (Performance, Architecture critics)
+- Kept `ScheduleAnyway` for zone topology as default, added comment about using `DoNotSchedule` in production (Performance, Scope critics)
+- Removed PriorityClass task -- YAGNI for most deployments, cluster-scoped resource causes conflicts (Scope, Security, Architecture critics)
+- Removed NetworkPolicy from Helm chart -- too environment-specific as a template (Scope critic). Moved to infra plan as example.
+- Removed default HPA behavior values -- speculative without traffic data (Scope critic). Kept template support.
+- Added hostname spread constraint as `ScheduleAnyway` (Architecture critic)
+- Added comments documenting hardcoded label limitation (Duplication, Architecture critics)
+- Added shutdown timing budget comment (Duplication critic)
+- Right-sized JetStream to 512Mi/5Gi instead of aggressive 2Gi file (compromise on Documentation critic's sizing concern)
+
+**Rejected:**
+- Moving label selectors into deployment template -- Helm values cannot use template functions; this is a known Helm limitation. Documented with comments instead.
+- 3-node NATS cluster as default -- YAGNI for dev/staging (Scope critic). Moved to production overlay.
+
+**Adapted:**
+- s3Sync image pinned to specific tag (not digest) -- digest is ideal but requires infrastructure to track digests. Tag pin is the pragmatic middle ground.
