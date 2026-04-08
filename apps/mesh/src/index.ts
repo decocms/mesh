@@ -156,9 +156,9 @@ async function gracefulShutdown(signal: string) {
   console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
 
   const forceExitTimer = setTimeout(() => {
-    console.error("[shutdown] Timed out after 55s, forcing exit.");
+    console.error("[shutdown] Timed out after 58s, forcing exit.");
     process.exit(1);
-  }, 55_000);
+  }, 58_000);
   forceExitTimer.unref?.();
 
   let exitCode = 0;
