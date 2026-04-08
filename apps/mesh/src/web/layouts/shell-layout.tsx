@@ -838,7 +838,9 @@ function UnifiedPanelGroup({
       <PersistentResizablePanel defaultSize={sizes.chat}>
         <div className="h-full p-0.5">
           <div className="h-full bg-background rounded-[0.75rem] overflow-hidden border border-sidebar-border shadow-sm">
-            <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+            <ActiveTaskBoundary
+              variant={isDecopilot && !mainOpen ? "home" : undefined}
+            />
           </div>
         </div>
       </PersistentResizablePanel>
@@ -856,7 +858,9 @@ function MobileAgentContent({
   return (
     <div className="flex-1 min-h-0 overflow-hidden">
       {isDecopilot || !mainOpen ? (
-        <ActiveTaskBoundary variant={isDecopilot ? "home" : undefined} />
+        <ActiveTaskBoundary
+          variant={isDecopilot && !mainOpen ? "home" : undefined}
+        />
       ) : (
         <Outlet />
       )}

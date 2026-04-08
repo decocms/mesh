@@ -10,8 +10,13 @@ import {
   type MainView,
   type MainViewType,
 } from "@/web/layouts/shell-layout";
-import { useVirtualMCP } from "@decocms/mesh-sdk";
+import {
+  useVirtualMCP,
+  getDecopilotId,
+  useProjectContext,
+} from "@decocms/mesh-sdk";
 import { useChatTask } from "@/web/components/chat/context";
+import { FileBrowserHome } from "@/web/components/files/file-browser-home";
 
 const ProjectAppViewContent = lazy(() =>
   import("./project-app-view").then((m) => ({
@@ -96,9 +101,15 @@ function AgentEmptyState() {
 
 function AgentHomeContent() {
   const { virtualMcpId } = useInsetContext()!;
+  const { org } = useProjectContext();
   const resolved = useResolvedMainView();
+  const isDecopilot = virtualMcpId === getDecopilotId(org.id);
 
   if (resolved.type === "chat") {
+    // Decopilot shows file browser as the main view
+    if (isDecopilot) {
+      return <FileBrowserHome />;
+    }
     return <AgentEmptyState />;
   }
 
