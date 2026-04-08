@@ -108,6 +108,8 @@ function MonitoringLogsTableContent({
     );
   }
 
+  const connectionMap = new Map(connections.map((c) => [c.id, c]));
+
   if (searchQuery) {
     const lowerQuery = searchQuery.toLowerCase();
     filteredLogs = filteredLogs.filter(
@@ -119,8 +121,6 @@ function MonitoringLogsTableContent({
         log.errorMessage?.toLowerCase().includes(lowerQuery),
     );
   }
-
-  const connectionMap = new Map(connections.map((c) => [c.id, c]));
 
   const selectedLog =
     selectedLogIndex !== null ? (filteredLogs[selectedLogIndex] ?? null) : null;
