@@ -74,23 +74,44 @@ export async function runScript(
     `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${runCmd} > /tmp/app.log 2>&1 &`,
   );
 
-  // Try to get domain from result, or construct from vmId
+  // Try to get domain from result
   let domain: string | null = null;
   if (Array.isArray(rawDomains) && rawDomains.length > 0) {
     domain = rawDomains[0];
-  } else {
-    // Freestyle assigns a domain like {vmId}.freestyle.sh — try to resolve it
-    // by checking the VM info
+  }
+
+  // Fallback: try vms.get() to see if domain is assigned after creation
+  if (!domain) {
     try {
       const vmInfo = await freestyle.vms.get({ vmId });
-      const infoDomains = (vmInfo as Record<string, unknown>).domains;
-      console.log("[runtime] VM info domains:", infoDomains);
+      const allVmInfo = vmInfo as Record<string, unknown>;
+      console.log("[runtime] VM get() keys:", Object.keys(allVmInfo));
+      console.log("[runtime] VM get() domains:", allVmInfo.domains);
+      console.log(
+        "[runtime] VM get() full:",
+        JSON.stringify(
+          allVmInfo,
+          (key, value) => {
+            if (key === "vm" || key === "exec" || typeof value === "function")
+              return "[omitted]";
+            return value;
+          },
+          2,
+        ),
+      );
+      const infoDomains = allVmInfo.domains;
       if (Array.isArray(infoDomains) && infoDomains.length > 0) {
         domain = infoDomains[0];
       }
     } catch (e) {
       console.error("[runtime] Failed to get VM info:", e);
     }
+  }
+
+  // Last resort: construct domain from vmId (Freestyle convention)
+  if (!domain) {
+    domain = `${vmId}.freestyle.sh`;
+    console.log("[runtime] Constructed domain from vmId:", domain);
   }
 
   console.log("[runtime] Final domain:", domain);
