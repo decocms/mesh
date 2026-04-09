@@ -95,7 +95,17 @@ type PanelActionSearchParams = {
 };
 
 function deriveOpenState(search: PanelActionSearchParams) {
-  // Treat undefined as "open" (the most common default)
+  // Only derive state from explicit params (1 or 0).
+  // When params are undefined, we can't know the actual panel state
+  // (defaults depend on entity metadata, route, decopilot, etc.).
+  // Returns null if any param is missing — caller should skip setLayout.
+  if (
+    search.tasks === undefined ||
+    search.mainOpen === undefined ||
+    search.chat === undefined
+  ) {
+    return null;
+  }
   return {
     tasksOpen: search.tasks !== 0,
     mainOpen: search.mainOpen !== 0,
@@ -151,15 +161,17 @@ export function usePanelActions() {
 
   const setChatOpen = (open: boolean) => {
     const current = deriveOpenState(search);
-    const nextState = { ...current, chatOpen: open };
-    applyLayout(panelGroupRef, nextState);
+    if (current) {
+      applyLayout(panelGroupRef, { ...current, chatOpen: open });
+    }
     nav((prev) => ({ ...prev, chat: open ? 1 : 0 }));
   };
 
   const setTasksOpen = (open: boolean) => {
     const current = deriveOpenState(search);
-    const nextState = { ...current, tasksOpen: open };
-    applyLayout(panelGroupRef, nextState);
+    if (current) {
+      applyLayout(panelGroupRef, { ...current, tasksOpen: open });
+    }
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
   };
 
@@ -200,7 +212,7 @@ export function usePanelActions() {
 
     // Open main panel imperatively if not already open
     const current = deriveOpenState(search);
-    if (!current.mainOpen) {
+    if (current && !current.mainOpen) {
       applyLayout(panelGroupRef, { ...current, mainOpen: true });
     }
 
@@ -218,7 +230,9 @@ export function usePanelActions() {
 
   const closeMainView = () => {
     const current = deriveOpenState(search);
-    applyLayout(panelGroupRef, { ...current, mainOpen: false });
+    if (current) {
+      applyLayout(panelGroupRef, { ...current, mainOpen: false });
+    }
     nav((prev) => {
       const next: Record<string, unknown> = {};
       if (prev.taskId) next.taskId = prev.taskId;

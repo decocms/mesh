@@ -206,6 +206,7 @@ function parsePanelParam(
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
   panelGroupRef?: React.RefObject<ImperativePanelGroupHandle | null> | null,
+  isAgentHomeRouteOverride?: boolean,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -232,8 +233,12 @@ export function usePanelState(
 
   const isAgentRoute = !!agentsMatch;
   const isOrgHome = !!orgHomeMatch && !agentsMatch;
-  // Org home is effectively the decopilot agent's home route
-  const isAgentHomeRoute = (isAgentRoute && !!agentHomeMatch) || isOrgHome;
+  // Org home is effectively the decopilot agent's home route.
+  // The override is needed because useMatch for "/shell/$org/" may not resolve
+  // correctly through the pathless agent-shell layout.
+  const isAgentHomeRoute =
+    isAgentHomeRouteOverride ??
+    ((isAgentRoute && !!agentHomeMatch) || isOrgHome);
 
   const resolveCtx = {
     virtualMcpId,

@@ -437,7 +437,15 @@ function AgentInsetProvider() {
   const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
 
   // Layout state from URL querystring (pass panelGroupRef for imperative resize)
-  const layout = usePanelState(entityMetadata, panelGroupRef);
+  // For org home, useMatch("/shell/$org/") in usePanelState doesn't resolve through
+  // the pathless agent-shell layout, so isAgentHomeRoute would be false. Override it
+  // only for the org home case — agent routes resolve correctly on their own.
+  const isAgentHomeOverride = isOrgHome ? true : undefined;
+  const layout = usePanelState(
+    entityMetadata,
+    panelGroupRef,
+    isAgentHomeOverride,
+  );
 
   // Tasks panel virtualMcpId
   const tasksVirtualMcpId = virtualMcpId;
@@ -447,8 +455,17 @@ function AgentInsetProvider() {
 
   const onNewTask = useRef<(() => void) | null>(null);
 
-  // Collapse/expand handlers — sync URL when user drags panels
+  // Collapse/expand handlers — sync URL when user drags panels.
+  // Guards against no-op navigations to prevent loops (onExpand/onCollapse
+  // fire on mount even when the panel already matches the URL state).
   const handlePanelCollapse = (panel: "tasks" | "main" | "chat") => {
+    const stateMap = {
+      tasks: layout.tasksOpen,
+      main: layout.mainOpen,
+      chat: layout.chatOpen,
+    } as const;
+    if (!stateMap[panel]) return;
+
     const paramMap = {
       tasks: "tasks",
       main: "mainOpen",
@@ -468,6 +485,13 @@ function AgentInsetProvider() {
   };
 
   const handlePanelExpand = (panel: "tasks" | "main" | "chat") => {
+    const stateMap = {
+      tasks: layout.tasksOpen,
+      main: layout.mainOpen,
+      chat: layout.chatOpen,
+    } as const;
+    if (stateMap[panel]) return;
+
     const paramMap = {
       tasks: "tasks",
       main: "mainOpen",
