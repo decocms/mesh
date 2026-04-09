@@ -79,9 +79,7 @@ export const BrandGetInputSchema = z.object({
 
 export type BrandGetInput = z.infer<typeof BrandGetInputSchema>;
 
-export const BrandGetOutputSchema = BrandSchema;
-
-export type BrandGetOutput = z.infer<typeof BrandGetOutputSchema>;
+export type BrandGetOutput = z.infer<typeof BrandSchema>;
 
 // ============================================================================
 // BRAND_LIST Schemas
@@ -116,7 +114,7 @@ export const BRAND_BINDING = [
   {
     name: "BRAND_GET" as const,
     inputSchema: BrandGetInputSchema,
-    outputSchema: BrandGetOutputSchema,
+    outputSchema: BrandSchema,
   },
   {
     name: "BRAND_LIST" as const,

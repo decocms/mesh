@@ -136,7 +136,6 @@ export {
   type Brand,
   BrandGetInputSchema,
   type BrandGetInput,
-  BrandGetOutputSchema,
   type BrandGetOutput,
   BrandListInputSchema,
   type BrandListInput,

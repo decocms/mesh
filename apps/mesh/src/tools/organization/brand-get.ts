@@ -1,6 +1,6 @@
 import {
   BrandGetInputSchema,
-  BrandGetOutputSchema,
+  BrandSchema,
   BrandListInputSchema,
   BrandListOutputSchema,
 } from "@decocms/bindings/brand";
@@ -51,7 +51,7 @@ export const BRAND_GET = defineTool({
     openWorldHint: false,
   },
   inputSchema: BrandGetInputSchema,
-  outputSchema: BrandGetOutputSchema,
+  outputSchema: BrandSchema,
   handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
