@@ -107,6 +107,8 @@ export class ClickHouseClientEngine implements QueryEngine {
       clickhouse_settings: {
         max_memory_usage: this.maxMemoryUsage,
         max_execution_time: this.maxExecutionTime,
+        max_bytes_before_external_group_by: this.maxMemoryUsage,
+        max_bytes_before_external_sort: this.maxMemoryUsage,
       },
     });
     return await result.json<Record<string, unknown>>();

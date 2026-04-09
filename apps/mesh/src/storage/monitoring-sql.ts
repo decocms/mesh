@@ -321,9 +321,7 @@ function buildCommonFilterClauses(
     const ids = filters.virtualMcpIds.map((id) => `'${esc(id)}'`).join(",");
     clauses.push(`virtual_mcp_id IN (${ids})`);
   }
-  if (filters.startDate) {
-    clauses.push(tsGte(filters.startDate, dialect));
-  }
+  applyStartDateBound(clauses, filters.startDate, dialect);
   if (filters.endDate) {
     clauses.push(tsLte(filters.endDate, dialect));
   }
@@ -347,6 +345,25 @@ function tsLte(date: Date, dialect: SqlDialect): string {
     return `CAST(timestamp AS TIMESTAMP) <= TIMESTAMP '${date.toISOString()}'`;
   }
   return `timestamp <= parseDateTime64BestEffort('${date.toISOString()}', 9)`;
+}
+
+/**
+ * Default lookback window (30 days) applied when no startDate is provided and
+ * the dialect is ClickHouse. Prevents unbounded full-table scans that can OOM
+ * the server. DuckDB scans local NDJSON files which are naturally bounded.
+ */
+const DEFAULT_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+
+function applyStartDateBound(
+  where: string[],
+  startDate: Date | undefined,
+  dialect: SqlDialect,
+): void {
+  if (startDate) {
+    where.push(tsGte(startDate, dialect));
+  } else if (dialect === "clickhouse") {
+    where.push(tsGte(new Date(Date.now() - DEFAULT_LOOKBACK_MS), dialect));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -403,9 +420,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
     if (filters.isError !== undefined) {
       where.push(`is_error = ${filters.isError ? 1 : 0}`);
     }
-    if (filters.startDate) {
-      where.push(tsGte(filters.startDate, this.dialect));
-    }
+    applyStartDateBound(where, filters.startDate, this.dialect);
     if (filters.endDate) {
       where.push(tsLte(filters.endDate, this.dialect));
     }
@@ -478,9 +493,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
       `organization_id = '${esc(filters.organizationId)}'`,
     ];
 
-    if (filters.startDate) {
-      where.push(tsGte(filters.startDate, this.dialect));
-    }
+    applyStartDateBound(where, filters.startDate, this.dialect);
     if (filters.endDate) {
       where.push(tsLte(filters.endDate, this.dialect));
     }
@@ -689,9 +702,7 @@ export class SqlMonitoringStorage implements MonitoringStorage {
         `organization_id = '${esc(params.organizationId)}'`,
       ];
 
-      if (params.startDate) {
-        where.push(tsGte(params.startDate, this.dialect));
-      }
+      applyStartDateBound(where, params.startDate, this.dialect);
       if (params.endDate) {
         where.push(tsLte(params.endDate, this.dialect));
       }
@@ -955,9 +966,7 @@ LIMIT 1000`;
         `organization_id = '${esc(params.organizationId)}'`,
       ];
 
-      if (params.startDate) {
-        where.push(tsGte(params.startDate, this.dialect));
-      }
+      applyStartDateBound(where, params.startDate, this.dialect);
       if (params.endDate) {
         where.push(tsLte(params.endDate, this.dialect));
       }
