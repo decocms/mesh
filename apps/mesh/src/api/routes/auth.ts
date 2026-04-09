@@ -407,49 +407,79 @@ app.post("/domain-setup", async (c) => {
       );
     }
 
-    // Derive org name from domain (e.g. "acme.com" → "Acme")
+    // Derive org name/slug from domain (e.g. "acme.com" → "Acme" / "acme")
+    // Retry with random suffix on slug collision (e.g. acme.com vs acme.io)
     const domainName = emailDomain.split(".")[0] ?? emailDomain;
-    const orgName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
-    const orgSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    const baseOrgName =
+      domainName.charAt(0).toUpperCase() + domainName.slice(1);
+    const baseSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
 
-    // Create org + claim domain. If the domain claim fails (race — another
-    // request claimed it first), delete the orphaned org and return 409.
-    const orgResult = (await auth.api.createOrganization({
-      body: {
-        name: orgName,
-        slug: orgSlug,
-        userId: session.user.id,
-      },
-    } as any)) as unknown as { id: string; slug: string } | null;
+    let orgResult: { id: string; slug: string } | null = null;
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const suffix =
+        attempt === 0 ? "" : `-${Math.random().toString(36).slice(2, 6)}`;
+      const orgName = attempt === 0 ? baseOrgName : `${baseOrgName}${suffix}`;
+      const orgSlug = `${baseSlug}${suffix}`;
+
+      try {
+        orgResult = (await auth.api.createOrganization({
+          body: {
+            name: orgName,
+            slug: orgSlug,
+            userId: session.user.id,
+          },
+        } as any)) as unknown as { id: string; slug: string } | null;
+        break;
+      } catch (createError) {
+        const isConflict =
+          createError instanceof Error &&
+          "body" in createError &&
+          (createError as { body?: { code?: string } }).body?.code ===
+            "ORGANIZATION_ALREADY_EXISTS";
+        if (!isConflict || attempt === maxAttempts - 1) {
+          throw createError;
+        }
+      }
+    }
 
     if (!orgResult?.id) {
       throw new Error("Failed to create organization");
     }
     const orgId = orgResult.id;
 
+    // Claim the domain. Only clean up the org on a domain race (specific
+    // "already claimed" error from the storage layer). Transient DB errors
+    // should not delete the org — it can be reclaimed later.
     try {
       await domainStorage.setDomain(orgId, emailDomain, true);
-    } catch {
-      // Domain was claimed by a concurrent request — clean up the org we just created
-      try {
-        await auth.api.deleteOrganization({
-          headers: c.req.raw.headers,
-          body: { organizationId: orgId },
-        });
-      } catch {
-        console.error(
-          "[Auth] Failed to clean up orphaned org after domain claim race:",
-          orgId,
+    } catch (claimError) {
+      const isDomainRace =
+        claimError instanceof Error &&
+        claimError.message.includes("already claimed");
+      if (isDomainRace) {
+        try {
+          await auth.api.deleteOrganization({
+            headers: c.req.raw.headers,
+            body: { organizationId: orgId },
+          });
+        } catch {
+          console.error(
+            "[Auth] Failed to clean up orphaned org after domain race:",
+            orgId,
+          );
+        }
+        return c.json(
+          {
+            success: false,
+            error:
+              "This domain was just claimed by another user. Please refresh and try again.",
+          },
+          409,
         );
       }
-      return c.json(
-        {
-          success: false,
-          error:
-            "This domain was just claimed by another user. Please refresh and try again.",
-        },
-        409,
-      );
+      // Transient error — org exists but domain claim failed. Don't delete.
+      throw claimError;
     }
 
     // Brand extraction (best-effort — don't fail the setup if this errors)
@@ -537,7 +567,7 @@ app.post("/domain-setup", async (c) => {
               ?.slice()
               .sort((a, b) => a.length - b.length)[0];
             const brandName =
-              shortestPart ?? (metadata.ogSiteName as string) ?? orgName;
+              shortestPart ?? (metadata.ogSiteName as string) ?? baseOrgName;
 
             const brandLogo = (images.logo as string) ?? null;
 
@@ -566,7 +596,7 @@ app.post("/domain-setup", async (c) => {
             // (favicons are small/reliable; full logos often hit size limits)
             const orgLogo = (images.favicon as string) ?? brandLogo ?? null;
             const orgUpdate: Record<string, unknown> = {};
-            if (brandName !== orgName) orgUpdate.name = brandName;
+            if (brandName !== baseOrgName) orgUpdate.name = brandName;
             if (orgLogo) orgUpdate.logo = orgLogo;
             if (Object.keys(orgUpdate).length > 0) {
               await auth.api.updateOrganization({
@@ -586,7 +616,7 @@ app.post("/domain-setup", async (c) => {
 
     return c.json({
       success: true,
-      slug: orgResult.slug ?? orgSlug,
+      slug: orgResult.slug ?? baseSlug,
       brandExtracted,
     });
   } catch (error) {
