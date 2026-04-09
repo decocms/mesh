@@ -11,6 +11,7 @@ import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   isDecopilot,
+  useConnections,
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
@@ -320,6 +321,8 @@ export function ChatInput({
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
   const playSwitchSound = useSound(question004Sound);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const existingConnections = useConnections();
+  const existingConnectionIds = new Set(existingConnections.map((c) => c.id));
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
@@ -651,8 +654,8 @@ export function ChatInput({
       <AddConnectionDialog
         open={connectionsOpen}
         onOpenChange={setConnectionsOpen}
-        addedConnectionIds={new Set()}
-        onAdd={() => {}}
+        addedConnectionIds={existingConnectionIds}
+        onAdd={() => setConnectionsOpen(false)}
         defaultTab="all"
       />
     </>
