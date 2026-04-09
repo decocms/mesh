@@ -307,8 +307,9 @@ function buildCommonFilterClauses(
     propertyFilters?: PropertyFilters;
   },
 ): string[] {
-  if (!filters) return [];
   const clauses: string[] = [];
+  applyStartDateBound(clauses, filters?.startDate, dialect);
+  if (!filters) return clauses;
   if (filters.connectionIds?.length) {
     const ids = filters.connectionIds.map((id) => `'${esc(id)}'`).join(",");
     clauses.push(`connection_id IN (${ids})`);
@@ -321,7 +322,6 @@ function buildCommonFilterClauses(
     const ids = filters.virtualMcpIds.map((id) => `'${esc(id)}'`).join(",");
     clauses.push(`virtual_mcp_id IN (${ids})`);
   }
-  applyStartDateBound(clauses, filters.startDate, dialect);
   if (filters.endDate) {
     clauses.push(tsLte(filters.endDate, dialect));
   }
