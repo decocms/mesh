@@ -56,30 +56,28 @@ export async function setupRepo(
     .with("js", new VmBun())
     .repo(repoId, "/app")
     .workdir("/app")
-    .systemdService({
-      name: "install-deps",
-      mode: "oneshot",
-      exec: ["bun install"],
-      workdir: "/app",
-      after: ["freestyle-git-sync.service"],
-      wantedBy: ["multi-user.target"],
-    })
-    .waitForReadySignal(true)
-    .snapshot();
+    .waitForReadySignal(true);
 
   let vmId: string;
-  let vm: { suspend(): Promise<unknown> };
+  let vm: Awaited<ReturnType<typeof freestyle.vms.create<{ js: VmBun }>>>;
   try {
-    const result = await freestyle.vms.create(spec);
-    vmId = result.vmId;
-    vm = result.vm;
+    vm = await freestyle.vms.create(spec);
+    vmId = vm.vmId;
   } catch (e) {
     throw new Error(
       `VM creation failed: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
 
-  await vm.suspend();
+  try {
+    await vm.vm.js.install({ directory: "/app" });
+  } catch (e) {
+    throw new Error(
+      `Dependency install failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  await vm.vm.suspend();
 
   return {
     repoId,

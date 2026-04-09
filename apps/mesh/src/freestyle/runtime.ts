@@ -3,6 +3,8 @@ import { VmSpec } from "freestyle-sandboxes";
 import { VmBun } from "@freestyle-sh/with-bun";
 import type { FreestyleMetadata } from "./types";
 
+const BUN_BIN = "/opt/bun/bin/bun";
+
 export interface RunScriptResult {
   vmId: string;
   domain: string;
@@ -34,33 +36,21 @@ export async function runScript(
     .with("js", new VmBun())
     .repo(metadata.freestyle_repo_id, "/app")
     .workdir("/app")
-    .systemdService({
-      name: "install-deps",
-      mode: "oneshot",
-      exec: ["bun install"],
-      workdir: "/app",
-      after: ["freestyle-git-sync.service"],
-      wantedBy: ["multi-user.target"],
-    })
-    .snapshot();
+    .waitForReadySignal(true);
 
-  const { vmId, domains } = await freestyle.vms.create({
-    snapshot: spec,
+  const { vm, vmId, domains } = await freestyle.vms.create({
+    spec,
     idleTimeoutSeconds: 600,
     ports: [{ port: 443, targetPort: 3000 }],
-    systemd: {
-      services: [
-        {
-          name: "app-script",
-          mode: "service",
-          exec: [`bun run ${script}`],
-          workdir: "/app",
-          env: { HOST: "0.0.0.0", PORT: "3000" },
-          after: ["install-deps.service"],
-        },
-      ],
-    },
   });
+
+  // Install deps first
+  await vm.js.install({ directory: "/app" });
+
+  // Start the script in the background via nohup so exec returns immediately
+  await vm.exec(
+    `cd /app && HOST=0.0.0.0 PORT=3000 nohup ${BUN_BIN} run ${script} > /tmp/app.log 2>&1 &`,
+  );
 
   return {
     vmId,
