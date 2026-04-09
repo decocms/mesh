@@ -255,25 +255,6 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
         </p>
       </div>
 
-      {/* Scripts / Tasks (read-only, populated from repo detection) */}
-      {scriptEntries.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">
-            {fm.runtime === "deno" ? "Tasks" : "Scripts"}
-          </Label>
-          <div className="flex flex-wrap gap-1.5">
-            {scriptEntries.map((name) => (
-              <span
-                key={name}
-                className="px-2 py-0.5 rounded-md border border-border bg-muted/20 text-xs font-mono text-foreground"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Autorun */}
       <div className="flex flex-col gap-2">
         <Label className="text-xs text-muted-foreground">Autorun</Label>
