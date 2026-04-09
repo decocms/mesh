@@ -1,27 +1,9 @@
 import { playSound } from "@deco/ui/lib/sound-engine.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { useDecopilotEvents } from "./use-decopilot-events";
-import { usePreferences, type SoundEventKey } from "./use-preferences";
+import { usePreferences } from "./use-preferences";
 
-export const SOUND_MAP: Partial<Record<SoundEventKey, { dataUri: string }>> = {
-  completed: question004Sound,
-  failed: question004Sound,
-  requires_action: question004Sound,
-};
-
-function playSoundForStatus(
-  status: string,
-  toggles: Record<SoundEventKey, boolean>,
-) {
-  const key = status as SoundEventKey;
-  if (toggles[key] === false) return;
-  const sound = SOUND_MAP[key];
-  if (sound) {
-    playSound(sound.dataUri).catch((err: unknown) => {
-      console.warn("[status-sounds] playback failed:", err);
-    });
-  }
-}
+const SOUND_STATUSES = new Set(["completed", "failed", "requires_action"]);
 
 /**
  * Subscribe to org-wide SSE thread status events and play corresponding sounds.
@@ -34,7 +16,10 @@ export function useStatusSounds(orgId: string) {
     orgId,
     onTaskStatus: (event) => {
       if (!preferences.enableSounds) return;
-      playSoundForStatus(event.data.status, preferences.soundToggles);
+      if (!SOUND_STATUSES.has(event.data.status)) return;
+      playSound(question004Sound.dataUri).catch((err: unknown) => {
+        console.warn("[status-sounds] playback failed:", err);
+      });
     },
   });
 }
