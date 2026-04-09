@@ -6,6 +6,12 @@ import {
 } from "@deco/ui/components/tooltip.tsx";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { useState } from "react";
+import {
+  useProjectContext,
+  useMCPClient,
+  SELF_MCP_ALIAS_ID,
+} from "@decocms/mesh-sdk";
+import { toast } from "sonner";
 import { GitHubRepoDialog } from "./github-repo-dialog";
 
 function GitHubIcon({ size = 16 }: { size?: number }) {
@@ -22,9 +28,26 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+const GITHUB_TOKEN_KEY = "deco:github-token";
+
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(GITHUB_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function GitHubRepoButton() {
   const inset = useInsetContext();
+  const { org } = useProjectContext();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
 
   if (!inset?.entity) return null;
 
@@ -59,6 +82,47 @@ export function GitHubRepoButton() {
     );
   }
 
+  const handleClick = async () => {
+    // If user already has a token, skip device flow and go straight to repo picker
+    if (getStoredToken()) {
+      setDialogOpen(true);
+      return;
+    }
+
+    // Start device flow immediately, then open dialog with the code
+    setStarting(true);
+    try {
+      const result = await client.callTool({
+        name: "GITHUB_DEVICE_FLOW_START",
+        arguments: {},
+      });
+      const payload =
+        (result as { structuredContent?: unknown }).structuredContent ?? result;
+      const data = payload as {
+        userCode: string;
+        verificationUri: string;
+        deviceCode: string;
+        expiresIn: number;
+        interval: number;
+      };
+
+      // Auto-open GitHub authorization page
+      window.open(data.verificationUri, "_blank", "noopener");
+
+      // Open dialog with device flow data already available
+      setDialogOpen(true);
+      // Pass the device flow data via a ref on the dialog
+      window.__decoGithubDeviceFlow = data;
+    } catch (error) {
+      toast.error(
+        "Failed to start GitHub auth: " +
+          (error instanceof Error ? error.message : "Unknown error"),
+      );
+    } finally {
+      setStarting(false);
+    }
+  };
+
   // Unconnected state: show octocat icon button
   return (
     <>
@@ -66,7 +130,8 @@ export function GitHubRepoButton() {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={() => setDialogOpen(true)}
+            onClick={handleClick}
+            disabled={starting}
             className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
           >
             <GitHubIcon size={16} />

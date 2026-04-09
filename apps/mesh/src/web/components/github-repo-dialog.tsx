@@ -61,6 +61,19 @@ function clearStoredToken(): void {
   }
 }
 
+// Typed global for passing device flow data from button to dialog
+declare global {
+  interface Window {
+    __decoGithubDeviceFlow?: {
+      userCode: string;
+      verificationUri: string;
+      deviceCode: string;
+      expiresIn: number;
+      interval: number;
+    };
+  }
+}
+
 export function GitHubRepoDialog({
   open,
   onOpenChange,
@@ -83,39 +96,18 @@ export function GitHubRepoDialog({
   } | null>(null);
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingStartedRef = useRef(false);
+
+  // Pick up device flow data pre-started by the button when dialog opens
+  if (open && !deviceFlow && !token && window.__decoGithubDeviceFlow) {
+    const data = window.__decoGithubDeviceFlow;
+    delete window.__decoGithubDeviceFlow;
+    setDeviceFlow(data);
+  }
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
-  });
-
-  // Start device flow
-  const startDeviceFlow = useMutation({
-    mutationFn: async () => {
-      const result = await client.callTool({
-        name: "GITHUB_DEVICE_FLOW_START",
-        arguments: {},
-      });
-      const payload =
-        (result as { structuredContent?: unknown }).structuredContent ?? result;
-      return payload as {
-        userCode: string;
-        verificationUri: string;
-        deviceCode: string;
-        expiresIn: number;
-        interval: number;
-      };
-    },
-    onSuccess: (data) => {
-      setDeviceFlow(data);
-      startPolling(data.deviceCode, data.interval);
-    },
-    onError: (error) => {
-      toast.error(
-        "Failed to start GitHub auth: " +
-          (error instanceof Error ? error.message : "Unknown error"),
-      );
-    },
   });
 
   const startPolling = (deviceCode: string, interval: number) => {
@@ -163,6 +155,12 @@ export function GitHubRepoDialog({
       (interval + 1) * 1000,
     ); // Add 1s buffer to avoid "slow_down"
   };
+
+  // Auto-start polling if dialog opened with pre-started device flow data
+  if (deviceFlow && !pollingStartedRef.current && !polling && !token) {
+    pollingStartedRef.current = true;
+    startPolling(deviceFlow.deviceCode, deviceFlow.interval);
+  }
 
   // List installations (only when we have a token)
   const installationsQuery = useQuery({
@@ -271,7 +269,7 @@ export function GitHubRepoDialog({
         return (
           <div className="flex flex-col items-center gap-4 py-6">
             <p className="text-sm text-muted-foreground text-center">
-              Enter this code on GitHub:
+              Enter this code on the GitHub page:
             </p>
             <code className="text-2xl font-mono font-bold tracking-widest px-4 py-2 rounded-md bg-muted">
               {deviceFlow.userCode}
@@ -294,21 +292,10 @@ export function GitHubRepoDialog({
         );
       }
 
-      // No device flow started — show connect button
+      // Waiting for device flow to start (shouldn't normally happen)
       return (
-        <div className="flex flex-col items-center gap-4 py-6">
-          <p className="text-sm text-muted-foreground text-center">
-            Connect your GitHub account to link a repository.
-          </p>
-          <Button
-            onClick={() => startDeviceFlow.mutate()}
-            disabled={startDeviceFlow.isPending}
-          >
-            {startDeviceFlow.isPending ? (
-              <Loading01 size={14} className="animate-spin mr-2" />
-            ) : null}
-            Connect GitHub
-          </Button>
+        <div className="flex items-center justify-center py-8">
+          <Loading01 size={20} className="animate-spin text-muted-foreground" />
         </div>
       );
     }
