@@ -55,7 +55,7 @@ export const GITHUB_LIST_REPOS = defineTool({
       throw new Error("No GitHub account linked");
     }
 
-    const accessToken = accounts[0].accessToken;
+    const accessToken = accounts[0]!.accessToken;
     if (!accessToken) {
       throw new Error("No GitHub access token available");
     }

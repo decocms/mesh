@@ -31,7 +31,8 @@ export type ToolCategory =
   | "AI Providers"
   | "Automations"
   | "Object Storage"
-  | "Registry";
+  | "Registry"
+  | "GitHub";
 
 /**
  * All tool names - keep in sync with ALL_TOOLS in index.ts
@@ -177,6 +178,10 @@ const ALL_TOOL_NAMES = [
   "REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH",
   "REGISTRY_MONITOR_SCHEDULE_SET",
   "REGISTRY_MONITOR_SCHEDULE_CANCEL",
+
+  // GitHub tools (app-only)
+  "GITHUB_LIST_INSTALLATIONS",
+  "GITHUB_LIST_REPOS",
 ] as const;
 
 /**
@@ -856,6 +861,17 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Cancel monitor schedule",
     category: "Registry",
   },
+  // GitHub tools
+  {
+    name: "GITHUB_LIST_INSTALLATIONS",
+    description: "List GitHub App installations",
+    category: "GitHub",
+  },
+  {
+    name: "GITHUB_LIST_REPOS",
+    description: "List repositories for a GitHub App installation",
+    category: "GitHub",
+  },
 ];
 
 /**
@@ -990,6 +1006,10 @@ const TOOL_LABELS: Record<ToolName, string> = {
   REGISTRY_MONITOR_CONNECTION_UPDATE_AUTH: "Update connection auth",
   REGISTRY_MONITOR_SCHEDULE_SET: "Set monitor schedule",
   REGISTRY_MONITOR_SCHEDULE_CANCEL: "Cancel monitor schedule",
+
+  // GitHub
+  GITHUB_LIST_INSTALLATIONS: "List GitHub App installations",
+  GITHUB_LIST_REPOS: "List GitHub repositories",
 };
 
 // ============================================================================
@@ -1014,6 +1034,7 @@ export function getToolsByCategory() {
     Automations: [],
     "Object Storage": [],
     Registry: [],
+    GitHub: [],
   };
 
   for (const tool of MANAGEMENT_TOOLS) {

@@ -54,7 +54,7 @@ export const GITHUB_LIST_INSTALLATIONS = defineTool({
       return { installations: [], hasGithubAccount: false };
     }
 
-    const githubAccount = accounts[0];
+    const githubAccount = accounts[0]!;
     const accessToken = githubAccount.accessToken;
 
     if (!accessToken) {
