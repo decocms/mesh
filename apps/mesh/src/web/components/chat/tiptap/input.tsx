@@ -13,8 +13,8 @@ import { Suspense, useEffect, useImperativeHandle, useRef } from "react";
 import type { Metadata } from "../types.ts";
 import { FileNode, FileUploader } from "./file";
 import { MentionNode } from "./mention";
-import { PromptsMention } from "./mention-prompts.tsx";
-import { ResourcesMention } from "./mention-resources.tsx";
+import { AgentsMention } from "./mention-agents.tsx";
+import { SlashMention } from "./mention-slash.tsx";
 import { AiProviderModel } from "@/web/hooks/collections/use-ai-providers.ts";
 
 function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
@@ -29,7 +29,7 @@ function buildExtensions(placeholderRef: React.RefObject<string | undefined>) {
     Placeholder.configure({
       placeholder: () =>
         placeholderRef.current ??
-        "Ask anything, / for prompts, @ for resources...",
+        "Ask anything, / for prompts & resources, @ for agents...",
       showOnlyWhenEditable: false,
     }),
     MentionNode,
@@ -206,14 +206,14 @@ export function TiptapInput({
         )}
       />
 
-      {/* Render prompts dropdown menu (includes dialog) */}
+      {/* Render slash dropdown menu for prompts + resources (/) */}
       <Suspense fallback={null}>
-        <PromptsMention editor={editor} virtualMcpId={virtualMcpId ?? null} />
+        <SlashMention editor={editor} virtualMcpId={virtualMcpId ?? null} />
       </Suspense>
 
-      {/* Render resources dropdown menu */}
+      {/* Render agents dropdown menu (@) */}
       <Suspense fallback={null}>
-        <ResourcesMention editor={editor} virtualMcpId={virtualMcpId ?? null} />
+        <AgentsMention editor={editor} virtualMcpId={virtualMcpId ?? null} />
       </Suspense>
 
       {/* Render file upload handler */}

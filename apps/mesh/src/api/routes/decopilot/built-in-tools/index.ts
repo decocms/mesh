@@ -13,6 +13,7 @@ import { createReadToolOutputTool } from "./read-tool-output";
 import { createReadPromptTool } from "./prompts";
 import { createReadResourceTool } from "./resources";
 import { createSandboxTool, type VirtualClient } from "./sandbox";
+import { createOpenInAgentTool } from "./open-in-agent";
 import { createSubtaskTool } from "./subtask";
 import { userAskTool } from "./user-ask";
 import { proposePlanTool } from "./propose-plan";
@@ -24,6 +25,7 @@ export interface BuiltinToolParams {
   provider: MeshProvider | null;
   organization: OrganizationScope;
   models: ModelsConfig;
+  userId: string;
   toolApprovalLevel?: ToolApprovalLevel;
   toolOutputMap: Map<string, string>;
   passthroughClient: VirtualClient;
@@ -45,6 +47,7 @@ function buildAllTools(
     provider,
     organization,
     models,
+    userId,
     toolApprovalLevel = "auto",
     toolOutputMap,
     passthroughClient,
@@ -77,8 +80,19 @@ function buildAllTools(
       toolOutputMap,
     }),
   };
-  // subtask requires a provider (LLM calls) — skip when provider is null (Claude Code)
+  // subtask and open_in_agent require a provider (LLM calls) — skip when provider is null (Claude Code)
   if (provider) {
+    tools.open_in_agent = createOpenInAgentTool(
+      writer,
+      {
+        provider,
+        organization,
+        userId,
+        models,
+        needsApproval: toolNeedsApproval(toolApprovalLevel, false) !== false,
+      },
+      ctx,
+    );
     tools.subtask = createSubtaskTool(
       writer,
       {
@@ -99,6 +113,7 @@ function buildAllTools(
     sandbox: ReturnType<typeof createSandboxTool>;
     read_resource: ReturnType<typeof createReadResourceTool>;
     read_prompt: ReturnType<typeof createReadPromptTool>;
+    open_in_agent: ReturnType<typeof createOpenInAgentTool>;
   };
 }
 

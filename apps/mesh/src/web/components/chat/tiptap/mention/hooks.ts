@@ -332,10 +332,15 @@ export function useMentionState({
   editor,
   char,
   pluginKey,
+  allow: customAllow,
 }: {
   editor: Editor;
   char: string;
   pluginKey: string | PluginKey;
+  allow?: (props: {
+    state: unknown;
+    range: { from: number; to: number };
+  }) => boolean;
 }) {
   // Create the reducer state here - this is the source of truth
   const [state, dispatch] = useReducer(reducer, {
@@ -378,6 +383,11 @@ export function useMentionState({
           if ($from.node(depth).type.name === "image") {
             return false;
           }
+        }
+
+        // Delegate to custom allow if provided
+        if (customAllow && !customAllow(props)) {
+          return false;
         }
 
         return true;
@@ -433,7 +443,7 @@ export function useMentionState({
         editor.unregisterPlugin(key);
       }
     };
-  }, [editor, pluginKey, char, dispatch]);
+  }, [editor, pluginKey, char, dispatch, customAllow]);
 
   return { state, dispatch };
 }

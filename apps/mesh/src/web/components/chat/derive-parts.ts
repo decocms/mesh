@@ -198,18 +198,43 @@ export function derivePartsFromTiptapDoc(
       // Add label to inline text
       inlineText += mentionName;
 
-      // Handle resource mentions (@) vs prompt mentions (/)
       if (char === "@") {
-        // Resource mentions: metadata contains ReadResourceResult.contents directly
-        const contents = (node.attrs.metadata ||
-          []) as ReadResourceResult["contents"];
-        parts.push(...resourcesToParts(contents, mentionName));
+        // Agent mentions: instruct the AI to use open_in_agent tool
+        const meta = node.attrs.metadata as {
+          agentId?: string;
+          title?: string;
+        } | null;
+        if (meta?.agentId) {
+          parts.push({
+            type: "text",
+            text:
+              `[OPEN IN AGENT: ${meta.title ?? node.attrs.name} (agent_id: ${meta.agentId})]\n` +
+              `Use the open_in_agent tool to hand off this task to the agent above. ` +
+              `Include the full relevant context from this conversation in the context field.`,
+          });
+        }
       } else {
-        // Prompt mentions: metadata contains PromptMessage[]
-        const prompts = (node.attrs.metadata ||
-          node.attrs.prompts ||
-          []) as PromptMessage[];
-        parts.push(...promptMessagesToParts(prompts, mentionName));
+        // Slash mentions: prompts or resources (both use "/")
+        // Distinguish by metadata shape: arrays with "role" = prompts, arrays with "uri" = resources
+        const metadata = node.attrs.metadata || node.attrs.prompts || [];
+        if (
+          Array.isArray(metadata) &&
+          metadata.length > 0 &&
+          "role" in metadata[0]
+        ) {
+          // Prompt messages
+          parts.push(
+            ...promptMessagesToParts(metadata as PromptMessage[], mentionName),
+          );
+        } else if (Array.isArray(metadata)) {
+          // Resource contents
+          parts.push(
+            ...resourcesToParts(
+              metadata as ReadResourceResult["contents"],
+              mentionName,
+            ),
+          );
+        }
       }
     } else if (node.type === "file" && node.attrs) {
       const fileAttrs = node.attrs as unknown as FileAttrs;
@@ -253,4 +278,52 @@ export function tiptapDocToMessages(doc: Metadata["tiptapDoc"]): ChatMessage[] {
       metadata: { tiptapDoc: doc },
     },
   ];
+}
+
+/**
+ * Agent mention extracted from a tiptap document.
+ */
+export interface AgentMention {
+  agentId: string;
+  title: string;
+}
+
+/**
+ * Walks a tiptap document and extracts all @agent mentions.
+ */
+export function extractAgentMentions(
+  doc: Metadata["tiptapDoc"],
+): AgentMention[] {
+  if (!doc) return [];
+
+  const mentions: AgentMention[] = [];
+
+  const walk = (node: Record<string, unknown>) => {
+    if (!node) return;
+
+    if (node.type === "mention" && node.attrs) {
+      const attrs = node.attrs as Record<string, unknown>;
+      if (attrs.char === "@") {
+        const meta = attrs.metadata as {
+          agentId?: string;
+          title?: string;
+        } | null;
+        if (meta?.agentId) {
+          mentions.push({
+            agentId: meta.agentId,
+            title: meta.title ?? String(attrs.name ?? ""),
+          });
+        }
+      }
+    }
+
+    if ("content" in node && Array.isArray(node.content)) {
+      for (const child of node.content) {
+        walk(child as Record<string, unknown>);
+      }
+    }
+  };
+
+  walk(doc as unknown as Record<string, unknown>);
+  return mentions;
 }
