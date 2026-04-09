@@ -143,7 +143,7 @@ export async function processConversation(
   // have parts: [] which makes validateUIMessages throw "Message must contain
   // at least one part", bricking the entire thread.
   const sanitizedMessages = allMessages.filter(
-    (m) => m.parts && m.parts.length > 0,
+    (m) => m.role !== "assistant" || (m.parts && m.parts.length > 0),
   );
 
   const validUIMessages = await validateUIMessages<ChatMessage>({

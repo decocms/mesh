@@ -103,7 +103,7 @@ describe("processConversation", () => {
     });
   });
 
-  it("filters out messages with empty parts before validation", async () => {
+  it("filters out assistant messages with empty parts before validation", async () => {
     const allMessages: ChatMessage[] = [
       { id: "msg-1", role: "user", parts: [{ type: "text", text: "Hi" }] },
       {
@@ -138,6 +138,11 @@ describe("processConversation", () => {
 
     expect(originalMessages).toHaveLength(3);
     expect(originalMessages.every((m) => m.parts.length > 0)).toBe(true);
+    expect(originalMessages.map((m) => m.role)).toEqual([
+      "user",
+      "user",
+      "user",
+    ]);
   });
 });
 
