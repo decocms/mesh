@@ -116,6 +116,11 @@ const ALL_TOOL_NAMES = [
   "VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE",
   "VIRTUAL_MCP_PINNED_VIEWS_UPDATE",
 
+  // Freestyle repo tools
+  "VIRTUAL_MCP_ADD_REPO",
+  "VIRTUAL_MCP_RUN_SCRIPT",
+  "VIRTUAL_MCP_STOP_SCRIPT",
+
   // Ai providers tools
   "AI_PROVIDERS_LIST",
   "AI_PROVIDERS_LIST_MODELS",
@@ -562,6 +567,21 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Virtual MCPs",
   },
   {
+    name: "VIRTUAL_MCP_ADD_REPO",
+    description: "Link a GitHub repository to a Virtual MCP",
+    category: "Virtual MCPs",
+  },
+  {
+    name: "VIRTUAL_MCP_RUN_SCRIPT",
+    description: "Start a script from the linked repository on a Freestyle VM",
+    category: "Virtual MCPs",
+  },
+  {
+    name: "VIRTUAL_MCP_STOP_SCRIPT",
+    description: "Stop the running script and delete the Freestyle VM",
+    category: "Virtual MCPs",
+  },
+  {
     name: "AI_PROVIDERS_LIST",
     description: "List available AI providers",
     category: "AI Providers",
@@ -879,6 +899,9 @@ const TOOL_LABELS: Record<ToolName, string> = {
   VIRTUAL_MCP_PLUGIN_CONFIG_GET: "View plugin config",
   VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE: "Update plugin config",
   VIRTUAL_MCP_PINNED_VIEWS_UPDATE: "Update pinned views",
+  VIRTUAL_MCP_ADD_REPO: "Link GitHub repository",
+  VIRTUAL_MCP_RUN_SCRIPT: "Run repository script",
+  VIRTUAL_MCP_STOP_SCRIPT: "Stop running script",
   AUTOMATION_CREATE: "Create automation",
   AUTOMATION_GET: "View automation details",
   AUTOMATION_LIST: "List automations",

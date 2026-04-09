@@ -16,6 +16,11 @@ export { VIRTUAL_MCP_PLUGIN_CONFIG_GET } from "./plugin-config-get";
 export { VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE } from "./plugin-config-update";
 export { VIRTUAL_MCP_PINNED_VIEWS_UPDATE } from "./pinned-views-update";
 
+// Freestyle repo tools
+export { VIRTUAL_MCP_ADD_REPO } from "./add-repo";
+export { VIRTUAL_MCP_RUN_SCRIPT } from "./run-script";
+export { VIRTUAL_MCP_STOP_SCRIPT } from "./stop-script";
+
 // Re-export schema types (only types, not runtime schemas)
 export type {
   VirtualMCPConnection,

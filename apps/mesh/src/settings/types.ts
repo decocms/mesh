@@ -63,6 +63,7 @@ export interface Settings {
   decoSupabaseUrl: string | undefined;
   decoSupabaseServiceKey: string | undefined;
   firecrawlApiKey: string | undefined;
+  freestyleApiKey: string | undefined;
 }
 
 export interface CliFlags {

@@ -1,5 +1,6 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
+import { BrowserInspectorView } from "@/web/components/browser-inspector-view";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import { EmptyState } from "@/web/components/empty-state";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -115,6 +116,10 @@ function AgentHomeContent() {
     );
   }
 
+  if (resolved.type === "browser-inspector") {
+    return <BrowserInspectorView />;
+  }
+
   // settings
   return (
     <VirtualMcpDetailView key={virtualMcpId} virtualMcpId={virtualMcpId} />
@@ -132,6 +137,8 @@ function mainViewKey(view: MainView): string {
       return `automation:${view.id}`;
     case "ext-apps":
       return `ext-apps:${view.id}:${view.toolName ?? ""}`;
+    case "browser-inspector":
+      return "browser-inspector";
   }
 }
 

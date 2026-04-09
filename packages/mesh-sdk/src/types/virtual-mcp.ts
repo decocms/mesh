@@ -122,6 +122,47 @@ export const VirtualMCPEntitySchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      repo_url: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("GitHub repo in owner/repo format"),
+      freestyle_repo_id: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Freestyle repo ID after setup"),
+      freestyle_vm_id: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Current running VM ID"),
+      freestyle_snapshot_id: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Snapshot ID after install"),
+      runtime: z
+        .enum(["bun"])
+        .nullable()
+        .optional()
+        .describe("Detected runtime"),
+      runtime_status: z
+        .enum(["idle", "installing", "running"])
+        .nullable()
+        .optional()
+        .describe("Current VM runtime status"),
+      running_script: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Currently running script name"),
+      vm_domain: z.string().nullable().optional().describe("VM domain URL"),
+      scripts: z
+        .record(z.string(), z.string())
+        .nullable()
+        .optional()
+        .describe("Cached scripts from package.json"),
     })
     .loose()
     .describe("Metadata"),
@@ -168,6 +209,18 @@ export const VirtualMCPCreateDataSchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      repo_url: z.string().nullable().optional(),
+      freestyle_repo_id: z.string().nullable().optional(),
+      freestyle_vm_id: z.string().nullable().optional(),
+      freestyle_snapshot_id: z.string().nullable().optional(),
+      runtime: z.enum(["bun"]).nullable().optional(),
+      runtime_status: z
+        .enum(["idle", "installing", "running"])
+        .nullable()
+        .optional(),
+      running_script: z.string().nullable().optional(),
+      vm_domain: z.string().nullable().optional(),
+      scripts: z.record(z.string(), z.string()).nullable().optional(),
     })
     .loose()
     .nullable()
@@ -210,6 +263,18 @@ export const VirtualMCPUpdateDataSchema = z.object({
       ui: VirtualMcpUISchema.nullable()
         .optional()
         .describe("UI customization settings"),
+      repo_url: z.string().nullable().optional(),
+      freestyle_repo_id: z.string().nullable().optional(),
+      freestyle_vm_id: z.string().nullable().optional(),
+      freestyle_snapshot_id: z.string().nullable().optional(),
+      runtime: z.enum(["bun"]).nullable().optional(),
+      runtime_status: z
+        .enum(["idle", "installing", "running"])
+        .nullable()
+        .optional(),
+      running_script: z.string().nullable().optional(),
+      vm_domain: z.string().nullable().optional(),
+      scripts: z.record(z.string(), z.string()).nullable().optional(),
     })
     .loose()
     .nullable()

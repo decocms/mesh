@@ -111,6 +111,7 @@ export function resolveConfig(
     decoSupabaseUrl: envVars.DECO_SUPABASE_URL,
     decoSupabaseServiceKey: envVars.DECO_SUPABASE_SERVICE_KEY,
     firecrawlApiKey: envVars.FIRECRAWL_API_KEY,
+    freestyleApiKey: envVars.FREESTYLE_API_KEY,
   };
 
   return {

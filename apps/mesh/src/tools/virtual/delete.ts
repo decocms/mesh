@@ -8,6 +8,8 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { VirtualMCPEntitySchema } from "./schema";
+import { createFreestyleClient } from "../../freestyle/client";
+import { cleanupFreestyleResources } from "../../freestyle/setup";
 
 /**
  * Input schema for deleting a virtual MCP
@@ -51,6 +53,15 @@ export const COLLECTION_VIRTUAL_MCP_DELETE = defineTool({
     }
     if (existing.organization_id !== organization.id) {
       throw new Error(`Virtual MCP not found: ${input.id}`);
+    }
+
+    // Clean up Freestyle resources if any
+    if (ctx.freestyleApiKey && existing.metadata) {
+      const freestyle = createFreestyleClient(ctx.freestyleApiKey);
+      await cleanupFreestyleResources(
+        freestyle,
+        existing.metadata as Record<string, unknown>,
+      ).catch(() => {});
     }
 
     // Delete the virtual MCP (connections are deleted via CASCADE)

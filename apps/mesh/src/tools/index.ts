@@ -125,6 +125,11 @@ const CORE_TOOLS = [
   VirtualMCPTools.VIRTUAL_MCP_PLUGIN_CONFIG_UPDATE,
   VirtualMCPTools.VIRTUAL_MCP_PINNED_VIEWS_UPDATE,
 
+  // Freestyle repo tools
+  VirtualMCPTools.VIRTUAL_MCP_ADD_REPO,
+  VirtualMCPTools.VIRTUAL_MCP_RUN_SCRIPT,
+  VirtualMCPTools.VIRTUAL_MCP_STOP_SCRIPT,
+
   // Ai providers tools
   AiProvidersTools.AI_PROVIDERS_LIST,
   AiProvidersTools.AI_PROVIDERS_LIST_MODELS,

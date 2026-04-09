@@ -363,6 +363,7 @@ export interface MeshContext {
 
   // External API keys (optional, from settings)
   firecrawlApiKey?: string;
+  freestyleApiKey?: string;
 
   // Automation runner — fires an automation manually (wired in app.ts)
   automationRunner?: (
