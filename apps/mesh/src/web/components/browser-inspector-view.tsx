@@ -43,17 +43,30 @@ export function BrowserInspectorView() {
   const scriptEntries = Object.keys(fm.scripts ?? {});
   const url = vmDomain ? `https://${vmDomain}` : null;
 
+  console.log("[browser-inspector]", {
+    runtime_status: fm.runtime_status,
+    vm_domain: fm.vm_domain,
+    running_script: fm.running_script,
+    isRunning,
+    isInstalling,
+    starting,
+    url,
+    rawMetadata: ctx?.entity?.metadata,
+  });
+
   const handleRunScript = async (script: string) => {
     if (!entityId) return;
     setStarting(true);
     try {
-      await client.callTool({
+      const result = await client.callTool({
         name: "VIRTUAL_MCP_RUN_SCRIPT",
         arguments: { virtual_mcp_id: entityId, script },
       });
+      console.log("[browser-inspector] run-script result:", result);
     } catch (e) {
-      console.error("Failed to run script:", e);
+      console.error("[browser-inspector] run-script error:", e);
     } finally {
+      console.log("[browser-inspector] invalidating entity...");
       invalidateEntity();
       setStarting(false);
     }
