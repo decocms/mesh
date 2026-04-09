@@ -94,7 +94,7 @@ export function ToolsPopover({
     staleTime: 60000,
     enabled: open && !!client,
   });
-  const prompts = data?.prompts ?? [];
+  const prompts = Array.isArray(data?.prompts) ? data.prompts : [];
 
   const [activePrompt, setActivePrompt] = useState<Prompt | null>(null);
 
