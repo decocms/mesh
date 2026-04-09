@@ -26,7 +26,10 @@ export function parseFreestyleMetadata(metadata: unknown): FreestyleMetadata {
         : null,
     running_script:
       typeof m.running_script === "string" ? m.running_script : null,
-    vm_domain: typeof m.vm_domain === "string" ? m.vm_domain : null,
+    vm_domain:
+      typeof m.vm_domain === "string" && m.vm_domain !== ""
+        ? m.vm_domain
+        : null,
     scripts:
       m.scripts && typeof m.scripts === "object" && !Array.isArray(m.scripts)
         ? (m.scripts as Record<string, string>)

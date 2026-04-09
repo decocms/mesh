@@ -15,7 +15,7 @@ const InputSchema = z.object({
 
 const OutputSchema = z.object({
   success: z.boolean(),
-  vm_domain: z.string(),
+  vm_domain: z.string().nullable(),
 });
 
 export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({

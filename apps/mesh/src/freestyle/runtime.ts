@@ -9,7 +9,7 @@ const DENO_BIN = "/root/.deno/bin/deno";
 
 export interface RunScriptResult {
   vmId: string;
-  domain: string;
+  domain: string | null;
 }
 
 export async function runScript(
@@ -50,6 +50,8 @@ export async function runScript(
     ports: [{ port: 443, targetPort }],
   });
 
+  console.log("[runtime] VM created:", { vmId, domains });
+
   // Install deps first
   await vm.js.install({ directory: "/app" });
 
@@ -65,7 +67,7 @@ export async function runScript(
 
   return {
     vmId,
-    domain: domains[0] ?? "",
+    domain: domains[0] ?? null,
   };
 }
 
