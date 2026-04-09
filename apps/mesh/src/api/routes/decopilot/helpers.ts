@@ -70,6 +70,26 @@ export function ensureOrganization(
 }
 
 /**
+ * Sanitize a tool name so it is accepted by all known LLM providers.
+ *
+ * Gemini is the strictest: must start with a letter or underscore, contain
+ * only [a-zA-Z0-9_.\-:], and be at most 128 characters.
+ */
+export function sanitizeToolName(name: string): string {
+  // Replace any character outside the allowed set with an underscore
+  let safe = name.replace(/[^a-zA-Z0-9_.\-:]/g, "_");
+  // Ensure it starts with a letter or underscore
+  if (safe.length === 0 || !/^[a-zA-Z_]/.test(safe)) {
+    safe = `_${safe}`;
+  }
+  // Truncate to 128 characters
+  if (safe.length > 128) {
+    safe = safe.slice(0, 128);
+  }
+  return safe;
+}
+
+/**
  * Convert MCP tools to AI SDK ToolSet
  */
 /**
@@ -99,11 +119,22 @@ export async function toolsFromMCP(
   const list = await client.listTools();
   const visibleTools = list.tools.filter(isToolVisibleToModel);
 
+  const usedNames = new Set<string>();
   const toolEntries = visibleTools.map((t) => {
     const { name, title, description, inputSchema, annotations, _meta } = t;
 
+    // Sanitize name for LLM providers (e.g. Gemini); original name is
+    // preserved in the closure and used for MCP callTool execution.
+    let safeName = sanitizeToolName(name);
+    if (usedNames.has(safeName)) {
+      let i = 2;
+      while (usedNames.has(`${safeName}_${i}`)) i++;
+      safeName = `${safeName}_${i}`;
+    }
+    usedNames.add(safeName);
+
     return [
-      name,
+      safeName,
       tool<Record<string, unknown>, CallToolResult>({
         title: title ?? name,
         description,

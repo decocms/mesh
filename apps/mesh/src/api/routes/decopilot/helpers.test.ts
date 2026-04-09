@@ -3,7 +3,42 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { toolNeedsApproval, type ToolApprovalLevel } from "./helpers";
+import {
+  sanitizeToolName,
+  toolNeedsApproval,
+  type ToolApprovalLevel,
+} from "./helpers";
+
+describe("sanitizeToolName", () => {
+  test("leaves valid names unchanged", () => {
+    expect(sanitizeToolName("SEARCH")).toBe("SEARCH");
+    expect(sanitizeToolName("my_tool")).toBe("my_tool");
+    expect(sanitizeToolName("conn-abc_SEARCH")).toBe("conn-abc_SEARCH");
+    expect(sanitizeToolName("tool.v2")).toBe("tool.v2");
+    expect(sanitizeToolName("ns:action")).toBe("ns:action");
+  });
+
+  test("replaces invalid characters with underscores", () => {
+    expect(sanitizeToolName("my tool")).toBe("my_tool");
+    expect(sanitizeToolName("tool/action")).toBe("tool_action");
+    expect(sanitizeToolName("tool@name#1")).toBe("tool_name_1");
+  });
+
+  test("prepends underscore when name starts with digit", () => {
+    expect(sanitizeToolName("123tool")).toBe("_123tool");
+    expect(sanitizeToolName("0_start")).toBe("_0_start");
+  });
+
+  test("prepends underscore for empty result", () => {
+    expect(sanitizeToolName("")).toBe("_");
+    expect(sanitizeToolName("!!!")).toBe("___");
+  });
+
+  test("truncates to 128 characters", () => {
+    const longName = "a".repeat(200);
+    expect(sanitizeToolName(longName).length).toBe(128);
+  });
+});
 
 describe("toolNeedsApproval", () => {
   describe('approval level: "auto"', () => {

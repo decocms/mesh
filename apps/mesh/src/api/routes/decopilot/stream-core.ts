@@ -26,7 +26,11 @@ import {
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
 import { uploadFileParts, resolveStorageRefs } from "./file-materializer";
-import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
+import {
+  isToolVisibleToModel,
+  sanitizeToolName,
+  toolsFromMCP,
+} from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
@@ -423,7 +427,7 @@ async function streamCoreInner(
         if (input.toolApprovalLevel === "plan" && !isCliAgent) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
-            toolAnnotations.set(t.name, {
+            toolAnnotations.set(sanitizeToolName(t.name), {
               readOnlyHint: t.annotations?.readOnlyHint,
             });
           }
@@ -1105,7 +1109,8 @@ async function buildToolCatalog(
   >();
 
   for (const t of tools) {
-    if (enabledTools.has(t.name)) continue;
+    const safeName = sanitizeToolName(t.name);
+    if (enabledTools.has(safeName)) continue;
     if (!isToolVisibleToModel(t)) continue;
 
     const connId = (t._meta?.connectionId as string) ?? "unknown";
@@ -1117,7 +1122,7 @@ async function buildToolCatalog(
       group = { name: connName, id: connId, lines: [] };
       connections.set(connId, group);
     }
-    group.lines.push(`${t.name}|${desc}`);
+    group.lines.push(`${safeName}|${desc}`);
   }
 
   if (connections.size === 0) return null;
