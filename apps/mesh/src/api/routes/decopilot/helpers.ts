@@ -70,6 +70,51 @@ export function ensureOrganization(
 }
 
 /**
+ * Sanitize a tool name so it is accepted by all known LLM providers.
+ *
+ * Gemini is the strictest: must start with a letter or underscore, contain
+ * only [a-zA-Z0-9_.\-:], and be at most 128 characters.
+ */
+export function sanitizeToolName(name: string): string {
+  // Replace any character outside the allowed set with an underscore
+  let safe = name.replace(/[^a-zA-Z0-9_.\-:]/g, "_");
+  // Ensure it starts with a letter or underscore
+  if (safe.length === 0 || !/^[a-zA-Z_]/.test(safe)) {
+    safe = `_${safe}`;
+  }
+  // Truncate to 128 characters
+  if (safe.length > 128) {
+    safe = safe.slice(0, 128);
+  }
+  return safe;
+}
+
+/**
+ * Build a mapping from original tool names to unique, provider-safe names.
+ * Handles collisions by appending `_2`, `_3`, etc., and ensures the
+ * suffixed result still fits within the 128-character limit.
+ */
+export function buildSanitizedNameMap(names: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const usedNames = new Set<string>();
+  for (const name of names) {
+    let safeName = sanitizeToolName(name);
+    if (usedNames.has(safeName)) {
+      // Reserve room for the suffix (up to "_999") within the 128-char limit
+      const maxBase = 128 - 4; // "_" + up to 3 digits
+      const base =
+        safeName.length > maxBase ? safeName.slice(0, maxBase) : safeName;
+      let i = 2;
+      while (usedNames.has(`${base}_${i}`)) i++;
+      safeName = `${base}_${i}`;
+    }
+    usedNames.add(safeName);
+    map.set(name, safeName);
+  }
+  return map;
+}
+
+/**
  * Convert MCP tools to AI SDK ToolSet
  */
 /**
@@ -93,17 +138,19 @@ export async function toolsFromMCP(
   writer?: UIMessageStreamWriter,
   toolApprovalLevel: ToolApprovalLevel = "auto",
   options?: { disableOutputTruncation?: boolean; ctx?: MeshContext },
-): Promise<ToolSet> {
+): Promise<{ tools: ToolSet; nameMap: Map<string, string> }> {
   const truncate = !options?.disableOutputTruncation;
   const meshCtx = options?.ctx;
   const list = await client.listTools();
   const visibleTools = list.tools.filter(isToolVisibleToModel);
 
+  const nameMap = buildSanitizedNameMap(visibleTools.map((t) => t.name));
   const toolEntries = visibleTools.map((t) => {
     const { name, title, description, inputSchema, annotations, _meta } = t;
+    const safeName = nameMap.get(name)!;
 
     return [
-      name,
+      safeName,
       tool<Record<string, unknown>, CallToolResult>({
         title: title ?? name,
         description,
@@ -204,7 +251,7 @@ export async function toolsFromMCP(
     ];
   });
 
-  return Object.fromEntries(toolEntries);
+  return { tools: Object.fromEntries(toolEntries), nameMap };
 }
 
 /**
