@@ -12,7 +12,12 @@ import { monitorLlmCall } from "@/monitoring/emit-llm-call";
 import { recordLlmCallMetrics } from "@/monitoring/record-llm-call-metrics";
 import { isDecopilot, sanitizeProviderMetadata } from "@decocms/mesh-sdk";
 import { SpanStatusCode } from "@opentelemetry/api";
-import { createUIMessageStream, stepCountIs, streamText } from "ai";
+import {
+  type ToolSet,
+  createUIMessageStream,
+  stepCountIs,
+  streamText,
+} from "ai";
 import { getBuiltInTools } from "./built-in-tools";
 import { createEnableToolsTool } from "./built-in-tools/enable-tools";
 import {
@@ -26,11 +31,7 @@ import {
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
 import { uploadFileParts, resolveStorageRefs } from "./file-materializer";
-import {
-  isToolVisibleToModel,
-  sanitizeToolName,
-  toolsFromMCP,
-} from "./helpers";
+import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
 import { ensureModelCompatibility } from "./model-compat";
@@ -389,15 +390,16 @@ async function streamCoreInner(
           codexProvider?.close().catch(() => {});
         };
 
-        const passthroughTools = isCliAgent
-          ? {}
-          : await toolsFromMCP(
-              passthroughClient,
-              toolOutputMap,
-              writer,
-              input.toolApprovalLevel,
-              { ctx },
-            );
+        const { tools: passthroughTools, nameMap: passthroughNameMap } =
+          isCliAgent
+            ? { tools: {} as ToolSet, nameMap: new Map<string, string>() }
+            : await toolsFromMCP(
+                passthroughClient,
+                toolOutputMap,
+                writer,
+                input.toolApprovalLevel,
+                { ctx },
+              );
 
         const builtInTools = isCliAgent
           ? {}
@@ -422,14 +424,19 @@ async function streamCoreInner(
           passthroughToolNames,
         );
 
-        // Build tool annotations map for plan-mode gating in enable_tools
+        // Build tool annotations map for plan-mode gating in enable_tools.
+        // Uses the same nameMap from toolsFromMCP so collision-suffixed names
+        // match the keys in passthroughTools.
         const toolAnnotations = new Map<string, { readOnlyHint?: boolean }>();
         if (input.toolApprovalLevel === "plan" && !isCliAgent) {
           const { tools: toolList } = await passthroughClient.listTools();
           for (const t of toolList) {
-            toolAnnotations.set(sanitizeToolName(t.name), {
-              readOnlyHint: t.annotations?.readOnlyHint,
-            });
+            const safeName = passthroughNameMap.get(t.name);
+            if (safeName) {
+              toolAnnotations.set(safeName, {
+                readOnlyHint: t.annotations?.readOnlyHint,
+              });
+            }
           }
         }
 
@@ -452,7 +459,7 @@ async function streamCoreInner(
         const basePrompt = buildBasePlatformPrompt();
 
         const [toolCatalog, promptCatalog] = await Promise.all([
-          buildToolCatalog(passthroughClient, enabledTools),
+          buildToolCatalog(passthroughClient, enabledTools, passthroughNameMap),
           buildPromptCatalog(passthroughClient),
         ]);
 
@@ -1100,6 +1107,7 @@ async function buildToolCatalog(
     }>;
   },
   enabledTools: Set<string>,
+  nameMap: Map<string, string>,
 ): Promise<string | null> {
   const { tools } = await client.listTools();
 
@@ -1109,8 +1117,8 @@ async function buildToolCatalog(
   >();
 
   for (const t of tools) {
-    const safeName = sanitizeToolName(t.name);
-    if (enabledTools.has(safeName)) continue;
+    const safeName = nameMap.get(t.name);
+    if (!safeName || enabledTools.has(safeName)) continue;
     if (!isToolVisibleToModel(t)) continue;
 
     const connId = (t._meta?.connectionId as string) ?? "unknown";

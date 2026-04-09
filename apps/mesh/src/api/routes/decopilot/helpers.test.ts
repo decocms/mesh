@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  buildSanitizedNameMap,
   sanitizeToolName,
   toolNeedsApproval,
   type ToolApprovalLevel,
@@ -37,6 +38,29 @@ describe("sanitizeToolName", () => {
   test("truncates to 128 characters", () => {
     const longName = "a".repeat(200);
     expect(sanitizeToolName(longName).length).toBe(128);
+  });
+});
+
+describe("buildSanitizedNameMap", () => {
+  test("maps names without collisions", () => {
+    const map = buildSanitizedNameMap(["foo", "bar"]);
+    expect(map.get("foo")).toBe("foo");
+    expect(map.get("bar")).toBe("bar");
+  });
+
+  test("handles collisions with suffixes", () => {
+    // "my tool" and "my/tool" both sanitize to "my_tool"
+    const map = buildSanitizedNameMap(["my tool", "my/tool"]);
+    expect(map.get("my tool")).toBe("my_tool");
+    expect(map.get("my/tool")).toBe("my_tool_2");
+  });
+
+  test("collision suffix stays within 128-char limit", () => {
+    const longName = "a".repeat(200);
+    const map = buildSanitizedNameMap([longName, longName + "x"]);
+    for (const safeName of map.values()) {
+      expect(safeName.length).toBeLessThanOrEqual(128);
+    }
   });
 });
 

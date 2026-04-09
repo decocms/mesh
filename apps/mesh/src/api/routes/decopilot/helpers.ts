@@ -90,6 +90,31 @@ export function sanitizeToolName(name: string): string {
 }
 
 /**
+ * Build a mapping from original tool names to unique, provider-safe names.
+ * Handles collisions by appending `_2`, `_3`, etc., and ensures the
+ * suffixed result still fits within the 128-character limit.
+ */
+export function buildSanitizedNameMap(names: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const usedNames = new Set<string>();
+  for (const name of names) {
+    let safeName = sanitizeToolName(name);
+    if (usedNames.has(safeName)) {
+      // Reserve room for the suffix (up to "_999") within the 128-char limit
+      const maxBase = 128 - 4; // "_" + up to 3 digits
+      const base =
+        safeName.length > maxBase ? safeName.slice(0, maxBase) : safeName;
+      let i = 2;
+      while (usedNames.has(`${base}_${i}`)) i++;
+      safeName = `${base}_${i}`;
+    }
+    usedNames.add(safeName);
+    map.set(name, safeName);
+  }
+  return map;
+}
+
+/**
  * Convert MCP tools to AI SDK ToolSet
  */
 /**
@@ -113,25 +138,16 @@ export async function toolsFromMCP(
   writer?: UIMessageStreamWriter,
   toolApprovalLevel: ToolApprovalLevel = "auto",
   options?: { disableOutputTruncation?: boolean; ctx?: MeshContext },
-): Promise<ToolSet> {
+): Promise<{ tools: ToolSet; nameMap: Map<string, string> }> {
   const truncate = !options?.disableOutputTruncation;
   const meshCtx = options?.ctx;
   const list = await client.listTools();
   const visibleTools = list.tools.filter(isToolVisibleToModel);
 
-  const usedNames = new Set<string>();
+  const nameMap = buildSanitizedNameMap(visibleTools.map((t) => t.name));
   const toolEntries = visibleTools.map((t) => {
     const { name, title, description, inputSchema, annotations, _meta } = t;
-
-    // Sanitize name for LLM providers (e.g. Gemini); original name is
-    // preserved in the closure and used for MCP callTool execution.
-    let safeName = sanitizeToolName(name);
-    if (usedNames.has(safeName)) {
-      let i = 2;
-      while (usedNames.has(`${safeName}_${i}`)) i++;
-      safeName = `${safeName}_${i}`;
-    }
-    usedNames.add(safeName);
+    const safeName = nameMap.get(name)!;
 
     return [
       safeName,
@@ -235,7 +251,7 @@ export async function toolsFromMCP(
     ];
   });
 
-  return Object.fromEntries(toolEntries);
+  return { tools: Object.fromEntries(toolEntries), nameMap };
 }
 
 /**

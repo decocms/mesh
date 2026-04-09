@@ -155,7 +155,7 @@ export function createSubtaskTool(
       );
 
       // ── 3. Load tools, excluding ones that shouldn't nest ──────────
-      const mcpTools = await toolsFromMCP(
+      const { tools: mcpTools } = await toolsFromMCP(
         mcpClient,
         new Map(),
         writer,
