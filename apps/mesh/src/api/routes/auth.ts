@@ -408,37 +408,59 @@ app.post("/domain-setup", async (c) => {
     }
 
     // Derive org name/slug from domain (e.g. "acme.com" → "Acme" / "acme")
-    // Retry with random suffix on slug collision (e.g. acme.com vs acme.io)
     const domainName = emailDomain.split(".")[0] ?? emailDomain;
     const baseOrgName =
       domainName.charAt(0).toUpperCase() + domainName.slice(1);
     const baseSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
 
-    let orgResult: { id: string; slug: string } | null = null;
-    const maxAttempts = 3;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const suffix =
-        attempt === 0 ? "" : `-${Math.random().toString(36).slice(2, 6)}`;
-      const orgName = attempt === 0 ? baseOrgName : `${baseOrgName}${suffix}`;
-      const orgSlug = `${baseSlug}${suffix}`;
+    // Check if user already owns a domainless org (from a previous failed
+    // attempt where createOrganization succeeded but setDomain didn't).
+    // Reuse it instead of creating another orphan.
+    const existingOwnership = await db
+      .selectFrom("member")
+      .innerJoin("organization", "organization.id", "member.organizationId")
+      .leftJoin(
+        "organization_domains",
+        "organization_domains.organization_id",
+        "organization.id",
+      )
+      .select(["organization.id", "organization.slug"])
+      .where("member.userId", "=", session.user.id)
+      .where("member.role", "=", "owner")
+      .where("organization_domains.domain", "is", null)
+      .executeTakeFirst();
 
-      try {
-        orgResult = (await auth.api.createOrganization({
-          body: {
-            name: orgName,
-            slug: orgSlug,
-            userId: session.user.id,
-          },
-        } as any)) as unknown as { id: string; slug: string } | null;
-        break;
-      } catch (createError) {
-        const isConflict =
-          createError instanceof Error &&
-          "body" in createError &&
-          (createError as { body?: { code?: string } }).body?.code ===
-            "ORGANIZATION_ALREADY_EXISTS";
-        if (!isConflict || attempt === maxAttempts - 1) {
-          throw createError;
+    let orgResult: { id: string; slug: string } | null = existingOwnership
+      ? { id: existingOwnership.id, slug: existingOwnership.slug }
+      : null;
+
+    // Create org if no reusable one found. Retry with random suffix on slug collision.
+    if (!orgResult) {
+      const maxAttempts = 3;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const suffix =
+          attempt === 0 ? "" : `-${Math.random().toString(36).slice(2, 6)}`;
+        const orgName = attempt === 0 ? baseOrgName : `${baseOrgName}${suffix}`;
+        const orgSlug = `${baseSlug}${suffix}`;
+
+        try {
+          orgResult = (await auth.api.createOrganization({
+            body: {
+              name: orgName,
+              slug: orgSlug,
+              userId: session.user.id,
+            },
+          } as any)) as unknown as { id: string; slug: string } | null;
+          break;
+        } catch (createError) {
+          const isConflict =
+            createError instanceof Error &&
+            "body" in createError &&
+            (createError as { body?: { code?: string } }).body?.code ===
+              "ORGANIZATION_ALREADY_EXISTS";
+          if (!isConflict || attempt === maxAttempts - 1) {
+            throw createError;
+          }
         }
       }
     }

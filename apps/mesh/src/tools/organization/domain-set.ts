@@ -75,6 +75,17 @@ export const ORGANIZATION_DOMAIN_SET = defineTool({
       );
     }
 
+    // Prevent overwriting an existing different domain claim.
+    // Admins must clear the old domain first via ORGANIZATION_DOMAIN_CLEAR.
+    const existing = await ctx.storage.organizationDomains.getByOrganizationId(
+      org.id,
+    );
+    if (existing && existing.domain !== domain) {
+      throw new Error(
+        `This organization already claims "${existing.domain}". Clear it first before claiming a new domain.`,
+      );
+    }
+
     const result = await ctx.storage.organizationDomains.setDomain(
       org.id,
       domain,
