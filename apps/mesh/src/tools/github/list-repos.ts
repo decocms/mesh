@@ -61,7 +61,7 @@ export const GITHUB_LIST_REPOS = defineTool({
     }
 
     const response = await fetch(
-      `https://api.github.com/user/installations/${input.installationId}/repositories`,
+      `https://api.github.com/user/installations/${input.installationId}/repositories?per_page=100`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,

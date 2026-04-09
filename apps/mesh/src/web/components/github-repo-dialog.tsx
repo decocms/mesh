@@ -74,23 +74,30 @@ export function GitHubRepoDialog({
     enabled: open,
   });
 
-  // Step 2: List repos for selected installation
+  // Derive effective installation: auto-select if only one, otherwise use user selection
+  const installations = installationsQuery.data?.installations ?? [];
+  const effectiveInstallation =
+    installations.length === 1
+      ? (installations[0] ?? null)
+      : selectedInstallation;
+
+  // Step 2: List repos for effective installation
   const reposQuery = useQuery({
     queryKey: KEYS.githubRepos(
       org.id,
-      String(selectedInstallation?.installationId),
+      String(effectiveInstallation?.installationId),
     ),
     queryFn: async () => {
-      if (!selectedInstallation) return { repos: [] };
+      if (!effectiveInstallation) return { repos: [] };
       const result = await client.callTool({
         name: "GITHUB_LIST_REPOS",
-        arguments: { installationId: selectedInstallation.installationId },
+        arguments: { installationId: effectiveInstallation.installationId },
       });
       const payload =
         (result as { structuredContent?: unknown }).structuredContent ?? result;
       return payload as { repos: Repo[] };
     },
-    enabled: !!selectedInstallation,
+    enabled: !!effectiveInstallation,
   });
 
   // Step 3: Save selected repo to virtual MCP metadata
@@ -107,7 +114,7 @@ export function GitHubRepoDialog({
                 url: repo.url,
                 owner: repo.owner,
                 name: repo.name,
-                installationId: selectedInstallation!.installationId,
+                installationId: effectiveInstallation!.installationId,
               },
             },
           },
@@ -182,7 +189,7 @@ export function GitHubRepoDialog({
     }
 
     // No installations — prompt app install
-    if (installationsQuery.data.installations.length === 0) {
+    if (installations.length === 0) {
       return (
         <div className="flex flex-col items-center gap-4 py-6">
           <p className="text-sm text-muted-foreground text-center">
@@ -193,13 +200,8 @@ export function GitHubRepoDialog({
       );
     }
 
-    // Has installations but none selected — show org picker (or auto-select if only one)
-    if (!selectedInstallation) {
-      const installations = installationsQuery.data.installations;
-      if (installations.length === 1) {
-        setSelectedInstallation(installations[0] ?? null);
-        return null;
-      }
+    // Multiple installations and none selected — show org picker
+    if (!effectiveInstallation) {
       return (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">
@@ -226,7 +228,7 @@ export function GitHubRepoDialog({
       );
     }
 
-    // Installation selected — show repo picker
+    // Installation resolved — show repo picker
     if (reposQuery.isLoading) {
       return (
         <div className="flex items-center justify-center py-8">
@@ -237,7 +239,7 @@ export function GitHubRepoDialog({
 
     return (
       <div className="flex flex-col gap-3">
-        {installationsQuery.data.installations.length > 1 && (
+        {installations.length > 1 && (
           <button
             type="button"
             onClick={() => setSelectedInstallation(null)}

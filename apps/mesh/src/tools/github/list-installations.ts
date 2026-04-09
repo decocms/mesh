@@ -62,13 +62,16 @@ export const GITHUB_LIST_INSTALLATIONS = defineTool({
     }
 
     // Fetch user's installations from GitHub API
-    const response = await fetch("https://api.github.com/user/installations", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
+    const response = await fetch(
+      "https://api.github.com/user/installations?per_page=100",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.status}`);
