@@ -260,138 +260,6 @@ function ConnectApiKeyForm({
   );
 }
 
-const openaiCompatibleFormSchema = z.object({
-  label: z.string().optional(),
-  baseUrl: z.string().min(1, "Base URL is required"),
-  apiKey: z.string().optional(),
-});
-
-type OpenAICompatibleFormData = z.infer<typeof openaiCompatibleFormSchema>;
-
-function ConnectOpenAICompatibleForm({
-  onCancel,
-  onSuccess,
-}: {
-  onCancel: () => void;
-  onSuccess: () => void;
-}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const queryClient = useQueryClient();
-  const [showKey, setShowKey] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<OpenAICompatibleFormData>({
-    resolver: zodResolver(openaiCompatibleFormSchema),
-    defaultValues: { label: "", baseUrl: "", apiKey: "" },
-  });
-
-  const {
-    mutate: createKey,
-    isPending,
-    error,
-  } = useMutation({
-    mutationFn: async (data: OpenAICompatibleFormData) => {
-      const encodedKey = JSON.stringify({
-        baseUrl: data.baseUrl,
-        apiKey: data.apiKey || "",
-      });
-      await client.callTool({
-        name: "AI_PROVIDER_KEY_CREATE",
-        arguments: {
-          providerId: "openai-compatible",
-          label: data.label || data.baseUrl,
-          apiKey: encodedKey,
-        },
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
-      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
-      toast.success("Connection saved successfully");
-      onSuccess();
-    },
-    onError: (err) => {
-      toast.error(`Failed to save connection: ${err.message}`);
-    },
-  });
-
-  return (
-    <form
-      onSubmit={handleSubmit((data) => createKey(data))}
-      className="space-y-3"
-    >
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
-          Label
-        </label>
-        <Input
-          placeholder="e.g. LiteLLM, Ollama"
-          {...register("label")}
-          className="h-8 text-sm"
-        />
-      </div>
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
-          Base URL
-        </label>
-        <Input
-          type="url"
-          placeholder="http://localhost:4000/v1"
-          {...register("baseUrl")}
-          className="h-8 text-sm"
-        />
-        {errors.baseUrl && (
-          <p className="text-xs text-destructive">{errors.baseUrl.message}</p>
-        )}
-      </div>
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">
-          API Key <span className="text-muted-foreground/60">(optional)</span>
-        </label>
-        <div className="relative">
-          <Input
-            type={showKey ? "text" : "password"}
-            placeholder="sk-..."
-            {...register("apiKey")}
-            className="h-8 text-sm pr-8"
-          />
-          <button
-            type="button"
-            onClick={() => setShowKey(!showKey)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-        </div>
-      </div>
-
-      {error && <p className="text-xs text-destructive">{error.message}</p>}
-
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onCancel}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" size="sm" disabled={isPending}>
-          {isPending ? "Saving..." : "Save Connection"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
 export type AiProvider = {
   id: string;
   name: string;
@@ -871,23 +739,14 @@ function ProviderCard({
           <DialogHeader>
             <DialogTitle>Connect {provider.name}</DialogTitle>
             <DialogDescription>
-              {provider.id === "openai-compatible"
-                ? "Enter the base URL and optional API key for your OpenAI-compatible endpoint."
-                : `Add an API key to connect your ${provider.name} account.`}
+              Add an API key to connect your {provider.name} account.
             </DialogDescription>
           </DialogHeader>
-          {provider.id === "openai-compatible" ? (
-            <ConnectOpenAICompatibleForm
-              onCancel={() => setIsConnectFormOpen(false)}
-              onSuccess={() => setIsConnectFormOpen(false)}
-            />
-          ) : (
-            <ConnectApiKeyForm
-              providerId={provider.id}
-              onCancel={() => setIsConnectFormOpen(false)}
-              onSuccess={() => setIsConnectFormOpen(false)}
-            />
-          )}
+          <ConnectApiKeyForm
+            providerId={provider.id}
+            onCancel={() => setIsConnectFormOpen(false)}
+            onSuccess={() => setIsConnectFormOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </>
@@ -898,16 +757,41 @@ export function ProviderCardGrid() {
   const aiProviders = useAiProviders();
   const allKeys = useAiProviderKeys();
   const providers: AiProvider[] = aiProviders?.providers ?? [];
+  const localProviders = providers.filter((p) =>
+    p.supportedMethods.includes("cli-activate"),
+  );
+  const cloudProviders = providers.filter(
+    (p) => !p.supportedMethods.includes("cli-activate"),
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {providers.map((provider) => (
-        <ProviderCard
-          key={provider.id}
-          provider={provider}
-          keys={allKeys.filter((k) => k.providerId === provider.id)}
-        />
-      ))}
+    <div className="flex flex-col gap-5 w-full">
+      {localProviders.length > 0 && (
+        <div className="relative rounded-xl border border-lime-400/30 bg-gradient-to-br from-lime-50/50 via-transparent to-yellow-50/30 dark:from-lime-950/20 dark:to-yellow-950/10 p-4">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-lime-400/5 to-yellow-400/5 pointer-events-none" />
+          <p className="text-xs font-medium text-lime-700 dark:text-lime-400 mb-3 relative">
+            Local models — use your existing AI provider
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 relative">
+            {localProviders.map((provider) => (
+              <ProviderCard
+                key={provider.id}
+                provider={provider}
+                keys={allKeys.filter((k) => k.providerId === provider.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {cloudProviders.map((provider) => (
+          <ProviderCard
+            key={provider.id}
+            provider={provider}
+            keys={allKeys.filter((k) => k.providerId === provider.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
