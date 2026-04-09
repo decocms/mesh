@@ -74,6 +74,25 @@ export async function runScript(
     `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${runCmd} > /tmp/app.log 2>&1 &`,
   );
 
+  // Wait a moment for the server to start, then check what's listening
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  try {
+    const ssResult = await vm.exec(
+      "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo 'no ss/netstat'",
+    );
+    console.log("[runtime] Listening ports:", ssResult);
+    const logResult = await vm.exec(
+      "tail -20 /tmp/app.log 2>/dev/null || echo 'no log'",
+    );
+    console.log("[runtime] App log:", logResult);
+    const curlResult = await vm.exec(
+      `curl -s -o /dev/null -w '%{http_code}' http://localhost:${targetPort} 2>/dev/null || echo 'curl failed'`,
+    );
+    console.log("[runtime] Curl localhost:", curlResult);
+  } catch (e) {
+    console.error("[runtime] Diagnostics failed:", e);
+  }
+
   // Try to get domain from result
   let domain: string | null = null;
   if (Array.isArray(rawDomains) && rawDomains.length > 0) {
