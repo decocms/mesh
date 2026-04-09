@@ -45,7 +45,7 @@ export async function runScript(
   const targetPort = metadata.preview_port ?? 3000;
 
   const { vm, vmId, domains } = await freestyle.vms.create({
-    spec,
+    snapshot: spec,
     idleTimeoutSeconds: 600,
     ports: [{ port: 443, targetPort }],
   });
