@@ -1,3 +1,4 @@
+import RequiredAuthLayout from "@/web/layouts/required-auth-layout";
 import { authClient } from "@/web/lib/auth-client";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
@@ -52,7 +53,15 @@ interface DomainLookupResult {
   organization?: { name: string; slug: string } | null;
 }
 
-export default function OnboardingPage() {
+export default function OnboardingRoute() {
+  return (
+    <RequiredAuthLayout>
+      <OnboardingPage />
+    </RequiredAuthLayout>
+  );
+}
+
+function OnboardingPage() {
   const { data: session, isPending: sessionLoading } = authClient.useSession();
   const [orgName, setOrgName] = useState("");
 
@@ -171,6 +180,13 @@ export default function OnboardingPage() {
                   `Join ${domainLookup.organization!.name}`
                 )}
               </Button>
+              {joinOrgMutation.error && (
+                <p className="text-sm text-destructive">
+                  {joinOrgMutation.error instanceof Error
+                    ? joinOrgMutation.error.message
+                    : "Failed to join organization"}
+                </p>
+              )}
               <div className="text-center">
                 <button
                   type="button"
