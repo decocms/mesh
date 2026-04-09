@@ -16,30 +16,11 @@ import openaiCompatRoutes from "./openai-compat";
 const MOCK_ORG_ID = "org_test123";
 const MOCK_ORG_SLUG = "test-org";
 const MOCK_USER_ID = "user_test456";
-const MOCK_CONNECTION_ID = "conn_llm789";
+const MOCK_CREDENTIAL_ID = "key_test789";
 const MOCK_MODEL_ID = "gpt-4";
 
 // Helper to build the endpoint path
 const ENDPOINT = `/${MOCK_ORG_SLUG}/v1/chat/completions`;
-
-function createMockConnection(
-  overrides?: Partial<{
-    id: string;
-    organization_id: string;
-    status: string;
-  }>,
-) {
-  return {
-    id: overrides?.id ?? MOCK_CONNECTION_ID,
-    organization_id: overrides?.organization_id ?? MOCK_ORG_ID,
-    status: overrides?.status ?? "active",
-    title: "Test LLM Connection",
-    url: "https://api.openai.com",
-    binding: "llm",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-}
 
 // ============================================================================
 // Schema Validation Tests
@@ -48,27 +29,19 @@ function createMockConnection(
 describe("OpenAI-compat: Schema Validation", () => {
   let database: TestDatabase;
   let app: Hono<{ Variables: { meshContext: MeshContext } }>;
-  let mockFindById: ReturnType<typeof mock>;
-  let mockHasPermission: ReturnType<typeof mock>;
 
   beforeEach(async () => {
     database = await createTestDatabase();
     await createTestSchema(database.db);
 
-    mockFindById = mock(async () => createMockConnection());
-    mockHasPermission = mock(async () => true);
-
     const ctx = {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
-      auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // API key auth required
-      storage: {
-        connections: {
-          findById: mockFindById,
-        },
-      },
-      accessControl: {
-        hasPermission: mockHasPermission,
+      auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked for schema tests");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -108,7 +81,7 @@ describe("OpenAI-compat: Schema Validation", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
       }),
     });
 
@@ -136,7 +109,7 @@ describe("OpenAI-compat: Schema Validation", () => {
       error: { message: string; type: string };
     };
     expect(body.error.type).toBe("invalid_request_error");
-    expect(body.error.message).toContain("connection_id:model_id");
+    expect(body.error.message).toContain("credential_id:model_id");
   });
 
   it("rejects invalid message role", async () => {
@@ -144,7 +117,7 @@ describe("OpenAI-compat: Schema Validation", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "invalid_role", content: "Hello" }],
       }),
     });
@@ -161,7 +134,7 @@ describe("OpenAI-compat: Schema Validation", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         temperature: 3.0, // max is 2.0
       }),
@@ -179,7 +152,7 @@ describe("OpenAI-compat: Schema Validation", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: -100,
       }),
@@ -220,10 +193,10 @@ describe("OpenAI-compat: Authentication", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { user: { id: MOCK_USER_ID }, apiKey: null }, // User session but no API key
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -238,7 +211,7 @@ describe("OpenAI-compat: Authentication", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
       }),
     });
@@ -256,10 +229,10 @@ describe("OpenAI-compat: Authentication", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { user: null, apiKey: null }, // No authentication
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -274,7 +247,7 @@ describe("OpenAI-compat: Authentication", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
       }),
     });
@@ -291,10 +264,10 @@ describe("OpenAI-compat: Authentication", () => {
       db: database.db,
       organization: null, // No organization
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // Has API key
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -309,7 +282,7 @@ describe("OpenAI-compat: Authentication", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
       }),
     });
@@ -346,10 +319,10 @@ describe("OpenAI-compat: Authorization", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: "different-org" }, // Different slug
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // API key auth
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -365,7 +338,7 @@ describe("OpenAI-compat: Authorization", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
       }),
     });
@@ -377,9 +350,6 @@ describe("OpenAI-compat: Authorization", () => {
     expect(body.error.type).toBe("invalid_request_error");
     expect(body.error.message).toContain("mismatch");
   });
-
-  // Note: Connection-level authorization tests require complex AccessControl mocking
-  // These are better tested via integration tests with a real database and auth setup
 });
 
 // ============================================================================
@@ -398,10 +368,10 @@ describe("OpenAI-compat: Tools Schema", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // API key auth required
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -423,7 +393,7 @@ describe("OpenAI-compat: Tools Schema", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         tools: [
           {
@@ -448,7 +418,7 @@ describe("OpenAI-compat: Tools Schema", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         tools: [
           {
@@ -474,7 +444,7 @@ describe("OpenAI-compat: Tools Schema", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         tools: [
           {
@@ -512,10 +482,10 @@ describe("OpenAI-compat: Response Format", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // API key auth required
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -537,7 +507,7 @@ describe("OpenAI-compat: Response Format", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         response_format: { type: "invalid_format" },
       }),
@@ -555,7 +525,7 @@ describe("OpenAI-compat: Response Format", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         response_format: {
           type: "json_schema",
@@ -579,7 +549,7 @@ describe("OpenAI-compat: Response Format", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "user", content: "Hello" }],
         response_format: {
           type: "json_schema",
@@ -615,10 +585,10 @@ describe("OpenAI-compat: Message Formats", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } }, // API key auth required
-      storage: {
-        connections: {
-          findById: mock(async () => createMockConnection()),
-        },
+      aiProviders: {
+        activate: mock(async () => {
+          throw new Error("not mocked");
+        }),
       },
     } as unknown as MeshContext;
 
@@ -640,7 +610,7 @@ describe("OpenAI-compat: Message Formats", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [{ role: "invalid_role", content: "Hello" }],
       }),
     });
@@ -657,7 +627,7 @@ describe("OpenAI-compat: Message Formats", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [
           { role: "user" }, // Missing content
         ],
@@ -676,7 +646,7 @@ describe("OpenAI-compat: Message Formats", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [
           { role: "user", content: "Hello" },
           {
@@ -700,7 +670,7 @@ describe("OpenAI-compat: Message Formats", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: `${MOCK_CONNECTION_ID}:${MOCK_MODEL_ID}`,
+        model: `${MOCK_CREDENTIAL_ID}:${MOCK_MODEL_ID}`,
         messages: [
           {
             role: "user",

@@ -5,30 +5,22 @@
  * LLM access. Supports full OpenAI spec including tools/function calling.
  *
  * Authentication: Bearer token (API key) with organization metadata
- * Authorization: Checks permission on the model connection
- * Model format: "connection_id:model_id"
+ * Model format: "credential_id:model_id"
  */
 
-import { LanguageModelBinding } from "@decocms/bindings/llm";
-import { clientFromConnection } from "@/mcp-clients";
-import { toServerClient } from "./proxy";
 import {
   generateText,
   jsonSchema,
   streamText,
   tool,
   type JSONSchema7,
-  type LanguageModel,
   type ModelMessage,
   type ToolSet,
 } from "ai";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
-import { AccessControl } from "../../core/access-control";
 import type { MeshContext } from "../../core/mesh-context";
-import type { ConnectionEntity } from "../../tools/connection/schema";
-import { createLLMProvider } from "../llm-provider";
 
 // ============================================================================
 // Types & Schemas
@@ -139,7 +131,7 @@ type ResponseFormat = z.infer<typeof ResponseFormatSchema>;
  * OpenAI-compatible chat completion request
  */
 const ChatCompletionRequestSchema = z.object({
-  model: z.string().describe("Format: connection_id:model_id"),
+  model: z.string().describe("Format: credential_id:model_id"),
   messages: z.array(OpenAIMessageSchema),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
@@ -190,25 +182,25 @@ function createErrorResponse(
 }
 
 /**
- * Parse model string into connectionId and modelId
- * Format: "connection_id:model_id"
+ * Parse model string into credentialId and modelId
+ * Format: "credential_id:model_id"
  */
 function parseModelString(
   model: string,
-): { connectionId: string; modelId: string } | null {
+): { credentialId: string; modelId: string } | null {
   const colonIndex = model.indexOf(":");
   if (colonIndex === -1) {
     return null;
   }
 
-  const connectionId = model.substring(0, colonIndex);
+  const credentialId = model.substring(0, colonIndex);
   const modelId = model.substring(colonIndex + 1);
 
-  if (!connectionId || !modelId) {
+  if (!credentialId || !modelId) {
     return null;
   }
 
-  return { connectionId, modelId };
+  return { credentialId, modelId };
 }
 
 /**
@@ -366,54 +358,10 @@ function generateCompletionId(): string {
 }
 
 /**
- * Get connection by ID with organization validation
- */
-async function getConnectionById(
-  ctx: MeshContext,
-  organizationId: string,
-  connectionId: string,
-): Promise<ConnectionEntity | null> {
-  const connection = await ctx.storage.connections.findById(connectionId);
-
-  if (!connection) {
-    return null;
-  }
-
-  if (connection.organization_id !== organizationId) {
-    return null;
-  }
-
-  if (connection.status !== "active") {
-    return null;
-  }
-
-  return connection;
-}
-
-/**
- * Check if user has permission on the connection
- */
-async function checkConnectionPermission(
-  ctx: MeshContext,
-  connectionId: string,
-): Promise<void> {
-  const accessControl = new AccessControl(
-    ctx.authInstance,
-    ctx.auth.user?.id ?? ctx.auth.apiKey?.userId,
-    "*", // Check for any tool access
-    ctx.boundAuth,
-    ctx.auth.user?.role,
-    connectionId,
-  );
-
-  await accessControl.check("*");
-}
-
-/**
  * Build common options for generateText/streamText
  */
 function buildGenerateOptions(
-  provider: LanguageModel,
+  model: ReturnType<import("@ai-sdk/provider").ProviderV3["languageModel"]>,
   messages: ModelMessage[],
   tools: ToolSet | undefined,
   request: ChatCompletionRequest,
@@ -421,7 +369,7 @@ function buildGenerateOptions(
   abortSignal: AbortSignal,
 ) {
   const baseOptions = {
-    model: provider,
+    model,
     messages,
     tools,
     temperature: request.temperature,
@@ -522,7 +470,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
     if (!modelParsed) {
       return c.json(
         createErrorResponse(
-          "Invalid model format. Expected 'connection_id:model_id' (e.g., 'conn_abc123:gpt-4')",
+          "Invalid model format. Expected 'credential_id:model_id' (e.g., 'key_abc123:claude-sonnet-4-6')",
           "invalid_request_error",
           "model",
         ),
@@ -530,32 +478,32 @@ app.post("/:org/v1/chat/completions", async (c) => {
       );
     }
 
-    const { connectionId, modelId } = modelParsed;
+    const { credentialId, modelId } = modelParsed;
 
-    // 5. Check connection permission
-    try {
-      await checkConnectionPermission(ctx, connectionId);
-    } catch {
+    // Migration: detect old connection_id format and return helpful error
+    if (credentialId.startsWith("conn_")) {
       return c.json(
         createErrorResponse(
-          `Access denied to connection: ${connectionId}`,
-          "permission_error",
+          `The model format has changed. Use 'credential_id:model_id' instead of 'connection_id:model_id'. ` +
+            `Replace '${credentialId}' with your AI provider credential ID (e.g., 'key_abc123:${modelId}').`,
+          "invalid_request_error",
           "model",
         ),
-        403,
+        400,
       );
     }
 
-    // 6. Get connection
-    const connection = await getConnectionById(
-      ctx,
-      ctx.organization.id,
-      connectionId,
-    );
-    if (!connection) {
+    // 5. Activate AI provider
+    let provider;
+    try {
+      provider = await ctx.aiProviders.activate(
+        credentialId,
+        ctx.organization.id,
+      );
+    } catch {
       return c.json(
         createErrorResponse(
-          `Connection not found or inactive: ${connectionId}`,
+          `AI provider credential not found or inaccessible: ${credentialId}`,
           "invalid_request_error",
           "model",
         ),
@@ -563,7 +511,10 @@ app.post("/:org/v1/chat/completions", async (c) => {
       );
     }
 
-    // 7. Convert messages, tools, and response format (before proxy creation)
+    // 6. Create language model
+    const languageModel = provider.aiSdk.languageModel(modelId);
+
+    // 7. Convert messages, tools, and response format
     const messages = convertToAISDKMessages(request.messages);
     const tools = request.tools
       ? convertToAISDKTools(request.tools)
@@ -575,21 +526,10 @@ app.post("/:org/v1/chat/completions", async (c) => {
     const created = Math.floor(Date.now() / 1000);
 
     // 9. Handle streaming vs non-streaming
-    // NOTE: Client must be created INSIDE each branch to keep it alive for the duration of the operation
     if (request.stream) {
       return streamSSE(c, async (stream) => {
-        // Create client inside the streaming callback so it stays alive
-        // Add streaming support since this branch needs it
-        // Note: No need for await using - client pool manages lifecycle
-        const client = await clientFromConnection(connection, ctx, false);
-        // @deprecated: llm-binding path — migrate to native AI SDK providers
-        const llmBinding = LanguageModelBinding.forClient(
-          toServerClient(client),
-        );
-        const provider = createLLMProvider(llmBinding).languageModel(modelId);
-
         const options = buildGenerateOptions(
-          provider,
+          languageModel,
           messages,
           tools,
           request,
@@ -717,14 +657,8 @@ app.post("/:org/v1/chat/completions", async (c) => {
       });
     } else {
       // Non-streaming response
-      // Note: No need for await using - client pool manages lifecycle
-      // @deprecated: llm-binding path — migrate to native AI SDK providers
-      const client = await clientFromConnection(connection, ctx, false);
-      const llmBinding = LanguageModelBinding.forClient(toServerClient(client));
-      const provider = createLLMProvider(llmBinding).languageModel(modelId);
-
       const options = buildGenerateOptions(
-        provider,
+        languageModel,
         messages,
         tools,
         request,
