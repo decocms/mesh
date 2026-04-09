@@ -412,7 +412,8 @@ app.post("/domain-setup", async (c) => {
     const orgName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
     const orgSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
 
-    // Create the org (triggers seedOrgDb via afterCreate hook)
+    // Create org + claim domain. If the domain claim fails (race — another
+    // request claimed it first), delete the orphaned org and return 409.
     const orgResult = (await auth.api.createOrganization({
       body: {
         name: orgName,
@@ -426,8 +427,30 @@ app.post("/domain-setup", async (c) => {
     }
     const orgId = orgResult.id;
 
-    // Claim the domain with auto-join enabled
-    await domainStorage.setDomain(orgId, emailDomain, true);
+    try {
+      await domainStorage.setDomain(orgId, emailDomain, true);
+    } catch {
+      // Domain was claimed by a concurrent request — clean up the org we just created
+      try {
+        await auth.api.deleteOrganization({
+          headers: c.req.raw.headers,
+          body: { organizationId: orgId },
+        });
+      } catch {
+        console.error(
+          "[Auth] Failed to clean up orphaned org after domain claim race:",
+          orgId,
+        );
+      }
+      return c.json(
+        {
+          success: false,
+          error:
+            "This domain was just claimed by another user. Please refresh and try again.",
+        },
+        409,
+      );
+    }
 
     // Brand extraction (best-effort — don't fail the setup if this errors)
     let brandExtracted = false;

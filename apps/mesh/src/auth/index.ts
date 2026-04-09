@@ -433,6 +433,7 @@ export const auth = betterAuth({
           if (user.emailVerified) {
             const emailDomain = user.email?.split("@")[1]?.toLowerCase();
             if (emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+              let domainHandled = false;
               try {
                 const domainStorage = new OrganizationDomainStorage(getDb().db);
                 const domainRecord =
@@ -448,13 +449,14 @@ export const auth = betterAuth({
                   } as any);
                   return;
                 }
+                // Corporate email, no auto-join → let /onboarding handle it
+                domainHandled = true;
               } catch (error) {
                 console.error("[Auth] Domain auto-join check failed:", error);
-                // Fall through to default org creation
+                // domainHandled stays false → fall through to default org creation
               }
 
-              // Corporate email, no auto-join match → let /onboarding handle it
-              return;
+              if (domainHandled) return;
             }
           }
 
