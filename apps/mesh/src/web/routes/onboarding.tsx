@@ -328,14 +328,14 @@ const SETUP_STEPS = [
     delay: 1500,
   },
   {
-    icon: Palette,
-    label: "Extracting brand context",
+    icon: Users03,
+    label: "Enabling auto-join for your team",
     delay: 3000,
   },
   {
-    icon: Users03,
-    label: "Enabling auto-join for your team",
-    delay: 5000,
+    icon: Palette,
+    label: "Extracting brand context",
+    delay: 4500,
   },
 ];
 
