@@ -527,10 +527,13 @@ app.post("/domain-setup", async (c) => {
 
             brandExtracted = true;
 
-            // Update org: name from brand, logo from brand
+            // Update org: name from brand, favicon as org logo
+            // (favicons are small/reliable; full logos often hit size limits)
+            const orgLogo =
+              (images.favicon as string) ?? brandLogo ?? null;
             const orgUpdate: Record<string, unknown> = {};
             if (brandName !== orgName) orgUpdate.name = brandName;
-            if (brandLogo) orgUpdate.logo = brandLogo;
+            if (orgLogo) orgUpdate.logo = orgLogo;
             if (Object.keys(orgUpdate).length > 0) {
               await auth.api.updateOrganization({
                 headers: c.req.raw.headers,
