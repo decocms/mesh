@@ -223,10 +223,9 @@ app.get("/domain-lookup", async (c) => {
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
   }
-  // TODO: restore before merging
-  // if (!session.user.emailVerified) {
-  //   return c.json({ found: false });
-  // }
+  if (!session.user.emailVerified) {
+    return c.json({ found: false });
+  }
 
   const domain = session.user.email?.split("@")[1]?.toLowerCase();
   if (!domain || GENERIC_EMAIL_DOMAINS.has(domain)) {
@@ -276,8 +275,7 @@ app.post("/domain-join", async (c) => {
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
   }
-  // TODO: restore before merging
-  if (false && !session.user.emailVerified) {
+  if (!session.user.emailVerified) {
     return c.json(
       { success: false, error: "Email must be verified to join" },
       403,
@@ -365,8 +363,7 @@ app.post("/domain-setup", async (c) => {
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
   }
-  // TODO: restore before merging
-  if (false && !session.user.emailVerified) {
+  if (!session.user.emailVerified) {
     return c.json({ success: false, error: "Email must be verified" }, 403);
   }
 
@@ -529,8 +526,7 @@ app.post("/domain-setup", async (c) => {
 
             // Update org: name from brand, favicon as org logo
             // (favicons are small/reliable; full logos often hit size limits)
-            const orgLogo =
-              (images.favicon as string) ?? brandLogo ?? null;
+            const orgLogo = (images.favicon as string) ?? brandLogo ?? null;
             const orgUpdate: Record<string, unknown> = {};
             if (brandName !== orgName) orgUpdate.name = brandName;
             if (orgLogo) orgUpdate.logo = orgLogo;
