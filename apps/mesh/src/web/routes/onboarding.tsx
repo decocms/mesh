@@ -13,7 +13,7 @@ import {
   Users03,
 } from "@untitledui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const GENERIC_EMAIL_DOMAINS = new Set([
   "gmail.com",
@@ -347,14 +347,19 @@ function SetupWorkflow({
   domain: string;
 }) {
   const [activeStep, setActiveStep] = useState(0);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const didSchedule = useRef(false);
 
-  // Progress through steps on a timer — the backend does them all in one
-  // call, but this gives the user a sense of progress.
-  useState(() => {
+  // Schedule step progression once — useRef guard prevents double-fire
+  // in Strict Mode, and we clean up timers if the component unmounts.
+  if (!didSchedule.current) {
+    didSchedule.current = true;
     for (let i = 1; i < SETUP_STEPS.length; i++) {
-      setTimeout(() => setActiveStep(i), SETUP_STEPS[i]!.delay);
+      timersRef.current.push(
+        setTimeout(() => setActiveStep(i), SETUP_STEPS[i]!.delay),
+      );
     }
-  });
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">

@@ -379,17 +379,32 @@ app.post("/domain-setup", async (c) => {
     // Check if domain is already claimed
     const existing = await domainStorage.getByDomain(emailDomain);
     if (existing) {
-      // Domain already set up — look up the org slug for redirect
-      const org = await db
-        .selectFrom("organization")
-        .select(["slug"])
-        .where("id", "=", existing.organizationId)
+      // Verify the user is actually a member of this org
+      const membership = await db
+        .selectFrom("member")
+        .innerJoin("organization", "organization.id", "member.organizationId")
+        .select(["organization.slug"])
+        .where("member.userId", "=", session.user.id)
+        .where("member.organizationId", "=", existing.organizationId)
         .executeTakeFirst();
-      return c.json({
-        success: true,
-        slug: org?.slug ?? null,
-        alreadyExists: true,
-      });
+
+      if (membership) {
+        return c.json({
+          success: true,
+          slug: membership.slug,
+          alreadyExists: true,
+        });
+      }
+
+      // Domain claimed but user isn't a member — they can't use this flow
+      return c.json(
+        {
+          success: false,
+          error:
+            "This domain is already claimed. Ask an admin for an invitation.",
+        },
+        403,
+      );
     }
 
     // Derive org name from domain (e.g. "acme.com" → "Acme")
