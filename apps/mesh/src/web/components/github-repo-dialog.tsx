@@ -6,7 +6,7 @@ import {
 } from "@deco/ui/components/dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useProjectContext,
@@ -14,7 +14,6 @@ import {
   SELF_MCP_ALIAS_ID,
 } from "@decocms/mesh-sdk";
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
-import { authClient } from "@/web/lib/auth-client";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
 import { Loading01 } from "@untitledui/icons";
@@ -33,9 +32,34 @@ interface Repo {
   private: boolean;
 }
 
-// GitHub App installation URL — replace slug with actual Deco CMS app slug
 const GITHUB_APP_INSTALL_URL =
   "https://github.com/apps/deco-cms/installations/new";
+
+const GITHUB_TOKEN_KEY = "deco:github-token";
+
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(GITHUB_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeToken(token: string): void {
+  try {
+    localStorage.setItem(GITHUB_TOKEN_KEY, token);
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+function clearStoredToken(): void {
+  try {
+    localStorage.removeItem(GITHUB_TOKEN_KEY);
+  } catch {
+    // localStorage unavailable
+  }
+}
 
 export function GitHubRepoDialog({
   open,
@@ -47,41 +71,122 @@ export function GitHubRepoDialog({
   const { org } = useProjectContext();
   const inset = useInsetContext();
   const queryClient = useQueryClient();
+  const [token, setToken] = useState<string | null>(getStoredToken);
   const [selectedInstallation, setSelectedInstallation] =
     useState<Installation | null>(null);
   const [search, setSearch] = useState("");
+  const [deviceFlow, setDeviceFlow] = useState<{
+    userCode: string;
+    verificationUri: string;
+    deviceCode: string;
+    interval: number;
+  } | null>(null);
+  const [polling, setPolling] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
   });
 
-  // Step 1: Check installations
-  const installationsQuery = useQuery({
-    queryKey: KEYS.githubInstallations(org.id),
-    queryFn: async () => {
+  // Start device flow
+  const startDeviceFlow = useMutation({
+    mutationFn: async () => {
       const result = await client.callTool({
-        name: "GITHUB_LIST_INSTALLATIONS",
+        name: "GITHUB_DEVICE_FLOW_START",
         arguments: {},
       });
       const payload =
         (result as { structuredContent?: unknown }).structuredContent ?? result;
       return payload as {
-        installations: Installation[];
-        hasGithubAccount: boolean;
+        userCode: string;
+        verificationUri: string;
+        deviceCode: string;
+        expiresIn: number;
+        interval: number;
       };
     },
-    enabled: open,
+    onSuccess: (data) => {
+      setDeviceFlow(data);
+      startPolling(data.deviceCode, data.interval);
+    },
+    onError: (error) => {
+      toast.error(
+        "Failed to start GitHub auth: " +
+          (error instanceof Error ? error.message : "Unknown error"),
+      );
+    },
   });
 
-  // Derive effective installation: auto-select if only one, otherwise use user selection
+  const startPolling = (deviceCode: string, interval: number) => {
+    setPolling(true);
+    // Clear any existing timer
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+    pollTimerRef.current = setInterval(
+      async () => {
+        try {
+          const result = await client.callTool({
+            name: "GITHUB_DEVICE_FLOW_POLL",
+            arguments: { deviceCode },
+          });
+          const payload =
+            (result as { structuredContent?: unknown }).structuredContent ??
+            result;
+          const data = payload as {
+            status: "pending" | "success" | "expired" | "error";
+            token: string | null;
+            error: string | null;
+          };
+
+          if (data.status === "success" && data.token) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setPolling(false);
+            setToken(data.token);
+            storeToken(data.token);
+            setDeviceFlow(null);
+          } else if (data.status === "expired" || data.status === "error") {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setPolling(false);
+            setDeviceFlow(null);
+            toast.error(
+              data.error ?? "Authentication expired. Please try again.",
+            );
+          }
+          // "pending" — keep polling
+        } catch {
+          // Network error — keep polling
+        }
+      },
+      (interval + 1) * 1000,
+    ); // Add 1s buffer to avoid "slow_down"
+  };
+
+  // List installations (only when we have a token)
+  const installationsQuery = useQuery({
+    queryKey: KEYS.githubInstallations(org.id),
+    queryFn: async () => {
+      const result = await client.callTool({
+        name: "GITHUB_LIST_INSTALLATIONS",
+        arguments: { token: token! },
+      });
+      const payload =
+        (result as { structuredContent?: unknown }).structuredContent ?? result;
+      return payload as { installations: Installation[] };
+    },
+    enabled: open && !!token,
+  });
+
+  // Derive effective installation
   const installations = installationsQuery.data?.installations ?? [];
   const effectiveInstallation =
     installations.length === 1
       ? (installations[0] ?? null)
       : selectedInstallation;
 
-  // Step 2: List repos for effective installation
+  // List repos for effective installation
   const reposQuery = useQuery({
     queryKey: KEYS.githubRepos(
       org.id,
@@ -91,16 +196,19 @@ export function GitHubRepoDialog({
       if (!effectiveInstallation) return { repos: [] };
       const result = await client.callTool({
         name: "GITHUB_LIST_REPOS",
-        arguments: { installationId: effectiveInstallation.installationId },
+        arguments: {
+          token: token!,
+          installationId: effectiveInstallation.installationId,
+        },
       });
       const payload =
         (result as { structuredContent?: unknown }).structuredContent ?? result;
       return payload as { repos: Repo[] };
     },
-    enabled: !!effectiveInstallation,
+    enabled: !!effectiveInstallation && !!token,
   });
 
-  // Step 3: Save selected repo to virtual MCP metadata
+  // Save selected repo
   const saveMutation = useMutation({
     mutationFn: async (repo: Repo) => {
       if (!inset?.entity) throw new Error("No virtual MCP context");
@@ -136,22 +244,12 @@ export function GitHubRepoDialog({
     },
   });
 
-  const handleGitHubSignIn = () => {
-    // Open GitHub OAuth in popup via Better Auth
-    authClient.signIn.social({
-      provider: "github",
-      callbackURL: window.location.href,
-    });
-  };
-
   const handleInstallApp = () => {
-    // Open GitHub App installation page in popup
     const popup = window.open(
       GITHUB_APP_INSTALL_URL,
       "github-app-install",
       "width=800,height=600,popup=yes",
     );
-    // Poll for popup close, then refetch installations
     const interval = setInterval(() => {
       if (popup?.closed) {
         clearInterval(interval);
@@ -165,9 +263,57 @@ export function GitHubRepoDialog({
       repo.fullName.toLowerCase().includes(search.toLowerCase()),
     ) ?? [];
 
-  // Render based on state
   const renderContent = () => {
-    // Loading
+    // No token — show device flow auth
+    if (!token) {
+      // Device flow started — show code
+      if (deviceFlow) {
+        return (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <p className="text-sm text-muted-foreground text-center">
+              Enter this code on GitHub:
+            </p>
+            <code className="text-2xl font-mono font-bold tracking-widest px-4 py-2 rounded-md bg-muted">
+              {deviceFlow.userCode}
+            </code>
+            <a
+              href={deviceFlow.verificationUri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline"
+            >
+              Open GitHub &rarr;
+            </a>
+            {polling && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loading01 size={14} className="animate-spin" />
+                Waiting for authorization...
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // No device flow started — show connect button
+      return (
+        <div className="flex flex-col items-center gap-4 py-6">
+          <p className="text-sm text-muted-foreground text-center">
+            Connect your GitHub account to link a repository.
+          </p>
+          <Button
+            onClick={() => startDeviceFlow.mutate()}
+            disabled={startDeviceFlow.isPending}
+          >
+            {startDeviceFlow.isPending ? (
+              <Loading01 size={14} className="animate-spin mr-2" />
+            ) : null}
+            Connect GitHub
+          </Button>
+        </div>
+      );
+    }
+
+    // Loading installations
     if (installationsQuery.isLoading) {
       return (
         <div className="flex items-center justify-center py-8">
@@ -176,14 +322,23 @@ export function GitHubRepoDialog({
       );
     }
 
-    // No GitHub account linked — prompt OAuth
-    if (!installationsQuery.data?.hasGithubAccount) {
+    // Error loading installations (token might be invalid)
+    if (installationsQuery.isError) {
       return (
         <div className="flex flex-col items-center gap-4 py-6">
           <p className="text-sm text-muted-foreground text-center">
-            Connect your GitHub account to link a repository.
+            GitHub token may have expired.
           </p>
-          <Button onClick={handleGitHubSignIn}>Sign in with GitHub</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              clearStoredToken();
+              setToken(null);
+              setDeviceFlow(null);
+            }}
+          >
+            Re-authenticate
+          </Button>
         </div>
       );
     }
@@ -200,7 +355,7 @@ export function GitHubRepoDialog({
       );
     }
 
-    // Multiple installations and none selected — show org picker
+    // Multiple installations and none selected
     if (!effectiveInstallation) {
       return (
         <div className="flex flex-col gap-2">
@@ -228,7 +383,7 @@ export function GitHubRepoDialog({
       );
     }
 
-    // Installation resolved — show repo picker
+    // Repo picker
     if (reposQuery.isLoading) {
       return (
         <div className="flex items-center justify-center py-8">

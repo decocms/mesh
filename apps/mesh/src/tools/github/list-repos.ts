@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { getUserId, requireAuth } from "../../core/mesh-context";
+import { requireAuth } from "../../core/mesh-context";
 
 const RepoSchema = z.object({
   owner: z.string(),
@@ -29,6 +29,7 @@ export const GITHUB_LIST_REPOS = defineTool({
   },
   _meta: { ui: { visibility: "app" } },
   inputSchema: z.object({
+    token: z.string().describe("GitHub access token"),
     installationId: z.number().describe("GitHub App installation ID"),
   }),
   outputSchema: z.object({
@@ -39,32 +40,11 @@ export const GITHUB_LIST_REPOS = defineTool({
     requireAuth(ctx);
     await ctx.access.check();
 
-    const userId = getUserId(ctx);
-    if (!userId) {
-      throw new Error("User ID required");
-    }
-
-    const accounts = await ctx.db
-      .selectFrom("account")
-      .selectAll()
-      .where("userId", "=", userId)
-      .where("providerId", "=", "github")
-      .execute();
-
-    if (accounts.length === 0) {
-      throw new Error("No GitHub account linked");
-    }
-
-    const accessToken = accounts[0]!.accessToken;
-    if (!accessToken) {
-      throw new Error("No GitHub access token available");
-    }
-
     const response = await fetch(
       `https://api.github.com/user/installations/${input.installationId}/repositories?per_page=100`,
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${input.token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },

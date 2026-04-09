@@ -475,26 +475,6 @@ export interface OrgSsoSession {
 // ============================================================================
 
 /**
- * Better Auth account table (OAuth / social provider accounts)
- * Created by Better Auth migrations.
- */
-export interface BetterAuthAccountTable {
-  id: string;
-  userId: string;
-  accountId: string;
-  providerId: string;
-  accessToken: string | null;
-  refreshToken: string | null;
-  accessTokenExpiresAt: string | null;
-  refreshTokenExpiresAt: string | null;
-  scope: string | null;
-  idToken: string | null;
-  password: string | null;
-  createdAt: ColumnType<Date, string, string>;
-  updatedAt: ColumnType<Date, string, string>;
-}
-
-/**
  * Better Auth organization table
  */
 export interface BetterAuthOrganizationTable {
@@ -1047,9 +1027,6 @@ export interface Database {
   oauth_authorization_codes: OAuthAuthorizationCodeTable;
   oauth_refresh_tokens: OAuthRefreshTokenTable;
   downstream_tokens: DownstreamTokenTable;
-
-  // Better Auth core tables (managed by Better Auth)
-  account: BetterAuthAccountTable;
 
   // Better Auth organization tables (managed by Better Auth plugin)
   organization: BetterAuthOrganizationTable;

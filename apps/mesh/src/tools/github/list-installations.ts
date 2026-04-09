@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import { getUserId, requireAuth } from "../../core/mesh-context";
+import { requireAuth } from "../../core/mesh-context";
 
 const InstallationSchema = z.object({
   installationId: z.number(),
@@ -27,46 +27,22 @@ export const GITHUB_LIST_INSTALLATIONS = defineTool({
     openWorldHint: true,
   },
   _meta: { ui: { visibility: "app" } },
-  inputSchema: z.object({}),
+  inputSchema: z.object({
+    token: z.string().describe("GitHub access token"),
+  }),
   outputSchema: z.object({
     installations: z.array(InstallationSchema),
-    hasGithubAccount: z.boolean(),
   }),
 
-  handler: async (_input, ctx) => {
+  handler: async (input, ctx) => {
     requireAuth(ctx);
     await ctx.access.check();
 
-    const userId = getUserId(ctx);
-    if (!userId) {
-      throw new Error("User ID required");
-    }
-
-    // Look up the user's GitHub account in Better Auth's account table
-    const accounts = await ctx.db
-      .selectFrom("account")
-      .selectAll()
-      .where("userId", "=", userId)
-      .where("providerId", "=", "github")
-      .execute();
-
-    if (accounts.length === 0) {
-      return { installations: [], hasGithubAccount: false };
-    }
-
-    const githubAccount = accounts[0]!;
-    const accessToken = githubAccount.accessToken;
-
-    if (!accessToken) {
-      return { installations: [], hasGithubAccount: true };
-    }
-
-    // Fetch user's installations from GitHub API
     const response = await fetch(
       "https://api.github.com/user/installations?per_page=100",
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${input.token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -93,6 +69,6 @@ export const GITHUB_LIST_INSTALLATIONS = defineTool({
       avatarUrl: inst.account.avatar_url,
     }));
 
-    return { installations, hasGithubAccount: true };
+    return { installations };
   },
 });

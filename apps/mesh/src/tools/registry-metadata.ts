@@ -182,6 +182,8 @@ const ALL_TOOL_NAMES = [
   // GitHub tools (app-only)
   "GITHUB_LIST_INSTALLATIONS",
   "GITHUB_LIST_REPOS",
+  "GITHUB_DEVICE_FLOW_START",
+  "GITHUB_DEVICE_FLOW_POLL",
 ] as const;
 
 /**
@@ -872,6 +874,16 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "List repositories for a GitHub App installation",
     category: "GitHub",
   },
+  {
+    name: "GITHUB_DEVICE_FLOW_START",
+    description: "Start GitHub Device Flow authentication",
+    category: "GitHub",
+  },
+  {
+    name: "GITHUB_DEVICE_FLOW_POLL",
+    description: "Poll GitHub Device Flow for access token",
+    category: "GitHub",
+  },
 ];
 
 /**
@@ -1010,6 +1022,8 @@ const TOOL_LABELS: Record<ToolName, string> = {
   // GitHub
   GITHUB_LIST_INSTALLATIONS: "List GitHub App installations",
   GITHUB_LIST_REPOS: "List GitHub repositories",
+  GITHUB_DEVICE_FLOW_START: "Start GitHub Device Flow",
+  GITHUB_DEVICE_FLOW_POLL: "Poll GitHub Device Flow",
 };
 
 // ============================================================================
