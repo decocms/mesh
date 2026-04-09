@@ -51,6 +51,7 @@ const CORE_TOOLS = [
   OrganizationTools.BRAND_CONTEXT_EXTRACT,
   OrganizationTools.ORGANIZATION_DOMAIN_GET,
   OrganizationTools.ORGANIZATION_DOMAIN_SET,
+  OrganizationTools.ORGANIZATION_DOMAIN_UPDATE,
   OrganizationTools.ORGANIZATION_DOMAIN_CLEAR,
   OrganizationTools.ORGANIZATION_MEMBER_ADD,
   OrganizationTools.ORGANIZATION_MEMBER_REMOVE,

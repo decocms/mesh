@@ -154,6 +154,7 @@ interface AuthenticatedUser {
   id: string;
   connectionId?: string;
   email?: string;
+  emailVerified?: boolean;
   name?: string;
   role?: string;
 }
@@ -710,7 +711,7 @@ async function authenticateRequest(
     const session = (await timings.measure("auth_get_session", () =>
       auth.api.getSession({ headers: sessionHeaders }),
     )) as {
-      user: { id: string; email: string };
+      user: { id: string; email: string; emailVerified: boolean };
       session: { activeOrganizationId?: string };
     } | null;
 
@@ -764,7 +765,12 @@ async function authenticateRequest(
       }
 
       return {
-        user: { id: session.user.id, email: session.user.email, role },
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          emailVerified: !!session.user.emailVerified,
+          role,
+        },
         role,
         // No permissions - browser sessions use hasPermission API
         organization,

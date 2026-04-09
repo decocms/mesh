@@ -106,8 +106,8 @@ export function DomainSettings() {
     mutationFn: async (enabled: boolean) => {
       if (!currentDomain) return;
       const result = await client.callTool({
-        name: "ORGANIZATION_DOMAIN_SET",
-        arguments: { domain: currentDomain, autoJoinEnabled: enabled },
+        name: "ORGANIZATION_DOMAIN_UPDATE",
+        arguments: { autoJoinEnabled: enabled },
       });
       return unwrapToolResult(result);
     },

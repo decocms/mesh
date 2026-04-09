@@ -1,7 +1,8 @@
 /**
  * ORGANIZATION_DOMAIN_SET Tool
  *
- * Set or update the domain claim for an organization
+ * Claim an email domain for an organization. Requires that the caller's
+ * email matches the domain and is verified.
  */
 
 import { z } from "zod";
@@ -15,7 +16,7 @@ const DOMAIN_REGEX =
 export const ORGANIZATION_DOMAIN_SET = defineTool({
   name: "ORGANIZATION_DOMAIN_SET",
   description:
-    "Set or update the claimed email domain for an organization. Users with matching email can auto-join.",
+    "Claim an email domain for an organization. The caller's verified email must match the domain.",
   annotations: {
     title: "Set Organization Domain",
     readOnlyHint: false,
@@ -47,25 +48,25 @@ export const ORGANIZATION_DOMAIN_SET = defineTool({
     const org = requireOrganization(ctx);
     const domain = input.domain.toLowerCase().trim();
 
-    // Validate domain format
     if (!DOMAIN_REGEX.test(domain)) {
       throw new Error(
         `Invalid domain format: "${domain}". Must be a valid domain like "acme.com"`,
       );
     }
 
-    // Reject generic email domains
     if (GENERIC_EMAIL_DOMAINS.has(domain)) {
       throw new Error(
         `Cannot claim generic email domain "${domain}". Only corporate domains are allowed.`,
       );
     }
 
-    // Verify the caller's email is verified and matches the claimed domain
-    // to prevent claiming arbitrary domains (e.g. microsoft.com).
+    // Require verified email matching the claimed domain
     const userEmail = ctx.auth.user?.email;
     if (!userEmail) {
       throw new Error("User email is required to claim a domain.");
+    }
+    if (!ctx.auth.user?.emailVerified) {
+      throw new Error("Email must be verified before claiming a domain.");
     }
     const userDomain = userEmail.split("@")[1]?.toLowerCase();
     if (userDomain !== domain) {
@@ -74,11 +75,54 @@ export const ORGANIZATION_DOMAIN_SET = defineTool({
       );
     }
 
-    // setDomain handles the domain uniqueness constraint atomically —
-    // it will throw if another org already claimed this domain.
     const result = await ctx.storage.organizationDomains.setDomain(
       org.id,
       domain,
+      input.autoJoinEnabled,
+    );
+
+    return {
+      domain: result.domain,
+      autoJoinEnabled: result.autoJoinEnabled,
+    };
+  },
+});
+
+export const ORGANIZATION_DOMAIN_UPDATE = defineTool({
+  name: "ORGANIZATION_DOMAIN_UPDATE",
+  description:
+    "Update auto-join setting for the organization's already-claimed domain.",
+  annotations: {
+    title: "Update Organization Domain Settings",
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  inputSchema: z.object({
+    autoJoinEnabled: z
+      .boolean()
+      .describe("Whether users with matching email domain can auto-join"),
+  }),
+  outputSchema: z.object({
+    domain: z.string(),
+    autoJoinEnabled: z.boolean(),
+  }),
+
+  handler: async (input, ctx) => {
+    requireAuth(ctx);
+    await ctx.access.check();
+
+    const org = requireOrganization(ctx);
+    const existing = await ctx.storage.organizationDomains.getByOrganizationId(
+      org.id,
+    );
+    if (!existing) {
+      throw new Error("No domain claimed for this organization.");
+    }
+
+    const result = await ctx.storage.organizationDomains.updateAutoJoin(
+      org.id,
       input.autoJoinEnabled,
     );
 

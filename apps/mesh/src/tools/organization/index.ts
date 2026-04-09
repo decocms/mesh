@@ -23,6 +23,7 @@ export { BRAND_CONTEXT_EXTRACT } from "./brand-context-extract";
 export { ORGANIZATION_DOMAIN_GET } from "./domain-get";
 export {
   ORGANIZATION_DOMAIN_SET,
+  ORGANIZATION_DOMAIN_UPDATE,
   ORGANIZATION_DOMAIN_CLEAR,
 } from "./domain-set";
 

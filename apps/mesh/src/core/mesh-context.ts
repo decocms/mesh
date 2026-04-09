@@ -170,6 +170,7 @@ export interface MeshAuth {
     id: string;
     connectionId?: string;
     email?: string;
+    emailVerified?: boolean;
     name?: string;
     role?: string; // From Better Auth organization plugin
   };
