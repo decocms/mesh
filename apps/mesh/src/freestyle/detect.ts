@@ -127,6 +127,16 @@ export async function detectRepo(
     reader.readFile(owner, repo, "deco.json"),
   ]);
 
+  console.log("[detect] Files found:", {
+    packageJson: !!packageJsonRaw,
+    bunLock: !!bunLock,
+    denoJson: !!denoJsonRaw,
+    denoJsonc: !!denoJsoncRaw,
+    denoLock: !!denoLock,
+    agentsMd: !!agentsMd,
+    decoJson: !!decoJsonRaw,
+  });
+
   const hasJsProject =
     bunLock || packageJsonRaw || denoJsonRaw || denoJsoncRaw || denoLock;
 
@@ -149,12 +159,23 @@ export async function detectRepo(
   // deco.json runtime overrides auto-detection
   const runtime = decoConfig?.runtime ?? autoDetectedRuntime;
 
+  console.log("[detect] Runtime:", {
+    autoDetected: autoDetectedRuntime,
+    decoOverride: decoConfig?.runtime,
+    final: runtime,
+  });
+
   const scripts = parseScripts(
     runtime,
     packageJsonRaw,
     denoJsonRaw,
     denoJsoncRaw,
   );
+
+  console.log("[detect] Scripts parsed:", {
+    scriptCount: Object.keys(scripts).length,
+    scriptNames: Object.keys(scripts),
+  });
 
   return {
     runtime,

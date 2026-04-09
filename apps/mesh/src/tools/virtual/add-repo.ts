@@ -63,13 +63,26 @@ export const VIRTUAL_MCP_ADD_REPO = defineTool({
 
     // Step 1: Detect repo (scripts, runtime, instructions) — always save results
     const validated = validateRepoUrl(input.repo_url);
+    console.log("[add-repo] Starting detection for:", validated);
     let detection: Awaited<ReturnType<typeof detectRepo>>;
     try {
       detection = await detectRepo(validated, new GitHubFileReader());
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      console.error("[add-repo] Detection failed:", message);
       throw new Error(`Failed to detect repo "${input.repo_url}": ${message}`);
     }
+
+    console.log("[add-repo] Detection result:", {
+      runtime: detection.runtime,
+      scripts: detection.scripts,
+      scriptCount: Object.keys(detection.scripts).length,
+      instructions: detection.instructions
+        ? `${detection.instructions.length} chars`
+        : null,
+      autorun: detection.autorun,
+      preview_port: detection.preview_port,
+    });
 
     // Save detection results immediately (scripts, runtime, etc.)
     await ctx.storage.virtualMcps.update(input.virtual_mcp_id, userId, {

@@ -51,6 +51,14 @@ export function FreestylePlayButton({
   const runningScript = fm.running_script;
   const vmDomain = fm.vm_domain;
 
+  console.log("[play-button]", {
+    repoUrl,
+    runtimeStatus,
+    scripts,
+    runningScript,
+    vmDomain,
+  });
+
   if (!repoUrl) return null;
 
   const scriptEntries = Object.keys(scripts ?? {});
