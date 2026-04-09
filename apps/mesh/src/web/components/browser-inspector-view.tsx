@@ -62,7 +62,23 @@ export function BrowserInspectorView() {
         name: "VIRTUAL_MCP_RUN_SCRIPT",
         arguments: { virtual_mcp_id: entityId, script },
       });
-      console.log("[browser-inspector] run-script result:", result);
+      console.log(
+        "[browser-inspector] run-script result:",
+        JSON.stringify(result, null, 2),
+      );
+      if (
+        result &&
+        typeof result === "object" &&
+        "isError" in result &&
+        result.isError
+      ) {
+        const content = (result as { content?: Array<{ text?: string }> })
+          .content;
+        console.error(
+          "[browser-inspector] run-script FAILED:",
+          content?.[0]?.text ?? "unknown error",
+        );
+      }
     } catch (e) {
       console.error("[browser-inspector] run-script error:", e);
     } finally {
