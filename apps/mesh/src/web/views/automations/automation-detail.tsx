@@ -677,6 +677,7 @@ export function SettingsTab({
             <div className="rounded-xl border border-border min-h-[120px] flex flex-col">
               <TiptapInput
                 virtualMcpId={(fixedAgentId ?? watchAgentId) || null}
+                className="max-h-[45vh]"
               />
 
               <div className="flex items-center justify-end gap-1.5 p-2.5">
