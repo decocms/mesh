@@ -16,7 +16,7 @@ import {
 import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { KEYS } from "@/web/lib/query-keys";
 import { toast } from "sonner";
-import { Loading01 } from "@untitledui/icons";
+import { Check, Copy01, Loading01 } from "@untitledui/icons";
 
 interface Installation {
   installationId: number;
@@ -95,6 +95,7 @@ export function GitHubRepoDialog({
     interval: number;
   } | null>(null);
   const [polling, setPolling] = useState(false);
+  const [copied, setCopied] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingStartedRef = useRef(false);
 
@@ -103,7 +104,16 @@ export function GitHubRepoDialog({
     const data = window.__decoGithubDeviceFlow;
     delete window.__decoGithubDeviceFlow;
     setDeviceFlow(data);
+    // Auto-copy code to clipboard
+    navigator.clipboard.writeText(data.userCode).catch(() => {});
   }
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const client = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
@@ -271,9 +281,20 @@ export function GitHubRepoDialog({
             <p className="text-sm text-muted-foreground text-center">
               Enter this code on the GitHub page:
             </p>
-            <code className="text-2xl font-mono font-bold tracking-widest px-4 py-2 rounded-md bg-muted">
-              {deviceFlow.userCode}
-            </code>
+            <button
+              type="button"
+              onClick={() => handleCopyCode(deviceFlow.userCode)}
+              className="flex items-center gap-2 px-4 py-2 rounded-md bg-muted hover:bg-muted/80 transition-colors cursor-pointer"
+            >
+              <code className="text-2xl font-mono font-bold tracking-widest">
+                {deviceFlow.userCode}
+              </code>
+              {copied ? (
+                <Check size={16} className="text-green-500 shrink-0" />
+              ) : (
+                <Copy01 size={16} className="text-muted-foreground shrink-0" />
+              )}
+            </button>
             <a
               href={deviceFlow.verificationUri}
               target="_blank"
