@@ -257,11 +257,11 @@ app.get("/domain-lookup", async (c) => {
 });
 
 /**
- * Domain Auto-Join Endpoint (authenticated)
+ * Domain Auto-Join Endpoint (authenticated, verified email required)
  *
- * Adds the authenticated user to an organization whose claimed domain
- * matches the user's email domain, provided auto_join_enabled is true.
- * The server validates everything — the client only supplies the org slug.
+ * Adds the authenticated user to the organization that claimed their
+ * email domain, provided auto_join_enabled is true. Everything is
+ * derived from the session — no request body needed.
  *
  * Route: POST /api/auth/custom/domain-join
  */
@@ -281,12 +281,6 @@ app.post("/domain-join", async (c) => {
     );
   }
 
-  const body = (await c.req.json()) as { orgSlug?: string };
-  const orgSlug = body.orgSlug;
-  if (!orgSlug || typeof orgSlug !== "string") {
-    return c.json({ success: false, error: "orgSlug is required" }, 400);
-  }
-
   const emailDomain = session.user.email?.split("@")[1]?.toLowerCase();
   if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
     return c.json(
@@ -296,30 +290,25 @@ app.post("/domain-join", async (c) => {
   }
 
   try {
-    const db = getDb().db;
-    const domainStorage = new OrganizationDomainStorage(db);
-
-    // Look up the domain claim
+    const domainStorage = new OrganizationDomainStorage(getDb().db);
     const domainRecord = await domainStorage.getByDomain(emailDomain);
     if (!domainRecord || !domainRecord.autoJoinEnabled) {
       return c.json(
-        { success: false, error: "Auto-join is not available for this domain" },
+        {
+          success: false,
+          error: "Auto-join is not available for this domain",
+        },
         403,
       );
     }
 
-    // Verify the org slug matches the domain's org
-    const org = await db
-      .selectFrom("organization")
+    const org = await getDb()
+      .db.selectFrom("organization")
       .select(["id", "slug"])
       .where("id", "=", domainRecord.organizationId)
       .executeTakeFirst();
-
-    if (!org || org.slug !== orgSlug) {
-      return c.json(
-        { success: false, error: "Organization does not match domain" },
-        403,
-      );
+    if (!org) {
+      return c.json({ success: false, error: "Organization not found" }, 404);
     }
 
     // Add the user as a member — if they're already a member
@@ -335,15 +324,13 @@ app.post("/domain-join", async (c) => {
     } catch (addError) {
       const msg =
         addError instanceof Error ? addError.message.toLowerCase() : "";
-      const isAlreadyMember = msg.includes("already a member");
-      if (!isAlreadyMember) {
+      if (!msg.includes("already a member")) {
         console.error("[Auth] Domain join addMember failed:", addError);
         return c.json(
           { success: false, error: "Failed to join organization" },
           500,
         );
       }
-      // Already a member — fall through to success
     }
 
     return c.json({ success: true, slug: org.slug });

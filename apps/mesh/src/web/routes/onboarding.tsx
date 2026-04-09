@@ -75,21 +75,18 @@ export default function OnboardingPage() {
       enabled: !!isCorporateEmail,
     });
 
-  // Auto-join mutation — calls server-side endpoint that verifies
-  // domain ownership + auto_join_enabled before adding the user as member
+  // Auto-join mutation — the server derives everything from the session
   const joinOrgMutation = useMutation({
-    mutationFn: async (orgSlug: string) => {
+    mutationFn: async () => {
       const res = await fetch("/api/auth/custom/domain-join", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ orgSlug }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to join organization");
       }
-      window.location.href = `/${orgSlug}`;
+      window.location.href = `/${data.slug}`;
     },
   });
 
@@ -163,9 +160,7 @@ export default function OnboardingPage() {
             <CardContent className="space-y-4">
               <Button
                 className="w-full"
-                onClick={() =>
-                  joinOrgMutation.mutate(domainLookup.organization!.slug)
-                }
+                onClick={() => joinOrgMutation.mutate()}
                 disabled={joinOrgMutation.isPending}
               >
                 {joinOrgMutation.isPending ? (
