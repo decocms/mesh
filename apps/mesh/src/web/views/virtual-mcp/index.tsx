@@ -1362,15 +1362,12 @@ Define step-by-step how the agent should handle requests.
       label: "Instructions",
     },
     {
-      id: "github",
-      label: "GitHub",
-    },
-    {
       id: "connections",
       label: "Connections",
       count: connections.length || undefined,
     },
     { id: "layout", label: "Layout" },
+    { id: "github", label: "GitHub" },
   ];
 
   return (
