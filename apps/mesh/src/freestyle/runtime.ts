@@ -1,5 +1,4 @@
 import type { Freestyle } from "freestyle-sandboxes";
-import { VmSpec } from "freestyle-sandboxes";
 import { VmBun } from "@freestyle-sh/with-bun";
 import { VmDeno } from "@freestyle-sh/with-deno";
 import type { FreestyleMetadata } from "./types";
@@ -35,17 +34,14 @@ export async function runScript(
   }
 
   const runtime = metadata.runtime ?? "bun";
-
-  const spec = new VmSpec()
-    .with("js", runtime === "deno" ? new VmDeno() : new VmBun())
-    .repo(metadata.freestyle_repo_id, "/app")
-    .workdir("/app")
-    .waitForReadySignal(true);
-
   const targetPort = metadata.preview_port ?? 3000;
 
   const { vm, vmId, domains } = await freestyle.vms.create({
-    snapshot: spec,
+    with: {
+      js: runtime === "deno" ? new VmDeno() : new VmBun(),
+    },
+    gitRepos: [{ repo: metadata.freestyle_repo_id, path: "/app" }],
+    workdir: "/app",
     idleTimeoutSeconds: 600,
     ports: [{ port: 443, targetPort }],
   });
