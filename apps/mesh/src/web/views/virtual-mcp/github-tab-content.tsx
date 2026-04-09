@@ -187,7 +187,7 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
 
   const handleUpdateField = async (
     field: string,
-    value: string | number | null,
+    value: string | number | Record<string, string> | null,
   ) => {
     await actions.update.mutateAsync({
       id: virtualMcp.id,
@@ -253,6 +253,53 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
         <p className="text-xs text-muted-foreground">
           Auto-detected from lockfile
         </p>
+      </div>
+
+      {/* Scripts / Tasks */}
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs text-muted-foreground">
+          {fm.runtime === "deno" ? "Tasks" : "Scripts"}
+        </Label>
+        {scriptEntries.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            {scriptEntries.map((name) => (
+              <div
+                key={name}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-muted/20 text-sm"
+              >
+                <span className="font-mono text-foreground">{name}</span>
+                <span className="text-muted-foreground truncate flex-1 text-xs">
+                  {(fm.scripts ?? {})[name]}
+                </span>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-destructive text-xs"
+                  onClick={() => {
+                    const updated = { ...(fm.scripts ?? {}) };
+                    delete updated[name];
+                    handleUpdateField(
+                      "scripts",
+                      Object.keys(updated).length > 0 ? updated : null,
+                    );
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No {fm.runtime === "deno" ? "tasks" : "scripts"} configured.
+          </p>
+        )}
+        <ScriptAdder
+          label={fm.runtime === "deno" ? "task" : "script"}
+          onAdd={(name, command) => {
+            const updated = { ...(fm.scripts ?? {}), [name]: command };
+            handleUpdateField("scripts", updated);
+          }}
+        />
       </div>
 
       {/* Autorun */}
@@ -347,6 +394,61 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Script adder — inline form to add a new script/task entry
+// ---------------------------------------------------------------------------
+
+function ScriptAdder({
+  label,
+  onAdd,
+}: {
+  label: string;
+  onAdd: (name: string, command: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [command, setCommand] = useState("");
+
+  const handleAdd = () => {
+    const n = name.trim();
+    const c = command.trim();
+    if (!n || !c) return;
+    onAdd(n, c);
+    setName("");
+    setCommand("");
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={`${label} name`}
+        className="w-28"
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAdd();
+        }}
+      />
+      <Input
+        value={command}
+        onChange={(e) => setCommand(e.target.value)}
+        placeholder="command"
+        className="flex-1"
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAdd();
+        }}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleAdd}
+        disabled={!name.trim() || !command.trim()}
+      >
+        Add
+      </Button>
     </div>
   );
 }
