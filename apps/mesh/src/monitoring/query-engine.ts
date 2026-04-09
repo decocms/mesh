@@ -35,19 +35,6 @@ export class DuckDBEngine implements QueryEngine {
     );
   }
 
-  /**
-   * Eagerly check whether @duckdb/node-api can be loaded.
-   * Returns true if the module is available, false otherwise.
-   */
-  static async isAvailable(): Promise<boolean> {
-    try {
-      await import("@duckdb/node-api");
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async query(sql: string): Promise<Record<string, unknown>[]> {
     const connection = await this.connectionPromise;
     try {
@@ -137,31 +124,6 @@ export interface MonitoringEngineConfig {
  *
  * Returns { engine, source } where source is the FROM clause expression.
  */
-/**
- * No-op engine returned when @duckdb/node-api is unavailable (e.g. CI,
- * environments without the native module). Monitoring queries return empty results.
- */
-class NoopEngine implements QueryEngine {
-  private warned = false;
-  private silent: boolean;
-
-  constructor(options?: { silent?: boolean }) {
-    this.silent = options?.silent ?? false;
-  }
-
-  async query(): Promise<Record<string, unknown>[]> {
-    if (!this.warned && !this.silent) {
-      this.warned = true;
-      console.warn(
-        "\n⚠️  WARNING: Monitoring query skipped — @duckdb/node-api native module is not available.\n" +
-          "   Monitoring data exists on disk but cannot be queried.\n" +
-          "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to install the native module.\n",
-      );
-    }
-    return [];
-  }
-}
-
 export async function createMonitoringEngine(
   config: MonitoringEngineConfig,
 ): Promise<{
@@ -183,13 +145,5 @@ export async function createMonitoringEngine(
 
   const source = `read_ndjson('${resolvedPath}/**/*.ndjson', auto_detect=true)`;
 
-  if (await DuckDBEngine.isAvailable()) {
-    return { engine: new DuckDBEngine(), source };
-  }
-
-  console.warn(
-    "\n⚠️  WARNING: @duckdb/node-api native module is not available — monitoring will return empty results.\n" +
-      "   Fix: run `bun add @duckdb/node-api` in apps/mesh/ to install the native module.\n",
-  );
-  return { engine: new NoopEngine(), source };
+  return { engine: new DuckDBEngine(), source };
 }
