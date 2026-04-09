@@ -24,7 +24,6 @@ import {
 import {
   createMonitoringEngine,
   ClickHouseClientEngine,
-  NoopEngine,
 } from "../monitoring/query-engine";
 import type { QueryEngine } from "../monitoring/query-engine";
 import { getLogsDir, getMetricsDir } from "../monitoring/schema";
@@ -838,10 +837,7 @@ export async function createMeshContextFactory(
   let monitoringEngine: QueryEngine;
   let metricEngine: QueryEngine;
 
-  if (getSettings().disableMonitoringQuery) {
-    monitoringEngine = new NoopEngine({ silent: true });
-    metricEngine = new NoopEngine({ silent: true });
-  } else if (isClickHouse) {
+  if (isClickHouse) {
     monitoringEngine = new ClickHouseClientEngine(clickhouseUrl!);
     metricEngine = new ClickHouseClientEngine(clickhouseUrl!);
   } else {
