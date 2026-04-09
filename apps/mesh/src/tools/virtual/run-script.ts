@@ -54,7 +54,15 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
 
     const metadata = existing.metadata as Record<string, unknown>;
 
-    if (metadata.runtime_status !== "idle") {
+    // Allow running if idle, or if stale "running" state with no VM domain
+    const isStaleRunning =
+      metadata.runtime_status === "running" && !metadata.vm_domain;
+    if (
+      metadata.runtime_status !== "idle" &&
+      metadata.runtime_status !== null &&
+      metadata.runtime_status !== undefined &&
+      !isStaleRunning
+    ) {
       throw new Error(
         `Cannot start script: current status is "${metadata.runtime_status}". Stop the running script first.`,
       );
