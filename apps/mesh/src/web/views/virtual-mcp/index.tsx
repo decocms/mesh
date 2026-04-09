@@ -81,6 +81,7 @@ import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 import { GitHubTabContent } from "./github-tab-content";
+import { GitHubIcon } from "@daveyplate/better-auth-ui";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -1367,7 +1368,6 @@ Define step-by-step how the agent should handle requests.
       count: connections.length || undefined,
     },
     { id: "layout", label: "Layout" },
-    { id: "github", label: "GitHub" },
   ];
 
   return (
@@ -1431,14 +1431,33 @@ Define step-by-step how the agent should handle requests.
 
             {/* Tabs */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <CollectionTabs
-                tabs={tabs}
-                activeTab={activeTab}
-                onTabChange={(id) => {
-                  setActiveTab(id);
-                  localStorage.setItem("agent-detail-tab", id);
-                }}
-              />
+              <div className="flex items-center gap-3">
+                <CollectionTabs
+                  tabs={tabs}
+                  activeTab={activeTab}
+                  onTabChange={(id) => {
+                    setActiveTab(id);
+                    localStorage.setItem("agent-detail-tab", id);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("github");
+                    localStorage.setItem("agent-detail-tab", "github");
+                  }}
+                  className={cn(
+                    "h-7 px-2 text-sm rounded-lg border border-input transition-colors inline-flex gap-1.5 items-center",
+                    activeTab === "github" &&
+                      "bg-accent border-border text-foreground",
+                    activeTab !== "github" &&
+                      "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  <GitHubIcon className="size-3.5" />
+                  GitHub
+                </button>
+              </div>
               {activeTab === "connections" && (
                 <Button
                   variant="outline"
