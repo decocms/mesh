@@ -6,11 +6,7 @@
 
 import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
-import {
-  getUserId,
-  requireAuth,
-  requireOrganization,
-} from "../../core/mesh-context";
+import { requireAuth, requireOrganization } from "../../core/mesh-context";
 import { GENERIC_EMAIL_DOMAINS } from "../../auth";
 
 const DOMAIN_REGEX =
@@ -65,21 +61,17 @@ export const ORGANIZATION_DOMAIN_SET = defineTool({
       );
     }
 
-    // Verify the caller's email matches the claimed domain to prevent
-    // an org admin from claiming arbitrary domains (e.g. microsoft.com).
-    const userId = getUserId(ctx);
-    if (userId) {
-      const user = await ctx.db
-        .selectFrom("user")
-        .select(["email"])
-        .where("id", "=", userId)
-        .executeTakeFirst();
-      const userDomain = user?.email?.split("@")[1]?.toLowerCase();
-      if (userDomain !== domain) {
-        throw new Error(
-          `You can only claim your own email domain ("${userDomain}"), not "${domain}".`,
-        );
-      }
+    // Verify the caller's email is verified and matches the claimed domain
+    // to prevent claiming arbitrary domains (e.g. microsoft.com).
+    const userEmail = ctx.auth.user?.email;
+    if (!userEmail) {
+      throw new Error("User email is required to claim a domain.");
+    }
+    const userDomain = userEmail.split("@")[1]?.toLowerCase();
+    if (userDomain !== domain) {
+      throw new Error(
+        `You can only claim your own email domain ("${userDomain}"), not "${domain}".`,
+      );
     }
 
     // setDomain handles the domain uniqueness constraint atomically —
