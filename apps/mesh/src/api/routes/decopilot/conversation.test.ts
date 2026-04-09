@@ -102,6 +102,43 @@ describe("processConversation", () => {
       expect((part0 as { text: string }).text).toBe("B updated");
     });
   });
+
+  it("filters out messages with empty parts before validation", async () => {
+    const allMessages: ChatMessage[] = [
+      { id: "msg-1", role: "user", parts: [{ type: "text", text: "Hi" }] },
+      {
+        id: "msg-2",
+        role: "assistant",
+        parts: [],
+      },
+      {
+        id: "msg-3",
+        role: "user",
+        parts: [{ type: "text", text: "Try again" }],
+      },
+      {
+        id: "msg-4",
+        role: "assistant",
+        parts: [],
+      },
+      {
+        id: "msg-5",
+        role: "user",
+        parts: [{ type: "text", text: "Hello?" }],
+      },
+    ];
+
+    const { originalMessages } = await processConversation(allMessages, {
+      windowSize: 50,
+      models: {
+        credentialId: "c1",
+        thinking: { id: "m1", title: "m1", capabilities: { text: true } },
+      },
+    });
+
+    expect(originalMessages).toHaveLength(3);
+    expect(originalMessages.every((m) => m.parts.length > 0)).toBe(true);
+  });
 });
 
 describe("denyPendingApprovals", () => {

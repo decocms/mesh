@@ -138,8 +138,16 @@ export async function processConversation(
   allMessages: ChatMessage[],
   config: { windowSize: number; models: ModelsConfig; tools?: ToolSet },
 ): Promise<ProcessedConversation> {
+  // Filter out messages with empty parts before validation.
+  // Assistant messages saved after an LLM error (e.g. Gemini returning empty)
+  // have parts: [] which makes validateUIMessages throw "Message must contain
+  // at least one part", bricking the entire thread.
+  const sanitizedMessages = allMessages.filter(
+    (m) => m.parts && m.parts.length > 0,
+  );
+
   const validUIMessages = await validateUIMessages<ChatMessage>({
-    messages: allMessages,
+    messages: sanitizedMessages,
   });
 
   const patchedUIMessages = denyPendingApprovals(validUIMessages);
