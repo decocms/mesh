@@ -49,16 +49,91 @@ describe("detectRepo", () => {
     );
   });
 
-  test("throws on malformed package.json", async () => {
-    await expect(
-      detectRepo(
-        "owner/repo",
-        mockReader({
-          "package.json": "not json",
-          "bun.lock": "lockfile",
+  // deno detection tests
+
+  test("detects deno project from deno.json", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "deno.json": JSON.stringify({
+          tasks: {
+            dev: "deno run --allow-net main.ts",
+            start: "deno run main.ts",
+          },
         }),
-      ),
-    ).rejects.toThrow("Failed to parse package.json");
+      }),
+    );
+
+    expect(result.runtime).toBe("deno");
+    expect(result.scripts).toEqual({
+      dev: "deno run --allow-net main.ts",
+      start: "deno run main.ts",
+    });
+  });
+
+  test("detects deno project from deno.jsonc", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "deno.jsonc": JSON.stringify({ tasks: { dev: "deno run dev.ts" } }),
+      }),
+    );
+
+    expect(result.runtime).toBe("deno");
+    expect(result.scripts).toEqual({ dev: "deno run dev.ts" });
+  });
+
+  test("detects deno project from deno.lock only", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "deno.lock": "lockfile",
+        "package.json": JSON.stringify({ scripts: { dev: "npm run dev" } }),
+      }),
+    );
+
+    expect(result.runtime).toBe("deno");
+    // Falls back to package.json scripts when no deno.json tasks
+    expect(result.scripts).toEqual({ dev: "npm run dev" });
+  });
+
+  test("prefers deno.json tasks over package.json scripts for deno runtime", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "deno.json": JSON.stringify({ tasks: { dev: "deno task dev" } }),
+        "package.json": JSON.stringify({ scripts: { dev: "npm run dev" } }),
+        "deno.lock": "lockfile",
+      }),
+    );
+
+    expect(result.runtime).toBe("deno");
+    expect(result.scripts).toEqual({ dev: "deno task dev" });
+  });
+
+  test("deco.json runtime override from bun to deno", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "package.json": JSON.stringify({ scripts: { dev: "bun dev" } }),
+        "bun.lock": "lockfile",
+        "deco.json": JSON.stringify({ runtime: "deno" }),
+      }),
+    );
+
+    expect(result.runtime).toBe("deno");
+  });
+
+  test("deco.json runtime override from deno to bun", async () => {
+    const result = await detectRepo(
+      "owner/repo",
+      mockReader({
+        "deno.json": JSON.stringify({ tasks: { dev: "deno dev" } }),
+        "deco.json": JSON.stringify({ runtime: "bun" }),
+      }),
+    );
+
+    expect(result.runtime).toBe("bun");
   });
 
   // deco.json tests

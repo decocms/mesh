@@ -17,7 +17,7 @@ export function parseFreestyleMetadata(metadata: unknown): FreestyleMetadata {
       typeof m.freestyle_snapshot_id === "string"
         ? m.freestyle_snapshot_id
         : null,
-    runtime: m.runtime === "bun" ? "bun" : null,
+    runtime: m.runtime === "bun" || m.runtime === "deno" ? m.runtime : null,
     runtime_status:
       m.runtime_status === "idle" ||
       m.runtime_status === "installing" ||

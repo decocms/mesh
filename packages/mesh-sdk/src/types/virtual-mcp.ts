@@ -213,7 +213,7 @@ export const VirtualMCPCreateDataSchema = z.object({
       freestyle_repo_id: z.string().nullable().optional(),
       freestyle_vm_id: z.string().nullable().optional(),
       freestyle_snapshot_id: z.string().nullable().optional(),
-      runtime: z.enum(["bun"]).nullable().optional(),
+      runtime: z.enum(["bun", "deno"]).nullable().optional(),
       runtime_status: z
         .enum(["idle", "installing", "running"])
         .nullable()
@@ -267,7 +267,7 @@ export const VirtualMCPUpdateDataSchema = z.object({
       freestyle_repo_id: z.string().nullable().optional(),
       freestyle_vm_id: z.string().nullable().optional(),
       freestyle_snapshot_id: z.string().nullable().optional(),
-      runtime: z.enum(["bun"]).nullable().optional(),
+      runtime: z.enum(["bun", "deno"]).nullable().optional(),
       runtime_status: z
         .enum(["idle", "installing", "running"])
         .nullable()

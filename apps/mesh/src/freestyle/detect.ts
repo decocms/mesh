@@ -2,8 +2,10 @@ export interface RepoFileReader {
   readFile(owner: string, repo: string, path: string): Promise<string | null>;
 }
 
+export type Runtime = "bun" | "deno";
+
 export interface DetectionResult {
-  runtime: "bun";
+  runtime: Runtime;
   scripts: Record<string, string>;
   instructions: string | null;
   autorun?: string | null;
@@ -27,7 +29,7 @@ export class GitHubFileReader implements RepoFileReader {
 
 interface DecoJson {
   autorun?: string;
-  runtime?: "bun";
+  runtime?: Runtime;
   previewPort?: number;
 }
 
@@ -37,7 +39,9 @@ function parseDecoJson(raw: string): DecoJson | null {
     if (!parsed || typeof parsed !== "object") return null;
     const result: DecoJson = {};
     if (typeof parsed.autorun === "string") result.autorun = parsed.autorun;
-    if (parsed.runtime === "bun") result.runtime = parsed.runtime;
+    if (parsed.runtime === "bun" || parsed.runtime === "deno") {
+      result.runtime = parsed.runtime;
+    }
     if (
       typeof parsed.previewPort === "number" &&
       Number.isInteger(parsed.previewPort) &&
@@ -52,6 +56,51 @@ function parseDecoJson(raw: string): DecoJson | null {
   }
 }
 
+function detectRuntime(files: {
+  bunLock: string | null;
+  denoJson: string | null;
+  denoJsonc: string | null;
+  denoLock: string | null;
+  packageJson: string | null;
+}): Runtime {
+  // deno.json/deno.jsonc or deno.lock → deno
+  if (files.denoJson || files.denoJsonc || files.denoLock) return "deno";
+  // fallback to bun
+  return "bun";
+}
+
+function parseScripts(
+  runtime: Runtime,
+  packageJsonRaw: string | null,
+  denoJsonRaw: string | null,
+  denoJsoncRaw: string | null,
+): Record<string, string> {
+  if (runtime === "deno") {
+    // deno.json(c) tasks
+    const raw = denoJsonRaw ?? denoJsoncRaw;
+    if (raw) {
+      try {
+        const denoConfig = JSON.parse(raw);
+        return denoConfig.tasks ?? {};
+      } catch {
+        // fall through
+      }
+    }
+  }
+
+  // package.json scripts (bun or fallback)
+  if (packageJsonRaw) {
+    try {
+      const packageJson = JSON.parse(packageJsonRaw);
+      return packageJson.scripts ?? {};
+    } catch {
+      // fall through
+    }
+  }
+
+  return {};
+}
+
 export async function detectRepo(
   repoUrl: string,
   reader: RepoFileReader,
@@ -60,33 +109,55 @@ export async function detectRepo(
   const owner = parts[0]!;
   const repo = parts[1]!;
 
-  const [packageJsonRaw, bunLock, agentsMd, decoJsonRaw] = await Promise.all([
+  const [
+    packageJsonRaw,
+    bunLock,
+    denoJsonRaw,
+    denoJsoncRaw,
+    denoLock,
+    agentsMd,
+    decoJsonRaw,
+  ] = await Promise.all([
     reader.readFile(owner, repo, "package.json"),
     reader.readFile(owner, repo, "bun.lock"),
+    reader.readFile(owner, repo, "deno.json"),
+    reader.readFile(owner, repo, "deno.jsonc"),
+    reader.readFile(owner, repo, "deno.lock"),
     reader.readFile(owner, repo, "AGENTS.md"),
     reader.readFile(owner, repo, "deco.json"),
   ]);
 
-  if (!bunLock && !packageJsonRaw) {
+  const hasJsProject =
+    bunLock || packageJsonRaw || denoJsonRaw || denoJsoncRaw || denoLock;
+
+  if (!hasJsProject) {
     throw new Error(
-      `Repository "${repoUrl}" does not appear to be a JavaScript project (no bun.lock or package.json found).`,
+      `Repository "${repoUrl}" does not appear to be a JavaScript project (no package.json, bun.lock, deno.json, or deno.lock found).`,
     );
   }
 
-  let scripts: Record<string, string> = {};
-  if (packageJsonRaw) {
-    try {
-      const packageJson = JSON.parse(packageJsonRaw);
-      scripts = packageJson.scripts ?? {};
-    } catch {
-      throw new Error(`Failed to parse package.json in "${repoUrl}".`);
-    }
-  }
+  const autoDetectedRuntime = detectRuntime({
+    bunLock,
+    denoJson: denoJsonRaw,
+    denoJsonc: denoJsoncRaw,
+    denoLock,
+    packageJson: packageJsonRaw,
+  });
 
   const decoConfig = decoJsonRaw ? parseDecoJson(decoJsonRaw) : null;
 
+  // deco.json runtime overrides auto-detection
+  const runtime = decoConfig?.runtime ?? autoDetectedRuntime;
+
+  const scripts = parseScripts(
+    runtime,
+    packageJsonRaw,
+    denoJsonRaw,
+    denoJsoncRaw,
+  );
+
   return {
-    runtime: "bun",
+    runtime,
     scripts,
     instructions: agentsMd,
     autorun: decoConfig?.autorun ?? null,

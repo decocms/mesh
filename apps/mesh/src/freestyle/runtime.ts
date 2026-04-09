@@ -1,9 +1,11 @@
 import type { Freestyle } from "freestyle-sandboxes";
 import { VmSpec } from "freestyle-sandboxes";
 import { VmBun } from "@freestyle-sh/with-bun";
+import { VmDeno } from "@freestyle-sh/with-deno";
 import type { FreestyleMetadata } from "./types";
 
 const BUN_BIN = "/opt/bun/bin/bun";
+const DENO_BIN = "/root/.deno/bin/deno";
 
 export interface RunScriptResult {
   vmId: string;
@@ -32,8 +34,10 @@ export async function runScript(
       .catch(() => {});
   }
 
+  const runtime = metadata.runtime ?? "bun";
+
   const spec = new VmSpec()
-    .with("js", new VmBun())
+    .with("js", runtime === "deno" ? new VmDeno() : new VmBun())
     .repo(metadata.freestyle_repo_id, "/app")
     .workdir("/app")
     .waitForReadySignal(true);
@@ -50,8 +54,13 @@ export async function runScript(
   await vm.js.install({ directory: "/app" });
 
   // Start the script in the background via nohup so exec returns immediately
+  const runCmd =
+    runtime === "deno"
+      ? `${DENO_BIN} task ${script}`
+      : `${BUN_BIN} run ${script}`;
+
   await vm.exec(
-    `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${BUN_BIN} run ${script} > /tmp/app.log 2>&1 &`,
+    `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${runCmd} > /tmp/app.log 2>&1 &`,
   );
 
   return {

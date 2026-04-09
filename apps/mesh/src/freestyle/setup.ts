@@ -8,7 +8,7 @@ export interface SetupResult {
   repoId: string;
   snapshotId: string;
   vmId: string;
-  runtime: "bun";
+  runtime: "bun" | "deno";
   scripts: Record<string, string>;
   instructions: string | null;
   autorun: string | null;

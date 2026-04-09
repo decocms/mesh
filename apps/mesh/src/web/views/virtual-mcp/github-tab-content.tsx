@@ -238,12 +238,16 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
       {/* Runtime */}
       <div className="flex flex-col gap-2">
         <Label className="text-xs text-muted-foreground">Runtime</Label>
-        <Select value={fm.runtime ?? "bun"} disabled>
+        <Select
+          value={fm.runtime ?? "bun"}
+          onValueChange={(v) => handleUpdateField("runtime", v)}
+        >
           <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="bun">bun</SelectItem>
+            <SelectItem value="deno">deno</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">

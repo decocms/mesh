@@ -69,6 +69,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@freestyle-sh/with-bun": "^0.2.10",
+        "@freestyle-sh/with-deno": "^0.0.2",
         "@inkjs/ui": "^2.0.0",
         "@modelcontextprotocol/ext-apps": "^1.2.2",
         "@openrouter/ai-sdk-provider": "^2.2.5",
@@ -765,6 +766,8 @@
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
 
     "@freestyle-sh/with-bun": ["@freestyle-sh/with-bun@0.2.10", "", { "dependencies": { "@freestyle-sh/with-type-js": "^0.2.8", "freestyle-sandboxes": "^0.1.28" } }, "sha512-Q3GFNkx93T1JgRouvVnKlXlRcm6e1icJ1SG4jmWr+cb/3d3QMMMycMnHpg2jdwi5h4oaG7RmuQxF+2UlB5mjsw=="],
+
+    "@freestyle-sh/with-deno": ["@freestyle-sh/with-deno@0.0.2", "", { "dependencies": { "@freestyle-sh/with-type-js": "0.2.8", "freestyle-sandboxes": "^0.1.41" } }, "sha512-AIm664FLhbSs3bwygaI25/BWbz8CJIu/DN0dncVXlrdw80lZVOuWXaupuUj0rOAV35ZPVq05pFR+C+SEJwertA=="],
 
     "@freestyle-sh/with-type-js": ["@freestyle-sh/with-type-js@0.2.8", "", { "dependencies": { "@freestyle-sh/with-type-js-deps": "^0.2.8", "@freestyle-sh/with-type-run-code": "^0.2.8", "freestyle-sandboxes": "^0.1.28" } }, "sha512-RcRpFWXGg7aJZSKUoOJ9to5ANBh91mZsbmstN2mVnbPR5riHQ9GoxbNe7qTl5Dab5TNStZeVVCpLvI+gOx8o5g=="],
 

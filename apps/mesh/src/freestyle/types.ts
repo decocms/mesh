@@ -3,7 +3,7 @@ export interface FreestyleMetadata {
   freestyle_repo_id?: string | null;
   freestyle_vm_id?: string | null;
   freestyle_snapshot_id?: string | null;
-  runtime?: "bun" | null;
+  runtime?: "bun" | "deno" | null;
   runtime_status?: "idle" | "installing" | "running" | null;
   running_script?: string | null;
   vm_domain?: string | null;
