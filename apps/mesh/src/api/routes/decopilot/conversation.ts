@@ -189,6 +189,22 @@ export async function processConversation(
                 providerMetadata: _pm,
                 ...rest
               } = p;
+              // Don't strip Google's providerOptions from tool-call parts:
+              // it carries thoughtSignature which Gemini needs on subsequent
+              // turns when thinking is enabled.
+              if (p.type === "tool-call") {
+                const googleMeta = (_pm as Record<string, unknown>)?.google;
+                const googleOpts = (_po as Record<string, unknown>)?.google;
+                return {
+                  ...rest,
+                  ...(googleMeta
+                    ? { providerMetadata: { google: googleMeta } }
+                    : {}),
+                  ...(googleOpts
+                    ? { providerOptions: { google: googleOpts } }
+                    : {}),
+                } as typeof part;
+              }
               return rest as typeof part;
             }
             return part;
