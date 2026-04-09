@@ -63,7 +63,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
-  Loading01,
   Play,
   Plus,
   Settings01,
@@ -81,6 +80,7 @@ import { DependencySelectionDialog } from "./dependency-selection-dialog";
 import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
+import { GitHubTabContent } from "./github-tab-content";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -1011,113 +1011,6 @@ function LayoutTabContent({ virtualMcpId }: { virtualMcpId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Repo URL section
-// ---------------------------------------------------------------------------
-
-function RepoUrlSection({
-  virtualMcpId,
-  metadata,
-}: {
-  virtualMcpId: string;
-  metadata: VirtualMCPEntity["metadata"];
-}) {
-  const { org } = useProjectContext();
-  const client = useMCPClient({
-    connectionId: SELF_MCP_ALIAS_ID,
-    orgId: org.id,
-  });
-  const queryClient = useQueryClient();
-  const [repoInput, setRepoInput] = useState("");
-  const [linking, setLinking] = useState(false);
-
-  const currentRepo = (metadata as Record<string, unknown>)?.repo_url as
-    | string
-    | undefined;
-  const runtimeStatus = (metadata as Record<string, unknown>)?.runtime_status as
-    | string
-    | undefined;
-  const isInstalling = runtimeStatus === "installing" || linking;
-
-  const invalidateEntity = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return (
-          key[1] === org.id &&
-          key[3] === "collection" &&
-          key[4] === "VIRTUAL_MCP"
-        );
-      },
-    });
-  };
-
-  const handleAddRepo = async () => {
-    const value = repoInput.trim();
-    if (!value) return;
-    setLinking(true);
-    try {
-      await client.callTool({
-        name: "VIRTUAL_MCP_ADD_REPO",
-        arguments: { virtual_mcp_id: virtualMcpId, repo_url: value },
-      });
-      setRepoInput("");
-    } catch (e) {
-      console.error("Failed to add repo:", e);
-    } finally {
-      invalidateEntity();
-      setLinking(false);
-    }
-  };
-
-  if (currentRepo) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30">
-        <span className="text-xs font-mono text-muted-foreground flex-1 truncate">
-          {currentRepo}
-        </span>
-        {isInstalling && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Loading01 size={12} className="animate-spin" />
-            Installing...
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <input
-        type="text"
-        value={repoInput}
-        onChange={(e) => setRepoInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleAddRepo();
-        }}
-        placeholder="owner/repo"
-        disabled={isInstalling}
-        className="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-transparent placeholder:text-muted-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-      />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleAddRepo}
-        disabled={isInstalling || !repoInput.trim()}
-      >
-        {isInstalling ? (
-          <>
-            <Loading01 size={14} className="animate-spin" />
-            Linking...
-          </>
-        ) : (
-          "Add Repo"
-        )}
-      </Button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Main detail view
 // ---------------------------------------------------------------------------
@@ -1154,7 +1047,7 @@ function VirtualMcpDetailViewWithData({
   });
 
   // Tab state
-  const validTabIds = ["instructions", "connections", "layout"];
+  const validTabIds = ["instructions", "github", "connections", "layout"];
   const [activeTab, setActiveTab] = useState(() => {
     const stored = localStorage.getItem("agent-detail-tab") || "instructions";
     // Migrate old "sidebar" tab to "layout"
@@ -1469,6 +1362,10 @@ Define step-by-step how the agent should handle requests.
       label: "Instructions",
     },
     {
+      id: "github",
+      label: "GitHub",
+    },
+    {
       id: "connections",
       label: "Connections",
       count: connections.length || undefined,
@@ -1580,12 +1477,12 @@ Define step-by-step how the agent should handle requests.
             </div>
 
             {/* Tab content */}
+            {activeTab === "github" && (
+              <GitHubTabContent virtualMcp={virtualMcp} />
+            )}
+
             {activeTab === "instructions" && (
               <div className="flex flex-col gap-4">
-                <RepoUrlSection
-                  virtualMcpId={virtualMcp.id}
-                  metadata={virtualMcp.metadata}
-                />
                 <Controller
                   name="metadata.instructions"
                   control={form.control}

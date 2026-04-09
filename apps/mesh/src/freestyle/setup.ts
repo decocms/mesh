@@ -11,6 +11,8 @@ export interface SetupResult {
   runtime: "bun";
   scripts: Record<string, string>;
   instructions: string | null;
+  autorun: string | null;
+  preview_port: number | null;
 }
 
 export async function setupRepo(
@@ -86,6 +88,8 @@ export async function setupRepo(
     runtime: detection.runtime,
     scripts: detection.scripts,
     instructions: detection.instructions,
+    autorun: detection.autorun ?? null,
+    preview_port: detection.preview_port ?? null,
   };
 }
 

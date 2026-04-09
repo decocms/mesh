@@ -8,6 +8,8 @@ export interface FreestyleMetadata {
   running_script?: string | null;
   vm_domain?: string | null;
   scripts?: Record<string, string> | null;
+  preview_port?: number | null;
+  autorun?: string | null;
 }
 
 export const REPO_URL_PATTERN = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;

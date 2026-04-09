@@ -92,6 +92,8 @@ export const VIRTUAL_MCP_ADD_REPO = defineTool({
           runtime_status: "idle",
           scripts: result.scripts,
           instructions: result.instructions ?? existing.metadata?.instructions,
+          autorun: result.autorun,
+          preview_port: result.preview_port,
         },
       });
 

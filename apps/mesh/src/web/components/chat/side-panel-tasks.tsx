@@ -11,7 +11,13 @@ import { Page } from "@/web/components/page";
 import { getIconComponent, parseIconString } from "../agent-icon";
 
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { Edit05, LayoutLeft, Loading01, Settings01 } from "@untitledui/icons";
+import {
+  Edit05,
+  Globe01,
+  LayoutLeft,
+  Loading01,
+  Settings01,
+} from "@untitledui/icons";
 import { useVirtualMCPActions, useVirtualMCP } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { Suspense, useEffect, useRef, useState, useTransition } from "react";
@@ -280,6 +286,13 @@ function TasksPanelContent({
   };
 
   const isSettingsActive = virtualMcpCtx?.mainView?.type === "settings";
+  const isBrowserInspectorActive =
+    virtualMcpCtx?.mainView?.type === "browser-inspector";
+
+  const hasPreview =
+    !!(virtualMcp?.metadata as Record<string, unknown> | undefined)?.repo_url &&
+    !!(virtualMcp?.metadata as Record<string, unknown> | undefined)
+      ?.preview_port;
 
   return (
     <div className="flex flex-col h-full">
@@ -300,7 +313,7 @@ function TasksPanelContent({
         </Page.Header>
       )}
 
-      {/* Nav items: New session + Settings + Views flow as one group */}
+      {/* Nav items: New session + Settings + Preview + Views flow as one group */}
       <div className="py-2 flex flex-col gap-0.5">
         <NewTaskButton
           onClick={handleNewTask}
@@ -322,6 +335,23 @@ function TasksPanelContent({
           >
             <Settings01 size={16} className="shrink-0" />
             <span className="text-foreground">Settings</span>
+          </button>
+        )}
+        {virtualMcp && virtualMcpCtx && !hideProjectHeader && hasPreview && (
+          <button
+            type="button"
+            onClick={() =>
+              isBrowserInspectorActive
+                ? openMainView("default")
+                : openMainView("browser-inspector")
+            }
+            className={cn(
+              navItemClass,
+              isBrowserInspectorActive && "bg-accent text-foreground",
+            )}
+          >
+            <Globe01 size={16} className="shrink-0" />
+            <span className="text-foreground">Preview</span>
           </button>
         )}
         {virtualMcp && !hideProjectHeader && (

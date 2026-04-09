@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useInsetContext } from "@/web/layouts/shell-layout";
-import { RefreshCcw01, Globe01 } from "@untitledui/icons";
+import { RefreshCcw01, Globe01, LinkExternal01 } from "@untitledui/icons";
 import { Button } from "@deco/ui/components/button.tsx";
+import { parseFreestyleMetadata } from "@/freestyle/parse-metadata";
 
 export function BrowserInspectorView() {
   const ctx = useInsetContext();
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const metadata = ctx?.entity?.metadata as Record<string, unknown> | undefined;
-  const vmDomain = metadata?.vm_domain as string | undefined;
+  const fm = parseFreestyleMetadata(ctx?.entity?.metadata);
+  const vmDomain = fm.vm_domain;
 
   if (!vmDomain) {
     return (
@@ -37,6 +38,14 @@ export function BrowserInspectorView() {
         <span className="text-xs text-muted-foreground truncate flex-1">
           {url}
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+          className="h-7 w-7 p-0"
+        >
+          <LinkExternal01 size={14} />
+        </Button>
       </div>
       <iframe
         key={refreshKey}

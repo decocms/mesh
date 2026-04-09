@@ -38,10 +38,12 @@ export async function runScript(
     .workdir("/app")
     .waitForReadySignal(true);
 
+  const targetPort = metadata.preview_port ?? 3000;
+
   const { vm, vmId, domains } = await freestyle.vms.create({
     spec,
     idleTimeoutSeconds: 600,
-    ports: [{ port: 443, targetPort: 3000 }],
+    ports: [{ port: 443, targetPort }],
   });
 
   // Install deps first
@@ -49,7 +51,7 @@ export async function runScript(
 
   // Start the script in the background via nohup so exec returns immediately
   await vm.exec(
-    `cd /app && HOST=0.0.0.0 PORT=3000 nohup ${BUN_BIN} run ${script} > /tmp/app.log 2>&1 &`,
+    `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${BUN_BIN} run ${script} > /tmp/app.log 2>&1 &`,
   );
 
   return {

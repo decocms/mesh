@@ -5,7 +5,6 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Play,
   StopCircle,
@@ -24,6 +23,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
+import { parseFreestyleMetadata } from "@/freestyle/parse-metadata";
+import { useInvalidateVirtualMcp } from "@/web/hooks/use-invalidate-virtual-mcp";
 
 interface FreestylePlayButtonProps {
   entity: VirtualMCPEntity;
@@ -40,28 +41,15 @@ export function FreestylePlayButton({
     orgId: org.id,
   });
 
-  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const invalidateEntity = useInvalidateVirtualMcp();
 
-  const invalidateEntity = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey;
-        return (
-          key[1] === org.id &&
-          key[3] === "collection" &&
-          key[4] === "VIRTUAL_MCP"
-        );
-      },
-    });
-  };
-
-  const metadata = entity.metadata as Record<string, unknown> | undefined;
-  const repoUrl = metadata?.repo_url as string | undefined;
-  const runtimeStatus = metadata?.runtime_status as string | undefined;
-  const scripts = metadata?.scripts as Record<string, string> | undefined;
-  const runningScript = metadata?.running_script as string | undefined;
-  const vmDomain = metadata?.vm_domain as string | undefined;
+  const fm = parseFreestyleMetadata(entity.metadata);
+  const repoUrl = fm.repo_url;
+  const runtimeStatus = fm.runtime_status;
+  const scripts = fm.scripts;
+  const runningScript = fm.running_script;
+  const vmDomain = fm.vm_domain;
 
   if (!repoUrl) return null;
 
