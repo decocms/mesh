@@ -1,5 +1,11 @@
 import { cn } from "@deco/ui/lib/utils.ts";
-import { Lightbulb01, Stars01, Target04 } from "@untitledui/icons";
+import {
+  Lightbulb01,
+  MessageTextSquare01,
+  Stars01,
+  Target04,
+  Tool02,
+} from "@untitledui/icons";
 import type { ToolUIPart } from "ai";
 import { type ReactNode, useEffect, useState } from "react";
 import { ToolCallShell } from "./parts/tool-call-part/common.tsx";
@@ -13,7 +19,11 @@ import {
   UserAskPart,
 } from "./parts/tool-call-part/index.ts";
 import { SmartAutoScroll } from "./smart-auto-scroll.tsx";
-import { type DataParts, useFilterParts } from "./use-filter-parts.ts";
+import {
+  type DataParts,
+  type RenderItem,
+  useFilterParts,
+} from "./use-filter-parts.ts";
 import { addUsage, emptyUsageStats } from "@decocms/mesh-sdk";
 import { useOptionalChatStream } from "../context.tsx";
 import { formatDuration } from "../../../lib/format-time.ts";
@@ -217,6 +227,140 @@ type MessagePart = ChatMessage["parts"][number];
 
 type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
 
+/** Minimum number of tool-call items required before collapsing kicks in. */
+const COLLAPSE_THRESHOLD = 3;
+
+/**
+ * Categorise render items into "collapsible" (tool calls, reasoning) and
+ * "tail" (final text parts that stay visible).  The tail is every item
+ * from the *last* text part onward.
+ */
+function splitCollapsible(
+  renderOrder: RenderItem[],
+  parts: ChatMessage["parts"],
+): { collapsed: RenderItem[]; tail: RenderItem[] } {
+  // Find the last text-part index in renderOrder
+  let lastTextIdx = -1;
+  for (let i = renderOrder.length - 1; i >= 0; i--) {
+    const item = renderOrder[i]!;
+    if (item.kind === "part" && parts[item.index]?.type === "text") {
+      lastTextIdx = i;
+      break;
+    }
+  }
+  if (lastTextIdx === -1) {
+    // No text parts at all – don't collapse
+    return { collapsed: [], tail: renderOrder };
+  }
+  return {
+    collapsed: renderOrder.slice(0, lastTextIdx),
+    tail: renderOrder.slice(lastTextIdx),
+  };
+}
+
+/** Count tool calls and messages in a set of render items. */
+function collapsedCounts(
+  items: RenderItem[],
+  parts: ChatMessage["parts"],
+): { toolCalls: number; messages: number } {
+  let toolCalls = 0;
+  let messages = 0;
+  for (const item of items) {
+    if (item.kind === "reasoning-group") {
+      messages++;
+    } else {
+      const type = parts[item.index]?.type;
+      if (type === "text") {
+        messages++;
+      } else if (type === "dynamic-tool" || type?.startsWith("tool-")) {
+        toolCalls++;
+      }
+    }
+  }
+  return { toolCalls, messages };
+}
+
+function CollapsedSectionTitle({
+  toolCalls,
+  messages,
+}: {
+  toolCalls: number;
+  messages: number;
+}) {
+  return (
+    <span className="flex items-center gap-1.5 text-muted-foreground">
+      {toolCalls > 0 && (
+        <>
+          <Tool02 className="size-3.5 shrink-0" />
+          <span>
+            {toolCalls} tool call{toolCalls === 1 ? "" : "s"}
+            {messages > 0 ? "," : ""}
+          </span>
+        </>
+      )}
+      {messages > 0 && (
+        <>
+          <MessageTextSquare01 className="size-3.5 shrink-0" />
+          <span>
+            {messages} message{messages === 1 ? "" : "s"}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+function CollapsedSection({
+  items,
+  message,
+  reasoningGroups,
+  isReasoningActive,
+  totalDuration,
+  dataParts,
+  isLoading,
+  isLast,
+}: {
+  items: RenderItem[];
+  message: ChatMessage;
+  reasoningGroups: { parts: ReasoningPart[]; startIndex: number }[];
+  isReasoningActive: boolean;
+  totalDuration: number | null;
+  dataParts: DataParts;
+  isLoading: boolean;
+  isLast: boolean;
+}) {
+  const { toolCalls, messages } = collapsedCounts(items, message.parts);
+
+  if (toolCalls === 0 && messages === 0) return null;
+
+  return (
+    <ToolCallShell
+      icon={<Tool02 className="size-4" />}
+      title={
+        <CollapsedSectionTitle toolCalls={toolCalls} messages={messages} />
+      }
+      state="idle"
+    >
+      <div className="flex flex-col gap-3 sm:gap-2 pt-1">
+        {items.map((item, idx) =>
+          renderItem({
+            item,
+            renderIndex: idx,
+            message,
+            reasoningGroups,
+            isReasoningActive,
+            totalDuration,
+            dataParts,
+            isLoading,
+            isLast,
+            isLastVisiblePart: false,
+          }),
+        )}
+      </div>
+    </ToolCallShell>
+  );
+}
+
 interface MessageAssistantProps {
   message: ChatMessage | null;
   status?: "streaming" | "submitted" | "ready" | "error";
@@ -231,6 +375,78 @@ interface MessagePartProps {
   dataParts: DataParts;
   isLoading?: boolean;
   isLastMessage?: boolean;
+}
+
+/** Shared render function for a single RenderItem. */
+function renderItem({
+  item,
+  renderIndex,
+  message,
+  reasoningGroups,
+  isReasoningActive,
+  totalDuration,
+  dataParts,
+  isLoading,
+  isLast,
+  isLastVisiblePart,
+  renderOrder,
+}: {
+  item: RenderItem;
+  renderIndex: number;
+  message: ChatMessage;
+  reasoningGroups: { parts: ReasoningPart[]; startIndex: number }[];
+  isReasoningActive: boolean;
+  totalDuration: number | null;
+  dataParts: DataParts;
+  isLoading: boolean;
+  isLast: boolean;
+  isLastVisiblePart: boolean;
+  renderOrder?: RenderItem[];
+}): ReactNode {
+  if (item.kind === "reasoning-group") {
+    const { group } = item;
+    const isLastGroup = group === reasoningGroups[reasoningGroups.length - 1];
+    const isGroupStreaming = isReasoningActive && isLastGroup;
+    const hasText = group.parts.some((p) => p.text?.trim());
+    if (!hasText && !isGroupStreaming) {
+      return null;
+    }
+    const groupDuration = reasoningGroups.length === 1 ? totalDuration : null;
+    return (
+      <ThoughtSummary
+        key={`${message.id}-reasoning-${group.startIndex}`}
+        duration={groupDuration}
+        parts={group.parts}
+        isStreaming={isGroupStreaming}
+      />
+    );
+  }
+
+  const part = message.parts[item.index]!;
+  const shouldShowUsage =
+    isLastVisiblePart ||
+    (renderOrder
+      ? renderOrder.findLastIndex((r) => r.kind === "part") === renderIndex
+      : false);
+  const usage = shouldShowUsage
+    ? addUsage(emptyUsageStats(), message.metadata?.usage)
+    : null;
+
+  return (
+    <MessagePart
+      key={`${message.id}-${item.index}`}
+      part={part}
+      id={message.id}
+      usageStats={
+        shouldShowUsage && (
+          <MessageStatsBar usage={usage} duration={totalDuration} />
+        )
+      }
+      dataParts={dataParts}
+      isLoading={isLoading}
+      isLastMessage={isLast}
+    />
+  );
 }
 
 function MessagePart({
@@ -421,58 +637,61 @@ export function MessageAssistant({
       ? reasoningEndAt.getTime() - reasoningStartAt.getTime()
       : null;
 
+  // Determine whether to collapse intermediate parts.
+  // Only collapse when not streaming and there are enough tool calls.
+  const shouldCollapse =
+    !isLoading &&
+    hasContent &&
+    (() => {
+      let toolCallCount = 0;
+      for (const item of renderOrder) {
+        if (item.kind === "part") {
+          const type = message!.parts[item.index]?.type;
+          if (type === "dynamic-tool" || type?.startsWith("tool-")) {
+            toolCallCount++;
+          }
+        }
+      }
+      return toolCallCount >= COLLAPSE_THRESHOLD;
+    })();
+
+  const { collapsed, tail } = shouldCollapse
+    ? splitCollapsible(renderOrder, message!.parts)
+    : { collapsed: [] as RenderItem[], tail: renderOrder };
+
   return (
     <Container className={className}>
       {hasContent ? (
         <div className="flex flex-col gap-3 sm:gap-2">
-          {renderOrder.map((item, renderIndex) => {
-            if (item.kind === "reasoning-group") {
-              const { group } = item;
-              const isLastGroup =
-                group === reasoningGroups[reasoningGroups.length - 1];
-              const isGroupStreaming = isReasoningActive && isLastGroup;
-              // Skip empty reasoning groups (no text content) unless actively streaming
-              const hasText = group.parts.some((p) => p.text?.trim());
-              if (!hasText && !isGroupStreaming) {
-                return null;
-              }
-              const groupDuration =
-                reasoningGroups.length === 1 ? totalDuration : null;
-              return (
-                <ThoughtSummary
-                  key={`${message.id}-reasoning-${group.startIndex}`}
-                  duration={groupDuration}
-                  parts={group.parts}
-                  isStreaming={isGroupStreaming}
-                />
-              );
-            }
-
-            const part = message.parts[item.index]!;
-            // Find the last visible "part" item (skipping reasoning groups
-            // which may be filtered out) to attach usage stats correctly.
-            const isLastVisiblePart =
-              renderOrder.findLastIndex((r) => r.kind === "part") ===
-              renderIndex;
-            const usage = isLastVisiblePart
-              ? addUsage(emptyUsageStats(), message.metadata?.usage)
-              : null;
-
-            return (
-              <MessagePart
-                key={`${message.id}-${item.index}`}
-                part={part}
-                id={message.id}
-                usageStats={
-                  isLastVisiblePart && (
-                    <MessageStatsBar usage={usage} duration={totalDuration} />
-                  )
-                }
-                dataParts={dataParts}
-                isLoading={isLoading}
-                isLastMessage={isLast}
-              />
-            );
+          {collapsed.length > 0 && (
+            <CollapsedSection
+              items={collapsed}
+              message={message!}
+              reasoningGroups={reasoningGroups}
+              isReasoningActive={isReasoningActive}
+              totalDuration={totalDuration}
+              dataParts={dataParts}
+              isLoading={isLoading}
+              isLast={isLast}
+            />
+          )}
+          {tail.map((item, idx) => {
+            const globalIndex = collapsed.length + idx;
+            const isLastPart =
+              tail.findLastIndex((r) => r.kind === "part") === idx;
+            return renderItem({
+              item,
+              renderIndex: globalIndex,
+              message: message!,
+              reasoningGroups,
+              isReasoningActive,
+              totalDuration,
+              dataParts,
+              isLoading,
+              isLast,
+              isLastVisiblePart: isLastPart,
+              renderOrder,
+            });
           })}
           {isLast && isLoading && startedAt !== null && (
             <GeneratingFooter startedAt={startedAt} />
