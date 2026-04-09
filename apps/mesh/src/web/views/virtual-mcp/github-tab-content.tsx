@@ -145,6 +145,9 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
   const fm = parseFreestyleMetadata(virtualMcp.metadata);
   const [unlinkOpen, setUnlinkOpen] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const [portInput, setPortInput] = useState(
+    fm.preview_port != null ? String(fm.preview_port) : "",
+  );
 
   const avatarUrl = fm.repo_url ? getGitHubAvatarUrl(fm.repo_url) : null;
   const scriptEntries = Object.keys(fm.scripts ?? {});
@@ -283,9 +286,10 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
           placeholder="e.g. 3000"
           min={1}
           max={65535}
-          value={fm.preview_port ?? ""}
-          onChange={(e) => {
-            const val = e.target.value;
+          value={portInput}
+          onChange={(e) => setPortInput(e.target.value)}
+          onBlur={() => {
+            const val = portInput.trim();
             if (val === "") {
               handleUpdateField("preview_port", null);
               return;
@@ -293,6 +297,16 @@ function PopulatedState({ virtualMcp }: { virtualMcp: VirtualMCPEntity }) {
             const num = Number.parseInt(val, 10);
             if (!Number.isNaN(num) && num >= 1 && num <= 65535) {
               handleUpdateField("preview_port", num);
+            } else {
+              // Reset to current value on invalid input
+              setPortInput(
+                fm.preview_port != null ? String(fm.preview_port) : "",
+              );
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              (e.target as HTMLInputElement).blur();
             }
           }}
         />
