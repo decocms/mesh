@@ -53,6 +53,14 @@ interface DomainLookupResult {
   organization?: { name: string; slug: string } | null;
 }
 
+interface DomainSetupResult {
+  success: boolean;
+  slug?: string;
+  brandExtracted?: boolean;
+  alreadyExists?: boolean;
+  error?: string;
+}
+
 export default function OnboardingRoute() {
   return (
     <RequiredAuthLayout>
@@ -69,9 +77,11 @@ function OnboardingPage() {
   const emailDomain = userEmail.split("@")[1]?.toLowerCase() ?? "";
   const isCorporateEmail =
     emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain);
+  const domainLabel =
+    emailDomain.split(".")[0]?.charAt(0).toUpperCase() +
+    (emailDomain.split(".")[0]?.slice(1) ?? "");
 
-  // Look up domain if corporate email — the server derives the domain
-  // from the session email, no query param needed.
+  // Look up domain if corporate email
   const { data: domainLookup, isLoading: domainLoading } =
     useQuery<DomainLookupResult>({
       queryKey: KEYS.domainLookup(emailDomain),
@@ -84,7 +94,7 @@ function OnboardingPage() {
       enabled: !!isCorporateEmail,
     });
 
-  // Auto-join mutation — the server derives everything from the session
+  // Auto-join existing org
   const joinOrgMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/auth/custom/domain-join", {
@@ -99,7 +109,27 @@ function OnboardingPage() {
     },
   });
 
-  // Create org mutation
+  // Domain setup: create org + claim domain + brand extraction
+  const domainSetupMutation = useMutation({
+    mutationFn: async (): Promise<DomainSetupResult> => {
+      const res = await fetch("/api/auth/custom/domain-setup", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data: DomainSetupResult = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to set up organization");
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.slug) {
+        window.location.href = `/${data.slug}`;
+      }
+    },
+  });
+
+  // Manual org creation (for generic emails)
   const createOrgMutation = useMutation({
     mutationFn: async (name: string) => {
       const slug = slugify(name);
@@ -129,9 +159,26 @@ function OnboardingPage() {
     );
   }
 
-  const isLoading = domainLoading;
   const hasMatchingOrg = domainLookup?.found && domainLookup?.organization;
   const canAutoJoin = hasMatchingOrg && domainLookup?.autoJoinEnabled;
+
+  // Corporate email, domain setup in progress
+  if (domainSetupMutation.isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center gap-4 py-12">
+            <Spinner />
+            <p className="text-sm font-medium">Setting up {domainLabel}...</p>
+            <p className="text-xs text-muted-foreground text-center">
+              Creating your organization and extracting brand information from{" "}
+              {emailDomain}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -145,7 +192,7 @@ function OnboardingPage() {
           </p>
         </div>
 
-        {isLoading ? (
+        {domainLoading ? (
           <Card>
             <CardContent className="flex items-center justify-center py-8">
               <Spinner />
@@ -155,7 +202,7 @@ function OnboardingPage() {
             </CardContent>
           </Card>
         ) : canAutoJoin ? (
-          /* Auto-join available */
+          /* Existing org with auto-join */
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
@@ -187,19 +234,6 @@ function OnboardingPage() {
                     : "Failed to join organization"}
                 </p>
               )}
-              <div className="text-center">
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:underline"
-                  onClick={() =>
-                    document
-                      .getElementById("create-org-section")
-                      ?.scrollIntoView({ behavior: "smooth" })
-                  }
-                >
-                  Or create your own organization
-                </button>
-              </div>
             </CardContent>
           </Card>
         ) : hasMatchingOrg ? (
@@ -216,15 +250,58 @@ function OnboardingPage() {
               </CardDescription>
             </CardHeader>
           </Card>
+        ) : isCorporateEmail ? (
+          /* Corporate email, no org yet — offer automatic setup */
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Set up {domainLabel} on Mesh
+              </CardTitle>
+              <CardDescription>
+                We'll create your organization and extract brand information
+                from {emailDomain}. Team members with @{emailDomain} emails will
+                be able to join automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                className="w-full"
+                onClick={() => domainSetupMutation.mutate()}
+                disabled={domainSetupMutation.isPending}
+              >
+                Set up {domainLabel}
+              </Button>
+              {domainSetupMutation.error && (
+                <p className="text-sm text-destructive">
+                  {domainSetupMutation.error instanceof Error
+                    ? domainSetupMutation.error.message
+                    : "Failed to set up organization"}
+                </p>
+              )}
+              <div className="text-center">
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:underline"
+                  onClick={() =>
+                    document
+                      .getElementById("create-org-section")
+                      ?.scrollIntoView({ behavior: "smooth" })
+                  }
+                >
+                  Or create a custom organization
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         ) : null}
 
-        {/* Create organization form */}
+        {/* Manual org creation form — always available as fallback */}
         <Card id="create-org-section">
           <CardHeader>
             <CardTitle className="text-base">Create an organization</CardTitle>
             <CardDescription>
               {isCorporateEmail
-                ? `Create a new organization for ${emailDomain}`
+                ? "Or set up a custom organization with a different name"
                 : "Enter your organization name to get started"}
             </CardDescription>
           </CardHeader>
@@ -243,10 +320,7 @@ function OnboardingPage() {
                 <Input
                   id="org-name"
                   placeholder={
-                    isCorporateEmail
-                      ? emailDomain.split(".")[0]?.charAt(0).toUpperCase() +
-                        (emailDomain.split(".")[0]?.slice(1) ?? "")
-                      : "My Organization"
+                    isCorporateEmail ? domainLabel : "My Organization"
                   }
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}

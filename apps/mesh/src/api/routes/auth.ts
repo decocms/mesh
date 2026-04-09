@@ -15,6 +15,7 @@ import {
   resetPasswordEnabled,
 } from "../../auth";
 import { getDb } from "../../database";
+import { BrandContextStorage } from "../../storage/brand-context";
 import { OrganizationDomainStorage } from "../../storage/organization-domains";
 import { KNOWN_OAUTH_PROVIDERS, OAuthProvider } from "@/auth/oauth-providers";
 import {
@@ -338,6 +339,212 @@ app.post("/domain-join", async (c) => {
     console.error("[Auth] Domain join failed:", error);
     return c.json(
       { success: false, error: "Failed to join organization" },
+      500,
+    );
+  }
+});
+
+/**
+ * Domain Setup Endpoint (authenticated, verified email required)
+ *
+ * For first-time corporate email users: creates an org named after their
+ * email domain, claims the domain with auto-join enabled, and triggers
+ * brand extraction via Firecrawl (best-effort — org is created even if
+ * extraction fails).
+ *
+ * Route: POST /api/auth/custom/domain-setup
+ */
+app.post("/domain-setup", async (c) => {
+  const session = (await auth.api.getSession({
+    headers: c.req.raw.headers,
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
+  if (!session?.user) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+  if (!session.user.emailVerified) {
+    return c.json({ success: false, error: "Email must be verified" }, 403);
+  }
+
+  const emailDomain = session.user.email?.split("@")[1]?.toLowerCase();
+  if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+    return c.json({ success: false, error: "Corporate email required" }, 403);
+  }
+
+  try {
+    const db = getDb().db;
+    const domainStorage = new OrganizationDomainStorage(db);
+
+    // Check if domain is already claimed
+    const existing = await domainStorage.getByDomain(emailDomain);
+    if (existing) {
+      // Domain already set up — look up the org slug for redirect
+      const org = await db
+        .selectFrom("organization")
+        .select(["slug"])
+        .where("id", "=", existing.organizationId)
+        .executeTakeFirst();
+      return c.json({
+        success: true,
+        slug: org?.slug ?? null,
+        alreadyExists: true,
+      });
+    }
+
+    // Derive org name from domain (e.g. "acme.com" → "Acme")
+    const domainName = emailDomain.split(".")[0] ?? emailDomain;
+    const orgName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+    const orgSlug = domainName.toLowerCase().replace(/[^a-z0-9-]/g, "");
+
+    // Create the org (triggers seedOrgDb via afterCreate hook)
+    const orgResult = (await auth.api.createOrganization({
+      body: {
+        name: orgName,
+        slug: orgSlug,
+        userId: session.user.id,
+      },
+    } as any)) as unknown as { id: string; slug: string } | null;
+
+    if (!orgResult?.id) {
+      throw new Error("Failed to create organization");
+    }
+    const orgId = orgResult.id;
+
+    // Claim the domain with auto-join enabled
+    await domainStorage.setDomain(orgId, emailDomain, true);
+
+    // Brand extraction (best-effort — don't fail the setup if this errors)
+    let brandExtracted = false;
+    try {
+      const firecrawlApiKey = getSettings().firecrawlApiKey;
+
+      if (firecrawlApiKey) {
+        const url = `https://${emailDomain}`;
+        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${firecrawlApiKey}`,
+          },
+          body: JSON.stringify({ url, formats: ["branding"] }),
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as {
+            success?: boolean;
+            data?: {
+              branding?: Record<string, unknown>;
+              metadata?: Record<string, unknown>;
+            };
+          };
+
+          if (result.success && result.data?.branding) {
+            const brandStorage = new BrandContextStorage(getDb().db);
+
+            const branding = result.data.branding;
+            const metadata = result.data.metadata ?? {};
+
+            // Extract colors
+            const rawColors = (branding.colors ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const colors: { label: string; value: string }[] = [];
+            for (const [label, value] of Object.entries(rawColors)) {
+              if (typeof value === "string" && value) {
+                colors.push({ label, value });
+              }
+            }
+
+            // Extract fonts
+            const fonts: { name: string; role: string }[] = [];
+            const typography = (branding.typography ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const fontFamilies = (typography.fontFamilies ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const seenFamilies = new Set<string>();
+            for (const [role, family] of Object.entries(fontFamilies)) {
+              if (typeof family === "string" && family) {
+                fonts.push({ name: family, role });
+                seenFamilies.add(family.toLowerCase());
+              }
+            }
+            if (Array.isArray(branding.fonts)) {
+              for (const f of branding.fonts) {
+                const family = (f as Record<string, unknown>).family;
+                if (
+                  typeof family === "string" &&
+                  family &&
+                  !seenFamilies.has(family.toLowerCase())
+                ) {
+                  fonts.push({ name: family, role: "" });
+                  seenFamilies.add(family.toLowerCase());
+                }
+              }
+            }
+
+            const images = (branding.images ?? {}) as Record<string, unknown>;
+
+            // Derive name from metadata
+            const titleParts = (metadata.title as string)
+              ?.split(/[|–—]/)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            const shortestPart = titleParts
+              ?.slice()
+              .sort((a, b) => a.length - b.length)[0];
+            const brandName =
+              shortestPart ?? (metadata.ogSiteName as string) ?? orgName;
+
+            await brandStorage.create(orgId, {
+              name: brandName,
+              domain: emailDomain,
+              overview: (metadata.description as string) ?? "",
+              logo: (images.logo as string) ?? null,
+              favicon: (images.favicon as string) ?? null,
+              ogImage:
+                (images.ogImage as string) ??
+                (metadata.ogImage as string) ??
+                null,
+              fonts: fonts.length > 0 ? fonts : null,
+              colors: colors.length > 0 ? colors : null,
+              images: null,
+              metadata: null,
+            });
+
+            brandExtracted = true;
+
+            // Update org name to the extracted brand name if different
+            if (brandName !== orgName) {
+              await auth.api.updateOrganization({
+                headers: c.req.raw.headers,
+                body: {
+                  organizationId: orgId,
+                  data: { name: brandName },
+                },
+              });
+            }
+          }
+        }
+      }
+    } catch (brandError) {
+      console.error("[Auth] Brand extraction failed (non-fatal):", brandError);
+    }
+
+    return c.json({
+      success: true,
+      slug: orgResult.slug ?? orgSlug,
+      brandExtracted,
+    });
+  } catch (error) {
+    console.error("[Auth] Domain setup failed:", error);
+    return c.json(
+      { success: false, error: "Failed to set up organization" },
       500,
     );
   }

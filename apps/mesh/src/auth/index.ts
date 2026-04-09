@@ -426,10 +426,10 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Try domain-based auto-join first — only for verified emails
-          // to prevent unverified email/password signups from joining
-          // orgs they don't belong to. OAuth and OTP users are always
-          // verified; email/password users must verify first.
+          // Domain-based handling for verified corporate emails.
+          // 1. If an org claimed the domain with auto-join → add as member
+          // 2. If corporate but unclaimed → skip default org creation so
+          //    the user hits /onboarding to set up their company org
           if (user.emailVerified) {
             const emailDomain = user.email?.split("@")[1]?.toLowerCase();
             if (emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
@@ -439,7 +439,6 @@ export const auth = betterAuth({
                   await domainStorage.getByDomain(emailDomain);
 
                 if (domainRecord?.autoJoinEnabled) {
-                  // Auto-join the user to the org
                   await auth.api.addMember({
                     body: {
                       userId: user.id,
@@ -447,12 +446,15 @@ export const auth = betterAuth({
                       organizationId: domainRecord.organizationId,
                     },
                   } as any);
-                  return; // Skip default org creation
+                  return;
                 }
               } catch (error) {
                 console.error("[Auth] Domain auto-join check failed:", error);
                 // Fall through to default org creation
               }
+
+              // Corporate email, no auto-join match → let /onboarding handle it
+              return;
             }
           }
 
