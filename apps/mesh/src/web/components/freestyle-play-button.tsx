@@ -5,6 +5,7 @@ import {
   useProjectContext,
 } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Play,
   StopCircle,
@@ -39,7 +40,21 @@ export function FreestylePlayButton({
     orgId: org.id,
   });
 
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+
+  const invalidateEntity = () => {
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          key[1] === org.id &&
+          key[3] === "collection" &&
+          key[4] === "VIRTUAL_MCP"
+        );
+      },
+    });
+  };
 
   const metadata = entity.metadata as Record<string, unknown> | undefined;
   const repoUrl = metadata?.repo_url as string | undefined;
@@ -65,6 +80,7 @@ export function FreestylePlayButton({
     } catch (e) {
       console.error("Failed to run script:", e);
     } finally {
+      invalidateEntity();
       setLoading(false);
     }
   };
@@ -81,6 +97,7 @@ export function FreestylePlayButton({
     } catch (e) {
       console.error("Failed to stop script:", e);
     } finally {
+      invalidateEntity();
       setLoading(false);
     }
   };
