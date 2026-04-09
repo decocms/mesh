@@ -58,7 +58,7 @@ export function GitHubRepoDialog({
 
   // Step 1: Check installations
   const installationsQuery = useQuery({
-    queryKey: ["github-installations", org.id] as const,
+    queryKey: KEYS.githubInstallations(org.id),
     queryFn: async () => {
       const result = await client.callTool({
         name: "GITHUB_LIST_INSTALLATIONS",
@@ -76,11 +76,10 @@ export function GitHubRepoDialog({
 
   // Step 2: List repos for selected installation
   const reposQuery = useQuery({
-    queryKey: [
-      "github-repos",
+    queryKey: KEYS.githubRepos(
       org.id,
       String(selectedInstallation?.installationId),
-    ] as const,
+    ),
     queryFn: async () => {
       if (!selectedInstallation) return { repos: [] };
       const result = await client.callTool({
@@ -198,7 +197,7 @@ export function GitHubRepoDialog({
     if (!selectedInstallation) {
       const installations = installationsQuery.data.installations;
       if (installations.length === 1) {
-        setSelectedInstallation(installations[0]);
+        setSelectedInstallation(installations[0] ?? null);
         return null;
       }
       return (

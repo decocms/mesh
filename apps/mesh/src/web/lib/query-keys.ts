@@ -322,4 +322,10 @@ export const KEYS = {
 
   // Web search blob content (fetched from object storage)
   webSearchBlob: (url: string) => ["web-search-blob", url] as const,
+
+  // GitHub integration
+  githubInstallations: (orgId: string) =>
+    ["github-installations", orgId] as const,
+  githubRepos: (orgId: string, installationId: string) =>
+    ["github-repos", orgId, installationId] as const,
 } as const;
