@@ -89,12 +89,13 @@ export function ToolsPopover({
   });
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.id);
 
-  const { data: prompts = [], isLoading: isPromptsLoading } = useQuery({
+  const { data, isLoading: isPromptsLoading } = useQuery({
     queryKey,
-    queryFn: () => listPrompts(client!).then((r) => r.prompts ?? []),
+    queryFn: () => listPrompts(client!),
     staleTime: 60000,
     enabled: open && !!client,
   });
+  const prompts = data?.prompts ?? [];
 
   const [activePrompt, setActivePrompt] = useState<Prompt | null>(null);
 
