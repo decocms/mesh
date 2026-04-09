@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Zap } from "@untitledui/icons";
 import { Skeleton } from "@deco/ui/components/skeleton.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import { ProviderCardGrid } from "@/web/views/settings/org-ai-providers";
 import {
   SELF_MCP_ALIAS_ID,
@@ -26,7 +27,7 @@ function useDefaultBrand(): BrandContext | null {
   });
 
   const { data } = useQuery<BrandContext | null>({
-    queryKey: [...KEYS.brandContext(org.id), "default"],
+    queryKey: KEYS.defaultBrand(org.id),
     queryFn: async () => {
       const result = await client.callTool({
         name: "BRAND_CONTEXT_LIST",
@@ -112,7 +113,9 @@ export function NoAiProviderEmptyState({
             <Zap
               size={24}
               style={primaryColor ? { color: primaryColor } : undefined}
-              className={primaryColor ? "" : "text-lime-600 dark:text-lime-400"}
+              className={cn(
+                !primaryColor && "text-lime-600 dark:text-lime-400",
+              )}
             />
           )}
         </div>

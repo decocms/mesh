@@ -4,6 +4,7 @@ import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
+import { cn } from "@deco/ui/lib/utils.ts";
 import {
   Building02,
   CheckCircle,
@@ -381,9 +382,10 @@ function SetupWorkflow({
             return (
               <div
                 key={step.label}
-                className={`flex items-center gap-3 transition-opacity duration-500 ${
-                  isPending ? "opacity-30" : "opacity-100"
-                }`}
+                className={cn(
+                  "flex items-center gap-3 transition-opacity duration-500",
+                  isPending ? "opacity-30" : "opacity-100",
+                )}
               >
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted">
                   {isDone ? (
@@ -401,13 +403,12 @@ function SetupWorkflow({
                   )}
                 </div>
                 <span
-                  className={`text-sm transition-colors duration-300 ${
-                    isDone
-                      ? "text-muted-foreground"
-                      : isActive
-                        ? "text-foreground font-medium"
-                        : "text-muted-foreground"
-                  }`}
+                  className={cn(
+                    "text-sm transition-colors duration-300",
+                    isActive
+                      ? "text-foreground font-medium"
+                      : "text-muted-foreground",
+                  )}
                 >
                   {step.label}
                 </span>

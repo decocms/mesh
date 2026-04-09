@@ -299,6 +299,8 @@ export const KEYS = {
   // Brand context (scoped by organization)
   brandContext: (organizationId: string) =>
     ["brand-context", organizationId] as const,
+  defaultBrand: (organizationId: string) =>
+    ["brand-context", organizationId, "default"] as const,
 
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,
