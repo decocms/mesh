@@ -68,11 +68,11 @@ describe("parseFreestyleMetadata", () => {
 });
 
 describe("emptyFreestyleMetadata", () => {
-  test("returns all 11 fields as null", () => {
+  test("returns all 12 fields as null", () => {
     const empty = emptyFreestyleMetadata();
     const keys = Object.keys(empty);
 
-    expect(keys).toHaveLength(11);
+    expect(keys).toHaveLength(12);
     expect(keys).toContain("repo_url");
     expect(keys).toContain("freestyle_repo_id");
     expect(keys).toContain("freestyle_vm_id");
@@ -84,6 +84,7 @@ describe("emptyFreestyleMetadata", () => {
     expect(keys).toContain("scripts");
     expect(keys).toContain("preview_port");
     expect(keys).toContain("autorun");
+    expect(keys).toContain("terminal_domain");
 
     for (const value of Object.values(empty)) {
       expect(value).toBeNull();
