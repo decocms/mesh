@@ -322,6 +322,12 @@ export const WELL_KNOWN_AGENT_TEMPLATES = [
     type: "registry-agent" as const,
   },
   {
+    id: "lean-canvas",
+    title: "Lean Canvas",
+    icon: "icon://FileCheck02?color=green",
+    type: "registry-agent" as const,
+  },
+  {
     id: "studio-pack",
     title: "Studio Pack",
     icon: "icon://Package?color=blue",
