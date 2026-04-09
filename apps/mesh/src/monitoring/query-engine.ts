@@ -141,7 +141,7 @@ export interface MonitoringEngineConfig {
  * No-op engine returned when @duckdb/node-api is unavailable (e.g. CI,
  * environments without the native module). Monitoring queries return empty results.
  */
-export class NoopEngine implements QueryEngine {
+class NoopEngine implements QueryEngine {
   private warned = false;
   private silent: boolean;
 
