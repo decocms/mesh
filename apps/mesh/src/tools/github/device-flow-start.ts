@@ -10,7 +10,7 @@ import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
 
 // Deco CMS GitHub App client ID (public, safe to hardcode)
-const GITHUB_CLIENT_ID = "Iv23liGOzVQfPCMOzkEG";
+const GITHUB_CLIENT_ID = "Iv23liLNDj260RBdPV7p";
 
 export const GITHUB_DEVICE_FLOW_START = defineTool({
   name: "GITHUB_DEVICE_FLOW_START",

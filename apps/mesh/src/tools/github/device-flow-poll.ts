@@ -9,7 +9,7 @@ import { z } from "zod";
 import { defineTool } from "../../core/define-tool";
 import { requireAuth } from "../../core/mesh-context";
 
-const GITHUB_CLIENT_ID = "Iv23liGOzVQfPCMOzkEG";
+const GITHUB_CLIENT_ID = "Iv23liLNDj260RBdPV7p";
 
 export const GITHUB_DEVICE_FLOW_POLL = defineTool({
   name: "GITHUB_DEVICE_FLOW_POLL",
