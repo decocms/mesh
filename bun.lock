@@ -53,7 +53,7 @@
     },
     "apps/mesh": {
       "name": "decocms",
-      "version": "2.248.8",
+      "version": "2.248.10",
       "bin": {
         "deco": "./dist/server/cli.js",
       },
@@ -162,6 +162,7 @@
         "prettier": "^3.4.2",
         "react-hook-form": "^7.66.0",
         "react-markdown": "^10.1.0",
+        "react-resizable-panels": "^2.1.7",
         "react-syntax-highlighter": "^15.6.1",
         "recharts": "^3.6.0",
         "rehype-raw": "^7.0.0",
@@ -204,7 +205,7 @@
     },
     "packages/mcp-utils": {
       "name": "@decocms/mcp-utils",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "devDependencies": {
         "@jitl/quickjs-wasmfile-release-sync": "0.31.0",
         "@modelcontextprotocol/sdk": "1.27.1",
@@ -345,7 +346,6 @@
         "react-dom": "^19.2.0",
         "react-hook-form": "^7.55.0",
         "react-markdown": "^10.1.0",
-        "react-resizable-panels": "^2.1.7",
         "recharts": "2.15.1",
         "remark-gfm": "^4.0.1",
         "sonner": "^2.0.3",

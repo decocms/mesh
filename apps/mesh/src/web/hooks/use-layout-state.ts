@@ -3,19 +3,20 @@
  *
  * Panel open/closed state lives in URL search params.
  * Panel widths stay in localStorage.
- * Runtime toggles use imperative panel refs for smooth animation.
- * ResizablePanelGroup key changes only on agent switch.
+ * Runtime toggles use imperative panel group ref for smooth animation.
+ * ResizablePanelGroup key changes only on agent/task switch.
  *
  * All panel-state writes use navigate({ replace: true }) to avoid history pollution.
  */
 
-import { useRef } from "react";
+import { createContext, use, useRef } from "react";
 import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   getDecopilotId,
   getWellKnownDecopilotVirtualMCP,
   useProjectContext,
 } from "@decocms/mesh-sdk";
+import type { ImperativePanelGroupHandle } from "@/web/components/resizable";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,6 +49,19 @@ export interface LayoutActions {
     opts?: { id?: string; toolName?: string },
   ) => void;
   closeMainView: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// PanelGroupRefContext — provides the imperative PanelGroup handle.
+// ---------------------------------------------------------------------------
+
+export const PanelGroupRefContext =
+  createContext<React.RefObject<ImperativePanelGroupHandle | null> | null>(
+    null,
+  );
+
+export function usePanelGroupRef() {
+  return use(PanelGroupRefContext);
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +134,7 @@ export function resolveDefaultPanelState(ctx: {
 
 /**
  * Maps panel open/closed booleans to default size percentages.
+ * Note: tasks minSize is 22, so open sizes must be >= 22.
  */
 export function computeDefaultSizes(state: {
   tasksOpen: boolean;
@@ -129,13 +144,13 @@ export function computeDefaultSizes(state: {
   const { tasksOpen, mainOpen, chatOpen } = state;
 
   if (tasksOpen && mainOpen && chatOpen)
-    return { tasks: 20, main: 45, chat: 35 };
+    return { tasks: 22, main: 43, chat: 35 };
   if (!tasksOpen && mainOpen && chatOpen)
     return { tasks: 0, main: 65, chat: 35 };
   if (tasksOpen && !mainOpen && chatOpen)
-    return { tasks: 20, main: 0, chat: 80 };
+    return { tasks: 22, main: 0, chat: 78 };
   if (tasksOpen && mainOpen && !chatOpen)
-    return { tasks: 20, main: 80, chat: 0 };
+    return { tasks: 22, main: 78, chat: 0 };
   if (!tasksOpen && !mainOpen && chatOpen)
     return { tasks: 0, main: 0, chat: 100 };
   if (!tasksOpen && mainOpen && !chatOpen)
@@ -145,6 +160,20 @@ export function computeDefaultSizes(state: {
 
   // Fallback (all closed — shouldn't happen due to toggle guard)
   return { tasks: 0, main: 0, chat: 100 };
+}
+
+/**
+ * Applies the target layout to the panel group ref (if available).
+ * Uses setLayout() for an atomic, single-pass update of all panel sizes.
+ */
+function applyLayout(
+  ref: React.RefObject<ImperativePanelGroupHandle | null> | null | undefined,
+  nextState: { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean },
+) {
+  const handle = ref?.current;
+  if (!handle) return;
+  const sizes = computeDefaultSizes(nextState);
+  handle.setLayout([sizes.tasks, sizes.main, sizes.chat]);
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +205,7 @@ function parsePanelParam(
 
 export function usePanelState(
   entityMetadata: EntityLayoutMetadata | null,
+  panelGroupRef?: React.RefObject<ImperativePanelGroupHandle | null> | null,
 ): LayoutState & LayoutActions {
   const navigate = useNavigate();
   const { org } = useProjectContext();
@@ -250,12 +280,13 @@ export function usePanelState(
   };
 
   // --- Actions ---
-  // Toggle actions only update the URL. The ResizablePanelGroup remounts via
-  // key={virtualMcpId}-${tasksOpen}-${mainOpen}-${chatOpen}, which applies
-  // the correct deterministic sizes from computeDefaultSizes().
+  // Toggle actions apply layout imperatively via setLayout(), then update URL.
+  // The ResizablePanelGroup key only includes virtualMcpId + taskId, so panel
+  // toggles do NOT cause a remount — the imperative resize handles the visual.
 
   const setTaskId = (id: string) => {
-    // Reset all panel state — only preserve taskId + tasks panel
+    // Reset all panel state — only preserve taskId + tasks panel.
+    // taskId is in the key, so this remounts the panel group (intended).
     navigate({
       to: routeBase,
       params: routeParams,
@@ -269,27 +300,36 @@ export function usePanelState(
 
   const toggleTasks = () => {
     if (!canToggle(tasksOpen, expandedCount)) return;
+    const nextState = { tasksOpen: !tasksOpen, mainOpen, chatOpen };
+    applyLayout(panelGroupRef, nextState);
     navigateSearch({ tasks: !tasksOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleMain = () => {
     if (!canToggle(mainOpen, expandedCount)) return;
+    const nextState = { tasksOpen, mainOpen: !mainOpen, chatOpen };
+    applyLayout(panelGroupRef, nextState);
     navigateSearch({ mainOpen: !mainOpen ? 1 : 0 }, { replace: true });
   };
 
   const toggleChat = () => {
     if (!canToggle(chatOpen, expandedCount)) return;
+    const nextState = { tasksOpen, mainOpen, chatOpen: !chatOpen };
+    applyLayout(panelGroupRef, nextState);
     navigateSearch({ chat: !chatOpen ? 1 : 0 }, { replace: true });
   };
 
   const openChat = () => {
     if (chatOpen) return;
+    const nextState = { tasksOpen, mainOpen, chatOpen: true };
+    applyLayout(panelGroupRef, nextState);
     navigateSearch({ chat: 1 }, { replace: true });
   };
 
   const createNewTask = () => {
     const newTaskId = crypto.randomUUID();
-    // Reset all panel state — only preserve tasks panel + force chat open
+    // Reset all panel state — only preserve tasks panel + force chat open.
+    // taskId is in the key, so this remounts the panel group (intended).
     navigate({
       to: routeBase,
       params: routeParams,
@@ -326,6 +366,12 @@ export function usePanelState(
       return;
     }
 
+    // Open main panel if not already open
+    if (!mainOpen) {
+      const nextState = { tasksOpen, mainOpen: true, chatOpen };
+      applyLayout(panelGroupRef, nextState);
+    }
+
     const updates: Record<string, unknown> = {
       main: view,
       mainOpen: 1,
@@ -336,6 +382,8 @@ export function usePanelState(
   };
 
   const closeMainView = () => {
+    const nextState = { tasksOpen, mainOpen: false, chatOpen };
+    applyLayout(panelGroupRef, nextState);
     navigate({
       to: routeBase,
       params: routeParams,

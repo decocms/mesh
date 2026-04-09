@@ -11,10 +11,19 @@ import {
   useMCPClient,
 } from "@decocms/mesh-sdk";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Outlet, useMatch, useNavigate } from "@tanstack/react-router";
+import {
+  Outlet,
+  useMatch,
+  useNavigate,
+  useSearch,
+} from "@tanstack/react-router";
 import { KEYS } from "../lib/query-keys";
 import { useOrgSsoStatus } from "../hooks/use-org-sso";
 import { SsoRequiredScreen } from "../components/sso-required-screen";
+import {
+  computeDefaultSizes,
+  usePanelGroupRef,
+} from "@/web/hooks/use-layout-state";
 
 // ---------------------------------------------------------------------------
 // ShellProjectProvider — fetches org settings and provides project context.
@@ -74,12 +83,40 @@ function ShellProjectProvider({
 }
 
 // ---------------------------------------------------------------------------
-// Panel actions — provider-free hook, works anywhere in the router tree.
-// All actions just update URL search params via navigate().
+// Panel actions — works anywhere in the router tree.
+// Reads panel group ref from PanelGroupRefContext (optional — null outside
+// the agent tree). Derives panel state from querystring for setLayout().
 // ---------------------------------------------------------------------------
+
+type PanelActionSearchParams = {
+  tasks?: number;
+  mainOpen?: number;
+  chat?: number;
+};
+
+function deriveOpenState(search: PanelActionSearchParams) {
+  // Treat undefined as "open" (the most common default)
+  return {
+    tasksOpen: search.tasks !== 0,
+    mainOpen: search.mainOpen !== 0,
+    chatOpen: search.chat !== 0,
+  };
+}
+
+function applyLayout(
+  ref: ReturnType<typeof usePanelGroupRef>,
+  nextState: { tasksOpen: boolean; mainOpen: boolean; chatOpen: boolean },
+) {
+  const handle = ref?.current;
+  if (!handle) return;
+  const sizes = computeDefaultSizes(nextState);
+  handle.setLayout([sizes.tasks, sizes.main, sizes.chat]);
+}
 
 export function usePanelActions() {
   const navigate = useNavigate();
+  const panelGroupRef = usePanelGroupRef();
+  const search = useSearch({ strict: false }) as PanelActionSearchParams;
 
   const agentsMatch = useMatch({
     from: "/shell/$org/$virtualMcpId",
@@ -112,11 +149,19 @@ export function usePanelActions() {
       replace,
     });
 
-  const setChatOpen = (open: boolean) =>
+  const setChatOpen = (open: boolean) => {
+    const current = deriveOpenState(search);
+    const nextState = { ...current, chatOpen: open };
+    applyLayout(panelGroupRef, nextState);
     nav((prev) => ({ ...prev, chat: open ? 1 : 0 }));
+  };
 
-  const setTasksOpen = (open: boolean) =>
+  const setTasksOpen = (open: boolean) => {
+    const current = deriveOpenState(search);
+    const nextState = { ...current, tasksOpen: open };
+    applyLayout(panelGroupRef, nextState);
     nav((prev) => ({ ...prev, tasks: open ? 1 : 0 }));
+  };
 
   const setTaskId = (id: string) =>
     nav((prev) => {
@@ -153,6 +198,12 @@ export function usePanelActions() {
       return;
     }
 
+    // Open main panel imperatively if not already open
+    const current = deriveOpenState(search);
+    if (!current.mainOpen) {
+      applyLayout(panelGroupRef, { ...current, mainOpen: true });
+    }
+
     nav((prev) => {
       const next: Record<string, unknown> = {
         ...prev,
@@ -165,7 +216,9 @@ export function usePanelActions() {
     });
   };
 
-  const closeMainView = () =>
+  const closeMainView = () => {
+    const current = deriveOpenState(search);
+    applyLayout(panelGroupRef, { ...current, mainOpen: false });
     nav((prev) => {
       const next: Record<string, unknown> = {};
       if (prev.taskId) next.taskId = prev.taskId;
@@ -174,6 +227,7 @@ export function usePanelActions() {
       next.mainOpen = 0;
       return next;
     });
+  };
 
   return {
     setChatOpen,
