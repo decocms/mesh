@@ -136,6 +136,7 @@ import {
 
 import {
   groupConnections,
+  getConnectionDisplayTitle,
   type ConnectionGroup,
 } from "@/shared/utils/group-connections";
 
@@ -552,6 +553,9 @@ function CatalogItemCard({
   const icon =
     item.server?.icons?.[0]?.src ||
     getGitHubAvatarUrl(item.server?.repository) ||
+    item.icon ||
+    item.image ||
+    item.logo ||
     null;
   const appInstances = allConnections.filter(
     (c) => c.connection_type !== "VIRTUAL" && c.app_name === appName,
@@ -1054,7 +1058,10 @@ function ConnectionResults({
                 return (
                   <ConnectionCard
                     key={connection.id}
-                    connection={connection}
+                    connection={{
+                      ...connection,
+                      title: getConnectionDisplayTitle(connection),
+                    }}
                     fallbackIcon={<Container />}
                     onClick={() =>
                       selectionMode

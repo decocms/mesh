@@ -1,4 +1,5 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
+import { getConnectionDisplayTitle } from "@/shared/utils/group-connections";
 import type { VirtualMCPEntity } from "@/tools/virtual/schema";
 import { getUIResourceUri } from "@/mcp-apps/types.ts";
 import { useChatTask } from "@/web/components/chat/context";
@@ -1185,7 +1186,7 @@ function VirtualMcpDetailViewWithData({
       };
       if (!base) return;
 
-      const baseName = base.title.replace(/\s*\(.*?\)\s*$/, "");
+      const baseName = getConnectionDisplayTitle(base);
       const newId = generatePrefixedId("conn");
       // Temporary title — will be updated with email suffix after OAuth if available
       const tempTitle = `${baseName} (${Date.now().toString(36).slice(-4)})`;

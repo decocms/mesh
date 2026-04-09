@@ -1,4 +1,7 @@
-import { groupConnections } from "@/shared/utils/group-connections";
+import {
+  groupConnections,
+  getConnectionDisplayTitle,
+} from "@/shared/utils/group-connections";
 import { CollectionSearch } from "@/web/components/collections/collection-search.tsx";
 import { CollectionTabs } from "@/web/components/collections/collection-tabs.tsx";
 import { CreateConnectionDialog } from "@/web/components/connections/create-connection-dialog.tsx";
@@ -296,6 +299,9 @@ function AddConnectionDialogContent({
     const icon =
       item.server?.icons?.[0]?.src ||
       getGitHubAvatarUrl(item.server?.repository) ||
+      item.icon ||
+      item.image ||
+      item.logo ||
       null;
 
     return (
@@ -373,7 +379,7 @@ function AddConnectionDialogContent({
             const c = item.connection;
             return renderConnectedApp(
               c.id,
-              c.title,
+              getConnectionDisplayTitle(c),
               c.icon,
               c.description ?? null,
               [c],
@@ -471,7 +477,7 @@ export function AddConnectionDialog({
   const handleCloneAndAdd = async (base: ConnectionEntity) => {
     setConnectingItemId(base.app_name ?? base.id);
     try {
-      const baseName = base.title.replace(/\s*\(\d+\)\s*$/, "");
+      const baseName = getConnectionDisplayTitle(base);
       const newTitle = `${baseName} (${Date.now().toString(36).slice(-4)})`;
 
       const created = await connectionActions.create.mutateAsync({
