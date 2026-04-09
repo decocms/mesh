@@ -74,7 +74,7 @@ export function BrowserInspectorView() {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 self-stretch">
       {/* Toolbar — always visible */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/30 shrink-0">
         <Button
