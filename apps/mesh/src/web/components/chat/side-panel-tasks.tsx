@@ -289,10 +289,9 @@ function TasksPanelContent({
   const isBrowserInspectorActive =
     virtualMcpCtx?.mainView?.type === "browser-inspector";
 
-  const hasPreview =
-    !!(virtualMcp?.metadata as Record<string, unknown> | undefined)?.repo_url &&
-    !!(virtualMcp?.metadata as Record<string, unknown> | undefined)
-      ?.preview_port;
+  const hasPreview = !!(
+    virtualMcp?.metadata as Record<string, unknown> | undefined
+  )?.repo_url;
 
   return (
     <div className="flex flex-col h-full">
