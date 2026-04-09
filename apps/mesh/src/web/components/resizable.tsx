@@ -3,16 +3,21 @@
 import type * as React from "react";
 import { DotsGrid } from "@untitledui/icons";
 import * as ResizablePrimitive from "react-resizable-panels";
-export type { ImperativePanelHandle } from "react-resizable-panels";
+export type {
+  ImperativePanelHandle,
+  ImperativePanelGroupHandle,
+} from "react-resizable-panels";
 
 import { cn } from "@deco/ui/lib/utils.ts";
 
 function ResizablePanelGroup({
   className,
+  ref,
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.PanelGroup>) {
   return (
     <ResizablePrimitive.PanelGroup
+      ref={ref}
       data-slot="resizable-panel-group"
       className={cn(
         "flex h-full w-full data-[panel-group-direction=vertical]:flex-col",

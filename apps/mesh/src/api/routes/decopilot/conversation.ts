@@ -138,8 +138,16 @@ export async function processConversation(
   allMessages: ChatMessage[],
   config: { windowSize: number; models: ModelsConfig; tools?: ToolSet },
 ): Promise<ProcessedConversation> {
+  // Filter out messages with empty parts before validation.
+  // Assistant messages saved after an LLM error (e.g. Gemini returning empty)
+  // have parts: [] which makes validateUIMessages throw "Message must contain
+  // at least one part", bricking the entire thread.
+  const sanitizedMessages = allMessages.filter(
+    (m) => m.role !== "assistant" || (m.parts && m.parts.length > 0),
+  );
+
   const validUIMessages = await validateUIMessages<ChatMessage>({
-    messages: allMessages,
+    messages: sanitizedMessages,
   });
 
   const patchedUIMessages = denyPendingApprovals(validUIMessages);
@@ -189,6 +197,22 @@ export async function processConversation(
                 providerMetadata: _pm,
                 ...rest
               } = p;
+              // Don't strip Google's providerOptions from tool-call parts:
+              // it carries thoughtSignature which Gemini needs on subsequent
+              // turns when thinking is enabled.
+              if (p.type === "tool-call") {
+                const googleMeta = (_pm as Record<string, unknown>)?.google;
+                const googleOpts = (_po as Record<string, unknown>)?.google;
+                return {
+                  ...rest,
+                  ...(googleMeta
+                    ? { providerMetadata: { google: googleMeta } }
+                    : {}),
+                  ...(googleOpts
+                    ? { providerOptions: { google: googleOpts } }
+                    : {}),
+                } as typeof part;
+              }
               return rest as typeof part;
             }
             return part;

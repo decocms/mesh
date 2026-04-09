@@ -6,7 +6,6 @@ import {
 import {
   getPrompt,
   listPrompts,
-  useConnections,
   useMCPClient,
   useProjectContext,
 } from "@decocms/mesh-sdk";
@@ -33,7 +32,6 @@ import {
 } from "@untitledui/icons";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import {
   PromptArgsDialog,
   type PromptArgumentValues,
@@ -44,20 +42,21 @@ import { usePreferences } from "@/web/hooks/use-preferences.ts";
 import { useSound } from "@/web/hooks/use-sound.ts";
 import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
 
-function ConnectionIcons() {
-  const connections = useConnections();
-  const latest = connections?.slice(0, 3) ?? [];
-  if (latest.length === 0) return null;
+const FEATURED_CONNECTION_ICONS = [
+  { src: "/connections/gmail.png", name: "Gmail" },
+  { src: "/connections/perplexity.png", name: "Perplexity" },
+  { src: "/connections/github.png", name: "GitHub" },
+];
 
+function ConnectionIcons() {
   return (
     <div className="flex items-center -space-x-1.5">
-      {latest.map((conn) => (
-        <IntegrationIcon
-          key={conn.id}
-          icon={conn.icon}
-          name={conn.title}
-          size="2xs"
-          className="size-4! min-w-4! rounded-sm ring-1 ring-popover"
+      {FEATURED_CONNECTION_ICONS.map((icon) => (
+        <img
+          key={icon.name}
+          src={icon.src}
+          alt={icon.name}
+          className="size-5 rounded-sm ring-1 ring-border object-cover bg-white"
         />
       ))}
     </div>
@@ -89,12 +88,13 @@ export function ToolsPopover({
   });
   const queryKey = KEYS.virtualMcpPrompts(virtualMcpId, org.id);
 
-  const { data: prompts = [], isLoading: isPromptsLoading } = useQuery({
+  const { data, isLoading: isPromptsLoading } = useQuery({
     queryKey,
-    queryFn: () => listPrompts(client!).then((r) => r.prompts ?? []),
+    queryFn: () => listPrompts(client!),
     staleTime: 60000,
     enabled: open && !!client,
   });
+  const prompts = data?.prompts ?? [];
 
   const [activePrompt, setActivePrompt] = useState<Prompt | null>(null);
 

@@ -18,20 +18,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract s5cmd version from Dockerfile
-        id: version
-        run: |
-          VERSION=$(grep -oP 'S5CMD_VERSION=\K[0-9.]+' deploy/s3-sync/Dockerfile)
-          echo "s5cmd-version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 s5cmd version: ${VERSION}"
-
-      # ==================== REGISTRY LOGIN ====================
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -39,17 +30,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::578348582779:role/github-actions-ecr-push-mesh
-          aws-region: sa-east-1
-
-      - name: Login to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      # ==================== BUILD & PUSH ====================
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -60,11 +40,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ steps.ecr-login.outputs.registry }}/deco/s3-sync
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.version.outputs.s5cmd-version }}
+            type=raw,value=3.0.0
             type=raw,value=latest
 
       - name: Build and push Docker image

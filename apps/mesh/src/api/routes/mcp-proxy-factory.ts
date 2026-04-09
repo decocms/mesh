@@ -11,10 +11,6 @@
 import { createLazyClient } from "@/mcp-clients/lazy-client";
 import { getMcpListCache } from "@/mcp-clients/mcp-list-cache";
 import type { ConnectionEntity } from "@/tools/connection/schema";
-import type {
-  ClientWithOptionalStreamingSupport,
-  ClientWithStreamingSupport,
-} from "@/mcp-clients";
 import type { ServerClient } from "@decocms/bindings/mcp";
 import {
   createBridgeTransportPair,
@@ -35,50 +31,20 @@ export type MCPProxyClient = Client & {
   [Symbol.asyncDispose]: () => Promise<void>;
 };
 
-/**
- * MCP proxy client with streaming support extension
- * This adds the custom callStreamableTool method for HTTP streaming
- */
-export type StreamableMCPProxyClient = MCPProxyClient & {
-  callStreamableTool: (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<Response>;
-};
-
 // ============================================================================
 // Utilities
 // ============================================================================
 
 /**
  * Convert Client to ServerClient format for bindings compatibility
- * Overloaded to handle both regular and streamable clients
  */
-export function toServerClient(
-  client: Client,
-): Omit<ServerClient, "callStreamableTool">;
-export function toServerClient(
-  client: ClientWithStreamingSupport,
-): ServerClient;
-export function toServerClient(
-  client: ClientWithOptionalStreamingSupport,
-): ServerClient | Omit<ServerClient, "callStreamableTool"> {
-  const base = {
+export function toServerClient(client: Client): ServerClient {
+  return {
     client: {
       callTool: client.callTool.bind(client),
       listTools: client.listTools.bind(client),
     },
   };
-
-  // Only add streaming if present
-  if ("callStreamableTool" in client && client.callStreamableTool) {
-    return {
-      ...base,
-      callStreamableTool: client.callStreamableTool.bind(client),
-    };
-  }
-
-  return base;
 }
 
 // ============================================================================

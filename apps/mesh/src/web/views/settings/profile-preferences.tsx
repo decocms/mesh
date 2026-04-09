@@ -26,12 +26,11 @@ import { Moon01, Monitor01, Play, Sun } from "@untitledui/icons";
 import { authClient } from "@/web/lib/auth-client";
 import {
   usePreferences,
-  type SoundEventKey,
   type ThemeMode,
   type ToolApprovalLevel,
 } from "@/web/hooks/use-preferences.ts";
-import { SOUND_MAP } from "@/web/hooks/use-status-sounds.ts";
 import { playSound } from "@deco/ui/lib/sound-engine.ts";
+import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { toast } from "@deco/ui/components/sonner.js";
 
 function PreferenceRow({
@@ -175,12 +174,6 @@ function PreferencesSection() {
     setPreferences((prev) => ({ ...prev, enableNotifications: checked }));
   };
 
-  const soundEvents: { key: SoundEventKey; label: string }[] = [
-    { key: "completed", label: "Task completed" },
-    { key: "failed", label: "Task failed" },
-    { key: "requires_action", label: "Awaiting input" },
-  ];
-
   return (
     <Card className="p-6">
       <CardHeader className="p-0">
@@ -242,51 +235,29 @@ function PreferencesSection() {
             }))
           }
           control={
-            <Switch
-              checked={preferences.enableSounds}
-              onCheckedChange={(checked) =>
-                setPreferences((prev) => ({ ...prev, enableSounds: checked }))
-              }
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Preview notification sound"
+                onClick={() => {
+                  playSound(question004Sound.dataUri).catch(() => {});
+                }}
+                className="size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
+              >
+                <Play size={11} />
+              </button>
+              <Switch
+                checked={preferences.enableSounds}
+                onCheckedChange={(checked) =>
+                  setPreferences((prev) => ({
+                    ...prev,
+                    enableSounds: checked,
+                  }))
+                }
+              />
+            </div>
           }
         />
-        {preferences.enableSounds && (
-          <div className="ml-4 mb-1 mt-0.5 rounded-lg border border-border/60 overflow-hidden divide-y divide-border/40">
-            {soundEvents.map(({ key, label }) => (
-              <div
-                key={key}
-                className="flex items-center gap-3 px-3 py-2 bg-sidebar/40"
-              >
-                <span className="text-xs text-muted-foreground flex-1">
-                  {label}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Preview ${label} sound`}
-                  onClick={() => {
-                    const sound = SOUND_MAP[key];
-                    if (sound) playSound(sound.dataUri).catch(() => {});
-                  }}
-                  className="size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
-                >
-                  <Play size={11} />
-                </button>
-                <Switch
-                  checked={preferences.soundToggles[key]}
-                  onCheckedChange={(checked) =>
-                    setPreferences((prev) => ({
-                      ...prev,
-                      soundToggles: {
-                        ...prev.soundToggles,
-                        [key]: checked,
-                      },
-                    }))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        )}
         <PreferenceRow
           label="Tool Approval"
           description="Control how tools are approved before execution."

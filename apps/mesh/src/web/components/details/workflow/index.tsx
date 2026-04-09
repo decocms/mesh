@@ -15,7 +15,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from "@deco/ui/components/resizable.js";
+} from "@/web/components/resizable";
 import { Badge } from "@deco/ui/components/badge.js";
 import { Button } from "@deco/ui/components/button.js";
 import {

@@ -712,7 +712,6 @@ export const LANGUAGE_MODEL_BINDING = [
   {
     name: "LLM_DO_STREAM" as const,
     inputSchema: LanguageModelInputSchema,
-    streamable: true,
   },
   {
     name: "LLM_DO_GENERATE" as const,

@@ -54,6 +54,7 @@ import { authClient } from "@/web/lib/auth-client.ts";
 import { useSound } from "@/web/hooks/use-sound.ts";
 import { question004Sound } from "@deco/ui/lib/question-004.ts";
 import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
+import { ConnectionsBanner } from "./connections-banner";
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -301,8 +302,10 @@ function FileDropZone({
 
 export function ChatInput({
   onOpenContextPanel,
+  showConnectionsBanner = false,
 }: {
   onOpenContextPanel?: () => void;
+  showConnectionsBanner?: boolean;
 }) {
   const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
     useChatStream();
@@ -480,6 +483,11 @@ export function ChatInput({
             />
           )}
 
+          {/* Muted background for connections banner - peeks through form's bottom radius */}
+          {showConnectionsBanner && (
+            <div className="absolute inset-0 rounded-2xl pointer-events-none bg-muted/50" />
+          )}
+
           {/* Highlight floats above the form area */}
           <ChatHighlight />
 
@@ -632,6 +640,11 @@ export function ChatInput({
               </form>
             </TiptapProvider>
           </div>
+
+          {/* Connections Banner Footer - always visible on home */}
+          {showConnectionsBanner && (
+            <ConnectionsBanner onClick={() => setConnectionsOpen(true)} />
+          )}
         </div>
       </div>
 

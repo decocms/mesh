@@ -7,7 +7,7 @@
 
 import { useChatTask } from "@/web/components/chat/context";
 import { usePanelActions } from "@/web/layouts/shell-layout";
-import { useInsetContext } from "@/web/layouts/shell-layout";
+import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
   getStatusConfig,

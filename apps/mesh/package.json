@@ -1,6 +1,6 @@
 {
   "name": "decocms",
-  "version": "2.248.8",
+  "version": "2.252.0",
   "description": "Deco CMS — Self-hostable MCP Gateway for managing AI connections and tools",
   "author": "Deco team",
   "repository": {
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
-    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/google": "^3.0.60",
     "@ai-sdk/openai": "^3.0.50",
     "@anthropic-ai/sdk": "^0.79.0",
     "@aws-sdk/client-s3": "^3.1013.0",
@@ -136,6 +136,7 @@
     "jose": "^6.0.11",
     "kysely-pglite": "^0.6.1",
     "lucide-react": "^0.468.0",
+    "react-resizable-panels": "^2.1.7",
     "marked": "^15.0.6",
     "mesh-plugin-workflows": "workspace:*",
     "nanoid": "^5.1.6",

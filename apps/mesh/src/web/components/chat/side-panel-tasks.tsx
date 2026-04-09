@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { IconPicker } from "@/web/components/icon-picker.tsx";
-import { useInsetContext } from "@/web/layouts/shell-layout";
+import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 
 // ────────────────────────────────────────
 // Shared nav item style — used by New session and view buttons

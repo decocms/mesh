@@ -28,7 +28,6 @@ export interface Settings {
   // Observability
   clickhouseUrl: string | undefined;
   otelServiceName: string;
-  disableMonitoringQuery: boolean;
 
   // Event Bus & Networking
   natsUrls: string[];

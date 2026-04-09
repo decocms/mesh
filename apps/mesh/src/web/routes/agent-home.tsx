@@ -9,7 +9,7 @@ import {
   useInsetContext,
   type MainView,
   type MainViewType,
-} from "@/web/layouts/shell-layout";
+} from "@/web/layouts/agent-shell-layout";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
 import { useChatTask } from "@/web/components/chat/context";
 

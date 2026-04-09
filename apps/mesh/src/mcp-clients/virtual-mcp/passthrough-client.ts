@@ -2,10 +2,9 @@
  * PassthroughClient
  *
  * Extends GatewayClient with mesh-specific concerns: connection metadata
- * enrichment on tools, streaming tool calls, and VirtualMCP instructions.
+ * enrichment on tools and VirtualMCP instructions.
  */
 
-import type { StreamableMCPProxyClient } from "@/api/routes/proxy";
 import { GatewayClient, type ClientEntry } from "@decocms/mcp-utils/aggregate";
 import type { MeshContext } from "../../core/mesh-context";
 import { createLazyClient } from "../lazy-client";
@@ -64,47 +63,6 @@ export class PassthroughClient extends GatewayClient {
           },
         },
       },
-    });
-  }
-
-  /** @deprecated Use standard callTool instead. */
-  async callStreamableTool(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<Response> {
-    console.warn(
-      `[DEPRECATED] callStreamableTool called — tool: ${name}, org: ${this.ctx.organization?.id ?? "unknown"}, virtualMcp: ${this.options.virtualMcp.id}`,
-      { tool: name },
-    );
-    const tools = await super.listTools();
-    const tool = tools.tools.find((t) => t.name === name);
-    const clientKey = (tool?._meta as Record<string, unknown> | undefined)
-      ?.gatewayClientId as string | undefined;
-
-    if (clientKey) {
-      try {
-        const client = await this.getResolvedClient(clientKey);
-        if (
-          "callStreamableTool" in client &&
-          typeof (client as any).callStreamableTool === "function"
-        ) {
-          // Strip namespace prefix — tool names are "slug_originalName"
-          const sep = name.indexOf("_");
-          const originalName = sep !== -1 ? name.slice(sep + 1) : name;
-          return (client as StreamableMCPProxyClient).callStreamableTool(
-            originalName,
-            args,
-          );
-        }
-      } catch {
-        /* fall through */
-      }
-    }
-
-    // Fallback: non-streaming
-    const result = await this.callTool({ name, arguments: args });
-    return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" },
     });
   }
 

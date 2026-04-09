@@ -184,10 +184,10 @@ describe("canToggle", () => {
 // ---------------------------------------------------------------------------
 
 describe("computeDefaultSizes", () => {
-  test("all open → 20/45/35", () => {
+  test("all open → 22/43/35", () => {
     expect(
       computeDefaultSizes({ tasksOpen: true, mainOpen: true, chatOpen: true }),
-    ).toEqual({ tasks: 20, main: 45, chat: 35 });
+    ).toEqual({ tasks: 22, main: 43, chat: 35 });
   });
 
   test("tasks closed → 0/65/35", () => {
@@ -196,16 +196,16 @@ describe("computeDefaultSizes", () => {
     ).toEqual({ tasks: 0, main: 65, chat: 35 });
   });
 
-  test("main closed → 20/0/80", () => {
+  test("main closed → 22/0/78", () => {
     expect(
       computeDefaultSizes({ tasksOpen: true, mainOpen: false, chatOpen: true }),
-    ).toEqual({ tasks: 20, main: 0, chat: 80 });
+    ).toEqual({ tasks: 22, main: 0, chat: 78 });
   });
 
-  test("chat closed → 20/80/0", () => {
+  test("chat closed → 22/78/0", () => {
     expect(
       computeDefaultSizes({ tasksOpen: true, mainOpen: true, chatOpen: false }),
-    ).toEqual({ tasks: 20, main: 80, chat: 0 });
+    ).toEqual({ tasks: 22, main: 78, chat: 0 });
   });
 
   test("only chat → 0/0/100", () => {

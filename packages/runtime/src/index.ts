@@ -29,6 +29,7 @@ export {
   type ResourceContents,
   type CreatedResource,
   type WorkflowDefinition,
+  ensureAuthenticated,
 } from "./tools.ts";
 export { createWorkflow } from "./workflows.ts";
 import type { Binding } from "./wrangler.ts";

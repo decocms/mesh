@@ -63,13 +63,26 @@ export async function createSandboxRuntime(
     return ctx;
   };
 
+  const safeDispose = () => {
+    try {
+      runtime.dispose();
+    } catch (err) {
+      // When host promises (e.g. client.callTool) are still in-flight at disposal
+      // time, the QuickJS WASM module may throw a RuntimeError from the
+      // gc_obj_list assertion in JS_FreeRuntime. This is non-fatal — the runtime
+      // memory is still freed by the WASM allocator. Swallow the error to prevent
+      // it from crashing the process.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("gc_obj_list")) {
+        return;
+      }
+      throw err;
+    }
+  };
+
   return {
     newContext,
-    dispose: () => {
-      runtime.dispose();
-    },
-    [Symbol.dispose]() {
-      runtime.dispose();
-    },
+    dispose: safeDispose,
+    [Symbol.dispose]: safeDispose,
   };
 }

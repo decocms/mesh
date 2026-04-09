@@ -2,7 +2,7 @@ import type { QuickJSContext, QuickJSHandle } from "quickjs-emscripten-core";
 import { installConsole, type SandboxLog } from "./builtins/console.ts";
 import { createSandboxRuntime } from "./runtime.ts";
 import { inspect } from "./utils/error-handling.ts";
-import { toQuickJS } from "./utils/to-quickjs.ts";
+import { PendingPromiseTracker, toQuickJS } from "./utils/to-quickjs.ts";
 import type { IClient } from "../client-like.ts";
 
 const sleep = (ms: number) =>
@@ -69,6 +69,8 @@ export async function runCode({
   memoryLimitBytes,
   stackSizeBytes,
 }: RunCodeOptions): Promise<RunCodeResult> {
+  const promiseTracker = new PendingPromiseTracker();
+
   using runtime = await createSandboxRuntime({
     memoryLimitBytes: memoryLimitBytes ?? 32 * 1024 * 1024,
     stackSizeBytes: stackSizeBytes ?? 512 * 1024,
@@ -109,7 +111,14 @@ export async function runCode({
       close: () => client.close(),
     };
 
-    const clientHandle = toQuickJS(ctx, sandboxClient);
+    const clientHandle = toQuickJS(
+      ctx,
+      sandboxClient,
+      50,
+      0,
+      new WeakSet(),
+      promiseTracker,
+    );
 
     // When evaluating ES modules, QuickJS can return either:
     // - the module exports object, or
@@ -167,5 +176,10 @@ export async function runCode({
     return { returnValue: value, consoleLogs: consoleBuiltin.logs };
   } catch (err) {
     return { error: inspect(err), consoleLogs: consoleBuiltin.logs };
+  } finally {
+    // Dispose outstanding deferred promise handles before the runtime is freed.
+    // Without this, in-flight host promises (e.g. slow client.callTool calls)
+    // leave QuickJS GC objects alive, causing gc_obj_list assertion failures.
+    promiseTracker.dispose();
   }
 }
