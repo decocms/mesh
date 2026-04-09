@@ -205,40 +205,29 @@ app.post("/local-session", async (c) => {
 });
 
 /**
- * Domain Lookup Endpoint (authenticated)
+ * Domain Lookup Endpoint (authenticated, verified email required)
  *
- * For the onboarding flow: checks if an email domain has a claimed organization.
- * Requires a valid session — the /api/auth/ prefix skips MeshContext but we
- * verify the session manually via Better Auth.
+ * For the onboarding flow: checks if the authenticated user's email domain
+ * has a claimed organization. Derives the domain from the session — no
+ * query params needed.
  *
- * Only returns the org name and slug (not the ID) to limit exposure.
- *
- * Route: GET /api/auth/custom/domain-lookup?domain=acme.com
+ * Route: GET /api/auth/custom/domain-lookup
  */
 app.get("/domain-lookup", async (c) => {
-  // Verify authentication — session required
   const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
-  })) as { user?: { id: string; email: string } } | null;
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
   }
-
-  // Only allow looking up the user's own email domain — prevents
-  // arbitrary domain enumeration by authenticated users.
-  const userEmail = session.user.email;
-  const userDomain = userEmail?.split("@")[1]?.toLowerCase();
-  const domain = c.req.query("domain")?.toLowerCase().trim();
-  if (!domain) {
-    return c.json(
-      { success: false, error: "domain query param required" },
-      400,
-    );
-  }
-  if (domain !== userDomain) {
+  if (!session.user.emailVerified) {
     return c.json({ found: false });
   }
-  if (GENERIC_EMAIL_DOMAINS.has(domain)) {
+
+  const domain = session.user.email?.split("@")[1]?.toLowerCase();
+  if (!domain || GENERIC_EMAIL_DOMAINS.has(domain)) {
     return c.json({ found: false });
   }
 
@@ -250,7 +239,6 @@ app.get("/domain-lookup", async (c) => {
       return c.json({ found: false });
     }
 
-    // Fetch org name/slug for display — deliberately omit ID
     const org = await getDb()
       .db.selectFrom("organization")
       .select(["name", "slug"])
@@ -278,12 +266,19 @@ app.get("/domain-lookup", async (c) => {
  * Route: POST /api/auth/custom/domain-join
  */
 app.post("/domain-join", async (c) => {
-  // Verify authentication
   const session = (await auth.api.getSession({
     headers: c.req.raw.headers,
-  })) as { user?: { id: string; email: string } } | null;
+  })) as {
+    user?: { id: string; email: string; emailVerified: boolean };
+  } | null;
   if (!session?.user) {
     return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+  if (!session.user.emailVerified) {
+    return c.json(
+      { success: false, error: "Email must be verified to join" },
+      403,
+    );
   }
 
   const body = (await c.req.json()) as { orgSlug?: string };
@@ -292,8 +287,7 @@ app.post("/domain-join", async (c) => {
     return c.json({ success: false, error: "orgSlug is required" }, 400);
   }
 
-  const userEmail = session.user.email;
-  const emailDomain = userEmail?.split("@")[1]?.toLowerCase();
+  const emailDomain = session.user.email?.split("@")[1]?.toLowerCase();
   if (!emailDomain || GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
     return c.json(
       { success: false, error: "Generic email domains cannot auto-join" },

@@ -61,14 +61,15 @@ export default function OnboardingPage() {
   const isCorporateEmail =
     emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain);
 
-  // Look up domain if corporate email
+  // Look up domain if corporate email — the server derives the domain
+  // from the session email, no query param needed.
   const { data: domainLookup, isLoading: domainLoading } =
     useQuery<DomainLookupResult>({
       queryKey: KEYS.domainLookup(emailDomain),
       queryFn: async () => {
-        const res = await fetch(
-          `/api/auth/custom/domain-lookup?domain=${encodeURIComponent(emailDomain)}`,
-        );
+        const res = await fetch("/api/auth/custom/domain-lookup", {
+          credentials: "include",
+        });
         return res.json();
       },
       enabled: !!isCorporateEmail,
