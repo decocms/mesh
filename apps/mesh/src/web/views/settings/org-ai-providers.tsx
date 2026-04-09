@@ -260,6 +260,138 @@ function ConnectApiKeyForm({
   );
 }
 
+const openaiCompatibleFormSchema = z.object({
+  label: z.string().optional(),
+  baseUrl: z.string().min(1, "Base URL is required"),
+  apiKey: z.string().optional(),
+});
+
+type OpenAICompatibleFormData = z.infer<typeof openaiCompatibleFormSchema>;
+
+function ConnectOpenAICompatibleForm({
+  onCancel,
+  onSuccess,
+}: {
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
+  const { org } = useProjectContext();
+  const client = useMCPClient({
+    connectionId: SELF_MCP_ALIAS_ID,
+    orgId: org.id,
+  });
+  const queryClient = useQueryClient();
+  const [showKey, setShowKey] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<OpenAICompatibleFormData>({
+    resolver: zodResolver(openaiCompatibleFormSchema),
+    defaultValues: { label: "", baseUrl: "", apiKey: "" },
+  });
+
+  const {
+    mutate: createKey,
+    isPending,
+    error,
+  } = useMutation({
+    mutationFn: async (data: OpenAICompatibleFormData) => {
+      const encodedKey = JSON.stringify({
+        baseUrl: data.baseUrl,
+        apiKey: data.apiKey || "",
+      });
+      await client.callTool({
+        name: "AI_PROVIDER_KEY_CREATE",
+        arguments: {
+          providerId: "openai-compatible",
+          label: data.label || data.baseUrl,
+          apiKey: encodedKey,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviderKeys(org.id) });
+      queryClient.invalidateQueries({ queryKey: KEYS.aiProviders(org.id) });
+      toast.success("Connection saved successfully");
+      onSuccess();
+    },
+    onError: (err) => {
+      toast.error(`Failed to save connection: ${err.message}`);
+    },
+  });
+
+  return (
+    <form
+      onSubmit={handleSubmit((data) => createKey(data))}
+      className="space-y-3"
+    >
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Label
+        </label>
+        <Input
+          placeholder="e.g. LiteLLM, Ollama"
+          {...register("label")}
+          className="h-8 text-sm"
+        />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          Base URL
+        </label>
+        <Input
+          type="url"
+          placeholder="http://localhost:4000/v1"
+          {...register("baseUrl")}
+          className="h-8 text-sm"
+        />
+        {errors.baseUrl && (
+          <p className="text-xs text-destructive">{errors.baseUrl.message}</p>
+        )}
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          API Key <span className="text-muted-foreground/60">(optional)</span>
+        </label>
+        <div className="relative">
+          <Input
+            type={showKey ? "text" : "password"}
+            placeholder="sk-..."
+            {...register("apiKey")}
+            className="h-8 text-sm pr-8"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey(!showKey)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-destructive">{error.message}</p>}
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          disabled={isPending}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? "Saving..." : "Save Connection"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 export type AiProvider = {
   id: string;
   name: string;
@@ -739,14 +871,23 @@ function ProviderCard({
           <DialogHeader>
             <DialogTitle>Connect {provider.name}</DialogTitle>
             <DialogDescription>
-              Add an API key to connect your {provider.name} account.
+              {provider.id === "openai-compatible"
+                ? "Enter the base URL and optional API key for your OpenAI-compatible endpoint."
+                : `Add an API key to connect your ${provider.name} account.`}
             </DialogDescription>
           </DialogHeader>
-          <ConnectApiKeyForm
-            providerId={provider.id}
-            onCancel={() => setIsConnectFormOpen(false)}
-            onSuccess={() => setIsConnectFormOpen(false)}
-          />
+          {provider.id === "openai-compatible" ? (
+            <ConnectOpenAICompatibleForm
+              onCancel={() => setIsConnectFormOpen(false)}
+              onSuccess={() => setIsConnectFormOpen(false)}
+            />
+          ) : (
+            <ConnectApiKeyForm
+              providerId={provider.id}
+              onCancel={() => setIsConnectFormOpen(false)}
+              onSuccess={() => setIsConnectFormOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>
