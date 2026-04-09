@@ -426,27 +426,33 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Try domain-based auto-join first
-          const emailDomain = user.email?.split("@")[1]?.toLowerCase();
-          if (emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
-            try {
-              const domainStorage = new OrganizationDomainStorage(getDb().db);
-              const domainRecord = await domainStorage.getByDomain(emailDomain);
+          // Try domain-based auto-join first — only for verified emails
+          // to prevent unverified email/password signups from joining
+          // orgs they don't belong to. OAuth and OTP users are always
+          // verified; email/password users must verify first.
+          if (user.emailVerified) {
+            const emailDomain = user.email?.split("@")[1]?.toLowerCase();
+            if (emailDomain && !GENERIC_EMAIL_DOMAINS.has(emailDomain)) {
+              try {
+                const domainStorage = new OrganizationDomainStorage(getDb().db);
+                const domainRecord =
+                  await domainStorage.getByDomain(emailDomain);
 
-              if (domainRecord?.autoJoinEnabled) {
-                // Auto-join the user to the org
-                await auth.api.addMember({
-                  body: {
-                    userId: user.id,
-                    role: "user",
-                    organizationId: domainRecord.organizationId,
-                  },
-                } as any);
-                return; // Skip default org creation
+                if (domainRecord?.autoJoinEnabled) {
+                  // Auto-join the user to the org
+                  await auth.api.addMember({
+                    body: {
+                      userId: user.id,
+                      role: "user",
+                      organizationId: domainRecord.organizationId,
+                    },
+                  } as any);
+                  return; // Skip default org creation
+                }
+              } catch (error) {
+                console.error("[Auth] Domain auto-join check failed:", error);
+                // Fall through to default org creation
               }
-            } catch (error) {
-              console.error("[Auth] Domain auto-join check failed:", error);
-              // Fall through to default org creation
             }
           }
 
