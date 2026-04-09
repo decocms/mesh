@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useInsetContext } from "@/web/layouts/shell-layout";
 import {
   RefreshCcw01,
@@ -43,6 +43,18 @@ export function BrowserInspectorView() {
   const scriptEntries = Object.keys(fm.scripts ?? {});
   const url = vmDomain ? `https://${vmDomain}` : null;
 
+  // Poll for status changes while installing (VM creation is async)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  if (isInstalling && !pollRef.current) {
+    pollRef.current = setInterval(() => {
+      invalidateEntity();
+    }, 3000);
+  }
+  if (!isInstalling && pollRef.current) {
+    clearInterval(pollRef.current);
+    pollRef.current = null;
+  }
+
   console.log("[browser-inspector]", {
     runtime_status: fm.runtime_status,
     vm_domain: fm.vm_domain,
@@ -51,7 +63,6 @@ export function BrowserInspectorView() {
     isInstalling,
     starting,
     url,
-    rawMetadata: ctx?.entity?.metadata,
   });
 
   const handleRunScript = async (script: string) => {

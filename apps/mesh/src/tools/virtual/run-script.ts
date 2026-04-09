@@ -68,45 +68,55 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
       );
     }
 
-    // Optimistic lock: set to running before creating VM
+    // Set installing status while VM is being created
     await ctx.storage.virtualMcps.update(input.virtual_mcp_id, userId, {
       metadata: {
         ...existing.metadata,
-        runtime_status: "running",
+        runtime_status: "installing",
         running_script: input.script,
       },
     });
 
     const freestyle = createFreestyleClient(ctx.freestyleApiKey);
 
-    try {
-      const result = await runScript(freestyle, metadata, input.script);
+    // Run in background — don't block the tool response on VM creation
+    // This prevents MCP timeout errors when Freestyle takes long (cache miss)
+    const virtualMcpId = input.virtual_mcp_id;
+    const script = input.script;
 
-      await ctx.storage.virtualMcps.update(input.virtual_mcp_id, userId, {
-        metadata: {
-          ...existing.metadata,
-          runtime_status: "running",
-          running_script: input.script,
-          freestyle_vm_id: result.vmId,
-          vm_domain: result.domain,
-        },
-      });
+    (async () => {
+      try {
+        const result = await runScript(freestyle, metadata, script);
 
-      return {
-        success: true,
-        vm_domain: result.domain,
-      };
-    } catch (error) {
-      // Reset on failure
-      await ctx.storage.virtualMcps.update(input.virtual_mcp_id, userId, {
-        metadata: {
-          ...existing.metadata,
-          runtime_status: "idle",
-          running_script: null,
-          vm_domain: null,
-        },
-      });
-      throw error;
-    }
+        await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
+          metadata: {
+            ...existing.metadata,
+            runtime_status: "running",
+            running_script: script,
+            freestyle_vm_id: result.vmId,
+            vm_domain: result.domain,
+          },
+        });
+        console.log("[run-script] VM ready:", result.domain);
+      } catch (error) {
+        console.error("[run-script] VM creation failed:", error);
+        // Reset on failure
+        await ctx.storage.virtualMcps
+          .update(virtualMcpId, userId, {
+            metadata: {
+              ...existing.metadata,
+              runtime_status: "idle",
+              running_script: null,
+              vm_domain: null,
+            },
+          })
+          .catch(() => {});
+      }
+    })();
+
+    return {
+      success: true,
+      vm_domain: null,
+    };
   },
 });
