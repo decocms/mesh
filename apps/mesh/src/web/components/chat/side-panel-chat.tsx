@@ -112,7 +112,10 @@ function HomeEmptyState({
           {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
             <AgentsList />
-            <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+            <Chat.Input
+              onOpenContextPanel={onOpenContextPanel}
+              showConnectionsBanner
+            />
           </div>
           {isDecoUser && (
             <div className="w-full">
@@ -136,7 +139,10 @@ function HomeEmptyState({
               </p>
             </div>
             <div className="w-full">
-              <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+              <Chat.Input
+                onOpenContextPanel={onOpenContextPanel}
+                showConnectionsBanner
+              />
             </div>
           </div>
           <div className="w-full mt-10 mx-auto">
