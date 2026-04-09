@@ -73,6 +73,7 @@ export function buildChildEnv(
     // External service credentials
     DECO_SUPABASE_URL: settings.decoSupabaseUrl,
     DECO_SUPABASE_SERVICE_KEY: settings.decoSupabaseServiceKey,
+    FIRECRAWL_API_KEY: settings.firecrawlApiKey,
 
     // TLS: propagate custom CA certificates (e.g. RDS CA bundles)
     NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS,
