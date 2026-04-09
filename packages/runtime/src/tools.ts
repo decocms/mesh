@@ -16,7 +16,7 @@ import { z } from "zod";
 import type { ZodRawShape, ZodSchema, ZodTypeAny } from "zod";
 import { BindingRegistry, injectBindingSchemas } from "./bindings.ts";
 import { Event, type EventHandlers } from "./events.ts";
-import type { DefaultEnv } from "./index.ts";
+import type { DefaultEnv, User } from "./index.ts";
 import { State } from "./state.ts";
 import {
   type WorkflowDefinition,
@@ -67,6 +67,7 @@ export interface Tool<
   outputSchema?: TSchemaOut;
   execute(
     context: ToolExecutionContext<TSchemaIn>,
+    ctx?: AppContext,
   ): TSchemaOut extends ZodSchema
     ? Promise<z.infer<TSchemaOut>>
     : Promise<unknown>;
@@ -84,10 +85,13 @@ export type CreatedTool = {
   inputSchema: ZodTypeAny;
   outputSchema?: ZodTypeAny;
   // Use a permissive execute signature - accepts any context shape
-  execute(context: {
-    context: unknown;
-    runtimeContext: AppContext;
-  }): Promise<unknown>;
+  execute(
+    context: {
+      context: unknown;
+      runtimeContext: AppContext;
+    },
+    ctx?: AppContext,
+  ): Promise<unknown>;
 };
 
 // Re-export types for external use
@@ -124,6 +128,7 @@ export interface Prompt<TArgs extends PromptArgsRawShape = PromptArgsRawShape> {
   argsSchema?: TArgs;
   execute(
     context: PromptExecutionContext<TArgs>,
+    ctx?: AppContext,
   ): Promise<GetPromptResult> | GetPromptResult;
 }
 
@@ -137,10 +142,13 @@ export type CreatedPrompt = {
   description?: string;
   argsSchema?: PromptArgsRawShape;
   // Use a permissive execute signature - accepts any args shape
-  execute(context: {
-    args: Record<string, string | undefined>;
-    runtimeContext: AppContext;
-  }): Promise<GetPromptResult> | GetPromptResult;
+  execute(
+    context: {
+      args: Record<string, string | undefined>;
+      runtimeContext: AppContext;
+    },
+    ctx?: AppContext,
+  ): Promise<GetPromptResult> | GetPromptResult;
 };
 
 // ============================================================================
@@ -186,6 +194,7 @@ export interface Resource {
   /** Handler function to read the resource content */
   read(
     context: ResourceExecutionContext,
+    ctx?: AppContext,
   ): Promise<ResourceContents> | ResourceContents;
 }
 
@@ -198,29 +207,57 @@ export type CreatedResource = {
   name: string;
   description?: string;
   mimeType?: string;
-  read(context: {
-    uri: URL;
-    runtimeContext: AppContext;
-  }): Promise<ResourceContents> | ResourceContents;
+  read(
+    context: {
+      uri: URL;
+      runtimeContext: AppContext;
+    },
+    ctx?: AppContext,
+  ): Promise<ResourceContents> | ResourceContents;
 };
 
 /**
- * creates a private tool that always ensure for athentication before being executed
+ * Ensure the current request is authenticated.
+ * Reads from the per-request AppContext (AsyncLocalStorage), not from a cached env.
+ *
+ * @param ctx - Per-request AppContext from the second arg of execute/read handlers
+ * @returns The authenticated User
+ * @throws Error if no request context or user is not authenticated
+ */
+export function ensureAuthenticated(ctx: AppContext): User {
+  const reqCtx = ctx?.env?.MESH_REQUEST_CONTEXT;
+  if (!reqCtx) {
+    throw new Error("Unauthorized: missing request context");
+  }
+  const user = reqCtx.ensureAuthenticated();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+  return user;
+}
+
+let _warnedPrivateTool = false;
+
+/**
+ * @deprecated Use `createTool` with `ensureAuthenticated(ctx)` instead.
+ *
+ * Creates a private tool that ensures authentication before execution.
  */
 export function createPrivateTool<
   TSchemaIn extends ZodSchema = ZodSchema,
   TSchemaOut extends ZodSchema | undefined = undefined,
 >(opts: Tool<TSchemaIn, TSchemaOut>): Tool<TSchemaIn, TSchemaOut> {
-  const execute = opts.execute;
-  if (typeof execute === "function") {
-    opts.execute = (input: ToolExecutionContext<TSchemaIn>) => {
-      const env = input.runtimeContext.env;
-      if (env) {
-        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
-      }
-      return execute(input);
-    };
+  if (!_warnedPrivateTool) {
+    console.warn(
+      "[runtime] createPrivateTool is deprecated. Use createTool with ensureAuthenticated(ctx) instead.",
+    );
+    _warnedPrivateTool = true;
   }
+  const execute = opts.execute;
+  opts.execute = (input: ToolExecutionContext<TSchemaIn>, ctx: AppContext) => {
+    ensureAuthenticated(ctx);
+    return execute(input, ctx);
+  };
   return createTool(opts);
 }
 
@@ -232,10 +269,8 @@ export function createTool<
   return {
     ...opts,
     execute: (input: ToolExecutionContext<TSchemaIn>) => {
-      return opts.execute({
-        ...input,
-        runtimeContext: createRuntimeContext(input.runtimeContext),
-      });
+      const ctx = createRuntimeContext(input.runtimeContext);
+      return opts.execute({ ...input, runtimeContext: ctx }, ctx);
     },
   };
 }
@@ -249,10 +284,8 @@ export function createPublicPrompt<TArgs extends PromptArgsRawShape>(
   return {
     ...opts,
     execute: (input: PromptExecutionContext<TArgs>) => {
-      return opts.execute({
-        ...input,
-        runtimeContext: createRuntimeContext(input.runtimeContext),
-      });
+      const ctx = createRuntimeContext(input.runtimeContext);
+      return opts.execute({ ...input, runtimeContext: ctx }, ctx);
     },
   };
 }
@@ -267,12 +300,9 @@ export function createPrompt<TArgs extends PromptArgsRawShape>(
   const execute = opts.execute;
   return createPublicPrompt({
     ...opts,
-    execute: (input: PromptExecutionContext<TArgs>) => {
-      const env = input.runtimeContext.env;
-      if (env) {
-        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
-      }
-      return execute(input);
+    execute: (input: PromptExecutionContext<TArgs>, ctx: AppContext) => {
+      ensureAuthenticated(ctx);
+      return execute(input, ctx);
     },
   });
 }
@@ -284,10 +314,8 @@ export function createPublicResource(opts: Resource): Resource {
   return {
     ...opts,
     read: (input: ResourceExecutionContext) => {
-      return opts.read({
-        ...input,
-        runtimeContext: createRuntimeContext(input.runtimeContext),
-      });
+      const ctx = createRuntimeContext(input.runtimeContext);
+      return opts.read({ ...input, runtimeContext: ctx }, ctx);
     },
   };
 }
@@ -300,12 +328,9 @@ export function createResource(opts: Resource): Resource {
   const read = opts.read;
   return createPublicResource({
     ...opts,
-    read: (input: ResourceExecutionContext) => {
-      const env = input.runtimeContext.env;
-      if (env) {
-        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
-      }
-      return read(input);
+    read: (input: ResourceExecutionContext, ctx: AppContext) => {
+      ensureAuthenticated(ctx);
+      return read(input, ctx);
     },
   });
 }
@@ -463,35 +488,38 @@ export interface CreateMCPServerOptions<
   };
   tools?:
     | Array<
-        (
-          env: TEnv,
-        ) =>
-          | Promise<CreatedTool>
-          | CreatedTool
-          | CreatedTool[]
-          | Promise<CreatedTool[]>
+        | CreatedTool
+        | ((
+            env: TEnv,
+          ) =>
+            | Promise<CreatedTool>
+            | CreatedTool
+            | CreatedTool[]
+            | Promise<CreatedTool[]>)
       >
     | ((env: TEnv) => CreatedTool[] | Promise<CreatedTool[]>);
   prompts?:
     | Array<
-        (
-          env: TEnv,
-        ) =>
-          | Promise<CreatedPrompt>
-          | CreatedPrompt
-          | CreatedPrompt[]
-          | Promise<CreatedPrompt[]>
+        | CreatedPrompt
+        | ((
+            env: TEnv,
+          ) =>
+            | Promise<CreatedPrompt>
+            | CreatedPrompt
+            | CreatedPrompt[]
+            | Promise<CreatedPrompt[]>)
       >
     | ((env: TEnv) => CreatedPrompt[] | Promise<CreatedPrompt[]>);
   resources?:
     | Array<
-        (
-          env: TEnv,
-        ) =>
-          | Promise<CreatedResource>
-          | CreatedResource
-          | CreatedResource[]
-          | Promise<CreatedResource[]>
+        | CreatedResource
+        | ((
+            env: TEnv,
+          ) =>
+            | Promise<CreatedResource>
+            | CreatedResource
+            | CreatedResource[]
+            | Promise<CreatedResource[]>)
       >
     | ((env: TEnv) => CreatedResource[] | Promise<CreatedResource[]>);
   workflows?:
@@ -782,7 +810,8 @@ export const createMCPServer = <
 ): MCPServer<TEnv, TSchema, TBindings> => {
   // Tool/prompt/resource definitions are resolved once on first request and
   // cached for the lifetime of the process. Tool *execution* reads per-request
-  // context from State (AsyncLocalStorage), so reusing definitions is safe.
+  // context from State (AsyncLocalStorage) via the second `ctx` argument, so
+  // reusing definitions is safe.
   type Registrations = {
     tools: CreatedTool[];
     prompts: CreatedPrompt[];
@@ -793,6 +822,51 @@ export const createMCPServer = <
   let cached: Registrations | null = null;
   let inflightResolve: Promise<Registrations> | null = null;
 
+  let _warnedFactoryDeprecation = false;
+  const warnFactoryDeprecation = () => {
+    if (!_warnedFactoryDeprecation) {
+      console.warn(
+        "[runtime] Passing factory functions to tools/prompts/resources is deprecated. " +
+          "Pass createTool()/createPrompt()/createResource() instances directly.",
+      );
+      _warnedFactoryDeprecation = true;
+    }
+  };
+
+  /**
+   * Check whether a value is an already-created instance (has an `id` or `name` property)
+   * rather than a factory function.
+   */
+  const isInstance = (v: unknown): boolean =>
+    typeof v === "object" &&
+    v !== null &&
+    ("id" in v || "name" in v || "uri" in v);
+
+  /**
+   * Resolve an array that may contain both direct instances and factory functions.
+   * Factories are called with `bindings` and trigger a deprecation warning.
+   */
+  async function resolveArray<T>(
+    items: Array<unknown> | undefined,
+    bindings: TEnv,
+  ): Promise<T[]> {
+    if (!items) return [];
+    return (
+      await Promise.all(
+        items.flatMap(async (item) => {
+          if (isInstance(item)) {
+            return [item as T];
+          }
+          // Factory function — deprecated path
+          warnFactoryDeprecation();
+          const result = await (item as (env: TEnv) => unknown)(bindings);
+          if (Array.isArray(result)) return result as T[];
+          return [result as T];
+        }),
+      )
+    ).flat();
+  }
+
   const resolveRegistrations = async (
     bindings: TEnv,
   ): Promise<Registrations> => {
@@ -801,25 +875,13 @@ export const createMCPServer = <
 
     inflightResolve = (async (): Promise<Registrations> => {
       try {
-        const toolsFn =
-          typeof options.tools === "function"
-            ? options.tools
-            : async (bindings: TEnv) => {
-                if (typeof options.tools === "function") {
-                  return await options.tools(bindings);
-                }
-                return await Promise.all(
-                  options.tools?.flatMap(async (tool) => {
-                    const toolResult = tool(bindings);
-                    const awaited = await toolResult;
-                    if (Array.isArray(awaited)) {
-                      return awaited;
-                    }
-                    return [awaited];
-                  }) ?? [],
-                ).then((t) => t.flat());
-              };
-        const tools = await toolsFn(bindings);
+        let tools: CreatedTool[];
+        if (typeof options.tools === "function") {
+          warnFactoryDeprecation();
+          tools = await options.tools(bindings);
+        } else {
+          tools = await resolveArray<CreatedTool>(options.tools, bindings);
+        }
 
         const resolvedWorkflows =
           typeof options.workflows === "function"
@@ -830,45 +892,27 @@ export const createMCPServer = <
           ...toolsFor<TSchema>({ ...options, workflows: resolvedWorkflows }),
         );
 
-        const promptsFn =
-          typeof options.prompts === "function"
-            ? options.prompts
-            : async (bindings: TEnv) => {
-                if (typeof options.prompts === "function") {
-                  return await options.prompts(bindings);
-                }
-                return await Promise.all(
-                  options.prompts?.flatMap(async (prompt) => {
-                    const promptResult = prompt(bindings);
-                    const awaited = await promptResult;
-                    if (Array.isArray(awaited)) {
-                      return awaited;
-                    }
-                    return [awaited];
-                  }) ?? [],
-                ).then((p) => p.flat());
-              };
-        const prompts = await promptsFn(bindings);
+        let prompts: CreatedPrompt[];
+        if (typeof options.prompts === "function") {
+          warnFactoryDeprecation();
+          prompts = await options.prompts(bindings);
+        } else {
+          prompts = await resolveArray<CreatedPrompt>(
+            options.prompts,
+            bindings,
+          );
+        }
 
-        const resourcesFn =
-          typeof options.resources === "function"
-            ? options.resources
-            : async (bindings: TEnv) => {
-                if (typeof options.resources === "function") {
-                  return await options.resources(bindings);
-                }
-                return await Promise.all(
-                  options.resources?.flatMap(async (resource) => {
-                    const resourceResult = resource(bindings);
-                    const awaited = await resourceResult;
-                    if (Array.isArray(awaited)) {
-                      return awaited;
-                    }
-                    return [awaited];
-                  }) ?? [],
-                ).then((r) => r.flat());
-              };
-        const resources = await resourcesFn(bindings);
+        let resources: CreatedResource[];
+        if (typeof options.resources === "function") {
+          warnFactoryDeprecation();
+          resources = await options.resources(bindings);
+        } else {
+          resources = await resolveArray<CreatedResource>(
+            options.resources,
+            bindings,
+          );
+        }
 
         const result = {
           tools,
@@ -907,10 +951,11 @@ export const createMCPServer = <
               : undefined,
         },
         async (args) => {
-          const result = await tool.execute({
-            context: args,
-            runtimeContext: createRuntimeContext(),
-          });
+          const ctx = createRuntimeContext();
+          const result = await tool.execute(
+            { context: args, runtimeContext: ctx },
+            ctx,
+          );
 
           return {
             structuredContent: result as Record<string, unknown>,
@@ -936,10 +981,14 @@ export const createMCPServer = <
             : z.object({}).shape,
         },
         async (args) => {
-          return await prompt.execute({
-            args: args as Record<string, string | undefined>,
-            runtimeContext: createRuntimeContext(),
-          });
+          const ctx = createRuntimeContext();
+          return await prompt.execute(
+            {
+              args: args as Record<string, string | undefined>,
+              runtimeContext: ctx,
+            },
+            ctx,
+          );
         },
       );
     }
@@ -953,10 +1002,8 @@ export const createMCPServer = <
           mimeType: resource.mimeType,
         },
         async (uri) => {
-          const result = await resource.read({
-            uri,
-            runtimeContext: createRuntimeContext(),
-          });
+          const ctx = createRuntimeContext();
+          const result = await resource.read({ uri, runtimeContext: ctx }, ctx);
 
           const meta =
             (result as { _meta?: Record<string, unknown> | null })._meta ??
@@ -1086,10 +1133,8 @@ export const createMCPServer = <
       );
     }
 
-    return execute({
-      context: toolCallInput,
-      runtimeContext: createRuntimeContext(),
-    });
+    const ctx = createRuntimeContext();
+    return execute({ context: toolCallInput, runtimeContext: ctx }, ctx);
   };
 
   return {
