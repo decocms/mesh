@@ -143,7 +143,7 @@ export const VirtualMCPEntitySchema = z.object({
         .optional()
         .describe("Snapshot ID after install"),
       runtime: z
-        .enum(["bun"])
+        .enum(["bun", "deno"])
         .nullable()
         .optional()
         .describe("Detected runtime"),
