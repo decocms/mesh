@@ -68,6 +68,7 @@ import {
   computeDefaultSizes,
   usePanelState,
 } from "@/web/hooks/use-layout-state";
+import { GitHubRepoButton } from "@/web/components/github-repo-button";
 
 // ---------------------------------------------------------------------------
 // Types & Context
@@ -565,6 +566,7 @@ function AgentInsetProvider() {
           </button>
         </div>
         <div className="flex items-center gap-0.5">
+          <GitHubRepoButton />
           {showThreePanels && (
             <>
               <Tooltip>
