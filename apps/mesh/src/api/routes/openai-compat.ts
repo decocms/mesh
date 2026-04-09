@@ -5,7 +5,7 @@
  * LLM access. Supports full OpenAI spec including tools/function calling.
  *
  * Authentication: Bearer token (API key) with organization metadata
- * Model format: "credential_id:model_id"
+ * Model format: "model_id" or "credential_id:model_id"
  */
 
 import {
@@ -131,7 +131,7 @@ type ResponseFormat = z.infer<typeof ResponseFormatSchema>;
  * OpenAI-compatible chat completion request
  */
 const ChatCompletionRequestSchema = z.object({
-  model: z.string().describe("Format: credential_id:model_id"),
+  model: z.string().describe("Format: 'model_id' or 'credential_id:model_id'"),
   messages: z.array(OpenAIMessageSchema),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
@@ -182,15 +182,20 @@ function createErrorResponse(
 }
 
 /**
- * Parse model string into credentialId and modelId
- * Format: "credential_id:model_id"
+ * Parse model string into optional credentialId and modelId.
+ * Accepts two formats:
+ *   - "credential_id:model_id" — explicit credential
+ *   - "model_id"              — uses the org's default credential
  */
-function parseModelString(
-  model: string,
-): { credentialId: string; modelId: string } | null {
+function parseModelString(model: string): {
+  credentialId: string | null;
+  modelId: string;
+} | null {
+  if (!model) return null;
+
   const colonIndex = model.indexOf(":");
   if (colonIndex === -1) {
-    return null;
+    return { credentialId: null, modelId: model };
   }
 
   const credentialId = model.substring(0, colonIndex);
@@ -470,7 +475,7 @@ app.post("/:org/v1/chat/completions", async (c) => {
     if (!modelParsed) {
       return c.json(
         createErrorResponse(
-          "Invalid model format. Expected 'credential_id:model_id' (e.g., 'key_abc123:claude-sonnet-4-6')",
+          "Invalid model format. Expected 'model_id' or 'credential_id:model_id' (e.g., 'claude-sonnet-4-6' or 'key_abc123:claude-sonnet-4-6')",
           "invalid_request_error",
           "model",
         ),
@@ -478,22 +483,29 @@ app.post("/:org/v1/chat/completions", async (c) => {
       );
     }
 
-    const { credentialId, modelId } = modelParsed;
+    let { credentialId } = modelParsed;
+    const { modelId } = modelParsed;
 
-    // Migration: detect old connection_id format and return helpful error
-    if (credentialId.startsWith("conn_")) {
-      return c.json(
-        createErrorResponse(
-          `The model format has changed. Use 'credential_id:model_id' instead of 'connection_id:model_id'. ` +
-            `Replace '${credentialId}' with your AI provider credential ID (e.g., 'key_abc123:${modelId}').`,
-          "invalid_request_error",
-          "model",
-        ),
-        400,
-      );
+    // 5. Resolve credential — use explicit or fall back to org's first key
+    if (!credentialId) {
+      const keys = await ctx.storage.aiProviderKeys.list({
+        organizationId: ctx.organization.id,
+      });
+      if (keys.length === 0) {
+        return c.json(
+          createErrorResponse(
+            "No AI provider credentials configured for this organization. " +
+              "Add a credential in settings or specify one explicitly via 'credential_id:model_id'.",
+            "invalid_request_error",
+            "model",
+          ),
+          400,
+        );
+      }
+      credentialId = keys[0]!.id;
     }
 
-    // 5. Activate AI provider
+    // 6. Activate AI provider
     let provider;
     try {
       provider = await ctx.aiProviders.activate(
@@ -511,21 +523,21 @@ app.post("/:org/v1/chat/completions", async (c) => {
       );
     }
 
-    // 6. Create language model
+    // 7. Create language model
     const languageModel = provider.aiSdk.languageModel(modelId);
 
-    // 7. Convert messages, tools, and response format
+    // 8. Convert messages, tools, and response format
     const messages = convertToAISDKMessages(request.messages);
     const tools = request.tools
       ? convertToAISDKTools(request.tools)
       : undefined;
     const providerOptions = convertResponseFormat(request.response_format);
 
-    // 8. Prepare completion metadata
+    // 9. Prepare completion metadata
     const completionId = generateCompletionId();
     const created = Math.floor(Date.now() / 1000);
 
-    // 9. Handle streaming vs non-streaming
+    // 10. Handle streaming vs non-streaming
     if (request.stream) {
       return streamSSE(c, async (stream) => {
         const options = buildGenerateOptions(

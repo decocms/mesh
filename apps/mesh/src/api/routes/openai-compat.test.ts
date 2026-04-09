@@ -38,6 +38,9 @@ describe("OpenAI-compat: Schema Validation", () => {
       db: database.db,
       organization: { id: MOCK_ORG_ID, slug: MOCK_ORG_SLUG },
       auth: { apiKey: { id: "api_key_123", userId: MOCK_USER_ID } },
+      storage: {
+        aiProviderKeys: { list: mock(async () => []) },
+      },
       aiProviders: {
         activate: mock(async () => {
           throw new Error("not mocked for schema tests");
@@ -94,22 +97,25 @@ describe("OpenAI-compat: Schema Validation", () => {
     expect(body.error.message).toContain("Invalid");
   });
 
-  it("rejects invalid model format (missing colon separator)", async () => {
+  it("accepts model-only format (no colon) and falls back to default credential", async () => {
+    // Model-only format is valid — it will try to resolve org's default credential
+    // which fails here because aiProviders.activate is not fully mocked, but the
+    // point is it doesn't reject the format itself
     const res = await app.request(ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "invalid-model-format",
+        model: "claude-sonnet-4-6",
         messages: [{ role: "user", content: "Hello" }],
       }),
     });
 
+    // Will get 400 because no credentials are configured (mock returns empty list)
     expect(res.status).toBe(400);
     const body = (await res.json()) as {
       error: { message: string; type: string };
     };
-    expect(body.error.type).toBe("invalid_request_error");
-    expect(body.error.message).toContain("credential_id:model_id");
+    expect(body.error.message).toContain("No AI provider credentials");
   });
 
   it("rejects invalid message role", async () => {
