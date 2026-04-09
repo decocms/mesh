@@ -6,7 +6,7 @@ import {
   requireOrganization,
 } from "../../core/mesh-context";
 import { createFreestyleClient } from "../../freestyle/client";
-import { runScript } from "../../freestyle/runtime";
+import { createVm, waitForApp } from "../../freestyle/runtime";
 
 const InputSchema = z.object({
   virtual_mcp_id: z.string().describe("ID of the virtual MCP"),
@@ -86,12 +86,14 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
 
     (async () => {
       try {
-        const result = await runScript(freestyle, metadata, script);
+        // Phase 1: Create VM + route terminal — update metadata immediately
+        // so the UI can show the terminal iframe while installing
+        const result = await createVm(freestyle, metadata, script);
 
         await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
           metadata: {
             ...existing.metadata,
-            runtime_status: result.appReady ? "running" : "installing",
+            runtime_status: "installing",
             running_script: script,
             freestyle_vm_id: result.vmId,
             vm_domain: result.domain,
@@ -99,11 +101,30 @@ export const VIRTUAL_MCP_RUN_SCRIPT = defineTool({
           },
         });
         console.log(
-          "[run-script] VM ready:",
-          result.domain,
-          "appReady:",
-          result.appReady,
+          "[run-script] VM created, terminal:",
+          result.terminalDomain,
         );
+
+        // Phase 2: Wait for the app to be ready, then update status
+        const targetPort =
+          typeof metadata.preview_port === "number"
+            ? metadata.preview_port
+            : 3000;
+        const appReady = await waitForApp(result.vm, targetPort);
+
+        if (appReady) {
+          await ctx.storage.virtualMcps.update(virtualMcpId, userId, {
+            metadata: {
+              ...existing.metadata,
+              runtime_status: "running",
+              running_script: script,
+              freestyle_vm_id: result.vmId,
+              vm_domain: result.domain,
+              terminal_domain: result.terminalDomain,
+            },
+          });
+          console.log("[run-script] App ready:", result.domain);
+        }
       } catch (error) {
         console.error("[run-script] VM creation failed:", error);
         // Reset on failure

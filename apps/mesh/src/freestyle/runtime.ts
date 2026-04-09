@@ -8,18 +8,27 @@ import type { FreestyleMetadata } from "./types";
 const BUN_BIN = "/opt/bun/bin/bun";
 const SCRIPT_NAME_PATTERN = /^[a-zA-Z0-9_:.-]+$/;
 
-export interface RunScriptResult {
+export interface CreateVmResult {
   vmId: string;
   domain: string | null;
   terminalDomain: string | null;
+  vm: { exec: (cmd: string) => Promise<unknown> };
+}
+
+export interface RunScriptResult extends Omit<CreateVmResult, "vm"> {
   appReady: boolean;
 }
 
-export async function runScript(
+/**
+ * Creates the Freestyle VM with VmWebTerminal and routes the terminal.
+ * Returns as soon as the VM is created — before the app is ready.
+ * Call `waitForApp()` afterward to poll for app readiness.
+ */
+export async function createVm(
   freestyle: Freestyle,
   metadata: FreestyleMetadata,
   script: string,
-): Promise<RunScriptResult> {
+): Promise<CreateVmResult> {
   if (!metadata.freestyle_repo_id) {
     throw new Error("No Freestyle repo configured. Add a repo first.");
   }
@@ -126,33 +135,32 @@ export async function runScript(
     console.log("[runtime] Constructed domain from vmId:", domain);
   }
 
-  // Health-check: poll the app port until it responds (max 120s)
+  return { vmId, domain, terminalDomain, vm };
+}
+
+/**
+ * Polls the app port inside the VM until it responds (max 120s).
+ */
+export async function waitForApp(
+  vm: { exec: (cmd: string) => Promise<unknown> },
+  targetPort: number,
+): Promise<boolean> {
   const maxWait = 120_000;
   const startTime = Date.now();
-  let appReady = false;
   while (Date.now() - startTime < maxWait) {
     try {
       const check = await vm.exec(
         `curl -s -o /dev/null -w '%{http_code}' http://localhost:${targetPort} 2>/dev/null || echo 000`,
       );
       if (check && String(check).trim() !== "000") {
-        appReady = true;
-        break;
+        return true;
       }
     } catch {
       // VM may not be ready yet
     }
     await new Promise((r) => setTimeout(r, 3000));
   }
-
-  console.log("[runtime] Final domain:", domain, "appReady:", appReady);
-
-  return {
-    vmId,
-    domain,
-    terminalDomain,
-    appReady,
-  };
+  return false;
 }
 
 export async function stopScript(
