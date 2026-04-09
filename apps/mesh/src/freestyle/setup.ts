@@ -44,12 +44,12 @@ export async function setupRepo(
     );
   }
 
+  // GitHub sync is optional — requires a GitHub App to be installed.
+  // If it fails, the repo was already cloned via source URL above.
   try {
     await repo.githubSync.enable({ githubRepoName: validated });
-  } catch (e) {
-    throw new Error(
-      `GitHub sync enable failed: ${e instanceof Error ? e.message : String(e)}`,
-    );
+  } catch {
+    // Silently skip — sync can be enabled later when GitHub App is configured
   }
 
   const spec = new VmSpec()
