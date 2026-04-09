@@ -5,7 +5,6 @@ import { VmDeno } from "@freestyle-sh/with-deno";
 import type { FreestyleMetadata } from "./types";
 
 const BUN_BIN = "/opt/bun/bin/bun";
-const DENO_BIN = "/root/.deno/bin/deno";
 
 export interface RunScriptResult {
   vmId: string;
@@ -37,97 +36,78 @@ export async function runScript(
   const runtime = metadata.runtime ?? "bun";
   const targetPort = metadata.preview_port ?? 3000;
 
-  // Use VmSpec for repo + runtime (handles Freestyle repo IDs),
-  // then pass ports as top-level options for domain assignment
-  const spec = new VmSpec()
-    .with("js", runtime === "deno" ? new VmDeno() : new VmBun())
-    .repo(metadata.freestyle_repo_id, "/app")
-    .workdir("/app");
-
-  const createResult = await freestyle.vms.create({
-    spec,
+  // Create VM with the correct integration per runtime
+  const repoId = metadata.freestyle_repo_id;
+  const createOpts = {
     idleTimeoutSeconds: 600,
     ports: [{ port: 443, targetPort }],
-  });
+  };
 
-  const vmId = createResult.vmId;
-  const vm = createResult.vm;
+  let vmId: string;
+  let vm: { exec: (cmd: string) => Promise<unknown> };
+  let rawDomains: unknown;
 
-  // domains may be on the result or we construct from vmId
-  const rawDomains = (createResult as Record<string, unknown>).domains;
-  console.log("[runtime] VM created:", {
-    vmId,
-    domains: rawDomains,
-    allKeys: Object.keys(createResult),
-  });
+  if (runtime === "deno") {
+    const spec = new VmSpec()
+      .with("deno", new VmDeno())
+      .repo(repoId, "/app")
+      .workdir("/app");
+    const result = await freestyle.vms.create({ spec, ...createOpts });
+    vmId = result.vmId;
+    vm = result.vm;
+    rawDomains = (result as Record<string, unknown>).domains;
+  } else {
+    const spec = new VmSpec()
+      .with("js", new VmBun())
+      .repo(repoId, "/app")
+      .workdir("/app");
+    const result = await freestyle.vms.create({ spec, ...createOpts });
+    vmId = result.vmId;
+    vm = result.vm;
+    rawDomains = (result as Record<string, unknown>).domains;
+  }
 
-  // Install deps first
-  await vm.js.install({ directory: "/app" });
+  console.log("[runtime] VM created:", { vmId, domains: rawDomains });
 
-  // Start the script in the background via nohup so exec returns immediately
+  // Install deps
+  // biome-ignore lint: dynamic access based on runtime
+  const vmAny: any = vm;
+  if (runtime === "deno") {
+    await vmAny.deno.install({ directory: "/app" });
+  } else {
+    await vmAny.js.install({ directory: "/app" });
+  }
+
+  // Start the script — use deno task or bun run
   const runCmd =
-    runtime === "deno"
-      ? `${DENO_BIN} task ${script}`
-      : `${BUN_BIN} run ${script}`;
+    runtime === "deno" ? `deno task ${script}` : `${BUN_BIN} run ${script}`;
 
   await vm.exec(
     `cd /app && HOST=0.0.0.0 PORT=${targetPort} nohup ${runCmd} > /tmp/app.log 2>&1 &`,
   );
 
-  // Wait a moment for the server to start, then check what's listening
+  // Wait for server to start, then diagnose
   await new Promise((resolve) => setTimeout(resolve, 3000));
   try {
-    const ssResult = await vm.exec(
-      "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo 'no ss/netstat'",
-    );
-    console.log("[runtime] Listening ports:", ssResult);
     const logResult = await vm.exec(
       "tail -20 /tmp/app.log 2>/dev/null || echo 'no log'",
     );
     console.log("[runtime] App log:", logResult);
-    const curlResult = await vm.exec(
-      `curl -s -o /dev/null -w '%{http_code}' http://localhost:${targetPort} 2>/dev/null || echo 'curl failed'`,
+    const whichDeno = await vm.exec(
+      "which deno 2>/dev/null || echo 'deno not found'",
     );
-    console.log("[runtime] Curl localhost:", curlResult);
+    console.log("[runtime] deno location:", whichDeno);
   } catch (e) {
     console.error("[runtime] Diagnostics failed:", e);
   }
 
-  // Try to get domain from result
+  // Get domain
   let domain: string | null = null;
   if (Array.isArray(rawDomains) && rawDomains.length > 0) {
     domain = rawDomains[0];
   }
 
-  // Fallback: try vms.get() to see if domain is assigned after creation
-  if (!domain) {
-    try {
-      const vmInfo = await freestyle.vms.get({ vmId });
-      const allVmInfo = vmInfo as Record<string, unknown>;
-      console.log("[runtime] VM get() keys:", Object.keys(allVmInfo));
-      console.log("[runtime] VM get() domains:", allVmInfo.domains);
-      console.log(
-        "[runtime] VM get() full:",
-        JSON.stringify(
-          allVmInfo,
-          (key, value) => {
-            if (key === "vm" || key === "exec" || typeof value === "function")
-              return "[omitted]";
-            return value;
-          },
-          2,
-        ),
-      );
-      const infoDomains = allVmInfo.domains;
-      if (Array.isArray(infoDomains) && infoDomains.length > 0) {
-        domain = infoDomains[0];
-      }
-    } catch (e) {
-      console.error("[runtime] Failed to get VM info:", e);
-    }
-  }
-
-  // Last resort: construct domain from vmId (Freestyle convention)
+  // Fallback: construct from vmId
   if (!domain) {
     domain = `${vmId}.freestyle.sh`;
     console.log("[runtime] Constructed domain from vmId:", domain);
