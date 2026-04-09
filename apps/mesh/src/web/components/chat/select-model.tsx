@@ -1055,10 +1055,7 @@ function ModelSelectorInner({
   if (keys.length === 0) {
     return (
       <div className="flex items-center justify-center p-8 w-full sm:w-[740px]">
-        <NoAiProviderEmptyState
-          title="Connect an AI provider"
-          description="Connect to a model provider to unlock AI-powered features."
-        />
+        <NoAiProviderEmptyState />
       </div>
     );
   }
