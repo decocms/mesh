@@ -4,7 +4,14 @@ import { KEYS } from "@/web/lib/query-keys";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Input } from "@deco/ui/components/input.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
-import { Loading01 } from "@untitledui/icons";
+import {
+  Building02,
+  CheckCircle,
+  Globe04,
+  Loading01,
+  Palette,
+  Users03,
+} from "@untitledui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -145,18 +152,9 @@ function OnboardingPage() {
   const hasMatchingOrg = domainLookup?.found && domainLookup?.organization;
   const canAutoJoin = hasMatchingOrg && domainLookup?.autoJoinEnabled;
 
-  // Full-screen loading during domain setup
+  // Animated workflow during domain setup
   if (domainSetupMutation.isPending) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loading01 size={20} className="animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Setting up {domainLabel}...
-          </p>
-        </div>
-      </div>
-    );
+    return <SetupWorkflow domainLabel={domainLabel} domain={emailDomain} />;
   }
 
   return (
@@ -309,6 +307,109 @@ function OnboardingPage() {
             )}
           </Button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Setup Workflow — animated step progression
+// ============================================================================
+
+const SETUP_STEPS = [
+  {
+    icon: Building02,
+    label: "Creating organization",
+    delay: 0,
+  },
+  {
+    icon: Globe04,
+    label: "Claiming email domain",
+    delay: 1500,
+  },
+  {
+    icon: Palette,
+    label: "Extracting brand context",
+    delay: 3000,
+  },
+  {
+    icon: Users03,
+    label: "Enabling auto-join for your team",
+    delay: 5000,
+  },
+];
+
+function SetupWorkflow({
+  domainLabel,
+  domain,
+}: {
+  domainLabel: string;
+  domain: string;
+}) {
+  const [activeStep, setActiveStep] = useState(0);
+
+  // Progress through steps on a timer — the backend does them all in one
+  // call, but this gives the user a sense of progress.
+  useState(() => {
+    for (let i = 1; i < SETUP_STEPS.length; i++) {
+      setTimeout(() => setActiveStep(i), SETUP_STEPS[i]!.delay);
+    }
+  });
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-8">
+        <div className="space-y-1.5">
+          <h1 className="text-lg font-medium">Setting up {domainLabel}</h1>
+          <p className="text-sm text-muted-foreground">
+            Getting everything ready from {domain}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {SETUP_STEPS.map((step, i) => {
+            const Icon = step.icon;
+            const isActive = i === activeStep;
+            const isDone = i < activeStep;
+            const isPending = i > activeStep;
+
+            return (
+              <div
+                key={step.label}
+                className={`flex items-center gap-3 transition-opacity duration-500 ${
+                  isPending ? "opacity-30" : "opacity-100"
+                }`}
+              >
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted">
+                  {isDone ? (
+                    <CheckCircle
+                      size={16}
+                      className="text-primary transition-colors duration-300"
+                    />
+                  ) : isActive ? (
+                    <Loading01
+                      size={16}
+                      className="animate-spin text-primary"
+                    />
+                  ) : (
+                    <Icon size={16} className="text-muted-foreground" />
+                  )}
+                </div>
+                <span
+                  className={`text-sm transition-colors duration-300 ${
+                    isDone
+                      ? "text-muted-foreground"
+                      : isActive
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
