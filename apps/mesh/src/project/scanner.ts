@@ -20,6 +20,13 @@ export type PackageManager = "bun" | "npm" | "yarn" | "pnpm" | "deno";
 
 export type DeployTarget = "vercel" | "netlify" | "deno-deploy" | "cloudflare";
 
+export interface ContentDir {
+  path: string;
+  type: "blog" | "content" | "docs";
+  /** Config file (e.g., blog/config.json) if found */
+  configFile: string | null;
+}
+
 export interface ProjectScanResult {
   projectDir: string;
   projectName: string;
@@ -31,6 +38,7 @@ export interface ProjectScanResult {
   deployTarget: DeployTarget | null;
   configFiles: string[];
   hasGit: boolean;
+  contentDirs: ContentDir[];
 }
 
 async function fileExists(path: string): Promise<boolean> {
@@ -280,6 +288,28 @@ export async function scanProject(
   const { existsSync } = await import("fs");
   const hasGit = existsSync(join(projectDir, ".git"));
 
+  // Detect content directories (blog, content, docs)
+  const contentDirs: ContentDir[] = [];
+  const contentCandidates: Array<{ dir: string; type: ContentDir["type"] }> = [
+    { dir: "blog", type: "blog" },
+    { dir: "content", type: "content" },
+    { dir: "docs", type: "docs" },
+  ];
+  for (const candidate of contentCandidates) {
+    if (existsSync(join(projectDir, candidate.dir))) {
+      const configFile = (await fileExists(
+        join(projectDir, candidate.dir, "config.json"),
+      ))
+        ? join(candidate.dir, "config.json")
+        : null;
+      contentDirs.push({
+        path: candidate.dir,
+        type: candidate.type,
+        configFile,
+      });
+    }
+  }
+
   return {
     projectDir,
     projectName: basename(projectDir),
@@ -291,5 +321,6 @@ export async function scanProject(
     deployTarget,
     configFiles,
     hasGit,
+    contentDirs,
   };
 }
