@@ -81,7 +81,6 @@ import { ALL_ITEMS_SELECTED } from "./selection-utils";
 import { VirtualMcpFormSchema, type VirtualMcpFormData } from "./types";
 import { VirtualMCPShareModal } from "./virtual-mcp-share-modal";
 import { GitHubTabContent } from "./github-tab-content";
-import { GitHubIcon } from "@daveyplate/better-auth-ui";
 
 type DialogState = {
   shareDialogOpen: boolean;
@@ -1454,7 +1453,11 @@ Define step-by-step how the agent should handle requests.
                       "bg-transparent text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground",
                   )}
                 >
-                  <GitHubIcon className="size-3.5" />
+                  <img
+                    src="https://assets.decocache.com/decocms/e02ce92e-6684-41a6-acfc-432977eb4878/github.png"
+                    alt=""
+                    className="size-3.5 dark:invert"
+                  />
                   GitHub
                 </button>
               </div>
