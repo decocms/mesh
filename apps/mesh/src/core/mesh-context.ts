@@ -220,7 +220,7 @@ export interface RequestMetadata {
 // ============================================================================
 
 // Forward declare storage types
-import type { createMCPProxy } from "@/api/routes/proxy";
+import type { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import type { BetterAuthInstance } from "@/auth";
 import type { OrgScopedThreadStorage } from "@/storage/threads";
 import type { EventBus } from "../event-bus/interface";
@@ -237,6 +237,7 @@ import type { AutomationsStorage } from "../storage/automations";
 import type { TriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
 import type { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import type { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
+import type { BrandContextStorage } from "../storage/brand-context";
 import type { RegistryStorage } from "../storage/registry";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -275,6 +276,7 @@ export interface MeshStorage {
   orgSsoConfig: OrgSsoConfigStorage;
   orgSsoSessions: OrgSsoSessionStorage;
   registry: RegistryStorage;
+  brandContext: BrandContextStorage;
 }
 
 // ============================================================================
@@ -358,6 +360,9 @@ export interface MeshContext {
 
   // Object storage (S3-compatible) — null when S3 isn't configured or no org scope
   objectStorage: BoundObjectStorage | null;
+
+  // External API keys (optional, from settings)
+  firecrawlApiKey?: string;
 
   // Automation runner — fires an automation manually (wired in app.ts)
   automationRunner?: (

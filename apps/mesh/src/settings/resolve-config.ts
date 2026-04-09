@@ -61,7 +61,7 @@ export function resolveConfig(
 
     // Database (url resolved after services start)
     databasePgSsl: toBool(envVars.DATABASE_PG_SSL),
-    databasePoolMax: Number(envVars.DATABASE_POOL_MAX) || 10,
+    databasePoolMax: Number(envVars.DATABASE_POOL_MAX) || 3,
 
     // Auth & Secrets
     betterAuthSecret: envVars.BETTER_AUTH_SECRET || "",
@@ -78,7 +78,6 @@ export function resolveConfig(
 
     // Config files
     configPath: envVars.CONFIG_PATH || "./config.json",
-    authConfigPath: envVars.AUTH_CONFIG_PATH || "./auth-config.json",
 
     // Transport
     unsafeAllowStdioTransport: toBool(envVars.UNSAFE_ALLOW_STDIO_TRANSPORT),
@@ -111,6 +110,7 @@ export function resolveConfig(
     // External service credentials
     decoSupabaseUrl: envVars.DECO_SUPABASE_URL,
     decoSupabaseServiceKey: envVars.DECO_SUPABASE_SERVICE_KEY,
+    firecrawlApiKey: envVars.FIRECRAWL_API_KEY,
   };
 
   return {

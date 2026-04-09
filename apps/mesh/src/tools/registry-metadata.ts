@@ -30,6 +30,7 @@ export type ToolCategory =
   | "Tags"
   | "AI Providers"
   | "Automations"
+  | "Object Storage"
   | "Registry";
 
 /**
@@ -44,6 +45,12 @@ const ALL_TOOL_NAMES = [
   "ORGANIZATION_DELETE",
   "ORGANIZATION_SETTINGS_GET",
   "ORGANIZATION_SETTINGS_UPDATE",
+  "BRAND_CONTEXT_LIST",
+  "BRAND_CONTEXT_GET",
+  "BRAND_CONTEXT_CREATE",
+  "BRAND_CONTEXT_UPDATE",
+  "BRAND_CONTEXT_DELETE",
+  "BRAND_CONTEXT_EXTRACT",
   "ORGANIZATION_MEMBER_ADD",
   "ORGANIZATION_MEMBER_REMOVE",
   "ORGANIZATION_MEMBER_LIST",
@@ -64,6 +71,7 @@ const ALL_TOOL_NAMES = [
   // Database tools
   "DATABASES_RUN_SQL",
   // Monitoring tools
+  "MONITORING_LOG_GET",
   "MONITORING_LOGS_LIST",
   "MONITORING_STATS",
   // API Key tools
@@ -120,6 +128,14 @@ const ALL_TOOL_NAMES = [
   "AI_PROVIDER_TOPUP_URL",
   "AI_PROVIDER_CREDITS",
   "AI_PROVIDER_CLI_ACTIVATE",
+
+  // Object Storage tools
+  "LIST_OBJECTS",
+  "GET_OBJECT_METADATA",
+  "GET_PRESIGNED_URL",
+  "PUT_PRESIGNED_URL",
+  "DELETE_OBJECT",
+  "DELETE_OBJECTS",
 
   // Registry tools
   "COLLECTION_REGISTRY_APP_LIST",
@@ -233,6 +249,37 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     category: "Organizations",
   },
   {
+    name: "BRAND_CONTEXT_LIST",
+    description: "List brand contexts",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_GET",
+    description: "View brand context",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_CREATE",
+    description: "Create brand context",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_UPDATE",
+    description: "Update brand context",
+    category: "Organizations",
+  },
+  {
+    name: "BRAND_CONTEXT_DELETE",
+    description: "Delete brand context",
+    category: "Organizations",
+    dangerous: true,
+  },
+  {
+    name: "BRAND_CONTEXT_EXTRACT",
+    description: "Extract brand context from website",
+    category: "Organizations",
+  },
+  {
     name: "ORGANIZATION_MEMBER_ADD",
     description: "Add members",
     category: "Organizations",
@@ -319,6 +366,11 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     dangerous: true,
   },
   // Monitoring tools
+  {
+    name: "MONITORING_LOG_GET",
+    description: "View monitoring log details",
+    category: "Monitoring",
+  },
   {
     name: "MONITORING_LOGS_LIST",
     description: "List monitoring logs",
@@ -565,6 +617,39 @@ export const MANAGEMENT_TOOLS: ToolMetadata[] = [
     description: "Activate Claude Code via local CLI",
     category: "AI Providers",
   },
+  // Object Storage tools
+  {
+    name: "LIST_OBJECTS",
+    description: "List objects in storage",
+    category: "Object Storage",
+  },
+  {
+    name: "GET_OBJECT_METADATA",
+    description: "Get object metadata",
+    category: "Object Storage",
+  },
+  {
+    name: "GET_PRESIGNED_URL",
+    description: "Generate download URL",
+    category: "Object Storage",
+  },
+  {
+    name: "PUT_PRESIGNED_URL",
+    description: "Generate upload URL",
+    category: "Object Storage",
+  },
+  {
+    name: "DELETE_OBJECT",
+    description: "Delete object",
+    category: "Object Storage",
+    dangerous: true,
+  },
+  {
+    name: "DELETE_OBJECTS",
+    description: "Delete multiple objects",
+    category: "Object Storage",
+    dangerous: true,
+  },
   // Registry tools
   {
     name: "COLLECTION_REGISTRY_APP_LIST",
@@ -742,6 +827,12 @@ const TOOL_LABELS: Record<ToolName, string> = {
   ORGANIZATION_DELETE: "Delete organization",
   ORGANIZATION_SETTINGS_GET: "View organization settings",
   ORGANIZATION_SETTINGS_UPDATE: "Update organization settings",
+  BRAND_CONTEXT_LIST: "List brand contexts",
+  BRAND_CONTEXT_GET: "View brand context",
+  BRAND_CONTEXT_CREATE: "Create brand context",
+  BRAND_CONTEXT_UPDATE: "Update brand context",
+  BRAND_CONTEXT_DELETE: "Delete brand context",
+  BRAND_CONTEXT_EXTRACT: "Extract brand from website",
   ORGANIZATION_MEMBER_LIST: "List members",
   ORGANIZATION_MEMBER_ADD: "Add members",
   ORGANIZATION_MEMBER_REMOVE: "Remove members",
@@ -758,6 +849,7 @@ const TOOL_LABELS: Record<ToolName, string> = {
   COLLECTION_VIRTUAL_MCP_GET: "View virtual MCP details",
   COLLECTION_VIRTUAL_MCP_UPDATE: "Update virtual MCPs",
   COLLECTION_VIRTUAL_MCP_DELETE: "Delete virtual MCPs",
+  MONITORING_LOG_GET: "View monitoring log details",
   MONITORING_LOGS_LIST: "List monitoring logs",
   MONITORING_STATS: "View monitoring statistics",
   API_KEY_CREATE: "Create API key",
@@ -807,6 +899,14 @@ const TOOL_LABELS: Record<ToolName, string> = {
   AI_PROVIDER_TOPUP_URL: "Get top-up checkout URL",
   AI_PROVIDER_CREDITS: "Get credit balance",
   AI_PROVIDER_CLI_ACTIVATE: "Activate Claude Code CLI",
+
+  // Object Storage
+  LIST_OBJECTS: "List objects",
+  GET_OBJECT_METADATA: "Get object metadata",
+  GET_PRESIGNED_URL: "Generate download URL",
+  PUT_PRESIGNED_URL: "Generate upload URL",
+  DELETE_OBJECT: "Delete object",
+  DELETE_OBJECTS: "Delete multiple objects",
 
   // Registry
   COLLECTION_REGISTRY_APP_LIST: "List registry apps",
@@ -863,6 +963,7 @@ export function getToolsByCategory() {
     Tags: [],
     "AI Providers": [],
     Automations: [],
+    "Object Storage": [],
     Registry: [],
   };
 

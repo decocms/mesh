@@ -32,6 +32,7 @@ import { OrganizationSettingsStorage } from "../storage/organization-settings";
 import { VirtualMcpPluginConfigsStorage } from "../storage/virtual-mcp-plugin-configs";
 import { createAutomationsStorage } from "../storage/automations";
 import { KyselyTriggerCallbackTokenStorage } from "../storage/trigger-callback-tokens";
+import { BrandContextStorage } from "../storage/brand-context";
 import { OrgSsoConfigStorage } from "../storage/org-sso-config";
 import { OrgSsoSessionStorage } from "../storage/org-sso-sessions";
 import {
@@ -408,8 +409,7 @@ export function createBoundAuthClient(ctx: AuthContext): BoundAuthClient {
   };
 }
 
-// Import built-in roles from separate module to avoid circular dependency
-import { createMCPProxy } from "@/api/routes/proxy";
+import { createMCPProxy } from "@/api/routes/mcp-proxy-factory";
 import { ConnectionEntity } from "@/tools/connection/schema";
 import { BUILTIN_ROLES } from "../auth/roles";
 import { OrgScopedThreadStorage, SqlThreadStorage } from "@/storage/threads";
@@ -420,6 +420,7 @@ import { AIProviderFactory } from "@/ai-providers/factory";
 import type { ModelListCache } from "@/ai-providers/model-list-cache";
 import { getObjectStorageS3Service } from "../object-storage/factory";
 import { createBoundObjectStorage } from "../object-storage/bound-object-storage";
+import { DevObjectStorage } from "../object-storage/dev-object-storage";
 
 /**
  * Fetch role permissions from the database
@@ -898,6 +899,7 @@ export async function createMeshContextFactory(
       monitorResults: new MonitorResultStorage(config.db as any),
       monitorConnections: new MonitorConnectionStorage(config.db as any),
     },
+    brandContext: new BrandContextStorage(config.db),
     // Note: Organizations, teams, members, roles managed by Better Auth organization plugin
     // Note: Policies handled by Better Auth permissions directly
     // Note: API keys (tokens) managed by Better Auth API Key plugin
@@ -986,12 +988,15 @@ export async function createMeshContextFactory(
       config.modelListCache,
     );
 
-    // Create org-scoped object storage if S3 is configured and org is available
+    // Create org-scoped object storage if S3 is configured and org is available.
+    // In development without S3, fall back to DevObjectStorage (local filesystem).
     const s3Service = getObjectStorageS3Service();
     const objectStorage =
       s3Service && organization
         ? createBoundObjectStorage(s3Service, organization.id)
-        : null;
+        : getSettings().nodeEnv === "development" && organization
+          ? new DevObjectStorage(organization.id, baseUrl)
+          : null;
 
     const ctx: MeshContext = {
       timings,
@@ -1039,6 +1044,7 @@ export async function createMeshContextFactory(
         : undefined,
       getOrCreateClient: clientPool,
       pendingRevalidations: [],
+      firecrawlApiKey: getSettings().firecrawlApiKey,
     };
 
     return ctx;

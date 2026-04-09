@@ -1,0 +1,363 @@
+import { describe, it, expect, mock } from "bun:test";
+import type { IClient } from "./client-like.ts";
+import type {
+  ServerCapabilities,
+  Tool,
+} from "@modelcontextprotocol/sdk/types.js";
+import { createServerFromClient } from "./server-from-client.ts";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+
+function createMockClient(
+  overrides: Partial<IClient> & {
+    capabilities?: ServerCapabilities;
+    instructions?: string;
+  } = {},
+): IClient {
+  const capabilities = overrides.capabilities ?? {
+    tools: {},
+    resources: {},
+    prompts: {},
+  };
+  const instructions = overrides.instructions;
+
+  return {
+    listTools: mock(async (_params) => ({
+      tools: [
+        {
+          name: "tool_a",
+          description: "A tool",
+          inputSchema: { type: "object" as const },
+          outputSchema: { type: "object" as const, properties: {} },
+        },
+      ] as Tool[],
+    })),
+    callTool: mock(async (_params, _resultSchema, _options) => ({
+      content: [{ type: "text" as const, text: "result" }],
+    })),
+    listResources: mock(async (_params) => ({
+      resources: [
+        {
+          uri: "file:///test.txt",
+          name: "test",
+          mimeType: "text/plain",
+        },
+      ],
+    })),
+    readResource: mock(async (params) => ({
+      contents: [
+        {
+          uri: params.uri,
+          text: "content",
+          mimeType: "text/plain",
+        },
+      ],
+    })),
+    listResourceTemplates: mock(async (_params) => ({
+      resourceTemplates: [
+        {
+          uriTemplate: "file:///{path}",
+          name: "files",
+        },
+      ],
+    })),
+    listPrompts: mock(async (_params) => ({
+      prompts: [{ name: "greet", description: "A greeting" }],
+    })),
+    getPrompt: mock(async (params) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: { type: "text" as const, text: `Hello ${params.name}` },
+        },
+      ],
+    })),
+    getServerCapabilities: mock(() => capabilities),
+    getInstructions: mock(() => instructions),
+    close: mock(async () => {}),
+    ...overrides,
+  };
+}
+
+describe("createServerFromClient", () => {
+  describe("listTools", () => {
+    it("delegates to client.listTools with params forwarded", async () => {
+      const client = createMockClient();
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        ListToolsRequestSchema.shape.method.value,
+      );
+      expect(handler).toBeDefined();
+
+      const result = await handler({
+        method: "tools/list",
+        params: { cursor: "abc" },
+      });
+
+      expect(client.listTools).toHaveBeenCalledWith({ cursor: "abc" });
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].name).toBe("tool_a");
+    });
+
+    it("strips outputSchema from tools", async () => {
+      const client = createMockClient();
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        ListToolsRequestSchema.shape.method.value,
+      );
+
+      const result = await handler({
+        method: "tools/list",
+        params: {},
+      });
+
+      expect(result.tools[0]).not.toHaveProperty("outputSchema");
+      expect(result.tools[0].name).toBe("tool_a");
+      expect(result.tools[0].inputSchema).toBeDefined();
+    });
+  });
+
+  describe("callTool", () => {
+    it("delegates to client.callTool with params", async () => {
+      const client = createMockClient();
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        CallToolRequestSchema.shape.method.value,
+      );
+
+      await handler({
+        method: "tools/call",
+        params: { name: "tool_a", arguments: { x: 1 } },
+      });
+
+      expect(client.callTool).toHaveBeenCalledWith(
+        { name: "tool_a", arguments: { x: 1 } },
+        undefined,
+        undefined,
+      );
+    });
+
+    it("passes timeout option when toolCallTimeoutMs is set", async () => {
+      const client = createMockClient();
+      const server = createServerFromClient(
+        client,
+        { name: "test", version: "1.0.0" },
+        { toolCallTimeoutMs: 5000 },
+      );
+
+      const handler = (server.server as any)._requestHandlers.get(
+        CallToolRequestSchema.shape.method.value,
+      );
+
+      await handler({
+        method: "tools/call",
+        params: { name: "tool_a", arguments: {} },
+      });
+
+      expect(client.callTool).toHaveBeenCalledWith(
+        { name: "tool_a", arguments: {} },
+        undefined,
+        { timeout: 5000 },
+      );
+    });
+  });
+
+  describe("resources handlers", () => {
+    it("registers resource handlers when capabilities include resources", () => {
+      const client = createMockClient({
+        capabilities: { resources: {}, tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const listHandler = (server.server as any)._requestHandlers.get(
+        ListResourcesRequestSchema.shape.method.value,
+      );
+      const readHandler = (server.server as any)._requestHandlers.get(
+        ReadResourceRequestSchema.shape.method.value,
+      );
+      const templatesHandler = (server.server as any)._requestHandlers.get(
+        ListResourceTemplatesRequestSchema.shape.method.value,
+      );
+
+      expect(listHandler).toBeDefined();
+      expect(readHandler).toBeDefined();
+      expect(templatesHandler).toBeDefined();
+    });
+
+    it("does NOT register resource handlers when capabilities lack resources", () => {
+      const client = createMockClient({
+        capabilities: { tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const listHandler = (server.server as any)._requestHandlers.get(
+        ListResourcesRequestSchema.shape.method.value,
+      );
+
+      expect(listHandler).toBeUndefined();
+    });
+
+    it("delegates listResources with params forwarded", async () => {
+      const client = createMockClient({
+        capabilities: { resources: {}, tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        ListResourcesRequestSchema.shape.method.value,
+      );
+
+      const result = await handler({
+        method: "resources/list",
+        params: { cursor: "xyz" },
+      });
+
+      expect(client.listResources).toHaveBeenCalledWith({ cursor: "xyz" });
+      expect(result.resources).toHaveLength(1);
+    });
+  });
+
+  describe("prompts handlers", () => {
+    it("registers prompt handlers when capabilities include prompts", () => {
+      const client = createMockClient({
+        capabilities: { prompts: {}, tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const listHandler = (server.server as any)._requestHandlers.get(
+        ListPromptsRequestSchema.shape.method.value,
+      );
+      const getHandler = (server.server as any)._requestHandlers.get(
+        GetPromptRequestSchema.shape.method.value,
+      );
+
+      expect(listHandler).toBeDefined();
+      expect(getHandler).toBeDefined();
+    });
+
+    it("does NOT register prompt handlers when capabilities lack prompts", () => {
+      const client = createMockClient({
+        capabilities: { tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const listHandler = (server.server as any)._requestHandlers.get(
+        ListPromptsRequestSchema.shape.method.value,
+      );
+
+      expect(listHandler).toBeUndefined();
+    });
+
+    it("delegates getPrompt with default empty arguments", async () => {
+      const client = createMockClient({
+        capabilities: { prompts: {}, tools: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        GetPromptRequestSchema.shape.method.value,
+      );
+
+      await handler({
+        method: "prompts/get",
+        params: { name: "greet" },
+      });
+
+      // Should provide default empty arguments when none specified
+      expect(client.getPrompt).toHaveBeenCalledWith({
+        name: "greet",
+        arguments: {},
+      });
+    });
+  });
+
+  describe("pagination params forwarded", () => {
+    it("forwards cursor in listTools", async () => {
+      const client = createMockClient();
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      const handler = (server.server as any)._requestHandlers.get(
+        ListToolsRequestSchema.shape.method.value,
+      );
+
+      await handler({
+        method: "tools/list",
+        params: { cursor: "page2" },
+      });
+
+      expect(client.listTools).toHaveBeenCalledWith({ cursor: "page2" });
+    });
+  });
+
+  describe("options", () => {
+    it("uses client capabilities when none provided in options", () => {
+      const client = createMockClient({
+        capabilities: { tools: {}, resources: {} },
+      });
+      const server = createServerFromClient(client, {
+        name: "test",
+        version: "1.0.0",
+      });
+
+      expect(client.getServerCapabilities).toHaveBeenCalled();
+      expect(server).toBeDefined();
+    });
+
+    it("uses provided capabilities over client capabilities", () => {
+      const client = createMockClient({
+        capabilities: { tools: {}, resources: {}, prompts: {} },
+      });
+      const server = createServerFromClient(
+        client,
+        { name: "test", version: "1.0.0" },
+        { capabilities: { tools: {} } },
+      );
+
+      // With only tools in capabilities, no resource or prompt handlers
+      const resourceHandler = (server.server as any)._requestHandlers.get(
+        ListResourcesRequestSchema.shape.method.value,
+      );
+      expect(resourceHandler).toBeUndefined();
+    });
+  });
+});

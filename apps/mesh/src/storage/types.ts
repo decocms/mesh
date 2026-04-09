@@ -515,7 +515,6 @@ export interface MonitoringLog {
   id?: string;
   organizationId: string;
   connectionId: string;
-  connectionTitle: string;
   toolName: string;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
@@ -932,6 +931,52 @@ export interface KVTable {
   updated_at: ColumnType<Date, Date | string, Date | string>;
 }
 
+// ============================================================================
+// Brand Context Table Definition
+// ============================================================================
+
+export interface BrandContextTable {
+  id: string;
+  organization_id: string;
+  name: string;
+  domain: string;
+  overview: string;
+  logo: string | null;
+  favicon: string | null;
+  og_image: string | null;
+  fonts: string | null;
+  colors: string | null;
+  images: string | null;
+  metadata: string | null;
+  archived_at: ColumnType<
+    Date | null,
+    Date | string | null,
+    Date | string | null
+  >;
+  is_default: boolean;
+  created_at: ColumnType<Date, Date | string, never>;
+  updated_at: ColumnType<Date, Date | string, Date | string>;
+}
+
+export interface BrandContext {
+  id: string;
+  organizationId: string;
+  name: string;
+  domain: string;
+  overview: string;
+  logo: string | null;
+  favicon: string | null;
+  ogImage: string | null;
+  fonts: Record<string, unknown>[] | null;
+  colors: Record<string, unknown>[] | Record<string, unknown> | null;
+  images: Record<string, unknown>[] | null;
+  metadata: Record<string, unknown> | null;
+  archivedAt: Date | string | null;
+  isDefault: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 /**
  * Complete database schema
  * All tables exist within the organization scope (database boundary)
@@ -995,4 +1040,7 @@ export interface Database {
 
   // Generic org-scoped KV store
   kv: KVTable;
+
+  // Brand context (org-scoped company profile)
+  brand_context: BrandContextTable;
 }

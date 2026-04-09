@@ -9,7 +9,6 @@
  * bottom — never insert mid-list.
  */
 
-import { useRef } from "react";
 import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import { createMCPClient } from "@decocms/mesh-sdk";
@@ -265,37 +264,20 @@ export function useMergedStoreDiscovery(
     search,
   );
 
-  // Stable key to detect registry list or search changes and reset committed items
-  const stableKey = `${registries
-    .map((r) => r.id)
-    .sort()
-    .join(",")}:${search ?? ""}`;
-  const prevStableKeyRef = useRef(stableKey);
-  const committedItemsRef = useRef<RegistryItem[]>([]);
-  const seenIdsRef = useRef<Set<string>>(new Set());
-
-  if (prevStableKeyRef.current !== stableKey) {
-    committedItemsRef.current = [];
-    seenIdsRef.current = new Set();
-    prevStableKeyRef.current = stableKey;
-  }
-
-  // Collect all available items in priority order
+  // Collect all available items in priority order, deduplicating by registry+id
+  const seen = new Set<string>();
+  const items: RegistryItem[] = [];
   const allAvailable: RegistryItem[] = [...ncQuery.items];
   if (allNonCommunityExhausted) {
     allAvailable.push(...cQuery.items);
   }
-
-  // Append only new items (preserves position of existing items)
   for (const item of allAvailable) {
     const itemKey = `${item._registryId}:${item.id}`;
-    if (!seenIdsRef.current.has(itemKey)) {
-      seenIdsRef.current.add(itemKey);
-      committedItemsRef.current.push(item);
+    if (!seen.has(itemKey)) {
+      seen.add(itemKey);
+      items.push(item);
     }
   }
-
-  const items = committedItemsRef.current;
 
   const isInitialLoading = ncQuery.isInitialLoading;
   const isLoadingMore = ncQuery.isLoadingMore || cQuery.isLoadingMore;

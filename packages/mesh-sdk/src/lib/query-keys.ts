@@ -176,4 +176,8 @@ export const KEYS = {
 
   // User data
   user: (userId: string) => ["user", userId] as const,
+
+  // Registry app lookup (by app ID)
+  registryApp: (orgId: string, appId: string) =>
+    ["registry-app", orgId, appId] as const,
 } as const;

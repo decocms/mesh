@@ -1,4 +1,4 @@
-import { isMac, isModKey } from "@/web/lib/keyboard-shortcuts";
+import { isModKey } from "@/web/lib/keyboard-shortcuts";
 import { calculateUsageStats } from "@/web/lib/usage-utils.ts";
 import { getAgentWrapperColor } from "@/web/components/agent-icon";
 import { Button } from "@deco/ui/components/button.tsx";
@@ -7,26 +7,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@deco/ui/components/popover.tsx";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import {
   getWellKnownDecopilotVirtualMCP,
   isDecopilot,
   useProjectContext,
 } from "@decocms/mesh-sdk";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import {
   ArrowUp,
   BookOpen01,
   ChevronDown,
   Edit01,
   Lock01,
+  Plus,
   Stop,
-  Users03,
+  Upload01,
+  X,
   XCircle,
 } from "@untitledui/icons";
 import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
@@ -39,127 +36,25 @@ import { ChatHighlight } from "./highlight";
 import { ModelSelector } from "./select-model";
 import {
   VirtualMCPPopoverContent,
-  VirtualMCPSelector,
   type VirtualMCPInfo,
 } from "./select-virtual-mcp";
-import { FileUploadButton } from "./tiptap/file";
+import { modelSupportsFiles } from "./select-model";
+import type { AiProviderModel } from "@/web/hooks/collections/use-ai-providers";
+import { FileUploadButton, processFile } from "./tiptap/file";
+import { useCurrentEditor } from "@tiptap/react";
 import {
   TiptapInput,
   TiptapProvider,
   type TiptapInputHandle,
 } from "./tiptap/input";
 import { isTiptapDocEmpty } from "./tiptap/utils";
+import { ToolsPopover } from "./tools-popover";
 import { SessionStats } from "./usage-stats";
 import { authClient } from "@/web/lib/auth-client.ts";
 import { useSound } from "@/web/hooks/use-sound.ts";
-import { clickSoftSound } from "@deco/ui/lib/click-soft.ts";
-import { switch005Sound } from "@deco/ui/lib/switch-005.ts";
-
-// ============================================================================
-// DecopilotIconButton - Icon button for Decopilot (similar to FileUploadButton)
-// ============================================================================
-
-interface DecopilotIconButtonProps {
-  onVirtualMcpChange: (virtualMcpId: string | null) => void;
-  disabled?: boolean;
-}
-
-function DecopilotIconButton({
-  onVirtualMcpChange,
-  disabled = false,
-}: DecopilotIconButtonProps) {
-  const [open, setOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const { org } = useProjectContext();
-  const isMobile = useIsMobile();
-
-  const decopilot = getWellKnownDecopilotVirtualMCP(org.id);
-
-  // Focus search input when popover opens (skip on mobile to avoid keyboard popup)
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (open && !isMobile) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
-    }
-  }, [open, isMobile]);
-
-  const handleVirtualMcpChange = (virtualMcpId: string | null) => {
-    onVirtualMcpChange(virtualMcpId);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "relative flex items-center justify-center size-8 rounded-md text-muted-foreground/75 transition-colors shrink-0",
-                disabled
-                  ? "cursor-not-allowed opacity-50"
-                  : "cursor-pointer hover:text-muted-foreground",
-              )}
-              disabled={disabled}
-            >
-              <svg className="absolute inset-0 size-full" fill="none">
-                <defs>
-                  <linearGradient
-                    id="agent-border-gradient-decopilot"
-                    gradientUnits="userSpaceOnUse"
-                    x1="0"
-                    y1="0"
-                    x2="32"
-                    y2="32"
-                  >
-                    <animateTransform
-                      attributeName="gradientTransform"
-                      type="rotate"
-                      from="0 16 16"
-                      to="360 16 16"
-                      dur="6s"
-                      repeatCount="indefinite"
-                    />
-                    <stop offset="0%" stopColor="var(--chart-1)" />
-                    <stop offset="100%" stopColor="var(--chart-4)" />
-                  </linearGradient>
-                </defs>
-                <rect
-                  x="0.5"
-                  y="0.5"
-                  width="31"
-                  height="31"
-                  rx="5.5"
-                  stroke="url(#agent-border-gradient-decopilot)"
-                  strokeWidth="1"
-                  strokeDasharray="3 3"
-                />
-              </svg>
-              <Users03 size={16} />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        {!open && <TooltipContent side="top">Decopilot</TooltipContent>}
-      </Tooltip>
-      <PopoverContent
-        className="w-[min(550px,calc(100vw-2rem))] p-0 overflow-hidden"
-        align="start"
-        side="top"
-        sideOffset={8}
-        collisionPadding={16}
-      >
-        <VirtualMCPPopoverContent
-          selectedVirtualMcpId={decopilot.id}
-          onVirtualMcpChange={handleVirtualMcpChange}
-          searchInputRef={searchInputRef}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
+import { question004Sound } from "@deco/ui/lib/question-004.ts";
+import { AddConnectionDialog } from "@/web/views/virtual-mcp/add-connection-dialog";
+import { ConnectionsBanner } from "./connections-banner";
 
 // ============================================================================
 // VirtualMCPBadge - Internal component for displaying selected virtual MCP
@@ -178,7 +73,7 @@ function VirtualMCPBadge({
 }: VirtualMCPBadgeProps) {
   const [open, setOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
+  const navigateToAgent = useNavigateToAgent();
   const { org } = useProjectContext();
   const isMobile = useIsMobile();
 
@@ -213,14 +108,7 @@ function VirtualMCPBadge({
 
   const handleEdit = (e: MouseEvent) => {
     e.stopPropagation();
-    navigate({
-      to: "/$org/$virtualMcpId",
-      params: {
-        org: org.slug,
-        virtualMcpId: virtualMcp.id!,
-      },
-      search: { main: "settings" },
-    });
+    navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
   };
 
   const handleVirtualMcpChange = (newVirtualMcpId: string | null) => {
@@ -231,7 +119,7 @@ function VirtualMCPBadge({
   return (
     <div
       className={cn(
-        "flex items-center justify-between px-3 py-1.5 rounded-t-xl z-10",
+        "flex items-center justify-between px-3 py-1.5 rounded-t-2xl z-10",
         color?.bg,
       )}
     >
@@ -302,55 +190,109 @@ function VirtualMCPBadge({
 }
 
 // ============================================================================
-// PlanModeToggle - Toggle button for plan mode
+// useWindowFileDrop - Reusable hook for window-level file drag & drop
 // ============================================================================
 
-function PlanModeToggle({ disabled }: { disabled?: boolean }) {
-  const [preferences, setPreferences] = usePreferences();
-  const isPlanMode = preferences.toolApprovalLevel === "plan";
-  const playSwitchSound = useSound(switch005Sound);
+/**
+ * Attaches window-level dragenter/dragleave/dragover/drop listeners and
+ * processes dropped files into the current Tiptap editor.
+ *
+ * Must be called inside a TiptapProvider so `useCurrentEditor()` resolves.
+ */
+function useWindowFileDrop(selectedModel: AiProviderModel | null | undefined) {
+  const { editor } = useCurrentEditor();
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
-  const handleToggle = () => {
-    playSwitchSound();
-    setPreferences({
-      ...preferences,
-      toolApprovalLevel: isPlanMode ? "auto" : "plan",
-    });
-  };
+  // oxlint-disable-next-line ban-use-effect/ban-use-effect
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+        dragCounterRef.current++;
+        setIsDraggingOver(true);
+      }
+    };
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+      if (dragCounterRef.current === 0) {
+        setIsDraggingOver(false);
+      }
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+
+      if (!editor || !selectedModel || !modelSupportsFiles(selectedModel))
+        return;
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      const { from } = editor.state.selection;
+      for (const file of Array.from(files)) {
+        void processFile(editor, selectedModel, file, from);
+      }
+    };
+
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [editor, selectedModel]);
+
+  return isDraggingOver;
+}
+
+// ============================================================================
+// FileDropZone - Overlay that catches file drops from anywhere on the window
+// ============================================================================
+
+function FileDropZone({
+  selectedModel,
+}: {
+  selectedModel: AiProviderModel | null | undefined;
+}) {
+  const isDraggingOver = useWindowFileDrop(selectedModel);
+  const supportsFiles = modelSupportsFiles(selectedModel);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={disabled}
-          className={cn(
-            "flex items-center justify-center size-8 rounded-md transition-colors shrink-0",
-            disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-            isPlanMode
-              ? "border border-purple-500 text-purple-500 bg-purple-500/10 hover:bg-purple-500/20"
-              : "border border-border text-muted-foreground/75 hover:text-muted-foreground",
-          )}
-          aria-label={isPlanMode ? "Exit plan mode" : "Enter plan mode"}
-        >
-          <BookOpen01 size={16} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="flex items-center gap-1.5">
-        {isPlanMode ? "Exit plan mode" : "Plan mode"}
-        <span className="flex items-center gap-0.5">
-          {(isMac ? ["⌘", "⇧", "L"] : ["Ctrl", "⇧", "L"]).map((key) => (
-            <kbd
-              key={key}
-              className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-sm border border-white/20 bg-white/10 text-white/70 text-xs font-mono"
-            >
-              {key}
-            </kbd>
-          ))}
-        </span>
-      </TooltipContent>
-    </Tooltip>
+    <div
+      className={cn(
+        "absolute inset-0 z-20 rounded-xl flex flex-col items-center justify-center gap-2 bg-muted border-2 border-dashed transition-opacity",
+        isDraggingOver ? "opacity-100" : "opacity-0 pointer-events-none",
+        supportsFiles
+          ? "border-primary/40 text-primary/70"
+          : "border-destructive/30 text-destructive/70",
+      )}
+    >
+      {supportsFiles ? (
+        <>
+          <Upload01 size={24} />
+          <span className="text-sm font-medium">Drop files here</span>
+        </>
+      ) : (
+        <>
+          <Lock01 size={24} />
+          <span className="text-sm font-medium">
+            This model does not support files
+          </span>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -360,8 +302,10 @@ function PlanModeToggle({ disabled }: { disabled?: boolean }) {
 
 export function ChatInput({
   onOpenContextPanel,
+  showConnectionsBanner = false,
 }: {
   onOpenContextPanel?: () => void;
+  showConnectionsBanner?: boolean;
 }) {
   const { messages, isStreaming, isRunInProgress, sendMessage, stop } =
     useChatStream();
@@ -371,18 +315,17 @@ export function ChatInput({
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
 
-  const navigate = useNavigate();
+  const navigateToAgent = useNavigateToAgent();
   const { org } = useProjectContext();
   const decopilotId = getWellKnownDecopilotVirtualMCP(org.id).id;
+  const playSwitchSound = useSound(question004Sound);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
 
   // Navigate to the agent route (like the sidebar does) instead of only
   // setting an ephemeral search-param override, so the thread list re-scopes.
   const handleAgentChange = (virtualMcpId: string | null) => {
     if (virtualMcpId) {
-      navigate({
-        to: "/$org/$virtualMcpId/",
-        params: { org: org.slug, virtualMcpId },
-      });
+      navigateToAgent(virtualMcpId);
     }
   };
 
@@ -441,7 +384,7 @@ export function ChatInput({
   const lastTotalTokens =
     (lastUsage?.totalTokens ?? 0) - (lastUsage?.reasoningTokens ?? 0);
 
-  const playClickSound = useSound(clickSoftSound);
+  const playClickSound = useSound(question004Sound);
 
   const canSubmit =
     !isStreaming &&
@@ -526,158 +469,192 @@ export function ChatInput({
   }
 
   return (
-    <div className="flex flex-col w-full justify-end">
-      {/* Virtual MCP wrapper with badge */}
-      <div className="relative rounded-xl w-full flex flex-col">
-        {/* Colored background overlay - stays during exit animation */}
-        {showWrapper && (
+    <>
+      <div className="flex flex-col w-full justify-end">
+        {/* Virtual MCP wrapper with badge */}
+        <div className="relative rounded-2xl w-full flex flex-col">
+          {/* Colored background overlay - stays during exit animation */}
+          {showWrapper && (
+            <div
+              className={cn(
+                "absolute inset-0 rounded-2xl pointer-events-none",
+                wrapperBg,
+              )}
+            />
+          )}
+
+          {/* Muted background for connections banner - peeks through form's bottom radius */}
+          {showConnectionsBanner && (
+            <div className="absolute inset-0 rounded-2xl pointer-events-none bg-muted/50" />
+          )}
+
+          {/* Highlight floats above the form area */}
+          <ChatHighlight />
+
+          {/* Virtual MCP Badge Header - animated expand/collapse */}
           <div
             className={cn(
-              "absolute inset-0 rounded-xl pointer-events-none",
-              wrapperBg,
+              "relative z-10 grid transition-[grid-template-rows] duration-250 ease-out overflow-hidden rounded-t-2xl",
+              hasAgentBadge ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
             )}
-          />
-        )}
-
-        {/* Highlight floats above the form area */}
-        <ChatHighlight />
-
-        {/* Virtual MCP Badge Header - animated expand/collapse */}
-        <div
-          className={cn(
-            "relative z-10 grid transition-[grid-template-rows] duration-250 ease-out overflow-hidden rounded-t-xl",
-            hasAgentBadge ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-          )}
-          onTransitionEnd={handleGridTransitionEnd}
-        >
-          <div className="overflow-hidden">
-            {badgeVirtualMcp && (
-              <VirtualMCPBadge
-                virtualMcp={badgeVirtualMcp}
-                onVirtualMcpChange={handleAgentChange}
-                disabled={isStreaming}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Inner container with the input */}
-        <div
-          className={cn(
-            "transition-[padding] duration-250 ease-out",
-            showWrapper ? "p-0.5" : "p-0",
-          )}
-        >
-          <TiptapProvider
-            key={taskId}
-            tiptapDoc={tiptapDoc}
-            setTiptapDoc={setTiptapDoc}
-            disabled={isStreaming || !selectedModel}
-            enterToSubmit={true}
-            onSubmit={handleSubmit}
+            onTransitionEnd={handleGridTransitionEnd}
           >
-            <form
-              onSubmit={handleSubmit}
-              className={cn(
-                "w-full relative rounded-xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border",
-                isPlanMode
-                  ? "border-dashed border-purple-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
-                  : "border-transparent shadow-[0px_10px_28px_0px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10",
-              )}
-            >
-              <div className="group/input relative flex flex-col gap-2 flex-1">
-                {/* Input Area with Tiptap */}
-                <TiptapInput
-                  ref={tiptapRef}
-                  disabled={isStreaming || !selectedModel}
-                  virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
-                  showFileUploader={true}
-                  selectedModel={selectedModel}
+            <div className="overflow-hidden">
+              {badgeVirtualMcp && (
+                <VirtualMCPBadge
+                  virtualMcp={badgeVirtualMcp}
+                  onVirtualMcpChange={handleAgentChange}
+                  disabled={isStreaming}
                 />
-                {/* Focus hint — hidden when editor is focused */}
-                <span className="absolute top-3 right-3 text-xs text-muted-foreground/50 pointer-events-none select-none group-focus-within/input:hidden hidden md:inline">
-                  {isMac ? "⌘" : "Ctrl+"}L to focus
-                </span>
-              </div>
+              )}
+            </div>
+          </div>
 
-              {/* Bottom Actions Row */}
-              <div className="flex items-center justify-between p-2.5">
-                {/* Left Actions (agent, file upload, mode) */}
-                <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
-                  {!selectedVirtualMcp || isDecopilot(selectedVirtualMcp.id) ? (
-                    <DecopilotIconButton
-                      onVirtualMcpChange={handleAgentChange}
-                      disabled={isStreaming}
-                    />
-                  ) : (
-                    <VirtualMCPSelector
-                      selectedVirtualMcpId={selectedVirtualMcp?.id ?? null}
-                      selectedVirtualMcp={selectedVirtualMcp}
-                      onVirtualMcpChange={handleAgentChange}
-                      placeholder="Agent"
-                      disabled={isStreaming}
-                    />
-                  )}
-                  <FileUploadButton
+          {/* Inner container with the input */}
+          <div
+            className={cn(
+              "transition-[padding] duration-250 ease-out",
+              showWrapper ? "p-0.5" : "p-0",
+            )}
+          >
+            <TiptapProvider
+              key={taskId}
+              tiptapDoc={tiptapDoc}
+              setTiptapDoc={setTiptapDoc}
+              disabled={isStreaming || !selectedModel}
+              enterToSubmit={true}
+              onSubmit={handleSubmit}
+            >
+              <form
+                onSubmit={handleSubmit}
+                className={cn(
+                  "w-full relative rounded-2xl min-h-[110px] md:min-h-[130px] flex flex-col bg-background dark:bg-muted border border-[1px]",
+                  isPlanMode
+                    ? "border-dashed border-violet-500 shadow-[0px_2px_6px_0px_#00000008,_0px_6px_30px_0px_#0000000a]"
+                    : "border-border shadow-[0px_4px_12px_0px_rgba(0,0,0,0.03)]",
+                )}
+              >
+                <FileDropZone selectedModel={selectedModel} />
+
+                <div className="group/input relative flex flex-col gap-2 flex-1">
+                  {/* Input Area with Tiptap */}
+                  <TiptapInput
+                    ref={tiptapRef}
+                    disabled={isStreaming || !selectedModel}
+                    virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                    showFileUploader={true}
                     selectedModel={selectedModel}
-                    isStreaming={isStreaming}
                   />
-                  <PlanModeToggle disabled={isStreaming} />
-                  {contextWindow && lastTotalTokens > 0 && (
-                    <SessionStats
-                      usage={usage}
-                      totalTokens={lastTotalTokens}
-                      contextWindow={contextWindow}
-                      onOpenContextPanel={onOpenContextPanel}
+                </div>
+
+                {/* Bottom Actions Row */}
+                <div className="flex items-center justify-between p-2.5 gap-1">
+                  {/* Left Actions (+, Tools, active tool pills, stats) */}
+                  <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                    <FileUploadButton
+                      selectedModel={selectedModel}
+                      isStreaming={isStreaming}
+                      icon={<Plus size={16} />}
                     />
-                  )}
-                </div>
+                    <ToolsPopover
+                      disabled={isStreaming}
+                      onOpenConnections={() => setConnectionsOpen(true)}
+                      virtualMcpId={selectedVirtualMcp?.id ?? decopilotId}
+                      isAgentContext={hasAgentBadge}
+                    />
+                    {isPlanMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playSwitchSound();
+                          setPreferences({
+                            ...preferences,
+                            toolApprovalLevel: "auto",
+                          });
+                        }}
+                        className="flex items-center gap-1.5 h-8 rounded-lg px-2.5 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 group whitespace-nowrap animate-in fade-in duration-200"
+                      >
+                        <BookOpen01 size={14} className="shrink-0" />
+                        Plan mode
+                        <X
+                          size={14}
+                          className="shrink-0 hidden group-hover:block"
+                        />
+                      </button>
+                    )}
+                    {contextWindow && lastTotalTokens > 0 && (
+                      <SessionStats
+                        usage={usage}
+                        totalTokens={lastTotalTokens}
+                        contextWindow={contextWindow}
+                        onOpenContextPanel={onOpenContextPanel}
+                      />
+                    )}
+                  </div>
 
-                {/* Right Actions (model, send) */}
-                <div className="flex items-center gap-1.5">
-                  <ModelSelector placeholder="Model" variant="borderless" />
+                  {/* Right Actions (model, send) */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <ModelSelector
+                      placeholder="Model"
+                      variant="borderless"
+                      className="h-8 text-sm py-2 min-w-0"
+                    />
 
-                  <Button
-                    type={showStopOrCancel ? "button" : "submit"}
-                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      if (showStopOrCancel) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (isStreaming) stop();
-                        else stop();
+                    <Button
+                      type={showStopOrCancel ? "button" : "submit"}
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                        if (showStopOrCancel) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (isStreaming) stop();
+                          else stop();
+                        }
+                      }}
+                      variant={
+                        canSubmit || showStopOrCancel ? "default" : "ghost"
                       }
-                    }}
-                    variant={
-                      canSubmit || showStopOrCancel ? "default" : "ghost"
-                    }
-                    size="icon"
-                    disabled={!canSubmit && !showStopOrCancel}
-                    className={cn(
-                      "size-8 rounded-md transition-all",
-                      !canSubmit &&
-                        !showStopOrCancel &&
-                        "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
-                    )}
-                    title={
-                      isStreaming
-                        ? "Stop generating"
-                        : isRunInProgress
-                          ? "Cancel run"
-                          : "Send message (Enter)"
-                    }
-                  >
-                    {showStopOrCancel ? (
-                      <Stop size={20} />
-                    ) : (
-                      <ArrowUp size={20} />
-                    )}
-                  </Button>
+                      size="icon"
+                      disabled={!canSubmit && !showStopOrCancel}
+                      className={cn(
+                        "size-8 rounded-lg transition-all",
+                        !canSubmit &&
+                          !showStopOrCancel &&
+                          "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-not-allowed",
+                      )}
+                      title={
+                        isStreaming
+                          ? "Stop generating"
+                          : isRunInProgress
+                            ? "Cancel run"
+                            : "Send message (Enter)"
+                      }
+                    >
+                      {showStopOrCancel ? (
+                        <Stop size={20} />
+                      ) : (
+                        <ArrowUp size={20} />
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </form>
-          </TiptapProvider>
+              </form>
+            </TiptapProvider>
+          </div>
+
+          {/* Connections Banner Footer - always visible on home */}
+          {showConnectionsBanner && (
+            <ConnectionsBanner onClick={() => setConnectionsOpen(true)} />
+          )}
         </div>
       </div>
-    </div>
+
+      <AddConnectionDialog
+        open={connectionsOpen}
+        onOpenChange={setConnectionsOpen}
+        addedConnectionIds={new Set()}
+        onAdd={() => {}}
+        defaultTab="all"
+      />
+    </>
   );
 }

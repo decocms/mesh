@@ -204,7 +204,7 @@ export interface OrgMember {
 export function getOrgMembers(
   data: ReturnType<typeof useMembers>["data"] | undefined,
 ): OrgMember[] {
-  return ((data?.data?.members ?? []) as OrgMember[]) ?? [];
+  return (data?.data?.members ?? []) as OrgMember[];
 }
 
 export interface ThreadUsageDisplay {

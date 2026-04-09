@@ -1,13 +1,17 @@
 import { VirtualMcpDetailView } from "@/web/views/virtual-mcp";
 import { AutomationInlineDetail } from "@/web/views/automations/automations-tab";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { EmptyState } from "@/web/components/empty-state";
+import { Button } from "@deco/ui/components/button.tsx";
+import { MessageChatCircle } from "@untitledui/icons";
 import { lazy } from "react";
 import {
-  useVirtualMCPContext,
+  useInsetContext,
   type MainView,
   type MainViewType,
-} from "@/web/contexts/virtual-mcp-context";
+} from "@/web/layouts/agent-shell-layout";
 import { useVirtualMCP } from "@decocms/mesh-sdk";
+import { useChatTask } from "@/web/components/chat/context";
 
 const ProjectAppViewContent = lazy(() =>
   import("./project-app-view").then((m) => ({
@@ -20,7 +24,7 @@ const ProjectAppViewContent = lazy(() =>
  * otherwise fall back to the entity's layout config, then to settings.
  */
 function useResolvedMainView(): MainView & {} {
-  const { virtualMcpId, mainView } = useVirtualMCPContext();
+  const { virtualMcpId, mainView } = useInsetContext()!;
   const entity = useVirtualMCP(virtualMcpId);
 
   // URL specified an explicit view — use it
@@ -52,12 +56,50 @@ function useResolvedMainView(): MainView & {} {
   }
 }
 
+function AgentEmptyState() {
+  const { virtualMcpId } = useInsetContext()!;
+  const entity = useVirtualMCP(virtualMcpId);
+  const { createTaskWithMessage } = useChatTask();
+
+  const agentName = entity?.title ?? "Agent";
+
+  return (
+    <EmptyState
+      image={null}
+      title={agentName}
+      description={
+        entity?.description || "Ask this agent what it can do for you."
+      }
+      actions={
+        <Button
+          variant="outline"
+          onClick={() =>
+            createTaskWithMessage({
+              message: {
+                parts: [
+                  {
+                    type: "text",
+                    text: "What can you do? Explain your capabilities.",
+                  },
+                ],
+              },
+            })
+          }
+        >
+          <MessageChatCircle size={16} />
+          Ask what I can do
+        </Button>
+      }
+    />
+  );
+}
+
 function AgentHomeContent() {
-  const { virtualMcpId } = useVirtualMCPContext();
+  const { virtualMcpId } = useInsetContext()!;
   const resolved = useResolvedMainView();
 
   if (resolved.type === "chat") {
-    return null;
+    return <AgentEmptyState />;
   }
 
   if (resolved.type === "automation") {
@@ -94,7 +136,9 @@ function mainViewKey(view: MainView): string {
 }
 
 export default function AgentHomePage() {
-  const { virtualMcpId, mainView } = useVirtualMCPContext();
+  const ctx = useInsetContext();
+  if (!ctx) return null;
+  const { virtualMcpId, mainView } = ctx;
   return (
     <ErrorBoundary key={`${virtualMcpId}:${mainViewKey(mainView)}`}>
       <AgentHomeContent />

@@ -47,7 +47,7 @@ export function buildOptimisticTask(id: string, virtualMcpId?: string): Task {
   return {
     id,
     title: "New chat",
-    status: "in_progress",
+    status: "completed",
     created_at: now,
     updated_at: now,
     virtual_mcp_id: virtualMcpId,

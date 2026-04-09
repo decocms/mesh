@@ -46,14 +46,15 @@ services:
       # Automatically mounts using the PostgreSQL variables defined above
       # Uses the service name 'postgres' as host (works in Docker network)
       - DATABASE_URL=postgresql://${POSTGRES_USER:-studio_user}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-studio_db}
+
+      # Auth providers (optional, set to enable)
+      # - AUTH_GOOGLE_CLIENT_ID=${AUTH_GOOGLE_CLIENT_ID}
+      # - AUTH_GOOGLE_CLIENT_SECRET=${AUTH_GOOGLE_CLIENT_SECRET}
+      # - AUTH_GITHUB_CLIENT_ID=${AUTH_GITHUB_CLIENT_ID}
+      # - AUTH_GITHUB_CLIENT_SECRET=${AUTH_GITHUB_CLIENT_SECRET}
     volumes:
       # Persistent volume for data (other files besides the database)
       - studio-data:/app/data
-      
-      # Auth config - mounts the JSON authentication configuration file
-      # The file is mounted at /app/apps/mesh/auth-config.json (same path as Helm Chart)
-      # If the file doesn't exist locally, Docker Compose will fail to start
-      - ./auth-config.json:/app/apps/mesh/auth-config.json:ro
     healthcheck:
       # Health check using curl (adjust if your image doesn't have curl)
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]

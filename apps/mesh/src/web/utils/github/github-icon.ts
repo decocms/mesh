@@ -5,7 +5,7 @@
  * - https://github.com/owner/repo.git
  * - git@github.com:owner/repo.git
  */
-export function extractGitHubRepo(repositoryUrl?: string | { url?: string }): {
+function extractGitHubRepo(repositoryUrl?: string | { url?: string }): {
   owner: string;
   repo: string;
 } | null {

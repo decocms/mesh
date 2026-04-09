@@ -25,6 +25,7 @@ import {
   PARENT_STEP_LIMIT,
 } from "./constants";
 import { loadAndMergeMessages, processConversation } from "./conversation";
+import { uploadFileParts, resolveStorageRefs } from "./file-materializer";
 import { isToolVisibleToModel, toolsFromMCP } from "./helpers";
 import type { ToolApprovalLevel } from "./helpers";
 import { createMemory } from "./memory";
@@ -300,13 +301,21 @@ async function streamCoreInner(
     const systemMessages = input.messages.filter((m) => m.role === "system");
     const requestMessage = input.messages.find((m) => m.role !== "system");
 
+    // Upload file parts before saving so the thread stores stable
+    // mesh-storage: URIs instead of base64 data: blobs.
+    const materializedRequestMessage = requestMessage
+      ? ((await uploadFileParts([requestMessage], ctx)).find(
+          (m) => m.role !== "system",
+        ) as typeof requestMessage)
+      : undefined;
+
     if (!input.isResume) {
-      if (!requestMessage) {
+      if (!materializedRequestMessage) {
         throw new Error(
           "No user message found in input — expected at least one non-system message",
         );
       }
-      await saveMessagesToThread(requestMessage);
+      await saveMessagesToThread(materializedRequestMessage);
     }
 
     // Close MCP clients on abort
@@ -325,7 +334,7 @@ async function streamCoreInner(
     // from DB via createMemory / loadAndMergeMessages.
     const allMessages = await loadAndMergeMessages(
       mem,
-      requestMessage,
+      materializedRequestMessage,
       systemMessages,
       windowSize,
     );
@@ -383,6 +392,7 @@ async function streamCoreInner(
               toolOutputMap,
               writer,
               input.toolApprovalLevel,
+              { ctx },
             );
 
         const builtInTools = isCliAgent
@@ -473,11 +483,15 @@ async function streamCoreInner(
           agentPrompt,
         ].filter((s): s is string => Boolean(s?.trim()));
 
+        // Resolve mesh-storage: URIs to fresh presigned URLs every turn.
+        // Also handles legacy data: URLs from threads predating this pipeline.
+        const materializedMessages = await resolveStorageRefs(allMessages, ctx);
+
         const {
           systemMessages: processedSystemMessages,
           messages: processedMessages,
           originalMessages,
-        } = await processConversation(allMessages, {
+        } = await processConversation(materializedMessages, {
           windowSize,
           models: input.models,
           tools,
@@ -564,7 +578,7 @@ async function streamCoreInner(
             resolveClaudeCodeModelId(input.models.thinking.id),
             {
               mcpServers: {
-                mesh: {
+                cms: {
                   type: "http",
                   url: mcpUrl,
                   headers: {
@@ -595,7 +609,7 @@ async function streamCoreInner(
             resolveCodexModelId(input.models.thinking.id),
             {
               mcpServers: {
-                mesh: {
+                cms: {
                   transport: "http",
                   url: mcpUrl,
                   headers: {
@@ -1095,7 +1109,7 @@ async function buildToolCatalog(
     if (!isToolVisibleToModel(t)) continue;
 
     const connId = (t._meta?.connectionId as string) ?? "unknown";
-    const connName = (t._meta?.connectionTitle as string) || connId;
+    const connName = connId;
     const desc = trimToolDescription(t.description ?? "");
 
     let group = connections.get(connId);

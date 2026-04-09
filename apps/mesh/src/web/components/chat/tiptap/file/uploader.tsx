@@ -1,9 +1,9 @@
+import { Button } from "@deco/ui/components/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
-import { cn } from "@deco/ui/lib/utils.ts";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCurrentEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef, type ChangeEvent } from "react";
@@ -21,7 +21,7 @@ interface FileUploaderProps {
 /**
  * Processes a file by converting it to base64 and inserting it into the editor.
  */
-async function processFile(
+export async function processFile(
   editor: Editor,
   selectedModel: AiProviderModel | null,
   file: File,
@@ -145,6 +145,26 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
 
           return true;
         },
+
+        handlePaste: (view, event) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+
+          const fileItems = Array.from(items).filter(
+            (item) => item.kind === "file",
+          );
+          if (fileItems.length === 0) return false;
+
+          event.preventDefault();
+
+          const { from } = view.state.selection;
+          for (const item of fileItems) {
+            const file = item.getAsFile();
+            if (file) void processFileRef.current?.(file, from);
+          }
+
+          return true;
+        },
       },
     });
 
@@ -168,11 +188,13 @@ export function FileUploader({ editor, selectedModel }: FileUploaderProps) {
 interface FileUploadButtonProps {
   selectedModel: AiProviderModel | null;
   isStreaming: boolean;
+  icon?: React.ReactNode;
 }
 
 export function FileUploadButton({
   selectedModel,
   isStreaming,
+  icon,
 }: FileUploadButtonProps) {
   const { editor } = useCurrentEditor();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -199,7 +221,7 @@ export function FileUploadButton({
     }
   };
 
-  if (!editor) {
+  if (!editor || !modelSupportsFilesValue) {
     return null;
   }
 
@@ -211,29 +233,22 @@ export function FileUploadButton({
         multiple
         className="hidden"
         onChange={handleFileSelect}
-        disabled={isStreaming || !modelSupportsFilesValue}
+        disabled={isStreaming}
       />
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
+          <Button
             type="button"
-            className={cn(
-              "flex items-center justify-center size-8 rounded-md border border-border text-muted-foreground/75 transition-colors shrink-0",
-              isStreaming || !modelSupportsFilesValue
-                ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:text-muted-foreground",
-            )}
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground/75"
             disabled={isStreaming || !modelSupportsFilesValue}
             onClick={() => fileInputRef.current?.click()}
           >
-            <Attachment01 size={16} />
-          </button>
+            {icon ?? <Attachment01 size={16} />}
+          </Button>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          {!modelSupportsFilesValue
-            ? "Selected model does not support files"
-            : "Add file"}
-        </TooltipContent>
+        <TooltipContent side="top">Add file</TooltipContent>
       </Tooltip>
     </>
   );

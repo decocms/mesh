@@ -1,0 +1,9 @@
+[
+  { "name": "postgres", "listen": "0.0.0.0:5433", "upstream": "postgres:5432" },
+  { "name": "nats", "listen": "0.0.0.0:4223", "upstream": "nats:4222" },
+  {
+    "name": "everything",
+    "listen": "0.0.0.0:3001",
+    "upstream": "everything-server:3002"
+  }
+]

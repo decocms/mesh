@@ -1,4 +1,3 @@
-import { AgentAvatar } from "@/web/components/agent-icon";
 import { AgentsList } from "@/web/components/home/agents-list.tsx";
 import { ImportFromDecoDialog } from "@/web/components/import-from-deco-dialog.tsx";
 import { IntegrationIcon } from "@/web/components/integration-icon";
@@ -93,47 +92,36 @@ function HomeEmptyState({
 }: {
   onOpenContextPanel: () => void;
 }) {
-  const { org } = useProjectContext();
   const { data: session } = authClient.useSession();
-  const { selectedVirtualMcp } = useChatPrefs();
   const [importOpen, setImportOpen] = useState(false);
   const isDecoUser = useIsDecoUser();
   const isMobile = useIsMobile();
 
   const userName = session?.user?.name?.split(" ")[0] || "there";
-  const defaultAgent = getWellKnownDecopilotVirtualMCP(org.id);
-  const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   if (isMobile) {
     return (
       <>
-        <div className="flex-1 flex flex-col items-center px-4">
+        <div className="flex-1 relative flex flex-col items-center px-4">
           {/* Centered greeting */}
           <div className="flex-1 flex flex-col items-center justify-center w-full">
-            <div className="flex justify-center mb-4">
-              <AgentAvatar
-                icon={displayAgent.icon}
-                name={displayAgent.title}
-                size="md"
-                className={cn(
-                  "transition-opacity duration-200",
-                  !selectedVirtualMcp && "invisible",
-                )}
-              />
-            </div>
-            <p className="text-xl font-medium text-foreground text-center">
+            <p className="text-3xl font-medium text-foreground text-center max-w-[280px]">
               What's on your mind, {userName}?
             </p>
           </div>
-          {/* Agents above prompts, input at bottom */}
+          {/* Agents above input at bottom */}
           <div className="w-full flex flex-col gap-4 pb-4">
             <AgentsList />
-            <Chat.IceBreakers className="w-full" />
-            <Chat.Input onOpenContextPanel={onOpenContextPanel} />
-            {isDecoUser && (
-              <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
-            )}
+            <Chat.Input
+              onOpenContextPanel={onOpenContextPanel}
+              showConnectionsBanner
+            />
           </div>
+          {isDecoUser && (
+            <div className="w-full">
+              <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
+            </div>
+          )}
         </div>
         <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
       </>
@@ -142,39 +130,32 @@ function HomeEmptyState({
 
   return (
     <>
-      <div className="flex-1 flex flex-col items-center px-10">
+      <div className="flex-1 relative flex flex-col items-center px-10">
         <div className="flex-1 flex flex-col items-center justify-center w-full">
-          <div className="flex flex-col items-center w-full max-w-[600px]">
-            <div className="flex justify-center mb-4">
-              <AgentAvatar
-                icon={displayAgent.icon}
-                name={displayAgent.title}
-                size="md"
-                className={cn(
-                  "transition-opacity duration-200",
-                  !selectedVirtualMcp && "invisible",
-                )}
-              />
-            </div>
-            <div className="text-center mb-6">
-              <p className="text-xl font-medium text-foreground">
+          <div className="flex flex-col items-center w-full max-w-[672px]">
+            <div className="text-center mb-10">
+              <p className="text-3xl font-medium text-foreground">
                 What's on your mind, {userName}?
               </p>
             </div>
-            <Chat.IceBreakers className="w-full" />
             <div className="w-full">
-              <Chat.Input onOpenContextPanel={onOpenContextPanel} />
+              <Chat.Input
+                onOpenContextPanel={onOpenContextPanel}
+                showConnectionsBanner
+              />
             </div>
           </div>
-          <div className="w-full max-w-[800px] mt-10 mx-auto">
+          <div className="w-full mt-10 mx-auto">
             <AgentsList />
           </div>
         </div>
-        <div className="w-full max-w-[500px] mx-auto flex flex-col gap-2 pb-6">
-          {isDecoUser && (
-            <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
-          )}
-        </div>
+        {isDecoUser && (
+          <div className="absolute bottom-6 left-0 right-0 px-10">
+            <div className="w-full max-w-[500px] mx-auto">
+              <ImportDecoSiteBanner onClick={() => setImportOpen(true)} />
+            </div>
+          </div>
+        )}
       </div>
       <ImportFromDecoDialog open={importOpen} onOpenChange={setImportOpen} />
     </>
@@ -191,27 +172,27 @@ function SidebarEmptyState() {
   const displayAgent = selectedVirtualMcp ?? defaultAgent;
 
   return (
-    <Chat.EmptyState>
-      <div className="flex flex-col items-center gap-3 md:gap-6 w-full px-4">
-        <div className="flex flex-col items-center justify-center gap-2 md:gap-4 p-0 text-center">
-          <IntegrationIcon
-            icon={displayAgent.icon}
-            name={displayAgent.title}
-            size="lg"
-            fallbackIcon={<Users03 size={32} />}
-            className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
-          />
-          <h3 className="text-base md:text-xl font-medium text-foreground">
-            {displayAgent.title}
-          </h3>
-          <div className="text-muted-foreground text-center text-xs md:text-sm max-w-md line-clamp-2">
-            {displayAgent.description ??
-              "Ask anything about configuring model providers or using MCP Mesh."}
-          </div>
+    <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
+      <div className="flex flex-col items-center justify-center gap-2 md:gap-4 text-center">
+        <IntegrationIcon
+          icon={displayAgent.icon}
+          name={displayAgent.title}
+          size="lg"
+          fallbackIcon={<Users03 size={32} />}
+          className="size-10 min-w-10 md:size-[60px]! md:min-w-[60px] rounded-xl md:rounded-[18px]!"
+        />
+        <h3 className="text-base md:text-xl font-medium text-foreground">
+          {displayAgent.title}
+        </h3>
+        <div className="text-muted-foreground text-center text-base max-w-md line-clamp-2">
+          {displayAgent.description ??
+            "Ask anything about configuring model providers or using MCP Mesh."}
         </div>
+      </div>
+      <div className="w-full max-w-3xl mx-auto">
         <Chat.IceBreakers />
       </div>
-    </Chat.EmptyState>
+    </div>
   );
 }
 

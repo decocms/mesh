@@ -1,18 +1,19 @@
 /**
  * Tasks Panel — Sidebar + Compact List
  *
- * Status-grouped list with 3 sections: Needs input, In progress, Done.
- * Dense, scannable rows. Collapsible groups with counts.
+ * Flat list sorted by updated_at with inline status icons.
+ * Dense, scannable rows. Automations section above tasks.
  */
 
 import { useChatTask } from "@/web/components/chat/context";
-import { useVirtualMCPURLContext } from "@/web/contexts/virtual-mcp-context";
+import { usePanelActions } from "@/web/layouts/shell-layout";
+import { useInsetContext } from "@/web/layouts/agent-shell-layout";
 import { formatTimeAgo, formatTimeUntil } from "@/web/lib/format-time";
 import {
-  buildDisplayGroups,
+  getStatusConfig,
   getTaskVerb,
+  SETTABLE_STATUSES,
   STATUS_CONFIG,
-  toDisplayGroupKey,
 } from "@/web/lib/task-status";
 import type { Task } from "./task/types";
 import { useTasks } from "./task";
@@ -24,32 +25,17 @@ import {
   TooltipTrigger,
 } from "@deco/ui/components/tooltip.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
-import {
-  CheckDone01,
-  ChevronRight,
-  Loading01,
-  Plus,
-  RefreshCcw01,
-} from "@untitledui/icons";
+import { Loading01, Plus, RefreshCcw01 } from "@untitledui/icons";
 import { useRef, useState } from "react";
 import { User as UserIcon, Users as UsersIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@deco/ui/components/dropdown-menu.js";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@deco/ui/components/context-menu.tsx";
 import type { TaskOwnerFilter } from "./task";
 import {
   useAutomationsList,
@@ -68,8 +54,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@deco/ui/components/alert-dialog.tsx";
-import { Trash01 } from "@untitledui/icons";
-import { usePlayStatusSound } from "@/web/hooks/use-status-sounds";
+import { Archive, Trash01 } from "@untitledui/icons";
+import { useSound } from "@/web/hooks/use-sound.ts";
+import { question004Sound } from "@deco/ui/lib/question-004.ts";
 
 // ────────────────────────────────────────
 
@@ -147,65 +134,6 @@ export function OwnerFilter() {
 }
 
 // ────────────────────────────────────────
-// Multi-agent avatar stack
-// ────────────────────────────────────────
-
-// ────────────────────────────────────────
-// Section empty state
-// ────────────────────────────────────────
-
-function SectionEmptyState() {
-  return (
-    <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
-      No items
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
-// Group header
-// ────────────────────────────────────────
-
-function GroupHeader({
-  label,
-  icon: Icon,
-  iconClassName,
-  count,
-  isOpen,
-  onToggle,
-}: {
-  label: string;
-  icon: typeof Loading01;
-  iconClassName: string;
-  count: number;
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="group flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-    >
-      <Icon size={16} className={iconClassName} />
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      {!isOpen && (
-        <span className="text-xs text-muted-foreground/60 tabular-nums">
-          {count}
-        </span>
-      )}
-      <ChevronRight
-        size={12}
-        className={cn(
-          "text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-all duration-150",
-          isOpen && "rotate-90",
-        )}
-      />
-    </button>
-  );
-}
-
-// ────────────────────────────────────────
 // Task row
 // ────────────────────────────────────────
 
@@ -219,94 +147,91 @@ function TaskRow({
   onClick: () => void;
 }) {
   const { setTaskStatus, hideTask } = useChatTask();
-  const playStatusSound = usePlayStatusSound();
+  const playSound = useSound(question004Sound);
   const status = task.status;
+  const config = getStatusConfig(status);
+  const StatusIcon = config.icon;
   const taskVerb = getTaskVerb(task, undefined);
+  const tooltipText = taskVerb?.verb ?? config.label;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div
-          className={cn(
-            "group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors",
-            isActive ? "bg-accent" : "hover:bg-accent/50",
-          )}
-          onClick={onClick}
-        >
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            {/* Line 1: Title + time */}
-            <div className="flex items-center gap-1.5">
-              <TruncatedText
-                text={task.title || "Untitled"}
-                className="text-sm text-muted-foreground flex-1 min-w-0"
-              />
-              <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap opacity-100 group-hover/row:opacity-0 transition-opacity">
-                {task.updated_at
-                  ? formatTimeAgo(new Date(task.updated_at))
-                  : ""}
-              </span>
-            </div>
-            {/* Line 2: status verb (only when actionable) */}
-            {taskVerb && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span className={cn("shrink-0", taskVerb.labelColor)}>
-                  {taskVerb.verb}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Mark done button — shown on hover for non-completed tasks */}
-          {status !== "completed" && (
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent transition-opacity opacity-0 group-hover/row:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                playStatusSound("completed");
-                void setTaskStatus(task.id, "completed");
-              }}
-              title="Mark as done"
-            >
-              <CheckDone01 size={14} className="text-muted-foreground" />
-            </button>
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>Set status</ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-44">
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-              const Icon = cfg.icon;
-              return (
-                <ContextMenuItem
-                  key={key}
-                  className={cn("gap-2", status === key && "font-medium")}
-                  onSelect={() => void setTaskStatus(task.id, key)}
-                >
-                  <Icon size={14} className={cfg.iconClassName} />
-                  <span>{cfg.label}</span>
-                  {status === key && (
-                    <span className="ml-auto text-[10px] text-muted-foreground">
-                      current
-                    </span>
+    <div
+      className={cn(
+        "group/row relative flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer",
+        isActive ? "bg-accent" : "hover:bg-accent/50",
+      )}
+      onClick={onClick}
+    >
+      {/* Status icon — click to change status */}
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-accent/80"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <StatusIcon
+                  size={16}
+                  className={cn(
+                    config.iconClassName,
+                    status === "in_progress" && "animate-spin",
                   )}
-                </ContextMenuItem>
-              );
-            })}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          variant="destructive"
-          onSelect={() => hideTask(task.id)}
-        >
-          Archive
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+                />
+              </button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipText}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent className="w-48">
+          {SETTABLE_STATUSES.map((key) => {
+            const cfg = STATUS_CONFIG[key];
+            const Icon = cfg.icon;
+            return (
+              <DropdownMenuItem
+                key={key}
+                className={cn("gap-2", status === key && "font-medium")}
+                onSelect={() => void setTaskStatus(task.id, key)}
+              >
+                <Icon size={14} className={cfg.iconClassName} />
+                <span>{cfg.label}</span>
+                {status === key && (
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    current
+                  </span>
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Title + time */}
+      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        <TruncatedText
+          text={task.title || "Untitled"}
+          className="text-sm text-muted-foreground flex-1 min-w-0"
+        />
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap group-hover/row:invisible">
+          {task.updated_at ? formatTimeAgo(new Date(task.updated_at)) : ""}
+        </span>
+      </div>
+
+      {/* Archive button — shown on hover */}
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground invisible group-hover/row:visible"
+        onClick={(e) => {
+          e.stopPropagation();
+          playSound();
+          hideTask(task.id);
+        }}
+        title="Archive"
+      >
+        <Archive size={14} />
+      </button>
+    </div>
   );
 }
 
@@ -327,9 +252,12 @@ function AutomationRow({
 
   return (
     <div
-      className="group/row relative flex items-center gap-3 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer transition-colors hover:bg-accent/50"
+      className="group/row relative flex items-center gap-2 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] cursor-pointer hover:bg-accent/50"
       onClick={onClick}
     >
+      <span className="shrink-0 flex items-center justify-center size-6">
+        <RefreshCcw01 size={16} className="text-muted-foreground" />
+      </span>
       <span
         className={cn(
           "text-sm truncate flex-1 min-w-0",
@@ -370,11 +298,11 @@ function AutomationRow({
 // ────────────────────────────────────────
 
 function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
-  const virtualMcpCtx = useVirtualMCPURLContext();
+  const virtualMcpCtx = useInsetContext();
+  const { openMainView } = usePanelActions();
   const { data: allAutomations } = useAutomationsList(virtualMcpId);
   const createMutation = useAutomationCreate();
   const deleteMutation = useAutomationDelete();
-  const [isOpen, setIsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -389,9 +317,9 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
   const navigateToAutomation = (automationId?: string) => {
     if (automationId) {
-      virtualMcpCtx?.openMainView("automation", { id: automationId });
+      openMainView("automation", { id: automationId });
     } else {
-      virtualMcpCtx?.openMainView("default");
+      openMainView("default");
     }
   };
 
@@ -410,13 +338,12 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      // If we're currently viewing the deleted automation, navigate away
       const currentView = virtualMcpCtx?.mainView;
       if (
         currentView?.type === "automation" &&
         currentView.id === deleteTarget.id
       ) {
-        virtualMcpCtx?.openMainView("default");
+        openMainView("default");
       }
     } catch {
       // silently fail
@@ -427,65 +354,49 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="group/incoming flex items-center gap-1.5 mx-2 px-3 h-10 rounded-md w-[calc(100%-1rem)] text-sm hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-      >
-        <RefreshCcw01 size={14} className="text-purple-500" />
-        <span className="text-sm font-medium text-muted-foreground">
+      {/* Section header */}
+      <div className="flex items-center gap-2 mx-2 px-3 h-8 mt-2 w-[calc(100%-1rem)]">
+        <span className="text-xs font-medium text-muted-foreground/60">
           Automations
         </span>
-        {!isOpen && (
-          <span className="text-xs text-muted-foreground/60 tabular-nums">
-            {automations.filter((a) => a.active && a.trigger_count > 0).length}/
-            {automations.length}
-          </span>
-        )}
-        <ChevronRight
-          size={12}
-          className={cn(
-            "text-muted-foreground/40 opacity-0 group-hover/incoming:opacity-100 transition-all duration-150",
-            isOpen && "rotate-90",
-          )}
-        />
         <span className="flex-1" />
-        <span
-          role="button"
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground",
-            createMutation.isPending
-              ? "opacity-100"
-              : "opacity-0 group-hover/incoming:opacity-100",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCreate();
-          }}
-          title="Create automation"
-        >
-          {createMutation.isPending ? (
-            <Loading01 size={16} className="animate-spin" />
-          ) : (
-            <Plus size={16} />
-          )}
-        </span>
-      </button>
-      {isOpen &&
-        (automations.length > 0 ? (
-          automations.map((automation) => (
-            <AutomationRow
-              key={automation.id}
-              automation={automation}
-              onClick={() => navigateToAutomation(automation.id)}
-              onDelete={() =>
-                setDeleteTarget({ id: automation.id, name: automation.name })
-              }
-            />
-          ))
-        ) : (
-          <SectionEmptyState />
-        ))}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="button"
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md transition-all text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer",
+              )}
+              onClick={handleCreate}
+            >
+              {createMutation.isPending ? (
+                <Loading01 size={16} className="animate-spin" />
+              ) : (
+                <Plus size={16} />
+              )}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>New automation</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Automation rows — always visible */}
+      {automations.length > 0 ? (
+        automations.map((automation) => (
+          <AutomationRow
+            key={automation.id}
+            automation={automation}
+            onClick={() => navigateToAutomation(automation.id)}
+            onDelete={() =>
+              setDeleteTarget({ id: automation.id, name: automation.name })
+            }
+          />
+        ))
+      ) : (
+        <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+          No automations
+        </div>
+      )}
 
       <AlertDialog
         open={!!deleteTarget}
@@ -521,127 +432,21 @@ function IncomingSection({ virtualMcpId }: { virtualMcpId: string }) {
 // Core list (sidebar + side-panel)
 // ────────────────────────────────────────
 
-// ────────────────────────────────────────
-// Grouped task list — keyed by activeGroupKey so expanded state resets
-// when the active task moves between groups
-// ────────────────────────────────────────
-
-function GroupedTaskList({
-  groups,
-  activeGroupKey,
-  activeTaskId,
-  virtualMcpId,
-  showAutomations = true,
-  onTaskSelect,
-}: {
-  groups: ReturnType<typeof buildDisplayGroups>;
-  activeGroupKey: string | null;
-  activeTaskId: string | null;
-  virtualMcpId?: string | null;
-  showAutomations?: boolean;
-  onTaskSelect: (task: Task) => void;
-}) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    // Default: auto-open the group containing the active task
-    if (activeGroupKey) return { [activeGroupKey]: true };
-    return {};
-  });
-
-  const toggleGroup = (key: string) => {
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      {groups
-        .filter((g) => g.key !== "done")
-        .map((group, index) => {
-          const isOpen = !!expanded[group.key];
-          return (
-            <div key={group.key} className={cn(index > 0 && "mt-3")}>
-              <GroupHeader
-                label={group.label}
-                icon={group.icon}
-                iconClassName={group.iconClassName}
-                count={group.tasks.length}
-                isOpen={isOpen}
-                onToggle={() => toggleGroup(group.key)}
-              />
-              {isOpen && (
-                <div className="mt-1">
-                  {group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === activeTaskId}
-                        onClick={() => onTaskSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      {virtualMcpId && showAutomations && (
-        <div className="mt-3">
-          <IncomingSection virtualMcpId={virtualMcpId} />
-        </div>
-      )}
-      {groups
-        .filter((g) => g.key === "done")
-        .map((group) => {
-          const isOpen = !!expanded[group.key];
-          return (
-            <div key={group.key} className="mt-3">
-              <GroupHeader
-                label={group.label}
-                icon={group.icon}
-                iconClassName={group.iconClassName}
-                count={group.tasks.length}
-                isOpen={isOpen}
-                onToggle={() => toggleGroup(group.key)}
-              />
-              {isOpen && (
-                <div className="mt-1">
-                  {group.tasks.length > 0 ? (
-                    group.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        isActive={task.id === activeTaskId}
-                        onClick={() => onTaskSelect(task)}
-                      />
-                    ))
-                  ) : (
-                    <SectionEmptyState />
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────
-
 interface TaskListContentProps {
   onTaskSelect?: (taskId: string) => void;
+  onTaskCreate?: () => void;
   virtualMcpId?: string | null;
   showAutomations?: boolean;
 }
 
 export function TaskListContent({
   onTaskSelect,
+  onTaskCreate,
   virtualMcpId,
   showAutomations = true,
 }: TaskListContentProps) {
-  const { openTask, ownerFilter } = useChatTask();
+  const { ownerFilter } = useChatTask();
+  const { setTaskId } = usePanelActions();
 
   // Read taskId directly from router (seeded by validateSearch)
   const search = useSearch({ strict: false }) as { taskId?: string };
@@ -656,42 +461,68 @@ export function TaskListContent({
     virtualMcpId ?? "",
   );
 
-  const visible = tasks.filter((t) => !t.hidden);
-  const groups = buildDisplayGroups(visible);
-
-  // Find which group the active task belongs to so we can auto-open it
-  const activeTask = taskId ? visible.find((t) => t.id === taskId) : null;
-  const activeGroupKey = activeTask
-    ? toDisplayGroupKey(activeTask.status)
-    : null;
+  const visible = tasks
+    .filter((t) => !t.hidden)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
 
   const handleSelect = (task: Task) => {
     if (onTaskSelect) {
       onTaskSelect(task.id);
     } else {
-      openTask(task.id);
+      setTaskId(task.id);
     }
   };
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Tasks header */}
-      <div className="px-2 py-1 flex items-center gap-0.5 min-h-12">
-        <span className="flex-1 text-xs font-medium text-muted-foreground px-2">
-          Tasks
-        </span>
-      </div>
+      <div className="flex-1 overflow-y-auto">
+        {/* Automations section */}
+        {virtualMcpId && showAutomations && (
+          <IncomingSection virtualMcpId={virtualMcpId} />
+        )}
 
-      {/* Grouped list — key resets expanded state when active task moves groups */}
-      <GroupedTaskList
-        key={activeGroupKey ?? "none"}
-        groups={groups}
-        activeGroupKey={activeGroupKey}
-        activeTaskId={taskId}
-        virtualMcpId={virtualMcpId}
-        showAutomations={showAutomations}
-        onTaskSelect={handleSelect}
-      />
+        {/* Tasks section header */}
+        <div className="flex items-center gap-2 mx-2 px-3 h-8 mt-2 w-[calc(100%-1rem)]">
+          <span className="text-xs font-medium text-muted-foreground/60">
+            Tasks
+          </span>
+          <span className="flex-1" />
+          {onTaskCreate && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  role="button"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                  onClick={onTaskCreate}
+                >
+                  <Plus size={16} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>New task</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* Task rows — always visible */}
+        {visible.length > 0 ? (
+          visible.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              isActive={task.id === taskId}
+              onClick={() => handleSelect(task)}
+            />
+          ))
+        ) : (
+          <div className="mx-2 px-2 py-3 text-xs text-muted-foreground/60">
+            No tasks
+          </div>
+        )}
+      </div>
     </div>
   );
 }

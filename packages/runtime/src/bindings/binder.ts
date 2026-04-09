@@ -7,7 +7,7 @@ import {
   type MCPClientFetchStub,
   type ToolBinder,
 } from "../mcp.ts";
-import { createPrivateTool, createStreamableTool } from "../tools.ts";
+import { createPrivateTool } from "../tools.ts";
 import { CHANNEL_BINDING } from "./channels.ts";
 
 // ToolLike is a simplified version of the Tool interface that matches what we need for bindings
@@ -77,13 +77,6 @@ export const bindingClient = <TDefinition extends readonly ToolBinder[]>(
     ): MCPClientFetchStub<TDefinition> => {
       return createMCPFetchStub<TDefinition>({
         connection: mcpConnection,
-        streamable: binder.reduce(
-          (acc, tool) => {
-            acc[tool.name] = tool.streamable === true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        ),
       });
     },
   };
@@ -99,12 +92,8 @@ export const impl = <TBinder extends Binder>(
   schema: TBinder,
   implementation: BinderImplementation<TBinder>,
   createToolFn = createPrivateTool,
-  createStreamableToolFn = createStreamableTool,
 ) => {
-  const impl: (
-    | ReturnType<typeof createToolFn>
-    | ReturnType<typeof createStreamableToolFn>
-  )[] = [];
+  const impl: ReturnType<typeof createToolFn>[] = [];
   for (const key in schema) {
     const toolSchema = schema[key];
     const toolImplementation = implementation[key];
@@ -117,28 +106,17 @@ export const impl = <TBinder extends Binder>(
       throw new Error(`Implementation for ${key} is required`);
     }
 
-    const { name, handler, streamable, ...toolLike } = {
+    const { name, handler, ...toolLike } = {
       ...toolSchema,
       ...toolImplementation,
     };
-    if (streamable) {
-      impl.push(
-        createStreamableToolFn({
-          ...toolLike,
-          streamable,
-          id: name,
-          execute: ({ context }) => Promise.resolve(handler(context)),
-        }),
-      );
-    } else {
-      impl.push(
-        createToolFn({
-          ...toolLike,
-          id: name,
-          execute: ({ context }) => Promise.resolve(handler(context)),
-        }),
-      );
-    }
+    impl.push(
+      createToolFn({
+        ...toolLike,
+        id: name,
+        execute: ({ context }) => Promise.resolve(handler(context)),
+      }),
+    );
   }
   return impl;
 };

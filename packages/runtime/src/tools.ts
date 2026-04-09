@@ -73,19 +73,7 @@ export interface Tool<
 }
 
 /**
- * Streamable tool interface for tools that return Response streams.
- */
-export interface StreamableTool<TSchemaIn extends ZodSchema = ZodSchema> {
-  _meta?: Record<string, unknown>;
-  id: string;
-  inputSchema: TSchemaIn;
-  streamable?: true;
-  description?: string;
-  execute(input: ToolExecutionContext<TSchemaIn>): Promise<Response>;
-}
-
-/**
- * CreatedTool is a permissive type that any Tool or StreamableTool can be assigned to.
+ * CreatedTool is a permissive type that any Tool can be assigned to.
  * Uses a structural type with relaxed execute signature to allow tools with any schema.
  */
 export type CreatedTool = {
@@ -95,7 +83,6 @@ export type CreatedTool = {
   annotations?: ToolAnnotations;
   inputSchema: ZodTypeAny;
   outputSchema?: ZodTypeAny;
-  streamable?: true;
   // Use a permissive execute signature - accepts any context shape
   execute(context: {
     context: unknown;
@@ -237,24 +224,6 @@ export function createPrivateTool<
   return createTool(opts);
 }
 
-export function createStreamableTool<TSchemaIn extends ZodSchema = ZodSchema>(
-  streamableTool: StreamableTool<TSchemaIn>,
-): StreamableTool<TSchemaIn> {
-  return {
-    ...streamableTool,
-    execute: (input: ToolExecutionContext<TSchemaIn>) => {
-      const env = input.runtimeContext.env;
-      if (env) {
-        env.MESH_REQUEST_CONTEXT?.ensureAuthenticated();
-      }
-      return streamableTool.execute({
-        ...input,
-        runtimeContext: createRuntimeContext(input.runtimeContext),
-      });
-    },
-  };
-}
-
 export function createTool<
   TSchemaIn extends ZodSchema = ZodSchema,
   TSchemaOut extends ZodSchema | undefined = undefined,
@@ -353,12 +322,6 @@ export interface ViewExport {
 export interface Integration {
   id: string;
   appId: string;
-}
-
-export function isStreamableTool(
-  tool: CreatedTool,
-): tool is StreamableTool & CreatedTool {
-  return tool && "streamable" in tool && tool.streamable === true;
 }
 
 export interface OnChangeCallback<TState> {
@@ -929,21 +892,17 @@ export const createMCPServer = <
       server.registerTool(
         tool.id,
         {
-          _meta: {
-            streamable: isStreamableTool(tool),
-            ...(tool._meta ?? {}),
-          },
+          _meta: tool._meta,
           description: tool.description,
           annotations: tool.annotations,
           inputSchema:
             tool.inputSchema && "shape" in tool.inputSchema
               ? (tool.inputSchema.shape as ZodRawShape)
               : z.object({}).shape,
-          outputSchema: isStreamableTool(tool)
-            ? z.object({ bytes: z.record(z.string(), z.number()) }).shape
-            : tool.outputSchema &&
-                typeof tool.outputSchema === "object" &&
-                "shape" in tool.outputSchema
+          outputSchema:
+            tool.outputSchema &&
+            typeof tool.outputSchema === "object" &&
+            "shape" in tool.outputSchema
               ? (tool.outputSchema.shape as ZodRawShape)
               : undefined,
         },
@@ -953,23 +912,6 @@ export const createMCPServer = <
             runtimeContext: createRuntimeContext(),
           });
 
-          // For streamable tools, the Response is handled at the transport layer.
-          // Do NOT call result.bytes() — it buffers the entire body in memory.
-          if (isStreamableTool(tool) && result instanceof Response) {
-            return {
-              structuredContent: {
-                streamable: true,
-                status: result.status,
-                statusText: result.statusText,
-              },
-              content: [
-                {
-                  type: "text",
-                  text: `Streaming response: ${result.status} ${result.statusText}`,
-                },
-              ],
-            };
-          }
           return {
             structuredContent: result as Record<string, unknown>,
             content: [

@@ -3,14 +3,8 @@
  * Provides inline virtual MCP creation with optional navigation.
  */
 
-import { useNavigate } from "@tanstack/react-router";
-import {
-  useProjectContext,
-  useVirtualMCPActions,
-  useVirtualMCPs,
-  type VirtualMCPEntity,
-} from "@decocms/mesh-sdk";
-import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
+import { useVirtualMCPActions, type VirtualMCPEntity } from "@decocms/mesh-sdk";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 
 interface CreateVirtualMCPResult {
   id: string;
@@ -42,12 +36,8 @@ export function useCreateVirtualMCP(
   options: UseCreateVirtualMCPOptions = {},
 ): UseCreateVirtualMCPResult {
   const { navigateOnCreate = false } = options;
-  const { org } = useProjectContext();
-  const navigate = useNavigate();
   const actions = useVirtualMCPActions();
-  const allAgents = useVirtualMCPs();
-  const serverPinnedIds = allAgents.filter((a) => a.pinned).map((a) => a.id);
-  const { pin } = usePinnedAgents(org.id, serverPinnedIds);
+  const navigateToAgent = useNavigateToAgent();
 
   const createVirtualMCP = async (): Promise<CreateVirtualMCPResult> => {
     const virtualMcp = await actions.create.mutateAsync({
@@ -58,17 +48,8 @@ export function useCreateVirtualMCP(
       pinned: true,
     });
 
-    pin(virtualMcp.id!);
-
     if (navigateOnCreate) {
-      navigate({
-        to: "/$org/$virtualMcpId",
-        params: {
-          org: org.slug,
-          virtualMcpId: virtualMcp.id,
-        },
-        search: { main: "settings" },
-      });
+      navigateToAgent(virtualMcp.id!, { search: { main: "settings" } });
     }
 
     return { id: virtualMcp.id!, virtualMcp }; // ID is guaranteed to be non-null for created virtual MCPs

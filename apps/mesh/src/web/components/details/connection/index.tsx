@@ -1,11 +1,11 @@
 import { generatePrefixedId } from "@/shared/utils/generate-id";
 import { EmptyState } from "@/web/components/empty-state.tsx";
 import { ErrorBoundary } from "@/web/components/error-boundary";
+import { recordToEnvVars } from "@/web/components/env-vars-editor";
 import {
-  envVarsToRecord,
-  recordToEnvVars,
-  type EnvVar,
-} from "@/web/components/env-vars-editor";
+  buildCustomStdioParameters,
+  buildNpxParameters,
+} from "@/web/utils/connection-form-helpers";
 import { connectionImplementsBinding } from "@/web/hooks/use-binding";
 import { MCP_BINDING } from "@decocms/bindings/mcp";
 import { useMCPAuthStatus } from "@/web/hooks/use-mcp-auth-status";
@@ -25,16 +25,6 @@ import {
   BreadcrumbSeparator,
 } from "@deco/ui/components/breadcrumb.tsx";
 import { ConnectionInstancesPanel } from "./connection-instances-panel.tsx";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@deco/ui/components/alert-dialog.tsx";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Sheet,
@@ -74,6 +64,8 @@ import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
+import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
 import { ViewLayout } from "../layout";
 import { ConnectionActivity } from "./connection-activity.tsx";
 import { ConnectionAgentsPanel } from "./connection-agents-panel.tsx";
@@ -113,53 +105,6 @@ function parseStdioToCustom(params: StdioConnectionParameters): {
     args: params.args?.join(" ") ?? "",
     cwd: params.cwd ?? "",
   };
-}
-
-/**
- * Build STDIO connection_headers from NPX form fields
- */
-function buildNpxParameters(
-  packageName: string,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: "npx",
-    args: ["-y", packageName],
-  };
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-  return params;
-}
-
-/**
- * Build STDIO connection_headers from custom command form fields
- */
-function buildCustomStdioParameters(
-  command: string,
-  argsString: string,
-  cwd: string | undefined,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: command,
-  };
-
-  if (argsString.trim()) {
-    params.args = argsString.trim().split(/\s+/);
-  }
-
-  if (cwd?.trim()) {
-    params.cwd = cwd.trim();
-  }
-
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-
-  return params;
 }
 
 /**
@@ -304,9 +249,14 @@ function ConnectionInspectorViewWithConnection({
   const navigate = useNavigate({ from: "/$org/settings/connections/$appSlug" });
   const queryClient = useQueryClient();
   const connectionActions = useConnectionActions();
+  const deleteConnection = useDeleteConnection({
+    onSuccess: () => {
+      if (siblings.length <= 1) {
+        navigate({ to: "/$org/settings/connections", params: { org } });
+      }
+    },
+  });
   const [configureInstance, setConfigureInstance] =
-    useState<ConnectionEntity | null>(null);
-  const [disconnectInstance, setDisconnectInstance] =
     useState<ConnectionEntity | null>(null);
   const [isAddingInstance, setIsAddingInstance] = useState(false);
 
@@ -461,19 +411,6 @@ function ConnectionInspectorViewWithConnection({
     }
   };
 
-  const handleDisconnect = async (instance: ConnectionEntity) => {
-    await connectionActions.delete.mutateAsync(instance.id);
-    // If we deleted the last sibling, go back to list
-    if (siblings.length <= 1) {
-      navigate({
-        to: "/$org/settings/connections",
-        params: { org },
-      });
-    }
-    // Otherwise stay on same slug — remaining siblings still share it
-    setDisconnectInstance(null);
-  };
-
   const breadcrumb = (
     <Breadcrumb>
       <BreadcrumbList>
@@ -501,37 +438,7 @@ function ConnectionInspectorViewWithConnection({
 
   return (
     <>
-      {/* Disconnect Confirmation */}
-      <AlertDialog
-        open={disconnectInstance !== null}
-        onOpenChange={(open) => {
-          if (!open) setDisconnectInstance(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect instance?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove{" "}
-              <span className="font-medium text-foreground">
-                {disconnectInstance?.title}
-              </span>
-              . This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                disconnectInstance && handleDisconnect(disconnectInstance)
-              }
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Disconnect
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConnectionDialogs {...deleteConnection} />
 
       {/* Settings Sheet */}
       <Sheet
@@ -639,7 +546,7 @@ function ConnectionInspectorViewWithConnection({
                 onClick={() => {
                   const inst = configureInstance ?? connection;
                   setConfigureInstance(null);
-                  setDisconnectInstance(inst);
+                  deleteConnection.requestDelete(inst);
                 }}
               >
                 <Trash01 size={15} />
@@ -672,7 +579,7 @@ function ConnectionInspectorViewWithConnection({
                   instances={siblings}
                   onConfigure={(inst) => setConfigureInstance(inst)}
                   onAuthenticate={(inst) => handleAuthenticateForId(inst.id)}
-                  onDelete={(inst) => setDisconnectInstance(inst)}
+                  onDelete={(inst) => deleteConnection.requestDelete(inst)}
                   isAdding={isAddingInstance}
                   onAdd={async () => {
                     setIsAddingInstance(true);

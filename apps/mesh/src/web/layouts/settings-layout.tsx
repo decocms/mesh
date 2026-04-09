@@ -10,25 +10,38 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarInset,
+  SidebarLayout,
   SidebarMenu,
-  SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  useSidebar,
 } from "@deco/ui/components/sidebar.tsx";
+import { Sheet, SheetContent, SheetTitle } from "@deco/ui/components/sheet.tsx";
 import { PageContentClassNameProvider } from "@/web/components/page";
 import {
   ArrowNarrowLeft,
   BarChart10,
+  BookOpen01,
   Building02,
+  ChevronLeft,
+  ChevronRight,
   Container,
   CpuChip01,
+  Loading01,
   Lock01,
+  Menu01,
   PackageCheck,
   User01,
   Users03,
   Zap,
 } from "@untitledui/icons";
 import { useProjectContext } from "@decocms/mesh-sdk";
+import { useIsMobile } from "@deco/ui/hooks/use-mobile.ts";
+import { Suspense } from "react";
 import { pluginSettingsSidebarItems } from "@/web/index";
+import { useStatusSounds } from "../hooks/use-status-sounds";
 
 interface SettingsNavItem {
   key: string;
@@ -67,10 +80,22 @@ function useSettingsSidebarGroups(): SettingsNavGroup[] {
           to: "/$org/settings/connections",
         },
         {
+          key: "agents",
+          label: "Agents",
+          icon: <Users03 size={14} />,
+          to: "/$org/settings/agents",
+        },
+        {
           key: "store",
           label: "Store",
           icon: <PackageCheck size={14} />,
           to: "/$org/settings/store",
+        },
+        {
+          key: "brand-context",
+          label: "Brand Context",
+          icon: <BookOpen01 size={14} />,
+          to: "/$org/settings/brand-context",
         },
         {
           key: "ai-providers",
@@ -141,7 +166,7 @@ export function SettingsSidebar() {
 
   return (
     <Sidebar variant="sidebar">
-      <SidebarContent className="flex flex-col flex-1 overflow-x-hidden mt-2 px-2 pb-2 gap-0">
+      <SidebarContent className="flex flex-col flex-1 mt-2 px-2 pb-2 gap-0">
         {/* Back to org */}
         <SidebarGroup className="pt-0 pr-0 pb-3 md:pb-3 pl-0">
           <SidebarGroupContent>
@@ -268,12 +293,151 @@ export function SettingsSidebarMobile({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Settings toolbar — back/forward navigation only (no panel toggles)
+// ---------------------------------------------------------------------------
+
+function SettingsToolbar() {
+  return (
+    <div className="shrink-0 flex items-center justify-between pl-1 pr-2 h-10">
+      <div className="flex items-center gap-0.5 min-w-0">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+          title="Go back"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.history.forward()}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+          title="Go forward"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MobileToolbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
+  return (
+    <div className="shrink-0 flex items-center justify-between px-3 h-12 bg-background border-b border-border">
+      <button
+        type="button"
+        onClick={onOpenSidebar}
+        className="flex size-8 items-center justify-center rounded-md text-foreground/60 hover:bg-accent hover:text-foreground transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu01 size={20} />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Settings inset — lightweight content area (no Chat, no virtualMCP)
+// ---------------------------------------------------------------------------
+
+function SettingsInset() {
+  const isMobile = useIsMobile();
+  const { org } = useProjectContext();
+
+  // Org-wide SSE sound notifications
+  useStatusSounds(org.id);
+
+  const { setOpenMobile, openMobile: mobileSidebarOpen } = useSidebar();
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col flex-1 bg-background min-h-0">
+        <MobileToolbar onOpenSidebar={() => setOpenMobile(true)} />
+        <div className="flex-1 overflow-hidden">
+          <PageContentClassNameProvider value="p-0">
+            <div className="flex-1 min-w-0 overflow-hidden h-full">
+              <Outlet />
+            </div>
+          </PageContentClassNameProvider>
+        </div>
+        <Sheet open={mobileSidebarOpen} onOpenChange={setOpenMobile}>
+          <SheetContent
+            side="left"
+            hideCloseButton
+            className="w-[calc(100vw-3rem)] sm:max-w-md! p-0"
+          >
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <SettingsSidebarMobile onClose={() => setOpenMobile(false)} />
+          </SheetContent>
+        </Sheet>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <SettingsToolbar />
+      <div className="flex-1 min-h-0 p-0.5 pb-1 pr-1">
+        <div
+          className={cn(
+            "flex flex-col h-full min-h-0 bg-card overflow-hidden",
+            "border border-sidebar-border shadow-sm",
+            "rounded-[0.75rem]",
+          )}
+        >
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <Loading01
+                  size={20}
+                  className="animate-spin text-muted-foreground"
+                />
+              </div>
+            }
+          >
+            <div className="flex flex-1 items-center overflow-hidden rounded-[inherit]">
+              <PageContentClassNameProvider value="p-0">
+                <div className="flex-1 min-w-0 overflow-hidden h-full">
+                  <Outlet />
+                </div>
+              </PageContentClassNameProvider>
+            </div>
+          </Suspense>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Default export — the shell layout component for settings routes
+// ---------------------------------------------------------------------------
+
 export default function SettingsLayout() {
   return (
-    <PageContentClassNameProvider value="p-0">
-      <div className="flex-1 min-w-0 overflow-hidden h-full">
-        <Outlet />
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex flex-col h-dvh overflow-hidden">
+        <SidebarLayout
+          className="flex-1 bg-sidebar"
+          style={
+            {
+              "--sidebar-width-icon": "3.5rem",
+            } as Record<string, string>
+          }
+        >
+          <SettingsSidebar />
+          <SidebarInset
+            className="flex flex-col"
+            style={{
+              background: "transparent",
+              containerType: "inline-size",
+            }}
+          >
+            <SettingsInset />
+          </SidebarInset>
+        </SidebarLayout>
       </div>
-    </PageContentClassNameProvider>
+    </SidebarProvider>
   );
 }

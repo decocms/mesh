@@ -8,6 +8,8 @@ import { ErrorBoundary } from "@/web/components/error-boundary";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
 import { Page } from "@/web/components/page";
 import type { RegistryItem } from "@/web/components/store/types";
+import { DeleteConnectionDialogs } from "@/web/components/delete-connection-dialogs";
+import { useDeleteConnection } from "@/web/hooks/use-delete-connection";
 import { useInfiniteScroll } from "@/web/hooks/use-infinite-scroll";
 import { useLocalStorage } from "@/web/hooks/use-local-storage";
 import { LOCALSTORAGE_KEYS } from "@/web/lib/localstorage-keys";
@@ -18,7 +20,6 @@ import { useAuthConfig } from "@/web/providers/auth-config-provider";
 import { useMergedStoreDiscovery } from "@/web/hooks/use-merged-store-discovery";
 import { getGitHubAvatarUrl } from "@/web/utils/github";
 import { getConnectionSlug } from "@/shared/utils/connection-slug";
-import { slugify } from "@/shared/utils/slugify";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,7 +100,7 @@ import {
   Trash01,
   XClose,
 } from "@untitledui/icons";
-import { Suspense, useEffect, useReducer, useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   connectionFormSchema,
@@ -110,13 +111,7 @@ import type {
   HttpConnectionParameters,
   StdioConnectionParameters,
 } from "@/tools/connection/schema";
-import { isStdioParameters } from "@/tools/connection/schema";
-import {
-  EnvVarsEditor,
-  envVarsToRecord,
-  recordToEnvVars,
-  type EnvVar,
-} from "@/web/components/env-vars-editor";
+import { EnvVarsEditor } from "@/web/components/env-vars-editor";
 import {
   extractConnectionData,
   getRegistryItemAppName,
@@ -126,68 +121,23 @@ import {
   authenticateMcp,
 } from "@/web/lib/mcp-oauth";
 import { KEYS } from "@/web/lib/query-keys";
+import {
+  type ConnectionProviderHint,
+  buildCustomStdioParameters,
+  buildNpxParameters,
+  inferHardcodedProviderHint,
+  inferRegistryProviderHint,
+  parseNpxLikeCommand,
+} from "@/web/utils/connection-form-helpers";
 
 // ---------------------------------------------------------------------------
-// Grouping helpers
+// Grouping helpers (shared with agent add-connection dialog)
 // ---------------------------------------------------------------------------
 
-interface ConnectionGroup {
-  type: "group";
-  key: string;
-  icon: string | null;
-  title: string;
-  connections: ConnectionEntity[];
-}
-
-interface SingleConnection {
-  type: "single";
-  connection: ConnectionEntity;
-}
-
-type GroupedItem = SingleConnection | ConnectionGroup;
-
-function getGroupKey(c: ConnectionEntity): string {
-  return getConnectionSlug(c);
-}
-
-function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
-  const buckets = new Map<string, ConnectionEntity[]>();
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    const list = buckets.get(key);
-    if (list) {
-      list.push(c);
-    } else {
-      buckets.set(key, [c]);
-    }
-  }
-
-  const items: GroupedItem[] = [];
-  const seen = new Set<string>();
-
-  for (const c of connections) {
-    const key = getGroupKey(c);
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const bucket = buckets.get(key)!;
-    const first = bucket[0]!;
-    if (bucket.length === 1) {
-      items.push({ type: "single", connection: first });
-    } else {
-      items.push({
-        type: "group",
-        key,
-        icon: first.icon,
-        title: first.app_name
-          ? first.title.replace(/\s*\(\d+\)\s*$/, "")
-          : first.title,
-        connections: bucket,
-      });
-    }
-  }
-  return items;
-}
+import {
+  groupConnections,
+  type ConnectionGroup,
+} from "@/shared/utils/group-connections";
 
 // ---------------------------------------------------------------------------
 // Connection type / status filter types
@@ -196,244 +146,6 @@ function groupConnections(connections: ConnectionEntity[]): GroupedItem[] {
 type ConnectionTypeFilter = "ALL" | "HTTP" | "SSE" | "Websocket" | "STDIO";
 
 type ConnectionStatusFilter = "ALL" | "active" | "inactive" | "error";
-
-// ---------------------------------------------------------------------------
-// Schemas — imported from shared module
-// ---------------------------------------------------------------------------
-
-type ConnectionProviderHint = {
-  id: "github" | "perplexity" | "registry";
-  title?: string;
-  description?: string | null;
-  token?: {
-    label: string;
-    placeholder?: string;
-    helperText?: string;
-  };
-  envVarKeys?: string[];
-};
-
-function normalizeUrl(input: string): string {
-  const raw = input.trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    const normalizedPath =
-      url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
-    return `${url.origin}${normalizedPath}`;
-  } catch {
-    return raw.replace(/\/+$/, "");
-  }
-}
-
-function parseNpxLikeCommand(input: string): { packageName: string } | null {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 2) return null;
-
-  const command = tokens[0]?.toLowerCase();
-  if (command !== "npx" && command !== "bunx") return null;
-
-  // Skip flags like -y, --yes
-  const args = tokens.slice(1);
-  const firstNonFlag = args.find((a) => !a.startsWith("-"));
-  if (!firstNonFlag) return null;
-
-  return { packageName: firstNonFlag };
-}
-
-function inferHardcodedProviderHint(params: {
-  uiType: ConnectionFormData["ui_type"];
-  connectionUrl?: string;
-  npxPackage?: string;
-}): ConnectionProviderHint | null {
-  const { uiType } = params;
-
-  // GitHub Copilot MCP (hardcoded)
-  const normalized = normalizeUrl(params.connectionUrl ?? "");
-  if (
-    (uiType === "HTTP" || uiType === "SSE" || uiType === "Websocket") &&
-    normalized === normalizeUrl("https://api.githubcopilot.com/mcp/")
-  ) {
-    return {
-      id: "github",
-      title: "GitHub",
-      description: "GitHub Copilot MCP",
-      token: {
-        label: "GitHub PAT",
-        placeholder: "github_pat_…",
-        helperText: "Paste a GitHub Personal Access Token (PAT)",
-      },
-    };
-  }
-
-  // Perplexity MCP (hardcoded)
-  const npxPackage = (params.npxPackage ?? "").trim();
-  if (uiType === "NPX" && npxPackage === "@perplexity-ai/mcp-server") {
-    return {
-      id: "perplexity",
-      title: "Perplexity",
-      description: "Perplexity MCP Server",
-      envVarKeys: ["PERPLEXITY_API_KEY"],
-    };
-  }
-
-  return null;
-}
-
-function inferRegistryProviderHint(params: {
-  uiType: ConnectionFormData["ui_type"];
-  connectionUrl?: string;
-  registryItems: RegistryItem[];
-}): ConnectionProviderHint | null {
-  if (params.registryItems.length === 0) return null;
-  if (
-    params.uiType !== "HTTP" &&
-    params.uiType !== "SSE" &&
-    params.uiType !== "Websocket"
-  ) {
-    return null;
-  }
-
-  const normalized = normalizeUrl(params.connectionUrl ?? "");
-  if (!normalized) return null;
-
-  const match = params.registryItems.find((item) => {
-    const remotes = item.server?.remotes ?? [];
-    return remotes.some((r) => normalizeUrl(r.url ?? "") === normalized);
-  });
-
-  if (!match) return null;
-
-  const title =
-    match.title ||
-    match.name ||
-    match.server?.title ||
-    match.server?.name ||
-    "";
-  const description =
-    match.server?.description || match.description || match.summary || null;
-
-  if (!title) return null;
-
-  return {
-    id: "registry",
-    title,
-    description,
-  };
-}
-
-/**
- * Build STDIO connection_headers from NPX form fields
- */
-function buildNpxParameters(
-  packageName: string,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: "npx",
-    args: ["-y", packageName],
-  };
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-  return params;
-}
-
-/**
- * Build STDIO connection_headers from custom command form fields
- */
-function buildCustomStdioParameters(
-  command: string,
-  argsString: string,
-  cwd: string | undefined,
-  envVars: EnvVar[],
-): StdioConnectionParameters {
-  const params: StdioConnectionParameters = {
-    command: command,
-  };
-
-  if (argsString.trim()) {
-    params.args = argsString.trim().split(/\s+/);
-  }
-
-  if (cwd?.trim()) {
-    params.cwd = cwd.trim();
-  }
-
-  const envRecord = envVarsToRecord(envVars);
-  if (Object.keys(envRecord).length > 0) {
-    params.envVars = envRecord;
-  }
-
-  return params;
-}
-
-/**
- * Check if STDIO params look like an NPX command
- */
-function isNpxCommand(params: StdioConnectionParameters): boolean {
-  return params.command === "npx";
-}
-
-/**
- * Parse STDIO connection_headers back to NPX form fields
- */
-function parseStdioToNpx(params: StdioConnectionParameters): string {
-  return params.args?.find((a) => !a.startsWith("-")) ?? "";
-}
-
-/**
- * Parse STDIO connection_headers to custom command form fields
- */
-function parseStdioToCustom(params: StdioConnectionParameters): {
-  command: string;
-  args: string;
-  cwd: string;
-} {
-  return {
-    command: params.command,
-    args: params.args?.join(" ") ?? "",
-    cwd: params.cwd ?? "",
-  };
-}
-
-type DialogState =
-  | { mode: "idle" }
-  | { mode: "editing"; connection: ConnectionEntity }
-  | { mode: "deleting"; connection: ConnectionEntity }
-  | {
-      mode: "force-deleting";
-      connection: ConnectionEntity;
-      agentNames: string;
-    };
-
-type DialogAction =
-  | { type: "edit"; connection: ConnectionEntity }
-  | { type: "delete"; connection: ConnectionEntity }
-  | {
-      type: "force-delete";
-      connection: ConnectionEntity;
-      agentNames: string;
-    }
-  | { type: "close" };
-
-function dialogReducer(_state: DialogState, action: DialogAction): DialogState {
-  switch (action.type) {
-    case "edit":
-      return { mode: "editing", connection: action.connection };
-    case "delete":
-      return { mode: "deleting", connection: action.connection };
-    case "force-delete":
-      return {
-        mode: "force-deleting",
-        connection: action.connection,
-        agentNames: action.agentNames,
-      };
-    case "close":
-      return { mode: "idle" };
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Grouped card: collapsible row for connections sharing the same app_name
@@ -779,6 +491,24 @@ function BulkDeleteDialog({
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
+// ListState import type alias (re-exported for convenience)
+// ---------------------------------------------------------------------------
+import type { ListState } from "@/web/hooks/use-list-state";
+
+// ---------------------------------------------------------------------------
+// ConnectionResults props
+// ---------------------------------------------------------------------------
+
+interface ConnectionResultsProps {
+  listState: ListState<ConnectionEntity>;
+  activeTab: "connected" | "all";
+  typeFilter: ConnectionTypeFilter;
+  statusFilter: ConnectionStatusFilter;
+  registryFilter: string;
+  enabledRegistries: Array<{ id: string; title: string; icon: string | null }>;
+}
+
+// ---------------------------------------------------------------------------
 // Catalog item card (used in "All" tab for registry items)
 // ---------------------------------------------------------------------------
 
@@ -792,7 +522,6 @@ function CatalogItemCard({
   connectedAppNames,
   connectingItemId,
   onNavigateConnected,
-  onNavigateCatalog,
   onConnect,
 }: {
   item: RegistryItem;
@@ -800,13 +529,10 @@ function CatalogItemCard({
   connectedAppNames: Set<string>;
   connectingItemId: string | null;
   onNavigateConnected: (conn: ConnectionEntity) => void;
-  onNavigateCatalog: (item: RegistryItem) => void;
   onConnect: (item: RegistryItem) => void;
 }) {
   const [communityWarningOpen, setCommunityWarningOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    "navigate" | "connect" | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<"connect" | null>(null);
 
   const appName = getRegistryItemAppName(item) ?? "";
   const isConnected = connectedAppNames.has(appName);
@@ -841,12 +567,7 @@ function CatalogItemCard({
       }
       return;
     }
-    if (isCommunity) {
-      setPendingAction("navigate");
-      setCommunityWarningOpen(true);
-    } else {
-      onNavigateCatalog(item);
-    }
+    handleConnect();
   };
 
   const handleConnect = () => {
@@ -860,9 +581,7 @@ function CatalogItemCard({
 
   const handleCommunityConfirm = () => {
     setCommunityWarningOpen(false);
-    if (pendingAction === "navigate") {
-      onNavigateCatalog(item);
-    } else if (pendingAction === "connect") {
+    if (pendingAction === "connect") {
       onConnect(item);
     }
     setPendingAction(null);
@@ -935,50 +654,36 @@ function CatalogItemCard({
   );
 }
 
-function OrgMcpsContent() {
+// ---------------------------------------------------------------------------
+// ConnectionResults — inner component wrapped in Suspense
+// ---------------------------------------------------------------------------
+
+function ConnectionResults({
+  listState,
+  activeTab,
+  typeFilter,
+  statusFilter,
+  registryFilter,
+  enabledRegistries,
+}: ConnectionResultsProps) {
   const { org } = useProjectContext();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as {
-    action?: "create";
-    tab?: "all" | "connected";
-  };
   const { data: session } = authClient.useSession();
-  const { stdioEnabled } = useAuthConfig();
-  const isMobile = useIsMobile();
-
-  // Consolidated list UI state (search, filters, sorting, view mode)
-  const listState = useListState<ConnectionEntity>({
-    namespace: org.slug,
-    resource: "connections",
-  });
 
   const actions = useConnectionActions();
   const connections = useConnections(listState);
 
-  const [dialogState, dispatch] = useReducer(dialogReducer, { mode: "idle" });
+  const deleteConnection = useDeleteConnection();
 
-  // Selection / bulk-action state — no explicit mode; selection is implicit
+  // Selection / bulk-action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [addToAgentOpen, setAddToAgentOpen] = useState(false);
 
-  // Tab state
-  type ConnectionTab = "connected" | "all";
-  const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
-    LOCALSTORAGE_KEYS.connectionsTab(org.slug),
-    (existing) =>
-      search.tab === "all" || search.tab === "connected"
-        ? search.tab
-        : (existing ?? "all"),
-  );
-
-  // Type, status & registry filters
-  const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
-  const [statusFilter, setStatusFilter] =
-    useState<ConnectionStatusFilter>("ALL");
-  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
+  // Inline connect state
+  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
 
   // Agents list (for Add to Agent dialog)
   const agents = useVirtualMCPs();
@@ -1006,7 +711,6 @@ function OrgMcpsContent() {
   };
 
   // Registry / catalog - merge all enabled registries (server-side search)
-  const enabledRegistries = useEnabledRegistries();
   const mergedDiscovery = useMergedStoreDiscovery(
     enabledRegistries,
     listState.searchTerm,
@@ -1031,20 +735,20 @@ function OrgMcpsContent() {
       ? registryFilter
       : "ALL";
 
-  const searchLower = listState.search.toLowerCase();
+  const isSearching = listState.search.length > 0;
+
+  // Catalog items: show on "All" tab always, or on "Connected" tab when searching
   const catalogItems =
-    activeTab === "all" || searchLower
+    activeTab === "all" || isSearching
       ? registryItems.filter((item) => {
-          // Registry source filter
           if (
             effectiveRegistryFilter !== "ALL" &&
             item._registryId !== effectiveRegistryFilter
           ) {
             return false;
           }
-          // When searching, connected items are already shown via groupedForDisplay
-          // so exclude them from catalog results to avoid duplicates
-          if (searchLower) {
+          // Exclude already-connected items to avoid duplicates with groupedForDisplay
+          if (isSearching) {
             const appName = getRegistryItemAppName(item);
             if (appName && connectedAppNames.has(appName)) return false;
           }
@@ -1052,33 +756,10 @@ function OrgMcpsContent() {
         })
       : [];
 
-  // In "All" tab, don't show connected items at top — they belong in the Connected tab
-  // But when searching, show connected items regardless of tab so results appear across both
-  const groupedForDisplay = activeTab === "all" && !searchLower ? [] : grouped;
-
-  const navigateToCatalogItem = (item: RegistryItem) => {
-    const serverSlug = slugify(
-      item.name || item.title || item.server?.title || "",
-    );
-    const idIsScoped = typeof item.id === "string" && item.id.includes("/");
-    const serverNameIsScoped =
-      typeof item.server?.name === "string" && item.server.name.includes("/");
-    const serverName =
-      idIsScoped && !serverNameIsScoped
-        ? item.id
-        : item.server?.name || item.id || "";
-    navigate({
-      to: "/$org/store/$appName",
-      params: {
-        org: org.slug,
-        appName: serverSlug,
-      },
-      search: { registryId: item._registryId, serverName },
-    });
-  };
-
-  // Inline connect state
-  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
+  // Connected items: show on "Connected" tab always, or on "All" tab when searching
+  // When both show, connected always appear first in the grid
+  const groupedForDisplay =
+    activeTab === "connected" || isSearching ? grouped : [];
 
   const handleInlineConnect = async (item: RegistryItem) => {
     if (!org || !session?.user?.id) return;
@@ -1182,146 +863,6 @@ function OrgMcpsContent() {
     }
   };
 
-  // Create dialog state is derived from search params
-  const isCreating = search.action === "create";
-
-  const openCreateDialog = () => {
-    navigate({
-      to: "/$org/settings/connections",
-      params: { org: org.slug },
-      search: { action: "create" },
-    });
-  };
-
-  const closeCreateDialog = () => {
-    navigate({
-      to: "/$org/settings/connections",
-      params: { org: org.slug },
-      search: {},
-    });
-  };
-
-  // React Hook Form setup
-  const form = useForm<ConnectionFormData>({
-    resolver: zodResolver(connectionFormSchema),
-    defaultValues: {
-      title: "",
-      description: null,
-      icon: null,
-      ui_type: "HTTP",
-      connection_url: "",
-      connection_token: null,
-      npx_package: "",
-      stdio_command: "",
-      stdio_args: "",
-      stdio_cwd: "",
-      env_vars: [],
-    },
-  });
-
-  // Watch the ui_type to conditionally render fields
-  const uiType = form.watch("ui_type");
-  const connectionUrl = form.watch("connection_url");
-  const npxPackage = form.watch("npx_package");
-
-  const providerHint =
-    inferHardcodedProviderHint({
-      uiType,
-      connectionUrl: connectionUrl ?? "",
-      npxPackage: npxPackage ?? "",
-    }) ??
-    inferRegistryProviderHint({
-      uiType,
-      connectionUrl: connectionUrl ?? "",
-      registryItems,
-    });
-
-  // Reset form when editing connection changes
-  const editingConnection =
-    dialogState.mode === "editing" ? dialogState.connection : null;
-
-  // oxlint-disable-next-line ban-use-effect/ban-use-effect
-  useEffect(() => {
-    if (editingConnection) {
-      // Check if it's an STDIO connection
-      const stdioParams = isStdioParameters(
-        editingConnection.connection_headers,
-      )
-        ? editingConnection.connection_headers
-        : null;
-
-      if (stdioParams && editingConnection.connection_type === "STDIO") {
-        const envVars = recordToEnvVars(stdioParams.envVars);
-
-        if (isNpxCommand(stdioParams)) {
-          // NPX connection
-          const npxPackage = parseStdioToNpx(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "NPX",
-            connection_url: "",
-            connection_token: null,
-            npx_package: npxPackage,
-            stdio_command: "",
-            stdio_args: "",
-            stdio_cwd: "",
-            env_vars: envVars,
-          });
-        } else {
-          // Custom STDIO connection
-          const customData = parseStdioToCustom(stdioParams);
-          form.reset({
-            title: editingConnection.title,
-            description: editingConnection.description,
-            icon: editingConnection.icon ?? null,
-            ui_type: "STDIO",
-            connection_url: "",
-            connection_token: null,
-            npx_package: "",
-            stdio_command: customData.command,
-            stdio_args: customData.args,
-            stdio_cwd: customData.cwd,
-            env_vars: envVars,
-          });
-        }
-      } else {
-        // HTTP/SSE/Websocket connection
-        form.reset({
-          title: editingConnection.title,
-          description: editingConnection.description,
-          icon: editingConnection.icon ?? null,
-          ui_type: editingConnection.connection_type as
-            | "HTTP"
-            | "SSE"
-            | "Websocket",
-          connection_url: editingConnection.connection_url ?? "",
-          connection_token: null,
-          npx_package: "",
-          stdio_command: "",
-          stdio_args: "",
-          stdio_cwd: "",
-          env_vars: [],
-        });
-      }
-    } else {
-      form.reset({
-        title: "",
-        description: null,
-        icon: null,
-        ui_type: "HTTP",
-        connection_url: "",
-        connection_token: null,
-        npx_package: "",
-        stdio_command: "",
-        stdio_args: "",
-        stdio_cwd: "",
-        env_vars: [],
-      });
-    }
-  }, [editingConnection, form]);
-
   const selfClient = useMCPClient({
     connectionId: SELF_MCP_ALIAS_ID,
     orgId: org.id,
@@ -1331,7 +872,6 @@ function OrgMcpsContent() {
     queryClient.invalidateQueries({
       predicate: (query) => {
         const key = query.queryKey;
-        // Match collectionList/collectionItem keys: [client, scopeKey, "", "collection", collectionName, ...]
         return (
           key[1] === org.id &&
           key[3] === "collection" &&
@@ -1436,89 +976,333 @@ function OrgMcpsContent() {
     }
   };
 
-  /** Extract error text from an MCP tool result's content array */
-  const getMcpErrorText = (result: Record<string, unknown>): string => {
-    const content = result.content;
-    if (
-      Array.isArray(content) &&
-      content[0]?.type === "text" &&
-      typeof content[0].text === "string"
-    ) {
-      return content[0].text;
-    }
-    return "Unknown error";
+  return (
+    <>
+      <DeleteConnectionDialogs {...deleteConnection} />
+
+      {/* Bulk action dialogs */}
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        count={selectedIds.size}
+        onConfirm={handleBulkDelete}
+      />
+      <AddToAgentDialog
+        open={addToAgentOpen}
+        onOpenChange={setAddToAgentOpen}
+        agents={agents}
+        onConfirm={handleAddToAgent}
+      />
+
+      {/* Cards */}
+      {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
+        <div className="flex h-full items-center justify-center">
+          <Loading01 size={32} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div>
+          {(
+            isSearching
+              ? catalogItems.length === 0 && filteredConnections.length === 0
+              : activeTab === "all"
+                ? catalogItems.length === 0
+                : filteredConnections.length === 0
+          ) ? (
+            <EmptyState
+              image={
+                <img
+                  src="/emptystate-mcp.svg"
+                  alt=""
+                  width={336}
+                  height={320}
+                  aria-hidden="true"
+                />
+              }
+              title="No Connections found"
+              description={
+                listState.search
+                  ? `No Connections match "${listState.search}"`
+                  : "Create a connection to get started."
+              }
+            />
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {groupedForDisplay.map((item) => {
+                if (item.type === "group") {
+                  return (
+                    <ConnectionGroupCard
+                      key={item.key}
+                      group={item}
+                      onOpen={() => {
+                        navigate({
+                          to: "/$org/settings/connections/$appSlug",
+                          params: {
+                            org: org.slug,
+                            appSlug: item.key,
+                          },
+                        });
+                      }}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={toggleSelect}
+                    />
+                  );
+                }
+
+                const connection = item.connection;
+                const isSelected = selectedIds.has(connection.id);
+                return (
+                  <ConnectionCard
+                    key={connection.id}
+                    connection={connection}
+                    fallbackIcon={<Container />}
+                    onClick={() =>
+                      selectionMode
+                        ? toggleSelect(connection.id)
+                        : navigate({
+                            to: "/$org/settings/connections/$appSlug",
+                            params: {
+                              org: org.slug,
+                              appSlug: getConnectionSlug(connection),
+                            },
+                          })
+                    }
+                    className={cn(
+                      isSelected && "ring-2 ring-primary bg-primary/5",
+                    )}
+                    headerActionsAlwaysVisible
+                    headerActions={
+                      <div className="flex items-center gap-1">
+                        {selectionMode ? (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelect(connection.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-normal">
+                            Connected
+                          </span>
+                        )}
+                        <div
+                          className={cn(
+                            "overflow-hidden transition-all duration-150 ease-out",
+                            selectionMode
+                              ? "w-8 opacity-100"
+                              : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
+                          )}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <DotsVertical size={20} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate({
+                                    to: "/$org/settings/connections/$appSlug",
+                                    params: {
+                                      org: org.slug,
+                                      appSlug: getConnectionSlug(connection),
+                                    },
+                                  });
+                                }}
+                              >
+                                <Eye size={16} />
+                                Open
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelect(connection.id);
+                                }}
+                              >
+                                <CheckSquare size={16} />
+                                Select
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteConnection.requestDelete(connection);
+                                }}
+                              >
+                                <Trash01 size={16} />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    }
+                  />
+                );
+              })}
+              {/* Catalog items (uninstalled) — only on "All" tab */}
+              {catalogItems.map((item) => (
+                <CatalogItemCard
+                  key={`catalog-${item._registryId}:${item.id}`}
+                  item={item}
+                  allConnections={connections}
+                  connectedAppNames={connectedAppNames}
+                  connectingItemId={connectingItemId}
+                  onNavigateConnected={(conn) =>
+                    navigate({
+                      to: "/$org/settings/connections/$appSlug",
+                      params: {
+                        org: org.slug,
+                        appSlug: getConnectionSlug(conn),
+                      },
+                    })
+                  }
+                  onConnect={handleInlineConnect}
+                />
+              ))}
+              {(activeTab === "all" || isSearching) &&
+                enabledRegistries.length > 0 && (
+                  <div ref={catalogSentinelRef} className="col-span-full h-4" />
+                )}
+              {(activeTab === "all" || isSearching) &&
+                mergedDiscovery.isLoadingMore && (
+                  <div className="col-span-full flex justify-center py-6">
+                    <Loading01
+                      size={24}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Floating bulk action bar */}
+      {selectionMode && (
+        <BulkActionBar
+          count={selectedIds.size}
+          total={filteredConnections.length}
+          onSelectAll={() => {
+            setSelectedIds(new Set(filteredConnections.map((c) => c.id)));
+          }}
+          onDeselectAll={() => setSelectedIds(new Set())}
+          onDelete={() => setBulkDeleteOpen(true)}
+          onAddToAgent={() => setAddToAgentOpen(true)}
+          onToggleStatus={handleBulkToggleStatus}
+          onCancel={exitSelectionMode}
+        />
+      )}
+    </>
+  );
+}
+
+function OrgMcpsContent() {
+  const { org } = useProjectContext();
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as {
+    action?: "create";
+    tab?: "all" | "connected";
+  };
+  const { data: session } = authClient.useSession();
+  const { stdioEnabled } = useAuthConfig();
+  const isMobile = useIsMobile();
+
+  // Consolidated list UI state (search, filters, sorting, view mode)
+  const listState = useListState<ConnectionEntity>({
+    namespace: org.slug,
+    resource: "connections",
+  });
+
+  const actions = useConnectionActions();
+
+  // Tab state
+  type ConnectionTab = "connected" | "all";
+  const [activeTab, setActiveTab] = useLocalStorage<ConnectionTab>(
+    LOCALSTORAGE_KEYS.connectionsTab(org.slug),
+    (existing) =>
+      search.tab === "all" || search.tab === "connected"
+        ? search.tab
+        : (existing ?? "all"),
+  );
+
+  // Type, status & registry filters
+  const [typeFilter, setTypeFilter] = useState<ConnectionTypeFilter>("ALL");
+  const [statusFilter, setStatusFilter] =
+    useState<ConnectionStatusFilter>("ALL");
+  const [registryFilter, setRegistryFilter] = useState<string>("ALL");
+
+  // Registry / catalog - merge all enabled registries (needed for create dialog provider hints)
+  const enabledRegistries = useEnabledRegistries();
+  const mergedDiscovery = useMergedStoreDiscovery(
+    enabledRegistries,
+    listState.searchTerm,
+  );
+  const registryItems = mergedDiscovery.items;
+
+  const isStale = listState.search !== listState.searchTerm;
+
+  // React Hook Form setup
+  const form = useForm<ConnectionFormData>({
+    resolver: zodResolver(connectionFormSchema),
+    defaultValues: {
+      title: "",
+      description: null,
+      icon: null,
+      ui_type: "HTTP",
+      connection_url: "",
+      connection_token: null,
+      npx_package: "",
+      stdio_command: "",
+      stdio_args: "",
+      stdio_cwd: "",
+      env_vars: [],
+    },
+  });
+
+  // Watch the ui_type to conditionally render fields
+  const uiType = form.watch("ui_type");
+  const connectionUrl = form.watch("connection_url");
+  const npxPackage = form.watch("npx_package");
+
+  const providerHint =
+    inferHardcodedProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      npxPackage: npxPackage ?? "",
+    }) ??
+    inferRegistryProviderHint({
+      uiType,
+      connectionUrl: connectionUrl ?? "",
+      registryItems,
+    });
+
+  // Create dialog state is derived from search params
+  const isCreating = search.action === "create";
+
+  const openCreateDialog = () => {
+    navigate({
+      to: "/$org/settings/connections",
+      params: { org: org.slug },
+      search: { action: "create" },
+    });
   };
 
-  const confirmDelete = async () => {
-    if (dialogState.mode !== "deleting") return;
-
-    const connection = dialogState.connection;
-    dispatch({ type: "close" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id: connection.id },
-      });
-
-      if (result.isError) {
-        const errorText = getMcpErrorText(result);
-
-        // Try to parse structured error for "connection in use" case
-        // The MCP error text may be prefixed with "Error: " — strip it
-        const jsonText = errorText.replace(/^Error:\s*/, "");
-        try {
-          const parsed = JSON.parse(jsonText) as {
-            code?: string;
-            agentNames?: string[];
-          };
-          if (parsed.code === "CONNECTION_IN_USE" && parsed.agentNames) {
-            dispatch({
-              type: "force-delete",
-              connection,
-              agentNames: parsed.agentNames.map((n) => `"${n}"`).join(", "),
-            });
-            return;
-          }
-        } catch {
-          // Not JSON — fall through to generic error toast
-        }
-
-        toast.error(`Failed to delete connection: ${errorText}`);
-        return;
-      }
-
-      invalidateConnections();
-      toast.success("Connection deleted successfully");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
-  };
-
-  const confirmForceDelete = async () => {
-    if (dialogState.mode !== "force-deleting") return;
-
-    const id = dialogState.connection.id;
-    dispatch({ type: "close" });
-
-    try {
-      const result = await selfClient.callTool({
-        name: "COLLECTION_CONNECTIONS_DELETE",
-        arguments: { id, force: true },
-      });
-
-      if (result.isError) {
-        toast.error(`Failed to delete connection: ${getMcpErrorText(result)}`);
-        return;
-      }
-
-      invalidateConnections();
-      toast.success("Connection deleted successfully");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to delete connection: ${message}`);
-    }
+  const closeCreateDialog = () => {
+    navigate({
+      to: "/$org/settings/connections",
+      params: { org: org.slug },
+      search: {},
+    });
   };
 
   const onSubmit = async (data: ConnectionFormData) => {
@@ -1553,28 +1337,6 @@ function OrgMcpsContent() {
       connectionType = data.ui_type;
       connectionUrl = data.connection_url || "";
       connectionToken = data.connection_token || null;
-    }
-
-    if (editingConnection) {
-      // Update existing connection
-      await actions.update.mutateAsync({
-        id: editingConnection.id,
-        data: {
-          title: data.title,
-          description: data.description || null,
-          icon: data.icon ?? null,
-          connection_type: connectionType,
-          connection_url: connectionUrl,
-          ...(connectionToken && { connection_token: connectionToken }),
-          ...(connectionParameters && {
-            connection_headers: connectionParameters,
-          }),
-        },
-      });
-
-      dispatch({ type: "close" });
-      form.reset();
-      return;
     }
 
     const newId = generatePrefixedId("conn");
@@ -1622,8 +1384,6 @@ function OrgMcpsContent() {
     if (!open) {
       if (isCreating) {
         closeCreateDialog();
-      } else {
-        dispatch({ type: "close" });
       }
       form.reset();
     }
@@ -1729,17 +1489,12 @@ function OrgMcpsContent() {
     <>
       <Page>
         {(() => {
-          const dialogTitle = editingConnection
-            ? "Edit Connection"
-            : "Create Connection";
-          const dialogDescription = editingConnection
-            ? "Update the connection details below."
-            : "Create a custom connection in your organization. Fill in the details below.";
+          const dialogTitle = "Create Connection";
+          const dialogDescription =
+            "Create a custom connection in your organization. Fill in the details below.";
           const submitLabel = form.formState.isSubmitting
             ? "Saving..."
-            : editingConnection
-              ? "Update Connection"
-              : "Create Connection";
+            : "Create Connection";
 
           const formFields = (
             <div className="grid gap-4">
@@ -2030,7 +1785,7 @@ function OrgMcpsContent() {
             </div>
           );
 
-          const isOpen = isCreating || dialogState.mode === "editing";
+          const isOpen = isCreating;
 
           if (isMobile) {
             return (
@@ -2108,91 +1863,6 @@ function OrgMcpsContent() {
             </Dialog>
           );
         })()}
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog
-          open={dialogState.mode === "deleting"}
-          onOpenChange={(open) => !open && dispatch({ type: "close" })}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Connection?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete{" "}
-                <span className="font-medium text-foreground">
-                  {dialogState.mode === "deleting" &&
-                    dialogState.connection.title}
-                </span>
-                .
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Force Delete Confirmation Dialog */}
-        <AlertDialog
-          open={dialogState.mode === "force-deleting"}
-          onOpenChange={(open) => !open && dispatch({ type: "close" })}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Connection Used by Agents</AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div>
-                  <p>
-                    The connection{" "}
-                    <span className="font-medium text-foreground">
-                      {dialogState.mode === "force-deleting" &&
-                        dialogState.connection.title}
-                    </span>{" "}
-                    is currently used by the following agent(s):{" "}
-                    <span className="font-medium text-foreground">
-                      {dialogState.mode === "force-deleting" &&
-                        dialogState.agentNames}
-                    </span>
-                    .
-                  </p>
-                  <p className="mt-2">
-                    Deleting this connection will remove it from those agents,
-                    which may impact existing workflows that depend on them.
-                  </p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmForceDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete Anyway
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Bulk action dialogs */}
-        <BulkDeleteDialog
-          open={bulkDeleteOpen}
-          onOpenChange={setBulkDeleteOpen}
-          count={selectedIds.size}
-          onConfirm={handleBulkDelete}
-        />
-        <AddToAgentDialog
-          open={addToAgentOpen}
-          onOpenChange={setAddToAgentOpen}
-          agents={agents}
-          onConfirm={handleAddToAgent}
-        />
 
         <Page.Content>
           {/* Title + Toolbar */}
@@ -2284,231 +1954,38 @@ function OrgMcpsContent() {
                 activeTab={activeTab}
                 onTabChange={(id) => setActiveTab(id as ConnectionTab)}
               />
-              {/* Cards */}
-              {mergedDiscovery.isInitialLoading && activeTab === "all" ? (
-                <div className="flex h-full items-center justify-center">
-                  <Loading01
-                    size={32}
-                    className="animate-spin text-muted-foreground"
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading01
+                      size={32}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                }
+              >
+                <div
+                  style={{
+                    opacity: isStale ? 0.5 : 1,
+                    transition: isStale
+                      ? "opacity 0.2s 0.2s linear"
+                      : "opacity 0s 0s linear",
+                    pointerEvents: isStale ? "none" : "auto",
+                  }}
+                >
+                  <ConnectionResults
+                    listState={listState}
+                    activeTab={activeTab}
+                    typeFilter={typeFilter}
+                    statusFilter={statusFilter}
+                    registryFilter={registryFilter}
+                    enabledRegistries={enabledRegistries}
                   />
                 </div>
-              ) : (
-                <div>
-                  {(
-                    searchLower
-                      ? catalogItems.length === 0 &&
-                        filteredConnections.length === 0
-                      : activeTab === "all"
-                        ? catalogItems.length === 0
-                        : filteredConnections.length === 0
-                  ) ? (
-                    <EmptyState
-                      image={
-                        <img
-                          src="/emptystate-mcp.svg"
-                          alt=""
-                          width={336}
-                          height={320}
-                          aria-hidden="true"
-                        />
-                      }
-                      title="No Connections found"
-                      description={
-                        listState.search
-                          ? `No Connections match "${listState.search}"`
-                          : "Create a connection to get started."
-                      }
-                    />
-                  ) : (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                      {groupedForDisplay.map((item) => {
-                        if (item.type === "group") {
-                          return (
-                            <ConnectionGroupCard
-                              key={item.key}
-                              group={item}
-                              onOpen={() => {
-                                navigate({
-                                  to: "/$org/settings/connections/$appSlug",
-                                  params: {
-                                    org: org.slug,
-                                    appSlug: item.key,
-                                  },
-                                });
-                              }}
-                              selectionMode={selectionMode}
-                              selectedIds={selectedIds}
-                              onToggleSelect={toggleSelect}
-                            />
-                          );
-                        }
-
-                        const connection = item.connection;
-                        const isSelected = selectedIds.has(connection.id);
-                        return (
-                          <ConnectionCard
-                            key={connection.id}
-                            connection={connection}
-                            fallbackIcon={<Container />}
-                            onClick={() =>
-                              selectionMode
-                                ? toggleSelect(connection.id)
-                                : navigate({
-                                    to: "/$org/settings/connections/$appSlug",
-                                    params: {
-                                      org: org.slug,
-                                      appSlug: getConnectionSlug(connection),
-                                    },
-                                  })
-                            }
-                            className={cn(
-                              isSelected && "ring-2 ring-primary bg-primary/5",
-                            )}
-                            headerActionsAlwaysVisible
-                            headerActions={
-                              <div className="flex items-center gap-1">
-                                {selectionMode ? (
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={() =>
-                                      toggleSelect(connection.id)
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                ) : (
-                                  <span className="text-xs text-muted-foreground font-normal">
-                                    Connected
-                                  </span>
-                                )}
-                                <div
-                                  className={cn(
-                                    "overflow-hidden transition-all duration-150 ease-out",
-                                    selectionMode
-                                      ? "w-8 opacity-100"
-                                      : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100",
-                                  )}
-                                >
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <DotsVertical size={20} />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="end"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate({
-                                            to: "/$org/settings/connections/$appSlug",
-                                            params: {
-                                              org: org.slug,
-                                              appSlug:
-                                                getConnectionSlug(connection),
-                                            },
-                                          });
-                                        }}
-                                      >
-                                        <Eye size={16} />
-                                        Open
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleSelect(connection.id);
-                                        }}
-                                      >
-                                        <CheckSquare size={16} />
-                                        Select
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        variant="destructive"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          dispatch({
-                                            type: "delete",
-                                            connection,
-                                          });
-                                        }}
-                                      >
-                                        <Trash01 size={16} />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </div>
-                            }
-                          />
-                        );
-                      })}
-                      {/* Catalog items (uninstalled) — only on "All" tab */}
-                      {catalogItems.map((item) => (
-                        <CatalogItemCard
-                          key={`catalog-${item._registryId}:${item.id}`}
-                          item={item}
-                          allConnections={connections}
-                          connectedAppNames={connectedAppNames}
-                          connectingItemId={connectingItemId}
-                          onNavigateConnected={(conn) =>
-                            navigate({
-                              to: "/$org/settings/connections/$appSlug",
-                              params: {
-                                org: org.slug,
-                                appSlug: getConnectionSlug(conn),
-                              },
-                            })
-                          }
-                          onNavigateCatalog={navigateToCatalogItem}
-                          onConnect={handleInlineConnect}
-                        />
-                      ))}
-                      {(activeTab === "all" || searchLower) &&
-                        enabledRegistries.length > 0 && (
-                          <div
-                            ref={catalogSentinelRef}
-                            className="col-span-full h-4"
-                          />
-                        )}
-                      {(activeTab === "all" || searchLower) &&
-                        mergedDiscovery.isLoadingMore && (
-                          <div className="col-span-full flex justify-center py-6">
-                            <Loading01
-                              size={24}
-                              className="animate-spin text-muted-foreground"
-                            />
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-              )}
+              </Suspense>
             </div>
           </Page.Body>
         </Page.Content>
-
-        {/* Floating bulk action bar */}
-        {selectionMode && (
-          <BulkActionBar
-            count={selectedIds.size}
-            total={filteredConnections.length}
-            onSelectAll={() => {
-              setSelectedIds(new Set(filteredConnections.map((c) => c.id)));
-            }}
-            onDeselectAll={() => setSelectedIds(new Set())}
-            onDelete={() => setBulkDeleteOpen(true)}
-            onAddToAgent={() => setAddToAgentOpen(true)}
-            onToggleStatus={handleBulkToggleStatus}
-            onCancel={exitSelectionMode}
-          />
-        )}
       </Page>
     </>
   );

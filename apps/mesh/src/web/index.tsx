@@ -83,21 +83,6 @@ const betterAuthRoutes = createRoute({
   component: lazyRouteComponent(() => import("./routes/auth-catchall.tsx")),
 });
 
-/**
- * Store invite route - deep links to store apps without knowing the org slug
- * After login, redirects to the user's first org and first registry
- */
-const storeInviteRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/store/$appName",
-  component: lazyRouteComponent(() => import("./routes/store-invite.tsx")),
-  validateSearch: z.lazy(() =>
-    z.object({
-      serverName: z.string().optional(),
-    }),
-  ),
-});
-
 const oauthCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/oauth/callback",
@@ -173,12 +158,24 @@ const orgLayout = createRoute({
 });
 
 // ============================================
-// ORG-LEVEL ROUTES (children of orgLayout)
+// AGENT SHELL LAYOUT (pathless — wraps agent/org-home routes with sidebar + 3-panel)
+// ============================================
+
+const agentShellLayout = createRoute({
+  getParentRoute: () => orgLayout,
+  id: "agent-shell",
+  component: lazyRouteComponent(
+    () => import("./layouts/agent-shell-layout.tsx"),
+  ),
+});
+
+// ============================================
+// ORG-LEVEL ROUTES (children of agentShellLayout)
 // ============================================
 
 // Org home - the default view when entering an org
 const orgHomeRoute = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/",
   validateSearch: z.object({
     taskId: z
@@ -188,7 +185,11 @@ const orgHomeRoute = createRoute({
     view: z.string().optional(),
     main: z.string().optional(),
     id: z.string().optional(),
+    toolName: z.string().optional(),
     virtualMcpOverride: z.string().optional(),
+    tasks: z.number().optional(),
+    mainOpen: z.number().optional(),
+    chat: z.number().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/orgs/home/page.tsx")),
 });
@@ -297,6 +298,14 @@ const settingsFeaturesRoute = createRoute({
   ),
 });
 
+const settingsBrandContextRoute = createRoute({
+  getParentRoute: () => settingsLayout,
+  path: "/brand-context",
+  component: lazyRouteComponent(
+    () => import("./routes/orgs/settings/brand-context.tsx"),
+  ),
+});
+
 const settingsAiProvidersRoute = createRoute({
   getParentRoute: () => settingsLayout,
   path: "/ai-providers",
@@ -365,25 +374,9 @@ const settingsWorkflowDetailRoute = createRoute({
   ),
 });
 
-// Store detail (the store list is part of the connections "All" tab)
-const storeDetailRoute = createRoute({
-  getParentRoute: () => orgLayout,
-  path: "/store/$appName",
-  component: lazyRouteComponent(
-    () => import("./routes/orgs/store/mcp-server-detail.tsx"),
-  ),
-  validateSearch: z.lazy(() =>
-    z.object({
-      registryId: z.string().optional(),
-      serverName: z.string().optional(),
-      itemId: z.string().optional(),
-    }),
-  ),
-});
-
 // Org-level plugin route (mirrors /$org/$virtualMcpId/$pluginId for org-admin)
 const orgPluginRoute = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/plugins/$pluginId",
   component: lazyRouteComponent(
     () => import("./layouts/org-plugin-layout.tsx"),
@@ -395,15 +388,15 @@ const orgPluginRoute = createRoute({
 // ============================================
 
 // Agents list (view all)
-const agentsListRoute = createRoute({
-  getParentRoute: () => orgLayout,
+const settingsAgentsRoute = createRoute({
+  getParentRoute: () => settingsLayout,
   path: "/agents",
   component: lazyRouteComponent(() => import("./routes/agents-list.tsx")),
 });
 
 // Agents layout (/$org/$virtualMcpId)
 const agentsLayout = createRoute({
-  getParentRoute: () => orgLayout,
+  getParentRoute: () => agentShellLayout,
   path: "/$virtualMcpId",
   component: Outlet,
 });
@@ -419,7 +412,11 @@ const agentHomeRoute = createRoute({
       .transform((v) => v ?? crypto.randomUUID()),
     main: z.string().optional(),
     id: z.string().optional(),
+    toolName: z.string().optional(),
     virtualMcpOverride: z.string().optional(),
+    tasks: z.number().optional(),
+    mainOpen: z.number().optional(),
+    chat: z.number().optional(),
   }),
   component: lazyRouteComponent(() => import("./routes/agent-home.tsx")),
 });
@@ -523,9 +520,11 @@ const settingsWithChildren = settingsLayout.addChildren([
   connectionsRoute,
   connectionDetailRoute,
   collectionDetailRoute,
+  settingsAgentsRoute,
   monitoringRoute,
   settingsGeneralRoute,
   settingsFeaturesRoute,
+  settingsBrandContextRoute,
   settingsAiProvidersRoute,
   settingsMembersRoute,
   settingsSsoRoute,
@@ -545,16 +544,16 @@ const agentsWithChildren = agentsLayout.addChildren([
   agentPluginWithChildren,
 ]);
 
-const orgRoutes = [
+const agentShellWithChildren = agentShellLayout.addChildren([
   orgHomeRoute,
-  agentsListRoute,
   agentsWithChildren,
-  settingsWithChildren,
-  storeDetailRoute,
   orgPluginRoute,
-];
+]);
 
-const orgLayoutWithChildren = orgLayout.addChildren(orgRoutes);
+const orgLayoutWithChildren = orgLayout.addChildren([
+  agentShellWithChildren,
+  settingsWithChildren,
+]);
 
 const shellRouteTree = shellLayout.addChildren([
   homeRoute,
@@ -568,7 +567,6 @@ const routeTree = rootRoute.addChildren([
   betterAuthRoutes,
   oauthCallbackRoute,
   oauthCallbackAiProviderRoute,
-  storeInviteRoute,
 ]);
 
 const router = createRouter({

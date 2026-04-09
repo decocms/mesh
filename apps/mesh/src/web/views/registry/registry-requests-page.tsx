@@ -12,7 +12,6 @@ import {
 import { Badge } from "@deco/ui/components/badge.tsx";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { Button } from "@deco/ui/components/button.tsx";
-import { Card } from "@deco/ui/components/card.tsx";
 import { Checkbox } from "@deco/ui/components/checkbox.tsx";
 import {
   Dialog,
@@ -23,6 +22,14 @@ import {
   DialogTitle,
 } from "@deco/ui/components/dialog.tsx";
 import { Label } from "@deco/ui/components/label.tsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@deco/ui/components/table.tsx";
 import { Textarea } from "@deco/ui/components/textarea.tsx";
 import {
   CheckCircle,
@@ -346,7 +353,7 @@ export default function RegistryRequestsPage() {
             Loading requests...
           </div>
         ) : listQuery.isError ? (
-          <Card className="p-8 text-center">
+          <div className="p-8 text-center rounded-lg border border-border">
             <p className="text-sm text-destructive">
               Failed to load publish requests.
             </p>
@@ -355,9 +362,9 @@ export default function RegistryRequestsPage() {
                 ? listQuery.error.message
                 : "Unknown error"}
             </p>
-          </Card>
+          </div>
         ) : requests.length === 0 ? (
-          <Card className="p-8 text-center">
+          <div className="p-8 text-center rounded-lg border border-border">
             <p className="text-sm text-muted-foreground">
               {status === "pending"
                 ? "No pending publish requests."
@@ -365,204 +372,198 @@ export default function RegistryRequestsPage() {
                   ? "No approved publish requests."
                   : "No rejected publish requests."}
             </p>
-          </Card>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
-            {requests.map((request) => {
-              const iconUrl = getIconUrl(request);
-              const readmeMeta = getReadmeMeta(request);
-              const tags = request._meta?.["mcp.mesh"]?.tags ?? [];
-              const categories = request._meta?.["mcp.mesh"]?.categories ?? [];
-              const hasBadges =
-                readmeMeta.hasReadmeContent ||
-                readmeMeta.hasReadmeLink ||
-                tags.length > 0 ||
-                categories.length > 0;
-              const requesterInfo = [
-                request.requester_name,
-                request.requester_email,
-              ]
-                .filter(Boolean)
-                .join(" · ");
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {status === "pending" && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={
+                        allVisiblePendingSelected && pendingRequests.length > 0
+                      }
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          selectVisiblePending();
+                        } else {
+                          clearSelection();
+                        }
+                      }}
+                    />
+                  </TableHead>
+                )}
+                <TableHead>Name</TableHead>
+                <TableHead>Requester</TableHead>
+                <TableHead>Tags</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requests.map((request) => {
+                const iconUrl = getIconUrl(request);
+                const tags = request._meta?.["mcp.mesh"]?.tags ?? [];
+                const isPending = pendingById.has(request.id);
+                const isSelected = selectedIds.has(request.id);
 
-              return (
-                <Card
-                  key={request.id}
-                  className={cn(
-                    "p-3 grid gap-1.5",
-                    pendingById.has(request.id) &&
-                      "cursor-pointer hover:bg-muted/30",
-                    selectedIds.has(request.id) && "bg-accent/20",
-                  )}
-                  onClick={() => {
-                    if (!pendingById.has(request.id)) return;
-                    toggleRequestSelection(request.id);
-                  }}
-                >
-                  {/* Header: icon + title + status */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex items-center gap-2">
-                      {pendingById.has(request.id) && (
+                return (
+                  <TableRow
+                    key={request.id}
+                    className={cn(
+                      isPending && "cursor-pointer",
+                      isSelected && "bg-accent/20",
+                    )}
+                    onClick={() => {
+                      if (isPending) toggleRequestSelection(request.id);
+                    }}
+                  >
+                    {status === "pending" && (
+                      <TableCell>
                         <Checkbox
-                          checked={selectedIds.has(request.id)}
-                          className="mt-0.5"
+                          checked={isSelected}
                           onCheckedChange={(checked) =>
                             toggleSelected(request.id, checked === true)
                           }
                           onClick={(event) => event.stopPropagation()}
                         />
-                      )}
-                      <div className="size-7 rounded-md border border-border bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
-                        {iconUrl ? (
-                          <img
-                            src={iconUrl}
-                            alt={request.title}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="size-7 rounded-md border border-border bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
+                          {iconUrl ? (
+                            <img
+                              src={iconUrl}
+                              alt={request.title}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="text-[10px] font-semibold text-muted-foreground">
+                              {request.title.slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {request.title}
+                          </p>
+                          {request.description && (
+                            <p className="text-xs text-muted-foreground truncate max-w-[300px]">
+                              {request.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground truncate">
+                        {request.requester_name ||
+                          request.requester_email ||
+                          "-"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {tags.slice(0, 3).map((tag) => (
+                          <Badge
+                            key={`${request.id}-tag-${tag}`}
+                            variant="secondary"
+                            className="text-[10px]"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className="capitalize text-[11px]"
+                      >
+                        {request.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(request.created_at)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs px-2"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setViewingRequest(request);
+                          }}
+                        >
+                          <Eye size={13} />
+                          View
+                        </Button>
+                        {isPending ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-2"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setConfirmApproveRequest(request);
+                              }}
+                              disabled={
+                                approvingId !== null ||
+                                isBulkApproving ||
+                                isSelected
+                              }
+                            >
+                              <CheckCircle size={13} />
+                              {approvingId === request.id
+                                ? "Approving..."
+                                : isSelected
+                                  ? "Selected"
+                                  : "Approve"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setRejectingRequest(request);
+                                setRejectNotes("");
+                              }}
+                              disabled={reviewMutation.isPending}
+                            >
+                              <XCircle size={13} />
+                              Reject
+                            </Button>
+                          </>
                         ) : (
-                          <span className="text-[10px] font-semibold text-muted-foreground">
-                            {request.title.slice(0, 1).toUpperCase()}
-                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDelete(request);
+                            }}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash01 size={13} />
+                            Delete
+                          </Button>
                         )}
                       </div>
-                      <p className="text-sm font-medium truncate">
-                        {request.title}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="secondary"
-                      className="capitalize text-[11px] shrink-0"
-                    >
-                      {request.status}
-                    </Badge>
-                  </div>
-
-                  {/* Description (only if provided) */}
-                  {request.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 pl-9">
-                      {request.description}
-                    </p>
-                  )}
-
-                  {/* Badges row (only if any exist) */}
-                  {hasBadges && (
-                    <div className="flex flex-wrap items-center gap-1 pl-9">
-                      {readmeMeta.hasReadmeContent && (
-                        <Badge variant="outline" className="text-[10px]">
-                          README
-                        </Badge>
-                      )}
-                      {readmeMeta.hasReadmeLink && (
-                        <Badge variant="outline" className="text-[10px]">
-                          README link
-                        </Badge>
-                      )}
-                      {tags.slice(0, 2).map((tag) => (
-                        <Badge
-                          key={`${request.id}-tag-${tag}`}
-                          variant="secondary"
-                          className="text-[10px]"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                      {categories.slice(0, 1).map((category) => (
-                        <Badge
-                          key={`${request.id}-category-${category}`}
-                          variant="secondary"
-                          className="text-[10px]"
-                        >
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Meta line: requester · date */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pl-9">
-                    {requesterInfo && (
-                      <>
-                        <span className="truncate">{requesterInfo}</span>
-                        <span>·</span>
-                      </>
-                    )}
-                    <span className="shrink-0">
-                      {formatDate(request.created_at)}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1.5 pl-9 pt-0.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs px-2"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setViewingRequest(request);
-                      }}
-                    >
-                      <Eye size={13} />
-                      View
-                    </Button>
-                    {pendingById.has(request.id) ? (
-                      <>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs px-2"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setConfirmApproveRequest(request);
-                          }}
-                          disabled={
-                            approvingId !== null ||
-                            isBulkApproving ||
-                            selectedIds.has(request.id)
-                          }
-                        >
-                          <CheckCircle size={13} />
-                          {approvingId === request.id
-                            ? "Approving..."
-                            : selectedIds.has(request.id)
-                              ? "Selected"
-                              : "Approve"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs px-2"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setRejectingRequest(request);
-                            setRejectNotes("");
-                          }}
-                          disabled={reviewMutation.isPending}
-                        >
-                          <XCircle size={13} />
-                          Reject
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDelete(request);
-                        }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash01 size={13} />
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
         {requests.length > 0 && hasMore ? (
           <div ref={loadMoreRef} className="h-1 w-full" />

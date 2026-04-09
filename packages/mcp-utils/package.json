@@ -1,0 +1,43 @@
+{
+  "name": "@decocms/mcp-utils",
+  "version": "1.0.2",
+  "description": "Primitives for building MCP proxies, gateways, and sandboxes",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./sandbox": "./src/sandbox/index.ts",
+    "./aggregate": "./src/aggregate/index.ts"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": ">=1.27.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "quickjs-emscripten-core": "0.31.0",
+    "@jitl/quickjs-wasmfile-release-sync": "0.31.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "proxy",
+    "gateway",
+    "sandbox",
+    "quickjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decocms/studio.git",
+    "directory": "packages/mcp-utils"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

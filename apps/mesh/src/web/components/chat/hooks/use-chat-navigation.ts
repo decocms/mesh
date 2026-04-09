@@ -8,7 +8,7 @@
 
 import { useRef } from "react";
 import { getWellKnownDecopilotVirtualMCP } from "@decocms/mesh-sdk";
-import { useMatch, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useProjectContext } from "@decocms/mesh-sdk";
 
 export interface ChatNavigation {
@@ -31,49 +31,42 @@ export function useChatNavigation(): ChatNavigation {
     virtualMcpOverride?: string;
   };
 
-  const agentsMatch = useMatch({
-    from: "/shell/$org/$virtualMcpId",
-    shouldThrow: false,
-  });
+  // useParams instead of useMatch — useMatch can't see child routes through
+  // the pathless agent-shell layout.
+  const routeParams = useParams({ strict: false }) as {
+    org?: string;
+    virtualMcpId?: string;
+  };
+  const isAgentRoute = !!routeParams.virtualMcpId;
 
   const virtualMcpId =
-    agentsMatch?.params.virtualMcpId ??
-    getWellKnownDecopilotVirtualMCP(org.id).id;
+    routeParams.virtualMcpId ?? getWellKnownDecopilotVirtualMCP(org.id).id;
 
   const navigateToTask = (
     taskId: string,
     opts?: { virtualMcpOverride?: string },
   ) => {
-    if (agentsMatch) {
-      navigate({
-        to: "/$org/$virtualMcpId/",
-        params: {
-          org: org.slug,
-          virtualMcpId,
-        },
-        search: (prev: Record<string, unknown>) => {
-          const next: Record<string, unknown> = { ...prev, taskId };
-          if (opts?.virtualMcpOverride) {
-            next.virtualMcpOverride = opts.virtualMcpOverride;
-          } else {
-            delete next.virtualMcpOverride;
-          }
-          return next;
-        },
-      });
-    } else {
-      navigate({
-        search: (prev: Record<string, unknown>) => {
-          const next: Record<string, unknown> = { ...prev, taskId };
-          if (opts?.virtualMcpOverride) {
-            next.virtualMcpOverride = opts.virtualMcpOverride;
-          } else {
-            delete next.virtualMcpOverride;
-          }
-          return next;
-        },
-      } as never);
-    }
+    // Reset all panel state — only preserve taskId + tasks panel visibility.
+    // This ensures panel layout defaults kick in for the new task.
+    const routeBase = isAgentRoute
+      ? ("/$org/$virtualMcpId/" as const)
+      : ("/$org/" as const);
+    const params = isAgentRoute
+      ? { org: org.slug, virtualMcpId }
+      : { org: org.slug };
+
+    navigate({
+      to: routeBase,
+      params,
+      search: (prev: Record<string, unknown>) => {
+        const next: Record<string, unknown> = { taskId };
+        if (prev.tasks) next.tasks = prev.tasks;
+        if (opts?.virtualMcpOverride) {
+          next.virtualMcpOverride = opts.virtualMcpOverride;
+        }
+        return next;
+      },
+    });
   };
 
   const setVirtualMcpOverride = (id: string | null) => {

@@ -34,9 +34,9 @@ function InstanceItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border transition-colors",
+        "flex items-center gap-3 rounded-lg border px-4 py-2.5 transition-colors",
         needsAuth
-          ? "border-destructive/50 bg-destructive/5 px-4 py-2.5"
+          ? "border-destructive/50 bg-destructive/5"
           : "border-transparent",
       )}
     >
@@ -96,7 +96,7 @@ function InstanceItemFallback({
   onConfigure: (instance: ConnectionEntity) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-transparent transition-colors">
+    <div className="flex items-center gap-3 rounded-lg border border-transparent px-4 py-2.5 transition-colors">
       <IntegrationIcon
         icon={instance.icon}
         name={instance.title}

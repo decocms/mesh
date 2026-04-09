@@ -15,7 +15,7 @@ export type {
   Invitation,
 } from "./types";
 
-export function MeshSidebar() {
+export function StudioSidebar() {
   const sidebarSections = useProjectSidebarItems();
 
   return (
@@ -37,7 +37,7 @@ export function MeshSidebar() {
  * Mobile sidebar content — renders inline (no Sheet wrapper).
  * Used inside the mobile sidebar Sheet in shell-layout.
  */
-export function MeshSidebarMobile({ onClose }: { onClose: () => void }) {
+export function StudioSidebarMobile({ onClose }: { onClose: () => void }) {
   const sidebarSections = useProjectSidebarItems();
 
   return (

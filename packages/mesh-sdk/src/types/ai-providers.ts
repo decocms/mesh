@@ -9,6 +9,7 @@ export const PROVIDER_IDS = [
   "google",
   "claude-code",
   "codex",
+  "openai-compatible",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];

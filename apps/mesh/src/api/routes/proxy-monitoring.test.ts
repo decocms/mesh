@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
 import type { MeshContext } from "../../core/mesh-context";
-import {
-  createProxyMonitoringMiddleware,
-  createProxyStreamableMonitoringMiddleware,
-} from "./proxy-monitoring";
+import { createProxyMonitoringMiddleware } from "./proxy-monitoring";
 
 function createMockSpan() {
   const attrs: Record<string, unknown> = {};
@@ -73,7 +70,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: true,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {
@@ -102,49 +98,6 @@ describe("proxy monitoring middleware", () => {
     );
   });
 
-  it("creates and ends a correlation span for streamable Response", async () => {
-    const { ctx, spans } = createMockCtx();
-
-    const middleware = createProxyStreamableMonitoringMiddleware({
-      ctx,
-      enabled: true,
-      connectionId: "conn_1",
-      connectionTitle: "Test Connection",
-    });
-
-    const request = {
-      method: "tools/call",
-      params: { name: "foo", arguments: { a: 1 } },
-    } as any;
-
-    const response = await middleware(request, async () => {
-      return new Response(
-        JSON.stringify({
-          structuredContent: { error: "nope" },
-          content: [{ type: "text", text: "Authorization failed: nope" }],
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    });
-
-    expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({
-      structuredContent: { error: "nope" },
-      content: [{ type: "text", text: "Authorization failed: nope" }],
-    });
-
-    // Span emitted asynchronously — poll until it arrives
-    const deadline = Date.now() + 1000;
-    while (spans.length === 0 && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    expect(spans.length).toBe(1);
-    expect(spans[0]!._isEnded()).toBe(true);
-  });
-
   it("does not create span when monitoring is disabled", async () => {
     const { ctx, spans } = createMockCtx();
 
@@ -152,7 +105,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: false,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {
@@ -174,7 +126,6 @@ describe("proxy monitoring middleware", () => {
       ctx,
       enabled: true,
       connectionId: "conn_1",
-      connectionTitle: "Test Connection",
     });
 
     const request = {

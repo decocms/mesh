@@ -141,12 +141,6 @@ export const KEYS = {
       paramsKey,
     ] as const,
 
-  // GitHub README (scoped by owner and repo)
-  githubReadme: (
-    owner: string | null | undefined,
-    repo: string | null | undefined,
-  ) => ["github-readme", owner, repo] as const,
-
   // Monitoring queries
   monitoringStats: () => ["monitoring", "stats"] as const,
   monitoringLogs: (filters: {
@@ -158,6 +152,8 @@ export const KEYS = {
   }) => ["monitoring", "logs", filters] as const,
   monitoringLogsInfinite: (locator: string, paramsKey: string) =>
     ["monitoring", "logs-infinite", locator, paramsKey] as const,
+  monitoringLogDetail: (logId: string) =>
+    ["monitoring", "log-detail", logId] as const,
 
   // Thread queries (scoped by locator)
   threadsInfinite: (locator: string, paramsKey: string) =>
@@ -166,6 +162,25 @@ export const KEYS = {
     ["threads", "messages", locator, threadId] as const,
   threadModelLogs: (locator: string, dateKey: string) =>
     ["threads", "model-logs", locator, dateKey] as const,
+
+  // Virtual MCP tools (for tool definition lookup in chat)
+  // null virtualMcpId means default virtual MCP
+  virtualMcpTools: (virtualMcpId: string | null, orgId: string) =>
+    ["virtual-mcp", orgId, virtualMcpId ?? "default", "tools"] as const,
+
+  toolDefinitionLookup: (
+    connectionId: string | null,
+    orgId: string,
+    rawToolName: string | null,
+  ) =>
+    [
+      "virtual-mcp",
+      orgId,
+      connectionId ?? "default",
+      "tools",
+      "lookup",
+      rawToolName,
+    ] as const,
 
   // Virtual MCP prompts (for ice breakers in chat)
   // null virtualMcpId means default virtual MCP
@@ -277,6 +292,14 @@ export const KEYS = {
   // Store discovery (per-registry infinite query)
   storeDiscovery: (orgId: string, registryId: string) =>
     ["store-discovery", orgId, registryId] as const,
+
+  // Prompt → connection map (scoped by org + connections)
+  promptConnectionMap: (orgId: string, connectionIds: string[]) =>
+    ["prompt-connection-map", orgId, ...connectionIds] as const,
+
+  // Brand context (scoped by organization)
+  brandContext: (organizationId: string) =>
+    ["brand-context", organizationId] as const,
 
   // Deco profile (scoped by user email)
   decoProfile: (email: string | undefined) => ["deco-profile", email] as const,

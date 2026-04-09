@@ -49,6 +49,8 @@ import {
 } from "@deco/ui/components/context-menu.tsx";
 import {
   isDecopilot,
+  isStudioPackAgent,
+  WELL_KNOWN_AGENT_TEMPLATES,
   useProjectContext,
   useVirtualMCPs,
 } from "@decocms/mesh-sdk";
@@ -56,18 +58,13 @@ import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { usePinnedAgents } from "@/web/hooks/use-pinned-agents";
 import { useCreateVirtualMCP } from "@/web/hooks/use-create-virtual-mcp";
 import { useCreateTaskAndNavigate } from "@/web/hooks/use-create-task-and-navigate";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { AgentAvatar } from "@/web/components/agent-icon";
 import { cn } from "@deco/ui/lib/utils.ts";
 import { SiteEditorOnboardingModal } from "@/web/components/home/site-editor-onboarding-modal.tsx";
+import { SiteDiagnosticsRecruitModal } from "@/web/components/home/site-diagnostics-recruit-modal.tsx";
+import { StudioPackRecruitModal } from "@/web/components/home/studio-pack-recruit-modal.tsx";
 import { useAgentBadges } from "@/web/hooks/use-agent-badges";
-
-const SITE_EDITOR_AGENT = {
-  id: "site-editor",
-  title: "Site Editor",
-  icon: "icon://Globe01?color=violet",
-} as const;
-
-const DEFAULT_AGENTS = [SITE_EDITOR_AGENT];
 
 function AgentListItem({
   agent,
@@ -257,6 +254,7 @@ function SortableAgentListItem(props: {
       style={style}
       {...attributes}
       {...listeners}
+      tabIndex={-1}
       className="w-full"
     >
       <AgentListItem {...props} isDragging={isDragging} />
@@ -293,9 +291,13 @@ function AgentGridItem({
 function PinAgentPopoverContent({
   onClose,
   onOpenSiteEditorModal,
+  onOpenDiagnosticsModal,
+  onOpenStudioPackModal,
 }: {
   onClose: () => void;
   onOpenSiteEditorModal: () => void;
+  onOpenDiagnosticsModal: () => void;
+  onOpenStudioPackModal: () => void;
 }) {
   const [search, setSearch] = useState("");
   const allAgents = useVirtualMCPs();
@@ -307,15 +309,31 @@ function PinAgentPopoverContent({
   });
 
   const navigateToNewTask = useCreateTaskAndNavigate();
+  const navigateToAgent = useNavigateToAgent();
 
   const lowerSearch = search.toLowerCase();
   const userAgents = allAgents
     .filter((s) => !isDecopilot(s.id))
     .filter((s) => !search || s.title.toLowerCase().includes(lowerSearch));
 
-  const filteredDefaults = DEFAULT_AGENTS.filter(
-    (a) => !search || a.title.toLowerCase().includes(lowerSearch),
+  const studioPackInstalled = allAgents.some((a) => isStudioPackAgent(a.id));
+  const filteredTemplates = WELL_KNOWN_AGENT_TEMPLATES.filter(
+    (t) =>
+      (!search || t.title.toLowerCase().includes(lowerSearch)) &&
+      !(t.id === "studio-pack" && studioPackInstalled),
   );
+
+  // Find existing recruited Site Diagnostics agent
+  const siteDiagnosticsTemplate = WELL_KNOWN_AGENT_TEMPLATES.find(
+    (t) => t.id === "site-diagnostics",
+  );
+  const existingDiagnostics = siteDiagnosticsTemplate
+    ? allAgents.find(
+        (a) =>
+          (a as { metadata?: { type?: string } }).metadata?.type ===
+          siteDiagnosticsTemplate.id,
+      )
+    : undefined;
 
   const handleSelect = (agent: VirtualMCPEntity) => {
     if (!isPinned(agent.id)) {
@@ -326,13 +344,21 @@ function PinAgentPopoverContent({
     navigateToNewTask(agent.id);
   };
 
-  const handleDefaultAgentClick = (agentId: string) => {
+  const handleTemplateClick = (templateId: string) => {
     onClose();
     setSearch("");
-    if (agentId === SITE_EDITOR_AGENT.id) {
+    if (templateId === "site-editor") {
       onOpenSiteEditorModal();
+    } else if (templateId === "site-diagnostics") {
+      if (existingDiagnostics) {
+        navigateToAgent(existingDiagnostics.id);
+      } else {
+        onOpenDiagnosticsModal();
+      }
+    } else if (templateId === "studio-pack") {
+      onOpenStudioPackModal();
     } else {
-      navigateToNewTask(agentId);
+      navigateToNewTask(templateId);
     }
   };
 
@@ -382,7 +408,7 @@ function PinAgentPopoverContent({
         </div>
 
         {/* Agent templates section */}
-        {filteredDefaults.length > 0 && (
+        {filteredTemplates.length > 0 && (
           <>
             <div className="px-1 pt-4 pb-2">
               <span className="text-xs font-medium text-muted-foreground">
@@ -390,21 +416,21 @@ function PinAgentPopoverContent({
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1">
-              {filteredDefaults.map((agent) => (
+              {filteredTemplates.map((template) => (
                 <button
-                  key={agent.id}
+                  key={template.id}
                   type="button"
-                  onClick={() => handleDefaultAgentClick(agent.id)}
+                  onClick={() => handleTemplateClick(template.id)}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors hover:bg-accent cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <AgentAvatar
-                    icon={agent.icon}
-                    name={agent.title}
+                    icon={template.icon}
+                    name={template.title}
                     size="md"
                     className="transition-transform group-hover:scale-105"
                   />
                   <span className="text-xs leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-2 w-full">
-                    {agent.title}
+                    {template.title}
                   </span>
                 </button>
               ))}
@@ -413,7 +439,7 @@ function PinAgentPopoverContent({
         )}
 
         {userAgents.length === 0 &&
-          filteredDefaults.length === 0 &&
+          filteredTemplates.length === 0 &&
           !isCreating && (
             <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
               {search ? "No agents found" : "No agents yet"}
@@ -424,7 +450,7 @@ function PinAgentPopoverContent({
       {/* Footer */}
       <div className="border-t border-border px-3 py-2.5">
         <Link
-          to="/$org/agents"
+          to="/$org/settings/agents"
           params={{ org: org.slug }}
           onClick={() => onClose()}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
@@ -439,6 +465,8 @@ function PinAgentPopoverContent({
 function PinAgentPopover() {
   const [open, setOpen] = useState(false);
   const [siteEditorModalOpen, setSiteEditorModalOpen] = useState(false);
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [studioPackModalOpen, setStudioPackModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
 
@@ -458,6 +486,8 @@ function PinAgentPopover() {
       <PinAgentPopoverContent
         onClose={handleClose}
         onOpenSiteEditorModal={() => setSiteEditorModalOpen(true)}
+        onOpenDiagnosticsModal={() => setDiagnosticsModalOpen(true)}
+        onOpenStudioPackModal={() => setStudioPackModalOpen(true)}
       />
     </Suspense>
   );
@@ -507,6 +537,14 @@ function PinAgentPopover() {
         open={siteEditorModalOpen}
         onOpenChange={setSiteEditorModalOpen}
       />
+      <SiteDiagnosticsRecruitModal
+        open={diagnosticsModalOpen}
+        onOpenChange={setDiagnosticsModalOpen}
+      />
+      <StudioPackRecruitModal
+        open={studioPackModalOpen}
+        onOpenChange={setStudioPackModalOpen}
+      />
     </>
   );
 }
@@ -548,8 +586,9 @@ function AgentsSectionContent() {
   return (
     <SidebarGroup className="py-0 px-0 mt-2 flex-1 min-h-0">
       <div className="h-px bg-border mx-2 mb-2" />
-      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col">
-        <SidebarMenu className="gap-2 flex-1 min-h-0 overflow-y-auto pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* NOTE: Do not add horizontal padding (px-*) here — it makes pinned agent icons smaller than the home button. */}
+      <SidebarGroupContent className="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <SidebarMenu className="gap-2">
           <PinAgentPopover />
           <DndContext
             sensors={sensors}

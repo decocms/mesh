@@ -40,12 +40,16 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const dialect = new KyselyPGlite(pglite).dialect;
   const db = new Kysely<DatabaseSchema>({ dialect });
 
-  // Create a dummy pool — PGlite doesn't use pg.Pool but the type requires it
-  const pool = new Pool({
-    connectionString: "postgresql://test:test@localhost:5432/test",
-  });
-  // Immediately end the dummy pool so it doesn't try to connect
-  pool.end();
+  // Create a pool-like object backed by PGlite so that code paths using
+  // pool.connect() (e.g. health checks) work in tests.
+  const pool = {
+    connect: async () => ({
+      query: async (text: string) => pglite.query(text),
+      release: () => {},
+    }),
+    ended: false,
+    end: async () => {},
+  } as unknown as Pool;
 
   return { type: "postgres", db, pool, pglite };
 }

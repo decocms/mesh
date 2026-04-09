@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useProjectContext } from "@decocms/mesh-sdk";
 import type { VirtualMCPEntity } from "@decocms/mesh-sdk/types";
 import { AgentAvatar } from "@/web/components/agent-icon";
+import { useNavigateToAgent } from "@/web/hooks/use-navigate-to-agent";
 import { Button } from "@deco/ui/components/button.tsx";
 import { Card } from "@deco/ui/components/card.tsx";
 import {
@@ -20,13 +21,14 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
   const { org } = useProjectContext();
+  const navigateToAgent = useNavigateToAgent();
 
   return (
     <Card className="relative transition-colors group overflow-hidden flex flex-col h-full hover:bg-muted/50">
-      {/* Overlay link for keyboard/accessibility — sits below interactive elements */}
-      <Link
-        to="/$org/$virtualMcpId"
-        params={{ org: org.slug, virtualMcpId: project.id }}
+      {/* Overlay button — pins agent to sidebar and navigates */}
+      <button
+        type="button"
+        onClick={() => navigateToAgent(project.id)}
         className="absolute inset-0 z-0"
         aria-label={project.title}
       />
@@ -62,11 +64,11 @@ export function ProjectCard({ project, onDeleteClick }: ProjectCardProps) {
                   </DropdownMenuItem>
                   {onDeleteClick && (
                     <DropdownMenuItem
+                      variant="destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteClick(e);
                       }}
-                      className="text-destructive focus:text-destructive"
                     >
                       <Trash01 size={16} />
                       Delete

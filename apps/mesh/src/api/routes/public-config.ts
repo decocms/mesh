@@ -43,6 +43,11 @@ export type PublicConfig = {
    * When false, NDJSON data is still exported to disk but dashboard queries are skipped.
    */
   monitoringQueryEnabled?: boolean;
+  /**
+   * Whether brand context auto-extraction is available.
+   * Requires FIRECRAWL_API_KEY to be configured.
+   */
+  brandExtractEnabled?: boolean;
 };
 
 /**
@@ -61,6 +66,7 @@ app.get("/", (c) => {
     ...(isLocalMode() && { internalUrl: getInternalUrl() }),
     ...(getSettings().enableDecoImport && { enableDecoImport: true }),
     monitoringQueryEnabled: !getSettings().disableMonitoringQuery,
+    brandExtractEnabled: !!getSettings().firecrawlApiKey,
   };
 
   return c.json({ success: true, config });

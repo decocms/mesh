@@ -3,8 +3,6 @@
  *
  * Status is a small colored icon inline with the title.
  * Each status has a "verb" — what this means for you as a manager.
- *
- * Display groups show one section per status key, always rendered even when empty.
  */
 
 import type { Task } from "@/web/components/chat/task/types";
@@ -81,86 +79,17 @@ const UNKNOWN: StatusConfig = {
   labelColor: "text-muted-foreground",
 };
 
-function getStatusConfig(status: string | undefined): StatusConfig {
+export function getStatusConfig(status: string | undefined): StatusConfig {
   return STATUS_CONFIG[(status ?? "completed") as StatusKey] ?? UNKNOWN;
 }
 
-// ============================================================================
-// Display groups — 3 sections: Needs review, Running, Done
-// ============================================================================
-
-export type DisplayGroupKey = "needs_review" | "running" | "done";
-
-export interface DisplayGroup {
-  key: DisplayGroupKey;
-  label: string;
-  icon: typeof Loading01;
-  iconClassName: string;
-  tasks: Task[];
-}
-
-const DISPLAY_GROUP_META: Record<
-  DisplayGroupKey,
-  { label: string; icon: typeof Loading01; iconClassName: string }
-> = {
-  needs_review: {
-    label: "Needs review",
-    icon: AlertCircle,
-    iconClassName: "text-orange-500",
-  },
-  running: {
-    label: "Running",
-    icon: Loading01,
-    iconClassName: "text-blue-500",
-  },
-  done: {
-    label: "Done",
-    icon: CheckCircle,
-    iconClassName: "text-muted-foreground/50",
-  },
-};
-
-export function toDisplayGroupKey(status: string | undefined): DisplayGroupKey {
-  switch (status) {
-    case "requires_action":
-    case "failed":
-    case "expired":
-      return "needs_review";
-    case "in_progress":
-      return "running";
-    default:
-      return "done";
-  }
-}
-
-/** Build 3 display groups, always rendered even when empty. */
-export function buildDisplayGroups(tasks: Task[]): DisplayGroup[] {
-  const buckets: Record<DisplayGroupKey, Task[]> = {
-    needs_review: [],
-    running: [],
-    done: [],
-  };
-
-  for (const task of tasks) {
-    buckets[toDisplayGroupKey(task.status)].push(task);
-  }
-
-  // Sort within each bucket by updated_at desc
-  for (const group of Object.values(buckets)) {
-    group.sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    );
-  }
-
-  const order: DisplayGroupKey[] = ["needs_review", "running", "done"];
-
-  return order.map((key) => ({
-    key,
-    ...DISPLAY_GROUP_META[key],
-    tasks: buckets[key],
-  }));
-}
+/** Statuses that can be manually set by the user (excludes virtual `expired`). */
+export const SETTABLE_STATUSES: StatusKey[] = [
+  "requires_action",
+  "in_progress",
+  "failed",
+  "completed",
+];
 
 // ============================================================================
 // "Needs your answer" detection from cached messages

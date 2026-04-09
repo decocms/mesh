@@ -47,11 +47,6 @@ export interface ServerClient {
     callTool: Client["callTool"];
     listTools: () => Promise<ListToolsResult>;
   };
-  callStreamableTool?: (
-    tool: string,
-    args: Record<string, unknown>,
-    signal?: AbortSignal,
-  ) => Promise<Response>;
 }
 export const createServerClient = async (
   mcpServer: { connection: MCPConnection; name?: string },
@@ -73,36 +68,6 @@ export const createServerClient = async (
 
   return {
     client,
-    callStreamableTool: (tool, args, signal) => {
-      if (mcpServer.connection.type !== "HTTP") {
-        throw new Error("HTTP connection required");
-      }
-
-      const headers = new Headers(extraHeaders);
-
-      if (!headers.has("Authorization")) {
-        headers.set("Authorization", `Bearer ${mcpServer.connection.token}`);
-      }
-
-      for (const [key, value] of Object.entries(
-        mcpServer.connection.headers ?? {},
-      )) {
-        headers.set(key, value);
-      }
-
-      const url = new URL(mcpServer.connection.url);
-      // Trim trailing slashes from pathname, ensuring it starts with '/'
-      const trimmedPath = url.pathname.replace(/\/+$/, "") || "/";
-      url.pathname = `${trimmedPath}/call-tool/${encodeURIComponent(tool)}`;
-
-      return fetch(url.href, {
-        method: "POST",
-        redirect: "manual",
-        body: JSON.stringify(args),
-        headers,
-        signal,
-      });
-    },
   };
 };
 

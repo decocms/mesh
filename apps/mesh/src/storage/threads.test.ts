@@ -139,12 +139,12 @@ describe("SqlThreadStorage", () => {
   });
 
   describe("status", () => {
-    it("create() without status defaults to in_progress", async () => {
+    it("create() without status defaults to completed", async () => {
       const thread = await storage.create({
         organization_id: "org_1",
         created_by: "user_1",
       });
-      expect(thread.status).toBe("in_progress");
+      expect(thread.status).toBe("completed");
     });
 
     it("create() with explicit status stores it", async () => {

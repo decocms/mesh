@@ -258,6 +258,10 @@ export interface OAuthTokenInfo {
   clientId: string | null;
   clientSecret: string | null;
   tokenEndpoint: string | null;
+  /** OIDC ID token (JWT) returned by some providers (e.g. Google). Contains user identity claims like email. */
+  idToken: string | null;
+  /** OIDC userinfo endpoint URL from authorization server metadata. Can be called with the access token to retrieve user identity. */
+  userinfoEndpoint: string | null;
 }
 
 /**
@@ -278,6 +282,7 @@ interface FullTokenResult {
   clientId: string | null;
   clientSecret: string | null;
   tokenEndpoint: string | null;
+  userinfoEndpoint: string | null;
 }
 
 /**
@@ -424,6 +429,11 @@ export async function authenticateMcp(params: {
                   ? (clientInfo.client_secret as string)
                   : null,
               tokenEndpoint: authServerMetadata?.token_endpoint ?? null,
+              userinfoEndpoint:
+                (authServerMetadata?.userinfo_endpoint as
+                  | string
+                  | null
+                  | undefined) ?? null,
             });
           } catch (err) {
             cleanup();
@@ -473,6 +483,7 @@ export async function authenticateMcp(params: {
 
     if (result === "REDIRECT") {
       const fullResult = await oauthCompletePromise;
+      const rawTokens = fullResult.tokens as unknown as Record<string, unknown>;
       return {
         token: fullResult.tokens.access_token,
         tokenInfo: {
@@ -483,6 +494,9 @@ export async function authenticateMcp(params: {
           clientId: fullResult.clientId,
           clientSecret: fullResult.clientSecret,
           tokenEndpoint: fullResult.tokenEndpoint,
+          userinfoEndpoint: fullResult.userinfoEndpoint,
+          idToken:
+            typeof rawTokens.id_token === "string" ? rawTokens.id_token : null,
         },
         error: null,
       };
@@ -491,6 +505,7 @@ export async function authenticateMcp(params: {
     // If we got here without redirect, check for tokens
     const tokens = provider.tokens();
     const clientInfo = provider.clientInformation();
+    const rawTokens = tokens as unknown as Record<string, unknown> | null;
     return {
       token: tokens?.access_token || null,
       tokenInfo: tokens
@@ -505,6 +520,11 @@ export async function authenticateMcp(params: {
                 ? (clientInfo.client_secret as string)
                 : null,
             tokenEndpoint: null, // Would need to be passed through
+            userinfoEndpoint: null,
+            idToken:
+              rawTokens && typeof rawTokens.id_token === "string"
+                ? rawTokens.id_token
+                : null,
           }
         : null,
       error: null,

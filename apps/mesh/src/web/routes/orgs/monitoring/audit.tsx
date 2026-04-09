@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { useConnections, useVirtualMCPs } from "@decocms/mesh-sdk";
 import { useMCPClient } from "@decocms/mesh-sdk";
 import type { useProjectContext } from "@decocms/mesh-sdk";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { Button } from "@deco/ui/components/button.tsx";
 import {
   Sheet,
@@ -27,6 +27,7 @@ import { LogRow } from "@/web/components/monitoring/log-row.tsx";
 import {
   ExpandedLogContent,
   type EnrichedMonitoringLog,
+  type MonitoringLog,
   type MonitoringLogsResponse,
 } from "@/web/components/monitoring";
 import { IntegrationIcon } from "@/web/components/integration-icon.tsx";
@@ -50,6 +51,7 @@ interface MonitoringLogsTableProps {
   connections: ReturnType<typeof useConnections>;
   virtualMcps: ReturnType<typeof useVirtualMCPs>;
   membersData: ReturnType<typeof useMembers>["data"];
+  client: ReturnType<typeof useMCPClient>;
 }
 
 function MonitoringLogsTableContent({
@@ -65,6 +67,7 @@ function MonitoringLogsTableContent({
   connections: connectionsData,
   virtualMcps: virtualMcpsData,
   membersData,
+  client,
 }: MonitoringLogsTableProps) {
   const connections = connectionsData ?? [];
   const virtualMcps = virtualMcpsData ?? [];
@@ -105,20 +108,44 @@ function MonitoringLogsTableContent({
     );
   }
 
+  const connectionMap = new Map(connections.map((c) => [c.id, c]));
+
   if (searchQuery) {
     const lowerQuery = searchQuery.toLowerCase();
     filteredLogs = filteredLogs.filter(
       (log) =>
         log.toolName.toLowerCase().includes(lowerQuery) ||
-        log.connectionTitle.toLowerCase().includes(lowerQuery) ||
+        (connectionMap.get(log.connectionId)?.title ?? log.connectionId)
+          .toLowerCase()
+          .includes(lowerQuery) ||
         log.errorMessage?.toLowerCase().includes(lowerQuery),
     );
   }
 
-  const connectionMap = new Map(connections.map((c) => [c.id, c]));
-
   const selectedLog =
     selectedLogIndex !== null ? (filteredLogs[selectedLogIndex] ?? null) : null;
+
+  // Lazy-load full input/output when a log is selected (list query omits them)
+  const detailQuery = useQuery({
+    queryKey: KEYS.monitoringLogDetail(selectedLog?.id ?? ""),
+    queryFn: async () => {
+      if (!client) throw new Error("MCP client is not available");
+      const result = (await client.callTool({
+        name: "MONITORING_LOG_GET",
+        arguments: { id: selectedLog!.id },
+      })) as { structuredContent?: unknown };
+      return (result.structuredContent ?? result) as {
+        log: MonitoringLog | null;
+      };
+    },
+    enabled: selectedLog !== null,
+  });
+
+  const detailLog = detailQuery.data?.log;
+  const fullSelectedLog =
+    selectedLog && detailLog
+      ? { ...selectedLog, input: detailLog.input, output: detailLog.output }
+      : selectedLog;
 
   if (filteredLogs.length === 0) {
     return (
@@ -212,7 +239,10 @@ function MonitoringLogsTableContent({
                         connectionMap.get(selectedLog.connectionId)?.icon ||
                         null
                       }
-                      name={selectedLog.connectionTitle}
+                      name={
+                        connectionMap.get(selectedLog.connectionId)?.title ??
+                        selectedLog.connectionId
+                      }
                       size="sm"
                       className="shadow-sm shrink-0"
                     />
@@ -221,7 +251,8 @@ function MonitoringLogsTableContent({
                         {selectedLog.toolName}
                       </SheetTitle>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {selectedLog.connectionTitle}
+                        {connectionMap.get(selectedLog.connectionId)?.title ??
+                          selectedLog.connectionId}
                       </p>
                     </div>
                   </div>
@@ -258,7 +289,24 @@ function MonitoringLogsTableContent({
                 </div>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto min-h-0">
-                <ExpandedLogContent log={selectedLog} />
+                {detailQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="size-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                  </div>
+                ) : detailQuery.isError ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-sm text-muted-foreground">
+                    <p>Failed to load log details</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => detailQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : (
+                  <ExpandedLogContent log={fullSelectedLog!} />
+                )}
               </div>
             </>
           )}
@@ -436,6 +484,7 @@ export function AuditTabContent({
             connections={allConnections}
             virtualMcps={allVirtualMcps}
             membersData={membersData}
+            client={client}
           />
         </div>
       </div>

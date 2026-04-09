@@ -92,6 +92,7 @@ describe("Connection Tools", () => {
         orgSsoSessions: null as never,
         triggerCallbackTokens: null as never,
         registry: null as never,
+        brandContext: null as never,
       },
       vault,
       authInstance: null as never,

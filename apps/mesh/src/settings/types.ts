@@ -35,7 +35,6 @@ export interface Settings {
 
   // Config files
   configPath: string;
-  authConfigPath: string;
 
   // Transport
   unsafeAllowStdioTransport: boolean;
@@ -63,6 +62,7 @@ export interface Settings {
   // External service credentials (optional)
   decoSupabaseUrl: string | undefined;
   decoSupabaseServiceKey: string | undefined;
+  firecrawlApiKey: string | undefined;
 }
 
 export interface CliFlags {

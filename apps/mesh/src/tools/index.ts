@@ -31,6 +31,7 @@ import * as AutomationTools from "./automations";
 import * as UserTools from "./user";
 import * as AiProvidersTools from "./ai-providers";
 import { getPrompts, getResources } from "./guides";
+import * as ObjectStorageTools from "./object-storage";
 import * as RegistryTools from "./registry/index";
 import { ToolName } from "./registry-metadata";
 // Core tools - always available
@@ -42,6 +43,12 @@ const CORE_TOOLS = [
   OrganizationTools.ORGANIZATION_DELETE,
   OrganizationTools.ORGANIZATION_SETTINGS_GET,
   OrganizationTools.ORGANIZATION_SETTINGS_UPDATE,
+  OrganizationTools.BRAND_CONTEXT_LIST,
+  OrganizationTools.BRAND_CONTEXT_GET,
+  OrganizationTools.BRAND_CONTEXT_CREATE,
+  OrganizationTools.BRAND_CONTEXT_UPDATE,
+  OrganizationTools.BRAND_CONTEXT_DELETE,
+  OrganizationTools.BRAND_CONTEXT_EXTRACT,
   OrganizationTools.ORGANIZATION_MEMBER_ADD,
   OrganizationTools.ORGANIZATION_MEMBER_REMOVE,
   OrganizationTools.ORGANIZATION_MEMBER_LIST,
@@ -66,6 +73,7 @@ const CORE_TOOLS = [
   DatabaseTools.DATABASES_RUN_SQL,
 
   // Monitoring tools
+  MonitoringTools.MONITORING_LOG_GET,
   MonitoringTools.MONITORING_LOGS_LIST,
   MonitoringTools.MONITORING_STATS,
 
@@ -129,6 +137,14 @@ const CORE_TOOLS = [
   AiProvidersTools.AI_PROVIDER_TOPUP_URL,
   AiProvidersTools.AI_PROVIDER_CREDITS,
   AiProvidersTools.AI_PROVIDER_CLI_ACTIVATE,
+
+  // Object Storage tools
+  ObjectStorageTools.LIST_OBJECTS,
+  ObjectStorageTools.GET_OBJECT_METADATA,
+  ObjectStorageTools.GET_PRESIGNED_URL,
+  ObjectStorageTools.PUT_PRESIGNED_URL,
+  ObjectStorageTools.DELETE_OBJECT,
+  ObjectStorageTools.DELETE_OBJECTS,
 
   // Registry tools
   ...RegistryTools.tools,
@@ -250,6 +266,92 @@ export const managementMCP = async (ctx: MeshContext) => {
         },
       ],
     }));
+  }
+
+  // Register one prompt per brand context (e.g. /brand-acme-corp)
+  if (ctx.organization?.id) {
+    const brands = await ctx.storage.brandContext.list(ctx.organization.id);
+
+    const registeredPromptNames = new Set<string>();
+    for (const brand of brands) {
+      const slug = brand.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      let promptName = slug ? `brand-${slug}` : `brand-${brand.id}`;
+      // Deduplicate — append ID suffix on collision
+      if (registeredPromptNames.has(promptName)) {
+        promptName = `${promptName}-${brand.id.slice(0, 8)}`;
+      }
+      registeredPromptNames.add(promptName);
+
+      const lines: string[] = [
+        `# Brand: ${brand.name}`,
+        "",
+        `**Domain:** ${brand.domain}`,
+        "",
+        "## Overview",
+        brand.overview,
+      ];
+
+      if (brand.colors) {
+        // Colors can be {label,value}[] (UI) or Record<string,string> (legacy)
+        const colorEntries = Array.isArray(brand.colors)
+          ? (brand.colors as { label?: string; value?: string }[])
+              .filter((c) => c.label || c.value)
+              .map((c) => [c.label ?? "", c.value ?? ""] as const)
+          : Object.entries(brand.colors);
+        if (colorEntries.length > 0) {
+          lines.push("", "## Colors");
+          for (const [label, value] of colorEntries) {
+            lines.push(`- **${label}:** ${value}`);
+          }
+        }
+      }
+
+      if (brand.fonts && brand.fonts.length > 0) {
+        lines.push("", "## Fonts");
+        for (const font of brand.fonts) {
+          // Fonts can be {name,role} (UI) or {family,weight,style} (legacy)
+          const f = font as Record<string, unknown>;
+          const label = f.name ?? f.family ?? "";
+          const detail =
+            f.role ?? [f.weight, f.style].filter(Boolean).join(" ");
+          lines.push(`- ${label}${detail ? ` (${detail})` : ""}`);
+        }
+      }
+
+      if (brand.logo) {
+        lines.push("", `**Logo:** ${brand.logo}`);
+      }
+      if (brand.favicon) {
+        lines.push(`**Favicon:** ${brand.favicon}`);
+      }
+      if (brand.ogImage) {
+        lines.push(`**OG Image:** ${brand.ogImage}`);
+      }
+
+      if (brand.images && brand.images.length > 0) {
+        lines.push("", "## Images");
+        for (const img of brand.images) {
+          const parts = Object.entries(img)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          lines.push(`- ${parts}`);
+        }
+      }
+
+      const text = lines.join("\n");
+
+      server.prompt(promptName, `Brand context for ${brand.name}`, () => ({
+        messages: [
+          {
+            role: "user" as const,
+            content: { type: "text" as const, text },
+          },
+        ],
+      }));
+    }
   }
 
   // Register reference resources

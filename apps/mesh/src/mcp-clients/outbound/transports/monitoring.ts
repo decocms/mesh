@@ -15,7 +15,7 @@ import type {
   CallToolRequest,
   CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { WrapperTransport } from "./compose";
+import { WrapperTransport } from "@decocms/mcp-utils";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { emitMonitoringLog } from "@/monitoring/emit";
 import { recordToolExecutionMetrics } from "@/monitoring/record-tool-execution-metrics";
@@ -28,7 +28,6 @@ import {
 interface MonitoringTransportOptions {
   ctx: MeshContext;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string;
 }
 
@@ -197,7 +196,6 @@ export class MonitoringTransport extends WrapperTransport {
         {
           organizationId: ctx.organization?.id ?? "",
           connectionId,
-          connectionTitle: this.options.connectionTitle,
           toolName,
           toolArguments,
           result: callToolResult,

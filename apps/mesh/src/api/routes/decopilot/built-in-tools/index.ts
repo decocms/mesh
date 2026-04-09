@@ -45,7 +45,7 @@ function buildAllTools(
     provider,
     organization,
     models,
-    toolApprovalLevel = "readonly",
+    toolApprovalLevel = "auto",
     toolOutputMap,
     passthroughClient,
   } = params;
@@ -112,7 +112,7 @@ export function getBuiltInTools(
   ctx: MeshContext,
 ) {
   const tools = buildAllTools(writer, params, ctx);
-  const { toolApprovalLevel = "readonly" } = params;
+  const { toolApprovalLevel = "auto" } = params;
 
   if (toolApprovalLevel !== "plan") {
     const { propose_plan: _, ...rest } = tools;

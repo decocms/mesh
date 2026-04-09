@@ -117,6 +117,23 @@ describe("Hono App", () => {
       expect(json.services.postgres?.status).toBe("up");
       expect(json.services.nats?.status).toBe("down");
     });
+
+    it("should return 503 when postgres is unreachable", async () => {
+      // Close the PGlite instance so queries fail, simulating an outage
+      if (database.pglite && !database.pglite.closed) {
+        await database.pglite.close();
+      }
+
+      const res = await app.request("/health/ready");
+      expect(res.status).toBe(503);
+
+      const json = (await res.json()) as {
+        status: string;
+        services: Record<string, { status: string }>;
+      };
+      expect(json.status).toBe("not_ready");
+      expect(json.services.postgres?.status).toBe("down");
+    });
   });
 
   describe("404 handling", () => {

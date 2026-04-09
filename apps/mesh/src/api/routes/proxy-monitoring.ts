@@ -14,13 +14,6 @@ type CallToolMiddleware = (
   next: () => Promise<CallToolResult>,
 ) => Promise<CallToolResult>;
 
-type CallStreamableToolMiddleware = (
-  request: CallToolRequest,
-  next: () => Promise<Response>,
-) => Promise<Response>;
-
-const MAX_STREAMABLE_LOG_BYTES = 256 * 1024; // 256KB (avoid unbounded memory on long streams)
-
 export function extractCallToolErrorMessage(
   result: CallToolResult,
 ): string | undefined {
@@ -113,89 +106,11 @@ function formatMonitoringOutput(value: unknown): Record<string, unknown> {
   return { value };
 }
 
-async function readBodyTextWithLimit(
-  response: Response,
-  maxBytes: number,
-): Promise<{ text: string; truncated: boolean }> {
-  const body = response.body;
-  if (!body) return { text: "", truncated: false };
-
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-
-  let truncated = false;
-  let bytesRead = 0;
-  const parts: string[] = [];
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      if (value) {
-        bytesRead += value.byteLength;
-        if (bytesRead > maxBytes) {
-          truncated = true;
-          const allowed = maxBytes - (bytesRead - value.byteLength);
-          if (allowed > 0) {
-            parts.push(
-              decoder.decode(value.slice(0, allowed), { stream: true }),
-            );
-          }
-          break;
-        }
-        parts.push(decoder.decode(value, { stream: true }));
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  parts.push(decoder.decode());
-
-  return { text: parts.join(""), truncated };
-}
-
-/**
- * Extract usage/token metadata from NDJSON stream text.
- *
- * Streaming LLM responses are newline-delimited JSON where the last event
- * is a `{ type: "finish", usage: { ... } }` object. This function scans
- * the trailing lines for that event and returns the usage payload so it
- * can be stored as a top-level key for easy aggregation.
- */
-function extractStreamUsage(text: string): Record<string, unknown> | undefined {
-  if (!text) return undefined;
-
-  // Walk backwards through the non-empty lines (finish event is at/near the end)
-  const lines = text.trimEnd().split("\n");
-  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 5; i--) {
-    const line = lines[i]?.trim();
-    if (!line) continue;
-    try {
-      const parsed = JSON.parse(line);
-      if (parsed && typeof parsed === "object" && parsed.type === "finish") {
-        const result: Record<string, unknown> = {};
-        if (parsed.usage) result.usage = parsed.usage;
-        if (parsed.providerMetadata)
-          result.providerMetadata = parsed.providerMetadata;
-        if (parsed.finishReason) result.finishReason = parsed.finishReason;
-        return Object.keys(result).length > 0 ? result : undefined;
-      }
-    } catch {
-      // Not valid JSON, skip
-    }
-  }
-
-  return undefined;
-}
-
 async function emitMonitoringSpan(args: {
   ctx: MeshContext;
   enabled: boolean;
   organizationId?: string;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string;
   request: CallToolRequest;
   output: Record<string, unknown>;
@@ -243,7 +158,6 @@ async function emitMonitoringSpan(args: {
     {
       organizationId,
       connectionId: args.connectionId,
-      connectionTitle: args.connectionTitle,
       toolName: args.request.params.name,
       toolArguments: (args.request.params.arguments ?? {}) as Record<
         string,
@@ -269,14 +183,13 @@ export interface ProxyMonitoringMiddlewareParams {
   ctx: MeshContext;
   enabled: boolean;
   connectionId: string;
-  connectionTitle: string;
   virtualMcpId?: string; // Virtual MCP (Agent) ID if routed through an agent
 }
 
 export function createProxyMonitoringMiddleware(
   params: ProxyMonitoringMiddlewareParams,
 ): CallToolMiddleware {
-  const { ctx, enabled, connectionId, connectionTitle, virtualMcpId } = params;
+  const { ctx, enabled, connectionId, virtualMcpId } = params;
 
   return async (request, next) => {
     const startTime = Date.now();
@@ -303,7 +216,6 @@ export function createProxyMonitoringMiddleware(
         ctx,
         enabled,
         connectionId,
-        connectionTitle,
         virtualMcpId,
         request,
         output: formatMonitoringOutput(result),
@@ -333,147 +245,6 @@ export function createProxyMonitoringMiddleware(
         ctx,
         enabled,
         connectionId,
-        connectionTitle,
-        virtualMcpId,
-        request,
-        output: {},
-        isError: true,
-        errorMessage: err.message,
-        durationMs: duration,
-      });
-
-      throw error;
-    }
-  };
-}
-
-export function createProxyStreamableMonitoringMiddleware(
-  params: ProxyMonitoringMiddlewareParams,
-): CallStreamableToolMiddleware {
-  const { ctx, enabled, connectionId, connectionTitle, virtualMcpId } = params;
-
-  return async (request, next) => {
-    const startTime = Date.now();
-
-    try {
-      const response = await next();
-
-      const organizationId = ctx.organization?.id;
-      if (enabled && organizationId) {
-        // Read a clone to capture output without blocking the stream to the caller.
-        const cloned = response.clone();
-        void (async () => {
-          try {
-            const { text, truncated } = await readBodyTextWithLimit(
-              cloned,
-              MAX_STREAMABLE_LOG_BYTES,
-            );
-            const duration = Date.now() - startTime;
-
-            const contentType = cloned.headers.get("content-type") ?? "";
-            let body: unknown = text;
-            if (contentType.includes("application/json")) {
-              try {
-                body = text.length ? JSON.parse(text) : null;
-              } catch {
-                body = text;
-              }
-            }
-
-            const isError = response.status >= 400;
-            const derivedErrorMessage =
-              isError && body && typeof body === "object" && "error" in body
-                ? (body as { error?: unknown }).error
-                : undefined;
-            const errorMessage =
-              typeof derivedErrorMessage === "string" && derivedErrorMessage
-                ? derivedErrorMessage
-                : isError && typeof body === "string" && body.trim()
-                  ? body.slice(0, 500)
-                  : isError
-                    ? `HTTP ${response.status} ${response.statusText}`.trim()
-                    : truncated
-                      ? `Response body truncated to ${MAX_STREAMABLE_LOG_BYTES} bytes`
-                      : undefined;
-
-            const output = formatMonitoringOutput(body);
-            // For NDJSON streams, extract usage from the last "finish" event
-            // so it's available as a top-level key for aggregation.
-            const streamUsage = extractStreamUsage(text);
-
-            if (streamUsage) {
-              Object.assign(output, streamUsage);
-            }
-
-            if (!isDecopilot(connectionId)) {
-              recordToolExecutionMetrics({
-                ctx,
-                organizationId,
-                connectionId,
-                toolName: request.params.name,
-                durationMs: duration,
-                isError,
-                errorType: isError ? "Error" : "",
-              });
-            }
-
-            await emitMonitoringSpan({
-              ctx,
-              enabled,
-              organizationId,
-              connectionId,
-              connectionTitle,
-              virtualMcpId,
-              request,
-              output,
-              isError,
-              errorMessage,
-              durationMs: duration,
-            });
-          } catch (err) {
-            const duration = Date.now() - startTime;
-            await emitMonitoringSpan({
-              ctx,
-              enabled,
-              organizationId,
-              connectionId,
-              connectionTitle,
-              virtualMcpId,
-              request,
-              output: {},
-              isError: true,
-              errorMessage: `Failed to read streamable response body: ${
-                (err as Error).message
-              }`,
-              durationMs: duration,
-            });
-          }
-        })();
-      }
-
-      return response;
-    } catch (error) {
-      const err = error as Error;
-      const duration = Date.now() - startTime;
-      const organizationId = ctx.organization?.id;
-
-      if (enabled && organizationId && !isDecopilot(connectionId)) {
-        recordToolExecutionMetrics({
-          ctx,
-          organizationId,
-          connectionId,
-          toolName: request.params.name,
-          durationMs: duration,
-          isError: true,
-          errorType: "Error",
-        });
-      }
-
-      await emitMonitoringSpan({
-        ctx,
-        enabled,
-        connectionId,
-        connectionTitle,
         virtualMcpId,
         request,
         output: {},

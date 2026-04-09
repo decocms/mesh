@@ -59,10 +59,11 @@ export function createNatsConnectionProvider(
   let js: JetStreamClient | null = null;
   let initialized = false;
   let stopped = false;
+  let disconnected = false;
   const readyCallbacks: Array<() => void> = [];
 
   function checkConnected(): boolean {
-    return nc !== null && !nc.isClosed() && !nc.isDraining();
+    return nc !== null && !nc.isClosed() && !nc.isDraining() && !disconnected;
   }
 
   function fireReady(): void {
@@ -79,9 +80,13 @@ export function createNatsConnectionProvider(
   function monitorStatus(conn: NatsConnection): void {
     (async () => {
       for await (const s of conn.status()) {
-        if (s.type === Events.Reconnect) {
+        if (s.type === Events.Disconnect) {
+          console.log("[NatsProvider] Disconnected");
+          disconnected = true;
+        } else if (s.type === Events.Reconnect) {
           console.log("[NatsProvider] Reconnected, re-firing ready callbacks");
-          js = null; // invalidate cached JetStream client
+          disconnected = false;
+          js = null;
           fireReady();
         }
       }
@@ -102,6 +107,7 @@ export function createNatsConnectionProvider(
           `[NatsProvider] Connected to ${nc.getServer()} after ${attempt} attempt(s)`,
         );
         js = null; // invalidate cached JetStream client for fresh connection
+        disconnected = false;
         monitorStatus(nc);
         fireReady();
         return;
@@ -156,6 +162,7 @@ export function createNatsConnectionProvider(
       stopped = true;
       initialized = false;
       js = null;
+      disconnected = false;
       if (nc) {
         const conn = nc;
         nc = null;
